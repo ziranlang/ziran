@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Portable float32 helpers for native and bundled Ziran programs."><title>std/math · Ziran</title><link rel="canonical" href="https://ziran-lang.org/std/math"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#std">Modules</a> / Standard library</p><h1>std/math</h1><p>Portable float32 helpers for native and bundled Ziran programs.</p><p class="module-meta"><span class="status-badge is-stable">Stable</span> Shipped in release <a href="https://github.com/ziranlang/ziran/releases/tag/v0.3.1">v0.3.1</a>.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Declarations</strong><a href="#Finite32">Finite32</a><a href="#FloorInteger">FloorInteger</a><a href="#CeilInteger">CeilInteger</a><a href="#SineDegrees">SineDegrees</a><a href="#CosineDegrees">CosineDegrees</a><a href="#NotANumber">NotANumber</a><a href="#Infinity">Infinity</a><a href="#Finite64">Finite64</a><a href="#ScaleByPowerOfTwo">ScaleByPowerOfTwo</a><a href="#RoundToInteger">RoundToInteger</a><a href="#Sqrt">Sqrt</a><a href="#Exp">Exp</a><a href="#Expm1">Expm1</a><a href="#Log">Log</a><a href="#Log1p">Log1p</a><a href="#Log10">Log10</a><a href="#Log2">Log2</a><a href="#Sin">Sin</a><a href="#Cos">Cos</a><a href="#Tan">Tan</a><a href="#Atan">Atan</a><a href="#Atan2">Atan2</a><a href="#Asin">Asin</a><a href="#Acos">Acos</a><a href="#Sinh">Sinh</a><a href="#Cosh">Cosh</a><a href="#Tanh">Tanh</a><a href="#Asinh">Asinh</a><a href="#Acosh">Acosh</a><a href="#Atanh">Atanh</a><a href="#Pow">Pow</a><a href="#Cbrt">Cbrt</a></aside><div class="article-body api-body">
+<section><p>Import with <code>#import "std/math"</code>.</p><div class="api-list">
+<div id="Finite32"><code>Finite32 :: (value: float32) -&gt; bool</code></div>
+<div id="FloorInteger"><code>FloorInteger :: (value: float32) -&gt; s32</code></div>
+<div id="CeilInteger"><code>CeilInteger :: (value: float32) -&gt; s32</code></div>
+<div id="SineDegrees"><code>SineDegrees :: (degrees: float32) -&gt; float32</code><p>Reduce to [-pi/2, pi/2] before the Taylor polynomial.</p></div>
+<div id="CosineDegrees"><code>CosineDegrees :: (degrees: float32) -&gt; float32</code></div>
+<div id="NotANumber"><code>NotANumber :: () -&gt; float64</code></div>
+<div id="Infinity"><code>Infinity :: () -&gt; float64</code></div>
+<div id="Finite64"><code>Finite64 :: (value: float64) -&gt; bool</code></div>
+<div id="ScaleByPowerOfTwo"><code>ScaleByPowerOfTwo :: (value: float64, exponent: s32) -&gt; float64</code><p>value × 2^exponent, applied in exact steps.</p></div>
+<div id="RoundToInteger"><code>RoundToInteger :: (value: float64) -&gt; s64</code><p>The integer nearest to value, halves away from zero; value must fit s64.</p></div>
+<div id="Sqrt"><code>Sqrt :: (value: float64) -&gt; float64</code></div>
+<div id="Exp"><code>Exp :: (value: float64) -&gt; float64</code></div>
+<div id="Expm1"><code>Expm1 :: (value: float64) -&gt; float64</code><p>e^value − 1, accurate near zero: Kahan's correction divides out the rounding of e^value.</p></div>
+<div id="Log"><code>Log :: (value: float64) -&gt; float64</code></div>
+<div id="Log1p"><code>Log1p :: (value: float64) -&gt; float64</code><p>ln(1 + value), accurate near zero.</p></div>
+<div id="Log10"><code>Log10 :: (value: float64) -&gt; float64</code></div>
+<div id="Log2"><code>Log2 :: (value: float64) -&gt; float64</code></div>
+<div id="Sin"><code>Sin :: (value: float64) -&gt; float64</code></div>
+<div id="Cos"><code>Cos :: (value: float64) -&gt; float64</code></div>
+<div id="Tan"><code>Tan :: (value: float64) -&gt; float64</code></div>
+<div id="Atan"><code>Atan :: (value: float64) -&gt; float64</code></div>
+<div id="Atan2"><code>Atan2 :: (y: float64, x: float64) -&gt; float64</code></div>
+<div id="Asin"><code>Asin :: (value: float64) -&gt; float64</code></div>
+<div id="Acos"><code>Acos :: (value: float64) -&gt; float64</code></div>
+<div id="Sinh"><code>Sinh :: (value: float64) -&gt; float64</code></div>
+<div id="Cosh"><code>Cosh :: (value: float64) -&gt; float64</code></div>
+<div id="Tanh"><code>Tanh :: (value: float64) -&gt; float64</code></div>
+<div id="Asinh"><code>Asinh :: (value: float64) -&gt; float64</code></div>
+<div id="Acosh"><code>Acosh :: (value: float64) -&gt; float64</code></div>
+<div id="Atanh"><code>Atanh :: (value: float64) -&gt; float64</code></div>
+<div id="Pow"><code>Pow :: (base: float64, exponent: float64) -&gt; float64</code><p>base^exponent: whole exponents multiply exactly; a negative base needs a whole exponent. Other exponents go through e^(exponent·ln base), which loses about |exponent·ln base| units in the last place.</p></div>
+<div id="Cbrt"><code>Cbrt :: (value: float64) -&gt; float64</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/math.zi">Source ↗</a> · <a class="text-link" href="../modules.html#std">All modules</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

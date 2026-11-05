@@ -1,0 +1,1313 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler and standard library guide: the Ziran guide, rendered from docs/USAGE.md."><title>Compiler and standard library guide · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/usage"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler and standard library guide</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/USAGE.md">docs/USAGE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-native-code">Generate native code</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
+<section class="prose"><p><a href="https://github.com/ziranlang/ziran/blob/master/README.md">Back to the README</a> · <a href="implementation-status.html">Implementation status</a></p>
+<h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
+<p>An ordinary procedure can supply architecture-specific assembly and a required
+Ziran implementation. C output selects assembly when built by GCC or Clang
+for that architecture. Go can opt into native assembly through cgo as described
+below. Other compilers and <code>.zx</code> use the checked Ziran body. Define
+<code>ZIRAN_NO_ASM</code> when compiling generated C to force the portable body.</p>
+<pre><code class="language-zi">Increment :: (value: $T) -&gt; T #asm(&quot;x86_64&quot;, &quot;add $1, %[out]&quot;, &quot;=r&quot;, &quot;0&quot;, &quot;cc&quot;, &quot;&quot;) #asm(&quot;aarch64&quot;, &quot;add %[out], %[value], #1&quot;, &quot;=r&quot;, &quot;r&quot;, &quot;&quot;, &quot;&quot;) {
+    return value + 1
+}
+</code></pre>
+<p>Each <code>#asm</code> takes exactly six literal strings: architecture, assembly template,
+output constraints, input constraints, clobbers, and options. Use semicolons to
+separate constraints and clobbers; commas remain available for the assembler's
+constraint alternatives. Options are <code>""</code> or <code>"volatile"</code>. Templates use GNU
+extended assembly syntax, including named operands, register modifiers,
+multiple instructions, escaped newlines, and assembler directives. Templates
+are quoted as data in generated source. The native compiler and assembler
+validate instruction syntax and machine-specific constraints.
+Generated C uses positional operands internally, so source operand aliases
+may also be C keywords. Named matching inputs retain the same binding.</p>
+<p>Input operands follow parameter order and use the parameter names. Parameters
+must be scalars or pointers. A scalar or pointer result has operand name
+<code>out</code>; a record result has one operand named <code>out_FIELD</code> per declared field,
+in field order. Result fields must be named scalars or pointers. Void results
+have no output constraints. Outputs require <code>=</code> constraints, including
+early-clobber <code>=&amp;r</code>; use an input constraint such as <code>"0"</code> to initialize a tied
+read/write output. Output and input operand names must be distinct. The limit
+is 30 combined input/output operands.</p>
+<p>Generic procedures retain their variants through specialization, including
+from separately saved libraries. Declarations check syntax, input counts and
+known operand types; every concrete instance checks all scalar/pointer inputs,
+result fields, local bindings and its portable body. A type-dependent result
+must match the declared output constraints at each call. Aggregate inputs are
+rejected even when the current target would execute the portable body.
+Generic local blocks follow the same rules. <code>tests/generic_assembly.sh</code> checks
+integer widths, floating-point copies, tied outputs, memory aliases, caller-owned
+record types and multiple results across native and portable targets.</p>
+<p>For example, a two-field record can use output constraints <code>"=a;=d"</code> to capture
+two registers. A pointer parameter can give assembly access to memory; declare
+<code>"memory"</code> in the clobbers when accessing memory beyond named operands, and
+use <code>"volatile"</code> when the operation must survive dead-result elimination.
+Follow the <a href="https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html">GNU extended assembly contract</a>
+for register lifetimes, early clobbers, matching constraints, flags and memory.</p>
+<p>Architecture names are <code>x86_64</code>, <code>x86</code>, <code>aarch64</code>, <code>arm</code>, <code>riscv64</code>, <code>riscv32</code>,
+<code>powerpc64</code>, <code>powerpc</code>, <code>s390x</code>, and <code>loongarch64</code>. Selection uses the native
+compiler's target macros, so cross-compilation selects the destination
+architecture. Append required CPU features with <code>+</code>, for example
+<code>"x86_64+popcnt"</code>, <code>"x86_64+avx2+bmi2"</code>, or <code>"aarch64+crc32"</code>.</p>
+<pre><code class="language-zi">Count :: (value: u64) -&gt; s64 #asm(&quot;x86_64+popcnt&quot;, &quot;popcnt %[value], %[out]&quot;, &quot;=r&quot;, &quot;r&quot;, &quot;cc&quot;, &quot;&quot;) {
+    bits := value
+    total: s64
+    while bits != 0 { total += cast(s64)(bits &amp; 1); bits &gt;&gt;= 1 }
+    return total
+}
+</code></pre>
+<p>Feature variants use isolated functions compiled for the requested ISA. The
+ordinary caller keeps the build's baseline ISA, checks CPU availability once,
+and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
+use the compiler's CPU detection; Linux/Android AArch64 C uses the kernel's
+hardware-capability information. Other platforms or unavailable capabilities
+use the next eligible variant or the checked Ziran body. <code>ZIRAN_NO_ASM</code> forces
+the portable body. Build the caller for the oldest CPU you intend to support;
+globally enabling <code>-march=native</code> or extra ISA options can also affect its
+ordinary generated code.</p>
+<p>x86 and x86_64 features are <code>popcnt</code>, <code>sse2</code>, <code>ssse3</code>, <code>sse4.1</code>, <code>sse4.2</code>,
+<code>avx</code>, <code>avx2</code>, <code>avx512f</code>, <code>bmi</code>, <code>bmi2</code>, <code>lzcnt</code>, <code>fma</code>, <code>aes</code>, and <code>pclmul</code>.
+AArch64 features are <code>aes</code>, <code>crc32</code>, <code>pmull</code>, <code>sha2</code>, <code>atomics</code>, and <code>simd</code>.
+Other architecture/feature combinations are rejected. Feature combinations
+require every listed feature. Variants are considered in source order; put
+more demanding variants first and an architecture-only variant last. Duplicate
+or shadowed variants are rejected. Baseline variants must use instructions
+guaranteed by the selected build target. See
+<a href="https://gcc.gnu.org/onlinedocs/gcc/x86-Built-in-Functions.html">GCC CPU detection</a>,
+<a href="https://clang.llvm.org/docs/AttributeReference.html#target">function target attributes</a>,
+and <a href="https://www.kernel.org/doc/html/latest/arch/arm64/elf_hwcaps.html">ARM64 hardware capabilities</a>.</p>
+<p>Assembly and the fallback must implement the same behavior; checking the
+fallback does not prove their equivalence. These variants do not yet provide
+<code>asm goto</code>, naked functions, standalone assembler files, or direct Go ABI
+assembler output. Saved IR preserves the variants; <code>.zx</code>
+executes only portable code. Rebuild older IR/bundles with the current compiler.</p>
+<p>Generated Go packages use their checked Go implementation by default. Enable
+the native bridge with <code>CGO_ENABLED=1 go build -tags=ziran_asm .</code> in the
+generated package. Build packages rather than explicit filename lists so Go
+applies companion-file build constraints. A working C cross-compiler is
+required when cross-compiling with cgo. The bridge reuses the C assembly
+emitter, including GNU constraints, labels, architecture selection and CPU
+feature guards; it does not translate templates into Go assembler syntax.
+<code>CGO_ENABLED=0</code> always uses the checked body. To force that body while testing
+the native build configuration, set
+<code>CGO_CFLAGS="-O2 -g -DZIRAN_NO_ASM"</code> together with the build tag.</p>
+<p>Go bridge signatures carry scalars and pointers to storage containing no Go
+pointers. Flat record results are reconstructed from primitive result fields.
+Pointer-bearing objects, pointer-valued local-block outputs or memory inputs,
+and local-block pointers to arrays retain the checked body. Standard cgo
+pointer checks remain enabled. Assembly must not retain Go pointers after the
+call or create pointers that violate Go's pointer rules. Unavailable variants
+leave their Go dispatch unset, including before Ziran startup code executes.</p>
+<p>Each bridge invocation pays a cgo transition. A whole-loop assembly kernel can
+amortize that cost; calling the bridge for every small operation can be much
+slower than the Go body. Measure the intended call granularity before enabling
+the tag. Default builds retain a compile-time-disabled native branch.</p>
+<p>Run <code>tests/assembly.sh build/bin/ziran</code> for source/saved IR execution and
+rejection checks, and <code>tests/assembly_features.sh</code> for CPU selection,
+concurrent calls, unavailable features and isolated helpers.
+<code>tests/go_assembly.sh</code> checks native and default Go builds, forced fallback,
+strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
+source/saved IR. <code>bench/go_assembly.py</code> compares whole-loop and per-operation
+bridges with checked Go bodies, a preserved compiler and native C controls.
+<code>bench/assembly.py</code>
+measures baseline assembly against its forced fallback and handwritten C/Go;
+<code>bench/cpu_features.py</code> measures CPU-selected loop kernels against an optimized
+Ziran body and handwritten C, with independent result validation. Use assembly
+where measurements or access to a specific instruction justify it; compilers
+already recognize many byte swaps and arithmetic patterns.</p>
+<h3 id="local-assembly-blocks">Local assembly blocks</h3>
+<p>A block can read and write scalar or pointer locals and parameters inside an
+ordinary procedure. Its six strings use the same architecture, template,
+clobber and option rules. Each output/input item is <code>constraint:binding</code>, or
+<code>constraint:alias=binding</code> when the assembly operand needs a different name.
+The template refers to the alias, while the binding names existing lexical
+storage. Every variant must bind the same operands in the same order.</p>
+<pre><code class="language-zi">Answer :: () -&gt; s64 {
+    value: s64 = 41
+    result: s64
+    #asm(&quot;x86_64&quot;, &quot;leaq 1(%[value]), %[result]&quot;, &quot;=r:result&quot;, &quot;r:value&quot;, &quot;&quot;, &quot;&quot;) {
+        result = value + 1
+    }
+    return result
+}
+</code></pre>
+<p>For a read/write value, use output <code>"=r:total"</code> with an input such as
+<code>"0:old=total;r:value"</code>; the first input initializes the output register and
+<code>value</code> supplies another operand. Aliases must be distinct across all inputs
+and outputs. Multiple outputs and zero-operand blocks are supported. Bindings
+cannot be global names, constants, members, indexed expressions or aggregates;
+pass a pointer when assembly needs to access other storage, and declare the
+memory and register clobbers required by the GNU contract.</p>
+<p>Architecture-only blocks emit inline assembly. CPU-feature blocks use isolated
+helpers. C helpers receive input values and return a single <code>=r</code>/<code>=&amp;r</code> output directly;
+other or multiple outputs use each binding's actual address. Selection is cached
+atomically per block. Their portable body is always checked, runs on unsupported
+targets or with <code>ZIRAN_NO_ASM</code>, and must fall through to the following statement.
+It may contain local loops and their loop control, but cannot return or break
+out of the assembly block. Native instructions must preserve that fallthrough,
+stack discipline and the declared side effects as well as result values;
+checking cannot prove this equivalence. Run
+<code>tests/assembly_blocks.sh</code> for source/saved IR, native/portable, concurrent
+selection, typed operands and malformed-metadata checks. Inside a native
+<code>#parallel</code> loop, operand bindings from the enclosing scope are captured even
+when only the assembly template uses them; the portable body retains the same
+loop bindings. Assembly outputs must remain iteration-local, and GPU regions
+reject pointer operands. Native parallel regions currently support up to 16
+captured bindings.</p>
+<h2 id="build-and-test">Build and test</h2>
+<p>Run <code>make</code> to build the current toolchain and <code>make check</code> for its language,
+backend, and portable bundle tests. <code>make check</code> runs independent test scripts
+with four workers by default; set <code>CHECK_JOBS=1</code> to run them serially or choose
+another positive worker count.</p>
+<p>A project's GitHub Actions job sets up the Ziran its <code>ziran.lock</code> pins with
+<code>uses: ziranlang/ziran/.github/actions/setup@COMMIT</code>. It checks out that
+commit with its compiler built and puts <code>build/bin</code> on <code>PATH</code>; <code>fetch: true</code>
+also fetches the locked packages. On Linux the build tree is the one the
+Toolchains workflow published for that commit, so the job builds nothing; on
+other systems, or for a commit without one, the job builds Ziran once and
+caches it. Run the Toolchains workflow for an older commit a lock still pins.</p>
+<p>Dependency-owned native recipes accept per-build options without editing project
+settings: <code>ziran pkg artifact provider:native --platform linux-x86_64-gnu
+--option provider:mode=release</code>. Repeat <code>--option Alias:key=value</code> for declared
+string or boolean keys, including <code>group.name.key</code> for named tables. Values are
+literal argv data; quote paths containing spaces. Overrides reach prerequisite
+recipes and contribute to cache identity. See <a href="packages.html#dependency-owned-native-artifacts">package artifacts</a>
+for validation, alias mapping and the programmatic entry points.</p>
+<h2 id="compiler-commands">Compiler commands</h2>
+<p>The compiler commands are <code>zi2zir</code> (including
+<code>--check-only</code>), <code>zi2c</code>, <code>zi2go</code>, and <code>zi2zx</code>.
+<code>zi-fmt</code> formats source. <code>ziran guide</code> prints a short reference from the
+installed compiler, including current safety and target limits.
+<code>ziran capabilities --target=go --json</code> reports a versioned machine-readable
+target summary; see the <a href="capabilities.html">capability schema</a>.
+<code>ziran api --json --root src src/main.zi</code> checks an entry and its imports,
+then reports their public types and procedure signatures; see the
+<a href="api-discovery.html">API query schema</a>.
+<code>ziran check --lint</code> also warns about casts a program no longer needs: a cast
+to the value's own type, and one that only widens a whole typed initializer,
+assignment, argument, or result, which the compiler now widens itself.
+It also warns when a byte is compared with a printable character's code
+written as a number, as C ports do: <code>text[i] == 65</code> reads better as
+<code>text[i] == #char "A"</code>. And it warns about an integer local that only ever
+holds 0 or 1 and is only compared with them, which reads better as a <code>bool</code>.
+Warnings do not fail the check (<code>"severity":"warning"</code> in JSON).
+<code>ziran check|ir|api|inspect|build|bundle|run|fmt</code> remains a convenience dispatcher
+for the same tools. <a href="https://github.com/ziranlang/ziran/blob/master/bench/README.md">Cross-target benchmarks</a> measure the
+compiler, downstream toolchains, and validated runtime cases separately.</p>
+<h2 id="generate-native-code">Generate native code</h2>
+<p>Use <code>ziran build --target=c</code> for C99 output. Add <code>--exe --entry
+module:function</code> to also compile it into <code>DIR/module</code>, a program that runs
+that procedure and exits with its integer result; the entry takes nothing or
+<code>(argc: s32, argv: **u8)</code> (signed byte pointers are also accepted). <code>CC</code>,
+<code>CFLAGS</code> (default <code>-O3</code>), <code>LDFLAGS</code>, and <code>LDLIBS</code> apply as in make. Add
+<code>--release</code> for final builds: the default flags become <code>-O3 -flto=auto</code>, which
+optimizes across modules. Each link then generates code for the whole program
+again, so one-file edits rebuild many times slower. <code>CFLAGS</code> still wins.</p>
+<p><code>#parallel_gpu for</code> runs a loop on the fastest GPU in native C builds on Linux
+and Android, and on CPU threads otherwise. Programs need no graphics libraries
+to build or start. A region qualifies when it uses only <code>s32</code>, <code>u32</code>, <code>float32</code>,
+<code>u8</code> and <code>bool</code> locals, parameters and slices, assigns slices only at
+<code>values[it]</code>, and calls plain functions of those types. Use <code>cast(s32)it</code> for
+arithmetic on the index. The generated C names why any other region stays on
+CPU threads. Integers, bytes and booleans match the CPU exactly; <code>float32</code>
+results may round differently. A region that fails a bounds check or runs a
+loop past about a million rounds per iteration reruns on the CPU, so failures
+are reported as usual. <code>ZIRAN_GPU=off</code> keeps regions on the CPU, <code>ZIRAN_GPU=N</code>
+chooses a device, <code>ZIRAN_GPU_MIN</code> sets the fewest iterations worth sending
+(default 4096) and <code>ZIRAN_GPU_LOG=1</code> reports what ran where.</p>
+<p>C program entries use a standard <code>int main(int, char **)</code> adapter.
+The Ziran procedure keeps its declared parameter and result types for ordinary
+calls and function values. The adapter converts its integer result to a process
+status; a procedure returning nothing exits successfully. This also applies to
+a procedure exported under the symbol <code>main</code> through <code>#program_export "main"</code>.</p>
+<p>Native C executable builds compile source files concurrently on at most half
+of the available CPUs, with no more workers than free memory holds at 512 MiB
+each; <code>ZIRAN_JOBS=N</code> lowers the count. Compiler commands run at niceness 10
+with low disk priority, which their C compilers inherit; <code>ZIRAN_NICE=N</code>
+chooses another niceness from 0 to 19. The build links and replaces the
+executable only after success. The output directory has
+a writer lock and keeps intermediate objects under <code>.objects</code>; unchanged
+objects can be reused with supported GCC/Clang invocations. Reuse checks source
+and header contents (including system headers), compiler executables and their
+reported subtools, command flags, the environment and header search locations.
+New headers that shadow an earlier dependency invalidate reuse too. The driver
+always links again, so changed libraries reach the executable.</p>
+<p>Compiler wrappers, unsupported flags, time macros, nonliteral header probes and
+assembly includes use ordinary compilation. Missing or damaged cache files
+are rebuilt. Nested generated modules and manually supplied root-level C hosts
+participate in the link.</p>
+<p>Use
+<code>ziran build --target=go --pkg main --exe --entry module:function -o DIR</code>
+for Go output. C foreign procedures with scalar or pointer parameters and
+results route through generated cgo adapters; native Go package imports
+continue to call those packages directly. C ABI calls need <code>CGO_ENABLED=1</code>
+and a C compiler. <code>LDFLAGS</code> and <code>LDLIBS</code> are preserved in the cgo preamble.
+Slice, record and variadic C ABI parameters are rejected on Go; modules
+can wrap those APIs with scalar and pointer declarations.</p>
+<p>Go can also bind a C header directly with <code>go:C/&lt;relative-header&gt;</code>. The header
+supplies the function declarations and native type layout; generated adapters
+do not redeclare its ABI. For example:</p>
+<pre><code class="language-ziran">c :: #system_library &quot;go:C/example/signature.h&quot;;
+builtin :: #system_library &quot;go:builtin&quot;;
+Signature :: #type #foreign c &quot;signature&quot;;
+New :: () -&gt; *Signature #foreign c &quot;signature_new&quot;;
+Length :: (value: *Signature) -&gt; usize #go_field #foreign c &quot;(*signature).length&quot;;
+FreeAtReturn :: (value: *Signature) #go_defer #foreign c &quot;signature_free&quot;;
+NativeAvailable :: () -&gt; bool #foreign builtin &quot;cgo_enabled&quot;;
+</code></pre>
+<p>Header calls accept scalar values and pointers to scalars or declared C types.
+<code>#go_field</code> supports native fields and header constants; <code>#go_defer</code> preserves
+cleanup during returns and panic unwinding. Pass include and library paths to
+Go through <code>CGO_CFLAGS</code> and <code>CGO_LDFLAGS</code>, or preserve linker flags at generation
+through <code>LDFLAGS</code> and <code>LDLIBS</code>. Calls still obey cgo's pointer ownership rules.
+Header paths cannot be absolute or contain empty, <code>.</code> or <code>..</code> segments.</p>
+<p>Header bindings generate <code>.cgo.go</code> and <code>.nocgo.go</code> companions. Ordinary Ziran
+procedures remain available in either build. <code>cgo_enabled</code> reports the native
+build setting so application code can choose its unavailable path before a C
+call. With <code>CGO_ENABLED=0</code>, C pointer types are opaque and C calls panic instead
+of fabricating results. Build the generated Go package with <code>go build .</code> or
+<code>go run .</code>, which honor the build tags. Reachable header bindings and native
+availability checks require Go; pruning a portable entry can remove them.</p>
+<p>Pass <code>--entry module:function</code> to a C99 build to retain functions, types,
+globals, and constants reachable from that entry. A native host implementation
+of a called foreign function is retained when it is among the input modules.
+Type-only linked modules emit headers without empty C files. Without <code>--entry</code>,
+all checked declarations and module C files are emitted as before. Runtime
+branches in reachable functions remain; this pass does not specialize them.</p>
+<p><code>ziran compile-commands DIR</code> writes <code>DIR/compile_commands.json</code> for the C
+files in <code>DIR</code>, so clangd and other editors can read generated code with the
+flags it builds with. <code>--compiler "cc -O2"</code> sets the compiler and its extra
+flags (default <code>$CC</code>, then <code>cc</code>), <code>--include DIR</code> names Ziran's headers
+(default: the pinned toolchain's with <code>--project</code>, otherwise the checkout
+beside the launcher), and <code>-o FILE</code> writes elsewhere.</p>
+<h2 id="save-and-inspect-checked-modules">Save and inspect checked modules</h2>
+<p><code>ziran ir --entry module:function</code> saves that reachable checked graph as
+per-module <code>.zir</code> files before native code generation.
+For a portable library, <code>ziran bundle --entry module:function --retain
+other:entry</code> also keeps the named function and its dependencies. Repeat
+<code>--retain</code> for additional entry points consumed by thin <code>--library</code> bundles;
+unrelated functions remain outside the payload. Every retained entry must
+exist in the checked input graph. Thin bundles retain new declarations even
+when their module already occurs in a pruned library. Matching declarations
+are supplied by that library, and conflicting declarations reject linking.
+Rebuild hosts, libraries and add-ons together for ZX version 27; see
+<a href="zx.html#shared-libraries-and-partial-modules">partial module composition</a>.
+Saved <code>.zir</code> files are binary. <code>ziran inspect path/to/module.zir</code> shows their
+declarations, statements, and checked expression links as readable text;
+<code>ziran inspect --hex path/to/module.zir</code> shows bytes and offsets. Both views
+read the saved file and leave it unchanged.</p>
+<h2 id="imports">Imports</h2>
+<p>For ordinary imports, pass the entry file and a library directory with
+<code>--module-path DIR</code> (repeat for multiple directories). <code>check</code>, <code>ir</code>,
+<code>api</code>, <code>build</code>, and <code>bundle</code> load extensionless <code>#import "module"</code> dependencies
+transitively from <code>.zi</code> or saved <code>.zir</code>. For example:</p>
+<pre><code class="language-sh">build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi
+</code></pre>
+<p>A package-qualified import such as <code>#import "kryon/Widgets"</code> resolves
+through the package's dependencies in a <code>--project</code> build. Outside a
+project, name the package's module directory instead:
+<code>--module-path kryon=../kryon/src/ui</code> serves <code>kryon/NAME</code> imports from that
+directory (and only those; repeat it for more directories). A package
+builds the same way in both modes when each export has its module's name.
+With <code>--project</code>, <code>--module-path DIR</code> adds a folder of generated modules to
+the project's own package only; see
+<a href="packages.html#generated-modules">generated modules</a>.</p>
+<p><code>#import, file "../lib/helper.zi";</code> loads an explicit source file relative to
+the importing file. Saved <code>.zir</code> builds resolve its module by name from the
+saved IR directory or a module path.
+<code>Helper :: #import "helper";</code> and
+<code>Helper :: #import, file "../lib/helper.zi";</code> expose public declarations as
+<code>Helper.Name</code> without adding them to the unqualified scope.
+<code>Helper :: #import, dir "../lib/helper";</code> loads that directory's <code>module.zi</code>.
+An ordinary <code>#import "helper"</code> also discovers <code>helper/module.zi</code> on a module
+search path.
+<code>#load "relative/file.zi";</code> adds another file to the current module. Loads
+can nest, and imports inside loaded files resolve relative to those files.
+<code>#import, string "Value :: () -&gt; s32 { return 42 }";</code> compiles source text
+as a module. It also accepts a raw <code>#string</code> body, and
+<code>Generated :: #import, string "...";</code> exposes its declarations as
+<code>Generated.Name</code>.</p>
+<h2 id="foreign-functions">Foreign functions</h2>
+<p>Ordinary <code>#import</code> accepts a module identifier. C headers are no longer
+imported as source modules; foreign procedures use <code>#system_library</code> and
+<code>#foreign</code> declarations.
+For a native symbol with an unmangled name, put <code>#program_export</code> on its own
+line immediately before the function declaration.
+Foreign procedures use a Jai-style library declaration and <code>#foreign</code>:</p>
+<pre><code class="language-jai">libc :: #system_library &quot;libc&quot;;
+Abs :: (value: s32) -&gt; s32 #foreign libc &quot;abs&quot;;
+</code></pre>
+<h3 id="go-packages">Go packages</h3>
+<p>For a Go package, use an explicit <code>go:</code> library path. This also supports
+standard packages whose import paths contain no slash:</p>
+<pre><code class="language-jai">strings :: #system_library &quot;go:strings&quot;;
+TrimSpace :: (value: string) -&gt; string #foreign strings &quot;TrimSpace&quot;;
+</code></pre>
+<p>The Go target emits a direct package call. These declarations remain Go
+imports in saved <code>.zir</code>; they are not portable host capabilities.</p>
+<p>An explicit <code>#program_export "NativeName"</code> emits a typed Go function with that
+exact name. Checked Ziran calls retain their module-qualified implementation
+name. Reserved names and collisions with functions, types, imports and module
+startup are rejected; colliding globals and constants keep their generated
+private names.</p>
+<p>Native Go tests use <code>_test.zi</code> files and named exports such as
+<code>#program_export "TestSigning"</code>. Modules using native <code>testing</code> bindings or
+named test, fuzz and benchmark exports generate <code>_test.go</code> files, including
+when their module names need disambiguation. Their native adapters expose
+<code>*testing.T</code>, <code>*testing.F</code>, <code>*testing.B</code> or <code>*testing.M</code> directly for Go's test
+discovery. Test helper modules may import the testing bindings from another
+Ziran module. Ordinary Ziran checks without this native boundary retain the
+<code>_test_ziran.go</code> filename and remain ordinary package code.</p>
+<p>To require a package for its native initialization, bind its <code>init</code> symbol as a
+nullary void procedure:</p>
+<pre><code class="language-ziran">driver :: #system_library &quot;go:example.org/database/driver&quot;;
+Initialize :: () #foreign driver &quot;init&quot;;
+</code></pre>
+<p>The generated Go import runs the package's initialization once, before the
+generated package's globals. The binding's call then has no work to repeat.
+If no types or functions need a named import, the compiler emits a blank import.
+Initialization bindings accept no receiver, parameters, results or modifiers.
+Keep a call on the entry's dependency path when generating a pruned executable.</p>
+<p>Generated Go executable entries carry the same provenance header and output
+ownership as other generated files. <code>--prune-stale</code> removes an old entry when
+the output directory is later generated with <code>--no-main</code>.</p>
+<h3 id="foreign-go-types">Foreign Go types</h3>
+<p>Declare an opaque Go type alongside the package's foreign procedures:</p>
+<pre><code class="language-jai">json :: #system_library &quot;go:encoding/json&quot;;
+RawMessage :: #type #foreign json &quot;RawMessage&quot;;
+Envelope :: struct {
+    payload: RawMessage #go_tag &quot;json:\&quot;payload\&quot;&quot;
+}
+</code></pre>
+<p>The Go target emits a type alias, preserving the imported type's identity,
+methods, interface behavior and zero value. Ziran can store, pass, return and
+assign these values, including across imports. Fields and layout remain opaque:
+record literals and <code>size_of</code> are unavailable. These declarations require an
+explicit <code>go:</code> package and are preserved in checked IR. Other targets reject
+foreign Go types; an entry build can discard them when they are unused.</p>
+<p>A slice can be explicitly converted to or from a foreign Go type whose
+underlying storage supports the conversion. The Go compiler checks that
+underlying type. Conversions preserve native length, capacity, nil values
+and shared backing storage; returned native slices keep that storage alive:</p>
+<pre><code class="language-jai">Wrap :: (value: []u8) -&gt; RawMessage { return cast(RawMessage)value }
+Unwrap :: (value: RawMessage) -&gt; []u8 { return cast([]u8)value }
+</code></pre>
+<p>Fixed-array casts, slice-to-slice casts and owned vector elements are rejected.</p>
+<h3 id="go-receivers-fields-and-multiple-results">Go receivers, fields and multiple results</h3>
+<p>A quoted method expression supplies its receiver as the first parameter.
+The receiver must match an opaque type declared from the same Go package:</p>
+<pre><code class="language-jai">sync :: #system_library &quot;go:sync&quot;;
+Mutex :: #type #foreign sync &quot;Mutex&quot;;
+Lock :: (value: *Mutex) #foreign sync &quot;(*Mutex).Lock&quot;;
+Unlock :: (value: *Mutex) #foreign sync &quot;(*Mutex).Unlock&quot;;
+</code></pre>
+<p>Use <code>#go_field</code> before <code>#foreign</code> to read a native field through a typed
+getter. It takes exactly one receiver and returns the field value. The Go
+compiler verifies that the field exists and has the declared storage type:</p>
+<pre><code class="language-jai">http :: #system_library &quot;go:net/http&quot;;
+Request :: #type #foreign http &quot;Request&quot;;
+Remote :: (request: *Request) -&gt; string #go_field #foreign http &quot;(*Request).RemoteAddr&quot;;
+</code></pre>
+<p>A getter without a receiver or parameters reads a native package variable or
+constant each time it is called. It preserves native interface identity:</p>
+<pre><code class="language-jai">#import &quot;go_types&quot;
+sql :: #system_library &quot;go:database/sql&quot;;
+NoRows :: () -&gt; Error #go_field #foreign sql &quot;ErrNoRows&quot;;
+</code></pre>
+<p>Getters cannot return owned vectors or records/slices containing them.
+A field accessor with a void return is a setter. It takes a pointer receiver
+and one value, or just one value when assigning a package variable:</p>
+<pre><code class="language-jai">time :: #system_library &quot;go:time&quot;;
+Duration :: #type #foreign time &quot;Duration&quot;;
+Client :: #type #foreign http &quot;Client&quot;;
+SetTimeout :: (client: *Client, value: Duration) #go_field #foreign http &quot;(*Client).Timeout&quot;;
+SetDefault :: (client: *Client) #go_field #foreign http &quot;DefaultClient&quot;;
+</code></pre>
+<p>Setters cannot take owned storage or a value receiver. The Go compiler checks
+the field's type and whether the package value can be assigned. Accessors
+cannot use variadic parameters, <code>#go_results</code>, or <code>#go_defer</code>.
+Methods of predeclared Go interfaces use their native receiver spelling,
+for example <code>#foreign builtin "error.Error"</code> with an <code>Error</code> parameter.</p>
+<p>Ordinary procedures can implement native Go interfaces with
+<code>#go_method "MethodName"</code>. The first parameter is a local named record or its
+pointer; remaining parameters and the result form the native method signature.
+The generated method calls the ordinary Ziran procedure, preserving pointer,
+error and panic identity. Method names must be Go identifiers, unique for the
+receiver record, and different from its generated field names. Foreign types,
+anonymous record aliases, generic procedures and owned vector signatures are
+rejected. Go checks interface satisfaction when compiling the generated code.</p>
+<pre><code class="language-jai">Message :: struct { text: string }
+Describe :: (message: Message) -&gt; string #go_method &quot;Error&quot; {
+    return message.text
+}
+</code></pre>
+<p>On an ordinary method procedure, <code>#go_results</code> flattens a nonempty concrete
+result record into native Go multiple results in field order. Its fields must
+be named without <code>using</code> or owned vectors. Ordinary Ziran calls still receive
+that record. C and the portable VM keep the same ordinary procedure body;
+method adapters are Go ABI metadata. Both attributes survive saved IR. Go
+executable entry selection retains methods of reachable receiver records for
+native interface dispatch.</p>
+<p>Use <code>#go_results</code> on foreign declarations to pack a Go function's multiple
+results into a concrete record. Record fields correspond to Go results in
+declaration order, including native error interfaces. It also works with method expressions:</p>
+<pre><code class="language-jai">#import &quot;go_types&quot;
+net :: #system_library &quot;go:net&quot;;
+HostPort :: struct { host: string; port: string; error: Error }
+Split :: (address: string) -&gt; HostPort #go_results #foreign net &quot;SplitHostPort&quot;;
+</code></pre>
+<p>The result record must be nonempty, without owned vectors, <code>using</code> fields or
+discard fields. Variadic declarations and combinations with <code>#go_field</code> are
+rejected. Both attributes require explicit Go package targets. Checked IR
+stores their typed signatures and attributes; generation from saved IR does
+not infer them from diagnostic source text.</p>
+<p>The standard modules <code>sync_go</code>, <code>time_go</code>, <code>random_go</code>, <code>text_go</code>, <code>net_go</code>
+and <code>http_go</code> expose mutexes, native monotonic timestamps, cryptographic random
+bytes, copied byte strings, IP primitives, HTTP request fields and headers.
+<code>atomic_go</code> provides native <code>Uint64</code> counters with atomic <code>Add</code> and <code>Load</code>.
+<code>http_go</code> also preserves the native <code>ResponseWriter</code> interface and exposes
+response headers and <code>SetHeader</code>.
+<code>time_go</code> provides parsing, UTC conversion and formatting while preserving
+native <code>time.Time</code> values and parse errors. It also provides native ticker
+creation, stopping and boxed channel access. <code>context_go</code> preserves native
+contexts and provides <code>Background</code> and the boxed cancellation channel <code>Done</code>.
+<code>select_go</code> builds receive, send and default cases over boxed native channels.
+<code>Select</code> blocks until a case is ready and returns its index, native reflected
+value and receive-success flag. It uses Go's <code>reflect.Select</code>; channel direction
+and send-value compatibility are checked at runtime. Nil channels disable their
+case, closed channels retain their zero-value/false receive result, and multiple
+ready cases use Go's selection behavior. These operations require the Go target.
+<code>sql_go</code> exposes native database,
+transaction, row and result handles, nullable strings, row iteration and
+transaction cleanup. Declare query, execution and scan bindings with the
+argument types required by the application; Go checks those native signatures.
+<code>errors_go</code> provides native error creation, <code>Is</code>, <code>Unwrap</code> and exact messages.
+SQL and context modules expose their native error sentinels through getters.</p>
+<h3 id="go-deferred-foreign-calls">Go deferred foreign calls</h3>
+<p>Declare a void foreign procedure with <code>#go_defer</code> to schedule its native Go
+call at the end of the calling function, including panic unwinding:</p>
+<pre><code class="language-jai">#import &quot;sync_go&quot;
+sync :: #system_library &quot;go:sync&quot;;
+UnlockAtReturn :: (value: *Mutex) #go_defer #foreign sync &quot;(*Mutex).Unlock&quot;;
+Work :: (mutex: *Mutex) {
+    Lock(mutex)
+    UnlockAtReturn(mutex)
+    // Work while the mutex is locked.
+}
+</code></pre>
+<p>Arguments are evaluated and captured at the call statement. Scheduled calls
+run in reverse order when that function returns or panics; a nested block
+does not end the schedule. Declare and call the foreign binding in the
+function that needs cleanup. A Ziran wrapper would schedule cleanup at the
+wrapper's own return.</p>
+<p>The binding requires an explicit Go package target, a void result and no
+owned vector arguments or variadic parameters. <code>#go_results</code>, <code>#go_field</code>
+and Go predeclared builtins other than typed <code>call</code> cannot be combined with this
+attribute. Calls must be standalone statements. Checked IR preserves the attribute, and
+other targets reject reachable Go bindings. Ordinary Ziran <code>defer</code> keeps
+its lexical scope cleanup semantics across targets.</p>
+<p>Typed <code>go:builtin</code> <code>call</code> declarations invoke their first procedure argument
+with the remaining arguments. The declaration must match that procedure's
+parameter and result types and cannot carry owned vector values. A void call
+can use <code>#go_defer</code> to run application cleanup during native Go panic unwinding:</p>
+<pre><code class="language-jai">builtin :: #system_library &quot;go:builtin&quot;;
+Cleanup :: #type (completed: *bool) -&gt; void;
+CleanupAtReturn :: (callback: Cleanup, completed: *bool) #go_defer #foreign builtin &quot;call&quot;;
+</code></pre>
+<p>The callback and its arguments are captured when scheduled. Pass a pointer
+when cleanup needs to observe a value changed later in the calling function.
+Checked IR retains the typed callback and the schedule independently of the
+declaration's diagnostic source text.</p>
+<p>Typed <code>go:builtin</code> <code>bind</code> declarations capture one or more leading procedure
+arguments and return a procedure for the remaining arguments. The first
+parameter is the full procedure type; subsequent parameters match its leading
+parameters. The returned procedure matches its remaining parameters and result.
+Captured values are copied when binding, so pointers retain shared storage while
+later replacement of a value does not alter the capture. Binding never invokes
+the procedure; native errors, slices and panic values retain their identity.
+Captured parameters, remaining parameters and results cannot contain owned
+vectors. C callback types are rejected. These signatures are checked in both
+source and saved IR.</p>
+<p>Ordinary procedure values also resolve each parameter and result in the
+declaring procedure type's module. Imported records, pointers, slices and native
+Go interfaces keep their type identity across different import aliases.</p>
+<pre><code class="language-jai">builtin :: #system_library &quot;go:builtin&quot;;
+Full :: #type (count: *s64, amount: s64) -&gt; s64;
+Bound :: #type (amount: s64) -&gt; s64;
+Bind :: (callback: Full, count: *s64) -&gt; Bound #foreign builtin &quot;bind&quot;;
+</code></pre>
+<p>Typed <code>go:builtin</code> <code>retain</code> declarations return their one argument unchanged
+under Go's managed storage lifetime. The parameter and result types must match
+and cannot contain owned vectors. This explicit native boundary allows strings,
+slices and records read through pointers to escape a procedure while preserving
+their original storage and nil values. It does not copy backing data or keep
+foreign C allocations alive; such allocations retain their foreign lifetime.</p>
+<p>Typed <code>go:builtin</code> <code>spawn</code> declarations start the first procedure argument in
+a native Go goroutine with the remaining arguments. The callback and binding
+must return <code>void</code>; their parameter types must match and cannot contain owned
+vectors. Arguments are captured before starting the goroutine. Native Go
+pointer, slice, map and channel storage stays alive under Go's collector;
+shared mutation still requires synchronization. <code>spawn</code> cannot use <code>#go_defer</code>.</p>
+<p>Typed <code>go:builtin</code> <code>assert</code> declarations use <code>#go_results</code> and one <code>Any</code>
+argument. Their result record has exactly two fields: the target value type
+and a <code>bool</code> indicating whether the native Go type assertion succeeded. A
+failed assertion returns the target type's zero value and <code>false</code>; a typed
+nil can succeed and stays distinct from a nil interface. Asserted slices,
+pointers and interfaces retain native storage and identity.</p>
+<pre><code class="language-jai">#import &quot;std/go_types&quot;
+builtin :: #system_library &quot;go:builtin&quot;;
+Worker :: #type (value: s64) -&gt; void;
+Start :: (callback: Worker, value: s64) #foreign builtin &quot;spawn&quot;;
+IntegerAssertion :: struct { value: s64; present: bool }
+AsInteger :: (value: Any) -&gt; IntegerAssertion #go_results #foreign builtin &quot;assert&quot;;
+</code></pre>
+<p>These operations and the <code>std/channel_go</code> native channel handles are specific
+to Go. <code>std/context_go.WithCancel</code> and <code>WithTimeout</code> return a native context
+and its cancellation function; call <code>Cancel</code> to release that context. Schedule
+cancellation in the owning function with a typed deferred callback when it
+must also run during native panic unwinding. Other targets reject reachable
+Go bindings; unused Go-only functions can still be excluded from a portable
+bundle.</p>
+<p><code>io_go</code> exposes native readers, closable readers, writers and <code>ReadAll</code>.
+<code>http_go</code> supplies request bodies and contexts, bounded body readers and
+response status writes. <code>json_go</code> supplies JSON validation and streaming
+encoders and decoders; <code>url_go</code> supplies decoded query values. Native interface
+conversions keep the original stream and context objects, and these operations preserve
+Go error identity. Schedule <code>ReadCloser.Close</code> with <code>#go_defer</code> in the function
+that owns the stream when cleanup must also run after a panic.</p>
+<h3 id="go-predeclared-primitives">Go predeclared primitives</h3>
+<p>Typed foreign declarations in <code>go:builtin</code> can allocate Go heap objects and
+slices/maps, copy bytes into a string, or read a native length:</p>
+<pre><code class="language-jai">builtin :: #system_library &quot;go:builtin&quot;;
+Allocate :: () -&gt; *HostPort #foreign builtin &quot;new&quot;;
+Bytes :: (count: isize, capacity: isize) -&gt; []u8 #foreign builtin &quot;make&quot;;
+Text :: (value: []u8) -&gt; string #foreign builtin &quot;string&quot;;
+Length :: (value: []u8) -&gt; isize #foreign builtin &quot;len&quot;;
+Append :: (values: []u8, value: u8) -&gt; []u8 #foreign builtin &quot;append&quot;;
+Panic :: (value: Error) #foreign builtin &quot;panic&quot;;
+</code></pre>
+<p><code>new</code> takes no arguments and derives the allocated type from its pointer
+result. <code>make</code> derives its slice or map type from the result; slices take a
+length and optional capacity, and maps take an optional size hint. <code>len</code>
+returns <code>isize</code> and accepts strings, arrays, slices, maps and declared foreign
+Go types whose underlying type supports native <code>len</code>. Go compilation checks
+the underlying operation for opaque types. These calls need no package import
+and retain Go's allocation, zero-value and byte-copy behavior.
+<code>append</code> takes a slice and one element, returns the same slice type, and keeps
+Go's length, capacity and shared backing-storage behavior. Owned vector
+elements are rejected; variadic slice expansion is not supported by this binding.
+<code>panic</code> takes one non-owned value and returns void. It preserves the supplied
+native Go value, including error identity, during panic unwinding.</p>
+<h3 id="go-record-metadata">Go record metadata</h3>
+<p>Go record fields can carry reflection tags. The checked string is preserved
+in saved IR and emitted as a Go struct tag; other targets keep the same fields
+and ignore this Go metadata:</p>
+<pre><code class="language-jai">Response :: struct {
+    userID: string #go_tag &quot;json:\&quot;user_id\&quot;&quot;
+    expiresAt: s64 #go_tag &quot;json:\&quot;expires_at,omitempty\&quot;&quot;
+}
+</code></pre>
+<p>Go can preserve an anonymous native struct's identity with <code>#go_anonymous</code>
+alone in its record body:</p>
+<pre><code class="language-jai">Reply :: struct {
+    #go_anonymous
+    code: isize #go_tag &quot;json:\&quot;code\&quot;&quot;
+    message: string #go_tag &quot;json:\&quot;message\&quot;&quot;
+}
+</code></pre>
+<p>The Go declaration is <code>type Reply = struct { ... }</code>. Native reflection has
+an empty type name, and JSON decoding retains anonymous struct error details.
+The annotation preserves ordinary checked Ziran fields and is retained in
+saved IR. Other targets keep their ordinary record representation.</p>
+<h3 id="native-scripts">Native scripts</h3>
+<p><code>ziran run --target=c tool.zi -- ARGS</code> runs a native tool in one command: it
+builds the program once into <code>$XDG_CACHE_HOME/ziran/native</code>, rebuilds it when
+its sources change, and runs it with the arguments, returning its status. The
+entry takes nothing or <code>(argc: s32, argv: **u8)</code>. In a project, a tool beside
+the module roots, such as <code>tools/check.zi</code>, still imports the project's modules.
+The tool reads its source path from <code>ZIRAN_SCRIPT_FILE</code>; see
+<code>scripts/build_playground.zi</code> for a maintained build tool.</p>
+<h3 id="host-capabilities-and-visibility">Host capabilities and visibility</h3>
+<p>Ziran also resolves <code>host_api :: #system_library "host_api";</code> to its host
+capability bridge. <code>ziran bundle --bind caller:capability=provider:function</code>
+can satisfy a portable host capability with an exported Ziran function in the
+bundle; the provider must have the same signature. <code>--bind-host MODULE</code>
+binds every remaining capability to MODULE's exported function of the same
+name, as a C program links a host's symbols by name, so one Ziran host module
+serves <code>ziran bundle</code> and the Go target alike.
+The portable host ABI copies returned string bytes into VM-managed storage,
+including strings inside records, arrays, slices, and mutable slice updates.
+A host can reuse its result buffers on its next call; saved strings retain
+their bytes for as long as the program uses them, including across instance
+runs. Returned fields and elements must remain valid until that next call.
+Opaque pointer results still refer to host-owned storage.
+Use <code>#scope_file</code>, <code>#scope_module</code>, and <code>#scope_export</code> to change the
+visibility of following declarations.</p>
+<h2 id="multiline-strings">Multiline strings</h2>
+<p>Raw multiline text uses Jai's <code>#string</code> delimiter form. The body keeps its
+whitespace and the newline before the closing delimiter:</p>
+<pre><code class="language-jai">Greeting :: #string END
+Hello, &quot;world&quot;!
+END;
+</code></pre>
+<h2 id="returned-views">Returned views</h2>
+<p>A returned slice, text view or record of views must borrow storage the caller
+still owns after the call: a slice or string parameter, a view already stored
+in a pointed-to record, or static text. A pointer parameter lends its own
+array storage only for the call, so return a view of it by taking the storage
+as a slice instead:</p>
+<pre><code class="language-jai">Owner :: struct { values: [4]u16; label: string; }
+Rest :: (values: []u16) -&gt; []u16 { return values[1:] }    // view of caller storage
+Label :: (owner: *Owner) -&gt; string { return owner.label }  // view stored in the record
+// Rejected: (owner: *Owner) -&gt; []u16 { return owner.values[:] }
+</code></pre>
+<p>Call it as <code>Rest(owner.values[:])</code>. Inside the call, views of
+<code>owner.values</code> may be read and written freely.</p>
+<h2 id="standard-library">Standard library</h2>
+<p>Import a standard module as <code>#import "std/text"</code>. In a project the pinned
+toolchain supplies it. A standalone command takes it from
+<code>--module-path std=DIR</code>, a <code>--module-path</code> directory named <code>std</code>, or the
+standard modules that came with the compiler: <code>std</code> beside an installed
+toolchain (<code>make install-user</code> copies it), otherwise the checkout the
+compiler was built from. <code>ZIRAN_STD=DIR</code> names another standard directory.
+<code>std/text</code> always means the standard module, even beside a library module
+named <code>text</code>. The short spelling <code>#import "text"</code> also works when no module
+of your own has that name.
+Dependencies from other Git repositories import the same way, as
+<code>#import "NAME/Module"</code>; see <a href="packages.html">Packages</a>.</p>
+<h3 id="vector-capacity-and-initialized-length">Vector capacity and initialized length</h3>
+<p>Import <code>vec</code> to use <code>Vec(T)</code>. <code>VecReserve(values, capacity: s64) -&gt; bool</code>
+reserves at least that <strong>total</strong> capacity without changing <code>values.count</code>.
+<code>VecResize(values, count: s64) -&gt; bool</code> changes the initialized length: new
+entries receive the same default values as uninitialized local declarations
+(zero scalars, empty strings, nil views/maps, recursively empty owned vectors).
+Shrinking drops removed owned entries and retains capacity. Reused entries
+are initialized again on growth; capacity beyond count is never indexable.
+Neither operation consumes the vector. Pass mutable storage directly; a live
+borrowed view prevents either operation, just as it prevents <code>VecPush</code>.</p>
+<pre><code class="language-jai">#import &quot;vec&quot;
+pixels: Vec(u8)
+if !VecResize(pixels, 4096) { return false }
+pixels[0] = 255
+</code></pre>
+<p>Sizes are <code>s64</code>; negative sizes, size overflow, and failed allocation return
+<code>false</code>, preserving the old elements, count and capacity. Zero is valid and
+reserving zero allocates nothing. Native C uses one fallible growth allocation;
+byte resize initializes its new range in bulk. Other element types use typed
+default initialization rather than raw byte clearing of managed values. C,
+Go, and portable <code>.zx</code> support both operations from source and saved <code>.zir</code>.
+The VM also returns <code>false</code> when its array-storage budget prevents growth.
+Go catches recoverable allocation range panics, but physical out-of-memory
+failure can terminate the Go runtime. Capacities and allocation limits depend
+on the target; a successful capacity request never guarantees future growth.
+<code>VecGet</code> and <code>VecClone</code> cannot copy owned elements; mutate them in place or
+move an element with <code>VecPop</code>. <code>VecPush</code> retains its existing restriction on
+nested owned elements. <code>sh tests/vec_capacity.sh build/bin/ziran</code> runs the
+focused source, saved-IR, C, Go and portable local tests.</p>
+<p><code>VecResizeBounded(values, count: s64, maximum_capacity: s64) -&gt; bool</code> uses
+<code>VecResize</code>'s initialized-length and owned-element semantics while bounding the
+resulting backing capacity. It rejects negative sizes, a count above the
+ceiling, or an existing capacity above the ceiling, including on a shrink/no-op.
+Rejection or allocation failure leaves storage, length and elements unchanged.
+Growth clamps the selected capacity to the ceiling; reuse retains capacity.
+A ceiling is not an allocation request, so a large positive ceiling is allowed
+when the actual selected allocation fits the target's element/byte limits.
+An empty Vec accepts count/ceiling zero without allocation. Future operations
+must supply their own ceilings; the bound is not a stored property of the Vec.</p>
+<pre><code class="language-zi">scratch: Vec(u32)
+maximum_elements: s64 = 1024
+if !VecResizeBounded(scratch, 700, maximum_elements) { return false; }
+// scratch.count == 700; 700 &lt;= scratch.capacity &lt;= maximum_elements.
+</code></pre>
+<p>This bounds logical backing element capacity, not allocator size classes,
+runtime objects, managed-element allocations, VM validity maps or physical RSS.
+During growth old and new backing allocations may be live together. A caller
+with a concurrent-live scratch budget must reserve the full possible new
+backing allocation in addition to already-live old capacity, then reconcile
+against actual capacity after success. Default staging for managed elements
+and runtime object overhead require separate accounting. Ordinary Go fatal
+physical OOM remains outside recoverable allocation failures.</p>
+<h3 id="building-text">Building text</h3>
+<p><code>std/format.zi</code> builds text on an owned <code>Vec(u8)</code> builder. <code>Append(*builder,
+value)</code> adds a string, integer, bool, or float, and
+<code>BuilderPrint(*builder, "% of %\n", done, total)</code> appends a formatted piece:
+each <code>%</code> takes the next argument and <code>%%</code> writes one percent. A file that uses
+<code>BuilderPrint</code> imports <code>std/format</code> automatically, and <code>std/format</code> makes
+<code>Vec</code> visible. <code>BuilderFinish(builder)</code> returns the text. Floats keep up to six
+digits after the point, with trailing zeros dropped.</p>
+<p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:
+<code>ParseFloat64(text: string) -&gt; (value: float64, ok: bool)</code> accepts a complete
+ASCII decimal with optional sign, point and exponent, or <code>inf</code>/<code>Infinity</code> and
+<code>nan</code>/<code>NaN</code>. It rejects whitespace and trailing bytes. Rounding is nearest,
+ties to even; overflow succeeds as infinity and underflow as signed zero.
+<code>Float64Repr(value: float64) -&gt; string</code> returns owned shortest roundtrip text
+with Python's <code>repr</code> layout: fixed notation for decimal orders -4 through 15,
+otherwise lowercase <code>e</code>, a signed exponent with at least two digits, and <code>.0</code>
+on fixed integral values. It preserves negative zero and writes <code>inf</code>, <code>-inf</code>
+and <code>nan</code>. <code>Float64ReprInto(value, output: *Vec(u8)) -&gt; bool</code> appends the
+same text to caller-owned bytes, reserving before writing and reporting
+allocation rejection. Both conversions use bounded exact integer arithmetic in Ziran,
+without foreign calls, locale state or a Python runtime. Parsing scans all
+input bytes, retaining at most 1100 significant digits plus a sticky flag;
+this exceeds the length of every binary64 rounding boundary. Run
+<code>build-queue -- sh tests/std_float_text.sh build/bin/ziran</code> for independent
+edge/random C/Go/VM tests from source and saved IR.</p>
+<h3 id="hash-maps">Hash maps</h3>
+<p><code>std/hash_map.zi</code> maps string or integer keys to values on every target and
+the portable runner:</p>
+<pre><code class="language-jai">#import &quot;std/hash_map&quot;
+
+ages: HashMap(string, s32)
+HashMapSet(*ages, &quot;ada&quot;, 36)       // insert or replace
+age: s32
+if HashMapGet(*ages, &quot;ada&quot;, *age) { print(&quot;%\n&quot;, age) }
+HashMapRemove(*ages, &quot;ada&quot;)        // returns whether the key was present
+HashMapFree(*ages)
+</code></pre>
+<p><code>HashMapHas</code> tests a key and <code>ages.count</code> is the number of entries. The table
+doubles when half its slots are in use. Values may be records; keys are
+<code>string</code>, <code>s64</code>, <code>u64</code>, or <code>u32</code> (and narrower unsigned integers). The Go
+target's native <code>Map(K, V)</code> from <code>std/map_go</code> is separate and keeps its
+<code>MapSet</code>/<code>MapGet</code> operations.</p>
+<h3 id="text-and-utf-8">Text and UTF-8</h3>
+<p><code>std/text.zi</code> supplies ASCII case folding, prefix matching, and substring
+matching over immutable UTF-8 strings. Non-ASCII bytes compare unchanged. These
+functions use only portable Ziran operations, so the same source builds for C,
+Go, and <code>.zx</code>. Add <code>--module-path std</code> when importing it from an app.</p>
+<p>For full Unicode behavior, import <code>std/unicode</code>. <code>CaseFold(text: string)</code>,
+<code>Lower(text: string)</code> and <code>Capitalize(text: string)</code> return strings using
+Unicode 17.0 full default mappings, including expansions and contextual Greek
+final sigma. Capitalization titlecases the first scalar and lowercases the
+rest, as Python's <code>str.capitalize</code> does. <code>IsWord(codepoint: u32) -&gt; bool</code>
+matches Python Unicode regex <code>\w</code>; <code>IsDecimal(codepoint: u32) -&gt; bool</code>
+matches <code>\d</code> using only General_Category Nd. <code>IsSpace(codepoint: u32) -&gt; bool</code> and
+<code>IsWhitespace(text: string) -&gt; bool</code> use Python's Unicode whitespace rules.
+<code>IsPrintable(codepoint: u32) -&gt; bool</code> accepts Unicode L/M/N/P/S categories
+and ASCII space, excluding other separators, controls, format characters,
+private-use and unassigned values under Unicode 17.0.
+<code>SplitWhitespace(text: string) -&gt; Vec(string)</code> collapses those whitespace runs
+and omits empty fields, like <code>str.split()</code> without a separator. Its pieces
+borrow the input. All operations run unchanged on C, Go and the portable VM,
+without a host Unicode library. See <a href="unicode.html">Unicode</a> for exact semantics,
+the native table generator and conformance tests.</p>
+<p><code>NFCInto(text: string, output: *Vec(u8)) -&gt; bool</code> and <code>LowerInto</code> use reusable
+caller-owned buffers: they replace previous bytes, reject malformed UTF-8 and
+empty the output on failure. NFC performs canonical Unicode 17 decomposition,
+ordering and composition, including Hangul; compatibility normalization is
+excluded. <code>IsLetter</code> and <code>IsNumber</code> match exact General_Category L and N;
+<code>IsWhiteSpace</code> matches Unicode White_Space, excluding <code>IsSpace</code>'s extra
+U+001C..U+001F controls. See <a href="unicode.html">Unicode</a> for ownership and conformance.</p>
+<p><code>std/string_range.zi</code> provides <code>Substring(source, start, length)</code> over borrowed
+bytes, using Ziran's checked <code>source[low:high]</code> string range syntax. Choose
+UTF-8 codepoint boundaries when the result must remain valid text.</p>
+<p><code>std/utf8.zi</code> advances through UTF-8 scalar boundaries and counts codepoints.
+Invalid bytes advance one byte, which keeps a scanner moving while preserving
+valid multibyte sequences.
+<code>Copy(source, destination)</code> writes valid UTF-8 unchanged and replaces each
+malformed lead byte (following <code>Decode</code>'s consumption rule) with U+FFFD. It is
+bounded and allocation-free, leaves separate source storage unchanged,
+requires destination bytes not to overlap the source, and stops without
+splitting a source sequence or replacement when capacity runs out. Its result
+reports the written byte count and whether all input was consumed; embedded
+NUL remains data.</p>
+<p><code>DecodeReplace(source: []u8) -&gt; string</code> returns independently stored valid
+UTF-8 with Python <code>errors='replace'</code> consumption: one replacement for each
+maximal valid prefix of a malformed sequence. Thus <code>E2 82</code> becomes one U+FFFD
+and <code>E1 80 41</code> becomes U+FFFD + <code>A</code>; forbidden prefixes such as <code>ED A0 80</code>
+produce three replacements. It preserves valid UTF-8 and embedded NUL.
+<code>Decode</code> and <code>Copy</code> keep their documented consume-one-lead-byte behavior.</p>
+<h3 id="generic-values">Generic values</h3>
+<p><code>std/option.zi</code> and <code>std/result.zi</code> define generic records. Import a
+template and create a concrete type with <code>Number :: Option(s32)</code> or
+<code>Outcome :: Result(s32, string)</code>. An <code>Option</code> has <code>has_value</code> and <code>value</code>
+fields; a <code>Result</code> has <code>is_ok</code>, <code>value</code>, and <code>error</code> fields. Check the status
+field explicitly before reading the associated value.</p>
+<p><code>std/pair.zi</code> defines a generic record. Import it and write
+<code>PairNumberText :: Pair(s32, string)</code> to create a concrete record
+with <code>first: s32</code> and <code>second: string</code> fields.</p>
+<p>A polymorphic procedure binds its type parameter through a direct <code>$T</code>, a
+slice <code>[]$T</code>, a fixed array <code>[N]$T</code>, or a pointer <code>*$T</code> parameter: <code>Sum :: (values: []$T) -&gt; T</code>
+specializes for whatever element type the caller passes. A generic record
+parameter binds its arguments too: <code>Add :: (bag: *Bag($K), item: K)</code> called
+with a <code>*Bag(string)</code> binds <code>K</code> to <code>string</code>.</p>
+<p><code>Copy :: (values: [3]$T) -&gt; [3]T { return values; }</code> infers <code>T</code> while
+requiring exactly three elements. The capacity may be a compile-time constant
+or expression from the procedure's module; it is not inferred from the caller.
+Zero-capacity arrays retain their declared element type. Array parameters keep
+ordinary value semantics, so changing a parameter does not change the caller's
+array. Nested-array element types work natively; the portable linker rejects
+nested-array returns that its runtime cannot represent yet.</p>
+<h3 id="sorting-and-queues">Sorting and queues</h3>
+<p><code>std/sort.zi</code> sorts any slice whose elements support <code>&lt;</code> in place with
+<code>Sort(values[:])</code>, and searches a sorted slice with <code>LowerBound</code> and
+<code>BinarySearch</code>. Sorting allocates nothing and is not stable.
+<code>SortText(texts[:])</code> orders strings by unsigned UTF-8 bytes, including embedded
+NUL and prefixes, independently of the system locale. It also allocates nothing.</p>
+<p><code>std/queue.zi</code> is an allocation-free bounded byte FIFO. Queue state is passed
+and returned by value, and every operation receives the caller-owned backing
+storage explicitly. Full pushes and empty pops are rejected without unwinding
+the queue; partial byte pops report the number removed.</p>
+<h3 id="toml-manifests">TOML manifests</h3>
+<p><code>std/toml_document.zi</code> parses TOML 1.0 directly in Ziran on C, Go and the
+portable VM. It shares its parser with the package manifest reader. Quoted
+keys and strings (including escapes, literal and multiline strings), dotted
+keys, tables, inline tables, arrays and arrays of tables retain their meaning.
+Duplicate definitions, malformed values, invalid UTF-8 and trailing input
+reject the whole document, including errors in fields a caller does not query.</p>
+<pre><code class="language-zi">#import &quot;std/toml_document&quot;
+
+document: TomlDocument
+if TomlRead(*document, text) {
+    package := TomlMember(*document, document.root, &quot;package&quot;)
+    name := TomlString(*document, TomlMember(*document, package, &quot;name&quot;))
+    dependencies := TomlMember(*document, document.root, &quot;dependencies&quot;)
+    dependency := TomlFirst(*document, dependencies)
+    while dependency &gt;= 0 {
+        alias := TomlKey(*document, dependency)
+        dependency = TomlNext(*document, dependency)
+    }
+}
+</code></pre>
+<p><code>TomlRead</code> returns <code>bool</code>; failure clears the tree, sets <code>root = -1</code>, and
+reports <code>error</code> and <code>error_at</code> (a byte offset). Its default byte limit is
+262144; pass a third <code>max_bytes</code> argument to change it. Nesting is limited
+to 128. Keep the input alive while querying the document. Node queries accept
+<code>-1</code> for missing values; use <code>TomlKindOf</code> to distinguish an empty string from
+another type. <code>TomlCount</code> counts members/elements, <code>TomlBool</code> returns a value
+and a success flag, and <code>TomlScalarText</code> returns the validated spelling of a
+number, boolean or date/time without converting or rounding it. Run
+<code>sh tests/toml_document.sh build/bin/ziran</code> for source, saved IR, C, Go and
+portable execution tests.</p>
+<h3 id="json-and-zip">JSON and ZIP</h3>
+<p><code>std/json_scan.zi</code> supplies allocation-free JSON value skipping, object member
+and array element lookup, string spans, and decimal number reading. It validates
+the value shape and escapes while scanning; member names match unescaped ASCII
+bytes. Callers keep the original input string and use byte offsets returned by
+the scanner. Its tests compare source and saved-IR portable bundles, and the
+same module is exercised through native C and Go by a downstream client.</p>
+<p><code>ArrayRangesReuse</code> accepts value ranges from a successful scan and their
+unchanged backing document. It reuses validation only for complete values
+whose bytes match at the same array index; other values and the array's
+separators are checked normally. Keep the preceding document and ranges alive
+until the call returns, use a separate output slice, and consume offsets only
+after a nonnegative return. Short output buffers still validate every element.
+Run <code>sh tests/json_array_reuse.sh build/bin/ziran</code> for source, saved-IR and
+cross-target transition checks, including malformed replies and numeric prefixes.</p>
+<p><code>ReadStringValue(text, at, max_bytes)</code> decodes a quoted value into owned bytes
+and reports <code>valid</code>, including for empty strings. Its limit counts decoded
+bytes, so a long escaped value can fit. Consume the returned <code>value</code> vector
+with <code>BuilderFinish</code>, or let normal vector cleanup release it. Ordinary UTF-8
+runs append directly, and escaped code points use a five-byte temporary buffer
+instead of a maximum-size string buffer. Invalid input or an exceeded limit
+returns no decoded bytes. Run <code>sh tests/json_string_value.sh build/bin/ziran</code>
+for source/saved-IR VM and cross-target Unicode, ownership and boundary checks.</p>
+<p><code>std/json_document.zi</code> reads a whole document into a tree of numbered nodes
+that a program queries (<code>JsonMember</code>, <code>JsonElement</code>, <code>JsonFirst</code>/<code>JsonNext</code>,
+<code>JsonString</code>, <code>JsonInteger</code>), changes (<code>JsonSet</code> keeps a replaced member in
+place, <code>JsonAppend</code>, <code>JsonRemove</code>, <code>JsonCopy</code>) and writes back. <code>JsonWrite</code>
+lays the text out as Python's <code>json.dumps</code> does for the same style: indent,
+separators, ensure_ascii escapes and sort_keys, so tools can rewrite files that
+Python wrote without changing their bytes. Numbers keep the text they were read
+with by default. <code>JsonPythonStyle(indent, ascii, sort_keys, true)</code> opts into
+binary64 float canonicalization (<code>JsonStyle.python_floats</code> for a custom style):
+<code>1e3</code> becomes <code>1000.0</code>, <code>-0e0</code> becomes <code>-0.0</code>, and <code>1e-7</code> becomes <code>1e-07</code>.
+Only tokens containing a point or exponent are converted. Integer tokens,
+including arbitrary-precision integers and <code>-0</code>, keep their original spelling;
+the stored node text is never changed. Float overflow writes <code>Infinity</code> or
+<code>-Infinity</code>, as Python's default JSON encoder does. Run
+<code>sh tests/std_json_document.sh build/bin/ziran</code> for tree operations and default
+layout, and <code>sh tests/std_float_text.sh build/bin/ziran</code> for canonical floats.</p>
+<p>Documents own decoded escape buffers and generated integer text; normal
+document cleanup releases them. <code>JsonReset</code> releases those buffers and clears
+the tree, retaining vector capacity for reuse. Unescaped input, <code>JsonNewString</code>
+and <code>JsonNewNumber</code> remain borrowed. Consume their views before changing that
+storage. <code>JsonSetCopy</code> acts like <code>JsonSet</code> but owns a copy of its key; ordinary
+<code>JsonSet</code> borrows its key. <code>JsonNewStringCopy</code> owns a copy of its value;
+<code>JsonNewString</code> and <code>JsonNewNumber</code> continue to borrow. <code>JsonCopy</code> deep-copies
+text and keys into the target, so the source may
+be reset or dropped first, including when copying within one document.
+<code>JsonString</code>, <code>JsonKey</code> and <code>JsonNumberText</code> still return independent owned
+strings. <code>JsonStringInto(document, node, output)</code>, <code>JsonKeyInto</code> and
+<code>JsonNumberTextInto</code> instead append to caller-owned <code>Vec(u8)</code> storage and return
+false on allocation failure or a missing/wrong-kind node. <code>JsonWriteInto</code> and
+<code>JsonQuoteInto</code> also return false on allocation failure; discard partial output
+on failure. Their output must not alias the document's input or owned buffers.
+<code>JsonWrite</code> and <code>JsonQuote</code> detach owned strings.</p>
+<p>For private data, pass <code>JsonRead(document, text, erase, context)</code> or register
+<code>JsonSetEraser(document, erase, context)</code> before constructing a document. The
+crypto-independent callback <code>(context: *void, bytes: []u8) -&gt; void</code> must overwrite
+the supplied mutable bytes. It runs before owned decoded/copied/generated text,
+discarded keys and internal text temporaries are freed, including failed reads.
+Explicitly <code>defer { JsonReset(*document) }</code> before a private document leaves
+scope; normal implicit vector destruction cannot call the registered eraser.
+The caller owns erasure of borrowed input and Into output, and starts output
+empty/wiped or reserves its full lifetime maximum before storing private bytes.
+Use Into accessors rather than detached string returns for private data.
+The parser and writer reserve before copying private bytes, so their own growth
+does not relocate plaintext into allocations the eraser cannot reach.</p>
+<p><code>std/zip.zi</code> reads classic ZIP directories from caller-owned bytes, verifies
+stored entries with CRC-32, and writes stored archives into caller-owned output.
+It rejects split, encrypted, and malformed archives, and duplicate requested
+entries. ZIP64 archives are unsupported.
+It runs in portable bundles. <code>std/zip_linux.zi</code> adds raw DEFLATE extraction
+through the system zlib library for 64-bit Linux native C builds; link those
+builds with <code>-lz</code>. The caller supplies file I/O, memory limits, and which entry names
+are meaningful to the application.
+<code>std/gzip_linux.zi</code> compresses and decompresses a single gzip stream into
+caller-owned, disjoint byte buffers. <code>GzipDecompress</code> requires the expected
+uncompressed length and rejects expansion beyond that length, bad checksums,
+truncation and trailing streams. Native C builds link zlib (<code>-lz</code>); Emscripten
+builds use <code>-sUSE_ZLIB=1</code>. Run <code>make gzip-test</code> for independent Python gzip
+interoperability and malformed-input tests.
+<code>std/image.zi</code> holds RGBA pictures (<code>Image</code>: width, height and straight-alpha
+pixels, rows top to bottom) and does what build tools did with Pillow:
+<code>ResizeNearest</code>, <code>ResizeBox</code>, <code>ResizeBicubic</code> and <code>ResizeLanczos</code> give Pillow's exact pixels
+(filtered resizing premultiplies alpha as Pillow does), <code>AlphaComposite</code> is
+<code>Image.alpha_composite</code>, and <code>PasteImage</code>, <code>RotateLeft</code>, <code>DropAlpha</code> and
+<code>QuantizeImage</code> (median cut with Floyd–Steinberg dithering) complete it.
+<code>Thumbnail(image: *Image, max_width: s32, max_height: s32,
+reducing_gap: float64 = 2.0) -&gt; Image</code> returns an owned bicubic thumbnail,
+preserving aspect ratio with Pillow's floor/ceil choice and never enlarging.
+<code>ResizeBicubic(image: *Image, width: s32, height: s32,
+reducing_gap: float64 = 0.0) -&gt; Image</code> also permits enlargement. Both keep the
+source unchanged and return an empty image for invalid images or nonpositive
+sizes. Gap <code>0</code> means Pillow's <code>None</code>; other gaps must be finite and at least
+<code>1</code> when resizing (an unchanged thumbnail returns before checking the gap).
+Like Pillow's RGBA path, they resample premultiplied bytes without an
+integer reduction step, regardless of gap. Unchanged sizes preserve all bytes,
+including RGB under zero alpha; neither operation applies EXIF orientation.
+<code>ResizeBicubicInto(image: *Image, width: s32, height: s32, output: *Image) -&gt; bool</code>
+provides the same default bicubic pixels with checked allocation and dimension
+arithmetic. Output owns its pixels and can be reused; it must not alias the
+source or borrow its pixel storage. Failure empties output and releases partial
+buffers; null output or identical source/output records fail unchanged. The
+source remains unchanged. Run <code>sh tests/image_resize_fallible.sh build/bin/ziran</code>
+for portable parity, native allocation faults and sanitizer lifetime tests.
+Run <code>make -f Makefile -f tests/native_image_thumbnail.mk image-thumbnail-test</code>
+for 40 frozen Pillow 12.3.0 bitmap oracles through native C source/saved IR,
+plus Go and portable source/saved-IR assertions (no Python dependency).
+<code>std/png_linux.zi</code> reads every standard PNG into an <code>Image</code> and writes RGBA,
+RGB and palette files; <code>std/jpeg.zi</code> writes baseline JPEGs at an IJG quality;
+<code>std/zlib_linux.zi</code> compresses and decompresses whole zlib, gzip or raw
+deflate streams into growing vectors. The PNG and zlib modules link <code>-lz</code>.
+Run <code>sh tests/std_image_linux.sh build/bin/ziran</code>, which also compares with
+Pillow when it is installed.
+<code>std/vorbis.zi</code> reads what an Ogg Vorbis stream in memory declares without
+decoding it: <code>VorbisProbe(bytes, *audio)</code> checks that the bytes are whole
+pages of one stream with a Vorbis identification header and gives its
+channels, rate and length, so a program can bound a stream before any
+decoder allocates for it. It needs no library.
+<code>std/vorbis_linux.zi</code> decodes one whole Ogg Vorbis stream held in memory
+into interleaved signed 16-bit little-endian PCM over the platform
+libvorbisfile: <code>VorbisDecode(bytes, *pcm, max_frames, *audio)</code> probes first,
+reports the channels, rate and frame count, and refuses truncated or chained
+streams, trailing bytes, damaged pages and anything longer than <code>max_frames</code>. Its
+records mirror the Xiph headers, and a guard after the decoder state is
+checked on every call. Only programs that import it link
+<code>-l:libvorbisfile.so.3</code> (or <code>-lvorbisfile</code> with the development package).
+<code>tests/vorbis_linux.sh</code> needs ffmpeg with libvorbis; with the Vorbis
+development headers (or <code>VORBIS_INCLUDE</code>) it also compares the record sizes
+with the C compiler's.</p>
+<p>The reusable <code>audio</code> package, maintained in <code>ziranlang/packages/audio</code>, adds
+Opus and quality sinc conversion without a GUI or audio-device dependency.
+<code>audio/opus</code> exposes bounded Ogg decoding and single-owner encoder/decoder
+states with caller-owned scratch. <code>audio/pipeline</code> adds whole-buffer encoding
+with automatic sinc resampling. The Ogg decoder applies
+pre-skip, header gain and final trim; <code>DecoderRewind</code> resets a validated
+immutable input without rescanning it. <code>audio/resample</code> wraps libsamplerate's
+best-quality sinc, including 44.1–48 kHz conversion and incremental processing.
+<code>audio/ogg</code> inspection and <code>audio/wav</code> PCM16/float32 input with PCM16 output
+also run in portable bundles. Native codec/sinc calls require the C target;
+portable bundles reject those FFI calls explicitly. Native consumers declare
+<code>links = ["opus", "samplerate", "m"]</code> in their root package manifest.
+The package's <code>audio</code> CLI provides <code>encode</code>, <code>decode</code>, <code>inspect</code>, <code>transcode</code>
+and <code>resample</code>, with bitrate, VBR, constrained VBR and named bandwidth caps.
+Its README documents ownership, frame/byte limits, supported formats and
+tested targets. Existing Vorbis modules remain independent.</p>
+<p><code>std/zip_file_linux.zi</code> writes stored ZIP entries directly to a caller-owned
+file from borrowed byte slices, including mapped files. The caller controls
+file creation and publication. Its test checks the output with Python's ZIP
+reader as well as Ziran's reader.</p>
+<p><code>std/zstd_go.zi</code> provides single-owner reusable Zstandard encoders and bounded
+stream decoding for the Go target. The consuming Go module supplies
+<code>github.com/klauspost/compress</code> (tested with v1.20.3, requiring Go 1.25 or newer).
+<code>NewEncoder(writer, level, window_bytes, literal_entropy)</code> uses one worker;
+numeric levels choose the provider's nearest preset. Literal entropy defaults
+to true so base64-like data can compress even without repeated strings.
+Close an encoder before <code>Reset</code> attaches its next writer. The module does not
+pool contexts or retain response buffers itself. <code>DecodeLimited</code> caps returned
+bytes and the frame's window, rejects malformed/trailing data, and returns no
+partial bytes on failure. It accepts valid concatenated frames within the same
+total limit. Native C targets continue to use their transport's negotiated
+decoder; this Go module does not provide a portable bundle capability. Run
+<code>sh tests/zstd_go.sh build/bin/ziran</code> for source/saved-IR, race, independent
+libzstd interoperability and malformed/bounded-input verification.</p>
+<h3 id="binary-fields">Binary fields</h3>
+<p><code>std/binary.zi</code> reads little-endian numbers from byte text such as file or
+asset contents: <code>ReadU16LE</code>, <code>ReadU32LE</code>, <code>ReadS32LE</code> and <code>ReadF32LE</code> take
+the text and a byte offset, and a field that does not fit reads as zero.
+<code>Float32FromBits</code> and <code>Float64FromBits</code> turn IEEE 754 bit patterns into
+values with exact arithmetic, including subnormals, signed zeros, infinities
+and NaN, so native targets and portable bundles agree without reinterpreting
+memory. Run <code>sh tests/std_binary.sh build/bin/ziran</code>, which also compares the
+decoding with the C compiler's over a million random patterns.
+<code>std/binary_linux.zi</code> keeps 64-bit fields for native Linux programs.</p>
+<h3 id="http-and-process-capabilities">HTTP and process capabilities</h3>
+<p><code>std/net_http.zi</code> defines an explicit request/response host capability. A
+platform adapter supplies transport and TLS; checked Ziran code owns request
+construction and response interpretation. A missing host binding is reported
+before a portable bundle runs.</p>
+<p><code>std/constant_time.zi</code> compares equal-length byte spans without branching on
+byte values. Use fixed-size buffers for secret tags so unequal lengths remain
+public shape rather than a secret-dependent oracle.</p>
+<p><code>std/process.zi</code> defines a line-oriented child-process capability with explicit
+arguments, stdin, an optional credential binding, a timeout, and a desktop
+isolation request. The host starts the child, yields output lines, and returns
+its exit result. Its contract runs from source and saved <code>.zir</code> as a portable
+bundle and through native C and Go mocks.</p>
+<h3 id="files">Files</h3>
+<p><code>#import "std/file"</code> gives one set of file operations on every native C
+target: it uses <code>std/file_linux.zi</code> on Linux, Android, the web, and Windows.
+The shared operations are <code>OpenRead</code>, <code>OpenWrite</code>,
+<code>OpenUpdate</code>, <code>OpenReplace</code>, <code>Read</code>, <code>Write</code>, <code>ReadAt</code>, <code>WriteAt</code>,
+<code>FileSize</code>, <code>CloseFile</code>, <code>RemoveFile</code>, <code>RenameNoReplace</code>, <code>PathExists</code>,
+<code>DirectoryExists</code>, <code>CreateDirectory</code>, <code>CreatePrivateDirectory</code>, and the
+directory cursor. Two helpers read and replace whole files:</p>
+<pre><code class="language-jai">#import &quot;std/file&quot;
+
+if WriteEntireFile(&quot;notes.txt&quot;, &quot;hello\n&quot;) {
+    text, ok := ReadEntireFile(&quot;notes.txt&quot;)
+}
+</code></pre>
+<p>The Go target and portable bundles do not have these operations; Go
+programs use <code>std/file_go</code>.</p>
+<h3 id="browser-byte-snapshots">Browser byte snapshots</h3>
+<p><code>std/web</code> provides <code>WebBytes(kind, data, count)</code> for a copied JavaScript typed
+array and <code>WebBlobBytes(data, count)</code> for a browser <code>Blob</code> snapshot. The latter
+passes a Wasm memory view directly to the Blob constructor within one host
+call, avoiding a separate copy of encoded file, media or request-body bytes.
+The source may be changed or freed, and Wasm memory may grow, after it returns.
+An invalid byte range returns handle <code>0</code>; an empty valid range returns an empty
+Blob. Shared heaps require an explicit unshared snapshot because Blob excludes
+shared BufferSources. Handles follow the usual <code>WebScope</code>/<code>WebKeep</code> lifetime.
+<code>WebBytes</code> continues to return an independent typed-array copy.</p>
+<h3 id="native-linux-adapters">Native Linux adapters</h3>
+<p>Native Linux C builds can import <code>std/file_linux.zi</code> for positional byte I/O,
+<code>std/binary_linux.zi</code> for little-endian numbers, <code>std/date_time_linux.zi</code> for
+Unix time, <code>std/random_linux.zi</code> for operating-system secure randomness, and
+<code>std/byte_text_linux.zi</code> for borrowed byte-to-text views, and
+<code>std/environment_linux.zi</code> for environment values (<code>EnvironmentText</code>,
+<code>EnvironmentNumber</code>). <code>std/socket_linux.zi</code>
+opens literal-IPv4 TCP sockets with bounded polling, cancellation, and I/O.
+<code>std/timer_linux.zi</code> supplies monotonic millisecond timestamps and bounded,
+interruptible sleeps; it does not expose wall-clock time.
+<code>std/thread_linux.zi</code> runs a procedure on a background thread that the
+starting thread can poll for completion without waiting, which suits a frame
+loop with a request in flight; it builds on pthreads, including Android's
+and Windows winpthreads.
+<code>ThreadStart</code> also accepts an optional <code>ThreadNotification</code> containing a
+<code>procedure</code> and its <code>argument</code>.
+The worker calls that notification once after publishing completion, allowing
+an event loop or pipe waiter to wake immediately. The notification must not
+join or restart its own thread. Keep the thread and argument storage alive
+until <code>ThreadFinished</code> or <code>ThreadWait</code> joins it before consuming results.
+<code>std/thread_windows.zi</code> provides the same worker interface for native Win64
+without winpthreads. It starts through the C runtime, polls the native thread
+handle with a zero timeout, and closes that handle only after the thread and
+its cleanup finish. Keep its record and arguments at stable addresses until
+completion, including while a canceled request is being collected.
+<code>tests/thread_windows.sh</code> executes C source and saved-IR checks under
+Wine on a private display, including held notifications, thread cleanup,
+result publication and handle reuse.
+<code>std/parallel_linux.zi</code> supplies a reusable <code>ParallelPool</code> for independent
+half-open ranges. <code>ParallelRun</code> divides a range among persistent workers and
+the submitting thread, then waits for every lane before returning. Short ranges
+use a subset of the pool instead of becoming serial when more lanes are
+configured. Keep the pool at one address, submit from one owner, and call <code>ParallelClose</code> before
+releasing it. Callbacks must write only their own range and keep shared inputs
+immutable. Four lanes run by default; <code>ZIRAN_PAR_THREADS</code> selects 1–64 lanes.
+Native C source builds define <code>POSIX_THREADS</code> automatically, including
+Windows. On <code>_WIN32</code>, the pool uses <code>std/thread_windows.zi</code>, native SRW locks
+and condition variables from kernel32; it needs no winpthreads or <code>-pthread</code>.
+<code>tests/native_workers_windows.sh</code> runs source and saved IR under private Wine
+with 1, 2, 4, 8 and 64 lanes. MinGW tests accept <code>MCFGTHREADS</code> as the installation
+prefix of an mcfgthread runtime when its <code>lib</code> directory is outside the compiler's
+search path. <code>PLATFORM_WEB</code> opts out;
+untargeted IR stays portable. Explicit C IR freezes the same capability
+selection as source builds. Libraries
+can use that capability to parallelize their native adapters by default while
+keeping portable output independent of pthreads. This does not parallelize
+arbitrary program state or make shared mutable data safe.
+The file module can create a private file exclusively, sync its contents, and
+publish it through a hard link that fails if the destination already exists.
+<code>std/byte_text_linux.zi</code> also borrows caller-owned C strings and byte buffers;
+the caller must keep their memory alive. <code>std/mapped_file_linux.zi</code> maps a file
+privately for bounded byte parsing without copying it. Its borrowed slice is
+valid only until <code>UnmapFile</code>, and writes to that slice do not change the file.
+<code>std/process_capture_linux.zi</code> captures a child process without a shell;
+<code>std/net_http_linux.zi</code> uses it to send JSON over HTTPS through <code>curl</code>.
+<code>std/process_channel_linux.zi</code> keeps an owned child open for bidirectional byte
+I/O. <code>StartChannel</code> takes 1 through 32 explicit arguments (each at most 4095
+non-NUL bytes) and optionally merges stderr into the channel. Invalid argument
+counts fail before creating a socket or child. <code>ChannelSend</code> and <code>ChannelReceive</code> use caller-owned
+buffers and bounded waits. A third <code>discard_stderr</code> argument defaults to false;
+when true the child sends stderr to <code>/dev/null</code> without mixing it into stdout.
+Merging and discarding together are rejected before launch. <code>WaitChannel</code> joins
+the child and records its exit
+code. <code>CloseChannel</code> closes the stream, waits for the requested grace period,
+then terminates only the child's own process group if it is still running.
+<code>CancelChannel</code> instead signals the still-owned unreaped child group before
+joining, so cancellation also stops descendants retaining stdout after their
+parent exits. It closes the endpoint and reaps the direct child; repeating it
+after joining is harmless. Do not reap the parent separately while awaiting
+stdout, because its unreaped PID proves this process-group ownership.
+Keep one owner for each channel and close it before releasing its storage;
+failed sends may have delivered a prefix and must not be blindly replayed.</p>
+<p>Build and release programs use three more modules. <code>std/process_run_linux.zi</code>
+runs a child with any number of arguments, a working directory, environment
+changes, and each stream inherited, read from or written to a file, or
+captured (<code>RunProcess</code>); <code>StartProcess</code>, <code>PollProcess</code>, <code>WaitProcess</code> and
+<code>SignalProcess</code> follow a child left running, and a program that cannot start
+reports <code>started = false</code>. <code>std/file_tree_linux.zi</code> creates, lists, copies and
+removes folders, reads a path's kind, owner UID (<code>PathInfo.owner_uid</code>), permissions,
+size and modification time,
+replaces a file atomically, takes <code>flock</code> locks and matches shell wildcards.
+<code>PathInfo.modified</code> gives signed seconds since the Unix epoch;
+<code>modified_nanoseconds</code> gives its fractional nanoseconds from 0 through 999999999,
+not total nanoseconds. Missing paths return zero for both fields. Programs that
+combine them into a signed 64-bit timestamp must check multiplication/addition
+overflow for their supported date range.
+<code>PathStatus(path, false)</code> reports a symbolic link's own metadata.
+<code>ResolvePath(path)</code> returns the canonical absolute path with symbolic links and
+dot components resolved, or empty for a missing or invalid path.
+<code>CreateTemporaryDirectory(parent, prefix = "ziran-")</code> atomically creates a unique
+child under an existing directory owned by the effective user. It returns the
+absolute path or empty on failure. The prefix must be one name component;
+six random characters follow it. Permissions are 0700 restricted by umask.
+Keep the parent and its ancestors stable during creation, and call <code>RemoveTree</code>
+when finished. Run <code>sh tests/std_file_tree_linux.sh build/bin/ziran</code> for C source
+and saved-IR ownership, canonicalization and private-directory tests.
+<code>std/text_tools.zi</code> finds, splits, trims, replaces and joins text, and decodes
+bounded hexadecimal into a caller-owned byte vector on any target.
+<code>std/stdio_linux.zi</code> writes to standard output or standard error and reads all
+of standard input.
+Run <code>sh tests/std_tools_linux.sh build/bin/ziran</code> for their checks.</p>
+<p>These native adapters keep libc calls out of applications and require glibc
+Linux and a <code>curl</code> executable. Portable bundles should use the host capabilities
+above instead.</p>
+<p>Windows C builds (<code>--define _WIN32</code>) keep the same file and mapping API over
+Win32. Paths pass as UTF-8 and are converted to UTF-16. Positional reads and
+writes leave the file position unchanged, as on POSIX, and a private mapping
+is a copy-on-write view. An open file can itself be renamed or removed, but
+unlike POSIX, a rename cannot replace a destination that is still open. The
+libcurl HTTP and WebSocket adapters also build there; <code>std/zip_linux.zi</code> needs
+a MinGW zlib. <code>tests/std_file_windows.sh</code> links the file modules with MinGW
+and runs them under Wine when both are installed.</p>
+<h3 id="native-go-maps">Native Go maps</h3>
+<p>Import <code>map_go</code> to use <code>Map(K, V)</code> with the Go target. Keys must be comparable;
+values cannot own <code>Vec</code> storage. A map's zero value is nil. Copies share entries,
+while replacing a map binding changes only that binding. Maps can be compared
+with <code>null</code>, and their contents are accessed through these operations:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Operation</th>
+<th>Behavior</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MapInit(values)</code></td>
+<td>Allocate an empty map if the binding is nil</td>
+</tr>
+<tr>
+<td><code>MapSet(values, key, value)</code></td>
+<td>Insert or replace; allocate nil storage first</td>
+</tr>
+<tr>
+<td><code>MapGet(values, key)</code></td>
+<td>Read an entry, or return the value type's zero value</td>
+</tr>
+<tr>
+<td><code>MapLookup(values, key)</code></td>
+<td>Return <code>Option(V)</code>; import <code>option</code> to use this operation</td>
+</tr>
+<tr>
+<td><code>MapContains(values, key)</code></td>
+<td>Test key presence, including entries with zero values</td>
+</tr>
+<tr>
+<td><code>MapDelete(values, key)</code></td>
+<td>Remove an entry; missing keys are harmless</td>
+</tr>
+<tr>
+<td><code>MapClear(values)</code></td>
+<td>Remove every entry while preserving allocated storage</td>
+</tr>
+<tr>
+<td><code>MapCount(values)</code></td>
+<td>Return the entry count as <code>s64</code></td>
+</tr>
+<tr>
+<td><code>MapKeys(values)</code></td>
+<td>Return an unordered <code>[]K</code> snapshot</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>MapInit</code> and <code>MapSet</code> require a mutable binding or field. Nil maps support
+reads, membership checks, deletion and clearing. Map mutation in <code>#parallel</code>
+regions is rejected because copies share storage. Other targets and portable
+ABIs reject maps; checked <code>.zir</code> preserves their Go behavior.</p>
+<p>Import <code>go_types</code> for the predeclared Go <code>Any</code> and <code>Error</code> interfaces. <code>Any</code>
+accepts values that do not own <code>Vec</code> storage, including nested maps for JSON.</p>
+<h3 id="native-civil-clocks-and-calendars">Native civil clocks and calendars</h3>
+<p>Import <code>date_time_linux</code> for <code>UnixNow()</code>, <code>LocalNow()</code>,
+<code>LocalAt(seconds)</code>, and <code>UtcAt(seconds)</code>. <code>LocalAt</code> uses the operating system's
+timezone and daylight-saving rules. The shared <code>LocalDateTime</code> record lives
+in <code>date_time_types</code>; the hosted <code>date_time</code> module re-exports that same type.
+Months and days are one-based, <code>day_of_year</code> is zero-based, and <code>valid</code> reports
+whether the provider could obtain a reading. Dates after 2038 retain their full value.</p>
+<p>With <code>--define _WIN32</code>, <code>date_time_linux</code> and <code>timer_linux</code> use native Windows
+APIs instead of POSIX calls. Windows civil clocks use
+FILETIME and the system's timezone rules, with valid dates from 1601 through
+9999. Its named-zone query recognizes UTC/GMT; other IANA names return an
+invalid offset because these Windows APIs do not expose an IANA database.
+Monotonic timestamps use QueryPerformanceCounter. Run
+<code>sh tests/std_time_windows.sh build/bin/ziran</code> for source and saved-IR checks,
+including linking with MinGW and execution under Wine when available.</p>
+<p>Import <code>calendar</code> for Gregorian <code>LeapYear</code>, <code>DaysInMonth</code>, <code>DayOfWeek</code>,
+<code>DayOfYear</code>, <code>DateTimeValid</code>, and <code>FormatDateTime</code>. <code>DayOfWeek</code> returns zero for
+Sunday and minus one for an invalid date. Calendar dates range from year 1 to
+9999. <code>FormatDateTime(reading, pattern, output)</code> writes into a caller-owned
+byte slice, leaves a NUL terminator, and returns a view of the complete result.
+Invalid readings, unsupported tokens, and insufficient space return an empty
+view and clear the first output byte. Names are English and independent of
+locale. Supported civil tokens are <code>%a</code>, <code>%A</code>, <code>%b</code>, <code>%B</code>, <code>%h</code>, <code>%C</code>, <code>%d</code>,
+<code>%e</code>, <code>%F</code>, <code>%D</code>, <code>%H</code>, <code>%I</code>, <code>%j</code>, <code>%k</code>, <code>%m</code>, <code>%M</code>, <code>%p</code>, <code>%P</code>, <code>%r</code>, <code>%R</code>,
+<code>%S</code>, <code>%T</code>, <code>%u</code>, <code>%w</code>, <code>%X</code>, <code>%y</code>, <code>%Y</code>, <code>%n</code>, <code>%t</code>, and <code>%%</code>. The calendar
+calculations and formatting also run from portable bundles without a clock
+host.</p>
+<p>Local conditional construction can share an explicitly named ordinary record
+type between its arms:</p>
+<pre><code class="language-zi">Pair :: struct { value: s32; }
+Choose :: (yes: bool) -&gt; Pair {
+    result := ifx yes then Pair.{value=41} else .{value=42};
+    return result;
+}
+</code></pre>
+<p>The reverse arm order works too, including nested fields with their checked
+record context. At least one arm must explicitly name that record. This does
+not search types by their fields, infer public signatures or imports, or infer
+owned, foreign, union, enum or procedure types from an unnamed sibling.
+Ambiguous constructors and mismatched fields remain errors. The checked source
+and saved IR retain the resolved record type; both arms keep their ordinary
+lazy runtime evaluation.</p>
+<p>For checked, hash-bound source changes see <a href="semantic-edit.html">source edits</a>.
+An optional byte-exact transport with source maps is described in
+<a href="transport-view.html">compact transport</a>; <code>.zi</code> remains canonical source.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

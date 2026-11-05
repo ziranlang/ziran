@@ -5,6 +5,24 @@ portable linker, and VM in a Web Worker. Its runtime loads only when someone
 presses Run. It has the portable subset's language coverage and no installed
 host capabilities. Workers can be stopped and are recreated for each run.
 
+## Generated pages
+
+`scripts/site_pages.py` writes every page built from the repositories: the
+examples, the module index (`modules.html`), one API page per standard module
+(`std/`), one page per public ziranlang package (`packages/`, read from
+`../packages`), the guide rendered from `docs/USAGE.md`, `docs/COMPILER_API.md`
+and the documents they link to (`guide/`), and `sitemap.xml`. Private package
+repositories are left out. A module is marked stable when it ships in the
+latest `v*` release; a package, when it has a release tag.
+
+```sh
+python3 scripts/site_pages.py --ziran build/bin/ziran
+python3 scripts/site_links.py
+```
+
+`scripts/site_links.py` checks every local link, asset and `#fragment` offline.
+It needs `python3-markdown`.
+
 ## Build and preview
 
 Activate Emscripten SDK 6.0.6, then run from the repository root:

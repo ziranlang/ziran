@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Diagnostics and explanations: the Ziran guide, rendered from docs/DIAGNOSTICS.md."><title>Diagnostics and explanations · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/diagnostics"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Diagnostics and explanations</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/DIAGNOSTICS.md">docs/DIAGNOSTICS.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><span>One section</span></aside><div class="article-body">
+<section class="prose"><p>Compiler failures use a diagnostic code, source span, and message. With
+<code>--diagnostics=json</code>, compiler tools, the package launcher, and formatter emit
+one JSON object per line on their ordinary failure paths:</p>
+<pre><code class="language-json">{&quot;schema_version&quot;:2,&quot;severity&quot;:&quot;error&quot;,&quot;code&quot;:&quot;check.type&quot;,&quot;message&quot;:&quot;...&quot;,&quot;path&quot;:&quot;main.zi&quot;,
+ &quot;line&quot;:1,&quot;column&quot;:1,&quot;end_line&quot;:1,&quot;end_column&quot;:1}
+</code></pre>
+<p>The code identity is the stable part. Messages and spans can improve; do not
+parse human-readable message text when a code is present. Code names use a
+phase prefix such as <code>parse</code>, <code>check</code>, <code>emit</code>, <code>module</code>, <code>package</code>, <code>law</code>,
+<code>parallel</code>, <code>gpu</code>, <code>zx</code>, <code>zir</code>, <code>vm</code>, or <code>host</code>.</p>
+<p>Query remediation with:</p>
+<pre><code class="language-sh">ziran explain check.slice_lifetime
+ziran explain zir.noncanonical --json
+ziran explain --list
+ziran explain --list --json
+ziran check --target=zx --diagnostics=json --root . main.zi
+</code></pre>
+<p>A single explanation has schema version 1:</p>
+<pre><code class="language-json">{&quot;schema_version&quot;:1,&quot;stability&quot;:&quot;stable-code&quot;,&quot;code&quot;:&quot;...&quot;,
+ &quot;summary&quot;:&quot;...&quot;,&quot;next_step&quot;:&quot;...&quot;}
+</code></pre>
+<p>The list output has the same schema version and stability field, with a
+<code>codes</code> array containing every code currently emitted by the compiler. The
+<code>tests/explain.sh</code> conformance test scans compiler diagnostic calls and fails
+if a new code is missing from the registry. Unknown codes exit nonzero rather
+than receiving a guessed explanation.</p>
+<p>Diagnostics use only current schema version 2 and <code>error</code> or <code>warning</code>
+severity. Explanation objects retain their independent schema version 1.
+Each diagnostic is a complete UTF-8 JSON line of at most 32768 bytes. Messages
+retain at most 2048 input bytes at a UTF-8 boundary; <code>truncation.message</code> reports
+clipping. Optional metadata is omitted as a complete field or structure if it
+would exceed the record budget; <code>truncation.metadata</code> reports that omission.
+Paths over 1024 bytes become null rather than a misleading shortened path.</p>
+<p>Initializer, assignment, argument, and return mismatches include checked
+<code>expected_type</code> and <code>actual_type</code> facts. Target restrictions supply <code>target</code>
+and <code>capability</code> when known. <code>semantic_id</code> identifies the enclosing checked
+function using the same signature-based identity as <code>ziran api</code>; null means
+unavailable. <code>document</code> is the raw source's captured SHA-256 digest, byte count,
+and <code>coordinate_space</code> (<code>source</code> or <code>rewritten_source</code>), or null for unavailable
+source identity, including saved IR. These facts are not inferred from messages. <code>cause</code> is null when unavailable;
+otherwise its fixed <code>kind</code> is <code>type_mismatch</code>, <code>unresolved_name</code>,
+<code>unresolved_function</code>, or <code>target_restriction</code>, with a checked <code>subject</code> when
+known. Facts are omitted only with explicit metadata truncation.</p>
+<p><code>related_graph</code> contains record-local <code>nodes</code> and directed <code>edges</code>. A checked
+type requirement has primary node 0, declaration node 1, and a <code>requires_type</code>
+edge; other relations may be null when the checker has only a related location.
+Empty graphs mean no related fact is available.</p>
+<p>Missing-name diagnostics include <code>suggested_name</code> when a close visible name
+exists. <code>alternatives</code> groups independent repairs, each with an ID, message,
+and an array of exact, non-overlapping <code>edits</code>. The current checker offers at
+most one <code>replace_name</code> alternative. Each edit supplies zero-based half-open
+UTF-8 byte offsets, one-based line/byte columns, <code>document_sha256</code>, <code>original</code>,
+and <code>replacement</code>. Consumers must verify both the hash and preimage. Edits
+are emitted only after the lexer identifies one unambiguous identifier and
+the reread source matches the captured document. Strings, comments, ambiguous
+occurrences, rewritten source without a raw mapping, and saved IR receive no
+speculative edits. Replacements and preimages are never clipped to fit a budget.</p>
+<p>Schema-1 diagnostic consumers must explicitly migrate to version 2:
+<code>related</code> is now <code>related_graph</code>, and top-level <code>edits</code> is now
+<code>alternatives[].edits</code>. No legacy diagnostic mode is retained.</p>
+<p><code>check --target=c|go|py|zx</code> checks target-specific foreign
+identities/imports and Go/portable scalar-union restrictions before writing
+output. Builds use the same preflight policy. Its failures include <code>target</code>
+and a capability such as <code>ffi.go</code>, <code>types.go</code>, or <code>unions.scalar</code>; individual
+lowerers and the portable verifier still check their remaining target limits.</p>
+<p><code>ZIRAN_DIAGNOSTICS=json</code> selects the same format. Format flags are read before
+argument validation, so an earlier invalid option still honors a later JSON
+flag. Invalid UTF-8 bytes in paths and subprocess logs are escaped; valid
+Unicode is retained. Native C compilation captures and drains both output
+streams in JSON mode, bounds the retained log, and reports truncation with
+<code>zir_c.toolchain</code>. Allocation failure reporting does not allocate another
+diagnostic buffer. <code>tests/tool_diagnostics.sh</code> covers these paths, missing
+launcher tools, invalid command arguments, and formatter errors.</p>
+<p>Arbitrary external package tools and fatal process signals can still produce
+unstructured output. Consumers should
+reject unknown schema versions and preserve diagnostic ordering. Missing
+optional metadata means it is unavailable; consumers must not guess it from
+the human-readable message.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

@@ -1,0 +1,441 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Language direction: the Ziran guide, rendered from docs/LANGUAGE_DIRECTION.md."><title>Language direction · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/language-direction"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Language direction</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/LANGUAGE_DIRECTION.md">docs/LANGUAGE_DIRECTION.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#general-language-first">General language first</a><a href="#laws-and-llm-development">Laws and LLM development</a><a href="#parallel-computation">Parallel computation</a><a href="#jai-source-syntax">Jai source syntax</a><a href="#evolution">Evolution</a></aside><div class="article-body">
+<section class="prose"><p>This records the intended language requirements behind the two-repository
+split. It is a target, not a list of features already shipped. See
+<a href="implementation-status.html">Implementation status</a> for the current compiler.</p>
+<h2 id="general-language-first">General language first</h2>
+<p>Ziran must be useful for command-line tools, services, libraries, numerical
+programs, and UI applications. Kryon is the first demanding library client,
+not the definition of the language. Modules, typed records, ordinary calls,
+procedure values, FFI, and host capabilities have the same meaning
+whether a program imports Kryon or never uses a display.</p>
+<p>The standard library belongs to Ziran and provides general facilities.
+Kryon's widgets, layout, rendering, styling, and accessibility remain in
+Kryon. No copied <code>kry_std</code> tree or UI-specific standard-library namespace is
+part of the end state.</p>
+<h2 id="laws-and-llm-development">Laws and LLM development</h2>
+<p>Laws are executable or mechanically checked constraints on a program's
+behavior and interfaces. They must have stable names, source spans, and
+machine-readable results, so an LLM-driven edit can identify what failed and
+repair it. A law is a build gate: an unsupported or unproved obligation cannot
+be silently treated as passed. Tests complement laws by checking examples and
+integration behavior; they are not presented as proofs.</p>
+<p>The intended development loop is to state invariants, implement code, check
+laws, run conformance tests, and retain the checked result in <code>.zir</code> and
+<code>.zx</code> metadata where needed for independent validation. Diagnostics should
+identify the violated law and the smallest relevant source span. This is a
+tooling requirement for LLM-generated code and human-written code alike.</p>
+<h3 id="law-contract">Law contract</h3>
+<p>A law obligation is a named, mechanically decidable check bound to a source
+span. The contract has four parts.</p>
+<ol>
+<li><strong>Declaration.</strong> <code>#law NAME kind payload;</code> binds the stable identifier
+   <code>NAME</code> to one obligation at file scope. <code>kind</code> selects the checker:
+   <code>type</code>, <code>effect</code>, <code>bounds</code>, <code>size</code>, <code>abi</code>, <code>custom</code>, <code>forall</code>, or <code>theorem</code>. <code>payload</code> is kind-specific
+   checked source — a boolean procedure for <code>custom</code>, a shape description
+   for the built-in kinds. A law with no checker for its kind is an error,
+   never a pass.</li>
+<li><strong>Result schema.</strong> Every check emits one JSON object per obligation:
+   <code>{"law": NAME, "kind": K, "span": {file, line, column},
+   "status": "proved" | "disproved" | "unknown" | "invalid", "detail": string,
+   "evidence": {method, domain, cases_checked, counterexample, waived}}</code>.
+   <code>unknown</code> is emitted when the checker lacks the assumption or budget to
+   decide; <code>detail</code> then names the missing capability. Build gates treat
+   <code>disproved</code> and <code>invalid</code> as errors and <code>unknown</code> as an error unless explicitly
+   waived for that law name.</li>
+<li><strong>Gate semantics.</strong> <code>ziran check</code> evaluates every reachable law and exits
+   nonzero on any <code>disproved</code>, <code>invalid</code>, or unwaived <code>unknown</code>. Generated artifacts
+   embed the result set: <code>.zir</code> stores per-module law tables and <code>.zx</code>
+   stores the transitive closure of laws its linked modules reached, so a
+   consumer can refuse a bundle whose laws were not all <code>proved</code> at save
+   time. Waivers are explicit <code>#law_waive NAME reason;</code> declarations with
+   their own spans and ride along in the same tables.</li>
+<li><strong>Determinism.</strong> A law result depends only on the checked program text
+   and declared kinds, never on wall-clock time, iteration order, or backend
+   choice. The same module set must produce byte-identical law tables in
+   repeated runs, which the test matrix enforces the same way it enforces
+   <code>.zx</code> byte equality.</li>
+</ol>
+<p>The compiler now implements named <code>type</code>, <code>effect</code>, <code>bounds</code>, <code>size</code>, <code>abi</code>,
+<code>custom</code>, <code>forall</code>, and scalar <code>theorem</code> laws, writes law tables and proof
+graphs to checked <code>.zir</code> and linked <code>.zx</code>, and reports results as JSON.
+<code>custom</code> evaluates closed compile-time expressions, <code>forall</code>
+(<code>#law N forall x: 0..4, k: SomeEnum =&gt; condition;</code>) checks every combination
+of integer ranges, enum members, and bounded integer sequences
+(<code>xs: [N]LO..HI</code>, N up to 16) through the same evaluator (a domain over
+1,000,000 cases or an undecidable condition is <code>unknown</code>, a failure reports
+the counterexample), <code>abi</code> checks
+the supported signature shape rather than proving foreign behavior, and law
+names must be unique within their declaring module and a waiver must name a
+visible unknown law, or the gate fails. <code>theorem</code> uses a checked <code>#proof</code>
+certificate over the full scalar domain. See <a href="laws.html">Laws and scalar proofs</a>
+for supported rules, deterministic budgets, artifact validation, the Lean rule
+model, and the remaining compiler trust boundary. General induction over
+arbitrary arrays and recursive programs remains future work.</p>
+<h2 id="parallel-computation">Parallel computation</h2>
+<p>Independent computation should be expressible without hand-written thread or
+GPU management in every call site. The language and runtime must define which
+operations may run concurrently, their memory and effect rules, and the
+observable ordering guarantees. CPU and GPU implementations must preserve
+those semantics; unsupported execution paths must report a capability or
+target error instead of silently changing the result. Integer, byte and
+boolean results are exact on every device. A float32 result may round
+differently on a device, since shaders and the C target do not compute floats
+at the same precision.</p>
+<h3 id="parallel-execution-contract">Parallel execution contract</h3>
+<ol>
+<li><strong>Effect classes.</strong> Every procedure has one of four effect classes derived
+   from its checked body: <code>pure</code> (reads only its arguments and immutable
+   globals, allocates, and calls only <code>pure</code> procedures), <code>observing</code> (also
+   reads mutable globals or host observations), <code>mutating</code> (also writes
+   through pointers or mutable globals it does not own), and <code>external</code>
+   (calls <code>#foreign</code> code whose effects the checker cannot see). The class
+   is recorded in <code>.zir</code> signatures and is part of the ABI: a caller sees
+   the callee's declared class, not its implementation.</li>
+<li><strong>Concurrency granularity.</strong> <code>#parallel for</code> over a range or fixed array
+   executes iterations concurrently when every called procedure in the loop
+   body is <code>pure</code> or <code>observing</code> and the body writes only to storage whose
+   lifetime is one iteration. Any other body is rejected at check time with
+   the offending span; the compiler never silently serializes a loop marked
+   <code>#parallel</code>.</li>
+<li><strong>Memory rules.</strong> Concurrent iterations share no mutable storage. Writes
+   to <code>Vec(T)</code> storage, host slices, and pointer-backed records inside a
+   parallel body are rejected unless the storage is declared <code>#local</code> to the
+   iteration. Allocation inside an iteration is private to it; a result
+   moved out of the loop body must be owned (<code>Vec</code> moves satisfy this).
+   An iteration may also write its own slot of a fixed array or slice the
+   function owns, <code>out[it]</code> with any field or index after it, when the body
+   uses it only at <code>out[it]</code> and keeps its loop binding unchanged:
+   iterations then never write the same slot. It may write through its own
+   window of such a slice, <code>row := out[it * K : it * K + K]</code> with K the same
+   in every iteration, when the body uses <code>out</code> only to take that window.
+   A body that writes through slices calls only pure code and reads no
+   global arrays; native code runs it in order when the written slice
+   shares storage with another slice, string or array the body reads.
+   A callee that writes through a slice it is handed, directly or by
+   passing it on, receives only storage the iteration owns: a binding the
+   body declares, a view of one, or the iteration's own window.</li>
+<li><strong>Observable ordering.</strong> The only ordering guarantees are: effects of an
+   iteration appear between the loop's entry and exit; <code>#parallel</code> regions
+   do not nest; and the loop completes before any statement after it runs.
+   Interleaving between iterations is unobservable: any program whose
+   result differs between two legal interleavings is rejected by the effect
+   and memory rules above, not by runtime detection.</li>
+<li><strong>Backend duties.</strong> A backend that cannot execute a legal <code>#parallel</code>
+   region concurrently must still produce the same result serially and
+   report the downgrade through a capability flag, never through a changed
+   value. The portable VM executes regions serially with the same effect
+   checking; native targets may use threads; a GPU target must reject
+   <code>external</code>-class calls and pointer arguments before offloading.</li>
+</ol>
+<p>Parallel execution is a target requirement. Effect classes and the
+<code>#parallel for</code> acceptance rules above are implemented and checked on every
+target. Native C executes forward regions on pthreads with
+iteration-local workers and read-only captures; the portable VM and Go run
+regions serially with a reported downgrade, which the backend-duties clause
+permits. <code>#parallel_gpu for</code> regions enforce the GPU clause — pointer
+storage and pointer-bearing arguments are rejected before offload — and, on
+the native C target, run as OpenGL ES 3.1 compute shaders on the fastest GPU
+when one is available. A region a shader cannot compute as the CPU does stays
+on the CPU worker path with an emitted marker, and one that cannot finish on a
+device reruns there.</p>
+<h2 id="jai-source-syntax">Jai source syntax</h2>
+<p>Ziran's source grammar targets Jai syntax. Polymorphic type declarations use
+<code>Box :: struct($T: Type) { value: T; }</code>, and named type values use
+<code>IntBox :: Box(s32)</code>. Bracketed declaration parameters and the <code>specialize</code>
+keyword are no longer accepted. The compiler rejects Ziran-only <code>#enum</code> and <code>variant</code>
+declarations, <code>match</code> statements, postfix <code>?</code>, <code>guard</code>, C-style <code>switch</code> and
+<code>goto</code> with labels, <code>state</code> blocks, C-style locals, and raw C statements in
+source. Jai enum cases use <code>if value == { case ... }</code>. Native builds run the
+language checker unconditionally; <code>--strict</code> and <code>--no-strict</code> are rejected. Other syntax
+differences remain under audit.
+Direct polymorphic procedure calls use <code>Identity :: (value: $T) -&gt; T {
+return value }</code>. A procedure may bind several type names, use them in later
+parameter types and its results, and call another polymorphic procedure.
+Several results such as <code>Pair :: (value: $T) -&gt; T, T { return value, value }</code>
+specialize together and use the ordinary multiple-result binding rules.
+Calls specialize
+for concrete argument types, including records from an importing module.
+Untyped numeric literals need a concrete context to infer <code>T</code>. Polymorphic
+procedures cannot be used as procedure values or exported with
+<code>#program_export</code>.
+Calls accept Jai named arguments such as <code>Combine(second = 2, first = 1)</code>.
+Names bind to declared parameters, and argument expressions run in written
+order before the call. The checker rejects unknown, duplicate, and missing
+arguments. Named arguments work with direct, imported, polymorphic, and
+procedure-value calls. Procedures accept defaults in parameter declarations,
+including inferred <code>value := expression</code> defaults and defaults before required
+parameters. Inferred defaults use the checked expression type, including
+imported constants and procedure results. A missing default expression is
+evaluated after the caller's explicit argument expressions. Defaults on
+procedure-type values remain unsupported. <code>#caller_location</code> is a parameter
+default of type <code>Source_Code_Location</code>; omitted arguments receive the calling
+source file and physical line, including through imports and <code>#load</code>. Concrete
+procedure defaults use declaration-scope name
+resolution. Polymorphic defaults with a concrete expression type also use a
+checked helper in the declaring module. Scope-independent literals retain
+their call context for type inference. Literal record defaults such as
+<code>T.{value = 42}</code> use the specialized parameter type at the call. Defaults
+such as <code>T.{value = Base()}</code> evaluate concrete field expressions in the
+declaring module while retaining the specialized record type at the call.
+Field expressions that themselves require the specialized type still need
+specialization support.
+Pure named calls with supported scalar values also work in <code>#run</code> and other
+compile-time expressions.
+Inside a procedure, <code>#compile_time</code> is a boolean that is true while the
+procedure executes during compilation and false at run time. <code>#run</code> evaluates
+it in the compile-time phase; it cannot be declared as a constant or used
+directly as a <code>#if</code> condition.
+<code>#must</code> after a procedure result type requires its value to be used. The
+checker rejects discarded results from ordinary, imported, polymorphic, and
+foreign calls before native or portable output, including when checking saved
+<code>.zir</code>.
+The <code>#slot</code> declaration, capturing body forms, and record block calls are
+rejected. Record values use <code>Type.{field = value}</code> in ordinary calls.
+<code>using record: Type</code> parameter or local, <code>using record;</code> after a local or
+parameter declaration, or <code>using entity.position;</code> for a nested record,
+makes that record's fields available by name
+within the lexical scope. These references become ordinary checked member
+accesses in saved IR. Explicit locals shadow promoted fields, and ambiguous
+promotions are errors. A struct field declared <code>using field: Record</code> exposes
+that record's fields while preserving the contained storage; nested and
+generic record applications keep the same behavior. Native targets also
+accept pointer-backed <code>using</code> fields. Polymorphic procedures retain <code>using</code>
+parameters and body declarations through specialization and saved IR.
+Inside a procedure, <code>using Enum;</code> opens an enum's members within lexical scope.
+At data scope, <code>using Enum;</code> opens them for procedures and file-scope constants,
+globals, <code>#run</code>, <code>#assert</code>, and following <code>#if</code> conditions. The opened names lower to
+checked values in <code>.zir</code>. A <code>#scope_file</code> using stays in its source file across
+<code>#load</code>; named imports accept <code>using Module.Enum;</code>. Without <code>using</code>, bare enum
+members require a type qualifier or an expected enum type for <code>.Member</code>.
+Data-scope <code>using</code> for records and unions, and <code>#if</code> before a later <code>using</code>
+declaration, remain unsupported.
+Public <code>using</code> import re-exports, checked <code>#as</code> conversions, and supported
+<code>using</code> modifiers now work in the tested subset. Broader data-scope using and
+forward discovery remain language gaps.
+A procedure type can be named with <code>Child :: #type (s32) -&gt; ();</code> or
+<code>Compute :: #type (s32) -&gt; s32;</code> and passed a named
+function value. Capture-free procedure values can be stored in records, fixed
+arrays, and globals, and returned from functions. The callbacks do not capture
+caller locals, so callback code uses explicit state or a named function.
+Procedure type results are checked across the portable runtime and generated
+targets. <code>#c_call</code> procedure types use C callback pointers in native C
+output and may be stored in native records. A named Ziran function with
+the exact callback signature can supply a <code>#c_call</code> value in that target.
+Reachable <code>#c_call</code> values cannot enter portable bundles, and Go output rejects
+these declarations.
+Direct type applications such as <code>Box(s32)</code> now work in
+record fields, function signatures, globals, and local declarations. These
+extensions are tracked as syntax gaps rather than described as Jai features.
+Type applications may nest, and whitespace around their arguments does not
+change the resulting type.
+The expression parser accepts Jai <code>cast(Type) value</code>, <code>Type.{field = value}</code>,
+and inferred <code>.{field = value}</code> when a record type is known from a declaration,
+assignment, return, call parameter, or enclosing record field.
+<code>defer { ... }</code> blocks preserve statement order at scope exit and run after
+later defers in the same scope. A single deferred expression or assignment
+uses the same cleanup lowering.
+Inclusive integer ranges use <code>for i: first..last { ... }</code>, with <code>for
+first..last { ... }</code> binding the value as <code>it</code>. Each iteration also binds
+<code>it_index</code>, starting at zero. <code>for &lt; i: first..last { ... }</code> visits the same
+range in reverse. The value has the bounds' type, so <code>for i: 0..count</code> with
+<code>count: s32</code> counts in <code>s32</code> and mixed widths count in the wider one; ranges
+with two constant bounds count in <code>s64</code>, and <code>it_index</code> is always <code>s64</code>.
+Bounds are evaluated once; <code>continue</code> advances the range,
+and the endpoints do not overflow when the last iteration completes. The
+compiler rejects C-style three-clause <code>for</code> headers. Fixed arrays and
+borrowed slices use <code>for values { ... }</code> or <code>for value, index: values { ... }</code>;
+<code>for &lt; values</code> visits elements in reverse. The default value binding is a
+copy. <code>for * value: values</code> binds a pointer to each element in native builds,
+so the loop can modify the collection. Collection expressions are evaluated
+once. Custom Jai <code>for_expansion</code> iterables remain unsupported.
+<code>break name</code> and <code>continue name</code> target an enclosing <code>for name: ...</code> loop or
+<code>while name := condition</code> loop. Loop exits run defers for every scope crossed,
+and range continuations advance the named range before starting its next
+iteration.
+<code>if</code>, <code>while</code>, and <code>for</code> may use one following statement as their body without
+braces. <code>else</code> attaches to the nearest unmatched <code>if</code>; a brace on the next
+line begins an ordinary block body. Jai's optional <code>then</code> separates an <code>if</code>
+or <code>else if</code> condition from its body, on the same or a later line. An <code>else</code>
+may also carry its single-statement body on the same line.
+Semicolons may separate declarations and statements on one line. One-line
+record bodies accept semicolon-separated fields; expression delimiters such
+as the semicolon before a <code>#ifx</code> else arm retain their expression meaning.
+Fixed arrays, borrowed slices, and strings expose Jai <code>.count</code>. Counts have
+<code>int</code> type and cannot be assigned. The older <code>.length</code> source spelling is
+rejected for strings, slices, and fixed arrays.
+String ranges use <code>value[low:high]</code> and return an immutable borrowed <code>string</code>
+view over those bytes. Bounds are checked, and callers must keep UTF-8
+codepoint boundaries intact when they need valid text.
+<code>TextView(bytes)</code> makes an immutable borrowed <code>string</code> view of a <code>[]u8</code> slice.
+The caller keeps the byte storage alive while the text is used. The portable
+bundle runner copies those bytes into its managed execution storage. The
+standard library's <code>TextUntilNul(buffer)</code> accepts a bounded byte slice and
+returns a view ending at the first zero byte, or empty text if none is found.
+An ordinary record may still declare a field named <code>length</code>; generated C ABI
+structures also retain their internal length fields.
+Array declarations accept <code>.[values]</code> with an expected fixed-array type and
+explicit typed literals such as <code>s32.[1, 2]</code> or <code>Module.Point.[first, second]</code>.
+Saved <code>.zir</code> preserves these spellings. Zero-element typed and contextual
+literals work in locals, globals, records, returns, defaults, and generic calls
+across C, Go, and portable bundles. C-style casts and compound literals
+are rejected at the source boundary.
+Jai <code>#this</code> selects the enclosing procedure for recursive calls and typed
+procedure values, even if a local binding has the same name. In record field
+types it names the enclosing struct, including a concrete application of a
+polymorphic struct. Saved <code>.zir</code> keeps procedure self references explicit.
+Source uses Jai primitive spellings <code>s8</code>, <code>s16</code>, <code>s32</code>, <code>s64</code>, <code>float32</code>, and
+<code>float64</code>; checked IR keeps those spellings. Jai <code>float</code>
+is an alias for <code>float32</code>. The old <code>i8</code>/<code>i16</code>/<code>i32</code>/<code>i64</code>/<code>f32</code>/<code>f64</code>/<code>double</code>
+spellings are rejected in source.
+<code>char</code> is rejected as a type; it can name a local binding, record field,
+global, or constant.
+Jai <code>int</code> is an alias for <code>s64</code>. <code>size_of(Type)</code> supports scalars, pointers,
+<code>string</code>, borrowed slices, fixed arrays, records, unions, and concrete generic
+type applications such as <code>Box(s32)</code>. File-scope constants, global
+initializers, and compile-time directives fold supported layouts during
+translation. Function-body expressions remain symbolic in checked source and
+saved IR, then lower to the selected target's size operation; consequently a
+borrowed slice is 16 bytes in C and the portable layout but 24 bytes in
+Go. An untyped integer local inferred with <code>:=</code> also has <code>s64</code> storage.
+The C <code>sizeof</code> spelling is rejected. In function bodies,
+<code>size_of(type_of(expression))</code> uses the checked expression type without
+evaluating the expression. File-scope queries also infer types from previously
+declared same-module expressions in constants, globals, and compile-time
+directives. Standalone <code>type_of</code> values and forward or imported file-scope
+queries remain unsupported. <code>size_of</code> for foreign records still needs their
+Jai layouts.
+Jai <code>#line</code> is an integer expression containing its physical source line.
+It works in declarations, compile-time conditions, defaults, and procedure
+bodies, including files introduced by <code>#load</code>.
+<code>#file</code> yields the full source filename and <code>#filepath</code> its containing
+directory. <code>#procedure_name()</code> yields the enclosing procedure's declared name
+as a string, including when used in a default or a <code>#run</code> call.
+<code>#caller_location</code> is valid as a procedure parameter default. It supplies a
+<code>Source_Code_Location</code> record with <code>fully_pathed_filename</code> and <code>line_number</code>
+from the call site; an explicit argument overrides the default. The record is
+available on C, Go, and portable builds. Compile-time <code>#run</code> execution of
+procedures that consume this record also captures the call-site path and line,
+including imported and nested calls; <code>#assert</code> and <code>#if</code> can use those results.
+ASCII byte characters use <code>#char "A"</code> and infer <code>s64</code>, as integer literals
+do; single-quoted character literals are rejected.
+Jai raw multiline strings use <code>#string END</code> followed by their exact text and
+a closing <code>END</code> at the start of a line. The opening line contains only the
+delimiter, and the newline before the closing line belongs to the string.
+Quotes, backslashes, tabs, and UTF-8 text in the body are preserved. The
+current source line and string literal size limit still applies after lowering
+to the checked IR.
+Nested <code>/* ... */</code> comments and <code>//</code> line comments may appear between tokens;
+comment delimiters inside quoted strings remain text. Legacy <code>#</code> comments
+are rejected. An unclosed block comment is a source error, including in a
+loaded file.
+Raw pointer null values use Jai <code>null</code>; the old <code>nil</code> source spelling is
+rejected.
+Pointer expressions use Jai <code>*value</code> to take an address and <code>pointer.*</code> or
+prefix <code>&lt;&lt;pointer</code> to read or write through a pointer. C-style <code>&amp;value</code> is
+rejected; binary <code>&lt;&lt;</code> and <code>&amp;</code> remain shift and bitwise operations. Jai has no
+<code>++</code> or <code>--</code> increment/decrement operators; use
+<code>+= 1</code> or <code>-= 1</code>.
+Member access through a record pointer uses <code>pointer.field</code>, with an implicit
+dereference. C-style <code>pointer-&gt;field</code> is rejected.
+Pointer type annotations use prefix <code>*Type</code>. C-style suffix <code>Type*</code> and
+<code>const</code> qualifiers are rejected in source and saved IR.
+Raw pointers support <code>pointer[index]</code> on native targets. The caller must
+establish that the pointer is non-null and the index is within the allocation;
+unlike fixed arrays and slices, a raw pointer carries no length. Portable
+<code>.zx</code> bundles continue to reject reachable raw pointers.
+Runtime conditional expressions use Jai <code>ifx condition then a else b</code>.
+The optional <code>then</code> spelling is also accepted. C-style <code>?:</code> is rejected.
+Compile-time conditional expressions use <code>#ifx condition then a; else b</code>.
+The semicolon between arms is optional. The frontend selects one arm before
+checking or serializing expressions; its condition evaluator currently accepts
+boolean and integer constants, constant aliases, arithmetic and logical
+operations, and compiler-host <code>OS</code> comparisons with <code>.WINDOWS</code>, <code>.MACOS</code>,
+or <code>.LINUX</code>. During translation, <code>#run</code>, <code>#ifx</code>, and <code>#assert</code> can call pure
+same-module or imported procedures with signed integer, up to <code>u32</code>, or
+boolean parameters and results. These procedures can use local variables,
+assignments, branches, bounded <code>while</code> and numeric range loops, and nested
+calls. <code>#run</code> also accepts pure string and floating-point expressions, including
+imported calls, local assignments, and default parameters; <code>#assert</code> can
+compare their results. String comparisons decode escapes using the same UTF-8
+rules as the portable runner. <code>#run</code> results and selected <code>#ifx</code> arms are written into checked
+<code>.zir</code>, so native targets and bundles receive the same result. File and system
+access, aggregate results, and general metaprogramming are not available to
+this evaluator. <code>#if</code> selects
+source branches while parsing. It can call earlier same-module procedures or
+procedures from imports declared before the condition. Earlier <code>#run</code> values
+can participate when those procedures and imports are already available.
+Imported type layouts can also be used in <code>size_of</code> conditions.
+<code>#assert</code> must resolve in the Ziran frontend; native backends do not defer its
+condition to the C preprocessor.
+Statement and declaration branches use Jai <code>#if</code>, <code>else #if</code>, and <code>else</code>.
+Conditions must be compile-time constants;
+the frontend removes unselected branches before checking or writing IR.
+Conditions in unreachable nested arms and arms after a selected branch are
+not evaluated.
+The older <code>#else_if</code> and <code>#else</code> spellings are rejected. Conditional fields
+and enum members are also selected while parsing a declaration.
+Exported native symbols use Jai's <code>#program_export</code> before a procedure,
+either on its own line or inline. A quoted symbol such as
+<code>#program_export "entry" Start :: () { ... }</code> selects the C linker name;
+the Go target emits a typed native adapter with that name. The old <code>#export</code>
+signature modifier is rejected.
+File-scope variables use <code>name: Type;</code> or <code>name: Type = value;</code>. The old
+<code>name :: Type #global</code> and C-style <code>static name: Type</code> forms are rejected.
+Visibility for following declarations uses Jai's <code>#scope_file</code>,
+<code>#scope_module</code>, and <code>#scope_export</code> directives. The old <code>#private</code> suffix is
+rejected. <code>#load</code> adds files to one module. File-private declarations and
+imports remain visible to their own file; module-scoped declarations remain
+visible across loaded files. Private procedures, constants, globals, and types
+with the same source name in separate loaded files receive distinct checked
+identities.
+Foreign procedures use <code>lib :: #system_library "lib";</code> and
+<code>Call :: (...) -&gt; Ret #foreign lib;</code>. An alternate symbol may follow the
+library name in quotes. <code>#extern</code> is rejected in source. Ziran's <code>host_api</code>
+library name still denotes a host capability in its backends.
+Unqualified explicit file imports use <code>#import, file "relative/path.zi";</code>
+and resolve relative to the importing source file. Saved IR uses the imported
+module name. Named <code>Alias :: #import "module";</code> and
+<code>Alias :: #import, file "relative/path.zi";</code> expose public procedures,
+constants, and record types through <code>Alias.Name</code>.
+<code>Alias :: #import, dir "relative/directory";</code> loads <code>module.zi</code> within the
+directory. <code>#load "relative/file.zi";</code> adds that file's declarations to the
+current module and may nest. <code>#import, string "...";</code> and a raw <code>#string</code>
+body compile embedded source as a module. The named form
+<code>Alias :: #import, string "...";</code> exposes declarations through <code>Alias.Name</code>.
+<code>#import, file</code> loads <code>.zi</code> source only. C headers are outside the Ziran
+module graph; foreign declarations use <code>#system_library</code> and <code>#foreign</code>.
+An entry source file derives its module name from its filename. The old
+<code>#module</code> directive is rejected. Jai <code>if value == { case ... }</code> branches now
+accept enums, integers, booleans, floating values, and strings. Scalar cases
+may end with <code>case;</code> as a default. <code>#complete</code> requires every enum member and
+source <code>match</code> on enums is rejected. A case may end with <code>#through;</code> to run
+the next case body. The final case cannot use <code>#through;</code>. Explicit enum member values use Jai
+<code>Member :: value</code> declarations and lower to checked values in saved IR.
+Each case is a lexical scope, so its deferred actions run before the next
+case starts, including when the arm ends with <code>#through;</code>.
+Named enums default to <code>s64</code> storage, and declarations may specify an integer
+backing type. <code>enum_flags</code> assigns successive powers of two to implicit
+members. <code>size_of</code> follows the backing width. Unsigned values above <code>s64</code>'s
+maximum remain an implementation gap. <code>#specified</code> after the optional enum
+backing type requires every member to have an explicit <code>::</code> value; it also
+works with <code>enum_flags</code>.
+Typed <code>enum_flags</code> values accept integer initializers, <code>Type.Member</code>, and
+contextual <code>.Member</code> references. Flag values support <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>+</code>,
+<code>-</code>, equality, and the corresponding compound assignments. Member references
+are checked against their enum before lowering to their numeric values.
+Regular enum values also accept <code>Type.Member</code> and contextual <code>.Member</code>
+references in typed declarations, comparisons, returns, and calls.</p>
+<h2 id="evolution">Evolution</h2>
+<p>The language can grow without embedding one library's concepts in its core.
+While Ziran is experimental, source syntax, library APIs, <code>.zir</code>, and <code>.zx</code>
+have no backward-compatibility promise. Prefer a coherent language design over
+compatibility shims; version incompatible binary formats and reject old input
+with clear diagnostics. Reproducible compiler output and conformance suites let
+new backends and LLM-authored code be checked against the same semantics.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

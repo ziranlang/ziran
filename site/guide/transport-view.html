@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Optional compact transport: the Ziran guide, rendered from docs/TRANSPORT_VIEW.md."><title>Optional compact transport · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/transport-view"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Optional compact transport</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/TRANSPORT_VIEW.md">docs/TRANSPORT_VIEW.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><span>One section</span></aside><div class="article-body">
+<section class="prose"><p><code>ziran compact [--map FILE.json] canonical.zi</code> writes an optional reversible
+transport to stdout. <code>ziran expand [--map FILE.json] input.zic</code> writes the exact
+canonical source bytes. Normal <code>ziran fmt</code> and the <code>.zi</code> grammar are unchanged;
+compiler inputs never accept this transport. Keep <code>.zi</code> as reviewable authority.</p>
+<p>The encoding starts with <code>ZI-COMPACT-1</code> and a newline. Literal <code>~</code> is <code>~~</code>.
+Runs of eight or more identical spaces, tabs, LF or CR bytes become
+<code>~sCOUNT;</code>, <code>~tCOUNT;</code>, <code>~nCOUNT;</code> or <code>~rCOUNT;</code>. Other UTF-8 bytes are literal.
+The representation is deterministic and lossless, including comments, strings,
+raw strings, payload whitespace and newlines. Expansion rejects unknown
+versions/tags, leading-zero or short/noncanonical runs, split runs, incomplete
+markers, count overflow and expansion above 16 MiB. Source must already equal
+the ordinary formatter's output. Inputs are regular UTF-8 files without null
+bytes; compact input is bounded at 32 MiB plus framing. No source is replaced.</p>
+<p>The optional schema-1 map binds both documents by SHA-256, identifies UTF-8 byte
+coordinates, and covers every source byte with consecutive half-open segments.
+<code>literal</code> segments map offsets linearly. <code>escape</code> maps one tilde to two bytes.
+<code>repeat</code> maps the complete canonical run to its marker; retain the offset within
+the canonical run when mapping a diagnostic back, since a compressed marker
+cannot physically contain a separate position for each expanded byte. Header
+bytes have no source counterpart. Statements, declarations, expressions,
+literals and trivia are all covered; expansion recovers original byte/line
+coordinates exactly. Maps are bounded to 65536 segments and are written
+atomically; linked/nonregular destinations are rejected.</p>
+<p>Compact size is not a token count. Framing and escaped tildes can make some
+files larger. No model tokenizer or model calls are involved, and no measured
+token saving or authoring-quality improvement is claimed. A new concise source
+language remains deferred pending the roadmap's measured quality/token gates.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Portable Unicode text: the Ziran guide, rendered from docs/UNICODE.md."><title>Portable Unicode text · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/unicode"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Portable Unicode text</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/UNICODE.md">docs/UNICODE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#unicode-version-and-regeneration">Unicode version and regeneration</a><a href="#local-tests">Local tests</a></aside><div class="article-body">
+<section class="prose"><p>Import <code>U :: #import "std/unicode";</code>. The checked Ziran implementation and
+its generated tables run on native C, Go and the portable VM. There are no
+GLib, ICU, locale, Python or platform Unicode dependencies.</p>
+<p>Public procedures:</p>
+<pre><code class="language-zi">CaseFold :: (text: string) -&gt; string
+Lower :: (text: string) -&gt; string
+LowerInto :: (text: string, output: *Vec(u8)) -&gt; bool
+NFCInto :: (text: string, output: *Vec(u8)) -&gt; bool
+IsLetter :: (codepoint: u32) -&gt; bool
+IsNumber :: (codepoint: u32) -&gt; bool
+IsWhiteSpace :: (codepoint: u32) -&gt; bool
+Capitalize :: (text: string) -&gt; string
+IsWord :: (codepoint: u32) -&gt; bool
+IsDecimal :: (codepoint: u32) -&gt; bool
+IsPrintable :: (codepoint: u32) -&gt; bool
+IsSpace :: (codepoint: u32) -&gt; bool
+IsWhitespace :: (text: string) -&gt; bool
+SplitWhitespace :: (text: string) -&gt; Vec(string)
+</code></pre>
+<p>The case procedures return immutable strings with independent storage.
+<code>CaseFold</code> applies full default, non-Turkic folding: <code>Straße</code> and <code>STRASSE</code>
+both become <code>strasse</code>, final and ordinary sigma both become <code>σ</code>, <code>İ</code> becomes
+<code>i</code> followed by U+0307, and <code>ﬃ</code> becomes <code>ffi</code>. It does not normalize text.</p>
+<p><code>Lower</code> applies full default lowercase mappings. Greek U+03A3 becomes final
+sigma only when preceded by a cased character and not followed by one,
+ignoring Case_Ignorable characters on both sides. Context uses the original
+input, including for <code>Capitalize</code>. Locale-specific Turkish, Azeri and
+Lithuanian tailoring is excluded, matching Python's locale-independent string
+methods.</p>
+<p><code>LowerInto</code> applies the same mappings and contextual final sigma rule, with
+strict UTF-8 input validation. <code>NFCInto</code> applies canonical recursive
+decomposition, stable canonical combining-class ordering, and blocked
+composition with the full composition exclusions. Hangul decomposition and
+composition are algorithmic. Compatibility mappings remain untouched: <code>ﬃ</code>
+and <code>①</code> are unchanged. NFC does not case-fold, lowercase, trim or tailor text.</p>
+<p>Both Into procedures replace the previous bytes of a caller-owned <code>Vec(u8)</code>.
+They succeed on empty input and preserve embedded NUL. Malformed UTF-8 or
+allocation/size failure returns false with output count zero; backing capacity
+may remain for reuse. They check all vector growth and impose no fixed text
+limit beyond representable storage and available allocation. Input must not
+borrow the output buffer. Storage belongs to the caller and remains valid
+until it mutates or releases the vector. Existing immutable-string procedures
+retain their replacement-on-malformed-input behavior.</p>
+<p><code>IsLetter</code> matches exactly the Unicode General_Category aggregate L (Lu, Ll,
+Lt, Lm, Lo). <code>IsNumber</code> matches exactly N (Nd, Nl, No), including fractions,
+superscripts and Roman numerals. Neither includes combining marks or ASCII
+underscore. <code>IsWhiteSpace</code> uses Unicode's White_Space property (25 scalars);
+it excludes the U+001C..U+001F controls accepted by Python-style <code>IsSpace</code>.
+All three return false for surrogates and values above U+10FFFF.</p>
+<p><code>Capitalize</code> titlecases the first scalar, including full expansions, and
+lowercases subsequent scalars. Thus <code>ǆABC</code> becomes <code>ǅabc</code>, <code>ßABC</code> becomes
+<code>Ssabc</code> and <code>ǰABC</code> becomes <code>J</code> + U+030C + <code>abc</code>. An initial combining mark,
+punctuation or digit still occupies the first position; capitalization never
+searches ahead for a letter. Empty input produces empty output. Invalid UTF-8
+follows <code>std/utf8.Decode</code>: consume one malformed lead byte and emit U+FFFD.
+Embedded NUL is ordinary data. Scanning uses 64-bit byte positions and bounded
+UTF-8 windows.</p>
+<p><code>IsWord</code> matches Python Unicode regex <code>\w</code>: letters (categories Lu, Ll, Lt,
+Lm and Lo), decimal/digit/numeric characters and ASCII underscore. It includes
+superscripts, fractions, Roman numerals and non-ASCII scripts. Combining marks,
+other connector punctuation, join controls and emoji do not qualify.</p>
+<p><code>IsDecimal</code> matches Python Unicode regex <code>\d</code>: only General_Category Nd.
+ASCII, Arabic-Indic, fullwidth and mathematical decimal digits qualify;
+superscript digits, fractions and Roman numerals do not.</p>
+<p><code>IsPrintable</code> uses Python's printability rule with the pinned Unicode 17.0.0
+database: categories L (letter), M (mark), N (number), P (punctuation) and
+S (symbol), plus ASCII U+0020 space. It preserves combining marks and emoji.
+Other Z (separator) and all C (other) categories are excluded, including NBSP,
+soft hyphen, zero-width joiner, bidi controls, line/paragraph separators,
+private-use, unassigned values, noncharacters and surrogates. Values above
+U+10FFFF return false. This is a text property, independent of font support.
+Python versions with older Unicode assignments can differ; equivalence to
+their historical assigned-character repertoire is not claimed.</p>
+<p>A consumer that filters text and applies a length limit should test
+<code>IsPrintable</code> first and count retained Unicode scalars. For example, <code>é🙂x</code>
+with limit 2 produces <code>é🙂</code>; removing U+200D and U+00A0 from <code>a\u200db\u00a0c</code> produces
+<code>abc</code>; <code>a</code> + U+0301 with limit 1 produces <code>a</code>. Byte lengths and grapheme
+counts give different results. The focused suite tests this composition.</p>
+<p><code>IsSpace</code> matches Python <code>str.isspace</code> and Unicode regex <code>\s</code>: general category
+Zs or bidirectional class WS, B or S. This includes U+001C through U+001F in
+addition to Unicode's White_Space property. U+180E, U+200B and U+FEFF are not
+whitespace. <code>IsWhitespace</code> requires nonempty text consisting entirely of such
+scalars; invalid UTF-8 returns false. Property predicates return false for
+surrogates and values above U+10FFFF.</p>
+<p><code>SplitWhitespace</code> matches unlimited Python <code>str.split()</code> with no separator.
+It collapses runs, omits leading/trailing empty fields, and returns no fields
+for empty or all-whitespace input. The returned vector owns its descriptors;
+each string borrows the original input bytes. Keep that input alive. These
+operations leave the existing ASCII helpers in <code>std/text</code> and <code>std/text_tools</code>
+with their documented byte semantics.</p>
+<h2 id="unicode-version-and-regeneration">Unicode version and regeneration</h2>
+<p>Behavior uses Unicode <strong>17.0.0</strong>, the same version as Ziran's grapheme tables.
+Python releases using a different Unicode database can differ for newly
+assigned or updated characters. UTF-8 strings contain scalars, so Python's
+isolated-surrogate string behavior is outside this API's input model.</p>
+<p>The canonical tables live in <code>std/unicode_data.zi</code>. Regenerate them and the
+unpacked expected-value corpus with the native Ziran generator:</p>
+<pre><code class="language-sh">build-queue -- build/bin/ziran run --target=c scripts/unicode_data.zi -- \
+    build/unicode-ucd std/unicode_data.zi tests/spec/unicode_conformance.zi
+</code></pre>
+<p>Supply these official files from
+<a href="https://www.unicode.org/Public/17.0.0/ucd/">https://www.unicode.org/Public/17.0.0/ucd/</a> in the input directory. Builds and
+tests use the checked-in outputs and require no downloads. Unicode data is
+distributed under <a href="https://github.com/ziranlang/ziran/blob/master/LICENSE-Unicode">Unicode License V3</a>.</p>
+<pre><code class="language-text">UnicodeData.txt          2e1efc1dcb59c575eedf5ccae60f95229f706ee6d031835247d843c11d96470c
+SpecialCasing.txt        efc25faf19de21b92c1194c111c932e03d2a5eaf18194e33f1156e96de4c9588
+CaseFolding.txt          ff8d8fefbf123574205085d6714c36149eb946d717a0c585c27f0f4ef58c4183
+DerivedCoreProperties.txt 24c7fed1195c482faaefd5c1e7eb821c5ee1fb6de07ecdbaa64b56a99da22c08
+</code></pre>
+<p>The generator reads simple UnicodeData mappings, unconditional SpecialCasing
+overrides, C/F CaseFolding entries, and Cased/Case_Ignorable properties.
+Final_Sigma is implemented in the portable algorithm. Compact fixed-width
+base-128 records keep generated literals valid UTF-8 and allow binary search;
+each literal contains at most 448 bytes. Generated tests store expected UTF-8
+strings independently of that packed representation.</p>
+<h2 id="local-tests">Local tests</h2>
+<p>Canonical normalization and exact L/N/White_Space use the separately generated
+<code>std/unicode_normalization_data.zi</code>; the existing case table/generator is
+unchanged. Regenerate with:</p>
+<pre><code class="language-sh">build-queue -- build/bin/ziran run --target=c scripts/unicode_normalization_data.zi -- \
+    build/unicode-ucd std/unicode_normalization_data.zi tests/spec/unicode_normalization_cases.zi
+</code></pre>
+<p>The additional official Unicode 17.0.0 inputs and SHA-256 digests are:</p>
+<pre><code class="language-text">CompositionExclusions.txt 2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f
+PropList.txt              130dcddcaadaf071008bdfce1e7743e04fdfbc910886f017d9f9ac931d8c64dd
+NormalizationTest.txt     5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db
+</code></pre>
+<p>The generated test corpus preserves all five UTF-8 columns of the primary
+<a href="https://www.unicode.org/Public/17.0.0/ucd/NormalizationTest.txt">NormalizationTest</a>.
+The normalization suite tests its five NFC invariants for every row and
+identity normalization for every assigned scalar absent from Part 1, as
+required by UAX #15. Source and saved IR execute on C, Go and both portable
+bundle runners. Focused cases cover strict malformed UTF-8, empty/reused
+outputs, NUL, recursive/blocked composition, Hangul, lowercase context and
+the distinction between Python whitespace and Unicode White_Space.</p>
+<pre><code class="language-sh">build-queue -- sh tests/std_unicode_normalization.sh build/bin/ziran
+</code></pre>
+<p>Set <code>ZIRAN_UNICODE_UCD=build/unicode-ucd</code> to also regenerate and compare both
+normalization outputs byte for byte. Normal tests need no network access.</p>
+<pre><code class="language-sh">build-queue -- sh tests/std_unicode.sh build/bin/ziran
+build-queue -- sh tests/unicode_data.sh build/bin/ziran
+</code></pre>
+<p>The Unicode suite executes source and saved IR on native C, Go, the portable
+VM (<code>zi2zx-vm</code>) and the native bundle runner, comparing source/saved bundles.
+It covers every changed fold/lower/title mapping and every word, space, decimal
+and printability range's endpoints (8,323 generated assertions), plus contextual
+sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,
+embedded NUL and result lifetimes. The generator suite uses small official-format
+fixtures without downloads. With <code>ZIRAN_UNICODE_UCD=build/unicode-ucd</code>, it also
+regenerates both canonical outputs and compares them byte for byte.</p>
+<p><code>std/utf8.DecodeReplace(source: []u8) -&gt; string</code> is a separate whole-input
+UTF-8 replacement decoder. It substitutes U+FFFD once per maximal valid prefix
+of an ill-formed sequence, as Python UTF-8 decoding with <code>errors='replace'</code>
+does. A truncated <code>E2 82</code> or <code>F0 9F 92</code> yields one replacement; <code>E1 80 41</code>
+yields replacement + <code>A</code>. Invalid starts or forbidden second bytes are
+replaced separately: <code>C0 AF</code> yields two replacements, <code>ED A0 80</code> and
+<code>E0 80 80</code> yield three, and <code>F4 90 80 80</code> yields four. The immutable result
+has independent storage, is always valid UTF-8, and preserves valid scalars
+and embedded NUL. This does not alter the existing <code>Decode</code> or bounded <code>Copy</code>
+one-malformed-lead-byte contracts. Run <code>build-queue -- sh tests/std_utf8.sh
+build/bin/ziran</code> and <code>build-queue -- sh tests/utf8_copy_valid.sh
+build/bin/ziran</code> for the new replacement matrix and the original repair-copy
+regression suite.</p>
+<p>Mapping semantics follow <a href="https://www.unicode.org/Public/17.0.0/ucd/SpecialCasing.txt">Unicode SpecialCasing</a>
+and <a href="https://www.unicode.org/Public/17.0.0/ucd/CaseFolding.txt">CaseFolding</a>.
+The Python equivalents are documented in
+<a href="https://docs.python.org/3/library/stdtypes.html#string-methods">string methods</a>
+and <a href="https://docs.python.org/3/library/re.html#regular-expression-syntax">Unicode regular expression escapes</a>.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

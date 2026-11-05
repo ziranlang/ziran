@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Checked API discovery: the Ziran guide, rendered from docs/API_DISCOVERY.md."><title>Checked API discovery · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/api-discovery"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Checked API discovery</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/API_DISCOVERY.md">docs/API_DISCOVERY.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#scoped-retrieval-and-budgets">Scoped retrieval and budgets</a></aside><div class="article-body">
+<section class="prose"><p><code>ziran api --json --root DIR file.zi</code> loads and checks the input and its
+transitive imports, then prints one bounded JSON object describing visible declarations
+in each loaded module. The same command accepts saved <code>.zir</code> inputs. Use
+<code>--module-path DIR</code> for import search roots and <code>--define NAME</code> for the same
+conditional source selection as <code>ziran check</code>. A project
+can use <code>ziran api --project --locked --json</code> to query its entry and imports.
+Without <code>--json</code>, the command prints concise text signatures with source
+locations. A failed load or check exits nonzero and does not print an API
+object.</p>
+<p>The JSON object has <code>schema_version: 1</code> and a <code>modules</code> array. Each module has
+<code>name</code>, <code>source</code>, <code>imports</code>, <code>constants</code>, <code>globals</code>, <code>types</code>, and <code>functions</code>.
+Imports include their kind, alias/name, target, foreign target and symbol when
+present, signature, and source location. Constants expose their checked value
+text; globals expose their type and initializer text. A type includes its name,
+checked body text, type parameters, record-template, enum, and procedure flags,
+a procedure type's <code>return_type</code> (empty for other types), and source path
+and line. A function includes its name, checked parameter signature, return
+type, declaration defaults, inferred effect, <code>must_use</code>, template and host-use
+flags, and source path and line. Empty <code>defaults</code> and <code>effect</code> strings mean the
+corresponding information is absent. Consumers should reject unknown schema
+versions and ignore new fields within a known version.</p>
+<p>Only declarations visible across module boundaries appear. File/module-private
+declarations, generated specializations, and compiler-generated default
+argument helpers are omitted. The output lists each loaded module separately;
+it does not flatten import names into the entry module. For example:</p>
+<pre><code class="language-sh">ziran api --json --root std std/json_scan.zi
+</code></pre>
+<p>The additive schema-1 retrieval fields include document identities, semantic
+symbol IDs, checked ownership, module laws and exact known source anchors.
+Per-symbol target availability and checked usage examples remain unavailable;
+<code>examples</code> is explicitly <code>null</code>. Use <code>ziran capabilities --json</code> for
+target-wide limits, use <a href="diagnostics.html"><code>ziran explain</code></a> to decode diagnostic
+codes, and compile a small call before relying on a target that has not been
+exercised by your project.</p>
+<h2 id="scoped-retrieval-and-budgets">Scoped retrieval and budgets</h2>
+<p>Use <code>--module NAME</code> to select one loaded module, <code>--symbol NAME</code> to select an
+exact public declaration name (including all matching overloads), or
+<code>--symbol ID</code> to retrieve its opaque semantic <code>id</code>. Both filters compose.
+<code>--imports-only</code> returns the checked module import graph without declarations
+or function bodies; <code>resolved_module</code> is the actual resolved module when known.
+Compile-time file composition is not reconstructed as a separate graph when
+checked IR has no import edge for it. Package module imports have one slash,
+<code>#import "package/Module"</code>; relative source composition uses the explicit
+<code>#import, file "path.zi"</code> form. Private helpers need not become public to use
+that file form.
+These symbol/import filters require <code>--json</code>.</p>
+<pre><code class="language-sh">ziran api --json --module json_scan --symbol JsonNext --max-bytes 8192 \
+  --root std std/json_scan.zi
+</code></pre>
+<p><code>--max-symbols N</code> defaults to 256 and accepts 1–4096. <code>--max-bytes N</code> defaults
+to 65536 and accepts 1024–1048576. The byte limit includes JSON framing,
+query and truncation metadata, and the final newline. Whole declarations are
+omitted when needed; strings and JSON objects are never cut. An insufficient
+budget for the module framing rejects with no API output; narrow <code>--module</code>
+or increase the budget. Text output also respects the byte budget and rejects
+rather than publishing a partial projection. Output byte counts are not token
+counts.</p>
+<p><code>query</code> records the exact filter and requested limits. <code>truncation</code> reports
+<code>matched_symbols</code>, <code>emitted_symbols</code>, <code>complete</code>, <code>symbol_limit</code> and <code>byte_limit</code>.
+Imports, declarations and laws count as symbols. A missing name returns zero
+matches; truncation never implies the omitted declarations do not exist.
+Modules sort by checked module identity; declaration order within each kind
+follows checked IR. Repeated equivalent invocations produce identical bytes.</p>
+<p>Each declaration's <code>id</code> hashes a versioned, NUL-delimited checked identity:
+module, declaration kind, name and relevant checked signature/type parameters.
+Function bodies, document versions and incidental line positions do not change
+that identity. Overloads have distinct signature identities. These IDs are
+opaque retrieval keys, not compatibility promises across semantic signature
+changes. Source and saved IR preserve the same semantic IDs and coverage.</p>
+<p><code>document</code> records <code>available</code>, <code>sha256</code> and <code>bytes</code> for the raw bytes captured
+<strong>before</strong> source rewriting; the API does not reread files after checking.
+Saved IR does not retain the raw source identity: its fields are false/null,
+even when a same-named source file happens to exist. Hashes and line-offset
+tables belong to the compiler context and are freed with it. Offset retention
+is capped at 1 MiB per document and 8 MiB per context; a large document retains
+its hash/length while its byte offsets remain null. Contexts hold at most 4096
+distinct document versions; exceeding that limit rejects the parse explicitly.
+Raw source bodies are not duplicated in this registry.</p>
+<p><code>span.kind: "declaration_anchor"</code> identifies the exact extent the checked
+parser retained, which may be only a declaration header. It never claims a
+whole body. Coordinates are one-based UTF-8 byte columns and half-open end
+positions. If source rewriting changed byte positions (including <code>#string</code>),
+<code>coordinate_space</code> is <code>rewritten_source</code> and raw byte offsets are explicitly
+unavailable; no rewrite map is guessed. Otherwise it is <code>source</code>.
+<code>start_byte</code>/<code>end_byte</code> are zero-based offsets, or null when source
+identity/offsets are unavailable. The existing <code>path</code> and <code>line</code> fields remain.</p>
+<p><code>ownership</code> is derived from checked type identity. Function parameters and
+results report <code>move</code> for owned storage, <code>borrow</code> for pointers/slices, <code>copy</code>
+for copyable values, and <code>none</code> for void. Unresolved template ownership is
+null. Type declarations report the corresponding value mode. Module <code>laws</code>
+include checked claims and their evaluated status when available; unavailable
+status is null. They explicitly carry <code>visibility: "module_contract"</code>: checked
+IR has no separate law visibility field, so the API preserves those module
+contracts without guessing public/private status from source. This is distinct
+from exporting a procedure. Private declarations and generated helpers remain
+omitted. Every entry also records its <code>symbol_kind</code>.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

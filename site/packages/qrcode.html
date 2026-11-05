@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="QR Code is a small Ziran package that encodes text as a QR Code: one byte-mode segment, versions 1 to 40, the four error correction levels and an automatically chosen mask."><title>QR Code · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/qrcode"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>QR Code</h1><p>QR Code is a small Ziran package that encodes text as a QR Code: one byte-mode segment, versions 1 to 40, the four error correction levels and an automatically chosen mask. It chooses the smallest version that holds the text and raises the error correction level while that version still fits. It allocates nothing: a QrCode holds its modules and the encoder's working space.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/qrcode">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-qrcode">qrcode</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.qrcode]
+git = "https://github.com/ziranlang/qrcode.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><p>It is a port of Project Nayuki's
+<a href="https://www.nayuki.io/page/qr-code-generator-library">QR Code generator library</a>
+(MIT License), and its tests match that library module for module.</p>
+<h2 id="use-it">Use it</h2>
+<pre><code class="language-sh">ziran add https://github.com/ziranlang/qrcode.git
+</code></pre>
+<pre><code class="language-zi">#import &quot;qrcode/qrcode&quot;
+
+using QrEcc;
+
+code: QrCode;
+
+Draw :: (text: string) {
+    if !QrEncodeText(text, cast(QrEcc)QrEccMedium, *code) { return }
+    for y: 0..code.size - 1 {
+        for x: 0..code.size - 1 {
+            if QrModule(*code, x, y) {
+                // Paint a dark module at (x, y), inside a light border of
+                // at least four modules.
+            }
+        }
+    }
+}
+</code></pre>
+<p>A <code>QrCode</code> is about 70 KB, so keep it in a global or on the heap rather than
+on a small thread stack.</p>
+<h2 id="check-it">Check it</h2>
+<pre><code class="language-sh">make
+</code></pre></section>
+<section id="module-qrcode"><p class="eyebrow">qrcode/src/qrcode.zi</p><h2>qrcode</h2><p>QR Code Model 2 encoding of text as one byte-mode segment, for versions 1 to 40, the four error correction levels and an automatically chosen mask. A port of Project Nayuki's QR Code generator library (MIT License, see LICENSE). It allocates nothing: a QrCode holds its modules and the working space the encoder needs.</p><p>Import with <code>#import "qrcode/qrcode"</code>.</p><div class="api-list">
+<div><code>QrEcc :: enum { QrEccLow = 0; QrEccMedium = 1; QrEccQuartile = 2; QrEccHigh = 3; }</code></div>
+<div><code>QR_VERSION_MIN :: 1</code></div>
+<div><code>QR_VERSION_MAX :: 40</code></div>
+<div><code>QR_SIZE_MAX :: 177</code></div>
+<div><code>QR_CODEWORDS_MAX :: 3706</code></div>
+<div><code>QR_BLOCK_MAX :: 256</code></div>
+<div><code>QR_ECC_MAX :: 30</code></div>
+<div><code>QrCode :: struct { version: s32; size: s32; ecc: QrEcc; mask: s32; modules: [31329]u8; function: [31329]u8; data: [3706]u8; codewords: [3706]u8; blocks: [3962]u8; divisor: [30]u8; remainder: [30]u8; bits: s32; }</code></div>
+<div><code>qr_ecc_codewords_per_block: [164]s32</code></div>
+<div><code>qr_error_correction_blocks: [164]s32</code></div>
+<div><code>QR_PENALTY_N1 :: 3</code></div>
+<div><code>QR_PENALTY_N2 :: 3</code></div>
+<div><code>QR_PENALTY_N3 :: 40</code></div>
+<div><code>QR_PENALTY_N4 :: 10</code></div>
+<div><code>QrEccCodewords :: (ecc: QrEcc, version: s32) -&gt; s32</code></div>
+<div><code>QrEccBlocks :: (ecc: QrEcc, version: s32) -&gt; s32</code></div>
+<div><code>QrRawDataModules :: (version: s32) -&gt; s32</code><p>Data bits a version holds once function modules are excluded, including remainder bits.</p></div>
+<div><code>QrDataCodewords :: (version: s32, ecc: QrEcc) -&gt; s32</code></div>
+<div><code>QrFormatLevel :: (ecc: QrEcc) -&gt; s32</code></div>
+<div><code>QrBit :: (value: s32, index: s32) -&gt; bool</code></div>
+<div><code>QrModule :: (qr: *QrCode, x: s32, y: s32) -&gt; bool</code></div>
+<div><code>QrSetFunction :: (qr: *QrCode, x: s32, y: s32, dark: bool)</code></div>
+<div><code>QrAppendBits :: (qr: *QrCode, value: s32, count: s32)</code></div>
+<div><code>QrMultiply :: (x: s32, y: s32) -&gt; s32</code></div>
+<div><code>QrComputeDivisor :: (qr: *QrCode, degree: s32)</code></div>
+<div><code>QrComputeRemainder :: (qr: *QrCode, start: s32, count: s32, degree: s32)</code><p>The Reed-Solomon remainder of qr.blocks[start:start + count].</p></div>
+<div><code>QrAddEccAndInterleave :: (qr: *QrCode)</code><p>Splits the data into blocks, appends each block's error correction and interleaves the blocks into qr.codewords.</p></div>
+<div><code>QrDrawFormatBits :: (qr: *QrCode, mask: s32)</code></div>
+<div><code>QrDrawVersion :: (qr: *QrCode)</code></div>
+<div><code>QrDrawFinder :: (qr: *QrCode, x: s32, y: s32)</code></div>
+<div><code>QrDrawAlignment :: (qr: *QrCode, x: s32, y: s32)</code></div>
+<div><code>QrDrawFunctionPatterns :: (qr: *QrCode)</code></div>
+<div><code>QrDrawCodewords :: (qr: *QrCode)</code></div>
+<div><code>QrApplyMask :: (qr: *QrCode, mask: s32)</code></div>
+<div><code>QrPenaltyAddHistory :: (qr: *QrCode, length: s32, history: []s32)</code></div>
+<div><code>QrPenaltyCountPatterns :: (history: []s32) -&gt; s32</code></div>
+<div><code>QrPenaltyTerminate :: (qr: *QrCode, dark: bool, length: s32, history: []s32) -&gt; s32</code></div>
+<div><code>QrPenaltyScore :: (qr: *QrCode) -&gt; s32</code></div>
+<div><code>QrEncodeText :: (text: string, ecc: QrEcc, qr: *QrCode) -&gt; bool</code><p>Encodes text in byte mode at the smallest version that holds it, raising the error correction level while the version stays the same. Returns false when the text does not fit in version 40 at the requested level.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/qrcode/blob/HEAD/src/qrcode.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

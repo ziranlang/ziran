@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Post-quantum signatures and key exchange for Ziran, from liboqs (Open Quantum Safe)."><title>Oqs · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/oqs"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Oqs</h1><p>Post-quantum signatures and key exchange for Ziran, from liboqs (Open Quantum Safe).</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/oqs">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-Oqs">Oqs</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.oqs]
+git = "https://github.com/ziranlang/oqs.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://github.com/ziranlang/oqs.git
+</code></pre>
+<pre><code class="language-jai">#import &quot;oqs/Oqs&quot;
+
+Sign :: (message: []u8) -&gt; bool {
+    public_key: [MlDsa44PublicKeyBytes]u8
+    secret_key: [MlDsa44SecretKeyBytes]u8
+    signature: [MlDsa44SignatureBytes]u8
+    if !MlDsa44KeyPair(public_key[:], secret_key[:]) { return false }
+    length := MlDsa44Sign(signature[:], message, secret_key[:])
+    return length &gt; 0 &amp;&amp;
+        MlDsa44Verify(message, signature[0:length], public_key[:])
+}
+</code></pre>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Procedure</th>
+<th>Does</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>MlDsa44KeyPair(public_key, secret_key)</code></td>
+<td>Makes an ML-DSA-44 (FIPS 204) key pair</td>
+</tr>
+<tr>
+<td><code>MlDsa44Sign(signature, message, secret_key)</code></td>
+<td>Signs; returns the signature's length, or -1</td>
+</tr>
+<tr>
+<td><code>MlDsa44Verify(message, signature, public_key)</code></td>
+<td>Checks a signature</td>
+</tr>
+<tr>
+<td><code>RandomBytes(output)</code></td>
+<td>Fills bytes from the system's secure random source</td>
+</tr>
+<tr>
+<td><code>Cleanse(memory)</code></td>
+<td>Zeroes secrets in a way the compiler keeps</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>MlKem768KeyPair</code>, <code>MlKem768Encapsulate</code>, and <code>MlKem768Decapsulate</code> provide
+ML-KEM-768 (FIPS 203) key exchange. Their key, ciphertext and shared-secret
+sizes are the <code>MlKem768*Bytes</code> constants. Decapsulation of an altered
+ciphertext produces a different shared secret; its success result alone
+does not authenticate a peer.</p>
+<p>The wrappers take slices and refuse buffers too small for keys, signatures,
+ciphertexts or shared secrets, and lengths a 32-bit <code>size_t</code> cannot hold.
+The current API covers ML-DSA-44 and ML-KEM-768, secure random bytes and
+secret cleansing. It does not expose every algorithm in liboqs.</p>
+<h2 id="linking-liboqs">Linking liboqs</h2>
+<p>The repository contains the Ziran API. The complete original liboqs source
+is a Git source dependency pinned to an exact commit in <code>ziran.lock</code>;
+<code>ziran fetch --locked</code> retrieves it and <code>ziran pkg path liboqs</code> locates it.
+This serves the same purpose as an upstream submodule through Ziran's
+package system.</p>
+<p>Build the pinned static and shared libraries on Linux:</p>
+<pre><code class="language-sh">make native
+</code></pre>
+<p>Then link with <code>LDFLAGS=-L/path/to/build/native LDLIBS=-loqs</code>. Go uses cgo
+(<code>CGO_ENABLED=1</code>); Rust carries the flags in its generated Cargo project.
+Python uses ctypes and the shared <code>liboqs.so</code>; add that directory to
+<code>LD_LIBRARY_PATH</code> when running it. C and C++ call the same native ABI.</p>
+<p><code>make check</code> builds the libraries and exercises signing, tamper rejection,
+empty messages, key exchange, random bytes, cleansing and short-buffer
+rejection on C, C++, Go, Rust and Python, from source and saved <code>.zir</code>.
+<code>make check TARGET=go</code> selects one backend. A C compiler, CMake, Python,
+Go and Cargo are required for the full check. The portable <code>.zib</code> VM does
+not call arbitrary C libraries; this package requires a native backend.</p></section>
+<section id="module-Oqs"><p class="eyebrow">oqs/src/Oqs.zi</p><h2>Oqs</h2><p>Post-quantum signatures and key exchange from liboqs for Ziran.  The package pins liboqs as a source dependency; a build links the static library it builds from `ziran pkg path liboqs`. The Makefile enables ML-DSA-44 signatures and ML-KEM-768 key exchange. Lengths cross into C as size_t, which is 32 bits on some targets, so the wrappers take slices and refuse lengths that do not fit.</p><p>Import with <code>#import "oqs/Oqs"</code>.</p><div class="api-list">
+<div><code>MlDsa44PublicKeyBytes :: 1312</code><p>Sizes of ML-DSA-44 (FIPS 204) keys and signatures, in bytes.</p></div>
+<div><code>MlDsa44SecretKeyBytes :: 2560</code></div>
+<div><code>MlDsa44SignatureBytes :: 2420</code></div>
+<div><code>MlKem768PublicKeyBytes :: 1184</code></div>
+<div><code>MlKem768SecretKeyBytes :: 2400</code></div>
+<div><code>MlKem768CiphertextBytes :: 1088</code></div>
+<div><code>MlKem768SharedSecretBytes :: 32</code></div>
+<div><code>OqsSuccess :: 0</code></div>
+<div><code>MlDsa44KeyPair :: (public_key: []u8, secret_key: []u8) -&gt; bool</code><p>Fills a new key pair. Both slices must be at least the key sizes.</p></div>
+<div><code>MlDsa44Sign :: (signature: []u8, message: []u8, secret_key: []u8) -&gt; s64</code><p>Signs `message` with `secret_key` into `signature`, which must hold MlDsa44SignatureBytes. Returns the signature's length, or -1.</p></div>
+<div><code>MlDsa44Verify :: (message: []u8, signature: []u8, public_key: []u8) -&gt; bool</code><p>Whether `signature` signs `message` for `public_key`.</p></div>
+<div><code>RandomBytes :: (output: []u8)</code><p>Fills `output` from the system's secure random source.</p></div>
+<div><code>Cleanse :: (memory: []u8)</code><p>Zeroes `memory` in a way the compiler does not remove, for keys and other secrets about to be released.</p></div>
+<div><code>MlKem768KeyPair :: (public_key: []u8, secret_key: []u8) -&gt; bool</code><p>ML-KEM-768 (FIPS 203) exchanges a 32-byte shared secret.</p></div>
+<div><code>MlKem768Encapsulate :: (ciphertext: []u8, shared_secret: []u8, public_key: []u8) -&gt; bool</code></div>
+<div><code>MlKem768Decapsulate :: (shared_secret: []u8, ciphertext: []u8, secret_key: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/oqs/blob/HEAD/src/Oqs.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

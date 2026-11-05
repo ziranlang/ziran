@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran intermediate representation (`.zir`): the Ziran guide, rendered from docs/ZIR.md."><title>Ziran intermediate representation (`.zir`) · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/zir"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran intermediate representation (`.zir`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZIR.md">docs/ZIR.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#experimental-version-52">Experimental version 52</a></aside><div class="article-body">
+<section class="prose"><p>This is the target contract. An experimental binary version 59 now exists for
+the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
+<a href="implementation-status.html">Implementation status</a>.</p>
+<p><code>.zir</code> is a versioned, checked, serializable module representation. It is the
+shared input to native backends and the portable linker. It records module and
+symbol identities, imports/exports, resolved types, constants, function
+bodies, control flow, source locations, declared FFI, and host capability
+requirements. Backends may attach target-specific output metadata outside the
+language model, but they must not reinterpret source text to recover program
+meaning.</p>
+<p>The Ziran compiler provides a canonical writer and a validating reader. The
+reader rejects unknown incompatible versions, truncated or malformed data,
+invalid symbol references, and invalid types with useful diagnostics. The
+writer produces deterministic bytes for equivalent checked modules. A backend
+given saved <code>.zir</code> has the same language semantics as one given the <code>.zi</code>
+source that produced it. Diagnostics retain source paths and spans where
+available.</p>
+<p>The IR represents general calls, records, slots, imports, and capabilities.
+Scalar types use the current source names (<code>s32</code>, <code>s64</code>, <code>float32</code>, and
+<code>float64</code>, for example); <code>int</code> and <code>float</code> aliases are canonicalized before
+serialization. Earlier internal <code>i32</code>/<code>i64</code>/<code>f32</code>/<code>f64</code> names are not accepted.
+It has no widget kind, <code>#ui</code> flag, DOM attribute cache, KSS node, or implicit
+Kryon module. A Kryon widget call has the same representation as a call to an
+unrelated imported function with the same type shape.</p>
+<p>Version 57 retains optional architecture-specific <code>#asm</code> variants alongside
+each function's checked portable body and local block bodies. Block metadata
+binds named scalar/pointer locals or parameters, and checking validates every
+binding in its lexical scope. Concrete generic instances retain these variants
+and validate their operand types and portable bodies. C and Go may select a matching variant;
+other targets and the portable VM execute the checked body. The variants are
+explicit native metadata, never recovered from diagnostic statement text.
+Only annotated blocks carry the optional metadata payload; ordinary statements
+retain their previous encoding size.
+Earlier binary versions are rejected; regenerate saved IR and bundles from
+source. See <a href="usage.html#assembly-with-a-portable-body">assembly</a>.</p>
+<p><code>.zir</code> is the compiler interchange and cache format. Portable distribution
+uses a linked <code>.zx</code>, not an unlinked <code>.zir</code>. See <a href="zx.html">Bundle format</a>.</p>
+<h2 id="experimental-version-52">Experimental version 52</h2>
+<p>Foreign imports retain typed parameters, return types and a checked
+<code>go_results</code> flag for packing native Go results into record fields in order.
+The checked <code>go_field</code> flag describes typed foreign Go field getters and
+receiverless package-value getters. Package-value getters have no parameters
+and read the target variable or constant on each call. Native interface
+identity is preserved, and getters cannot return owned vector storage.
+<code>go_defer</code> schedules a native void call at the calling Go function's exit,
+including panic unwinding. These flags require explicit Go foreign targets
+and cannot be combined. Deferred calls must be standalone statements with
+no owned arguments or variadic parameters. Go
+method/field targets retain their receiver type, for example
+<code>go:net/http.(*Request).RemoteAddr</code>. Native emission uses these checked fields;
+the original foreign declaration string is diagnostic metadata.</p>
+<p>Overloaded procedures each carry a unique <code>name</code> and share their source
+name in <code>overload_name</code>; checked calls already name the chosen overload.</p>
+<p>A record type flagged <code>is_results</code> holds the results of a procedure with
+several results, in fields <code>value_0</code>, <code>value_1</code>, and so on; the source's
+multiple returns and bindings are already lowered to that record.
+When a polymorphic procedure's results depend on its type parameters, this
+record is an ordinary generic record template flagged <code>is_results</code>. Concrete
+applications retain the flag and use the same checked field access as other
+multiple results. A saved library can gain concrete types and procedure
+specializations while checking a source consumer; validation still compares
+every original declaration and its checked metadata in the original order.</p>
+<p>Law records include structured evidence. Scalar theorem propositions and
+<code>#proof</code> certificates have separate expression graphs and ordered proof steps;
+they are not executable functions. Consumers retype those graphs and recheck
+each certificate against the checked procedure bodies. Cached evidence and
+annotations cannot authorize a proof. See <a href="laws.html">Laws and scalar proofs</a>.</p>
+<p>The current writer emits <code>ZIR</code> followed by a zero byte, a four-byte
+little-endian version number, and the checked module records. Integers are
+unsigned LEB128, with signed fields zigzagged so <code>-1</code> takes one byte. A string
+is written once: a tag of 0 is empty, an even tag is twice the length of a
+new string whose bytes follow, and an odd tag names an earlier string by twice
+its first-use index plus one. A source span stores its line as a delta from
+the previous span, flagged when its file changes (the path then follows),
+then its column and the deltas to its end. Process pointers and C struct
+padding are not serialized. The reader rejects wrong versions, truncated
+records, overlong or out-of-range integers, unknown string references,
+oversized fields, invalid references, and trailing bytes; each string
+reference counts its length against the reader's memory budget. The C and native Go
+commands can build saved <code>.zir</code> modules, including an imported two-module
+typed record call example. The experimental <code>.zx</code> bundler also consumes saved <code>.zir</code>
+for its restricted scalar, record, and enum subset. Native and bundle builds rerun
+the language checker on the saved expression graph. The reader rejects invalid
+references and cycles, and the checked serialization must match the saved bytes.
+Every build uses strict checking, including native builds from source.
+Checking is unconditional; <code>--strict</code> and <code>--no-strict</code> are rejected.
+Call argument expressions retain source order and store their source name and
+checked parameter index. Native emitters and the portable VM evaluate in source
+order, then pass values in parameter order. Procedure declarations retain their
+default expressions; omitted arguments are materialized as checked call
+expressions before serialization. Concrete defaults use checked procedures in
+the declaring module so their names keep that module's scope.
+Runtime-dependent global initializers lower to private checked startup
+functions. Their startup flag is serialized and validated; the linker retains
+them with reachable modules and their call dependencies.
+For checked functions, statement text is source metadata; the expression graph
+and explicit branch flags and loop target IDs determine behavior. The checker
+requires each named loop exit to point to a unique enclosing loop. Exhaustive
+enum <code>if #complete value == { ... }</code> is lowered to typed branches and an
+<code>unreachable</code> guard before writing IR, so saved modules contain no case selection
+statement to reinterpret. Source <code>variant</code>, payload <code>match</code>, postfix <code>?</code>,
+<code>guard</code>, C-style <code>switch</code> and <code>goto</code> with labels, <code>state</code> blocks, C-style
+locals, and raw C statements are rejected. The validating reader rejects
+retired statement kinds. The postfix increment/decrement expression kind has
+been removed; version 41 rejects earlier files before graph validation.
+Variant fields, generated variant function slots,
+retained-state fields, and unused statement callee/argument text are absent
+from the IR schema.
+Generic record templates retain their parameter and field declarations. Explicit
+specializations are stored as ordinary concrete types. Direct applications
+such as <code>Vec(u8)</code> retain their template and argument identities in version 44,
+so checked types have the same identity across importing modules and saved IR.
+Older binary versions are rejected.
+Record field bodies preserve checked <code>#go_tag</code> string literals for Go reflection
+metadata. These tags do not change field storage in other native targets or
+the portable runtime.
+Entry linking preserves complete record layouts exposed by native foreign
+signatures, callbacks, size queries and pointer casts, including nested records
+and fixed-array element strides. A cast from raw native memory must keep fields
+that ordinary member expressions never read; removing them would change offsets.
+Records used only through checked member access may still omit unused fields.
+Record declarations retain <code>#go_anonymous</code> in version 54. Go emits these
+records as aliases of unnamed structs, preserving native reflection and JSON
+error types. Other targets retain their ordinary record storage and identity.
+Version 55 retains procedure <code>#go_method</code> names and their <code>#go_results</code> flag.
+The checker validates the local receiver record, native method conflicts and
+concrete result storage. Go emits a receiver adapter that calls the canonical
+procedure and optionally flattens its result record. Other targets keep the
+ordinary checked procedure; method metadata does not redefine its body.
+Record bodies retain <code>using</code> on contained fields. A checked member expression
+that names a promoted field records its concrete contained-field path; the
+reader verifies each intermediate field is a <code>using</code> field. Native backends
+and the portable runtime follow that path through the stored record layout.
+Union types preserve their shared-storage flag. C uses that flag for
+native declarations; Go and the portable linker currently reject union storage.
+Polymorphic procedures retain their <code>$T</code> signature and structured body.
+Templates also retain <code>using</code> parameters and statements until concrete
+specialization; checked instances contain ordinary member accesses.
+Concrete call specializations carry their type and generated identity; imported
+saved modules can instantiate them when a source caller uses a new type.
+Procedure and foreign declarations retain <code>#must</code>, and the checker rejects
+discarded results when reading source or saved IR.
+Specialized <code>Vec(T)</code> records carry an owned-storage bit. The reader validates
+their storage shape before allowing vector operations.
+Compile-time <code>#if</code> selection is complete in the frontend. Saved declarations
+carry no C preprocessor guard, and <code>#assert</code> failures are diagnosed before
+native or portable output. Assertions store their condition and message only;
+checking evaluates the condition again when reading saved IR.
+Type and constant records preserve export and file-private visibility for
+imported-name and loaded-file checking.
+Exported procedures retain an optional quoted linker symbol separately from
+their Ziran source name.
+Native function bodies use checked statement and expression graphs; statement
+text remains diagnostic metadata. Version 33 is experimental and has no
+compatibility promise.
+Expression records preserve whether <code>#this</code> selected the enclosing procedure,
+so checking saved IR keeps that binding even when a parameter has the same name.</p>
+<p>Version 45 stores opaque foreign Go type targets (<code>go:package.Type</code>). These
+are checked named types and lower to Go aliases, preserving the imported
+type's methods and JSON behavior. They have no Ziran record fields or known
+layout. Other native targets reject them, and the portable runtime cannot
+store or execute them. Older binary versions are rejected.</p>
+<p>Version 46 distinguishes native Go maps from records. Their checked body
+retains key and value types; Go emits a map alias with shared storage and a
+nil zero value. Other targets reject reachable maps. Predeclared <code>any</code> and
+<code>error</code> interfaces use the <code>go:builtin</code> foreign namespace without an import.</p>
+<p>Version 58 makes a function's <code>checked</code> bit describe language validity only.
+Native symbol planning and emitter eligibility are separate passes. Source
+spellings remain diagnostic and serialization data; immutable parameter and
+field snapshots provide the declaration view used by compiler passes. Cache
+identities and compilation-context pointers are in-memory data and are never
+written to <code>.zir</code> or <code>.zx</code>.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

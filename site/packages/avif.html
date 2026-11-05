@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Optional, headless Ziran image package."><title>AVIF · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/avif"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>AVIF</h1><p>Optional, headless Ziran image package. Handwritten decoder policy, transforms, API and CLI are .zi. The initial AV1/container decoding engine is a pinned external libavif bridge; this is not an authored AV1 decoder or a speed claim. No Kryon, window system, browser, or GUI library is required.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/avif">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-api">api</a><a href="#module-engine">engine</a><a href="#module-bmff">bmff</a><a href="#module-bridge">bridge</a><a href="#documents">Documents</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.avif]
+git = "https://github.com/ziranlang/avif.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-zi">#import &quot;avif/api&quot;
+options := DefaultOptions()
+result := Decode(BorrowBytes(bytes), options)
+// Check result.is_ok before using result.image, an owned std/image.Image.
+</code></pre>
+<p>From a consumer, add <code>https://github.com/ziranlang/avif.git</code> with <code>ziran add</code>.
+The manifest pins libavif, libaom and optional dav1d source packages, plus the
+av1 package with the authored AV1 decoder. Local
+canonical checkout overrides belong in ignored <code>ziran.local.toml</code>. Production lockfiles resolve committed package and toolchain revisions.</p>
+<p>Run the package suite in this checkout:</p>
+<pre><code class="language-sh">build-queue -- sh tests/avif.sh
+build-queue -- sh tests/bmff.sh
+</code></pre>
+<p>The test harness uses the canonical sibling Ziran checkout when available;
+otherwise set <code>ZIRAN_ROOT</code> to a built current toolchain. It builds a real
+consumer of this package, resolves its exports and requests its native artifact
+through <code>ziran pkg artifact avif:native --platform linux-x86_64-gnu</code>.
+Standalone module-path tests additionally verify source and saved <code>.zir</code>.</p>
+<p>The stable headless command produced by the suite is:</p>
+<pre><code class="language-sh">build/bin/avif tests/fixtures/rgba8.avif build/output.rgba
+</code></pre>
+<p>It writes tight straight-alpha RGBA8 and prints dimensions, source depth,
+source frame count and alpha presence. Errors have stable shared error codes.
+See <a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">implementation and verification status</a>,
+<a href="https://github.com/ziranlang/avif/blob/HEAD/docs/API.md">API</a>, <a href="https://github.com/ziranlang/avif/blob/HEAD/native/README.md">native recipe</a> and
+<a href="https://github.com/ziranlang/avif/blob/HEAD/tests/fixtures/README.md">fixture provenance</a>.</p></section>
+<section id="module-api"><p class="eyebrow">avif/src/api.zi</p><h2>api</h2><p>Import with <code>#import "avif/api"</code>.</p><div class="api-list">
+<div><code>Decode :: (input: BorrowedBytes, options: DecodeOptions) -&gt; DecodeResult</code><p>First complete frame, owned std/image.Image with straight RGBA8 pixels.</p></div>
+<div><code>DefaultEngine :: () -&gt; Av1Engine</code><p>dav1d is the default engine; libaom is the explicit comparison oracle.</p></div>
+<div><code>LibaomOracle :: () -&gt; Av1Engine</code></div>
+<div><code>StaticNativeAPI :: () -&gt; Interop.AvifAPI</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/api.zi">Source ↗</a></p></section>
+<section id="module-engine"><p class="eyebrow">avif/src/engine.zi</p><h2>engine</h2><p>Import with <code>#import "avif/engine"</code>.</p><div class="api-list">
+<div><code>EngineCapabilities :: struct { container_bridge: bool; obu_planes: bool; strict_rgba8: bool; fast_color: bool; hdr: bool; interruptible: bool; hard_scratch_limit: bool; max_threads: s32; }</code><p>No native structs or pointers cross this boundary. The initial engine owns container parsing internally; an OBU/plane engine is a separate capability.</p></div>
+<div><code>MAX_DECODE_THREADS :: 8</code><p>A native decode may fan out to at most this many threads inside its single worker lease. Engines declare their bound; zero or larger bounds reject.</p></div>
+<div><code>ContainerDecode :: #type (input: BorrowedBytes, options: *DecodeOptions) -&gt; DecodeResult</code></div>
+<div><code>Av1Engine :: struct { name: string; capabilities: EngineCapabilities; decode_container: ContainerDecode; }</code></div>
+<div><code>DecodeWithEngine :: (engine: Av1Engine, input: BorrowedBytes, options: *DecodeOptions) -&gt; DecodeResult</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/engine.zi">Source ↗</a></p></section>
+<section id="module-bmff"><p class="eyebrow">avif/src/bmff.zi</p><h2>bmff</h2><p>Import with <code>#import "avif/bmff"</code>.</p><div class="api-list">
+<div><code>Box :: struct { kind: u32; start: s64; payload: s64; end: s64; }</code><p>Bounded, allocation-free ISO-BMFF framing. All offsets are absolute.</p></div>
+<div><code>BoxResult :: struct { box: Box; error: DecodeError; }</code></div>
+<div><code>HasSignature :: (input: BorrowedBytes) -&gt; bool</code><p>Prefix recognition only: preserve the frozen host's AvifSignature policy. The complete ftyp must be present, but following boxes need not be present or valid. Use ValidateContainer/Preflight for bounded container framing.</p></div>
+<div><code>ReadBox :: (input: BorrowedBytes, at: s64, end: s64) -&gt; BoxResult</code></div>
+<div><code>ValidateContainer :: (input: BorrowedBytes) -&gt; DecodeError</code><p>Signature policy matches the existing bridge: first box ftyp, bounded to 4096 bytes, accepting major or compatible avif/avis brands.</p></div>
+<div><code>Preflight :: (input: BorrowedBytes, limits: DecodeLimits) -&gt; DecodeError</code><p>Conservative container metadata scan before native allocation. No item graph interpretation or OBU extraction is claimed by this initial A-01 slice.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/bmff.zi">Source ↗</a></p></section>
+<section id="module-bridge"><p class="eyebrow">avif/src/bridge.zi</p><h2>bridge</h2><p>Import with <code>#import "avif/bridge"</code>.</p><div class="api-list">
+<div><code>RawBytes :: struct { data: *u8; size: usize; }</code><p>Pinned libavif 1.3.0 public ABI, allocated/destroyed only by libavif.</p></div>
+<div><code>RawImage :: struct { width: u32; height: u32; depth: u32; format: s32; range: s32; chroma: s32; planes: [3]*u8; rows: [3]u32; owns_yuv: s32; alpha: *u8; alpha_row: u32; owns_alpha: s32; premultiplied: s32; icc: RawBytes; primaries: u16; transfer: u16; matrix: u16; clli: [2]u16; transforms: u32; aspect: [2]u32; aperture: [8]u32; rotation: u8; mirror: u8; exif: RawBytes; xmp: RawBytes; properties: *void; property_count: usize; gain_map: *void; }</code></div>
+<div><code>RawTiming :: struct { timescale: u64; pts: float64; pts_timescale: u64; duration: float64; duration_timescale: u64; }</code></div>
+<div><code>RawDecoder :: struct { codec: s32; threads: s32; source: s32; progressive: s32; incremental: s32; ignore_exif: s32; ignore_xmp: s32; size_limit: u32; dimension_limit: u32; count_limit: u32; strict: u32; image: *RawImage; image_index: s32; image_count: s32; progressive_state: s32; timing: RawTiming; timescale: u64; duration: float64; duration_timescale: u64; repetitions: s32; alpha_present: s32; }</code></div>
+<div><code>RawRGB :: struct { width: u32; height: u32; depth: u32; format: s32; upsampling: s32; downsampling: s32; avoid_yuv: s32; ignore_alpha: s32; premultiplied: s32; float_pixels: s32; threads: s32; pixels: *u8; row_bytes: u32; }</code></div>
+<div><code>RawCrop :: struct { x: u32; y: u32; width: u32; height: u32; }</code><p>Explicit libavif codec choices. AUTO is never requested, so an unavailable</p></div>
+<div><code>CodecLibaom :: 1</code><p>Explicit libavif codec choices. AUTO is never requested, so an unavailable codec fails with UnsupportedCapability instead of silently switching.</p></div>
+<div><code>CodecDav1d :: 2</code><p>Smaller frames decode on one thread: starting decoder threads costs more</p></div>
+<div><code>THREADED_MIN_PIXELS :: 262144</code></div>
+<div><code>OnlineCores :: () -&gt; s32</code></div>
+<div><code>DecodeThreads :: (pixels: s64) -&gt; s32</code><p>Automatic native thread count for a source frame: one thread below THREADED_MIN_PIXELS, otherwise the usable cores capped at MAX_DECODE_THREADS.</p></div>
+<div><code>AvifVersion :: #type () -&gt; *u8</code></div>
+<div><code>AvifCreate :: #type () -&gt; *RawDecoder</code></div>
+<div><code>AvifDestroy :: #type (decoder: *RawDecoder)</code></div>
+<div><code>AvifMemory :: #type (decoder: *RawDecoder, data: *u8, size: usize) -&gt; s32</code></div>
+<div><code>AvifStep :: #type (decoder: *RawDecoder) -&gt; s32</code></div>
+<div><code>AvifDefaults :: #type (rgb: *RawRGB, image: *RawImage)</code></div>
+<div><code>AvifConvert :: #type (image: *RawImage, rgb: *RawRGB) -&gt; s32</code></div>
+<div><code>AvifCrop :: #type (crop: *RawCrop, aperture: *u32, width: u32, height: u32, format: s32, diagnostics: *void) -&gt; s32</code></div>
+<div><code>AvifAPI :: struct { version: AvifVersion; create: AvifCreate; destroy: AvifDestroy; memory: AvifMemory; parse: AvifStep; next: AvifStep; defaults: AvifDefaults; convert: AvifConvert; crop: AvifCrop; }</code></div>
+<div><code>ValidateAPI :: (api: AvifAPI) -&gt; DecodeError</code></div>
+<div><code>BridgeDecode :: (api: AvifAPI, input: BorrowedBytes, options: *DecodeOptions, codec: s32, threads: s32) -&gt; DecodeResult</code></div>
+<div><code>DecodeWithAPI :: (api: AvifAPI, input: BorrowedBytes, options: DecodeOptions, codec: s32, threads: s32) -&gt; DecodeResult</code><p>Explicit optional native interop: no static library import in this module.</p></div>
+<div><code>DecodeIntoResult :: struct { is_ok: bool; metadata: ImageMetadata; error: DecodeError; output_may_be_modified: bool; }</code></div>
+<div><code>DecodeIntoWithAPI :: (api: AvifAPI, input: BorrowedBytes, output: OutputBuffer, options: DecodeOptions, codec: s32, threads: s32) -&gt; DecodeIntoResult</code></div>
+<div><code>ProbeResult :: struct { is_ok: bool; metadata: ImageMetadata; error: DecodeError; }</code></div>
+<div><code>BridgeProbe :: (api: AvifAPI, input: BorrowedBytes, options: DecodeOptions, codec: s32) -&gt; ProbeResult</code><p>Container-only bounded parse: never calls next/defaults/convert and never allocates pixels. DecodeInto re-parses and revalidates all output dimensions.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/bridge.zi">Source ↗</a></p></section>
+<section id="documents"><h2>Documents</h2><div class="link-list"><a href="https://github.com/ziranlang/avif/blob/HEAD/docs/API.md">API.md<span>GitHub ↗</span></a><a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">VERIFICATION.md<span>GitHub ↗</span></a></div></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Reusable Opus encoding/decoding, Ogg Opus inspection, best-quality sinc sample-rate conversion and WAV I/O, with a native audio command."><title>Audio for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/audio"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Audio for Ziran</h1><p>Reusable Opus encoding/decoding, Ogg Opus inspection, best-quality sinc sample-rate conversion and WAV I/O, with a native audio command. There is no Kryon, Raylib, audio-device or runtime subprocess dependency. GUI hosts choose their own playback sink and call the same modules as command-line tools.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet. The repository is not public yet.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#overview">Overview</a><a href="#module-types">types</a><a href="#module-ogg">ogg</a><a href="#module-wav">wav</a><a href="#module-opus">opus</a><a href="#module-pipeline">pipeline</a><a href="#module-resample">resample</a></aside><div class="article-body api-body">
+<section id="overview" class="prose"><h2>Overview</h2><h2 id="build-and-use">Build and use</h2>
+<p>Install Ziran plus the development/link libraries for <strong>libopus</strong> and
+<strong>libsamplerate</strong> (<code>libopus-dev</code> and <code>libsamplerate0-dev</code> on Debian-family
+Linux), then run:</p>
+<pre><code class="language-sh">make
+build/bin/audio --help
+build/bin/audio encode input.wav output.opus --bitrate 64000 --vbr on
+build/bin/audio encode voice.wav voice.opus --bitrate 24000 --application voice --bandwidth wide --vbr constrained
+build/bin/audio inspect output.opus
+build/bin/audio decode output.opus decoded.wav
+build/bin/audio transcode input.opus smaller.opus --bitrate 32000
+build/bin/audio resample input.wav speech.wav --rate 16000
+</code></pre>
+<p>The CLI supports PCM16 and IEEE float32 RIFF WAV input, and mapping-family-0
+Ogg Opus (mono/stereo) with the exact 19-byte version-1 identification header.
+Other Opus header versions/extensions are outside this bounded profile.
+Decoded WAV output is PCM16 at 48 kHz. <code>resample</code>
+accepts either format and writes PCM16 WAV at the requested 8000–192000 Hz
+rate. <code>transcode</code> decodes WAV/Opus and encodes Opus; it is a lossy re-encode
+when its source is already Opus. Other audio formats belong to separate
+modules; existing <code>std/vorbis</code> and <code>std/vorbis_linux</code> support is independent.</p>
+<p>Encoder options are <code>--bitrate</code> in bits/second (6000–510000), <code>--vbr</code>
+<code>on|off|constrained</code>, <code>--bandwidth</code> <code>auto|narrow|wide|superwide|full</code>,
+<code>--application</code> <code>audio|voice|lowdelay</code>, <code>--complexity</code> 0–10 and <code>--frame-ms</code>
+5, 10, 20, 40 or 60. Defaults are 96000 bps, VBR, automatic bandwidth,
+audio application, complexity 10 and 20 ms. The bandwidth option is a <strong>cap</strong>;
+libopus still chooses its actual bandwidth. Constrained VBR is a separate
+rate-control setting. The six-kilohertz medium-band cap is omitted because
+libopus can choose a wide-band CELT packet for that setting. Neither a bitrate target nor constrained VBR guarantees
+a particular file size or quality.</p>
+<p>Non-48-kHz input is converted with libsamplerate's <code>SRC_SINC_BEST_QUALITY</code>
+before encoding. This is a band-limited sinc converter, including for 44.1→48
+kHz. Float PCM keeps finite headroom through resampling/encoding; sinc can
+overshoot a normalized transient. <code>ValidPCM</code> admits finite values in [-16,16].
+PCM16 WAV and Kryon's PCM16 sink explicitly clip to [-1,32767/32768] at the
+integer boundary. There is no implicit loudness normalization.</p>
+<p>Files contain up to 200 ms of packets per Ogg page, bounded by the format's
+255 lacing entries and 65025 body bytes. This amortizes page overhead for
+low-bitrate audio. The packet API retains individual frames for callers that
+need lower latency. On the tested synthetic three-second mono 440 Hz fixture,
+16 kbps voice-mode output occupied 6877 bytes including 18 pages, versus
+288044 bytes of PCM16 WAV. This is a fixture measurement, not a speech or
+music quality benchmark.</p>
+<p>CLI operations validate/process into memory before touching the destination.
+They stage output in an exclusively created <code>OUTPUT.audio-part</code> file beside
+the destination and rename it only after a complete write/close. Errors preserve
+an existing output. An existing staging file causes an error and is preserved.
+Literal and resolved source/destination aliases are rejected. The CLI does
+not play audio or open audio devices.</p>
+<h2 id="callable-modules">Callable modules</h2>
+<p>Exports are <code>audio/types</code>, <code>audio/ogg</code>, <code>audio/wav</code>, <code>audio/opus</code>,
+<code>audio/resample</code> and <code>audio/pipeline</code>.
+Full-pipeline native consumers declare <code>links = ["opus", "samplerate", "m"]</code> in their
+root manifest's <code>[package]</code> table, or use equivalent linker flags in a custom
+host. Ziran does not inherit system links from dependencies. Codec-only consumers need
+only <code>links = ["opus", "m"]</code>; <code>audio/opus</code> does not import the resampler.</p>
+<pre><code class="language-zi">Types :: #import &quot;audio/types&quot;
+Pipeline :: #import &quot;audio/pipeline&quot;
+#import &quot;std/vec&quot;
+
+EncodeAudio :: (pcm: *Types.PCM, output: *Vec(u8)) -&gt; s32 {
+    options := Types.DefaultOptions()
+    options.bitrate = 64000
+    options.bandwidth = Types.Bandwidth.Full
+    return Pipeline.Encode(pcm, options, output)
+}
+</code></pre>
+<p><code>PCM</code> owns interleaved <code>Vec(float32)</code> samples plus <code>rate:s32</code> and
+<code>channels:s32</code>. Pass it by pointer. Ordinary vector cleanup releases sample
+storage. <code>SwapSamples(*PCM,*Vec(float32))</code> transfers sample ownership without
+copying. Whole-buffer convenience calls leave their output unchanged on an
+error and return a status from <code>audio/types</code> (<code>ErrorText</code> gives a short message):</p>
+<ul>
+<li><code>audio/pipeline.Encode(*PCM, Options, *Vec(u8)) -&gt; s32</code></li>
+<li><code>Decode([]u8, max_frames:s64, *PCM) -&gt; s32</code></li>
+<li><code>Resample(*PCM, target_rate:s32, *PCM) -&gt; s32</code>, with distinct input/output</li>
+<li><code>Inspect([]u8, *Info) -&gt; s32</code>, clearing <code>Info</code> on failure</li>
+<li><code>WavDecode([]u8, max_frames:s64, *PCM) -&gt; s32</code></li>
+<li><code>WavEncode(*PCM, *Vec(u8)) -&gt; s32</code></li>
+</ul>
+<p><code>Info</code> reports channels, 48000-Hz output rate, original-rate header hint,
+logical frame count, pre-skip, signed Q8 gain and packet count. Decode applies
+the header gain, discards pre-skip and honors final-granule end trim. Original
+sample rate is informational and does not change the Ogg 48-kHz timebase.</p>
+<p>Whole-buffer PCM is limited to 28800000 frames and encoded/input bytes to
+256 MiB. <code>max_frames</code> can impose a smaller eager-decoding cap. Inspection
+and incremental decode instead permit up to 24 hours at 48 kHz, without
+allocating full PCM. Ogg packets/comments are bounded to 65536 bytes. These
+limits are explicit capability boundaries, including on otherwise valid input.</p>
+<h2 id="incremental-apis-and-ownership">Incremental APIs and ownership</h2>
+<p><code>DecoderOpen(*Decoder, input:[]u8, max_frames:s64) -&gt; s32</code> validates the
+single logical stream, then <code>DecoderRead(*Decoder, output:[]float32,
+frames:*s64) -&gt; s32</code> fills caller-owned interleaved scratch. Output may be as
+small as one frame. <code>OK</code> with zero returned frames means logical EOF. A
+failed read may already have filled a prefix; discard that read on error.
+<code>DecoderRewind(*Decoder) -&gt; s32</code> resets the codec over the previously validated
+input without scanning the whole file again. <code>DecoderClose(*Decoder)</code> is
+idempotent and releases native state. Scratch is bounded to one 120 ms Opus
+packet plus one 65536-byte Ogg packet, regardless of track duration. Input
+bytes are borrowed: keep them alive <strong>and unchanged</strong> until close.</p>
+<p><code>EncoderOpen(*Encoder, channels:s32, Options) -&gt; s32</code> opens a 48-kHz encoder.
+<code>EncoderPacket(*Encoder, pcm:[]float32, packet:[]u8, written:*s32) -&gt; s32</code>
+requires exactly its configured frame size and caller-owned packet storage
+(4096 bytes is sufficient for supported frame durations). It produces a raw
+Opus packet; it does not attach Ogg headers or timing. <code>Encoder.lookahead</code>
+is the required Ogg pre-skip. Close it with <code>EncoderClose(*Encoder)</code>.</p>
+<p><code>SincOpen(*SincState, channels, from_rate, to_rate) -&gt; s32</code> selects best sinc.
+<code>SincProcess(*SincState, input:[]float32, output:[]float32, final:bool,
+used:*s64, generated:*s64) -&gt; s32</code> reports <strong>frame</strong> counts, not sample counts.
+Buffers must be disjoint. Retain unconsumed input; on the final chunk use
+<code>final=true</code>, then drain with an empty input until zero output. The state marks
+itself ended after that drain. <code>SincClose(*SincState)</code> is idempotent. A whole
+conversion and irregular streaming chunks share the same filter state/quality.</p>
+<p>Live encoder/decoder/sinc states have one owner. Do not copy them, call them
+concurrently, or replace their borrowed storage. Use separate states for
+separate streams. The CLI conveniences are bounded whole-file operations;
+only the explicit state APIs stream PCM.</p>
+<h2 id="validation-and-target-support">Validation and target support</h2>
+<p>Ogg inspection checks capture/version, CRC, stream serial, page sequence,
+BOS/EOS, continuation/lacing, bounded tags, TOC durations, granule monotonicity,
+pre-skip and end trim. This bounded profile requires nonempty Ogg pages.
+It rejects truncation, trailing/chained/multiplexed
+streams, multichannel mappings and nonzero initial timeline offsets. Inspection
+validates the container and declared packet duration; libopus validates packet
+payloads as they are decoded. It does not claim to validate an unheard packet's
+compressed bitstream. Rewind assumes the validated bytes stayed unchanged.</p>
+<p>Native codec and sinc execution is tested with Linux x86-64 C, libopus 1.5.2
+and libsamplerate 0.2.2. The SRC_DATA C-long ABI is represented by <code>isize</code> on
+Unix C targets. Windows sinc execution returns <code>Unsupported</code> before FFI.
+Other native/device platforms are unverified. Kryon's host integration enables
+native Opus on Linux and reports <code>Unsupported</code> on its unimplemented Android,
+Windows and macOS paths; browser playback uses the browser's own WebAudio decoder. Codec FFI and sinc are not
+portable VM implementations; reachable native calls reject bundling instead
+of fabricating output. Portable Ogg/WAV modules execute from source and saved
+IR in C, Go and <code>.zx</code> without codec libraries. The CLI's variadic libopus
+controls require the C target; Go CLI/native codec builds are not supported.</p>
+<p>Run <code>make test</code> for source/saved-IR native codec+CLI tests, portable VM/Go
+execution, FFI rejection, streaming parity, alias rejection, transients,
+malformed data, atomic output and FFmpeg interoperability. Python and FFmpeg
+are test tools only. Strict voice/chirp PCM comparison forces FFmpeg's
+libopus decoder (within 1 PCM16 LSB). FFmpeg's independent decoder also checks
+duration and the CELT sine fixtures; SILK/resampler implementations can differ
+without a container timing error. No listening score or universal compression
+quality claim follows from these tests.</p>
+<p>References: <a href="https://www.opus-codec.org/docs/opus_api-1.5.pdf">Opus public API 1.5</a>,
+<a href="https://www.rfc-editor.org/rfc/rfc7845.html">RFC 7845 Ogg Opus</a>,
+<a href="https://libsndfile.github.io/libsamplerate/api_full.html">libsamplerate state API</a>.</p></section>
+<section id="module-types"><p class="eyebrow">audio/src/types.zi</p><h2>types</h2><p>Import with <code>#import "audio/types"</code>.</p><div class="api-list">
+<div><code>OK :: 0</code></div>
+<div><code>Invalid :: 2</code></div>
+<div><code>Malformed :: 3</code></div>
+<div><code>Unsupported :: 4</code></div>
+<div><code>LimitExceeded :: 5</code></div>
+<div><code>NativeFailure :: 6</code></div>
+<div><code>AllocationFailed :: 7</code></div>
+<div><code>IOFailure :: 8</code></div>
+<div><code>PCM :: struct { samples: Vec(float32); rate: s32; channels: s32; }</code><p>Interleaved normalized float samples. The caller owns the vector.</p></div>
+<div><code>Info :: struct { channels: s32; rate: s32; original_rate: s32; frames: s64; pre_skip: s32; gain_q8: s32; packets: s64; }</code></div>
+<div><code>Bandwidth :: enum { Auto = 0; Narrow = 1; Wide = 2; Superwide = 3; Full = 4; }</code></div>
+<div><code>Application :: enum { Audio = 0; Voice = 1; LowDelay = 2; }</code></div>
+<div><code>Options :: struct { bitrate: s32; vbr: bool; constrained_vbr: bool; bandwidth: Bandwidth; complexity: s32; application: Application; frame_ms: s32; }</code></div>
+<div><code>DefaultOptions :: () -&gt; Options</code></div>
+<div><code>MaxBytes :: 268435456</code><p>Memory/work bounds apply before allocations. Rates are bounded to avoid enormous output for hostile headers. Whole-file APIs are intentionally bounded.</p></div>
+<div><code>MaxFrames :: 28800000</code></div>
+<div><code>ValidPCM :: (pcm: *PCM) -&gt; bool</code></div>
+<div><code>ErrorText :: (code: s32) -&gt; string</code></div>
+<div><code>Little :: (input: []u8, at: s64, count: s64) -&gt; u64</code></div>
+<div><code>PutLittle :: (output: []u8, at: s64, count: s64, value: u64)</code></div>
+<div><code>Magic :: (input: []u8, at: s64, text: string) -&gt; bool</code></div>
+<div><code>SwapSamples :: (pcm: *PCM, samples: *Vec(float32))</code><p>Move ownership between caller vector and PCM without copying samples.</p></div>
+</div></section>
+<section id="module-ogg"><p class="eyebrow">audio/src/ogg.zi</p><h2>ogg</h2><p>Import with <code>#import "audio/ogg"</code>.</p><div class="api-list">
+<div><code>OggCRC :: (page: []u8) -&gt; u32</code><p>Ogg CRC-32 (non-reflected), with the checksum field treated as zero.</p></div>
+<div><code>OggReader :: struct { input: []u8; at: s64; end: s64; body: s64; segment: s64; segments: s64; serial: u64; sequence: u64; granule: s64; flags: u8; packet: [65536]u8; packet_count: s64; done: bool; page_last: bool; last_complete: bool; }</code><p>Bounded packet iterator. Borrowed input must outlive this record. A returned packet is valid until the next call; never retain a view over NextPacket.</p></div>
+<div><code>NextPacket :: (reader: *OggReader) -&gt; s32</code></div>
+<div><code>PacketFrames :: (packet: []u8) -&gt; s32</code><p>RFC 6716 TOC duration at the Ogg timebase (48 kHz), independent of FFI.</p></div>
+<div><code>Inspect :: (input: []u8, info: *Info) -&gt; s32</code></div>
+<div><code>AppendPage :: (output: *Vec(u8), packet: []u8, flags: u8, granule: s64, serial: u32, sequence: u32) -&gt; s32</code><p>One complete packet per page. Output is staged by the whole-file encoder.</p></div>
+<div><code>PageBuilder :: struct { body: [65025]u8; laces: [255]u8; count: s64; segments: s64; }</code><p>Efficient file muxing: accumulate up to 200 ms or 255 lacing entries in a page, amortizing the 27-byte header without changing Opus frame latency.</p></div>
+<div><code>PageAdd :: (page: *PageBuilder, packet: []u8) -&gt; s32</code></div>
+<div><code>PageFlush :: (page: *PageBuilder, output: *Vec(u8), final: bool, granule: s64, sequence: u32) -&gt; s32</code></div>
+</div></section>
+<section id="module-wav"><p class="eyebrow">audio/src/wav.zi</p><h2>wav</h2><p>Import with <code>#import "audio/wav"</code>.</p><div class="api-list">
+<div><code>WavDecode :: (input: []u8, max_frames: s64, output: *PCM) -&gt; s32</code><p>Canonical RIFF WAVE PCM16 or IEEE float32 mono/stereo. Unknown chunks are skipped with padding, but duplicate fmt/data, RF64 and compressed WAV reject.</p></div>
+<div><code>WavEncode :: (pcm: *PCM, output: *Vec(u8)) -&gt; s32</code><p>PCM16 output clips finite sinc/codec overshoots at the integer boundary.</p></div>
+</div></section>
+<section id="module-opus"><p class="eyebrow">audio/src/opus.zi</p><h2>opus</h2><p>Import with <code>#import "audio/opus"</code>.</p><div class="api-list">
+<div><code>Encoder :: struct { handle: *void; channels: s32; frame_size: s32; lookahead: s32; }</code></div>
+<div><code>EncoderClose :: (encoder: *Encoder)</code></div>
+<div><code>EncoderOpen :: (encoder: *Encoder, channels: s32, options: Options) -&gt; s32</code></div>
+<div><code>EncoderPacket :: (encoder: *Encoder, pcm: []float32, packet: []u8, written: *s32) -&gt; s32</code><p>Exactly one configured frame (48 kHz interleaved float). Caller retains buffers. Native encoder state must be closed once by its owning caller.</p></div>
+<div><code>Decoder :: struct { handle: *void; reader: OggReader; info: Info; scratch: [11520]float32; pending_at: s64; pending_end: s64; decoded: s64; emitted: s64; gain: float64; start_at: s64; start_sequence: u64; }</code><p>Incremental Ogg decoder: bounded 120 ms scratch, no full PCM allocation. The input byte view is borrowed until DecoderClose. This is single-owner, single-thread state; callers must never copy a live decoder or encoder.</p></div>
+<div><code>DecoderClose :: (decoder: *Decoder)</code></div>
+<div><code>DecoderOpen :: (decoder: *Decoder, input: []u8, max_frames: s64) -&gt; s32</code></div>
+<div><code>DecoderRewind :: (decoder: *Decoder) -&gt; s32</code><p>Rewind already validated, immutable borrowed input without rescanning it. Only the owning caller may mutate state; input must stay unchanged until close.</p></div>
+<div><code>DecoderRead :: (decoder: *Decoder, output: []float32, frames: *s64) -&gt; s32</code><p>Returns OK and frames=0 only at exact logical EOF. Output is caller-owned, interleaved and may be as small as one frame; the unused suffix is unchanged.</p></div>
+<div><code>Decode :: (input: []u8, max_frames: s64, output: *PCM) -&gt; s32</code></div>
+</div></section>
+<section id="module-pipeline"><p class="eyebrow">audio/src/pipeline.zi</p><h2>pipeline</h2><p>Whole-buffer preprocessing and Ogg Opus encoding. Codec-only consumers import opus without pulling in the sample-rate converter.</p><p>Import with <code>#import "audio/pipeline"</code>.</p><div class="api-list">
+<div><code>Encode :: (pcm: *PCM, options: Options, output: *Vec(u8)) -&gt; s32</code></div>
+</div></section>
+<section id="module-resample"><p class="eyebrow">audio/src/resample.zi</p><h2>resample</h2><p>Import with <code>#import "audio/resample"</code>.</p><div class="api-list">
+<div><code>SincData :: struct { input: *float32; output: *float32; input_frames: isize; output_frames: isize; input_used: isize; output_generated: isize; end_of_input: s32; ratio: float64; }</code><p>Public libsamplerate SRC_DATA ABI: C long maps to isize on supported Unix C targets. Windows is rejected before creating or processing native state.</p></div>
+<div><code>SincState :: struct { handle: *void; channels: s32; ratio: float64; ended: bool; }</code></div>
+<div><code>SincOpen :: (state: *SincState, channels: s32, from_rate: s32, to_rate: s32) -&gt; s32</code></div>
+<div><code>SincClose :: (state: *SincState)</code></div>
+<div><code>SincProcess :: (state: *SincState, input: []float32, output: []float32, final: bool, used: *s64, generated: *s64) -&gt; s32</code><p>Caller supplies disjoint buffers. Respect both used and generated counts; keep feeding the unconsumed input, and drain with final=true until generated=0.</p></div>
+<div><code>Resample :: (pcm: *PCM, target_rate: s32, output: *PCM) -&gt; s32</code></div>
+</div></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

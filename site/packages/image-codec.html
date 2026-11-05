@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Optional image decoder contracts and a measured RGBA8 baseline, authored in Ziran."><title>image-codec · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/image-codec"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>image-codec</h1><p>Optional image decoder contracts and a measured RGBA8 baseline, authored in Ziran. The package reuses std/image.Image and has no Kryon or native codec dependency. AVIF, AV1 and WebP decoders are supplied by separate packages.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/image-codec">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-api">api</a><a href="#module-errors">errors</a><a href="#module-limits">limits</a><a href="#module-metadata">metadata</a><a href="#module-bytes">bytes</a><a href="#module-buffer">buffer</a><a href="#module-image">image</a><a href="#module-scheduler">scheduler</a><a href="#module-benchmark">benchmark</a><a href="#documents">Documents</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.image_codec]
+git = "https://github.com/ziranlang/image-codec.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><p>Consumers import <code>image_codec/api</code> when the dependency is named <code>image_codec</code>.
+Exports also expose individual ordinary modules. See <a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/API.md">API</a>,
+<a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/CORPUS.md">fixtures</a> and <a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/BENCHMARKS.md">benchmarks</a>.</p>
+<p>From this canonical checkout, with Ziran at <code>../../ziran</code>:</p>
+<pre><code class="language-sh">build-queue -- sh tests/contracts.sh
+build-queue -- sh tests/corpus.sh --verify
+build-queue -- sh tests/benchmark_contract.sh
+build-queue -- sh tests/package_import.sh
+</code></pre>
+<p><code>ZIRAN_ROOT</code> and <code>ZIRAN</code> select an existing toolchain. Tests use no display,
+network, fixture downloads or native codecs. Package import uses local
+overrides; a toolchain that requires committed HEADs rejects an unborn package.
+Direct module tests exercise the same source without a milestone commit.
+Generated outputs stay under ignored <code>build/</code>.
+The rebuilt toolchain must provide <code>VecResize</code> and <code>VecResizeBounded</code>; a version string alone does
+not identify this development capability before upstream integration.</p></section>
+<section id="module-api"><p class="eyebrow">image-codec/src/api.zi</p><h2>api</h2><p>Import with <code>#import "image_codec/api"</code>.</p><div class="api-list">
+<div><code>StrictColor :: 0</code><p>Only RGBA8 output and strict color are defined here. Codec engines must explicitly reject unsupported source features rather than ignore them.</p></div>
+<div><code>FastColor :: 1</code></div>
+<div><code>DecodeOptions :: struct { limits: DecodeLimits; cancellation: *Cancellation; workers: *WorkerBudget; color_mode: s32; }</code></div>
+<div><code>DefaultOptions :: () -&gt; DecodeOptions</code></div>
+<div><code>ValidateOptions :: (options: *DecodeOptions) -&gt; DecodeError</code></div>
+<div><code>DecodeProcedure :: #type (input: BorrowedBytes, metadata: ImageMetadata, options: *DecodeOptions) -&gt; DecodeResult</code><p>Useful reference provider: already decoded, tightly packed RGBA8 bytes.</p></div>
+<div><code>DecodeRGBA8 :: (input: BorrowedBytes, metadata: ImageMetadata, options: *DecodeOptions) -&gt; DecodeResult</code><p>Useful reference provider: already decoded, tightly packed RGBA8 bytes. Metadata is supplied by the caller, not guessed from an unframed file.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/api.zi">Source ↗</a></p></section>
+<section id="module-errors"><p class="eyebrow">image-codec/src/errors.zi</p><h2>errors</h2><p>Zero is success. Error offsets are input byte offsets, or -1 if unknown.</p><p>Import with <code>#import "image_codec/errors"</code>.</p><div class="api-list">
+<div><code>DecodeError :: struct { code: s32; offset: s64; }</code></div>
+<div><code>DecodeOK :: 0</code></div>
+<div><code>InvalidLimits :: 1</code></div>
+<div><code>InvalidInput :: 2</code></div>
+<div><code>TruncatedInput :: 3</code></div>
+<div><code>MalformedInput :: 4</code></div>
+<div><code>UnsupportedCapability :: 5</code></div>
+<div><code>LimitExceeded :: 6</code></div>
+<div><code>OutputTooSmall :: 7</code></div>
+<div><code>DecodeCancelled :: 8</code></div>
+<div><code>AllocationFailed :: 9</code></div>
+<div><code>WorkerBudgetExceeded :: 10</code></div>
+<div><code>InputOutputFailed :: 11</code></div>
+<div><code>CorrectnessMismatch :: 12</code></div>
+<div><code>Error :: (code: s32, offset: s64) -&gt; DecodeError</code></div>
+<div><code>ErrorText :: (code: s32) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/errors.zi">Source ↗</a></p></section>
+<section id="module-limits"><p class="eyebrow">image-codec/src/limits.zi</p><h2>limits</h2><p>Import with <code>#import "image_codec/limits"</code>.</p><div class="api-list">
+<div><code>DecodeLimits :: struct { max_input_bytes: s64; max_width: s32; max_height: s32; max_pixels: s64; max_output_bytes: s64; max_working_bytes: s64; max_metadata_bytes: s64; max_frames: s32; max_decoded_frames: s32; max_workers: s32; }</code></div>
+<div><code>DefaultLimits :: () -&gt; DecodeLimits</code></div>
+<div><code>ValidateLimits :: (limits: DecodeLimits) -&gt; DecodeError</code></div>
+<div><code>ValidateDecodedFrames :: (count: s32, limits: DecodeLimits) -&gt; DecodeError</code></div>
+<div><code>RequiredSpan :: (width: s32, height: s32, sample_bytes: s32, stride: s64) -&gt; (s64, DecodeError)</code><p>Division checks precede multiplication, including hostile strides.</p></div>
+<div><code>ValidatePixelDimensions :: (width: s32, height: s32, limits: DecodeLimits) -&gt; DecodeError</code><p>Storage-neutral: planar/YUV engines apply their own output byte budget. Positive s32 sides widen to s64, so the pixel product cannot overflow.</p></div>
+<div><code>ValidateDimensions :: (width: s32, height: s32, limits: DecodeLimits) -&gt; DecodeError</code><p>Tight RGBA8 output: four bytes per pixel must fit max_output_bytes.</p></div>
+<div><code>ValidateInputSize :: (count: s64, limits: DecodeLimits) -&gt; DecodeError</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/limits.zi">Source ↗</a></p></section>
+<section id="module-metadata"><p class="eyebrow">image-codec/src/metadata.zi</p><h2>metadata</h2><p>Import with <code>#import "image_codec/metadata"</code>.</p><div class="api-list">
+<div><code>ImageMetadata :: struct { width: s32; height: s32; source_bit_depth: s32; has_alpha: bool; source_premultiplied: bool; frame_count: s32; color_known: bool; color_primaries: s32; transfer_characteristics: s32; matrix_coefficients: s32; full_range: bool; metadata_bytes: s64; }</code><p>Output dimensions after transforms. Zero source values mean unknown. Image output is always packed straight-alpha RGBA8 in top-to-bottom rows.</p></div>
+<div><code>ValidateMetadata :: (metadata: ImageMetadata, limits: DecodeLimits) -&gt; DecodeError</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/metadata.zi">Source ↗</a></p></section>
+<section id="module-bytes"><p class="eyebrow">image-codec/src/bytes.zi</p><h2>bytes</h2><p>Import with <code>#import "image_codec/bytes"</code>.</p><div class="api-list">
+<div><code>BorrowedBytes :: struct { data: []u8; }</code><p>A synchronous borrow, never an owner. The caller keeps its backing storage alive and unchanged throughout use. Ziran []u8 is not a const slice.</p></div>
+<div><code>BorrowBytes :: (data: []u8) -&gt; BorrowedBytes</code></div>
+<div><code>ByteRange :: (input: BorrowedBytes, offset: s64, count: s64) -&gt; (BorrowedBytes, DecodeError)</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/bytes.zi">Source ↗</a></p></section>
+<section id="module-buffer"><p class="eyebrow">image-codec/src/buffer.zi</p><h2>buffer</h2><p>Import with <code>#import "image_codec/buffer"</code>.</p><div class="api-list">
+<div><code>Plane :: struct { width: s32; height: s32; stride: s64; sample_bytes: s32; storage: Vec(u8); }</code><p>One component plane. Samples are 1 or 2 bytes; multi-byte samples use little endian storage. The owning Vec may include row padding.</p></div>
+<div><code>PlaneView :: struct { width: s32; height: s32; stride: s64; sample_bytes: s32; data: []u8; }</code></div>
+<div><code>OutputBuffer :: struct { data: []u8; stride: s64; }</code></div>
+<div><code>ValidatePlane :: (plane: PlaneView, limits: DecodeLimits) -&gt; DecodeError</code></div>
+<div><code>ValidateOutput :: (output: OutputBuffer, width: s32, height: s32, limits: DecodeLimits) -&gt; DecodeError</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/buffer.zi">Source ↗</a></p></section>
+<section id="module-image"><p class="eyebrow">image-codec/src/image.zi</p><h2>image</h2><p>Import with <code>#import "image_codec/image"</code>.</p><div class="api-list">
+<div><code>DecodeResult :: struct { is_ok: bool; image: Image; metadata: ImageMetadata; error: DecodeError; }</code></div>
+<div><code>DecodeFailure :: (error: DecodeError) -&gt; DecodeResult</code></div>
+<div><code>AllocateImage :: (metadata: ImageMetadata, limits: DecodeLimits, token: *Cancellation) -&gt; DecodeResult</code><p>One fallible bulk allocation. Check cancellation around allocation; pixel providers and row copies add their own checkpoints during actual work.</p></div>
+<div><code>CopyImageToOutput :: (image: *Image, output: OutputBuffer, limits: DecodeLimits, token: *Cancellation) -&gt; DecodeError</code><p>Caller-owned output borrows its storage. Validation and pre-cancellation precede writes; cancellation during work can leave complete rows written.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/image.zi">Source ↗</a></p></section>
+<section id="module-scheduler"><p class="eyebrow">image-codec/src/scheduler.zi</p><h2>scheduler</h2><p>Import with <code>#import "image_codec/scheduler"</code>.</p><div class="api-list">
+<div><code>Cancellation :: struct { requested: bool; }</code><p>Cooperative, single-thread state. Threaded engines must serialize access or adapt their own atomic cancellation to these checkpoints.</p></div>
+<div><code>Cancel :: (token: *Cancellation)</code></div>
+<div><code>CancellationError :: (token: *Cancellation) -&gt; DecodeError</code></div>
+<div><code>WorkerBudget :: struct { max_workers: s32; active_workers: s32; peak_workers: s32; max_working_bytes: s64; working_bytes: s64; peak_working_bytes: s64; }</code><p>Counts all execution lanes, including the caller. No threads are launched. Engine reservations cover scratch only, separate from input/output bytes.</p></div>
+<div><code>NewWorkerBudget :: (limits: DecodeLimits) -&gt; WorkerBudget</code></div>
+<div><code>ValidateWorkerBudget :: (budget: *WorkerBudget, limits: DecodeLimits) -&gt; DecodeError</code></div>
+<div><code>AcquireWorker :: (budget: *WorkerBudget, token: *Cancellation) -&gt; DecodeError</code></div>
+<div><code>ReleaseWorker :: (budget: *WorkerBudget) -&gt; DecodeError</code></div>
+<div><code>ReserveWorkingBytes :: (budget: *WorkerBudget, bytes: s64, token: *Cancellation) -&gt; DecodeError</code></div>
+<div><code>ReleaseWorkingBytes :: (budget: *WorkerBudget, bytes: s64) -&gt; DecodeError</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/scheduler.zi">Source ↗</a></p></section>
+<section id="module-benchmark"><p class="eyebrow">image-codec/src/benchmark.zi</p><h2>benchmark</h2><p>Import with <code>#import "image_codec/benchmark"</code>.</p><div class="api-list">
+<div><code>MaxBenchmarkIterations :: 1024</code></div>
+<div><code>TimingSummary :: struct { p50_ns: s64; p95_ns: s64; total_ns: s64; iterations: s32; error: DecodeError; }</code></div>
+<div><code>SummarizeTimings :: (samples: []s64) -&gt; TimingSummary</code><p>Nearest-rank percentiles. Sorts caller-owned sample storage in place.</p></div>
+<div><code>FileBytes :: struct { data: Vec(u8); error: DecodeError; }</code></div>
+<div><code>FileFailure :: (error: DecodeError) -&gt; FileBytes</code></div>
+<div><code>ReadBoundedFile :: (path: string, maximum: s64, token: *Cancellation) -&gt; FileBytes</code></div>
+<div><code>SamePixels :: (picture: *Image, expected: []u8) -&gt; bool</code></div>
+<div><code>ImageHash :: (picture: *Image) -&gt; u64</code></div>
+<div><code>HashText :: (hash: u64) -&gt; string</code></div>
+<div><code>BenchmarkResult :: struct { is_ok: bool; timing: TimingSummary; samples_ns: [1024]s64; output_hash: u64; input_bytes: s64; output_bytes: s64; pixel_count: s64; active_workers: s32; error: DecodeError; }</code></div>
+<div><code>BenchmarkFile :: (path: string, expected: []u8, metadata: ImageMetadata, options: *DecodeOptions, provider: DecodeProcedure, iterations: s32) -&gt; BenchmarkResult</code><p>Each sample opens/reads/closes input then calls the provider. Allocation of input/output is timed. Output validation, hash and destruction are untimed. An initial correctness decode MUST pass before the first timed sample.</p></div>
+<div><code>BenchmarkJSON :: (result: *BenchmarkResult, provider_name: string, toolchain_version: string) -&gt; string</code><p>JSON null represents unavailable measurement, never an invented zero.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/image-codec/blob/HEAD/src/benchmark.zi">Source ↗</a></p></section>
+<section id="documents"><h2>Documents</h2><div class="link-list"><a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/API.md">API.md<span>GitHub ↗</span></a><a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/BENCHMARKS.md">BENCHMARKS.md<span>GitHub ↗</span></a><a href="https://github.com/ziranlang/image-codec/blob/HEAD/docs/CORPUS.md">CORPUS.md<span>GitHub ↗</span></a></div></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

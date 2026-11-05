@@ -1,0 +1,1638 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Implementation status: the Ziran guide, rendered from docs/IMPLEMENTATION_STATUS.md."><title>Implementation status · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/implementation-status"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Implementation status</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/IMPLEMENTATION_STATUS.md">docs/IMPLEMENTATION_STATUS.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#working-now">Working now</a><a href="#still-required">Still required</a></aside><div class="article-body">
+<section class="prose"><p>This page reports the local repository as it exists now. <a href="architecture.html">Architecture</a>,
+<a href="zir.html"><code>.zir</code></a>, and <a href="zx.html"><code>.zx</code></a> define the target state.</p>
+<h2 id="working-now">Working now</h2>
+<ul>
+<li>
+<p>GCC object-cache preparation pipes the empty compile probe, allowing its
+  compiler and assembler to overlap without a temporary assembly file. It keeps
+  the previous compiler, math-library, assembler and checksum information and
+  fingerprints the complete derived command options, including installed specs
+  changes. Clang retains its ordinary single compile probe. Failed, incomplete,
+  ambiguous or oversized probe output falls back to normal compilation.
+  <code>tests/native_build_cache.sh</code> covers changed compiler configuration and library
+  versions, both probe paths and failure fallback; process profiles count the
+  probe operations. Runtime-include scanning keeps literal token lengths in its
+  table rather than computing them for every emitted identifier.
+  A successful piped identity probe also enables piped object compilation,
+  overlapping compiler and assembler stages for each generated translation
+  unit. Existing explicit flags are retained without adding a duplicate
+  object-compile flag; unsupported or failed probes keep ordinary compilation.
+  Cache identities include this compile policy, and profiles count piped
+  object attempts. The native-cache test observes actual native-driver
+  arguments, unchanged-object reuse, explicit flags and failed-probe fallback.
+  Linker selection/pass-through flags (<code>-fuse-ld=</code>, <code>-Wl,</code>, <code>-Xlinker</code>) and
+  tool prefixes (<code>-B</code>) also retain object reuse. The probe fingerprints the
+  selected compiler/assembler and include roots; changed prefix tools invalidate
+  their objects. Linking runs on every build, regenerates requested maps and
+  checks current library inputs. Source/saved-IR tests cover these options,
+  prefix-tool replacement, option values and missing-library failure.</p>
+</li>
+<li>
+<p>Generated C public headers carry lightweight string value and caller
+  location definitions. Sources include string operations, bounds checks and
+  standard-library helpers when their emitted code uses them, reducing the
+  preprocessing needed by numeric modules. Runtime headers bring their own
+  dependencies into the output directory, so generated code remains directly
+  buildable without Ziran's include directory. Native string representation,
+  embedded NUL bytes, checked bounds and float formatting remain the same.
+  <code>tests/native_runtime_headers.sh</code> checks source and saved IR, exported ABI
+  values, standalone C builds and stable copied-header timestamps.</p>
+</li>
+<li>
+<p>C emission collects a module in a memory stream where supported (a temporary
+  stream elsewhere) and resolves runtime includes and numeric helpers while
+  writing its final temporary output. Memory streams avoid writing and rereading
+  an intermediate C file. Identical generated files keep
+  their timestamps; large source and saved-IR modules are executed by
+  <code>tests/native_runtime_headers.sh</code>.</p>
+</li>
+<li>
+<p>Native C compilation uses up to sixteen available CPU workers, bounded by
+  the source count and by the process's CPU affinity on Linux. It refills each
+  slot independently,
+  including when another file is slow. Linux child-completion descriptors
+  avoid periodic wakeups when available; other systems retain an owned-PID
+  wait path. JSON compiler logs remain in source order, failed builds drain
+  started jobs and retain the existing executable, and unrelated children
+  remain waitable by their caller. <code>tests/native_build_parallel.sh</code> checks
+  both output modes, blocked workers, truncation, failure and fallback;
+  the native object-cache tests cover incremental reuse and changed inputs.
+  Profiles separate native toolchain preparation, objects and linking and
+  count compilation attempts and reuse. <code>bench/native_builds.py</code> can pair a
+  preserved compiler with the current one alongside C and Go.
+  Tool probes, compiler workers and the linker prefer <code>posix_spawnp</code>, with
+  fork/exec retained when spawning fails. Capture pipes, inherited build locks
+  and owned-child waits keep the same behavior. The parallel-build checks also
+  cover missing tools, executable scripts without a shebang, forced spawn
+  unavailability and child-held locks after their builder exits. Profiles count
+  spawn and fork launches separately; gains depend on the host and workload.
+  Android hosts below API 28 keep fork/exec without references to unavailable
+  spawn symbols; optional NDK checks link both paths for all four Android ABIs.
+  Tool identities are sorted separately from ordered include roots, so moving
+  the assembler's verbose command across the compiler's search diagnostics
+  does not invalidate otherwise reusable objects. The cache checks reproduce
+  both output schedules with the same options and include-root precedence.
+  When a complete GNU assembler/BFD version banner splits cc1's compiler
+  prefix from its GMP library versions, the fingerprint reconstructs those
+  two records without dropping their contents. Checks cover the actual
+  unchanged-build path, changed versions and ordered options, CRLF and
+  incomplete or unfamiliar records; unrecognized interleaving remains a
+  conservative miss.
+  Profiles separate cache lookup and recording from the overall object stage.
+  Dependency-name lists retain insertion order, grow geometrically and index
+  exact duplicates once a list reaches 32 items. Sorting or canonicalizing
+  names discards that index. The cache retains its existing content hashes,
+  search-order validation and metadata format; hash buckets use equivalent
+  32-bit arithmetic to avoid wide multiplies on 32-bit compiler hosts.</p>
+</li>
+<li>
+<p>Qualified field types traverse reachable imports with an indexed visited
+  set and an explicit, growing depth-first stack. The former 512-module
+  cutoff is removed, while the caller's type visibility checks and symbol
+  generation invalidation remain in place. Checks cover 2,049-module wide
+  graphs, a 4,096-module cycle on a 256 KiB thread stack, and first/last fields
+  in a 554-module program from source, saved IR and bundles. Native foreign
+  layout checks retain the full 2,048-byte record ABI.</p>
+</li>
+<li>
+<p>Public type re-exports use an iterative graph walk instead of a bounded
+  recursive search. Entry-local types keep file/module shadowing precedence;
+  transitive lookup follows public <code>using</code> edges and stops at module locals.
+  Private imports remain usable locally without exporting their type names.
+  Conflicting declarations remain ambiguous even when another route supplies
+  one of them. Checks cover source/saved cyclic 64-module chains, native and
+  portable execution, and 4,096-module walks on a 256 KiB thread stack.</p>
+</li>
+<li>
+<p>Body eligibility checks reuse immutable primitive-record layout facts and
+  check each reached typed expression once per pass, including shared graphs.
+  Answers remain local to that pass, so rewritten bodies and other lookup
+  scopes are checked again. <code>tests/body_eligibility.sh</code> covers shared nodes,
+  malformed backedges, record rewrites and distinct same-named declarations;
+  the compiler type matrix checks concrete builtin value classification.
+  <code>bench/body_eligibility.py</code> measures paired checking, C emission and bundle
+  construction from source and saved IR, requiring unchanged output bytes
+  and independent native/VM arithmetic results. It can include offline real
+  package checks. This does not establish general Go/C performance parity.</p>
+</li>
+<li>
+<p>Portable bundle writing omits native assembly templates while retaining the
+  checked bodies and full native <code>.zir</code> data. It measures the payload and writes
+  directly to files or pipes without a temporary payload file.
+  <code>tests/zx_portable_write.sh</code> checks graph immutability, binary assets,
+  certificates, persistent state, append streams and write failures;
+  <code>tests/bundle_libraries.sh</code> covers shared and included code.
+  <code>bench/zx_metadata.py</code> compares bundle size, packing and fresh-host loading
+  with a preserved compiler, including a reader/writer crossover and ordinary
+  bundles without assembly. Its large comment annotations are a stress case.</p>
+</li>
+<li>
+<p>C translates assembly operand aliases to positional references, including
+  aliases that are host keywords. Further direct Go architecture/instruction
+  coverage and full platform parity remain open.
+  Compiler output buffering also supports hosts without Unix memory streams and
+  write-only callback streams; Windows builds use native directory creation
+  and accept backslash input paths. <code>tests/text_stream.sh</code> covers empty and
+  binary output, positions, write errors and temporary-file fallback.
+  <code>bench/android_execution.py</code> prepares matched C/Go controls and checks device timings against an
+  independent oracle; these single-workload results do not establish overall
+  C/Go parity or Android compilation speed.</p>
+</li>
+<li>
+<p>Go output optionally uses the shared GNU assembly emitter through cgo when
+  built with <code>-tags=ziran_asm</code> and <code>CGO_ENABLED=1</code>. Ordinary builds retain the
+  checked Go body behind a compile-time-disabled branch. Native function and
+  local-block bridges preserve CPU guards, GNU constraints, labels and caller
+  memory aliases. Flat record results cross as primitive fields; pointer-bearing
+  objects and unsupported local pointer operands keep their checked bodies.
+  <code>tests/go_assembly.sh</code> covers source/saved IR, package startup, concurrency,
+  native test modules, output pruning and strict cgo pointer checking.
+  <code>bench/go_assembly.py</code> measures whole-loop and per-operation placements:
+  cgo transitions can dominate small operations, so native execution is opt-in.
+  With <code>CGO_ENABLED=0</code>, the same <code>-tags=ziran_asm</code> opt-in now emits direct AMD64
+  <a href="https://go.dev/doc/asm">Go ABI0 assembly</a> for represented numeric functions
+  and register-result blocks. GNU alternative columns select one complete
+  representable operand column, retaining tied operands. Fixed registers, integer/float widths, flat
+  result records, local labels and AT&amp;T dialect alternatives retain their
+  checked bindings. Generated Go declarations describe the argument/result
+  layout; leaf instructions preserve the stack, frame and goroutine registers.
+  CPU selection is cached from CPUID and checks OS-enabled extended register
+  state before AVX variants. An available but unrepresented earlier variant
+  retains the checked body instead of selecting a later variant out of order.
+  Pointer results, pointer operands, memory-result blocks, stack-changing
+  instructions, external calls/data and other unrepresented GNU forms keep the
+  checked Go body in this path. Existing cgo builds retain their native bridge.
+  On the tested Go 1.24 toolchain, long direct assembly loops can delay Go
+  scheduling and garbage collection; the cgo path remains available.
+  Native Go assembly uses package builds (<code>go build -tags=ziran_asm .</code>), where
+  Go also compiles the generated <code>.s</code> companions. <code>tests/go_direct_assembly.sh</code>
+  checks mixed ABI layouts, CPU predicates against the C compiler, native
+  dispatch, unsupported variants, GC/stack stress and cross compilation.</p>
+</li>
+<li>
+<p>Generic functions and local blocks retain assembly through concrete
+  specialization, including saved-library imports. Each instance validates
+  operands and its portable body. Caller-owned pointer/array types retain
+  their identity, while fixed library types remain in the defining scope.
+  <code>tests/generic_assembly.sh</code> checks C/Go assembly and forced fallback,
+  VM fallback, flat records, multiple results and invalid instances.</p>
+</li>
+<li>
+<p>Opt-in compiler process profiles record inclusive loading, parsing, checking,
+  native emission, and IR writing, with record-field parsing counts and
+  workspace allocation requests. <code>tests/compiler_profile.sh</code> checks the
+  schema, separate output, and failure reporting. <code>bench/compiler_scaling.py</code>
+  validates module graphs and local/imported generic specializations from source and saved
+  IR on native C and <code>.zx</code>, retains phase profiles and whole-command samples,
+  and can check real package entries. These are measured workloads, not a
+  claim about every application or target.</p>
+</li>
+<li>
+<p>JSON diagnostics carry a schema version, structured initializer, assignment,
+  argument, and return type details, and related declaration locations where
+  available. Missing names include suggestions and source edits when the
+  lexer confirms one unambiguous identifier on the reported line.
+  <code>tests/diagnostic_metadata.sh</code> checks the metadata and verifies that applying
+  the suggested name edits produces a checked program. The VS Code extension
+  shows related locations and offers Quick Fixes guarded by the original text.
+  Compiler tools, the native package launcher, and formatter honor JSON mode
+  before argument validation and report ordinary input/output, allocation,
+  and native toolchain failures through the versioned schema. Invalid UTF-8
+  filesystem/log bytes are escaped. Native C compilation drains captured
+  output even after its bounded log fills. <code>tests/tool_diagnostics.sh</code> covers
+  these failure paths and allocation-free out-of-memory reporting. Arbitrary
+  external package tools and fatal signals remain outside that transport.</p>
+</li>
+<li>
+<p>The native <code>ziran</code> command, including its launcher and package child-process
+  transport, and <code>zi-fmt</code> are implemented in Ziran. Their build compiles <code>.zi</code>
+  to native output without handwritten C command adapters or shell/AWK
+  formatting policy. Package allocations use the language's <code>size_of</code> instead
+  of C size helpers. <code>tests/native_commands.sh</code> rebuilds the command from its
+  source and saved IR, retaining version output, tool discovery from PATH,
+  inspection commands, checking, and formatting.
+  <code>tests/package_process.sh</code> checks source and saved IR,
+  literal arguments, child-only environment changes, working directories,
+  exit/signal status, truncation with pipe draining, and rejected arguments.
+  The formatter preserves strings, raw-string delimiter columns, and nested
+  comments; it writes through a temporary file beside the source and retains
+  permissions and symlinks. <code>tests/formatter.sh</code> checks semantic preservation,
+  idempotence, filesystem errors, a saved-IR command rebuild, and scanner
+  agreement on C, Go, and <code>.zx</code>.
+  The parser, checker, native backends, and portable runtime still contain C;
+  the compiler is not yet fully self-hosted.</p>
+</li>
+<li>
+<p>Compiler expression token recognition and cursor tracking are implemented
+  in <code>cmd/compiler_scan.zi</code>. The parser and checker use this implementation
+  through a C boundary that retains their source spans and fixed token buffers.
+  Fresh builds first compile a bootstrap compiler using a checked-in generated
+  scanner, then compile the maintained <code>.zi</code> scanner for every ordinary tool
+  and the portable runtime library. <code>make check-bootstrap</code> verifies the seed;
+  <code>make update-bootstrap</code> regenerates it after an intentional scanner change.
+  <code>tests/compiler_scan.sh</code> checks token kinds, escaped and multiline literals,
+  numeric spellings, source positions, and a reproducible corpus from source
+  and saved IR on C, Go, and <code>.zx</code>. It also checks bootstrap
+  output agreement, C frontend lookahead, null input, and token truncation.</p>
+</li>
+<li>
+<p>Shared compiler text rules are implemented in <code>cmd/compiler_text.zi</code>:
+  bounded name edit distance for checker suggestions, whitespace and
+  identifier bytes, trimming, native field names, C string
+  escaping, top-level argument splitting and assignments, UTF-8 string
+  decoding, print-format pieces, and operator procedure names. The frontend
+  keeps a C boundary for its buffers and interned parameter storage; float
+  formatting still uses C. Ordinary tools and the portable runtime library
+  link the freshly compiled Ziran implementation. Fresh builds use a generated
+  seed checked by <code>make check-bootstrap</code> and updated by <code>make update-bootstrap</code>.
+  <code>tests/compiler_text.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed escapes, UTF-8 boundaries, bounded
+  output, deterministic byte inputs, bootstrap agreement, and the C boundary.
+  Name-distance cases include embedded NUL bytes, invalid limits, and an
+  independent full-matrix oracle at the native boundary.
+  An unterminated quote in an argument list now stops at the source boundary
+  instead of reading beyond its terminating null. The parser, checker,
+  backends, and runtime still require further migration for full self-hosting.</p>
+</li>
+<li>
+<p>Source preprocessing and logical-line scanning are implemented in
+  <code>cmd/compiler_source.zi</code>: raw multiline strings, nested and line comments,
+  identifier and directive recognition, block-brace accounting, statement
+  classification and separators, record field separators, compact control
+  blocks, matching parentheses, procedure-header recognition and text,
+  type spacing, bounded procedure text buffers, compact procedure bodies,
+  and <code>#must</code> modifier scanning.
+  The C parser
+  keeps storage and diagnostics behind a small boundary. Ordinary tools and
+  the portable library compile the maintained Ziran source; fresh builds use
+  a generated seed verified by <code>make check-bootstrap</code>.
+  <code>tests/compiler_source.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including bounded outputs, in-place comment removal,
+  malformed delimiters, nested literals, and a reproducible input corpus.
+  Raw-string diagnostics now count escaped physical newlines in preceding
+  ordinary strings correctly. Declaration IR construction, checking,
+  native lowering, and the portable runtime still contain C and require
+  further migration.</p>
+</li>
+<li>
+<p>Declaration syntax is implemented in <code>cmd/compiler_declaration.zi</code>: default
+  and <code>using</code> parameter normalization, <code>#program_export</code>, named and open
+  module/package/file/directory imports, <code>#system_library</code>, Go method
+  symbols. It reuses the Ziran text and source
+  scanners and keeps borrowed source ranges and bounded output buffers.
+  The C boundary still constructs IR and stores library identities and source
+  diagnostics. Ordinary tools and the portable library link the compiled
+  Ziran implementation; fresh builds use a generated declaration seed checked
+  by <code>make check-bootstrap</code>. <code>tests/compiler_declaration.sh</code> checks source and
+  saved IR on C, Go, and <code>.zx</code>, including nested defaults,
+  the 64-parameter limit, <code>using</code> flags, rejected declarations, bounded output,
+  a reproducible byte corpus, seed agreement, and the C boundary.
+  The same module parses <code>using, only</code>, <code>except</code>, and <code>map</code> clauses, with
+  bounded name lists, complete output measurement, and exact binding offsets.
+  The C boundary retains checked storage and diagnostics; grammar no longer
+  has a separate C implementation. The declaration module checks compare
+  short output prefixes and rejected clauses across every target, and
+  <code>tests/using_modifiers.sh</code> exercises record and enum bindings end to end.</p>
+</li>
+<li>
+<p>Enum validation and constant evaluation are implemented in
+  <code>cmd/compiler_enum.zi</code>: member names and lookup, implicit values, references
+  to preceding members, integer literals, checked arithmetic and shifts,
+  duplicate rejection, and integer backing bounds. The parser, checker,
+  proofs, and portable runtime use the compiled Ziran implementation;
+  the C boundary retains only IR access and workspace allocation.
+  Enum expressions such as <code>1 + 2 * 3</code>, division by <code>-1</code>, and division or
+  remainder of the minimum signed value now accept valid results while
+  rejecting overflow. <code>tests/compiler_enum.sh</code> checks source and saved IR on
+  C, Go, and <code>.zx</code>, including malformed input, numeric
+  boundaries, bounded workspace, deterministic byte inputs, seed agreement,
+  and the C boundary. Fresh builds use a generated seed verified by
+  <code>make check-bootstrap</code>.</p>
+</li>
+<li>
+<p>Portable slices and arrays of imported records compare their element type
+  identities across module aliases, retaining shared slice storage when
+  callers and callees use different spellings for the same record.
+  <code>tests/portable_imported_record_slices.sh</code> checks aliases, returned slices,
+  shared mutation, empty views, array value copies, generic record elements,
+  and rejection of distinct same-named records from source and saved IR.</p>
+</li>
+<li>
+<p>Type spelling and record-field parsing are implemented in
+  <code>cmd/compiler_type.zi</code>: <code>using</code> fields, quoted <code>#go_tag</code> metadata, slice
+  elements, fixed and constant-expression array capacities, builtin and map
+  primitive names, and Go foreign type and call symbols. Field scans
+  borrow bounded source ranges and stop at the IR buffer's terminator, so
+  listing a record does not repeatedly measure its entire body. The C
+  boundary retains IR access and checked copies into its fixed buffers.
+  <code>tests/compiler_type.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed input, numeric and output limits,
+  quoted separators, UTF-8 tag decoding, a deterministic byte corpus, seed
+  agreement, and the C boundary. Fresh builds compile the maintained Ziran
+  source using a generated seed verified by <code>make check-bootstrap</code>.</p>
+</li>
+<li>
+<p>Primary, prefix, binary, postfix, and initializer parsing are implemented in
+  <code>cmd/compiler_expression.zi</code>:
+  precedence, left associativity, recursive right operands, shared nesting
+  limits, and rejection of C-style conditionals. The same module parses
+  calls with named arguments, chained calls, indexing, open-ended slices,
+  member access, postfix dereferencing, named and positional record/array
+  fields, and recursive nested initializers. Names borrow the original source
+  rather than a reused token buffer. Primary and prefix rules cover literals,
+  scope directives, <code>size_of</code>, casts, <code>ifx</code>, unary operators, parenthesized
+  expressions, and local or imported typed literals. The same module decodes
+  one-byte <code>#char</code> literals and extracts declaration, assignment, return,
+  unused, and control-flow expressions from statements. Source ranges are
+  bounded and borrowed, so long statements retain their full text.
+  The C boundary retains IR storage, type lookup, default expansion, and
+  diagnostics; callback slots expose those operations
+  to the Ziran grammar without sharing C IR layouts. Ordinary tools compile
+  the maintained Ziran source; fresh builds use a generated seed verified by
+  <code>make check-bootstrap</code>.
+  <code>tests/compiler_expression.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including precedence, literal escapes, malformed
+  statements, chained calls, named arguments, nested initializers, open slices,
+  prefix forms, scope errors, nesting limits, deterministic byte inputs,
+  seed agreement, borrowed ranges, and the C frontend boundary. The compiler
+  still requires further migration before it is fully self-hosted.</p>
+</li>
+<li>
+<p>Loop syntax is implemented in <code>cmd/compiler_statement.zi</code>: forward and
+  reverse integer ranges, collection iteration and pointer bindings, named
+  <code>while</code> headers, named <code>break</code> and <code>continue</code> targets, and identifier
+  reference and mutation scanning. Header fields borrow bounded source
+  ranges, with matching delimiters and explicit name, text, and nesting
+  limits. Oversized binders are rejected instead of silently truncated.
+  Quoted <code>:=</code> no longer changes an assignment or call into a declaration,
+  and separators inside quoted strings and nested expressions stay out of
+  loop-header syntax. The C boundary retains IR storage, scope binding, and
+  loop lowering. Fresh builds use a generated seed verified by
+  <code>make check-bootstrap</code>; ordinary tools compile the maintained Ziran source.
+  <code>tests/compiler_statement.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed headers, borrowed ranges,
+  limits, deterministic byte inputs, seed agreement, and the C scope boundary.
+  The checker, lowering, backends, and portable runtime still require
+  further migration before the compiler is fully self-hosted.</p>
+</li>
+<li>
+<p>Foreign declaration grammar and target spelling are implemented in
+  <code>cmd/compiler_declaration.zi</code>: procedure and foreign-type declarations,
+  alternate symbols, Go method bindings,
+  result/field/deferred/variadic modifiers, host-name restrictions, and the
+  final <code>..any</code> parameter. Directives are scanned as tokens; quoted defaults
+  and symbols cannot masquerade as modifiers or procedure bodies. Names and
+  symbols borrow bounded source, and target output reports its full length
+  while writing only the caller's bounded prefix. The C boundary retains
+  library visibility, target classification, diagnostics, and IR storage.
+  <code>tests/compiler_declaration.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including rejection cases, prefix output, borrowed
+  ranges, deterministic input, and exact generated-seed agreement.</p>
+</li>
+<li>
+<p>Optional <code>then</code>, one-line <code>else</code>, and compile-time <code>#if</code>/<code>else #if</code> headers
+  are implemented in <code>cmd/compiler_statement.zi</code>. Control-header splitting
+  respects strings, grouped expressions, nested <code>ifx</code> arms, and member names
+  such as <code>flags.then</code>. Returned headers and bodies borrow bounded input;
+  the C boundary copies them into source lines and the logical-line queue.
+  <code>tests/compiler_statement.sh</code> checks source and saved IR on all four targets,
+  bounded input, deterministic inputs, seed agreement, source spans, and
+  elimination of unselected compile-time branches through the real frontend.
+  Procedures with slice parameters and defaults keep both signatures in sync
+  when checking normalizes parameter spacing, so checked IR remains writable;
+  <code>tests/default_arguments.sh</code> covers omitted and explicit defaults from source
+  and saved IR.</p>
+</li>
+<li>
+<p>Multiple-result syntax and declaration rewrites are implemented in
+  <code>cmd/compiler_declaration.zi</code>: named and positional result types, canonical
+  results-record spelling, template parameters in first-use order, result
+  fields, multiple-value returns, and inferred or assigned result bindings.
+  Types and names borrow bounded input; generated text reports its full length
+  while writing only the caller's bounded prefix. More than 16 results and
+  oversized generated names are rejected instead of being silently truncated.
+  The same module checks scope-independent defaults, expands <code>BuilderPrint</code>
+  into bounded <code>Append</code> statements, removes <code>#symmetric</code> and generates swapped
+  operator wrappers, lowers <code>#procedure_name()</code>, and rewrites hoisted local
+  names. Local name rewriting preserves literals, comments, named field and
+  argument labels, and member names even when spaces surround the dot.
+  The C boundary retains diagnostics, allocation, copying into source queues,
+  and declaration IR construction. Ordinary tools compile the maintained Ziran
+  source; fresh builds use its checked generated seed.
+  <code>tests/compiler_declaration.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, bounded prefixes, borrowed ranges, deterministic
+  inputs, the C boundary, and seed agreement. <code>tests/multiple_results.sh</code>,
+  <code>tests/generic_multiple_results.sh</code>, <code>tests/operators.sh</code>,
+  <code>tests/local_procedures.sh</code>, <code>tests/default_arguments.sh</code>, and
+  <code>tests/format_builder.sh</code> exercise the frontend and generated programs.
+  Semantic checking, IR construction, lowering, native backends, and the
+  portable runtime still contain C; the compiler is not fully self-hosted.</p>
+</li>
+<li>
+<p>Portable imported callback signatures resolve their parameter and return
+  types in their defining module. Record and enum parameters and record
+  results retain their identities across module aliases. Aggregate field
+  checks also retain type identities through pointers, slices, and arrays
+  instead of accepting an unrelated same-named record. The corpus exercises
+  imported callback records, enum parameters, and record results from source
+  and saved IR alongside native targets.</p>
+</li>
+<li>
+<p>Imported polymorphic procedures specialized for caller-owned records retain
+  calls to their defining module's private helpers, including recursive
+  generic helpers and helpers from loaded files. Nested specializations keep
+  the caller's file scope when selecting an import alias. Generated helper
+  identities stay out of the text and JSON API, and private source names stay
+  inaccessible to importers. Procedure types with the same name in different
+  modules, or names that are native target keywords, receive distinct valid
+  native identities. <code>tests/named_generic_dependencies.sh</code> checks these cases
+  from source and saved IR on C, Go, and <code>.zx</code>.
+  C includes private named-module dependencies in generated implementation
+  files, keeping them out of public headers; <code>tests/private_module_imports.sh</code>
+  checks C output.</p>
+</li>
+<li>
+<p>Ordinary Ziran procedures implement native Go interfaces with
+  <code>#go_method "Name"</code>; the first parameter supplies a local record receiver.
+  Generated methods call the canonical checked procedure and optionally
+  flatten its result record with <code>#go_results</code>. Source and saved IR retain
+  value/pointer receivers, native error and panic identity, and ordinary calls
+  on C and the portable VM. <code>tests/go_method_exports.sh</code> checks native
+  interface dispatch, mutation, failure paths and rejected method metadata.</p>
+</li>
+<li>
+<p>Typed Go <code>bind</code> bindings capture leading procedure arguments and return a
+  checked procedure for the remaining arguments. Native Go closures preserve
+  captured values, shared pointer/slice storage, result records, errors and
+  panic identity, including fully bound and void procedures. Source and saved
+  IR validate parameter and return types and reject owned vectors and C
+  callbacks. <code>tests/go_bind.sh</code> checks native execution, imported signatures,
+  nil callbacks, declaration text independence and target reachability. Native
+  <code>retain</code> bindings preserve a value under Go's managed lifetime without copying
+  backing data; the same tests cover string/slice/record storage identity,
+  returning native text through a pointer and rejected retention signatures.</p>
+</li>
+<li>
+<p>Typed Go <code>assert</code> bindings retain native interface checks, zero values on
+  failure, typed nils and shared pointer/slice storage. Typed <code>spawn</code> bindings
+  start capture-free Ziran callbacks in native Go goroutines, capture arguments
+  before starting, and reject result-bearing callbacks, mismatched signatures
+  and owned vectors. <code>std/channel_go</code> supplies native typed channel handles,
+  nonblocking sends and closure; <code>std/context_go</code> adds child cancellation and
+  deadlines. <code>tests/go_assert_spawn.sh</code> checks source and saved IR, asynchronous
+  startup, native identities, cancellation, panic cleanup and rejected bindings.</p>
+</li>
+<li>
+<p>Native Go header bindings use <code>go:C/&lt;relative-header&gt;</code> and preserve the C
+  header's declared ABI and type layout. Scalar/pointer adapters, C field and
+  constant access, and deferred cleanup survive source and saved IR lowering.
+  Generated build-tag companions keep ordinary procedures available without
+  cgo; <code>go:builtin</code> <code>cgo_enabled</code> selects application fallback paths, while
+  direct unavailable C calls panic. <code>tests/go_c_headers.sh</code> checks native
+  allocation, pointer mutation, size_t, field setters, error/panic cleanup,
+  strict cgo pointer checking, no-cgo execution, invalid ABI/header declarations,
+  declaration-text independence and portable entry pruning.</p>
+</li>
+<li>
+<p>Native Go <code>init</code> bindings preserve package initialization before generated
+  globals, once per imported package. Blank imports share package identity with
+  named function and type imports. Source and saved IR validate the nullary
+  void signature and preserve initializer metadata independently of declaration
+  text. Go executable entries now have generated provenance and tracked output
+  ownership. <code>tests/go_package_init.sh</code> checks initialization order, repeated
+  calls, import deduplication, no-cgo execution, entry pruning and stale entries.</p>
+</li>
+<li>
+<p>Foreign slice returns resolve generic element types after linking and type
+  normalization. Native Go <code>make</code> and <code>append</code> can return <code>[]Map(string, Any)</code>
+  and slices of imported generic records without declaration-order failures.
+  <code>tests/imported_host_slices.sh</code> checks source and saved IR in both module
+  orders, native map/record types, allocated empty slices and malformed types.</p>
+</li>
+<li>
+<p>Go constants retain escaped quotes, backslashes and punctuation inside
+  string literals. Previously an escaped quote could end string translation
+  early, removing semicolons or rewriting text inside a native constant even
+  though checked uses retained the original string.
+  <code>tests/go_constant_strings.sh</code> compares native constants and checked values
+  from source and saved IR, including raw multiline strings.</p>
+</li>
+<li>
+<p>Native C library modules route through C and cgo on Go.
+  Go supports scalar and pointer C signatures and retains native link flags in
+  generated output. <code>tests/native_c_ffi.sh</code> checks source and saved IR;
+  the OQS and SQLite packages additionally exercise their real engines on both
+  backends.</p>
+</li>
+<li>
+<p>Procedure-type parameter normalization is implemented in
+  <code>cmd/compiler_declaration.zi</code>, including named and unnamed parameters,
+  nested type applications, bounded output, and the 16-parameter limit.
+  Defaults on procedure-type parameters now fail with a direct syntax
+  diagnostic. The C parser retains declaration storage and source spans.
+  <code>tests/compiler_declaration.sh</code> checks source/saved IR on all four targets,
+  the C boundary, and reproducible bootstrap output.</p>
+</li>
+<li>Go enum lowering retains every enum declaration and member instead of
+  silently stopping at 32 types or 64 members. <code>tests/large_enums.sh</code> checks
+  a 96-member enum and 40 further enum types from source and saved IR on
+  C, Go, and <code>.zx</code>.</li>
+<li>Bundle re-export lookup visits shared dependencies once per query instead
+  of repeatedly following every import path, and has no 32-hop cutoff.
+  <code>tests/bundle_global_reachability.sh</code> checks a 40-module graph with shared
+  imports, unused state, global mutation, and source/saved bundle agreement.</li>
+<li><code>ziran features</code> publishes a versioned, stable-ID feature registry with
+  syntax, status, target support, limits, accepted and rejected examples,
+  rejection behavior, and evidence links. Its 15 contracts cover compile-time
+  assertions, laws and execution, CPU parallelism and GPU fallback, printing,
+  heap allocation, named imports, integer width conformance and widening,
+  automatic vector cleanup, local <code>TextView</code> mutation checks, record-field
+  vector moves, procedure defaults, and procedure values.
+  <code>docs/FEATURES.json</code>
+  is byte-identical to <code>ziran features --json</code>; <code>tests/features.sh</code> checks
+  schema, sorted unique IDs, evidence, target entries, every accepted example
+  from source and saved IR on each advertised target, and every explicit
+  rejection.</li>
+<li>Source and saved-IR portable runs use the declared width for integer
+  conversions between all eight <code>s8</code>, <code>u8</code>, <code>s16</code>, <code>u16</code>, <code>s32</code>, <code>u32</code>,
+  <code>s64</code>, and <code>u64</code> forms. Signed overflow and unsigned wraparound follow the
+  operand width, the minimum signed integer divided by <code>-1</code> wraps to itself,
+  and its remainder is zero. Shifting by a negative count or by the operand's
+  bit width or more fails at execution on every target. Runtime <code>float32</code> and
+  <code>float64</code> division can produce infinity or NaN on native and portable
+  targets; NaN comparisons and infinities retain floating semantics, while
+  converting a nonfinite float to an integer remains an error. Compile-time
+  casts and arithmetic fold the tested boundaries with the same width rules.
+  <code>tests/numeric_semantics.sh</code> checks these cases from source and saved IR on
+  C, Go, and <code>.zx</code>. Its stable conformance IDs are published by
+  <code>ziran capabilities --json</code>, described by
+  <code>tests/numeric_conformance.json</code>, and kept synchronized with markers in the
+  differential test. Mixed-width narrowing/widening after addition and u8
+  bitwise AND/OR/XOR are included.</li>
+<li><code>std/format</code> builds text on a <code>Vec(u8)</code>: overloaded <code>Append(*builder,
+  value)</code> for strings, integers, bools, and floats, and
+  <code>BuilderPrint(*builder, "format", args...)</code>, which expands to those calls
+  and imports <code>std/format</code> for its file. <code>tests/format_builder.sh</code> checks
+  source and saved IR on C, Go, and <code>.zx</code>.</li>
+<li>Statements may be longer than 4 KB, such as a table of records written as
+  one array literal: source text is kept whole through parsing, checking,
+  and saved IR with no length cap (saved IR is bounded only by its 256 MiB
+  read budget, which writers charge too), and C store an array literal
+  too long for one initializer element by element. Before, such a
+  statement failed with "expression is not supported by language checking"
+  or silently. <code>tests/long_literals.sh</code> checks source and saved IR on C,
+  Go, and <code>.zx</code>; <code>tests/large_array_literals.sh</code> checks 20,000-, 70,000-
+  and 260,000-element tables, which parse and check in linear time.</li>
+<li><code>ziran check --lint</code> warns (code <code>lint.cast</code>) about casts to a value's own
+  type and casts that only widen a whole typed initializer, assignment,
+  argument, or result; it leaves casts that set arithmetic width, choose an
+  inferred type, or pick an overload. It also warns (code <code>lint.char</code>) when a
+  <code>u8</code> is compared with a printable character's code written as a number,
+  suggesting the <code>#char</code> literal, and (code <code>lint.bool</code>) when an integer
+  local only ever holds 0, 1, or a bool cast to an integer and is only
+  compared with 0 or 1, suggesting a <code>bool</code>. <code>tests/lint_casts.sh</code>,
+  <code>tests/lint_characters.sh</code>, and <code>tests/lint_flags.sh</code> pin the rules.
+  Inbe, Kryon, KSS, and Workbook have had their unneeded casts, character
+  codes, and integer flags rewritten this way.</li>
+<li>IR nodes refer to interned names instead of holding them. Expression and
+  statement names and types and function parameter lists are kept text:
+  an expression node is 120 bytes (was 600), a statement 96 (336), and a
+  function 1,168 (9,344). Parameter lists are split once and shared
+  (<code>ParametersOf</code>), and the portable runner keeps each signature it parses.
+  <code>FindType</code> and procedure resolution keep entry-scope answers, including
+  misses and ambiguous procedure results, until types, procedures, imports,
+  or modules change. Names and lookup file spellings are immutable keys;
+  declaration growth, private-procedure renaming, linking and program cleanup
+  invalidate answers before their stored pointers can be reused.
+  <code>tests/symbol_lookup.sh</code> covers file scopes, aliases, cyclic diamonds,
+  ambiguity, visibility changes, relocation and independent concurrent programs.
+  The earlier name/type changes reduced checking Inbe from 3.9 s and 466 MB
+  to 2.9 s and 222 MB with byte-identical IR and generated C for Inbe,
+  Workbook, Kryon, and KSS. <code>make sanitize</code> compares every kept type and
+  procedure answer with a fresh lookup.</li>
+<li>Record fields are parsed into immutable snapshots shared by identical field
+  bodies. <code>TypeNextField</code> cursors index those snapshots, so checking, all native
+  emitters, and the portable verifier/runner reuse the same fields without
+  reparsing each walk. Copied records share a snapshot; rewriting a body and
+  starting a new walk selects a new one. Malformed suffixes still return an
+  error after any valid prefix. <code>tests/compiler_type.sh</code> checks this boundary,
+  source/saved IR, all native targets, the VM, and bootstrap agreement.
+  <code>.zir</code> still stores textual field bodies; this does not replace the remaining
+  textual declaration or import lowering.</li>
+<li>The portable runner has no statement budget (only the web playground
+  bounds a run), holds as many locals as a function declares, takes the
+  language's 64 parameters, and nests calls until the C stack is nearly full
+  where the stack's bounds are known; <code>zi2zx run</code> gives programs a 256 MiB
+  stack. <code>tests/portable_long_runs.sh</code> and <code>tests/portable_limits.sh</code> cover
+  these.</li>
+<li>A generic record from another module may hold types only that module
+  imports: the user's <code>Bag(string)</code> reads the library's <code>Vec(K)</code> field as
+  <code>vec.Vec(string)</code>, and every copy of one application gets the same name.
+  Records applied through a named import, <code>Pairs.Pair(s32, string)</code>, work
+  too. <code>tests/generic_record_imports.sh</code> checks source and saved IR on C,
+  Go, and <code>.zx</code>.</li>
+<li><code>std/file</code> imports the file operations for the native C target: file_linux
+  on Linux, Android, the web, and Windows. It adds <code>ReadEntireFile</code> and
+  <code>WriteEntireFile</code>. <code>tests/file_portable.sh</code> runs it on C from source and
+  saved IR.</li>
+<li><code>New(T)</code> allocates a zeroed <code>T</code> and returns <code>*T</code>; <code>free(p)</code> releases it and
+  ignores null. C uses <code>calloc</code>/<code>free</code>, Go uses <code>new</code> and its
+  collector, and the portable runner keeps the storage alive while a pointer
+  reaches it and stops cleanly on a read after free or a second free. A
+  procedure or foreign procedure the program declares as <code>New</code> or <code>free</code>
+  (such as C's <code>free</code>) is called instead. Native callers
+  remain responsible for raw pointer lifetimes. <code>tests/heap_new.sh</code> checks
+  source and saved IR on C, Go, and <code>.zx</code>, including
+  records with text, arrays, and pointers.</li>
+<li>A procedure may declare procedures inside it. The parser hoists each to
+  file scope under a private name (<code>zi_local_Outer_Name</code>, kept out of API
+  listings) and renames its uses in the rest of the enclosing procedure; as
+  in Jai, it may recurse and nest but cannot use the enclosing procedure's
+  locals, which the unresolved-name error says. <code>tests/local_procedures.sh</code>
+  checks source and saved IR on C, Go, and <code>.zx</code>.</li>
+<li>Records take Jai operator procedures: <code>operator + :: (a: V, b: V) -&gt; V</code>
+  for the binary operators <code>+ - * / % == != &lt; &lt;= &gt; &gt;= &amp; | ^ &lt;&lt; &gt;&gt;</code>. Several
+  declarations of one operator are overloads; <code>a += b</code> uses operator +,
+  <code>a != b</code> falls back to operator ==, and <code>#symmetric</code> also accepts the two
+  arguments swapped. Operators reach callers through open and named imports,
+  and a record operation without one reports that an operator procedure is
+  needed. <code>tests/operators.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>.</li>
+<li><code>print</code> shows a record as <code>{x = 1, y = 2}</code>: nested records in braces,
+  strings quoted, enums by name, fixed arrays by element (up to 16), and
+  Vecs and slices by count. The call becomes a call of a generated
+  procedure taking the same arguments, so each is evaluated once; a value
+  holding a Vec is passed by address instead of moved. <code>tests/print_records.sh</code>
+  checks source and saved IR on C, Go, and <code>.zx</code>.</li>
+<li>A local declaration may use <code>type_of(expression)</code> as its type, and a for
+  range counts in its bounds' type (<code>0..count</code> with <code>count: s32</code> is <code>s32</code>;
+  constant ranges stay <code>s64</code>). Indexing with <code>value[a..b]</code> reports that
+  slices are written <code>value[start:end]</code>. <code>tests/range_types.sh</code> checks
+  source and saved IR on C, Go, and <code>.zx</code>.</li>
+<li><code>std/hash_map</code> provides <code>HashMap(K, V)</code> with <code>HashMapSet</code>, <code>HashMapGet</code>,
+  <code>HashMapHas</code>, <code>HashMapRemove</code>, and <code>HashMapFree</code> over string and integer
+  keys, written in portable Ziran. Polymorphic procedures bind type
+  parameters from generic record parameters such as <code>*HashMap($K, $V)</code>;
+  record instances a specialization names after the program pass get their
+  fields then. A bundle keeps a record field every module's copy of one
+  type application uses, and Go compares copies of <code>Vec(string)</code> by their
+  slice type. <code>tests/hash_map.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>.</li>
+<li><code>print</code> shows an enum value by its member name, and a value outside the
+  enum as <code>(invalid Enum)</code>. The checker routes the argument through a
+  generated name procedure in the enum's module, created only for enums a
+  program prints, so every target and <code>.zx</code> agree. Flag enums still need
+  a cast. <code>tests/print_enums.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>.</li>
+<li>Polymorphic procedures may bind several type parameters, each with its
+  own <code>$Name</code>, as in <code>Pick :: (a: $A, b: $B) -&gt; A</code>. Every call infers each
+  parameter and gets its own specialization, placed with the caller when one
+  of its types is only visible there. A name bound twice is an error.
+  <code>tests/generic_parameters.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>.</li>
+<li>Fixed-array parameters <code>[N]$T</code> infer their element type and enforce their
+  declared capacity, including zero-capacity arrays. Bounds resolve in the
+  defining module, and dependent <code>[N]T</code> parameters and return types are checked
+  after specialization without resolving a bound type as a same-named local
+  alias. Generic record fields and generated result records preserve their
+  bound types too, and record array capacities resolve in the defining module
+  before instances copy the fields into a caller. Array arguments keep
+  ordinary value semantics.
+  <code>tests/generic_array_parameter.sh</code> checks named/open imports, scalars,
+  records, generic array fields, independent type parameters, multiple results,
+  array aliases, source/saved IR and separately saved libraries on C, Go,
+  and <code>.zx</code>. Nested-array elements and returns work on the native targets;
+  the portable linker explicitly rejects unsupported nested-array returns.
+  The test also rejects slices, scalars, mismatched capacities and element
+  types, unresolved/negative bounds, and duplicate binders.</li>
+<li>Procedures may be overloaded: several declarations may share a name when
+  their parameters differ. A call chooses the overload whose parameters take
+  its arguments best (exact types, then an untyped literal's usual type,
+  then the closest widening) and gets that overload's defaults; no match or
+  an equal match is an error. Overloads work through open and named imports.
+  The choice is made in checking, so saved IR and every target call the
+  chosen procedure directly. Exported and polymorphic procedures cannot be
+  overloaded. <code>tests/overloads.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>.</li>
+<li>Jai resizable arrays: <code>[..]T</code> is <code>std/vec</code>'s <code>Vec(T)</code>, imported for the
+  file automatically, and <code>array_add(*a, x)</code>, <code>array_reset(*a)</code>,
+  <code>array_free(a)</code>, and <code>array_reset_keeping_memory(*a)</code> are the matching Vec
+  operations. Indexing, <code>.count</code>, and <code>for</code> work as on Vec. A local <code>[..]T</code>
+  passed where <code>[]T</code> is expected lends a view (<code>VecSlice</code>) instead of moving.
+  Vecs of fixed arrays and nested Vecs are rejected; wrap the element in a
+  record. <code>tests/resizable_arrays.sh</code> checks source and saved IR on C,
+  Go, and <code>.zx</code>.</li>
+<li>Procedures return several results as in Jai: <code>-&gt; s32, s32</code> or named
+  <code>-&gt; (low: s32, high: s32)</code>, <code>return a, b</code>, <code>q, r := F()</code>, <code>q, r = F()</code>, and
+  <code>_</code> to skip one. A call used as one value gives its first result. The results
+  travel in a generated record shared by procedures with the same result types
+  (<code>Results__s32__s32</code>, fields <code>value_0</code>...), so every target and <code>.zx</code> run
+  them unchanged. Returning another module's results directly needs binding
+  them first. Polymorphic procedures also return several results: result
+  records specialize their fields using the procedure's bound types, including
+  mixed types, records, arrays, and slices. Named and open imports, defaults,
+  nested calls, direct generic forwarding, and a separately saved library work
+  on C, Go, and <code>.zx</code>.
+  <code>tests/generic_multiple_results.sh</code> checks source/saved-IR equivalence,
+  single evaluation, rejected result types/counts, and saved-library validation.
+  <code>tests/multiple_results.sh</code> checks source and saved IR on C, Go, and
+  <code>.zx</code>.</li>
+<li>Lossless numeric conversions are implicit: a narrower integer into a wider
+  one of the same signedness, an unsigned integer into a wider signed type,
+  and <code>float32</code> into <code>float64</code>, at initializers, assignments, returns,
+  arguments, and binary operators. The checker inserts an explicit cast into
+  the checked graph, so C, Go, and <code>.zx</code> see the same
+  conversion. Narrowing, sign changes, and integer-to-float conversions still
+  need <code>cast</code>. <code>tests/implicit_widening.sh</code> checks source and saved IR on
+  C, Go, and <code>.zx</code>.</li>
+<li>Jai <code>using record: Type</code> parameters and local declarations, plus <code>using
+  record;</code> and nested paths such as <code>using entity.position;</code> in a procedure
+  body, promote record fields into lexical lookup. Explicit local bindings
+  shadow promoted fields; conflicting promoted
+  names are diagnosed. Struct fields declared <code>using field: Record</code> promote
+  contained fields through nested records and concrete generic applications.
+  Reads and writes retain their nested storage layout in checked IR; source
+  and saved IR agree in C, Go, and <code>.zx</code>. Pointer-backed <code>using</code> fields
+  work in native targets.
+  Polymorphic procedures preserve parameter, local, and imperative <code>using</code>
+  declarations in saved templates and lower them for each concrete call.
+  File-scope <code>using value;</code>, nested paths, and <code>using value: Record;</code> promote
+  fields of module-local record and scalar-union globals in procedure bodies.
+  Forward global declarations, filters, local shadowing, ambiguity diagnostics,
+  and file-private <code>#load</code> boundaries are tested from source and saved IR in
+  C, Go, and <code>.zx</code> by <code>tests/data_scope_using.sh</code>.
+  Public globals from open and named imports can also be read, assigned, and
+  opened with record <code>using</code> in procedure bodies. <code>tests/imported_globals.sh</code>
+  checks source and saved IR across C, Go, and <code>.zx</code>, along with
+  ambiguous imports and private global visibility. Named and open imported
+  globals keep their declaring record type when a consumer defines a
+  same-named type; direct and <code>using</code> field access agree across all four
+  targets. Checked IR retains open-import type ownership with a private alias.
+  <code>using,only(...)</code>/<code>except(...)</code>/<code>map(...)</code> modifiers filter and rename
+  promoted record fields and opened enum members on local and data-scope
+  using declarations, in source and saved IR across C, Go, and <code>.zx</code>;
+  a hidden or unmapped name stays unresolved. File-scope enum filters also
+  apply in constants, global initializers, <code>#run</code>, <code>#assert</code>, and <code>#if</code>;
+  conflicting maps of one exposed name are diagnosed even when they open
+  members from the same enum. <code>using Alias :: #import
+  "Module";</code> re-exports the module's public procedures, types, and constants
+  into unqualified scope beside the alias: local declarations shadow the
+  re-export, and two using-imports exposing one name are ambiguous.
+  <code>Name :: #as (source: Type) -&gt; Result;</code> declares a checked conversion that
+  the checker applies implicitly at initializers, assignments, returns, and
+  call arguments when the types are otherwise incompatible: the expression
+  is rewritten into an ordinary call, the graph is re-laid out for saved IR,
+  and two applicable conversions are ambiguous. Literals that already widen
+  natively never trigger a conversion.</li>
+<li>Jai-style <code>#program_export</code> on its own line or inline exports a procedure's
+  native symbol. A quoted linker name works in C; Go emits a typed native
+  adapter with the requested name. Native testing modules generate <code>_test.go</code>
+  files with discoverable test, fuzz and benchmark signatures. Source and
+  saved-IR checks preserve failure assertions, pointer/slice/error/panic
+  identity and module-name collision handling. File-scope variables use
+  <code>name: Type</code> declarations.
+  <code>#export</code>, <code>#global</code>, and C-style <code>static</code> source forms are rejected. Source
+  and saved IR retain these exports and globals across native and portable
+  builds.</li>
+<li>File-scope variable initializers and constants pass through the Jai
+  expression parser and shared type checker during checking, including nested
+  record fields and fixed-array elements. A mismatched string, boolean, or
+  nested initializer now fails before native output or portable bundling;
+  <code>tests/portable_globals.sh</code> exercises these diagnostics. C-style compound
+  literals and ternary expressions are rejected there before native output,
+  including from saved IR. The Go backend no longer carries C-style
+  compound-literal rewrites, and no longer translates C casts, <code>NULL</code>, or
+  C scalar type aliases in file-scope expressions. The source reader no longer
+  joins C-style adjacent string literals or multi-line <code>?:</code> fragments.</li>
+<li>Portable file-scope array initializers use <code>.[...]</code> literals with the
+  declared array type for context: scalar elements and record elements
+  (<code>Type.{.field = value}</code>) fold in the VM, serialize through <code>.zx</code>, and
+  lower to brace initializers in C99 (designated, with string fields expanded
+  to <code>{data, length}</code> pairs) and Go composite literals (native strings).</li>
+<li>Jai <code>#must</code> after a procedure result type requires callers to use the
+  result. The checker enforces it for ordinary, imported, polymorphic, and
+  foreign procedures in source and saved IR.</li>
+<li>Jai <code>#compile_time</code> evaluates to true in supported compile-time procedure
+  execution and false in C, Go, and portable runtime code. It is a
+  boolean expression, not a declaration constant or direct <code>#if</code> condition.</li>
+<li>Jai <code>#caller_location</code> in a parameter default supplies the calling file's
+  full path and physical line as a <code>Source_Code_Location</code> record. Inferred and
+  explicitly typed defaults work through imports, polymorphic calls, and
+  <code>#load</code>; explicit arguments override the default. Source and saved IR agree
+  in C, Go, and portable builds. Compile-time <code>#run</code>, <code>#assert</code>, and
+  local or imported <code>#if</code> calls capture the same caller path and line,
+  including nested calls and explicit overrides; <code>tests/caller_location.sh</code>
+  covers source and saved IR on all three targets.</li>
+<li>Jai <code>#string DELIMITER</code> raw multiline literals preserve their body bytes,
+  including whitespace and the newline before the closing delimiter. Source
+  and saved IR execute identically on the portable runner, C and Go.
+  <code>zi-fmt</code> preserves raw bodies and closing delimiter columns. The existing
+  source line and string literal size limit applies after the literal is
+  lowered.</li>
+<li>Nested block comments and inline <code>//</code> comments are stripped without changing
+  quoted strings or source line locations. Unclosed comments are diagnosed in
+  entry and loaded files; source and saved IR agree across portable, C, and
+  Go execution.</li>
+<li>Legacy <code>#</code> comments are rejected at file, type, and function scope. Use
+  <code>//</code> or nested <code>/* ... */</code> comments.</li>
+<li>Compile-time <code>#if</code> branches and <code>#assert</code> are resolved by the frontend.
+  Declaration guards and target-specific assertion fallbacks have been removed;
+  a selected failing assertion stops source or saved-IR checking before C,
+  Go, or portable output.</li>
+<li>Semicolons separate multiple declarations or statements on one source line,
+  including one-line record bodies and function bodies. The parser retains
+  <code>#ifx</code> arm separators and still rejects C-style <code>for</code> headers. Source and
+  saved IR execute alike in the portable runner, C and Go.</li>
+<li><code>if</code> and <code>else if</code> accept Jai's optional <code>then</code> before a block or one
+  statement. Inline <code>else</code> statements also work, including after a closing
+  brace. Multiple braced arms, nested arms, and empty blocks may share a
+  source line; source and saved IR agree in portable, C and Go execution.</li>
+<li>Source foreign declarations use Jai's <code>#system_library</code> and <code>#foreign</code>
+  forms. The compiler resolves those library declarations to its existing
+  host, C, or Go import model before saving IR. A trailing <code>..any</code> parameter
+  declares a C variadic foreign procedure: calls must provide its fixed
+  arguments and may provide additional arguments. Source and saved IR lower
+  tested variadic calls to C; Go rejects the declaration. The old
+  <code>#extern</code> source modifier is rejected.</li>
+<li>
+<p>Source accepts Jai <code>#scope_file</code>, <code>#scope_module</code>, and <code>#scope_export</code> for
+  following procedures, globals, types, and constants. Private declarations
+  are excluded from imported lookup, native headers hide private types and
+  constants, and private globals use internal linkage. Scope visibility
+  survives saved IR. <code>#private</code> is rejected. Loaded files join their caller's
+  module; file-private declarations, imports, and system libraries are visible
+  only to their own source file, including compile-time conditions and size
+  queries. Separate loaded files may reuse private procedure, constant, global,
+  and type names; checked IR assigns distinct identities before native or
+  portable output. Constant aliases, native global initializers, record
+  construction, and local shadowing retain the correct file-local binding in
+  source and saved IR.</p>
+</li>
+<li>
+<p>The compiler frontend and C/Go backends have been extracted into a separate
+  Ziran repository. <code>zi2zir</code> checks and saves <code>.zir</code>; <code>zi2c</code> and <code>zi2go</code>
+  compile <code>.zi</code> or saved <code>.zir</code> input.</p>
+</li>
+<li><code>make check</code> passes standalone non-UI programs, a two-module import, and an
+  imported typed record call named <code>Button</code> through generated C and native
+  Go. A local declaration binds its non-void result, with source and
+  saved <code>.zir</code> builds across those targets and matching source/saved <code>.zx</code>
+  execution. The call is resolved from its declaration, not its name.</li>
+<li>Jai procedure type aliases such as <code>Child :: #type (s32) -&gt; ();</code> and
+  <code>Compute :: #type (s32) -&gt; s32;</code> can be passed as callbacks to imported
+  functions. Source and saved <code>.zir</code> builds execute named callbacks with void,
+  scalar, and record results in C, Go, and <code>.zx</code>. Capture-free values
+  can be stored in records, fixed arrays, and globals, and returned from
+  functions. Entry builds retain their named targets and remove unread record
+  fields from closed-program layouts. The former <code>#slot</code> declaration and
+  capturing body syntax are rejected.</li>
+<li>Context-inferred <code>.{...}</code> record literals work in declarations, assignments,
+  returns, record fields, and arguments to imported functions. Source and saved
+  IR produce the same result in C, Go, and <code>.zx</code>; missing type context
+  and unknown fields are rejected.</li>
+<li>Jai <code>defer { ... }</code> blocks run their statements in order on scope exit,
+  including early returns and loop exits. Source and saved IR agree in C,
+  Go, and <code>.zx</code>. Control transfer or a nested <code>defer</code> inside a deferred
+  block still needs lowering support.</li>
+<li>Jai inclusive integer ranges accept named binders, implicit <code>it</code>,
+  <code>it_index</code>, and <code>for &lt;</code> reverse iteration. Bounds run once, and <code>break</code>,
+  <code>continue</code>, nested ranges, and <code>defer</code> work across source and saved IR,
+  C, Go, and <code>.zx</code>. Fixed arrays and borrowed slices also support
+  value and index bindings, reverse iteration, and nested loop control across
+  those targets. C, Go, and <code>.zx</code> support <code>for *</code> pointer iteration for
+  in-place element changes. Collection
+  expressions run once and value bindings copy elements. C-style three-clause
+  headers are rejected. Jai <code>for_expansion</code> iterables remain unsupported.</li>
+<li>Fixed arrays, borrowed slices, and strings now expose read-only Jai
+  <code>.count</code> values of type <code>int</code>, including in range bounds. The inherited
+  <code>.length</code> source spelling is rejected. Single-statement <code>if</code>, <code>while</code>, and
+  <code>for</code> bodies now normalize to checked blocks. Named <code>break</code> and <code>continue</code>
+  target enclosing <code>for</code> binders or named <code>while</code> condition binders; defer
+  cleanup and range advancement apply when those controls cross nested loops.</li>
+<li>Go fixed arrays of pointers retain prefix pointer syntax and the declaring
+  module's type names. Source and saved IR preserve scalar, indirect, nested,
+  imported-record and native Go pointers, including zero values and shared
+  storage. C keeps its own pointer declarators.</li>
+<li><code>check</code>, <code>ir</code>, <code>build</code>, and <code>bundle</code> discover extensionless imports
+  transitively. Repeated <code>--module-path DIR</code> options locate ordinary libraries
+  outside an app root; explicitly supplied modules take precedence. A separate
+  app root and two-module library are tested from source and saved <code>.zir</code>,
+  including generated C and <code>.zx</code>. Kryon's drag policy test loads its <code>src/ui/</code>
+  library from an app entry file through the same path, across C, Go,
+  and portable bundles.</li>
+<li>Jai <code>#import, file "relative/path.zi";</code> resolves a source file relative to
+  its importer. Source and saved IR link the same module, and C, Go, and
+  portable builds agree. Named <code>Alias :: #import "module";</code> and
+  <code>Alias :: #import, file "relative/path.zi";</code> expose public procedures,
+  constants, and record types through <code>Alias.Name</code>; named imports do not leak
+  unqualified names. <code>Alias :: #import, dir "relative/directory";</code> loads the
+  directory's <code>module.zi</code>; ordinary module lookup also finds
+  <code>name/module.zi</code>. Source and saved IR produce the same C, Go, and
+  portable output for this form. Nested <code>#load "relative/file.zi";</code> adds
+  declarations to the current module, keeps source file diagnostics, and
+  resolves imports relative to each loaded file. Cycles and missing files are
+  rejected; inactive compile-time branches skip loads. Unconditional nested
+  loads are discovered before compile-time branch
+  selection, so earlier conditions can use later public constants and type
+  layouts from those files. File-private names remain local to their loaded
+  file; <code>tests/forward_load_conditions.sh</code> checks source and saved IR on C,
+  Go, and <code>.zx</code>. <code>#import, string</code>
+  compiles quoted or raw <code>#string</code> source as an embedded module, with named
+  and unqualified imports. Compile-time branches inside embedded source can
+  call modules imported earlier in that source. Source and saved IR bundles
+  agree, and C and Go execute the generated modules.</li>
+<li>Ordinary <code>#import</code> now accepts only module identifiers. C header paths and
+  C-style angled imports are rejected, including from saved IR; unknown calls,
+  fields, and stored types no longer pass checking merely because a C header
+  was imported. Downstream C-backed modules that used header imports require
+  source migration.</li>
+<li>Native C headers include imported modules when their types
+  appear in exported records, callbacks, or procedure signatures, including
+  arrays and pointers. Imports used only by private record and callback types
+  stay under the generated private guard; implementation-only imports stay in
+  the implementation file. <code>#c_call</code> callback parameters and results resolve
+  imported type aliases in their declaring module. Source and saved IR are
+  covered by <code>tests/private_module_imports.sh</code>.</li>
+<li>Module inputs accept <code>.zi</code> source and <code>.zir</code> IR only; <code>.kry</code>, <code>.kir</code>, and
+  <code>.krb</code> are rejected by the shared loader. Kryon owns the UI test fixtures;
+  Ziran keeps a non-UI array and UTF-8 byte law fixture that runs from source
+  and saved IR through native C and Go.</li>
+<li><code>zi2zir</code> writes experimental binary <code>.zir</code> version 41 after checking all
+  input modules together. C and Go can read saved modules without reparsing
+  <code>.zi</code>; their imports are relinked from serialized module identities. The
+  reader rejects malformed headers, versions, truncated data, invalid
+  structural references, expression cycles, retired
+  statement kinds. Retained-state fields are absent from the IR schema. C, Go, and bundle builds
+  rerun strict language checking on saved expression graphs and compare the
+  resulting serialization byte for byte with the input. The tested typed
+  subset takes behavior from those graphs and serialized branch flags even
+  when stored statement text differs. Deterministic output is checked on a
+  sample, and a mixed source/IR
+  C build runs.</li>
+<li>Jai <code>union</code> declarations, including generic unions, retain their shared
+  field storage and maximum-field layout in checked <code>.zir</code>. C compiles
+  source and saved IR unions with overlapping fields. Unions whose fields are
+  all scalars or enums also build and run on Go, through an aligned byte
+  backing with <code>unsafe</code> typed access, and in portable bundles, where the VM
+  keeps raw bits in one slot and reinterprets every member read, write, and
+  compound assignment through the declared field type. Go union storage now
+  uses the largest scalar field's alignment; <code>tests/union.sh</code> checks the exact
+  1-, 2-, 4-, and 8-byte sizes and alignments on C and Go, plus
+  independent union value copies across all four targets. Unions with string,
+  record, array, or pointer fields remain C-only.</li>
+<li><code>zi2zx bundle --root DIR --entry module:function -o FILE</code> builds an
+  experimental version 26 <code>.zx</code> from source or saved IR. <code>zi2zx run FILE</code>
+  loads and executes the validated scalar, plain record, enum, and fixed-array
+  subset with no host bindings. Graphical programs use an embedding host;
+  Kryon's reusable desktop player supplies its rendering and input capabilities.
+  The test runs an imported two-module call and compares bundle bytes from
+  source and saved IR. The current runner supports zero-argument entry
+  functions with <code>s32</code>/<code>int</code>/<code>bool</code>/<code>void</code> results, and helper functions with
+  <code>s64</code>/<code>u8</code>/<code>u32</code>/<code>u64</code>/<code>float32</code>/<code>float64</code>/<code>string</code>, enum, or plain record results. It supports scalar, enum,
+  string, record, and fixed-array parameters and locals, nested record fields,
+  defaults and record and array literals, value copies, member and array reads
+  and writes, scalar compound assignments,
+  <code>s64</code>, <code>u32</code>, and <code>u64</code> bitwise operations and shifts, calls,
+  arithmetic, comparisons, casts, assignments, <code>if</code>/<code>else</code>, <code>while</code>, lexical
+  blocks, <code>break</code>, <code>continue</code>, <code>unreachable</code>, Jai-style enum <code>if #complete</code>
+  cases, and returns. Complete enum cases lower to checked branches with a trap for values
+  created by an out-of-range integer cast. It rejects host imports outside the
+  scalar/string/plain-record subset and
+  unsupported statements before writing a bundle. Loop, branch, and real
+  arithmetic programs are compared against generated C and Go in
+  <code>make check</code>. The bundle loader also reruns the language checker and laws
+  before execution. The linker follows direct calls and drops unreachable
+  functions and modules, while retaining reachable record and enum declarations.
+  Entry linking now removes effect-free constant branches, short-circuited
+  expressions, false loops, and statements after unconditional exits before
+  tracing calls or stored procedure values.
+  Fixed arrays with numeric or resolved constant-expression bounds, including
+  imported constants and nested arrays in records, are tested through source
+  and saved IR in C, Go, and <code>.zx</code>.
+  Tests cover ASCII values in nested <code>char</code> arrays, value-copy isolation, and
+  portable bounds failures. Linked bundles retain needed
+  compile-time definitions for bound expressions, including constants-only
+  imports.
+  Integer <code>NAME :: value</code> definitions in the checked arithmetic subset can be
+  used in function expressions. Imported and negative values fold to checked
+  IR literals. String literal definitions and aliases also fold into checked
+  expressions, including in saved IR and portable bundles. The checker rejects
+  local bindings that would collide with
+  generated C definitions.
+  Portable slices borrow fixed-array storage. Source and saved IR bundles and
+  generated C and Go agree on range creation, nested views, function
+  parameters and returns, <code>.count</code>, indexed reads and writes, and array
+  replacement while a view is live. Bounds failures reject execution. The
+  checker rejects slices in records and globals, host slice returns, and
+  returns that borrow a local array. Unresolved fixed-array bounds remain
+  outside the portable subset.
+  Native C and Go targets also permit a temporary slice of a fixed
+  array field reached through a direct record-pointer parameter. The caller
+  owns that record for the call; the checker rejects returning the slice.
+  A string or slice stored in that record belongs to the caller, so it may
+  be returned, including through checked calls.
+  Portable bundles still reject pointer programs.
+  Borrowed arrays retain record elements written by called functions after
+  those functions return; the portable slice test covers replacing a nested
+  record in a live view across calls.
+  The test runs record and enum functions across imported modules.
+  Source <code>#enum</code>, <code>variant</code>, payload <code>match</code>, postfix <code>?</code>, <code>guard</code>, C-style <code>switch</code> and
+  <code>goto</code> with labels, <code>state</code> blocks, C-style locals, and raw C statements are
+  rejected. Native C and Go builds check source unconditionally and reject
+  <code>--strict</code> and <code>--no-strict</code>. The standard <code>Option</code> and <code>Result</code> templates
+  are now generic records with explicit status fields. The checked native
+  emitters escape target keywords used as parameter or local names; source and
+  saved IR tests run <code>switch</code> and <code>goto</code> bindings, including a generated-name
+  collision, across C and Go. Go globals keep source spelling when
+  legal; native emitters escape target keyword globals, including collisions
+  with the generated escape name. Same-named globals in linked modules, and
+  globals whose target keyword escapes collide across modules, receive
+  distinct native names. <code>tests/imported_global_names.sh</code> checks reads,
+  writes, source, and saved IR on C, Go, and <code>.zx</code>. A Go global and type
+  whose names differ only by case or underscores remain distinct. Constants
+  use the same keyword and collision handling without defining C keywords as
+  macros; source and saved IR tests include dependent constants and fixed-array
+  bounds. Constants shared by linked modules, or whose target keyword escapes
+  collide across modules, receive distinct C macro and Go constant names;
+  <code>tests/imported_constant_names.sh</code> checks source and saved IR on all four
+  targets. Linked globals and constants with the same native name also remain
+  distinct; <code>tests/imported_value_names.sh</code> checks source and saved IR on all
+  four targets. Globals and constants whose native names collide with linked
+  functions, including C program exports, receive distinct names;
+  <code>tests/native_function_value_names.sh</code> checks source and saved IR on all four
+  targets. Generic record templates use named
+  <code>Name :: Generic(Type)</code> declarations or direct
+  <code>Generic(Type)</code> annotations; <code>std/pair.zi</code> also provides <code>Pair</code>. Concrete
+  record fields work in source, saved IR, C, Go, and <code>.zx</code>. Top-level boolean
+  <code>&amp;&amp;</code> and <code>||</code> expressions in simple statements and loop conditions retain
+  short-circuit evaluation, including nested forms. Jai <code>ifx</code> conditional
+  expressions, with or without <code>then</code>, replace C-style <code>?:</code>; top-level
+  conditional expressions with
+  typed destinations or loop conditions preserve selected-arm evaluation.
+  Conditional expressions inside positional and named call arguments run
+  across the native targets and portable bundles. Entry linking preserves
+  argument positions when it folds a constant
+  conditional or short-circuit expression. <code>tests/nested_lazy_call.sh</code>
+  compares source and saved <code>.zir</code> across C, Go, and <code>.zx</code> while
+  checking that unselected arms have no effects.
+  Jai <code>#ifx</code> selects a constant, global initializer, or function expression
+  arm before strict checking and saved-IR generation. It accepts the Jai
+  semicolon before <code>else</code>, nested selections, boolean and integer constants,
+  constant aliases, and compiler-host <code>OS</code> comparisons with <code>.WINDOWS</code>,
+  <code>.MACOS</code>, or <code>.LINUX</code>; unused arms are not type-checked.
+  <code>#ifx</code> also selects record and fixed-array values in file constants, global
+  initializers, local definitions, and call arguments on C, Go, and <code>.zx</code> from source
+  and saved IR. <code>#run</code>, <code>#if</code>, <code>#ifx</code>, and <code>#assert</code> evaluate pure procedures
+  with signed integer (up to
+  <code>s64</code>), unsigned integer (up to <code>u32</code>), or boolean parameters/results. Local
+  declarations and assignments, branches, bounded <code>while</code> and numeric range
+  loops, nested calls, and imported calls work in <code>#run</code>, <code>#if</code>, <code>#ifx</code>, and
+  <code>#assert</code>. <code>#if</code> can resolve imports declared before its condition while
+  parsing, including imported <code>size_of</code> layouts. Other imported calls and
+  dependent definitions resolve after module linking; their literal values
+  and selected arms are saved in <code>.zir</code>. Pure string and floating-point
+  expressions, including imported calls, local assignments, and default
+  parameters, work in <code>#run</code>; <code>#assert</code> can compare those results. String
+  comparisons use the same escape and UTF-8 decoder as the portable runner.
+  Source-selecting <code>#if</code> can use earlier <code>#run</code> definitions when their
+  procedures and imports are available while parsing. Named imported real
+  and string constants resolve in <code>#if</code> and <code>#run</code> even when the import
+  declaration follows the condition. Their public visibility and private
+  exclusion are checked from source and saved IR on C, Go, and <code>.zx</code> by
+  <code>tests/imported_typed_constants.sh</code>. Pure compile-time procedures can now
+  return named records and fixed arrays. Their evaluated fields, array
+  elements, and array counts can feed <code>#run</code> scalars and <code>#assert</code>. Local
+  record and fixed-array <code>#run</code> definitions also bind to checked literal
+  graphs in procedure bodies, and direct file-scope initializers can use
+  them. <code>tests/compile_values.sh</code> checks nested records, fixed arrays,
+  bounds rejection, runtime record arguments and globals, and source/saved-IR
+  execution on C, Go, and <code>.zx</code>. Public aggregate definitions from
+  named, open, and using imports retain their declaring record types in
+  runtime expressions and direct globals; <code>tests/imported_aggregate_constants.sh</code>
+  checks nested records, arrays, compile-time <code>#run</code>, <code>#assert</code>, and <code>#if</code>
+  field selection, a later named import in <code>#if</code>, private visibility, and source/saved IR
+  across the same targets. Imported procedures with record parameters or
+  results map those types into the caller's namespace; the same test covers
+  direct calls, including parameter and result types shadowed by local records.
+  Qualified record literals
+  such as <code>Lib.Point.{...}</code> work in globals and bodies, including nested
+  inferred record fields; <code>tests/imported_aggregate_constants.sh</code> checks
+  source and saved IR on all four targets. Conflicting consumer record names
+  retain the imported owner through named, open, and using imports; nested
+  record constants, arrays, calls, and parameter passing agree on all targets.
+  Pure file-scope initializers now fold imported record-field and fixed-array
+  selections, scalar expressions built from them, and tested <code>#ifx</code> selections
+  before native or portable output. Bounded pure procedure calls also fold in
+  globals, including a call declared after the global; effectful calls are
+  rejected by the portable bundle. Named, open, and using imports retain the
+  aggregate type owner. General file-scope initialization remains open;
+  effects, unbounded execution, and general metaprogramming are unsupported.
+  Integer conditions and typed expressions use the same bounded procedure
+  evaluator, including a shared instruction budget across nested calls; the
+  separate integer-only procedure interpreter has been removed.
+  One-line function bodies are parsed as ordinary statements instead of
+  being silently skipped.
+  Jai <code>#if ... else #if ... else</code> selects file-scope declarations and function
+  statements at parse time. Unselected branches do not enter source or saved
+  IR; source and saved bundles, C and Go agree for nested constant
+  branches. The old <code>#else_if</code> and <code>#else</code> forms are rejected. Conditional
+  record fields and enum members are selected before their layouts are checked.
+  Explicit enum members accept Jai <code>Member :: value</code> declarations. Source and
+  saved IR produce the same values in C, Go, and portable bundles.
+  Named enums now use Jai's default <code>s64</code> storage or an explicit integer
+  backing type. <code>enum_flags</code> assigns successive bits to members without an
+  explicit value. The checker rejects members outside their backing range,
+  and <code>size_of</code> uses the backing width. Source and saved IR agree across the
+  portable runner and native targets. Jai <code>#specified</code> requires explicit
+  member values for both <code>enum</code> and <code>enum_flags</code>, and saved IR records the
+  modifier. Values above <code>s64</code> remain unsupported
+  in the current portable enum evaluator, even for <code>u64</code> backing. Typed flags
+  accept integer initializers and assignments, qualified <code>Type.Member</code>, and
+  contextual <code>.Member</code> references. The checker validates flag arithmetic,
+  bitwise operations, equality, and corresponding compound assignments.
+  Portable execution and C and Go output agree on these operations.
+  Regular enum members also have typed <code>Type.Member</code> and contextual <code>.Member</code>
+  expressions. Within a procedure, <code>using Enum;</code> opens enum members for bare
+  lookup with lexical scope. Data-scope <code>using Enum;</code> also opens them in
+  procedures, file-scope constants and globals, <code>#run</code>, <code>#assert</code>, and later <code>#if</code>
+  conditions. File-private using declarations respect <code>#load</code> boundaries.
+  Bare members without <code>using</code> are rejected in procedure bodies and file-scope
+  global initializers; checked IR lowers opened members to values before native
+  or portable execution. File-scope record and union <code>using</code> fields also work
+  in pure global initializers that read earlier initialized globals. The
+  checker folds those startup values for C, Go, and <code>.zx</code>, respects
+  local shadowing, and rejects ambiguous or file-private names. General global
+  initialization and promotion from imported globals still need coverage.
+  Call arguments and returns accept typed and contextual members. Enum and scalar
+  <code>if</code>/<code>case</code> arms support terminal <code>#through;</code> with source, saved IR,
+  portable, C and Go agreement. Integer, boolean, floating, and string
+  cases accept a final <code>case;</code> default. Deferred actions run at case boundaries
+  and before <code>#through;</code>. Unknown function-body directives are rejected.
+  <code>size_of</code> supports scalars, pointers, <code>string</code>, borrowed slices, fixed
+  arrays, records, unions, named concrete generic types, and nested
+  applications such as <code>Wrapper(Box(s32))</code>. It folds in constants, array
+  bounds, globals, <code>#run</code>, <code>#if</code>, and <code>#ifx</code>. Function-body expressions stay
+  symbolic through source checking and saved IR, execute in portable bundles,
+  and lower to target-native size operations in C and Go; tests cover
+  the target-dependent slice layout. The old <code>sizeof</code> spelling is rejected in
+  source. Jai <code>int</code>
+  maps to <code>s64</code>. In function bodies, <code>size_of(type_of(expression))</code> uses the
+  checker's inferred type and does not evaluate its operand. File-scope
+  <code>size_of(type_of(expression))</code> works for previously declared same-module
+  globals, record fields, and procedure calls in constants, global
+  initializers, <code>#run</code>, <code>#assert</code>, <code>#if</code>, and <code>#ifx</code>; the operand is not run.
+  Forward and imported operands also work in tested file-scope constants,
+  global initializers, <code>#run</code>, and <code>#ifx</code>; imported operands work in <code>#if</code>.
+  Unconditional procedure headers and single-line typed globals in the same
+  file or a later <code>#load</code> resolve forward <code>#if size_of(type_of(...))</code> queries
+  without evaluating the operand. Procedure parameter lists may span lines;
+  global member queries can use a later record type. Inactive and
+  file-private names stay hidden.
+  Unconditional later <code>enum_flags</code> types also resolve in <code>#if</code> and <code>#run</code>,
+  including implicit flags, explicit values, <code>#specified</code> backing types, and
+  a later <code>#load</code>. Inactive and file-private flags stay hidden;
+  <code>tests/forward_type_conditions.sh</code> checks source and saved IR on C, Go,
+  and <code>.zx</code>. The same test covers a later generic record and a one-line
+  concrete alias without a semicolon in <code>#if size_of</code> and <code>#run size_of</code>;
+  aliases inside inactive branches or private loaded files stay hidden.
+  Later records, enums, and generic records with <code>#if</code>-selected bodies also
+  resolve for supported forward size queries and opened enum members, including
+  a type from a later <code>#load</code>. The selected branch alone reaches checked IR;
+  private loaded types stay hidden. Acyclic forward dependencies between
+  conditional records or enums resolve after their prerequisites are found;
+  unresolved conditions fail without selecting a branch.
+  Forward <code>#if</code> calls to unconditional procedures with local declarations,
+  assignments, braced <code>if</code>/<code>else if</code>/<code>else</code>, and bounded <code>while</code> loops run
+  through the compile-time evaluator. <code>break</code>, <code>continue</code>, calls to another
+  later procedure, and returns work in the tested subset; <code>#run</code> accepts these
+  calls too. Multiline headers, defaults, named
+  arguments, later constants, and later <code>#load</code> files work. A procedure in a
+  loaded file can use that file's private constant; executed effects are
+  rejected, and recursion and loops share an instruction budget. Other body
+  forms still need discovery.
+  A file-scope <code>#run</code> that calls such a later procedure now folds before a
+  following <code>#if</code> tests the result; loaded file-private procedures remain
+  hidden from callers in other files.
+  <code>tests/file_type_of.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>.
+  Standalone <code>type_of</code> values and broader forward <code>#if</code> queries remain
+  unsupported.
+  Foreign-record size queries still require their Jai layouts.
+  Jai <code>#line</code> resolves to the physical source line before checking and remains
+  stable through saved IR, native targets, and <code>.zx</code>, including <code>#load</code> files.
+  <code>#file</code> and <code>#filepath</code> resolve to the full source filename and containing
+  directory, including in loaded files. <code>#procedure_name()</code> resolves to the
+  declared procedure name in bodies, defaults, and pure <code>#run</code> calls; source
+  use outside a procedure is rejected.
+  Untyped integer locals inferred with <code>:=</code> now use <code>s64</code> storage, including
+  when their values exceed 32 bits, across saved IR and all supported targets.
+  Source, saved IR, native targets, and <code>.zx</code> agree on tested success and error
+  paths. Kryon's headless suite exercises these paths through ordinary imports;
+  widget and platform coverage is tracked in the Kryon repository.</li>
+<li>Reachable <code>#foreign host_api</code> calls now appear as module/function
+  capabilities in <code>.zx</code>. The loader verifies the capability list against the
+  linked IR. <code>build/libziran.a</code> and <code>include/ziran_host.h</code> expose an opaque
+  bundle handle, capability enumeration, and bindings for integer, real, string,
+  enum, plain record, and void calls. Record fields retain declared names and
+  types, including nested records; returned fields are checked before use.
+  Numeric, boolean, string, and plain-record slice parameters can cross a synchronous host
+  call. The host edits a typed element array, which the VM validates and copies
+  back into the borrowed Ziran array. Source and saved bundles and generated
+  C and Go run the same buffer and record slice examples. The VM rejects
+  overlapping mutable host slice arguments and malformed returned elements.
+  Empty fixed arrays can be borrowed as zero-length slices for synchronous
+  host calls. Host-returned zero-length slices may have no elements; oversized
+  returned lengths fail before allocation.
+  Fixed arrays also cross the portable host boundary by value, including
+  zero-length arrays and arrays of records with array fields. Returned shapes
+  are checked recursively; <code>tests/host_arrays.sh</code> covers source and saved
+  bundles, malformed host results, and native C and Go foreign calls.
+  <code>BundleRun</code> checks all required bindings before execution.
+  Native Ziran hosts can enumerate capability names through <code>std/bundle_host</code>.
+  <code>--asset-dir NAME=DIR</code> embeds sorted, canonical relative file paths and binary
+  contents. Both the C API and native Ziran wrapper expose those resources;
+  malformed paths, duplicates, ordering, lengths and truncation are rejected.
+  Source and saved-IR packaging is byte-identical, including binary and empty
+  assets. <code>--define NAME</code> selects the same source branches as native compilers.
+  The CLI runner also checks required bindings before execution. Source and
+  saved-IR bundles, unused extern pruning, list tampering, missing binding
+  preflight, malformed record returns, and pointer dereference rejection
+  are tested. Declared pointer types cross host calls as opaque handles with
+  kind <code>VM_HOST_POINTER</code>: the VM stores the address, compares handles against
+  <code>null</code> and each other, and never dereferences them, so the host owns the
+  storage behind a handle. Pointer-bearing records, including host-returned
+  records, bundle and run with that contract. Array and slot host calls
+  remain unsupported.</li>
+<li>Portable strings now carry immutable UTF-8 bytes with exact byte lengths,
+  including embedded nulls. The verifier and interpreter cover literals,
+  equality, read-only byte indexing and ranges, <code>.count</code>, parameters, returns,
+  and record fields. <code>text[low:high]</code> returns a borrowed byte range as a
+  <code>string</code>; bounds are checked in the portable VM and generated C and Go. Callers must choose UTF-8 codepoint boundaries when slicing text.
+  <code>TextView([]u8)</code> borrows a byte slice as text in native C; Go and
+  the bundle runner copy it into managed storage. The bounded
+  <code>std/text_buffer.zi</code> helper reads a NUL-terminated buffer through this
+  operation. The dedicated gate exercises C, Go, bundles, and invalid
+  non-byte arguments. Borrow origins now flow through record/array values and
+  checked calls, so returning a record containing a <code>TextView</code> of a local
+  byte array is rejected; <code>tests/aggregate_view_lifetime.sh</code> covers literal,
+  nested, array-field, assigned-field, and call-result escapes. The mutation
+  gate follows local bindings, field paths, aliases, checked-call results,
+  and record-return aliases. It permits writes to sibling record fields while
+  protecting the borrowed field, its array storage, and whole-aggregate
+  replacement. View-bearing globals retain their global-backing origin across
+  functions and alias chains: local-backed views cannot escape into global
+  storage, and mutation of a tracked backing global is rejected in any
+  function; tracking scales to the program's global count. A view through a
+  local <code>*value</code> pointer tracks its pointee and rejects mutation through either
+  the original binding or the pointer while live. Local copies of pointer
+  parameters preserve the same backing identity. A <code>TextView</code> reached through
+  an opaque local pointer is rejected when its backing lifetime cannot be
+  proved; copying bytes into owned local storage provides an explicit lifetime.
+  Separate pointer and slice parameters with the same type are possible
+  aliases, preserving sibling-field precision. Checked calls summarize
+  transitive parameter and global writes; temporary text arguments stay live
+  through later argument evaluation and the call. Unknown callbacks
+  conservatively write reference arguments. <code>tests/text_call_mutation.sh</code>
+  covers these cases and permitted sibling-field writes. Differently typed
+  pointer aliases and arbitrary host-backed storage still need a complete
+  cross-target contract. Raw native FFI has no checked memory-effect summary.
+  <code>make check</code> compares source and saved-IR bundles with C and Go on a
+  string program and rejects out-of-range indexing.</li>
+<li>Portable finished-builder strings and <code>TextView</code> snapshots carry their
+  allocation owner through copies, ranges, records, arrays, and host-returned
+  ranges of text arguments. Unreachable snapshots are collected at top-level
+  statement boundaries and completed top-level calls; literal caches and live
+  globals remain valid. <code>VmInstanceLiveValueBytes</code> includes string storage.
+  <code>tests/string_storage.sh</code> checks bounded storage over repeated runs and
+  source/saved IR, plus allocation-balanced empty <code>BuilderFinish</code> in C.
+  Empty finished builders release reserved native storage in C.
+  Nonempty finished native strings still retain their bytes for process lifetime.</li>
+<li>Portable bundles retain referenced module globals, including records and
+  fixed arrays. Explicit initializers run before the first statement of
+  every <code>BundleRun</code>: integer and boolean literals, compile-time constant
+  expressions over defines, float literals, string literals, and nested
+  <code>Type.{.field = value}</code> record and fixed-array literals fold into the
+  global's slot, with
+  mutable initialized globals across calls and byte-identical source and
+  saved-IR bundles; C and Go emit the same initializers natively
+  (designated initializers in C, struct literals in Go).
+  Checked runtime initializers can call procedures and read globals. Source
+  and saved IR agree on C, Go, and <code>.zx</code>; imported modules initialize
+  before consumers, including imports used only for startup effects, and each
+  portable instance initializes once. String globals and string fields in
+  record and array initializers decode
+  escapes and retain their bytes for the instance lifetime. Tests compare
+  contents across repeated runs and fresh instances. Native C and Go
+  lower nested record and array initializers from the parsed expression tree;
+  the cross-target test covers reordered fields and string escapes.
+  The VM reads and writes
+  globals across
+  imported function calls, and reclaims replaced values without losing
+  globals reached by a caller. Source and saved <code>.zir</code>, <code>.zx</code>, C and Go
+  tests cover value isolation and repeated mutation. Each <code>BundleRun</code> starts
+  fresh; <code>BundleInstantiate</code> preserves globals across repeated
+  <code>BundleInstanceRun</code> calls on one instance.</li>
+<li>Portable execution borrows read-only record and array parameters and
+  reclaims temporary values after ordinary function calls while retaining
+  copied results. A repeated nested call over a 4,096-record array checks
+  value isolation without exhausting the VM's allocation limit. Replaced
+  record and array storage is reclaimed after a value copy; the portable VM
+  currently allows up to 1 GiB each of tracked record and array allocations
+  so large checked parsers such as Kryon's KSS parser can execute.</li>
+<li>Small records whose fixed-width primitive fields occupy at most sixteen
+  bytes use the existing VM value payload. Arrays of these records store
+  packed field bytes and slot-validity bits, avoiding a separate allocation
+  and tagged value for every field. Shared instance metadata describes field
+  names and widths; host record calls still marshal declared named fields.
+  Field pointers retain logical locations in locals, globals, nested records
+  and packed arrays. Value copies, replacement of borrowed arrays, vector
+  growth and expired pointers retain their checked behavior. Unions, records
+  containing references, abstract integers and larger records keep ordinary
+  record storage. <code>tests/vm_inline_records.sh</code> checks the actual representation,
+  integer boundaries, floating-point bits, layout-table growth, aggressive
+  collection, source/saved IR and C/Go results.</li>
+<li>Portable scalar plans retain checked operations and coercion policies for
+  short binary expressions as well as larger expression trees. Repeated
+  execution still reads current bindings and preserves branch selection,
+  numeric widths, and depth checks. Integer arithmetic uses unsigned
+  intermediates before narrowing, including <code>u32</code> products that exceed the
+  signed 64-bit range. <code>tests/vm_scalar_plans.sh</code> checks cold and cached plans,
+  numeric boundaries, rejected divisors and shifts, source/saved IR, and
+  independent instance lifetimes.
+  Numeric payload helpers are visible to each evaluator part so these reads
+  and conversions can inline without passing whole values across compilation
+  units. Abstract integer division and remainder preserve wrapping at the
+  signed minimum divided by negative one. The execution benchmark also covers
+  the standard-library JSON parser with an independently decoded Python oracle.
+  Arithmetic dispatch and scalar-plan conversion borrow their existing operand
+  slots internally, avoiding whole-value argument copies while retaining the
+  same canonical arithmetic and conversion rules. <code>bench/vm_native.py</code> adds
+  matched generated C/Go controls with checked bodies and batch checksums,
+  exposing the remaining interpreter gap without claiming full native parity.
+  Plan registers can borrow normalized locals and identity conversions for
+  the duration of a plan. Shared numeric operations write their live scalar
+  fields directly into destination slots, leaving inactive container words
+  untouched. Numeric literals snapshot their live fields before another
+  literal can replace the same cache entry. Calls, mutation and collection
+  remain outside plans; source/saved checks also exercise aliased coercion
+  destinations and forced literal-cache eviction.
+  Ordinary numeric operations, including compound assignments, enter the
+  same numeric worker directly after checking their operand kinds and width
+  policy. They borrow completed operand snapshots and write into an explicit
+  destination instead of passing and returning whole tagged values across
+  the private C call boundary. Compound assignments reuse the rooted target
+  snapshot captured before the right side runs, preserving mutation order.
+  Destinations may alias either operand; numeric, string, enum and error-path
+  checks cover this behavior. Other values retain the general dispatcher.
+  Standalone field and index reads use the same expression plans. Direct
+  fields retain a checked position, guarded against the current field name
+  and count; other shapes and nested paths retain ordinary lookup. Union
+  reads still reinterpret their shared storage. Plans retain metadata and
+  read current values on every execution. Scope cleanup checks a binding's
+  value kind before classifying owned record types, avoiding ownership
+  lookups for scalar, string and slice locals.
+  Numeric and immutable-string procedures can also retain one instruction stream for local
+  declarations and assignments, nested branches, blocks, loops, named
+  break/continue, and returns. Local references use lexical slots and numeric
+  literals retain their checked values; inputs and selected branches are read
+  anew on every call. The stream shares the numeric operation and conversion
+  rules with expression plans, preserves statement/loop step limits and scope
+  depth. Primitive instructions allocate no VM values. Per-instance call metadata
+  owns these plans with an 8 MiB instruction budget. Procedures with globals,
+  address-taking or mutable container operations outside calls retain ordinary execution;
+  rejected or oversized plans execute no partial instructions.
+  <code>tests/vm_function_plans.sh</code> compares dynamic inputs, numeric errors, scoped
+  and named control flow, wide jump targets, and every statement-budget
+  boundary against canonical execution from source and saved IR.
+  String parameters and locals retain current immutable views, including
+  their storage owner. Dedicated instructions handle empty strings, length,
+  checked byte indexing and equality without adding string-kind tests to
+  numeric operations or stores. Bounds errors, NUL/UTF-8 bytes, changing
+  arguments, string returns and short-circuit paths match canonical execution
+  at every tested statement budget. String literals, slicing, mutable
+  aggregates and other unrepresented operations retain ordinary execution.
+  Calls returning primitive values, strings or void can suspend the instruction
+  stream in the ordinary checked evaluator. Argument order, mutable aliases,
+  current procedure bindings, host capabilities, recursion and failures retain
+  their existing behavior. These plans snapshot local reads and root temporary
+  registers across calls, clearing only the registers they use at source
+  statement collection boundaries. Procedures without calls retain a separate
+  borrowing and numeric fast path. Ordinary Ziran calls allocate no host
+  argument buffer; host calls take that buffer only when needed.
+  The procedure corpus also compares calls that mutate their caller, named and
+  indirect calls, recursion, allocated string results, forced collection and
+  all tested step limits, with source/saved C/Go controls.</li>
+<li>Fresh record and fixed-array results can transfer their storage through
+  local returns, direct calls, literals, initializers, and assignments. The VM
+  retains the value-copy rules for existing bindings and globals. This transfer
+  path excludes aggregates containing owned vectors and storage reached by
+  pointers or borrowed array views.
+  <code>tests/vm_return_storage.sh</code> checks allocation counts and value isolation,
+  including replacement through existing views, nested fields, heap and global
+  reads, and source/saved-IR agreement with native C.</li>
+<li>The portable runner has pointers to its own storage: <code>*place</code> takes the
+  address of a local, global, record field, or array element; <code>&lt;&lt;p</code> and
+  <code>p.*</code> read and write through it; <code>p.field</code> reaches a pointed-to record; and
+  pointers compare by target and with <code>null</code>. A record or array whose
+  address was taken stays alive while a pointer can reach it, and a pointer
+  at a local fails cleanly once its call has returned. Pointers returned by
+  host capabilities stay opaque handles: a bundle can store, compare, and
+  pass them back, but not read through them. Pointer casts and arithmetic
+  remain outside the portable subset. <code>tests/portable_pointers.sh</code> checks
+  source and saved IR on C, Go, and <code>.zx</code>.</li>
+<li>Compiler functions use short names without <code>Zir</code> or <code>zir_</code> prefixes,
+  including the IR serializer's <code>ProgramWrite</code>, <code>ProgramRead</code>, and <code>PathIsIR</code>.
+  IR data types retain <code>Zir</code> names for now.</li>
+<li>The inherited runtime type and enum-member lookup stubs are gone. Local and
+  imported declarations now supply those names without a compiler fallback.</li>
+<li>Native Go no longer treats ordinary imported record types as types from the
+  legacy Kryon Go runtime. The standalone record-call test asserts that no
+  Kryon package import is generated.</li>
+<li>Native Go now uses declared record fields and ordinary call resolution even
+  when a record or function has a name previously reserved for Kryon UI. A
+  standalone source and saved-IR test covers these name collisions. Generated
+  Go defaults to package <code>ziran</code> unless <code>--pkg</code> overrides it.</li>
+<li>Native Go no longer has an implicit Kryon package import or a separate
+  <code>--runtime-implementation</code> mode. Explicit Go extern targets generate package
+  imports; host externs use a declared embedding interface. Source and saved
+  <code>.zir</code> tests run both forms without Kryon.</li>
+<li>The shared emitter now has only C and Go targets. Its unused JavaScript
+  path and hardcoded Kryon calls have been removed.</li>
+<li>Native C and Go accept Jai <code>null</code> for explicitly typed raw pointers, in
+  comparisons, assignments, calls, and pointer-returning conditionals. The
+  checker rejects untyped <code>null</code> bindings and scalar assignments.
+  Native pointer expressions use Jai <code>*value</code>
+  for address-of and <code>pointer.*</code> or prefix <code>&lt;&lt;pointer</code> for dereference,
+  including writes through a pointer. <code>++</code>/<code>--</code> are rejected. The checker rejects
+  addresses of temporaries and dereferences of non-pointers. Raw pointers
+  can also be indexed on C and Go native targets when the caller knows
+  the allocation bounds. Source and saved <code>.zir</code> agree. Raw pointers remain
+  outside <code>.zx</code>.</li>
+<li>The shared checker resolves <code>record_pointer.field</code> against declared record
+  fields, including imported records, and reports unknown fields. Checked
+  pointer-member reads and writes now emit from source and saved <code>.zir</code> on
+  native C and Go, including nested fields and computed pointer bases.
+  The C-style <code>-&gt;</code> source operator is rejected. Type annotations require Jai
+  prefix <code>*Type</code>; suffix <code>Type*</code> and <code>const</code> qualifiers are rejected in source
+  and saved IR. Existing downstream Kryon source using those spellings still
+  needs migration before cutover.
+  Raw pointers remain outside <code>.zx</code>; broader host-bound native bodies still
+  need checked lowering.</li>
+<li>The inherited <code>#intrinsic "web"</code> modifier and its two name-based browser
+  shims are gone. Browser behavior now requires an explicit host or target
+  extern. C output no longer injects Kryon's inspection header for
+  ordinary functions, and generated temporaries and header guards use Ziran
+  names. Retired intrinsic, capability, and host import tags have no slot in
+  the new IR schema; host calls use ordinary extern imports.</li>
+<li>Unknown directives, function modifiers, declaration modifiers, and top-level
+  forms are rejected generically; this includes old <code>#ui</code>, <code>#style</code>, and
+  app/route forms. The embedded Kryon
+  runtime declarations and copied <code>src/kry_std</code> implementation have been
+  removed. JSON diagnostics no longer require Kryon code.</li>
+<li><code>#instance</code> is rejected as a language modifier. Its special statement and
+  capture fields, retained-state emission, and IR serialization have been
+  removed; a state library can supply that behavior through ordinary calls.</li>
+<li>The parser no longer creates inline closures. Their capture fields, bundle
+  cloning, backend wrappers, and VM parent frames have been removed. Named
+  procedure values remain supported.</li>
+<li>
+<p>UI tree and DOM property fields have been removed from the statement IR.
+  App, route, style, and inspector metadata have been removed from the IR and
+  backend entry paths. Generic calls named <code>Image</code> and record calls
+  named <code>Button</code> are covered by standalone tests. The Go backend no longer
+  drops standalone <code>BeginTree</code> and <code>EndTree</code> calls or maps <code>Canvas</code> and
+  <code>CanvasResult</code> by name. The parser no longer recognizes old <code>app</code> and
+  <code>route</code> block words. Source, saved-IR, and portable bundle tests cover
+  these names as ordinary declarations and calls.</p>
+</li>
+<li>
+<p>Scalar <code>#law NAME theorem bindings =&gt; condition;</code> and <code>#proof NAME { ... }</code>
+  certificates support reflexivity, modular polynomial normalization, exact
+  order, boolean case splits, unfolding pure acyclic scalar procedures,
+  equality rewriting, and checked theorem application. Missing/unsupported
+  proofs and exhausted budgets are unknown; invalid certificates and cycles
+  cannot be waived. Evidence distinguishes structural checks, concrete
+  evaluation, finite exhaustion, and full-domain scalar kernel proofs.
+  <code>.zir</code> and <code>.zx</code> store and recheck certificates and verification dependencies;
+  forged graph references, steps, and evidence are rejected. Lean 4.34.1
+  validates the mathematical rules and an independent interpreter checks
+  generated C kernel claims. The C port and procedure projection remain
+  trusted, and arbitrary-sequence induction remains future work. See
+  <a href="laws.html">LAWS.md</a> and <code>tests/proofs.sh</code>, <code>tests/law_integers.sh</code>,
+  <code>tests/proof_kernel.sh</code>, and <code>make proof-model</code>.</p>
+</li>
+<li>Named <code>#law NAME kind payload;</code> obligations are implemented for the
+  <code>type</code>, <code>bounds</code>, <code>effect</code>, <code>abi</code>, <code>custom</code>, and <code>forall</code> kinds (<code>forall</code>
+  is exhaustive over integer ranges, enum types, and bounded integer
+  sequences (<code>[N]LO..HI</code>), with counterexamples
+  and a 1,000,000-case budget): <code>ziran check</code>
+  prints one JSON result object per obligation, <code>disproved</code> and unwaived
+  <code>unknown</code> results fail the build, <code>#law_waive NAME "reason";</code> waives an
+  <code>unknown</code>, and the tables serialize per module in <code>.zir</code> (byte-identical
+  from source and saved IR) and as the linked closure in <code>.zx</code>, where
+  <code>BundleLaw*</code> accessors expose them and laws keep the types, procedures,
+  and externs they name. Effect laws compare the derived class
+  (<code>#law Name effect Proc == pure;</code> against pure, observing, mutating, or
+  external), bounds laws compare a fixed-array bound (<code>Type == N</code>, <code>&gt;= N</code>,
+  <code>&lt;= N</code> over compile-time values), and the <code>size</code> kind compares a type's
+  laid-out byte size the same way; comparison payloads keep their procedures
+  and type fields in linked bundles. Every checked procedure also carries a
+  derived
+  effect class — <code>pure</code>, <code>observing</code>, <code>mutating</code>, or <code>external</code> — computed
+  from its body to a fixpoint and serialized in its <code>.zir</code> signature as ABI.
+  <code>#parallel for</code> regions ride the range lowering into the checked <code>while</code>
+  and the region checker accepts a body only when every called procedure is
+  <code>pure</code> or <code>observing</code>, writes target iteration-local bindings, Vec
+  mutations stay on region storage, regions do not nest, and the shape is a
+  <code>for</code>; source and saved IR build byte-identical bundles everywhere.
+  The native C99 target executes forward regions on pthreads through
+  <code>ziran_parallel.h</code>: each region becomes a file-scope worker over
+  contiguous index chunks that reaches captured fixed arrays through a
+  pointer and other captures by value, the thread count is the processor
+  count unless <code>ZIRAN_PAR_THREADS</code> chooses 1-64, and files containing
+  workers compile with <code>-pthread</code>. Natively run bundles use the engine's
+  worker pool. Reverse regions, the
+  portable VM, and Go run serially with an emitted downgrade marker, as the
+  backend-duties clause permits; region-leaving <code>return</code>/<code>break</code>/<code>continue</code>
+  are rejected so no schedule can skip iterations. <code>#parallel_gpu for</code>
+  regions validate before offload per the GPU clause: pointer storage,
+  pointer-bearing call arguments, and allocator-backed Vec mutation are
+  rejected, and external-class calls were already barred by the region
+  rules. On the native C target on Linux and Android, <code>cmd/zir/zir_emit_gpu.c</code>
+  lowers a region and its callees to an OpenGL ES 3.1 compute shader and
+  <code>include/ziran_gpu.h</code> runs it on the fastest device it measures, loading EGL
+  and GLES at run time. Regions of 32-bit integers, float32, bytes and booleans
+  with <code>capture[it]</code> writes qualify; 64-bit values, nested <code>for</code>, globals,
+  records, signed or variable division and foreign calls keep the CPU worker
+  path with an emitted marker. A failed bounds check, a used up loop budget or a
+  refused shader discards device results and reruns the region on the CPU. The
+  ZX engine, the portable VM and Go do not offload. <code>tests/gpu_offload.sh</code>
+  compares every device with the CPU.</li>
+<li><code>ziran explain</code> exposes a stable registry for every diagnostic code currently
+  emitted by the compiler, with textual and JSON output. <code>ziran explain --list</code>
+  enumerates the registry, and <code>tests/explain.sh</code> fails if a new emitted code is
+  omitted. Native C and Go lowering reports malformed module state and
+  output-file failures through registered target codes, including JSON lines
+  for unwritable output destinations.</li>
+<li>Whole local aggregates, fresh aggregate call results, vector-bearing
+  record-literal fields, and plain record-member <code>Vec</code> paths rooted at local
+  aggregates can move through declaration, assignment, argument passing, and
+  return. C, Go, and the portable VM recursively drop vectors reached
+  through record fields and fixed arrays; a member move clears only the native
+  source field and invalidates only the corresponding VM slot.
+  <code>tests/aggregate_vec_safety.sh</code> checks direct and nested member paths,
+  sibling-field usability, branch returns, use-after-move, global-source,
+  indexed/pointer limits, overwrite rejection, allocator balance,
+  source/saved-IR equality, and all four execution paths.</li>
+<li>Validated benchmark harnesses record compilation and runtime samples with
+  command lines, versions, hashes, hardware, and checked outputs. The multilingual
+  UTF-8 harness compares source and saved IR across C, Go, <code>.zx</code>, and
+  handwritten C, Go, Rust, Java, JavaScript, and Python implementations.
+  The record-call harness covers fixed arrays, record value parameters, field
+  access, wrapping <code>s32</code> updates, and an ordinary call in every round. It
+  compares source and saved IR through generated C, Go, and <code>.zx</code>, plus the
+  available comparison languages.</li>
+<li>Package manifests and lockfiles can pin source-only dependencies without a
+  Ziran manifest. Resolution, checkout, map generation, drift detection, and
+  <code>ziran add --source</code> are covered by <code>tests/packages.py</code>.</li>
+<li>Polymorphic procedures bind <code>$T</code> through a direct, slice (<code>[]$T</code>), or
+  pointer (<code>*$T</code>) parameter. <code>tests/generic_slice_parameter.sh</code> runs slice
+  binders over scalars, 64-bit values, records, and subslices through source
+  and saved IR on <code>.zx</code>, C, and Go, runs pointer binders
+  natively, and rejects non-slice and non-pointer arguments. <code>std/sort.zi</code>
+  builds an allocation-free heapsort, <code>IsSorted</code>, <code>LowerBound</code>, and
+  <code>BinarySearch</code> on them; <code>tests/sort.sh</code> checks edge cases on <code>.zx</code> and C.</li>
+</ul>
+<h2 id="still-required">Still required</h2>
+<ul>
+<li>Finish compiler self-hosting: declaration parsing, semantic checking, IR
+  persistence, proof validation, native lowering, portable linking, and the
+  runtime still need to move from C to Ziran. The generated bootstrap modules
+  currently cover token, text, source scanning, declaration syntax, enum
+  evaluation, type spelling and field parsing, expression and initializer
+  grammar, foreign declarations and target spelling, and statement and
+  compile-time branch syntax. Declaration IR construction
+  and semantic checking still require migration.</li>
+<li>Finish Jai parity and specialization: cover remaining expression forms,
+  exact foreign array ABI behavior (including nonempty <code>.data</code>), generic fields
+  whose types depend on specialization parameters, and broader procedure-value
+  support.</li>
+<li>Complete ordinary-library procedure values and imports. Named capture-free
+  callbacks and stored procedure values already work across native targets and
+  <code>.zx</code>; procedure-valued defaults and the remaining general import forms do
+  not.</li>
+<li>Move remaining target-specific declaration and import lowering from text into
+  typed IR, then enforce target capability errors uniformly.</li>
+<li>Extend the <code>.zx</code> linker and verifier to all checked expressions and native
+  features, including complete host capability coverage. The current bundle
+  embeds checked <code>.zir</code> and follows direct calls, but it remains a subset.</li>
+<li>Complete ownership edge cases: unknown heap and host-backed view aliases,
+  indexed and pointer-backed field moves, and reclaimable storage detached by
+  <code>BuilderFinish</code>.</li>
+<li>Expand numerical conformance IDs and the initial feature registry to the full
+  language surface, complete JSON diagnostic fields, and cross-target
+  capability reporting.</li>
+<li>Complete native backend parity, FFI capability checks, law coverage, and
+  downstream application gates, then make the
+  planned single breaking cutover. See <a href="migration.html">Migration</a>.</li>
+</ul></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

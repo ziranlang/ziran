@@ -6,6 +6,10 @@ export default {
       url.hostname = 'ziran-lang.org';
       return Response.redirect(url.toString(), 301);
     }
+    // The single standard library page became one page per module.
+    if (url.pathname === '/std' || url.pathname === '/std.html') {
+      return Response.redirect(`${url.origin}/modules#std`, 301);
+    }
 
     const response = await env.ASSETS.fetch(request);
     const headers = new Headers(response.headers);

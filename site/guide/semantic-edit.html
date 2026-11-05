@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Checked source edits: the Ziran guide, rendered from docs/SEMANTIC_EDIT.md."><title>Checked source edits · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/semantic-edit"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Checked source edits</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/SEMANTIC_EDIT.md">docs/SEMANTIC_EDIT.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><span>One section</span></aside><div class="article-body">
+<section class="prose"><p><code>ziran edit --root DIR request.json</code> previews one canonical <code>.zi</code> document.
+<code>--apply</code> validates and replaces it; the default preview leaves it untouched.
+Both return schema-1 JSON containing <code>path</code>, <code>applied</code>, and canonical <code>source</code>.
+Errors use the current diagnostic schema with <code>--diagnostics=json</code>.</p>
+<pre><code class="language-json">{&quot;schema_version&quot;:1,&quot;path&quot;:&quot;main.zi&quot;,&quot;document_sha256&quot;:&quot;&lt;64 lowercase hex digits&gt;&quot;,
+ &quot;edits&quot;:[{&quot;start_byte&quot;:45,&quot;end_byte&quot;:47,&quot;original&quot;:&quot;41&quot;,&quot;replacement&quot;:&quot;42&quot;}]}
+</code></pre>
+<p>Offsets are zero-based, half-open UTF-8 byte positions in the original document,
+so separate edits do not need to account for each other's length changes. A
+span must contain the exact <code>original</code> and end on UTF-8 boundaries. The hash is
+SHA-256 of the entire original file, including its exact newlines. Requests are
+limited to 1 MiB, 256 edits and a 16 MiB document/candidate. Unknown fields,
+duplicate keys, non-integer offsets, unsupported versions, overlapping ranges,
+colliding insertions, no-op changes and whitespace-only token changes fail.</p>
+<p>Instead of offsets, an edit can supply a checked <code>semantic_id</code> from <code>ziran api</code>:</p>
+<pre><code class="language-json">{&quot;semantic_id&quot;:&quot;zi:&lt;64 hex digits&gt;&quot;,
+ &quot;original&quot;:&quot;Answer :: () -&gt; s32 { return 41 }&quot;,
+ &quot;replacement&quot;:&quot;Answer :: () -&gt; s32 { return 42 }&quot;}
+</code></pre>
+<p>This replaces one complete public function, type, constant or global declaration
+in the selected document. The checked signature, document hash and exact whole
+declaration preimage must all match. The lexer finds the declaration terminator;
+an API declaration anchor alone is not a body range. A trailing semicolon after
+a closing declaration brace is outside the replacement. Semicolon-free scalar
+declarations without an unambiguous terminator, private/generated declarations,
+rewritten raw-string coordinates and ambiguous IDs are explicitly rejected.
+Use a verified span for cases with no available declaration range. Span edits
+can repair an initially invalid program; semantic edits require its initial
+checked graph.</p>
+<p>Validation uses an immutable in-memory source overlay and the ordinary module
+loader, canonical checker and law gates. It validates both the edited input and the formatter's output.
+Other files are read in place. Source paths are relative to the selected root;
+absolute paths, dot/traversal components and symlinks are rejected. Imports may
+read within the root, the toolchain standard library, or up to 32 explicit
+<code>--module-path DIR</code> / <code>--module-path NAME=DIR</code> search roots. Project package
+maps remain authoritative for name resolution; pass their external dependency
+roots explicitly to authorize those source reads. Up to 32 <code>--define NAME</code> flags
+select the same source conditions during validation; use the flags that produced
+the API identity. Root-escaping file
+imports, parse/type/name collisions and stale hashes fail before replacement.</p>
+<p>Application writes a private sibling file, syncs it, preserves the original
+mode, rechecks the original inode/mode/bytes and atomically renames the complete
+result. Write, sync, close, validation or rename failure removes the sibling
+and leaves the original intact. Preview creates no source file. This is a
+single-document transaction, not a multi-file transaction or an atomic compare
+and swap against unrelated concurrent writers. Coordinate writers externally
+when an absolute cross-process compare-and-swap guarantee is required.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

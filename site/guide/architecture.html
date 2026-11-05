@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran architecture: the Ziran guide, rendered from docs/ARCHITECTURE.md."><title>Ziran architecture · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/architecture"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran architecture</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ARCHITECTURE.md">docs/ARCHITECTURE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#repository-ownership">Repository ownership</a><a href="#language-boundary">Language boundary</a><a href="#compilation-and-execution">Compilation and execution</a><a href="#product-boundary">Product boundary</a></aside><div class="article-body">
+<section class="prose"><p>This is the agreed target architecture for the Ziran and Kryon repositories.
+It is not a claim that every part is implemented. Current gaps are tracked in
+<a href="implementation-status.html">Implementation status</a>.</p>
+<h2 id="repository-ownership">Repository ownership</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Repository</th>
+<th>Owns</th>
+<th>Must not own</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Ziran</td>
+<td>Language semantics, parser, checker, laws, standard library, <code>.zir</code>, native backends, <code>.zx</code> linker, verifier, loader, and generic execution runtime</td>
+<td>Widgets, UI trees, styling, DOM policy, renderers, Kryon-specific names or implicit UI startup</td>
+</tr>
+<tr>
+<td>Kryon</td>
+<td>Importable <code>.zi</code> modules for widgets, layout, themes, interaction, accessibility, rendering, and platform adapters</td>
+<td>Ziran syntax, compiler branches for widgets, or an application's terminal or product UI</td>
+</tr>
+</tbody>
+</table></div>
+<p>The dependency direction is <strong>Kryon → Ziran</strong>. A CLI, service, or library can
+use Ziran without Kryon. Importing Kryon is an explicit source dependency.
+Kryon's maintained implementation, including its widget and runtime logic, is
+100% Ziran source. A platform adapter may call operating-system or third-party
+APIs through declared FFI or host capabilities; those external libraries are
+dependencies, not a second copy of Kryon's implementation. Generated C or Go
+is compiler output, not Kryon source.</p>
+<h2 id="language-boundary">Language boundary</h2>
+<p>Modules, records, functions, imports, and procedure values are general
+language features. Calls resolve against visible function signatures and
+record types. Their semantics do not depend on the callee's spelling.
+<code>Button</code>, <code>Text</code>, and <code>Image</code> mean nothing until imported or declared.
+Kryon's intended <code>Image(ImageProps)</code> surface is an ordinary library API,
+including when used for semantic images; its full rendering implementation
+is still being migrated. A record argument uses <code>Function(Props.{value = 42})</code>;
+<code>result: Result = Function(Props.{value = 42})</code> binds a non-void return value.</p>
+<p>Ziran has no <code>#ui</code> function modifier, app/route syntax, widget fallback,
+<code>#style</code> directive, DOM fields in its IR, or renderer-specific type checks.
+Kryon defines its own composition, styling, navigation, and lifecycle APIs in
+<code>.zi</code>. If a general language feature is needed for those APIs, it must work
+for unrelated libraries too and pass the same checker and backend tests.</p>
+<p>Language laws constrain semantics, types, evaluation order, IR validity, and
+backend equivalence. Kryon owns its UI behavior and rendering laws.
+<a href="language-direction.html">Language direction</a> sets the additional requirements
+for law-driven development, LLM tooling, parallel execution, and evolution.</p>
+<h2 id="compilation-and-execution">Compilation and execution</h2>
+<pre><code class="language-text">.zi modules ──parse/check──&gt; .zir modules
+.zir modules ──native backend──&gt; C or native Go output
+.zir modules ──link/verify──&gt; .zx ──portable runtime + host capabilities──&gt; process
+</code></pre>
+<p>Inside the compiler, names in that model are interned: an expression's or
+statement's name and type, and a function's parameter list, are shared
+immutable strings (<code>KeepName</code>, <code>KeepParameters</code>), so equal spellings within a
+compilation context are one pointer. Parameter lists are split once into names and types
+(<code>ParametersOf</code>). Type and procedure resolution keep entry-scope answers,
+including misses and ambiguity, until declarations or imports change
+(<code>SymbolLookupsChanged</code>). Lookup file spellings remain part of each key;
+recursive import walks retain separate cycle state. <code>make sanitize</code> checks
+each kept answer against a fresh lookup.</p>
+<p>Record bodies share immutable parsed field snapshots. Field lookup uses an
+index over that snapshot, and ownership checking can reuse the fact that every
+field is a built-in value or pointer. This shortcut never assumes facts about
+named types, arrays, or generic applications: those still resolve in their
+owning scope. Rewriting a body selects a new snapshot, so copied or relocated
+record declarations cannot retain stale field names or ownership facts.</p>
+<p>Every backend consumes the same checked <code>.zir</code> model. Native output may bind
+declared platform libraries. <code>.zx</code> contains portable executable content and
+cannot depend on arbitrary target-specific C or Go source fragments.
+Native and portable builds of the same supported program must agree on
+observable language behavior.</p>
+<p>Semantic checking sets <code>ZirFunction.checked</code> only from language validity.
+Native symbol planning runs afterward, and body eligibility is a separate
+emitter query. An emitter's inability to represent a valid function does not
+turn that function into unchecked source. The portable verifier remains the
+authority for executable <code>.zx</code> support.</p>
+<p>Parameter declarations have one immutable parsed view, including binding
+names, types, namespace modifiers, and defaults. Record fields likewise use
+the shared field snapshots. Backends consume these views; source spellings
+remain available for diagnostics, template rewriting, and serialization.</p>
+<p>Compilation contexts own interned text, source paths, symbol answers,
+declaration snapshots, expression caches, and reusable scratch buffers.
+Source and artifact readers create a context when the caller has not selected
+one. Programs and linked copies retain the contexts whose bytes they borrow;
+closing the original program therefore cannot invalidate a linked copy.
+Source spans keep their original context independently of the module's lookup
+context. Context pointers and cache identities are never serialized.</p>
+<p>Public source parsing is a recoverable operation. Syntax and source-read
+errors return <code>NULL</code> after reporting the ordinary structured diagnostic.
+An operation-local allocation transaction releases partial trees, temporary
+buffers, and open streams after an error, and restores the enclosing parser
+state. Transactions nest across import callbacks and are local to each thread.
+Published immutable caches remain owned by their context. See
+<a href="compiler-api.html">Compiler embedding</a> for lifetime and concurrency rules.</p>
+<p>The linker resolves explicit imports, includes the reachable library code,
+and reports unresolved symbols or unavailable capabilities. A program with no
+Kryon import has no Kryon code or graphics requirement. A program importing
+Kryon links the Kryon modules it uses; graphics, input, audio, filesystem, and
+other host access must be declared as capabilities when needed. The host
+supplies those capabilities. A missing required capability is a reported
+error, never silently ignored.</p>
+<p>The portable runtime launches a non-graphical <code>.zx</code> without initializing a
+window or display. Kryon decides how to use the host's graphical capabilities
+through its imported <code>.zi</code> implementation. The compiler and loader do not
+inspect widget names to make that decision.</p>
+<h2 id="product-boundary">Product boundary</h2>
+<p>Kryon is a reusable library. Applications keep their own product logic and
+UI in their repositories and import Kryon. Kapsule's terminal emulator, for
+example, belongs to Kapsule; Kryon only gains small reusable primitives when
+multiple applications need them. See <a href="migration.html">Migration</a> for the single
+breaking cutover and verification gates.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="API reference for the Ziran std/net_http_curl_linux module."><title>std/net_http_curl_linux · Ziran</title><link rel="canonical" href="https://ziran-lang.org/std/net_http_curl_linux"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#std">Modules</a> / Standard library</p><h1>std/net_http_curl_linux</h1><p class="module-meta"><span class="status-badge is-stable">Stable</span> <span class="module-target">Needs: Native Linux.</span> Shipped in release <a href="https://github.com/ziranlang/ziran/releases/tag/v0.3.1">v0.3.1</a>.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Declarations</strong><a href="#CurlInitRoutine">CurlInitRoutine</a><a href="#CurlUrl">CurlUrl</a><a href="#CurlMethod">CurlMethod</a><a href="#CurlWriteData">CurlWriteData</a><a href="#CurlWriteFunction">CurlWriteFunction</a><a href="#CurlHeaders">CurlHeaders</a><a href="#CurlAcceptEncoding">CurlAcceptEncoding</a><a href="#CurlPostFields">CurlPostFields</a><a href="#CurlPostSize">CurlPostSize</a><a href="#CurlTimeoutMs">CurlTimeoutMs</a><a href="#CurlConnectTimeoutMs">CurlConnectTimeoutMs</a><a href="#CurlNoSignal">CurlNoSignal</a><a href="#CurlNoBody">CurlNoBody</a><a href="#CurlProxy">CurlProxy</a><a href="#CurlFollowLocation">CurlFollowLocation</a><a href="#CurlResponseCode">CurlResponseCode</a><a href="#CurlMaxConnects">CurlMaxConnects</a><a href="#CurlPoolSlot">CurlPoolSlot</a><a href="#CurlLease">CurlLease</a><a href="#curl_pool">curl_pool</a><a href="#curl_once">curl_once</a><a href="#curl_init_result">curl_init_result</a><a href="#curl_pool_lock">curl_pool_lock</a><a href="#LockCurlPool">LockCurlPool</a><a href="#UnlockCurlPool">UnlockCurlPool</a><a href="#InitCurl">InitCurl</a><a href="#CurlReady">CurlReady</a><a href="#CurlOrigin">CurlOrigin</a><a href="#AcquireCurl">AcquireCurl</a><a href="#ReleaseCurl">ReleaseCurl</a><a href="#CloseCurlConnections">CloseCurlConnections</a><a href="#StartsWith">StartsWith</a><a href="#MethodToken">MethodToken</a><a href="#HeaderName">HeaderName</a><a href="#CurlResult">CurlResult</a><a href="#CurlOutput">CurlOutput</a><a href="#CurlWriteCallback64">CurlWriteCallback64</a><a href="#CurlWriteCallback32">CurlWriteCallback32</a><a href="#AppendCurlOutput">AppendCurlOutput</a><a href="#CurlWrite64">CurlWrite64</a><a href="#CurlWrite32">CurlWrite32</a><a href="#SetCurlLong">SetCurlLong</a><a href="#ReadCurlStatus">ReadCurlStatus</a><a href="#HeaderText">HeaderText</a><a href="#AddCurlHeader">AddCurlHeader</a><a href="#AddNamedHeader">AddNamedHeader</a><a href="#SendCurl">SendCurl</a><a href="#SendCurlWithin">SendCurlWithin</a><a href="#SendCurlDirectWithin">SendCurlDirectWithin</a><a href="#SendCurlConfigured">SendCurlConfigured</a></aside><div class="article-body api-body">
+<section><p>Import with <code>#import "std/net_http_curl_linux"</code>.</p><div class="api-list">
+<div id="CurlInitRoutine"><code>CurlInitRoutine :: #type ()</code></div>
+<div id="CurlUrl"><code>CurlUrl :: 10002</code></div>
+<div id="CurlMethod"><code>CurlMethod :: 10036</code></div>
+<div id="CurlWriteData"><code>CurlWriteData :: 10001</code></div>
+<div id="CurlWriteFunction"><code>CurlWriteFunction :: 20011</code></div>
+<div id="CurlHeaders"><code>CurlHeaders :: 10023</code></div>
+<div id="CurlAcceptEncoding"><code>CurlAcceptEncoding :: 10102</code></div>
+<div id="CurlPostFields"><code>CurlPostFields :: 10015</code></div>
+<div id="CurlPostSize"><code>CurlPostSize :: 30120</code></div>
+<div id="CurlTimeoutMs"><code>CurlTimeoutMs :: 155</code></div>
+<div id="CurlConnectTimeoutMs"><code>CurlConnectTimeoutMs :: 156</code></div>
+<div id="CurlNoSignal"><code>CurlNoSignal :: 99</code></div>
+<div id="CurlNoBody"><code>CurlNoBody :: 44</code></div>
+<div id="CurlProxy"><code>CurlProxy :: 10004</code></div>
+<div id="CurlFollowLocation"><code>CurlFollowLocation :: 52</code></div>
+<div id="CurlResponseCode"><code>CurlResponseCode :: 2097154</code></div>
+<div id="CurlMaxConnects"><code>CurlMaxConnects :: 71</code></div>
+<div id="CurlPoolSlot"><code>CurlPoolSlot :: struct { handle: *void; origin: [512]u8; direct: bool; busy: bool; }</code></div>
+<div id="CurlLease"><code>CurlLease :: struct { handle: *void; slot: s32; }</code></div>
+<div id="curl_pool"><code>curl_pool: [4]CurlPoolSlot</code></div>
+<div id="curl_once"><code>curl_once: s32</code></div>
+<div id="curl_init_result"><code>curl_init_result: s32</code></div>
+<div id="curl_pool_lock"><code>curl_pool_lock: [8]u64</code></div>
+<div id="LockCurlPool"><code>LockCurlPool :: ()</code></div>
+<div id="UnlockCurlPool"><code>UnlockCurlPool :: ()</code></div>
+<div id="InitCurl"><code>InitCurl :: ()</code></div>
+<div id="CurlReady"><code>CurlReady :: () -&gt; bool</code></div>
+<div id="CurlOrigin"><code>CurlOrigin :: (url: string) -&gt; string</code><p>Credentials in URL authorities retain a private handle. Normal bearer requests pool by origin and proxy policy, with every option reset afterward.</p></div>
+<div id="AcquireCurl"><code>AcquireCurl :: (url: string, direct: bool) -&gt; CurlLease</code></div>
+<div id="ReleaseCurl"><code>ReleaseCurl :: (lease: CurlLease)</code></div>
+<div id="CloseCurlConnections"><code>CloseCurlConnections :: ()</code></div>
+<div id="StartsWith"><code>StartsWith :: (value: string, prefix: string) -&gt; bool</code></div>
+<div id="MethodToken"><code>MethodToken :: (value: string) -&gt; bool</code></div>
+<div id="HeaderName"><code>HeaderName :: (value: string) -&gt; bool</code></div>
+<div id="CurlResult"><code>CurlResult :: struct { status: s32; length: s64; code: s32; truncated: bool; }</code></div>
+<div id="CurlOutput"><code>CurlOutput :: struct { data: *u8; capacity: s64; length: s64; truncated: bool; }</code></div>
+<div id="CurlWriteCallback64"><code>CurlWriteCallback64 :: #type (data: *u8, size: u64, count: u64, user: *void) -&gt; u64</code></div>
+<div id="CurlWriteCallback32"><code>CurlWriteCallback32 :: #type (data: *u8, size: u32, count: u32, user: *void) -&gt; u32</code></div>
+<div id="AppendCurlOutput"><code>AppendCurlOutput :: (data: *u8, size: u64, count: u64, context: *CurlOutput) -&gt; u64</code></div>
+<div id="CurlWrite64"><code>CurlWrite64 :: (data: *u8, size: u64, count: u64, user: *void) -&gt; u64</code></div>
+<div id="CurlWrite32"><code>CurlWrite32 :: (data: *u8, size: u32, count: u32, user: *void) -&gt; u32</code></div>
+<div id="SetCurlLong"><code>SetCurlLong :: (handle: *void, option: s32, value: s32) -&gt; bool</code></div>
+<div id="ReadCurlStatus"><code>ReadCurlStatus :: (handle: *void) -&gt; s32</code></div>
+<div id="HeaderText"><code>HeaderText :: (prefix: string, value: string, output: []u8) -&gt; bool</code></div>
+<div id="AddCurlHeader"><code>AddCurlHeader :: (headers: **void, prefix: string, value: string, buffer: []u8) -&gt; bool</code></div>
+<div id="AddNamedHeader"><code>AddNamedHeader :: (headers: **void, name: string, value: string, buffer: []u8) -&gt; bool</code></div>
+<div id="SendCurl"><code>SendCurl :: (request: HttpRequest, output: []u8) -&gt; CurlResult</code><p>The caller owns output. It remains NUL terminated, including on failure. HTTP errors retain their status and body for protocol-level decisions.</p></div>
+<div id="SendCurlWithin"><code>SendCurlWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -&gt; CurlResult</code><p>The same request with its own total timeout, for slow services such as model generation. Connecting still has 10 seconds.</p></div>
+<div id="SendCurlDirectWithin"><code>SendCurlDirectWithin :: (request: HttpRequest, output: []u8, timeout_ms: s32) -&gt; CurlResult</code><p>Bypass inherited proxy settings and never follow redirects. Callers still own URL authorization; this is useful for private local service transports.</p></div>
+<div id="SendCurlConfigured"><code>SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, direct: bool) -&gt; CurlResult</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/ziran/blob/master/std/net_http_curl_linux.zi">Source ↗</a> · <a class="text-link" href="../modules.html#std">All modules</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

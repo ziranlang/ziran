@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Portable Ziran byte-level BPE for CLIP&#x27;s 77-token text input."><title>CLIP tokenizer · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/clip-tokenizer"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>CLIP tokenizer</h1><p>Portable Ziran byte-level BPE for CLIP's 77-token text input. It uses canonical Unicode 17 NFC/lowercase and exact L/N/WhiteSpace properties from std/unicode. There is no Python runtime, host regex, filesystem assumption, network access, platform Unicode library or process-global model cache.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/clip-tokenizer">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-Tokenizer">Tokenizer</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.clip_tokenizer]
+git = "https://github.com/ziranlang/clip-tokenizer.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-zi">T :: #import &quot;clip_tokenizer/Tokenizer&quot;;
+model: T.Model
+defer { T.Close(*model) }
+if !T.LoadJSON(*model, tokenizer_json) { /* invalid/unsupported model */ }
+ids: [77]s64
+if !T.Encode77(*model, &quot;a photo of a cat&quot;, ids[:]) { /* invalid input */ }
+</code></pre>
+<p><code>LoadJSON(model, text) -&gt; bool</code> copies its source and builds owned vocabulary
+and merge caches once. The caller can release <code>text</code> immediately. The exact
+pipeline is checked: NFC, Unicode-whitespace collapse, lowercase; CLIP's
+inverted Split pattern followed by ByteLevel; BPE with <code>&lt;/w&gt;</code>; normalized BOS
+and non-normalized EOS added tokens; RobertaProcessing. Unsupported pipelines,
+missing byte alphabet, duplicate vocabulary IDs/keys or merge pairs, missing
+merge results and dependencies on later-ranked merges fail closed. Vocabulary
+IDs must be dense. Merge ranking is integer order in the supplied array.
+Padding/truncation settings in the JSON are overridden by the explicit
+<code>Encode77</code> contract. Model IDs are read from the vocabulary/postprocessor,
+rather than assuming the public model's 49406/49407 IDs.</p>
+<p><code>Close</code> releases every model allocation and is idempotent. Reload first closes
+the old model; failure leaves it closed and reusable. Do not copy a <code>Model</code>,
+mutate its fields or reload/close while another call uses it. All source bytes
+and derived tables have stable owned storage until <code>Close</code>. Independent
+<code>Encode77</code> calls can share a loaded model with separate output slices.</p>
+<p><code>Encode77(model, text, output: []s64) -&gt; bool</code> requires exactly 77 caller-owned
+signed 64-bit elements. It emits BOS, at most 75 body IDs, EOS, then EOS padding.
+It handles added special tokens before/after normalization according to their
+flags; an uppercase EOS spelling is ordinary text, while uppercase BOS is a
+normalized special token. It neither trims Python whitespace nor rejects NUL
+or empty strings. Those are application policies. On any failure, all supplied
+output elements are zeroed, including when its length is wrong. No returned
+view or per-call allocation escapes the call.</p>
+<p>HF's lowercase normalizer maps each Unicode scalar independently. The package
+therefore applies the reusable standard lowercase API to each scalar: Greek
+<code>ΟΣ</code> becomes <code>οσ</code>, as the independent HF oracle requires. Whole-string
+<code>std/unicode.LowerInto</code> retains its contextual final-sigma behavior (<code>ος</code>).</p>
+<p>The bounded API rejects malformed UTF-8, over 4096 original input bytes,
+models over 8 MiB, over 65,536 tokens, over 100,000 merges, token spellings over
+4096 bytes, JSON nesting over 32, or over 400,000 structural JSON items. Model
+parsing and all vector growth are fallible. A conservative normalization bound
+uses Unicode17's maximum four canonical-decomposition scalars, three lowercase
+scalars and four UTF-8 bytes per scalar. Generic std Unicode APIs have no such
+application-specific ceiling. BPE processes bounded byte pieces using ranked
+adjacent pairs, then stops generating body IDs after truncation.</p>
+<p>Photos applies its existing adapter rules <strong>before</strong> calling this package:
+reject over 512 original UTF-8 bytes, NUL, malformed UTF-8 or a Python-whitespace
+blank query, then trim Python <code>str.strip</code> whitespace (<code>IsSpace</code>, including
+U+001C..U+001F). Internal controls are ordinary tokenizer bytes; HF's regex
+whitespace uses <code>IsWhiteSpace</code> instead. The Photos integration unit compares
+this boundary against the actual pinned public tokenizer.</p>
+<p>Run local tests from this canonical package, using the current canonical
+toolchain (no dependency checkout/fetch):</p>
+<pre><code class="language-sh">build-queue -- make check
+</code></pre>
+<p>The tiny public synthetic model and frozen goldens are independently encoded
+by HuggingFace <code>tokenizers</code> 0.23.2. Source and saved IR run on C, Go and both VM
+runners. Cases cover canonical accents, sigma contexts, Unicode scripts,
+emoji/joiners, whitespace/numbers, contractions, special-token flags, ranking,
+padding/truncation, invalid input/model handling and repeated reuse/close.
+The native allocator harness additionally proves zero retained per-call bytes
+after 2000 encodes and 50 reloads, and injects failure at every allocation of
+both encode and tiny-model load. Every failure clears outputs/model state and
+releases partial storage; successful subsequent operations remain usable.</p>
+<p><code>tests/oracle.py</code> is test-only fixture generation, using the existing Photos
+test venv and cached pinned tokenizer. It neither implements the algorithm nor
+belongs to the package runtime. Regenerate explicitly with:</p>
+<pre><code class="language-sh">/mnt/storage/Projects/waozixyz/photos/build/venv/bin/python tests/oracle.py \
+  /mnt/storage/Projects/waozixyz/photos/build/models/tokenizer.json \
+  --photos-output /mnt/storage/Projects/waozixyz/photos/tests/fixtures/golden/clip-tokenizer.json
+</code></pre>
+<p>Code is BSD-3-Clause, matching Ziran. The tiny model is synthetic. Actual model
+weights/vocabulary are not redistributed here; Photos preserves the upstream
+CLIP license with its existing model cache. Unicode tables live in canonical
+Ziran under its retained Unicode License V3.</p></section>
+<section id="module-Tokenizer"><p class="eyebrow">clip-tokenizer/src/tokenizer.zi</p><h2>Tokenizer</h2><p>Portable CLIP byte-level BPE. All model storage belongs to Model; no I/O, host regex, locale, Python runtime or hidden process-global cache.</p><p>Import with <code>#import "clip_tokenizer/Tokenizer"</code>.</p><div class="api-list">
+<div><code>SequenceLength :: 77</code><p>Resource ceiling for this bounded tokenizer API, independent of applications'</p></div>
+<div><code>MaxInputBytes :: 4096</code><p>Resource ceiling for this bounded tokenizer API, independent of applications' own query validation (Photos, for example, accepts 512 original bytes).</p></div>
+<div><code>MaxModelBytes :: 8388608</code></div>
+<div><code>MaxVocabulary :: 65536</code></div>
+<div><code>MaxMerges :: 100000</code><p>Unicode17 canonical recursive decomposition has at most four scalars;</p></div>
+<div><code>MaxNormalizedBytes :: MaxInputBytes * 4 * 3 * 4</code><p>Unicode17 canonical recursive decomposition has at most four scalars; lowercase at most three, each encoded in at most four UTF-8 bytes.</p></div>
+<div><code>Token :: struct { offset: s64; length: s64; }</code></div>
+<div><code>Merge :: struct { left: s32; right: s32; result: s32; }</code></div>
+<div><code>Model :: struct { source: Vec(u8); bytes: Vec(u8); tokens: Vec(Token); token_slots: Vec(s32); merges: Vec(Merge); merge_slots: Vec(s32); initial: [256]s32; final: [256]s32; bos: s32; eos: s32; ready: bool; }</code></div>
+<div><code>Close :: (model: *Model)</code><p>Invalidates all model state and releases every owned allocation. Idempotent. Do not copy Model or close/reload it concurrently with Encode77.</p></div>
+<div><code>LoadJSON :: (model: *Model, text: string) -&gt; bool</code><p>Validate/copy once. Source can be discarded immediately after return. This replaces any prior model; failure leaves a closed, reusable empty Model. Only the documented CLIP pipeline is accepted, never silently approximated.</p></div>
+<div><code>Encode77 :: (model: *Model, text: string, output: []s64) -&gt; bool</code><p>Exactly 77 caller-owned signed 64-bit IDs, BOS + up to 75 body + EOS, padded with EOS. HF semantics include empty/whitespace input and embedded NUL. Reject malformed UTF-8 or &gt;MaxInputBytes original bytes. Application-specific blank/NUL/length/strip rules belong to its adapter before this call. No mutation of Model; reusable/concurrent reads with separate outputs work. On failure every supplied output element is zeroed, including wrong lengths.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/clip-tokenizer/blob/HEAD/src/tokenizer.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

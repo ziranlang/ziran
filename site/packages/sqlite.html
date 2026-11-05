@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="The SQLite C library for Ziran programs, as a package."><title>SQLite · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/sqlite"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>SQLite</h1><p>The SQLite C library for Ziran programs, as a package.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/sqlite">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-SQLite">SQLite</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.sqlite]
+git = "https://github.com/ziranlang/sqlite.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-sh">ziran add https://github.com/ziranlang/sqlite.git
+</code></pre>
+<pre><code class="language-zi">#import &quot;sqlite/SQLite&quot;
+
+database: *void = null
+flags: s32 = SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE
+if SqliteOpenText(&quot;:memory:&quot;, *database, flags) == SQLITE_OK {
+    SqliteExecText(database, &quot;create table if not exists votes (voter text, score integer)&quot;)
+    SqliteClose(database)
+}
+</code></pre>
+<p>The functions keep SQLite's names and return codes (<code>SqlitePrepare</code>,
+<code>SqliteStep</code>, <code>SqliteColumnText</code>, <code>SqliteBindInt64</code>, …). The <code>*Text</code> and
+<code>*String</code> variants take Ziran strings and copy them to the NUL-terminated
+text SQLite expects, so a temporary string is safe to pass.</p>
+<p>The module provides connections, prepared statements, text and binary
+bindings, integer and floating-point values, NULLs, error reporting, busy
+timeouts, change counts and database backup. <code>SqliteOpenText</code> opens a path
+from a Ziran string; <code>SqliteBindBlob</code> copies bytes including embedded NULs,
+and an empty slice binds an empty BLOB. Column pointers and error messages
+are borrowed from SQLite; consume or copy them before their owner changes.</p>
+<p><code>SqliteGetAutocommit(database)</code> reports whether the live connection has no
+active transaction, following SQLite's <code>sqlite3_get_autocommit</code>. It returns
+false for a null handle. Keep the connection alive while calling it.</p>
+<p><code>SqliteCreateFunction</code> binds <code>sqlite3_create_function_v2</code> directly. Its
+<code>SqliteScalar</code> and <code>SqliteDestructor</code> types use <code>#c_call</code>; callback programs
+require the native C backend. The common connection and statement APIs still
+support C and Go. Pass a NUL-terminated function name and SQLite's documented
+argument count and encoding flags; use null step/final callbacks for a scalar.
+No validation or early return in the binding changes SQLite's destructor rules.</p>
+<p>The data pointer remains the caller's responsibility until SQLite calls its
+destructor. SQLite calls that destructor on replacement, deletion, connection
+close, and registration failure, including a name longer than 255 UTF-8 bytes.
+Do not free the same data again after an error. <code>SqliteUserData</code> returns this
+pointer inside the registered callback; each connection has its own
+registration. See the <a href="https://www.sqlite.org/c3ref/create_function.html">function registration contract</a>
+and <a href="https://www.sqlite.org/c3ref/user_data.html">user data contract</a>.</p>
+<p><code>SqliteValueType</code>, <code>SqliteValueBytes</code> and <code>SqliteValueBlob</code> inspect callback
+arguments; blob bytes are borrowed and may be null for empty values. Inspect
+the type before conversions and consume bytes within the callback, following
+SQLite's <a href="https://www.sqlite.org/c3ref/value_blob.html">value lifetime rules</a>.
+<code>SqliteResultDouble</code> sets the callback result. Keep callback context, argument
+pointers and returned user data within their documented lifetimes; a callback
+must not close its active database or reset/finalize its active statement.</p>
+<p>The complete official SQLite source is a Git source dependency pinned to
+an exact upstream commit in <code>ziran.lock</code>. <code>ziran fetch --locked</code> retrieves
+it and <code>ziran pkg path sqlite3</code> locates it. A submodule is unnecessary:
+Ziran's lockfile records and fetches the original source itself.</p>
+<p>On Linux, <code>make native</code> generates the upstream amalgamation out of tree
+and builds <code>build/native/libsqlite3.a</code> and <code>libsqlite3.so</code>, without an
+installed system SQLite. Link with <code>LDFLAGS=-L/path/to/build/native</code> and
+<code>LDLIBS='-lsqlite3 -lm -ldl -pthread'</code>. C and C++ use its C ABI, Go uses
+cgo (<code>CGO_ENABLED=1</code>), Rust carries the flags in its Cargo project, and
+Python uses ctypes with the shared library. Add <code>build/native</code> to
+<code>LD_LIBRARY_PATH</code> when running linked programs. These bindings all use
+the same SQLite engine and database format. The portable <code>.zib</code> VM cannot
+call arbitrary native libraries.</p>
+<h2 id="test">Test</h2>
+<pre><code class="language-sh">make check             # available backends, source and saved IR; native C callbacks
+make check TARGET=go   # one backend
+</code></pre>
+<p>The current toolchain check needs a C compiler, Python and Go. Older toolchains
+also provide C++, Rust and Python backends and require their build tools. It tests
+Unicode text, statement reuse, large integers, binary data, empty BLOBs,
+floating-point values, NULLs, invalid SQL and database backup. This is a
+binding for the documented API above, rather than every SQLite extension.
+A separate C source/saved callback suite exercises value types, binary bytes,
+connection-local data, replacement, deletion, close and real failed-registration
+destructor calls, without requiring callback support from Go.</p></section>
+<section id="module-SQLite"><p class="eyebrow">sqlite/src/SQLite.zi</p><h2>SQLite</h2><p>The SQLite C library for Ziran programs. Databases and statements are opaque handles owned by SQLite. The functions follow SQLite's own names and return codes; the *Text variants take Ziran strings and copy them to the NUL-terminated text SQLite expects. Programs link libsqlite3, or compile SQLite's amalgamation into their own build.</p><p>Import with <code>#import "sqlite/SQLite"</code>.</p><div class="api-list">
+<div><code>SQLITE_OK :: 0</code></div>
+<div><code>SQLITE_ROW :: 100</code></div>
+<div><code>SQLITE_DONE :: 101</code></div>
+<div><code>SQLITE_BUSY :: 5</code></div>
+<div><code>SQLITE_TRANSIENT :: -1</code></div>
+<div><code>SQLITE_LOCKED :: 6</code></div>
+<div><code>SQLITE_NOMEM :: 7</code></div>
+<div><code>SQLITE_TOOBIG :: 18</code></div>
+<div><code>SQLITE_MISUSE :: 21</code></div>
+<div><code>SQLITE_OPEN_READWRITE :: 0x2</code></div>
+<div><code>SQLITE_OPEN_CREATE :: 0x4</code></div>
+<div><code>SQLITE_OPEN_FULLMUTEX :: 0x10000</code></div>
+<div><code>SQLITE_INTEGER :: 1</code></div>
+<div><code>SQLITE_FLOAT :: 2</code></div>
+<div><code>SQLITE_TEXT :: 3</code></div>
+<div><code>SQLITE_BLOB :: 4</code></div>
+<div><code>SQLITE_NULL :: 5</code></div>
+<div><code>SqliteScalar :: #type (context: *void, argc: s32, argv: **void)</code><p>C callbacks. The caller keeps data alive until SQLite invokes destroy.</p></div>
+<div><code>SqliteDestructor :: #type (data: *void)</code></div>
+<div><code>SqlitePrepare :: (db: *void, sql: *u8, length: s32, statement: **void, tail: **u8) -&gt; s32</code></div>
+<div><code>SqlitePrepareText :: (db: *void, sql: string, length: s32, statement: **void, tail: **u8) -&gt; s32</code></div>
+<div><code>SqliteBindTextString :: (statement: *void, index: s32, value: string, length: s32) -&gt; s32</code></div>
+<div><code>SqliteStep :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteFinalize :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteColumnText :: (statement: *void, column: s32) -&gt; *u8</code></div>
+<div><code>SqliteColumnInt64 :: (statement: *void, column: s32) -&gt; s64</code></div>
+<div><code>SqliteBindText :: (statement: *void, index: s32, value: *u8, length: s32, destructor: *void) -&gt; s32</code></div>
+<div><code>SqliteBindInt64 :: (statement: *void, index: s32, value: s64) -&gt; s32</code></div>
+<div><code>SqliteBindInt :: (statement: *void, index: s32, value: s32) -&gt; s32</code></div>
+<div><code>SqliteColumnInt :: (statement: *void, column: s32) -&gt; s32</code></div>
+<div><code>SqliteReset :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteClearBindings :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteOpen :: (path: *u8, database: **void, flags: s32) -&gt; s32</code></div>
+<div><code>SqliteOpenText :: (path: string, database: **void, flags: s32) -&gt; s32</code></div>
+<div><code>SqliteClose :: (database: *void) -&gt; s32</code></div>
+<div><code>SqliteGetAutocommit :: (database: *void) -&gt; bool</code><p>True when this connection has no active transaction. A null handle is false. As with SQLite itself, the caller must keep the connection alive for the call.</p></div>
+<div><code>SqliteBackupInit :: (destination: *void, source: *void) -&gt; *void</code></div>
+<div><code>SqliteBackupStep :: (backup: *void, pages: s32) -&gt; s32</code></div>
+<div><code>SqliteBackupFinish :: (backup: *void) -&gt; s32</code></div>
+<div><code>SqliteLastInsertRowid :: (database: *void) -&gt; s64</code><p>The rowid of the last row inserted through this connection.</p></div>
+<div><code>SqliteExec :: (database: *void, sql: *u8) -&gt; s32</code></div>
+<div><code>SqliteExecText :: (database: *void, sql: string) -&gt; s32</code></div>
+<div><code>SqliteVersionNumber :: () -&gt; s32</code></div>
+<div><code>SqliteErrorCode :: (database: *void) -&gt; s32</code></div>
+<div><code>SqliteErrorMessage :: (database: *void) -&gt; *u8</code><p>The message is borrowed until another operation changes the connection.</p></div>
+<div><code>SqliteBusyTimeout :: (database: *void, milliseconds: s32) -&gt; s32</code></div>
+<div><code>SqliteChanges :: (database: *void) -&gt; s32</code></div>
+<div><code>SqliteBindNull :: (statement: *void, index: s32) -&gt; s32</code></div>
+<div><code>SqliteBindDouble :: (statement: *void, index: s32, value: float64) -&gt; s32</code></div>
+<div><code>SqliteBindBlob :: (statement: *void, index: s32, value: []u8) -&gt; s32</code><p>Copies binary bytes, including embedded NULs. Empty bytes are an empty BLOB.</p></div>
+<div><code>SqliteColumnBlob :: (statement: *void, column: s32) -&gt; *u8</code><p>Column bytes are borrowed until Step, Reset or Finalize changes the statement.</p></div>
+<div><code>SqliteColumnBytes :: (statement: *void, column: s32) -&gt; s32</code></div>
+<div><code>SqliteColumnDouble :: (statement: *void, column: s32) -&gt; float64</code></div>
+<div><code>SqliteColumnType :: (statement: *void, column: s32) -&gt; s32</code></div>
+<div><code>SqliteColumnCount :: (statement: *void) -&gt; s32</code></div>
+<div><code>SqliteCreateFunction :: (database: *void, name: *u8, argc: s32, flags: s32, data: *void, callback: SqliteScalar, step: *void, final: *void, destroy: SqliteDestructor) -&gt; s32</code><p>Direct SQLite lifetime: destroy also runs when registration fails.</p></div>
+<div><code>SqliteUserData :: (context: *void) -&gt; *void</code></div>
+<div><code>SqliteValueType :: (value: *void) -&gt; s32</code></div>
+<div><code>SqliteValueBytes :: (value: *void) -&gt; s32</code></div>
+<div><code>SqliteValueBlob :: (value: *void) -&gt; *void</code><p>Callback value bytes are borrowed; consume them before the callback returns.</p></div>
+<div><code>SqliteResultDouble :: (context: *void, value: float64)</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/sqlite/blob/HEAD/src/SQLite.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

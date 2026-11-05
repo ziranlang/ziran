@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler capability output: the Ziran guide, rendered from docs/CAPABILITIES.md."><title>Compiler capability output · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/capabilities"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler capability output</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/CAPABILITIES.md">docs/CAPABILITIES.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><span>One section</span></aside><div class="article-body">
+<section class="prose"><p><code>ziran capabilities --json</code> prints one JSON object describing the currently
+supported output targets and shared limits. Use <code>--target=c</code>, <code>go</code>,
+or <code>zx</code> to select one target. The command works without a project or network
+access, so an editor or coding agent can query the installed compiler before
+generating code. The <code>numeric_conformance</code> object is a stable-ID registry. Its <code>ids</code> cite the
+numerical cases proven by <a href="https://github.com/ziranlang/ziran/blob/master/tests/numeric_semantics.sh">numeric semantics</a>
+for C, Go, and <code>.zx</code>; they are described by <a href="https://github.com/ziranlang/ziran/blob/master/tests/numeric_conformance.json">numeric_conformance.json</a>.
+The <a href="https://github.com/ziranlang/ziran/blob/master/tests/numeric_width_matrix.sh">width matrix</a> adds 592 independently
+generated boundary conversions across all 64 integer type pairs, from source
+and saved IR on those three targets.
+<code>schema_version</code> starts at 1; consumers should reject schema
+versions they do not understand and ignore unknown fields within a version.</p>
+<p><code>tier</code> says how complete a target is. <code>primary</code> targets, C and the portable
+<code>.zx</code> runner, carry every language feature and gate every change. The
+downstream applications build through them. The <code>secondary</code> target, Go,
+may lag behind a new feature, but must reject a program it cannot
+run faithfully during checking or lowering, never emit code with a different
+meaning. New language work lands on the primary targets first.</p>
+<p><code>source_and_saved_ir</code> reports that the target accepts checked source and saved
+<code>.zir</code> inputs. <code>parallel_execution</code> is <code>threads</code> for C forward CPU regions
+and <code>serial</code> for Go and the portable VM.
+It does not promise a parallel result reduction. <code>gpu_execution</code> is <code>cpu_fallback</code> for every target: there is no
+device backend. <code>text_view_mutable_bytes</code> reports the current observable
+divergence when backing bytes are mutated after making a view: native C
+borrows those bytes, while Go and <code>.zx</code> copy them. Checking rejects mutation
+of local backing storage while a direct, field-held, aliased, or
+checked-call-produced view is live. Field-sensitive checks protect the
+borrowed field or array while allowing sibling record fields to change. Global
+views track their backing-global origins and alias chains, and views through
+local <code>*value</code> pointers protect their pointee and pointer aliases. Unknown
+local pointer views are rejected when their backing lifetime cannot be proved.
+Local copies of pointer parameters preserve their backing identity. Separate
+pointer or slice parameters of the same type are possible aliases. Checked
+calls include transitive parameter/global writes, and earlier text arguments
+stay live while later arguments and the procedure body execute. Unknown
+callbacks conservatively write reference arguments. Differently typed pointer
+aliases and arbitrary host-backed aliases still need further coverage; raw
+native FFI has no checked memory-effect contract.</p>
+<p><code>automatic_vec_drop</code> is <code>true</code> for every target: direct owned <code>Vec</code> locals
+and parameters are released at scope exit or return, as are vectors reachable
+through record fields and fixed arrays. Global storage remains shared and is
+not automatically released.
+<code>text_view_local_mutation_check</code> is <code>true</code> for every target: checking rejects
+mutation of local backing storage while a direct, field-held, aliased, or
+checked-call-produced <code>TextView</code> is live. Checks are field-sensitive, include
+global backing origins, local <code>*value</code> pointer aliases, and local copies of
+pointer parameters.
+<code>text_view_opaque_pointer_check</code> reports rejection of <code>TextView</code> through opaque
+local pointers with unproven backing lifetimes.
+<code>heap_allocation</code> reports zero-initialized <code>New(T)</code> and <code>free(pointer)</code>.
+C, Go, and the portable VM are checked from source and saved IR by
+<code>tests/heap_new.sh</code>.
+Native pointers retain their native lifetime rules; this flag does not promise
+automatic ownership or runtime checking of arbitrary pointer aliases.</p>
+<p><code>target_preflight</code> reports the common foreign identity/import, native callback
+ABI, and Go/portable scalar-union checks available through
+<code>ziran check --target=...</code> and builds. Go and <code>.zx</code> reject <code>#c_call</code>
+procedure types with a <code>procedures.c-call</code> capability diagnostic before
+native output is emitted. The target's lowerer and verifier still enforce
+its other limits.
+<code>aggregate_vec_transfer</code> is <code>true</code>: whole local aggregates, fresh aggregate
+call results, and vector-bearing record-literal fields can move through
+assignment, argument passing, and return, with native targets recursively
+clearing every moved vector field. <code>diagnostics_json</code> is <code>partial</code>: compiler
+tools, the package launcher, and formatter report ordinary argument, input,
+output, allocation, and native-tool failures as schema-versioned JSON, but
+arbitrary external package tools and fatal process signals can still produce
+unstructured output. These are current
+boundaries, not feature requests or guarantees about unlisted behavior. See
+<a href="implementation-status.html">implementation status</a> and the
+<a href="owned-values.html">owned-value contract</a> for detail.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

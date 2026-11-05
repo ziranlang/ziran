@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Laws and scalar proofs: the Ziran guide, rendered from docs/LAWS.md."><title>Laws and scalar proofs · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/laws"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Laws and scalar proofs</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/LAWS.md">docs/LAWS.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#write-an-obligation-and-certificate">Write an obligation and certificate</a><a href="#certificate-steps">Certificate steps</a><a href="#results-budgets-and-waivers">Results, budgets, and waivers</a><a href="#saved-artifacts-and-trust">Saved artifacts and trust</a></aside><div class="article-body">
+<section class="prose"><p><code>ziran check</code> checks every law reachable through the input modules. A failed
+law blocks native output and portable bundles. Pick the kind that states the
+guarantee you need:</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Kind</th>
+<th>Evidence</th>
+<th>Scope</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>type</code>, <code>bounds</code>, <code>size</code>, <code>effect</code>, <code>abi</code></td>
+<td><code>structural</code></td>
+<td>A compiler-derived property or supported ABI shape</td>
+</tr>
+<tr>
+<td><code>custom</code></td>
+<td><code>evaluation</code></td>
+<td>One closed expression</td>
+</tr>
+<tr>
+<td><code>forall</code></td>
+<td><code>exhaustive</code></td>
+<td>Every member of a declared finite domain</td>
+</tr>
+<tr>
+<td><code>theorem</code></td>
+<td><code>kernel</code></td>
+<td>Every value of the declared scalar parameter types</td>
+</tr>
+</tbody>
+</table></div>
+<p><code>proved</code> means that the selected checker established its obligation. The
+method and domain tell you how far that result extends. A finite test of
+<code>n: 0..4</code> says nothing about other values. An <code>abi</code> result checks a signature;
+it does not prove what a foreign procedure does.</p>
+<h2 id="write-an-obligation-and-certificate">Write an obligation and certificate</h2>
+<p>In <code>scalar.zi</code>:</p>
+<pre><code class="language-zi">Add :: (a: s32, b: s32) -&gt; s32 { return a + b }
+Larger :: (a: s32, b: s32) -&gt; s32 {
+    if a &gt; b { return a }
+    return b
+}
+</code></pre>
+<p>In <code>LAWS.zi</code>:</p>
+<pre><code class="language-zi">Code :: #import &quot;scalar&quot;;
+#law AddZero theorem x: s32 =&gt; Code.Add(x, 0) == x;
+#law MaximumCommutes theorem a: s32, b: s32 =&gt; Code.Larger(a, b) == Code.Larger(b, a);
+</code></pre>
+<p>In <code>PROOF.zi</code>:</p>
+<pre><code class="language-zi">Laws :: #import &quot;LAWS&quot;;
+#proof Laws.AddZero { unfold Code.Add; ring; }
+#proof Laws.MaximumCommutes { unfold Code.Larger; cases; order; }
+</code></pre>
+<p>Run <code>ziran check --root src src/PROOF.zi</code>. These filenames are a convention;
+the compiler follows imports. A certificate can also follow its theorem in
+the same file. A law's identity belongs to its declaring module; use import
+aliases to refer to another module's law. The same short name in unrelated
+modules is allowed. Each theorem can have one certificate.</p>
+<h2 id="certificate-steps">Certificate steps</h2>
+<p>Every step ends with <code>;</code>. Put <code>unfold</code> steps first and end with one closing
+step. Comments follow ordinary source comment rules.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Step</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>unfold Procedure;</code></td>
+<td>Project this checked pure procedure and its acyclic callees into scalar expressions</td>
+</tr>
+<tr>
+<td><code>unfold;</code></td>
+<td>Permit all supported pure calls in the proposition</td>
+</tr>
+<tr>
+<td><code>cases;</code></td>
+<td>Permit the closing checker to split undecided boolean conditions and check both branches</td>
+</tr>
+<tr>
+<td><code>rewrite Equality(arguments);</code></td>
+<td>Check the named theorem's certificate and replace its left side with its right side, including inside larger expressions</td>
+</tr>
+<tr>
+<td><code>use Theorem(arguments);</code></td>
+<td>Close the goal with the exact proposition of a checked theorem instance</td>
+</tr>
+<tr>
+<td><code>refl;</code></td>
+<td>Close by reflexivity, boolean evaluation, and enabled case splits</td>
+</tr>
+<tr>
+<td><code>ring;</code></td>
+<td>Also normalize <code>+</code>, <code>-</code>, and <code>*</code> as modular polynomials</td>
+</tr>
+<tr>
+<td><code>order;</code></td>
+<td>Also use exact scalar order, transitivity, antisymmetry, and contradictory branches</td>
+</tr>
+</tbody>
+</table></div>
+<p>Theorem application uses explicit positional arguments. Lemmas are checked
+with an empty hypothesis context. A waiver cannot supply a certificate, and
+circular dependencies are invalid.</p>
+<p>The first fragment includes <code>bool</code>, <code>s8/s16/s32/s64</code>, <code>u8/u16/u32/u64</code>, and
+enum equality. Enum variables cover the entire backing integer domain,
+including unnamed values obtainable through casts. Integer addition,
+subtraction, and multiplication wrap modulo <code>2^width</code>. Signed order interprets
+the same bits as a signed value. <code>ring</code> can establish associativity and
+distribution through overflow; <code>order</code> cannot assume that addition increases
+a value. For example, <code>x + 1 &gt; x</code> is false at unsigned maximum.</p>
+<p>Procedure projection supports scalar parameters and returns, local scalar
+declarations and assignments (<code>=</code>, <code>+=</code>, <code>-=</code>, <code>*=</code>), lexical blocks,
+conditionals, and acyclic calls with derived <code>pure</code> effects. Symbolic casts
+between different types, loops, recursion, pointers, arrays, floats, runtime
+globals, and foreign calls are outside this proof fragment. Constant casts
+and casts to the identical type are supported. Arrays and bounded loops can
+still be checked with existing finite <code>forall</code> laws. Integer evaluation uses
+exact bits rather than floating-point comparison. Float laws assume unfused
+IEEE arithmetic at the declared width: <code>+</code>, <code>-</code>, <code>*</code>, and <code>/</code> on <code>float32</code>
+values round once to <code>float32</code>, and on <code>float64</code> values to <code>float64</code>; a result
+that is infinite or NaN is <code>unknown</code>. An integer converts to <code>float64</code> within
+2^53 (<code>float32</code> within 2^24); a wider conversion would round and is <code>unknown</code>.
+A float literal is decided only when its text is the exact <code>%.17g</code> spelling of
+its double, such as <code>2.5</code>; text like <code>0.1</code>, which rounds, is <code>unknown</code>.</p>
+<h2 id="results-budgets-and-waivers">Results, budgets, and waivers</h2>
+<p>Each JSON result retains <code>law</code>, <code>kind</code>, <code>span</code>, <code>status</code>, and <code>detail</code>, adds the
+declaring <code>module</code> for qualified identity, and includes:</p>
+<pre><code class="language-json">&quot;evidence&quot;: {
+  &quot;method&quot;: &quot;kernel&quot;,
+  &quot;domain&quot;: &quot;x: s32&quot;,
+  &quot;cases_checked&quot;: 0,
+  &quot;counterexample&quot;: null,
+  &quot;waived&quot;: false
+}
+</code></pre>
+<p><code>cases_checked</code> counts concrete evaluations for <code>custom</code> and <code>forall</code>. It is
+zero for symbolic theorems. A failed <code>forall</code> includes a JSON object mapping
+bindings to their concrete numbers or sequence value text. <code>unknown</code> reports unsupported semantics,
+a missing/incomplete certificate, or an exhausted budget. A supplied closing
+step that fails to establish its goal is <code>invalid</code>; it is not a concrete
+counterexample. <code>disproved</code> and <code>invalid</code> always fail the gate.</p>
+<p><code>#law_waive Name "reason";</code> allows only <code>unknown</code>. An imported law can be
+waived by qualified name. Its result stays unknown, with <code>waived: true</code>;
+the waiver also has its own result and is saved with the artifact.</p>
+<p>The scalar kernel uses deterministic limits: 100,000 operations, 4,096 terms
+and polynomial monomials, depth 64, 128 branch facts, 64 order terms, 16
+parameters, and 64 locals. Exceeding a checking budget cannot establish a
+proof. Finite <code>forall</code> has its separate 1,000,000-case budget.</p>
+<h2 id="saved-artifacts-and-trust">Saved artifacts and trust</h2>
+<p>Version 48 <code>.zir</code> stores theorem proposition graphs, certificate steps and
+their typed expression graphs, and evidence. Version 25 <code>.zx</code> carries the
+linked verification dependencies and an evidence table. Loaders retype and
+recheck certificates; saved status, type annotations, and evidence cannot
+authorize a proof. Canonical checking rejects divergent saved fields. The
+bundle loader also compares its outer evidence and waiver tables against
+the checked embedded IR. Earlier artifact versions are rejected.</p>
+<p>The built-in C checker has no runtime Lean or solver dependency.
+<a href="https://github.com/ziranlang/ziran/blob/master/proofs/Scalar.lean"><code>proofs/Scalar.lean</code></a> models fixed-width semantics and
+proves the algebra, order, case, lemma-use, and rewrite rules sound. Its
+certificates are mathematical derivations, not the serialized Ziran format.
+The C polynomial normalizer, rule implementation, graph projection, parser,
+serialization, and executable backends remain trusted code. This is not a
+machine-checked proof of the whole compiler. Independent C and Lean
+interpreters exhaustively check generated accepted claims at a small width;
+integration tests cover runtime boundaries and tampering.</p>
+<p>With the toolchain pinned in <code>proofs/lean-toolchain</code>, run:</p>
+<pre><code class="language-sh">make proof-model LEAN=/path/to/lean-4.34.1/bin/lean
+make check
+</code></pre>
+<p>The model imports Lean's bundled standard libraries only. There are no
+admitted obligations, custom axioms, or external proof packages. Induction
+over arbitrary sequences and sorting remains future work.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

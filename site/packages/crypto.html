@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="The crypto package for Ziran."><title>crypto · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/crypto"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>crypto</h1><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/crypto">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#module-crypto">crypto</a><a href="#module-sha256">sha256</a><a href="#module-sha1">sha1</a><a href="#module-aes">aes</a><a href="#module-bigint">bigint</a><a href="#module-sha512">sha512</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.crypto]
+git = "https://github.com/ziranlang/crypto.git"
+ref = "master"</code></pre></section>
+<section id="module-crypto"><p class="eyebrow">crypto/src/crypto.zi</p><h2>crypto</h2><p>Import with <code>#import "crypto/crypto"</code>.</p><div class="api-list">
+<div><code>Equal :: (a: []u8, b: []u8) -&gt; bool</code></div>
+<div><code>Wipe :: (bytes: []u8)</code></div>
+<div><code>Pbkdf2 :: (password: []u8, salt: []u8, iterations: s32, output: []u8) -&gt; bool</code><p>Arbitrary salt length and output length; no silent truncation.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/crypto.zi">Source ↗</a></p></section>
+<section id="module-sha256"><p class="eyebrow">crypto/src/sha256.zi</p><h2>sha256</h2><p>Ordinary library procedures retain package-qualified native symbols. A consuming executable owns any explicit C ABI it chooses to export. SHA-256 and HMAC-SHA-256, extracted from Waozi’s Daochi implementation. Portable Ziran; no foreign cryptographic implementation.</p><p>Import with <code>#import "crypto/sha256"</code>.</p><div class="api-list">
+<div><code>Sha256Context :: struct { state: [8]u32; bit_length: u64; block: [64]u8; block_length: s32; words: [64]u32; }</code></div>
+<div><code>Sha256RoundConstants: [64]u32</code></div>
+<div><code>Sha256RotateRight :: (value: u32, bits: u32) -&gt; u32</code></div>
+<div><code>Sha256Transform :: (context: *Sha256Context)</code><p>The buffered block. Each loader reads the block's 16 big-endian words where it lies; Sha256Rounds hashes them.</p></div>
+<div><code>Sha256TransformBlock :: (context: *Sha256Context, block: []u8)</code><p>One 64-byte block from a slice, so portable bundles can hash too.</p></div>
+<div><code>Sha256TransformAt :: (context: *Sha256Context, block: *u8)</code><p>One 64-byte block read in place at BLOCK, for the pointer forms. Without a bounds check per byte, a package hashes as fast on phones, which build at -Oz, as it did with Daochi Client's own SHA-256.</p></div>
+<div><code>Sha256Rounds :: (context: *Sha256Context)</code><p>The message schedule from the block's first 16 words, then the 64 rounds.</p></div>
+<div><code>Sha256Initialize :: (context: *Sha256Context)</code></div>
+<div><code>Sha256Update :: (context: *Sha256Context, data: *u8, length: s64)</code></div>
+<div><code>Sha256UpdateBytes :: (context: *Sha256Context, data: []u8)</code><p>Bytes from a slice, for portable bundles; Sha256Update takes a pointer.</p></div>
+<div><code>Sha256Finish :: (context: *Sha256Context, output: *u8)</code></div>
+<div><code>Sha256FinishBytes :: (context: *Sha256Context, output: []u8)</code><p>The digest into a slice of 32 bytes, for portable bundles.</p></div>
+<div><code>Sha256 :: (data: *u8, length: s64, output: *u8)</code></div>
+<div><code>HexCharacter :: (value: u8) -&gt; u8</code></div>
+<div><code>HexNibble :: (value: u8) -&gt; s32</code></div>
+<div><code>BytesToHex :: (bytes: *u8, length: s64, output: *u8, output_size: s64) -&gt; s32</code></div>
+<div><code>HexToBytes :: (hex: string, output: *u8, output_size: s64) -&gt; s32</code></div>
+<div><code>Sha256Hex :: (data: *u8, length: s64, output: *u8)</code></div>
+<div><code>HmacBlockBytes :: 64</code><p>HMAC-SHA-256 and PBKDF2 keep the account key-file derivation format. Historical PBKDF2 exports included at most 32 salt bytes.</p></div>
+<div><code>Sha256DigestBytes :: 32</code></div>
+<div><code>Sha256UpdateText :: (context: *Sha256Context, value: string)</code></div>
+<div><code>HmacSha256Input :: (key: *u8, key_length: s64, key_text: string, use_key_text: bool, data: *u8, data_length: s64, text: string, use_text: bool, output: *u8) -&gt; s32</code></div>
+<div><code>HmacSha256 :: (key: *u8, key_length: s64, data: *u8, data_length: s64, output: *u8) -&gt; s32</code></div>
+<div><code>HmacSha256Text :: (key: *u8, key_length: s64, data: string, output: *u8) -&gt; s32</code></div>
+<div><code>Sha256Of :: (data: string) -&gt; [32]u8</code><p>String forms, by value, for callers that hash text: a string's digest, HMAC-SHA-256 under a string key, and PBKDF2-HMAC-SHA-256's first block, such as a vault key. Each matches the byte forms above.</p></div>
+<div><code>HmacSha256Of :: (key: string, message: string) -&gt; [32]u8</code></div>
+<div><code>Pbkdf2Sha256 :: (password: string, salt: string, iterations: s32) -&gt; [32]u8</code></div>
+<div><code>HmacSha256TextKey :: (key: string, data: *u8, data_length: s64, output: *u8) -&gt; s32</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/sha256.zi">Source ↗</a></p></section>
+<section id="module-sha1"><p class="eyebrow">crypto/src/sha1.zi</p><h2>sha1</h2><p>SHA-1 is used only where Telegram's legacy key-exchange format requires it.</p><p>Import with <code>#import "crypto/sha1"</code>.</p><div class="api-list">
+<div><code>Context :: struct { state: [5]u32; block: [64]u8; used: s32; length: u64; }</code></div>
+<div><code>Rotate :: (x: u32, n: u32) -&gt; u32</code></div>
+<div><code>Transform :: (c: *Context)</code></div>
+<div><code>Start :: (c: *Context)</code></div>
+<div><code>Update :: (c: *Context, bytes: []u8)</code></div>
+<div><code>Finish :: (c: *Context, output: []u8) -&gt; bool</code></div>
+<div><code>Sha1 :: (bytes: []u8, output: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/sha1.zi">Source ↗</a></p></section>
+<section id="module-aes"><p class="eyebrow">crypto/src/aes.zi</p><h2>aes</h2><p>FIPS 197 AES-256. The S-box uses fixed field arithmetic, avoiding secret-indexed lookup tables. The IGE mode is Telegram's specified mode.</p><p>Import with <code>#import "crypto/aes"</code>.</p><div class="api-list">
+<div><code>Key :: struct { bytes: [240]u8; valid: bool; }</code></div>
+<div><code>Multiply :: (left: u8, right: u8) -&gt; u8</code></div>
+<div><code>Inverse :: (x: u8) -&gt; u8</code></div>
+<div><code>Rotate :: (x: u8, n: u32) -&gt; u8</code></div>
+<div><code>Sub :: (x: u8) -&gt; u8</code></div>
+<div><code>Unsub :: (x: u8) -&gt; u8</code></div>
+<div><code>Expand :: (bytes: []u8) -&gt; Key</code></div>
+<div><code>Add :: (state: []u8, key: *Key, round: s32)</code></div>
+<div><code>Shift :: (state: []u8, decrypt: bool)</code></div>
+<div><code>Mix :: (state: []u8, decrypt: bool)</code></div>
+<div><code>Block :: (key: *Key, input: []u8, output: []u8, decrypt: bool) -&gt; bool</code></div>
+<div><code>Ige :: (key_bytes: []u8, iv: []u8, input: []u8, output: []u8, decrypt: bool) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/aes.zi">Source ↗</a></p></section>
+<section id="module-bigint"><p class="eyebrow">crypto/src/bigint.zi</p><h2>bigint</h2><p>Fixed-width unsigned 2048-bit Montgomery arithmetic. Sixteen-bit limbs keep every product within u64 on all native targets. Exponent bits select results with masks; both multiplications execute for every bit.</p><p>Import with <code>#import "crypto/bigint"</code>.</p><div class="api-list">
+<div><code>Integer :: struct { limbs: [128]u32; }</code></div>
+<div><code>Modulus :: struct { value: Integer; squared: Integer; inverse: u32; valid: bool; }</code></div>
+<div><code>FromBytes :: (bytes: []u8) -&gt; Integer</code></div>
+<div><code>ToBytes :: (value: *Integer, bytes: []u8) -&gt; bool</code></div>
+<div><code>Compare :: (a: *Integer, b: *Integer) -&gt; s32</code></div>
+<div><code>Subtract :: (a: *Integer, b: *Integer) -&gt; Integer</code></div>
+<div><code>Reduce :: (value: *Integer, modulus: *Integer, high: u32) -&gt; Integer</code></div>
+<div><code>Double :: (value: *Integer, modulus: *Integer) -&gt; Integer</code></div>
+<div><code>Prepare :: (bytes: []u8) -&gt; Modulus</code></div>
+<div><code>Multiply :: (a: *Integer, b: *Integer, modulus: *Modulus) -&gt; Integer</code></div>
+<div><code>Power :: (base_bytes: []u8, exponent: []u8, modulus: *Modulus, output: []u8) -&gt; bool</code></div>
+<div><code>Product :: (left: []u8, right: []u8, modulus: *Modulus, output: []u8) -&gt; bool</code></div>
+<div><code>Difference :: (left: []u8, right: []u8, modulus: *Modulus, output: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/bigint.zi">Source ↗</a></p></section>
+<section id="module-sha512"><p class="eyebrow">crypto/src/sha512.zi</p><h2>sha512</h2><p>FIPS 180-4 SHA-512 and HMAC-SHA-512 in portable Ziran.</p><p>Import with <code>#import "crypto/sha512"</code>.</p><div class="api-list">
+<div><code>Context :: struct { state: [8]u64; block: [128]u8; used: s32; length: u64; }</code><p>The 80 round constants as high and low 32-bit halves, as portable</p></div>
+<div><code>ConstantHalves: [160]u32</code></div>
+<div><code>Constant :: (index: s32) -&gt; u64</code></div>
+<div><code>Rotate :: (x: u64, n: u64) -&gt; u64</code></div>
+<div><code>Transform :: (context: *Context)</code></div>
+<div><code>Start :: (context: *Context)</code></div>
+<div><code>Update :: (context: *Context, bytes: []u8)</code></div>
+<div><code>Finish :: (context: *Context, output: []u8) -&gt; bool</code></div>
+<div><code>Sha512 :: (input: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Hmac :: (key: []u8, input: []u8, output: []u8) -&gt; bool</code></div>
+<div><code>Pbkdf2 :: (password: []u8, salt: []u8, iterations: s32, output: []u8) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/crypto/blob/HEAD/src/sha512.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

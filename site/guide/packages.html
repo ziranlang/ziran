@@ -1,0 +1,474 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Packages and project imports: the Ziran guide, rendered from docs/PACKAGES.md."><title>Packages and project imports · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/packages"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Packages and project imports</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/PACKAGES.md">docs/PACKAGES.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#starting-a-project">Starting a project</a><a href="#building-and-running-a-program">Building and running a program</a><a href="#adding-a-dependency">Adding a dependency</a><a href="#importing-modules">Importing modules</a><a href="#publishing-a-package">Publishing a package</a><a href="#commands">Commands</a><a href="#project-tools-and-their-options">Project tools and their options</a><a href="#handing-a-project-to-its-tool">Handing a project to its tool</a><a href="#dependency-owned-native-artifacts">Dependency-owned native artifacts</a></aside><div class="article-body">
+<section class="prose"><p>Ziran packages are Git repositories. There is no central registry: a
+dependency is the URL of the repository that holds it, pinned to a full commit
+in a committed <code>ziran.lock</code>. A Ziran application is itself a package with a
+<code>ziran.toml</code>. <code>make install-user</code> installs the native <code>ziran</code> command; project
+commands build and use the compiler pinned by the application lock, and hand
+the command to that toolchain's own launcher, so an installed <code>ziran</code> that is
+older or newer than the lock behaves exactly like the pinned one.</p>
+<h2 id="starting-a-project">Starting a project</h2>
+<p><code>ziran new DIR</code> writes a project from a template and locks it:</p>
+<pre><code class="language-sh">ziran new hello                        # a command-line program (template cli)
+ziran new geometry --template lib      # a library with one exported module
+ziran new calc --template kryonlabs/kryon          # a package's first template
+ziran new calc --template kryonlabs/kryon:tui      # one of its named templates
+ziran new calc --template ../my-templates:service  # a local package directory
+</code></pre>
+<p><code>cli</code> and <code>lib</code> ship with Ziran. Any package can offer templates by listing
+directories in its <code>ziran.toml</code>; the first one is the default:</p>
+<pre><code class="language-toml">[templates]
+app = &quot;templates/app&quot;
+tui = &quot;templates/tui&quot;
+</code></pre>
+<p>A template directory holds a <code>ziran.toml</code> and whatever files a project starts
+with. In file contents and paths, <code>{{name}}</code> becomes the package name and
+<code>{{module}}</code> the same name as an identifier (<code>my-tool</code> becomes <code>my_tool</code>).
+<code>--name NAME</code> sets the name when the directory's name is not one, and
+<code>--ref REF</code> fetches the template from another branch, tag, or commit.</p>
+<p><code>--overrides FILE</code> copies a validated local configuration into the new
+project's ignored <code>ziran.local.toml</code> before locking. Use it with a local
+template and overrides for the toolchain and dependencies to build against
+existing source checkouts without fetching copies. Relative override paths
+are relative to the created project. An existing <code>ziran.local.toml</code> is never
+overwritten, including when applying a template with <code>init</code>.</p>
+<p><code>ziran init --template SOURCE</code> applies a template to the project in the
+current directory. It never overwrites a file. When the project already has a
+<code>ziran.toml</code>, the template's manifest is merged into it: missing tables and
+keys are added, string arrays such as <code>module_roots</code> gain the template's
+entries, and every other value the project already sets is kept and reported.
+That is how an existing command-line program becomes, for example, a Kryon
+application: the template adds the dependency, <code>tool = "kryon"</code>, and the
+<code>[tool.kryon]</code> settings, and keeps the program's own entry.</p>
+<h2 id="building-and-running-a-program">Building and running a program</h2>
+<p>In a project directory, <code>run</code>, <code>build</code>, <code>check</code>, and <code>install</code> without a file
+work on the project's program:</p>
+<pre><code class="language-sh">ziran run                 # build, then run the entry module's main
+ziran run -- one two      # arguments after -- go to the program
+ziran build               # build/NAME
+ziran check               # check the entry, or a library's exports
+ziran install             # copy the program to ~/.local/bin/NAME
+</code></pre>
+<p>The program is the <code>main</code> procedure of <code>[package] entry</code>, which takes nothing
+or <code>(argc: s32, argv: **u8)</code> and returns nothing or its exit status. Ziran
+writes C and compiles it with <code>CC</code> (default <code>cc</code>), honoring <code>CFLAGS</code>,
+<code>LDFLAGS</code>, and <code>LDLIBS</code>. <code>[package] links</code> names system libraries to link:</p>
+<pre><code class="language-toml">[package]
+name = &quot;fetcher&quot;
+entry = &quot;src/main.zi&quot;
+links = [&quot;curl&quot;]
+</code></pre>
+<p>System links apply to the root manifest that declares them; they are not
+inherited from a dependency's <code>[package]</code> table. For example, a native consumer
+of <code>audio/pipeline</code> and <code>audio/resample</code> declares
+<code>links = ["opus", "samplerate", "m"]</code> in its own <code>[package]</code> table.
+An <code>audio/opus</code> codec-only consumer needs <code>links = ["opus", "m"]</code>.
+Portable <code>audio/ogg</code> inspection and <code>audio/wav</code> conversion need no codec
+libraries. A custom native host supplies the corresponding linker flags.</p>
+<p><code>ziran install --prefix DIR</code> installs under <code>DIR/bin</code>; <code>[install] bin</code> changes
+the command name. The copy replaces an installed program in one step.</p>
+<p>A project whose <code>[package] tool</code> names a dependency hands these four commands
+to that dependency's project tool instead (see below). Naming a file, as in
+<code>ziran check --project src/cell.zi</code>, or passing <code>--target</code>, keeps the command
+on that file or target.</p>
+<h2 id="adding-a-dependency">Adding a dependency</h2>
+<p>Pass any spelling of the repository to <code>ziran add</code>:</p>
+<pre><code class="language-sh">ziran add https://github.com/kryonlabs/plot.git
+ziran add git@github.com:kryonlabs/plot.git
+ziran add ssh://git@codeberg.org/owner/repo.git
+ziran add codeberg.org/owner/repo
+ziran add kryonlabs/plot            # OWNER/REPO means GitHub
+</code></pre>
+<p>The dependency is named after the repository (<code>plot</code>; <code>kryon-ui</code> becomes
+<code>kryon_ui</code>). Use <code>--name NAME</code> for another name, <code>--ref REF</code> for a branch, tag,
+or full commit instead of <code>master</code>, and <code>--source</code> for a repository that is not
+a Ziran package. <code>ziran add</code> writes the declaration, locks it, and prints the
+modules you can import:</p>
+<pre><code class="language-toml">[dependencies.plot]
+git = &quot;git@github.com:kryonlabs/plot.git&quot;
+ref = &quot;master&quot;
+</code></pre>
+<p>HTTPS and SSH name the same package. Ziran identifies a repository by its
+canonical HTTPS spelling, so switching a manifest between the two keeps the
+lock valid, and two packages that reach one repository over different
+transports share a single locked copy. Ziran fetches over the transport the
+manifest names; when that fails, for example SSH without a key in CI or HTTPS
+without credentials for a private repository, it retries once over the other
+transport. It never prompts for a password. URLs with embedded credentials are
+rejected.</p>
+<h2 id="importing-modules">Importing modules</h2>
+<p>A dependency's exported modules are imported by the dependency name and the
+module name, so every import says where it comes from:</p>
+<pre><code class="language-zi">#import &quot;plot/Plot&quot;
+using Widgets :: #import &quot;kryon/Widgets&quot;;
+#import &quot;std/text&quot;;
+</code></pre>
+<p><code>std/NAME</code> is the pinned standard library. Modules in your own package use
+their short names. <code>ziran pkg list</code> shows each direct dependency, its URL,
+ref, commit and checkout, and every import path it provides:</p>
+<pre><code class="language-text">plot  git@github.com:kryonlabs/plot.git  master  3e1433d0b2c1
+  checkout /home/me/.cache/ziran/sources/p1f0c…
+  #import &quot;plot/Plot&quot;                src/module.zi
+std  /home/me/.cache/ziran/sources/p5a7…/std
+  #import &quot;std/NAME&quot;               the standard library
+</code></pre>
+<p>A short import such as <code>#import "Plot"</code> also works. A short name resolves in
+the importing package first, then among its direct dependencies' exports, then
+in the standard library. When two direct dependencies export the same name,
+the short import reports both qualified spellings; import one of them, or
+rename one with <code>module_aliases</code>:</p>
+<pre><code class="language-toml">[dependencies.Graphics]
+git = &quot;https://example.com/graphics.git&quot;
+ref = &quot;master&quot;
+module_aliases = { Drawing = &quot;GraphicsDrawing&quot; }
+</code></pre>
+<p>Only the dependency's <code>[exports]</code> are visible. Its other modules are private
+to it, so their names never collide with yours.</p>
+<h3 id="generated-modules">Generated modules</h3>
+<p>A build step can write modules for your program, such as translations or
+level tables. Pass their folder to the project command that needs them:</p>
+<pre><code class="language-sh">ziran bundle --project --module-path build/gen --entry app:main -o app.zx src/app.zi
+ziran check --project --module-path build/gen
+</code></pre>
+<p>Each <code>--module-path DIR</code> (repeatable) adds <code>DIR/NAME.zi</code> and
+<code>DIR/NAME/module.zi</code> to your package's own modules, as if they were under a
+<code>module_roots</code> folder. Everything else still resolves from <code>ziran.lock</code>. The
+folder belongs to your package only: dependencies never see its modules, so a
+generated <code>Value</code> cannot replace a dependency's own <code>Value</code>. A generated
+module may not share a name with one of your modules, and the folder may not
+lie inside a locked package or the toolchain. Packages come from the lock, so
+the standalone <code>NAME=DIR</code> spelling is refused here.</p>
+<p>Commands that don't pass the folder never look for it, so <code>lock</code>, <code>update</code>,
+<code>fetch</code> and <code>check</code> work on a fresh checkout before the build step has run;
+only an import of a module that isn't there yet fails. A project tool that
+runs <code>ziran build</code>, <code>run</code> or <code>check</code> for the project receives the same
+<code>--module-path</code> arguments. Without <code>--project</code>, <code>--module-path</code> keeps a
+command standalone.</p>
+<h2 id="publishing-a-package">Publishing a package</h2>
+<p>An exported module is a package-owned file. Its public name may differ from
+the file name, so a package can keep the short path <code>src/module.zi</code>:</p>
+<pre><code class="language-toml">[package]
+name = &quot;Plot&quot;
+module_roots = [&quot;src&quot;]
+
+[toolchain]
+git = &quot;https://github.com/ziranlang/ziran.git&quot;
+ref = &quot;master&quot;
+
+[exports]
+Plot = &quot;src/module.zi&quot;
+</code></pre>
+<p>Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
+manifests so fresh clones and CI can fetch without an SSH key.</p>
+<p>Package modules receive an internal identity derived from their repository
+and commit. Two versions of a transitive dependency can coexist in one build.
+The identity is carried through checked IR, saved <code>.zir</code>, portable bundles,
+and native output names.</p>
+<h2 id="commands">Commands</h2>
+<pre><code class="language-sh">ziran add URL|OWNER/REPO
+ziran lock
+ziran update
+ziran update plot
+ziran update ziran
+ziran fetch
+ziran pkg list [plot]
+ziran pkg path plot --locked
+ziran check --project
+ziran ir --project --entry app:main -o build/ir
+ziran build --project --target=c --entry app:main -o build/c
+</code></pre>
+<p><code>ziran update</code> refreshes every package and the toolchain to their current refs.
+<code>ziran update plot</code> refreshes Plot and its transitive dependencies while
+keeping unrelated packages pinned. <code>ziran update ziran</code> refreshes only the
+compiler toolchain.</p>
+<p><code>--locked</code> requires a matching lock and ignores local development overrides;
+<code>--offline</code> requires cached checkouts. The cache is under
+<code>$XDG_CACHE_HOME/ziran</code> or <code>~/.cache/ziran</code>.
+Normal <code>fetch</code> and <code>pkg path</code> commands also validate cached tracked payloads.
+If an immutable source-cache entry has missing files or staged deletions only,
+they restore the locked source from existing Git objects, including with
+<code>--locked --offline</code>; no separate repair command or network access is needed.
+A matching HEAD alone does not establish that the source is ready. Modified
+tracked files, or untracked/ignored data alongside missing files, prevent repair
+and produce a <code>package cache ... preserved at</code> diagnostic. Failed entries are
+never automatically deleted. Redirected, sparse or flagged checkouts are refused;
+explicit local overrides remain user-owned and are never repaired this way.</p>
+<p><code>ziran pkg path</code> returns the checkout selected by the lock, including a unique
+transitive dependency. Add <code>--submodules</code> when a platform build needs its
+vendored backend source. The command initializes the submodules at the commits
+recorded by that package; with <code>--offline</code>, it requires them to be present.</p>
+<p>A platform build can also pin a repository that is not a Ziran package, such
+as a C library it compiles from source. Mark the dependency with
+<code>source = true</code>:</p>
+<pre><code class="language-toml">[dependencies.sqlite]
+git = &quot;https://github.com/sqlite/sqlite.git&quot;
+ref = &quot;master&quot;
+source = true
+</code></pre>
+<p><code>ziran add URL --name sqlite --source</code> writes the same declaration. A source
+package is locked, fetched, and cached like any other dependency, and
+<code>ziran pkg path sqlite --locked</code> returns its checkout, but it has no
+<code>ziran.toml</code>, exports no modules, and cannot declare dependencies or module
+aliases. Build scripts use that path instead of a <code>vendor/</code> submodule.</p>
+<p>For local development, an ignored <code>ziran.local.toml</code> can map package names to
+working directories:</p>
+<pre><code class="language-toml">[overrides]
+kryon = &quot;../../kryonlabs/kryon&quot;
+ziran = &quot;../../ziranlang/ziran&quot;
+</code></pre>
+<p>Each override is the top of its own Git checkout: <code>ziran lock</code> records the
+commit checked out there. An explicitly overridden checkout whose branch has
+no first commit is also usable for local development, including an overridden
+toolchain. Its lock entry has a <code>development</code> field instead of <code>commit</code>, with
+an <code>unborn:</code> identity derived deterministically from the canonical checkout
+path. This identifies local source; it does not claim a committed revision or
+a reproducible source snapshot. This is an optional field in lock format 1;
+older toolchains that require <code>commit</code> reject these development-only entries.
+Only a genuine unborn branch qualifies; missing commit objects and invalid Git
+metadata are refused. A directory inside another repository, such as an
+uninitialized submodule, is refused, because its HEAD would be the enclosing
+repository's commit. A root dependency's override selects that source for
+all incoming edges, including transitive dependencies with different aliases
+or exact revision pins. These edges use one actual checkout and module type
+identity. The lock records each edge's declared ref separately, so changing a
+ref, URL, alias, source kind or dependency inventory still requires <code>ziran lock</code>.
+Source-only edits and newer local commits can be used without changing those
+declarations; build commands derive local module identities from the actual
+checkout HEAD. When several locked revisions select a checkout whose commit
+is already in the lock, they use that commit's locked dependency graph before
+merging their identities. The lock on disk remains unchanged. Conflicting
+overrides for one source are refused.</p>
+<p>After removing overrides, run <code>ziran lock</code> to resolve the declared revisions
+again. Development-only entries require their explicit overrides and cannot
+be fetched into the immutable cache. <code>--locked</code> rejects a development-only
+lock even after overrides have been removed. Once a checkout has its first
+commit, <code>ziran lock</code> records the real commit instead. Exact pins select their
+declared commits rather than retaining a local development identity or newer
+override commit. <code>--locked</code> refuses an override-only ref substitution.
+Targeted updates cannot preserve an unrelated unborn package or toolchain's
+source snapshot; use <code>ziran lock</code> or a full <code>ziran update</code> while developing
+such a graph.</p>
+<p>Production builds omit overrides and use the locked Git commits. A host module
+that calls into the application can use an explicit reverse bridge:</p>
+<pre><code class="language-toml">[package]
+bridge_modules = [&quot;app&quot;]
+</code></pre>
+<p>This makes only the named app module visible to direct dependencies. It does
+not change the package's public exports. Native system libraries remain
+ordinary platform build dependencies.</p>
+<h2 id="project-tools-and-their-options">Project tools and their options</h2>
+<p>A package can ship a project tool, such as the command that builds an
+application with a UI library. It names the tool and declares the options an
+application may set for it in its own <code>ziran.toml</code>:</p>
+<pre><code class="language-toml">[tool]
+project = &quot;build/bin/kryon&quot;
+
+[options]
+default_profile = &quot;string&quot;
+
+[options.profiles.&quot;*&quot;]
+backend = &quot;string!&quot;
+codegen = &quot;string=c99&quot;
+
+[options.install]
+autostart = &quot;bool=false&quot;
+</code></pre>
+<p><code>[options]</code> holds top-level keys, <code>[options.NAME]</code> one table, and
+<code>[options.NAME."*"]</code> any number of named tables. Each value is <code>"string"</code> or
+<code>"bool"</code>, followed by <code>!</code> when it is required or <code>=DEFAULT</code> for a default.</p>
+<p>The application sets those options under the dependency's alias, and its
+ignored <code>ziran.local.toml</code> may replace any of them on one machine:</p>
+<pre><code class="language-toml">[tool.kryon]
+default_profile = &quot;desktop&quot;
+
+[tool.kryon.profiles.desktop]
+backend = &quot;desktop&quot;
+</code></pre>
+<p><code>ziran tool kryon COMMAND</code> rebuilds the tool if its sources changed, checks
+every setting against the declaration, and reports an unknown or missing key
+with its file and line. It then runs the tool from the project root. The tool
+reads the merged settings as <code>KEY=VALUE</code> lines from the file named by
+<code>ZIRAN_TOOL_OPTIONS</code>, for example <code>default_profile=desktop</code>,
+<code>profiles=desktop</code> and <code>profiles.desktop.backend=desktop</code>, so no tool parses
+TOML itself. <code>ZIRAN_PROJECT_ROOT</code>, <code>ZIRAN_PROJECT_NAME</code>,
+<code>ZIRAN_PROJECT_ENTRY</code>, <code>ZIRAN_PACKAGE_ROOT</code>, <code>ZIRAN_PACKAGE_ID</code> and
+<code>ZIRAN_TOOLCHAIN_ROOT</code> describe the project and the tool's checkout.</p>
+<h2 id="handing-a-project-to-its-tool">Handing a project to its tool</h2>
+<p><code>[package] tool</code> names the dependency whose project tool runs, builds, checks,
+and installs the application, and <code>[install] bin</code> the command name it
+installs as:</p>
+<pre><code class="language-toml">[package]
+name = &quot;example&quot;
+entry = &quot;src/app.zi&quot;
+tool = &quot;kryon&quot;
+
+[install]
+bin = &quot;example&quot;
+</code></pre>
+<p><code>ziran run</code>, <code>ziran build</code>, and <code>ziran check</code> without a file then run
+<code>ziran tool kryon run</code>, <code>build</code>, or <code>check</code> with the remaining arguments, so
+<code>ziran run desktop</code> is <code>ziran tool kryon run desktop</code>. <code>ziran install</code> runs
+the tool's <code>install</code> command with <code>ZIRAN_INSTALL_PREFIX</code> (<code>~/.local</code> unless
+<code>--prefix DIR</code> is given) and <code>ZIRAN_INSTALL_BIN</code>; other arguments are passed
+on. The tool decides what else an install includes, such as a desktop entry,
+from its own options. The older <code>[install] tool</code> key is rejected with a
+message naming its replacement.</p>
+<h2 id="dependency-owned-native-artifacts">Dependency-owned native artifacts</h2>
+<p>A dependency can declare named artifacts alongside its existing project tool:</p>
+<pre><code class="language-toml">[tool]
+project = &quot;build/bin/provider&quot;
+
+[artifacts.native]
+inputs = [&quot;tools/provider.zi&quot;, &quot;src/library.c&quot;, &quot;Makefile&quot;]
+outputs = [&quot;lib/library.a&quot;, &quot;include/library.h&quot;, &quot;resources/data.bin&quot;]
+requires = [&quot;support:native&quot;]
+</code></pre>
+<p><code>inputs</code> and <code>outputs</code> are nonempty arrays of package-relative input files and
+staging-relative output files. List all recipe inputs, including ignored native
+source inputs, configuration, assets and tool build rules; directories and
+escaping paths are rejected. <code>artifact.tsv</code> and <code>dependencies.tsv</code> are reserved.
+<code>requires</code> is optional and names artifacts through the provider's own locked
+dependency aliases; <code>self:NAME</code> names another recipe in the same package.
+Unknown selections and recipe cycles fail before invoking the affected provider.</p>
+<p>Recipes derive outputs only from declared inputs, dependency artifacts, the
+platform, resolved options and keyed toolchain/environment. Consumer identity
+is not an input; encode consumer-specific variation as a declared option.
+The current host command needs <code>make</code>, <code>git</code>, <code>mktemp</code>, <code>which</code> and <code>sha256sum</code>.</p>
+<p>Consumers request the recipe without reconstructing its source or link graph:</p>
+<pre><code class="language-sh">ziran pkg artifact provider:native --platform linux-x86_64-gnu
+ziran pkg artifact provider:native --platform windows-x86_64-mingw --locked
+</code></pre>
+<p><code>--platform</code> is a required explicit OS-architecture-ABI identifier, independent
+of the compiler backend (<code>--target=c</code> or <code>go</code>). The provider must validate
+supported platforms and choose the correct native toolchain. The engine treats
+libraries, bundles and resources identically. This command does not alter
+project lifecycle delegation or explicit compiler target selection.</p>
+<p>Per-invocation options override <code>[tool.Alias]</code> and <code>ziran.local.toml</code> values
+in memory, using the dependency's existing declared option types:</p>
+<pre><code class="language-sh">ziran pkg artifact provider:native --platform linux-x86_64-gnu \
+  --option provider:mode=release \
+  --option 'support:sdk.path=/opt/SDK folder/tool=chain' \
+  --option provider:enabled=true
+</code></pre>
+<p>Repeat <code>--option Alias:key=value</code> after the platform. <code>key</code> is a top-level key,
+<code>group.key</code>, or <code>group.name.key</code> for a declared named table. Alias matching is
+case-insensitive and resolves to a locked package identity, so overrides also
+reach prerequisite recipes (including <code>self</code> recipes). A prerequisite uses its
+root consumer alias when present, otherwise its locked package name; the
+provider's <code>requires</code> edge still uses the provider's dependency alias.
+Strings are nonempty literal argv values, including spaces, quotes, backslashes
+and additional <code>=</code> characters. Boolean values are exactly <code>true</code> or <code>false</code>.
+There is no TOML parsing or shell evaluation of invocation values. Quote the
+whole argument as required by your shell. Control characters, unknown or
+ambiguous packages, undeclared keys, malformed paths and duplicate keys for the
+same package are rejected before compiler identification, cache lookup or any
+provider runs. Provider-specific value constraints remain the provider's job.
+New named tables are ordered deterministically, so reordering invocation
+arguments does not change the effective option file or cache identity.
+Manifests, local overrides and lock files are never edited by these options.
+Artifact providers receive atomic, content-addressed option snapshots so
+concurrent invocations cannot overwrite one another's effective values.</p>
+<p>The ordinary project tool is built through its existing Makefile and invoked as
+<code>artifact NAME --platform TARGET --output STAGE</code> with the existing project,
+package, toolchain and resolved <code>ZIRAN_TOOL_OPTIONS</code> environment. Additional
+variables are <code>ZIRAN_ARTIFACT_OUTPUT</code>, <code>ZIRAN_ARTIFACT_TARGET</code>, and
+<code>ZIRAN_ARTIFACT_DEPENDENCIES</code>. The last names a TSV file with one
+<code>dependency:artifact&lt;TAB&gt;absolute-descriptor-path</code> line per requirement. Providers
+read those descriptors instead of rebuilding dependencies. They write every
+declared output below STAGE, send diagnostics to stderr, return nonzero on
+failure, and honor serial build settings (<code>MAKEFLAGS=-j1</code> and
+<code>CMAKE_BUILD_PARALLEL_LEVEL=1</code>). Invocation uses argv, never shell interpolation.</p>
+<p>On success stdout contains the absolute path of <code>artifact.tsv</code> in the shared
+Ziran artifact cache. Its TSV header records <code>schema</code>, <code>package</code>, <code>artifact</code>,
+<code>platform</code>, and <code>key</code>; remaining lines map declared relative output paths to
+SHA-256 digests. Resolve each output beside the descriptor. Descriptors and
+outputs are published together by directory rename only after all declared
+files exist and remain inside staging. A failed build removes staging and
+preserves previously published results. Cache hits verify output digests.</p>
+<h3 id="python-build-tool-consumers">Python build-tool consumers</h3>
+<p>The resolved toolchain provides <code>scripts/ziran_artifacts.py</code>. Build scripts
+can load it from the directory returned by their package wrapper's
+<code>pkg path ziran</code>; they do not need a copied descriptor parser. For example,
+with <code>tool</code> naming that wrapper and <code>project</code> the consuming project directory:</p>
+<pre><code class="language-python">import importlib.util
+from pathlib import Path
+import subprocess
+
+toolchain = Path(subprocess.check_output(
+    [tool, 'pkg', 'path', 'ziran'], cwd=project, text=True).strip())
+spec = importlib.util.spec_from_file_location(
+    'ziran_artifacts', toolchain / 'scripts/ziran_artifacts.py')
+artifacts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(artifacts)
+result = artifacts.request('provider:native', 'linux-x86_64-gnu',
+                           project=project, ziran=tool)
+library = result.output('lib/library.a')
+</code></pre>
+<p><code>request</code> forwards repeated <code>options</code> as literal <code>--option</code> arguments and
+uses <code>--locked</code> when the project has no <code>ziran.local.toml</code>. Its optional <code>env</code>
+is passed to the selected tool unchanged. Callers own build resource limits
+and display isolation. <code>Artifact(absolute_descriptor, artifact=..., platform=...)</code>
+also consumes an already requested result. Construction verifies the schema,
+identity, unique rows, canonical contained paths and every declared output's
+SHA-256 digest. <code>output(name)</code> requires a declared output; <code>path(name)</code> resolves
+a contained path such as a provider's include directory. Symlinks cannot
+escape the descriptor directory.</p>
+<p><code>metadata(name)</code> reads a declared JSON object whose integer <code>schema</code> is <code>1</code>
+and whose <code>artifact</code> and <code>platform</code> match the descriptor. Its remaining
+fields belong to the provider. Renderer layouts, assets, Android editions
+and application output names remain provider or application policy.</p>
+<p>Providers may expose an ordered <code>link.txt</code> output for foreign native support.
+Each row is <code>kind&lt;TAB&gt;value</code>; supported kinds are:</p>
+<ul>
+<li><code>archive</code>: a declared archive output, passed as one argument.</li>
+<li><code>library</code> or <code>flag</code>: one literal linker argument.</li>
+<li><code>pkg-config</code>: shell-word-separated package names, queried with <code>--libs</code>.</li>
+<li><code>js-library</code>: a declared output passed after <code>--js-library</code>.</li>
+<li><code>embed</code>: a declared output and absolute virtual mount, joined with <code>@</code>,
+  passed after <code>--embed-file</code>.</li>
+</ul>
+<p><code>result.link_flags()</code> expands those rows, followed by each prerequisite's
+metadata in the order recorded by <code>dependencies.tsv</code>. Each prerequisite is
+verified against its own output paths, artifact name and the same platform.
+Cycles are rejected; repeated prerequisites on separate edges retain their
+static link order. <code>env</code> also selects <code>PKG_CONFIG</code> and its environment. No
+metadata or option is evaluated by a shell.</p>
+<p>Use <code>link_flags(include_archives=False)</code> when ordinary imports already
+compile this provider's source into the host. It omits only the current
+provider's archives; its flags and prerequisite foreign archives remain.
+For example, importing a Ziran library and linking its complete native
+archive again would duplicate its module globals. A foreign C host instead
+uses the default to link that archive once.</p>
+<p>Identity includes the locked package graph and toolchain revisions, actual
+checkout HEADs, launcher/compiler bytes, native platform/ABI, recipe and input
+bytes, resolved options, dependency descriptors, CC executable bytes/version and
+relevant native build environment (<code>PATH</code>, <code>CFLAGS</code>, <code>CPPFLAGS</code>, <code>CXX</code>,
+<code>CXXFLAGS</code>, <code>LDFLAGS</code>, <code>LDLIBS</code>, <code>AR</code>, <code>LD</code>, <code>RANLIB</code>, <code>PKG_CONFIG</code>,
+<code>PKG_CONFIG_PATH</code>, <code>PKG_CONFIG_LIBDIR</code>, <code>SYSROOT</code>, <code>SDKROOT</code>,
+<code>MACOSX_DEPLOYMENT_TARGET</code>). <code>CC</code> must name one executable. Any dirty tracked or untracked
+checkout in the resolved graph disables reuse; declared ignored inputs are
+hashed regardless. Dirty builds receive unique publication directories, so
+local edits cannot hit or overwrite clean results. Two independent consumers
+with the same graph, options and environment share a clean artifact.</p>
+<p>The package-driver entry point is
+<code>PkgBuildArtifact(project: string, package: string, artifact: string, target: string) -&gt; s32</code>.
+For invocation overrides use
+<code>PkgBuildArtifactWithOptions(project: string, package: string, artifact: string, target: string, overrides: []string) -&gt; s32</code>.
+Each slice element is the same <code>Alias:key=value</code> string as the CLI; an empty
+slice has the original entry point's behavior. CLI dispatch passes its already
+resolved graph to the same implementation.
+Downstream adoption consists of adding provider-owned recipes and an <code>artifact</code>
+command to the existing Ziran project tool, then replacing consumer source/link
+reconstruction with this request and descriptor consumption. Platform-specific
+sources, link decisions and assets stay in those providers.</p>
+<p>Run the focused native fixture independently before adopting provider recipes:</p>
+<pre><code class="language-sh">env -u DISPLAY -u WAYLAND_DISPLAY TMPDIR=&quot;$PWD/work&quot; python3 tests/package_artifacts.py build/bin/ziran
+</code></pre>
+<p>The regular <code>sh tests/packages.sh build/bin/ziran</code> runner includes this fixture.
+It creates only disposable miniature input repositories under ignored <code>work/</code>.</p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

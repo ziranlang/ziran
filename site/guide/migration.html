@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Two-repository migration: the Ziran guide, rendered from docs/MIGRATION.md."><title>Two-repository migration · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/migration"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Two-repository migration</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/MIGRATION.md">docs/MIGRATION.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#end-state">End state</a><a href="#current-state-and-remaining-work">Current state and remaining work</a><a href="#completion-gates">Completion gates</a></aside><div class="article-body">
+<section class="prose"><p>This is the intended end state and remaining migration work. The current state is recorded
+in <a href="implementation-status.html">Implementation status</a>.</p>
+<h2 id="end-state">End state</h2>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Repository after cutover</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>.zi</code> language, checker, laws, standard library, <code>.zir</code>, native backends, <code>.zx</code>, portable runtime</td>
+<td>Ziran</td>
+</tr>
+<tr>
+<td>Reusable widgets, layout, styling, accessibility, interaction, renderers, host adapters implemented in <code>.zi</code></td>
+<td>Kryon</td>
+</tr>
+<tr>
+<td>Product behavior and application UI</td>
+<td>Each application repository</td>
+</tr>
+</tbody>
+</table></div>
+<p>Ziran must build, check, and run non-graphical programs independently. Kryon
+is a normal importable Ziran library. No language file, IR node, compiler
+branch, linker rule, or loader rule recognizes Kryon widgets by name. UI
+behavior is expressed by Kryon's <code>.zi</code> modules. External C libraries and OS
+services enter through declared FFI or host capabilities; they do not hold
+Kryon's widget or runtime policy.</p>
+<h2 id="current-state-and-remaining-work">Current state and remaining work</h2>
+<p>The old Kryon <code>.kry</code> compiler and <code>.krb</code> runtime have been removed. All
+maintained Kryon UI modules are <code>.zi</code> sources using current Ziran syntax. The
+complete Kryon <code>make all</code> build passes checked <code>.zir</code>, C, and Go generation
+and native backend compilation with the current Ziran compiler. Platform host
+integration and application behavior gates remain incomplete. Inbe has moved
+its application sources to <code>.zi</code> and is migrating its native services, but its
+full source gate and app build do not pass yet. Inbe now pins the current
+verified local Kryon and Ziran revisions while its source migration proceeds.</p>
+<ol>
+<li>Finish generic Ziran imports, typed blocks and slots, laws, saved <code>.zir</code>,
+   and the <code>.zx</code> capability contract without importing Kryon.</li>
+<li>Complete Kryon's native, browser, and portable host effects through explicit
+   interfaces and verify widget behavior in applications.</li>
+<li>Port representative applications to Kryon imports and run their behavior
+   and supported target gates.</li>
+<li>Migrate downstream source and dependency pointers to <code>.zi</code>, <code>.zir</code>, and
+   <code>.zx</code>. Existing <code>.krb</code> bytes are not <code>.zx</code> and require recompilation.</li>
+</ol>
+<p>All Kryon changes are made in the upstream Kryon repository, then consumed by
+applications through clean dependency updates. The Ziran repository owns only
+language and portable execution work. The two repositories may progress
+independently while the downstream application cutover is completed.</p>
+<h2 id="completion-gates">Completion gates</h2>
+<ul>
+<li>Non-UI <code>.zi</code> and <code>.zir</code> builds work with no Kryon checkout or graphics
+  dependency; equivalent <code>.zx</code> programs run without a display.</li>
+<li>A saved <code>.zir</code> can be read by every supported backend; equivalent source and
+  saved-IR builds behave the same. The <code>.zx</code> loader rejects malformed bundles
+  and missing capabilities before execution.</li>
+<li>Kryon builds from maintained <code>.zi</code> source and is linked only when imported.
+  Widget calls are ordinary typed calls, and supported UI examples have no
+  compiler or IR widget exceptions.</li>
+<li>Supported C, Go, and portable targets, renderer paths, and downstream
+  applications pass their relevant behavior and build gates before changing
+  their public input and output extensions.</li>
+</ul></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

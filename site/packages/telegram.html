@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Telegram account authorization and MTProto 2.0 requests implemented in Ziran."><title>Telegram for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/telegram"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Telegram for Ziran</h1><p>Telegram account authorization and MTProto 2.0 requests implemented in Ziran. The package uses the Ziran crypto and compression packages; native sockets, entropy and private file operations use operating-system bindings. It does not load TDLib, run a Python bridge, or depend on a Telegram C/C++ implementation.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/telegram">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-tl">tl</a><a href="#module-encoding">encoding</a><a href="#module-mtproto">mtproto</a><a href="#module-client">client</a><a href="#module-auth">auth</a><a href="#module-messages">messages</a><a href="#module-members">members</a><a href="#module-session">session</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.telegram]
+git = "https://github.com/ziranlang/telegram.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><p>Exports are package-qualified: <code>telegram/tl</code>, <code>telegram/mtproto</code>,
+<code>telegram/client</code>, <code>telegram/auth</code>, <code>telegram/messages</code>, <code>telegram/members</code> and
+<code>telegram/session</code>.
+Use <code>ziran add https://github.com/ziranlang/telegram.git</code> once this repository
+is published. For development, resolve the canonical checkout through an
+ignored <code>ziran.local.toml</code> override and commit the generated lock file.</p>
+<p><code>client</code> owns an authenticated encrypted connection and accepts TL objects as
+JSON. Bytes use base64; <code>int128</code> and <code>int256</code> use hexadecimal. Integer fields
+are serialized without converting through floating point. <code>auth</code> adds phone
+number, code and SRP two-step verification, private session snapshots and
+authorization transfer between data centers. Account applications need their
+own API ID and hash from <a href="https://my.telegram.org/apps">Telegram's app configuration</a>.</p>
+<p><code>session</code> provides a single-account, single-thread event interface for CLI
+and native hosts: <code>Create</code>, <code>Send</code>, <code>Receive</code>, <code>Execute</code>. Its high-level JSON
+request names preserve compatibility with existing mirror callers. Account
+history, bot membership, text sends, exact callback bytes, reactions, read
+receipts, edits, deletions and service messages are normalized in Ziran. The
+same connection receives updates and recovers account and channel sequence
+gaps. It does not start a bot-token poller.</p>
+<p>Before <code>setTdlibParameters</code>, create an owner-controlled directory with mode
+0700 and provide its path as <code>database_directory</code>. That historical request name
+initializes this package, without TDLib. The session pins the directory and
+stores <code>account.json</code> with mode 0600 using fsync and an atomic rename. Existing
+unsafe or corrupt account files are rejected and preserved. Codes and passwords
+are not included in account snapshots. Drain and apply received events before
+calling <code>Receive</code> again: update cursors are checkpointed after the queue is
+drained so interrupted processing can replay safely.</p>
+<p>The high-level session covers the operations used by account chat mirrors;
+it is not a complete Telegram application. <code>loadChats</code> announces every chat
+with its full name, newest message and mute state. <code>downloadMessageFile</code>
+saves a message's photo or document to a new owner-only file, connecting to
+the file's data center when it differs from the account's;
+<code>downloadChatPhoto</code> does the same for a chat's small profile photo.
+<code>sendMessage</code> sends text, or uploads a local photo or document
+(<code>inputMessagePhoto</code> / <code>inputMessageDocument</code> with a <code>path</code>), optionally as a
+reply. <code>forwardMessages</code> forwards messages between chats and <code>searchChats</code>
+finds people, bots, groups and channels by name, @username or +phone.
+<code>getChat</code> reports a group's member count, description and the basic group it
+was upgraded from. <code>searchChatMembers</code>
+lists a group's recent members (up to 200) with their roles, custom titles
+and users; <code>getUser</code> gives one user's presence, bot message access, active
+username and profile photo; <code>getChatMessageCount</code> counts a chat's photos,
+videos, files, audio, links, voice messages or GIFs with TDLib's search
+filters.
+Normalized messages carry <code>reply_to_message_id</code> and <code>forward_info</code>. Other API
+methods can be called through <code>client</code> and the bundled TL schema. Secret
+chats, account registration and interactive email enrollment do not have
+high-level session helpers.</p>
+<p>Run <code>make check test</code> for offline TL, SRP, normalization and update-sequence
+checks. <code>make rpc-test</code> is an explicit network test: it performs an encrypted
+<code>help.getConfig</code> request against Telegram's test DC without signing into an
+account or sending a message.</p>
+<p>Protocol references: <a href="https://core.telegram.org/api/auth">authorization</a>,
+<a href="https://core.telegram.org/api/updates">update sequences</a>,
+<a href="https://core.telegram.org/api/srp">SRP</a>, and
+<a href="https://core.telegram.org/mtproto/description">MTProto 2.0</a>.</p></section>
+<section id="module-tl"><p class="eyebrow">telegram/src/tl.zi</p><h2>tl</h2><p>Bounded, schema-driven TL binary serialization. It preserves signed 64-bit integers and optional fields without a JavaScript/JSON-number round trip.</p><p>Import with <code>#import "telegram/tl"</code>.</p><div class="api-list">
+<div><code>Definition :: struct { name: string; id: u32; fields: string; result: string; }</code></div>
+<div><code>definitions: [4096]Definition</code></div>
+<div><code>definition_count: s32</code></div>
+<div><code>initialized: bool</code></div>
+<div><code>Buffer :: struct { bytes: []u8; at: s32; valid: bool; size: s32; }</code></div>
+<div><code>failure: string</code><p>Why the last Decode or DecodeResponse failed, for error messages.</p></div>
+<div><code>Fail :: (buffer: *Buffer, reason: string)</code></div>
+<div><code>Start :: (bytes: []u8) -&gt; Buffer</code></div>
+<div><code>Join :: (a: string, b: string) -&gt; string</code></div>
+<div><code>Find :: (text: string, needle: u8, start: s32) -&gt; s32</code></div>
+<div><code>Init :: () -&gt; bool</code></div>
+<div><code>ByName :: (name: string) -&gt; s32</code></div>
+<div><code>ById :: (id: u32) -&gt; s32</code></div>
+<div><code>Byte :: (buffer: *Buffer, value: u8)</code></div>
+<div><code>ReadByte :: (buffer: *Buffer) -&gt; u8</code></div>
+<div><code>Word :: (buffer: *Buffer, value: u32)</code></div>
+<div><code>ReadWord :: (buffer: *Buffer) -&gt; u32</code></div>
+<div><code>Long :: (buffer: *Buffer, value: s64)</code></div>
+<div><code>ReadLong :: (buffer: *Buffer) -&gt; s64</code></div>
+<div><code>Bytes :: (buffer: *Buffer, value: []u8)</code></div>
+<div><code>ReadBytes :: (buffer: *Buffer) -&gt; s32</code></div>
+<div><code>Field :: struct { name: string; type: string; flag: s32; bit: s32; }</code></div>
+<div><code>ParseField :: (token: string) -&gt; Field</code></div>
+<div><code>Next :: (text: string, at: *s32) -&gt; string</code></div>
+<div><code>EncodeText :: (buffer: *Buffer, kind: string, json: string, at: s32)</code></div>
+<div><code>EncodeType :: (buffer: *Buffer, kind: string, json: string, at: s32, depth: s32)</code></div>
+<div><code>DecodeType :: (buffer: *Buffer, kind: string, out: *Vec(u8), depth: s32)</code></div>
+<div><code>Double :: (buffer: *Buffer, out: *Vec(u8))</code><p>A double (video durations, coordinates, ratings) is written with up to nine decimals. JSON has no NaN or infinity, and values too large to round exactly that way are not real Telegram values; both become null.</p></div>
+<div><code>Encode :: (json: string, bytes: []u8) -&gt; s32</code></div>
+<div><code>Decode :: (bytes: []u8) -&gt; string</code></div>
+<div><code>Finished :: (buffer: *Buffer, kind: string) -&gt; bool</code><p>A failed or partly read reply records why in failure.</p></div>
+<div><code>DecodeResponse :: (method: string, bytes: []u8) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/tl.zi">Source ↗</a></p></section>
+<section id="module-encoding"><p class="eyebrow">telegram/src/encoding.zi</p><h2>encoding</h2><p>Import with <code>#import "telegram/encoding"</code>.</p><div class="api-list">
+<div><code>Alphabet :: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"</code></div>
+<div><code>HexAlphabet :: "0123456789abcdef"</code></div>
+<div><code>Hex :: (bytes: []u8) -&gt; string</code></div>
+<div><code>Nibble :: (b: u8) -&gt; s32</code></div>
+<div><code>Unhex :: (text: string, bytes: []u8) -&gt; bool</code></div>
+<div><code>Base64 :: (bytes: []u8, url: bool) -&gt; string</code></div>
+<div><code>Digit :: (b: u8) -&gt; s32</code></div>
+<div><code>Unbase64 :: (text: string, bytes: []u8) -&gt; s32</code></div>
+<div><code>Quote :: (text: string) -&gt; string</code></div>
+<div><code>String :: (json: string, at: s32, name: string) -&gt; string</code></div>
+<div><code>Integer :: (text: string) -&gt; s64</code></div>
+<div><code>Raw :: (json: string, at: s32) -&gt; string</code></div>
+<div><code>Number :: (json: string, at: s32, name: string) -&gt; s64</code></div>
+<div><code>Kind :: (json: string) -&gt; string</code></div>
+<div><code>Copy :: (text: string) -&gt; string</code></div>
+<div><code>Trim :: (text: string) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/encoding.zi">Source ↗</a></p></section>
+<section id="module-mtproto"><p class="eyebrow">telegram/src/mtproto.zi</p><h2>mtproto</h2><p>MTProto 2.0 intermediate TCP transport and authenticated key exchange. All protocol and cryptography are Ziran; sockets and entropy are OS services.</p><p>Import with <code>#import "telegram/mtproto"</code>.</p><div class="api-list">
+<div><code>Connection :: struct { socket: Socket.LinuxSocket; key: [256]u8; key_id: s64; salt: s64; session: s64; sequence: s32; last_id: s64; clock: s64; dc: s32; test: bool; ready: bool; error: string; received: [128]s64; receive_index: s32; }</code></div>
+<div><code>Builder :: () -&gt; Vec(u8)</code></div>
+<div><code>Now :: () -&gt; s64</code></div>
+<div><code>Integer :: (bytes: []u8) -&gt; s64</code></div>
+<div><code>NewId :: (connection: *Connection) -&gt; s64</code></div>
+<div><code>Address :: (dc: s32, test: bool) -&gt; [4]u8</code></div>
+<div><code>Open :: (connection: *Connection, dc: s32, test: bool) -&gt; bool</code></div>
+<div><code>SendPacket :: (connection: *Connection, bytes: []u8) -&gt; bool</code></div>
+<div><code>Exact :: (connection: *Connection, bytes: []u8, timeout: s32) -&gt; bool</code></div>
+<div><code>ReceivePacket :: (connection: *Connection, bytes: []u8, timeout: s32) -&gt; s32</code></div>
+<div><code>Unencrypted :: (connection: *Connection, json: string) -&gt; string</code></div>
+<div><code>AddMod :: (a: u64, b: u64, n: u64) -&gt; u64</code></div>
+<div><code>MultiplyMod :: (a: u64, b: u64, n: u64) -&gt; u64</code></div>
+<div><code>Gcd :: (a: u64, b: u64) -&gt; u64</code></div>
+<div><code>Factor :: (n: u64) -&gt; u64</code></div>
+<div><code>Natural :: (value: u64) -&gt; string</code></div>
+<div><code>RsaPad :: (data: []u8, test: bool, output: []u8) -&gt; bool</code></div>
+<div><code>Prime :: "c71caeb9c6b1c9048e6c522f70f13f73980d40238e3e21c14934d037563d930f48198a0aa7c14058229493d22530f4dbfa336f6e0ac925139543aed44cce7c3720fd51f69458705ac68cd4fe6b6b13abdc9746512969328454f18faf8c595f642477fe96bb2a941d5bcd1d4ac8cc49880708fa9b378e3c4f3a9060bee67cf9a4a4a695811051907e162753b56b0f6b410dba74d8a84b2a14b3144e0ef1284754fd17ed950d5965b4b9dd46582db1178d169c6bc465b0d6ff9ca3928fef5b9ae4e418fc15e83ebea0f87fa9ff5eed70050ded2849f47bf959d956850ce929851f0d8115f635b105ee2e4e15d04b2454bf6f4fadf034b10403119cd8e3b92fcc5b"</code></div>
+<div><code>ValidDh :: (prime: []u8, g: s32, public: []u8) -&gt; bool</code></div>
+<div><code>KeyExchange :: (connection: *Connection) -&gt; bool</code></div>
+<div><code>Derive :: (connection: *Connection, msg_key: []u8, incoming: bool, key: []u8, iv: []u8)</code></div>
+<div><code>Encrypt :: (connection: *Connection, body: []u8, content: bool, output: []u8) -&gt; s32</code></div>
+<div><code>Decrypt :: (connection: *Connection, input: []u8, output: []u8) -&gt; s32</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/mtproto.zi">Source ↗</a></p></section>
+<section id="module-client"><p class="eyebrow">telegram/src/client.zi</p><h2>client</h2><p>A synchronous RPC client with a separately drainable update queue. The caller owns one Client and calls it from one thread. API methods are TL objects; bytes fields use base64 and int128/int256 fields use hex.</p><p>Import with <code>#import "telegram/client"</code>.</p><div class="api-list">
+<div><code>Client :: struct { connection: MT.Connection; api_id: s32; api_hash: string; device: string; initialized: bool; response: string; pending: s64; method: string; retry: bool; updates: [256]string; head: s32; tail: s32; gap: bool; }</code></div>
+<div><code>Error :: (code: s32, message: string) -&gt; string</code></div>
+<div><code>Connect :: (client: *Client, dc: s32, test: bool) -&gt; bool</code></div>
+<div><code>Queue :: (client: *Client, value: string)</code></div>
+<div><code>NextUpdate :: (client: *Client) -&gt; string</code></div>
+<div><code>Send :: (client: *Client, json: string, content: bool) -&gt; s64</code></div>
+<div><code>Ack :: (client: *Client, id: s64)</code></div>
+<div><code>Unpack :: (body: []u8, output: []u8) -&gt; s32</code></div>
+<div><code>Handle :: (client: *Client, body: []u8, server_id: s64, depth: s32)</code></div>
+<div><code>Poll :: (client: *Client, timeout_ms: s32) -&gt; bool</code></div>
+<div><code>Request :: (client: *Client, query: string) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/client.zi">Source ↗</a></p></section>
+<section id="module-auth"><p class="eyebrow">telegram/src/auth.zi</p><h2>auth</h2><p>Account authorization over the Ziran MTProto client. The caller stores Snapshot in private storage; phone codes and passwords are never persisted.</p><p>Import with <code>#import "telegram/auth"</code>.</p><div class="api-list">
+<div><code>Account :: struct { client: RPC.Client; phone: string; code_hash: string; state: string; user: string; error: string; password_parameters: string; qr: string; qr_expires: s64; }</code></div>
+<div><code>HashBytes :: (bytes: []u8, output: []u8)</code></div>
+<div><code>Salted :: (data: []u8, salt: []u8, output: []u8)</code></div>
+<div><code>PasswordProof :: (parameters: string, password: string, entropy: []u8) -&gt; string</code></div>
+<div><code>Snapshot :: (account: *Account) -&gt; string</code></div>
+<div><code>Restore :: (account: *Account, snapshot: string) -&gt; bool</code></div>
+<div><code>ResumePassword :: (account: *Account, parameters: string) -&gt; bool</code><p>Recover a pending two-factor challenge using the saved authorization key. No phone code or password is stored in the snapshot.</p></div>
+<div><code>Connect :: (account: *Account, api_id: s32, api_hash: string, device: string, snapshot: string) -&gt; bool</code></div>
+<div><code>Request :: (account: *Account, query: string) -&gt; string</code></div>
+<div><code>Advance :: (account: *Account, reply: string) -&gt; bool</code></div>
+<div><code>Phone :: (account: *Account, phone: string) -&gt; bool</code></div>
+<div><code>Code :: (account: *Account, code: string) -&gt; bool</code></div>
+<div><code>Password :: (account: *Account, password: string) -&gt; bool</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/auth.zi">Source ↗</a></p></section>
+<section id="module-messages"><p class="eyebrow">telegram/src/messages.zi</p><h2>messages</h2><p>Normalize Telegram API messages without losing callback bytes or peer IDs.</p><p>Import with <code>#import "telegram/messages"</code>.</p><div class="api-list">
+<div><code>ChatId :: (peer: string) -&gt; s64</code></div>
+<div><code>Peer :: (chat: s64) -&gt; string</code></div>
+<div><code>Normalize :: (message: string, chat: s64, self: s64) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/messages.zi">Source ↗</a></p></section>
+<section id="module-members"><p class="eyebrow">telegram/src/members.zi</p><h2>members</h2><p>Normalize chat members, user presence and shared-media counts into the TDLib-style objects the session returns.</p><p>Import with <code>#import "telegram/members"</code>.</p><div class="api-list">
+<div><code>Flag :: (json: string, at: s32, name: string) -&gt; bool</code></div>
+<div><code>Bool :: (value: bool) -&gt; string</code></div>
+<div><code>User :: (json: string, at: s32) -&gt; string</code><p>A user's presence, bot access and active username. Photo IDs are 64-bit, so they travel as text like chat photo IDs do.</p></div>
+<div><code>Members :: (reply: string, limit: s64) -&gt; string</code><p>Members from channels.channelParticipants or messages.chatFull, with each member's user alongside so callers need no lookup per member.</p></div>
+<div><code>Filter :: (name: string) -&gt; string</code><p>TDLib message filters and the API filters that count the same messages.</p></div>
+<div><code>CountQuery :: (peer: string, filter: string) -&gt; string</code></div>
+<div><code>Count :: (reply: string) -&gt; string</code><p>One search counter, from the vector messages.getSearchCounters returns.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/members.zi">Source ↗</a></p></section>
+<section id="module-session"><p class="eyebrow">telegram/src/session.zi</p><h2>session</h2><p>One account connection, sign-in state and event queue for CLI/native clients. This small JSON interface is implemented entirely over Ziran MTProto/TL.</p><p>Import with <code>#import "telegram/session"</code>.</p><div class="api-list">
+<div><code>Join :: (a: string, b: string) -&gt; string</code></div>
+<div><code>account: Auth.Account</code></div>
+<div><code>directory: string</code></div>
+<div><code>directory_fd: s32</code></div>
+<div><code>last_snapshot: string</code></div>
+<div><code>queue: [8192]string</code></div>
+<div><code>head: s32</code></div>
+<div><code>overflow: bool</code></div>
+<div><code>tail: s32</code></div>
+<div><code>peer_count: s32</code></div>
+<div><code>peer_hashes: [4096]s64</code></div>
+<div><code>peer_ids: [4096]s64</code></div>
+<div><code>channel_gap: [4096]bool</code></div>
+<div><code>channel_pts: [4096]s64</code></div>
+<div><code>channel_saved: [4096]s64</code></div>
+<div><code>offset_date: [2]s64</code></div>
+<div><code>offset_id: [2]s64</code></div>
+<div><code>offset_peer: [2]string</code></div>
+<div><code>date: s64</code></div>
+<div><code>next_difference: s64</code></div>
+<div><code>next_sync: s64</code></div>
+<div><code>pts: s64</code></div>
+<div><code>qts: s64</code></div>
+<div><code>seq: s64</code></div>
+<div><code>saved_date: s64</code></div>
+<div><code>saved_pts: s64</code></div>
+<div><code>saved_qts: s64</code></div>
+<div><code>saved_seq: s64</code></div>
+<div><code>recovering: bool</code></div>
+<div><code>started: bool</code></div>
+<div><code>send_success: string</code></div>
+<div><code>Push :: (value: string)</code></div>
+<div><code>Authorization :: ()</code></div>
+<div><code>Create :: () -&gt; s32</code></div>
+<div><code>Private :: (fd: s32, kind: u32) -&gt; bool</code></div>
+<div><code>Load :: () -&gt; string</code></div>
+<div><code>RestoreUpdates :: (snapshot: string)</code></div>
+<div><code>Checkpoint :: ()</code></div>
+<div><code>Snapshot :: () -&gt; string</code></div>
+<div><code>Save :: () -&gt; bool</code></div>
+<div><code>Reply :: (value: string, extra: string)</code></div>
+<div><code>Error :: (text: string, extra: string, code: s64)</code><p>Telegram's own error code is kept (404 ends loadChats, 420 is a flood wait); local and transport failures report 400.</p></div>
+<div><code>Cache :: (reply: string)</code></div>
+<div><code>InputPeer :: (id: s64) -&gt; string</code></div>
+<div><code>Request :: (query: string) -&gt; string</code></div>
+<div><code>PeerSlot :: (id: s64) -&gt; s32</code></div>
+<div><code>Message :: (message: string, chat: s64)</code></div>
+<div><code>Advance :: (update: string, chat: s64) -&gt; bool</code></div>
+<div><code>Update :: (update: string)</code></div>
+<div><code>State :: (value: string)</code></div>
+<div><code>Difference :: () -&gt; bool</code></div>
+<div><code>ChannelDifference :: (slot: s32) -&gt; bool</code></div>
+<div><code>Announce :: (reply: string, folder: s32) -&gt; s32</code><p>Announces each dialog in a messages.getDialogs reply as a chat: its title (a person's full name), type, newest message and mute state.</p></div>
+<div><code>Dialogs :: (folder: s32) -&gt; string</code></div>
+<div><code>media: [6]RPC.Client</code><p>Media lives on its own data center; each gets one connection authorized with an authorization exported from the account's data center.</p></div>
+<div><code>media_ready: [6]bool</code></div>
+<div><code>Release :: (value: string)</code><p>Large replies are released at once instead of living until exit.</p></div>
+<div><code>FileRequest :: (dc: s32, query: string) -&gt; string</code></div>
+<div><code>PhotoSize :: (message: string, photo: s32) -&gt; string</code><p>The largest photo size, as (thumb type, bytes).</p></div>
+<div><code>Download :: (request: string) -&gt; string</code><p>Downloads a message's photo or document to a new private file at destination. Files larger than limit bytes are refused before download.</p></div>
+<div><code>Fetch :: (place: string, dc: s32, destination: string, mime: string, name: string) -&gt; string</code><p>Saves the file at location on data center dc to a new owner-only file.</p></div>
+<div><code>ChatPhoto :: (request: string) -&gt; string</code><p>A chat's small profile photo (160 by 160 JPEG) as a new owner-only file.</p></div>
+<div><code>upload_error: string</code><p>Uploads a local file in 512 KiB parts and returns its InputFile.</p></div>
+<div><code>Upload :: (path: string, name: string) -&gt; string</code></div>
+<div><code>ReplyTo :: (request: string) -&gt; string</code></div>
+<div><code>SentId :: (reply: string) -&gt; s64</code><p>The new message's ID from a send reply; other updates apply as usual.</p></div>
+<div><code>Pending :: (chat: s64, id: s64) -&gt; string</code></div>
+<div><code>Media :: (content: string, file: string, name: string) -&gt; string</code><p>Uploaded voice notes carry Telegram's audio/voice attribute instead of arriving as a downloadable document. Photo and document behavior stays.</p></div>
+<div><code>SendMedia :: (request: string, chat: s64, peer: string) -&gt; string</code><p>A photo or document from a local path, with an optional caption.</p></div>
+<div><code>Forward :: (request: string, peer: string) -&gt; string</code><p>Forwards messages of one chat to another as the account.</p></div>
+<div><code>found_ids: [64]s64</code><p>People, bots, groups and channels matching a name, @username or +phone.</p></div>
+<div><code>found_count: s32</code></div>
+<div><code>Found :: (out: *Vec(u8), reply: string, comma: *string)</code></div>
+<div><code>SearchChats :: (request: string) -&gt; string</code></div>
+<div><code>GroupQuery :: (request: string) -&gt; string</code><p>Private groups may start with just their creator. Keep access hashes inside the account transport, as with every other chat operation.</p></div>
+<div><code>TextQuery :: (request: string, peer: string) -&gt; string</code><p>A durable outbox can retain Telegram's deduplication identity across restarts. Other callers retain a fresh cryptographically random message identity.</p></div>
+<div><code>GroupReply :: (reply: string, selected: s64) -&gt; string</code></div>
+<div><code>Dispatch :: (request: string) -&gt; string</code></div>
+<div><code>Send :: (client: s32, request: string)</code></div>
+<div><code>Receive :: (timeout: float64) -&gt; string</code></div>
+<div><code>Execute :: (request: string) -&gt; string</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/telegram/blob/HEAD/src/session.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

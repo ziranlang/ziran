@@ -184,3 +184,49 @@ test ! -e "$work/constant-c/constants.c"
 "${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$work/constant-c" \
     "$work/constant-c"/*.c -o "$work/constant-app"
 "$work/constant-app"
+
+# A literal of constant elements, such as a 4096-entry table too long for one
+# expression, is one static table copied into each result instead of one
+# store per element. Results stay independent mutable values and nested arrays
+# keep their shape; the app module holds the mutations and a mixed literal.
+awk 'BEGIN {
+    printf "#program_export\nMake :: () -> [4096]s16 {\n    values: [4096]s16 = .["
+    for(i = 0; i < 4096; i++) printf "%s%d", i ? (i % 16 ? ", " : ",\n        ") : "", (i * 7919) % 65536 - 32768
+    printf "]\n    return values\n}\n"
+    printf "#program_export\nGrid :: () -> [2][3]u8 {\n    grid: [2][3]u8 = .[u8.[1, 2, 3], u8.[4, 5, 250]]\n    return grid\n}\n"
+    printf "#program_export\nFlags :: () -> [3]bool { return bool.[true, false, true] }\n"
+}' > "$work/tables.zi"
+sum=$(awk 'BEGIN { for(i = 0; i < 4096; i++) s += (i * 7919) % 65536 - 32768; print s }')
+last=$(awk 'BEGIN { print (4095 * 7919) % 65536 - 32768 }')
+cat > "$work/table_app.zi" <<ZI
+#import "tables"
+Mixed :: (k: s32) -> [3]s32 { return s32.[1, k, 3] }
+#program_export
+main :: () -> s32 {
+    first := Make(); second := Make()
+    first[0] = 1; first[4095] = 2
+    total: s64 = 0
+    for value: second { total += cast(s64)value }
+    if total != $sum || second[4095] != $last || second[0] != -32768 { return 1 }
+    if first[0] != 1 || first[4095] != 2 || first[1] != second[1] { return 2 }
+    grid := Grid(); grid[0][0] = 9
+    again := Grid()
+    if again[0][0] != 1 || again[1][2] != 250 || grid[1][0] != 4 { return 3 }
+    flags := Flags()
+    if !flags[0] || flags[1] || !flags[2] { return 4 }
+    mixed := Mixed(7)
+    if mixed[1] != 7 || mixed[2] != 3 { return 5 }
+    return 0
+}
+ZI
+"$ziran" build --target=c --entry table_app:main --root "$work" \
+    -o "$work/table-c" "$work/table_app.zi"
+"${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$work/table-c" \
+    "$work/table-c"/*.c -o "$work/table-app"
+"$work/table-app"
+grep -Fq 'static const int16_t value_' "$work/table-c/tables.c"
+grep -Fq '{{1, 2, 3}, {4, 5, 250}}' "$work/table-c/tables.c"
+if grep -Eq '^ *[A-Za-z_][A-Za-z0-9_]*(\[[0-9]+\])+ = ' "$work/table-c/tables.c"; then
+    echo 'constant array literal was lowered to element stores' >&2
+    exit 1
+fi

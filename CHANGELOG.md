@@ -5,6 +5,8 @@
 - Array literals have no size cap and check in linear time; saved IR is
   bounded only by its 256 MiB read budget. Returning a view of a pointer
   parameter's own array storage is rejected; pass that storage as a slice.
+- Native C keeps an array literal of constant numbers or booleans as one
+  static table instead of a store per element, so large tables compile fast.
 - `ziran edit` previews and applies checked source edits; `ziran compact` and
   `ziran expand` give `.zi` files an optional lossless compact transport.
 - JSON diagnostics keep each message within 2048 bytes and report cuts in a

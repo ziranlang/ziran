@@ -655,6 +655,120 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
     return 1;
 }
 
+/* A C array literal whose every element is a number or boolean literal, at
+ * any nesting of fixed arrays. Such a literal can be one static constant
+ * table instead of an element-by-element store sequence. */
+static int
+constant_array_literal(const Emitter *e, int index, const char *type, int depth)
+{
+    static const char *const scalars[] = {
+        "s8", "s16", "s32", "s64", "u8", "u16", "u32", "u64",
+        "isize", "usize", "float32", "float64", "bool", NULL
+    };
+    char element[ZIR_NAME_MAX];
+    if(depth >= 32 || index < 0 || index >= e->fn->expr_count)
+        return 0;
+    const ZirExpr *expr = &e->fn->exprs[index];
+    type = canonical(type);
+    if(expr->kind != ZIR_EXPR_COMPOUND || expr->first_child < 0 ||
+       !ArrayElementType(type, element, sizeof(element), NULL) ||
+       TypeHasZeroArray(e->module, type))
+        return 0;
+    for(int child = expr->first_child; child >= 0;
+        child = e->fn->exprs[child].next_sibling) {
+        const ZirExpr *entry = &e->fn->exprs[child];
+        const char *item = canonical(entry->type);
+        if(entry->right < 0 || entry->right >= e->fn->expr_count)
+            return 0;
+        const ZirExpr *value = &e->fn->exprs[entry->right];
+        if(ArrayElementType(item, NULL, 0, NULL)) {
+            if(!constant_array_literal(e, entry->right, item, depth + 1))
+                return 0;
+            continue;
+        }
+        int scalar = 0;
+        for(int i = 0; scalars[i] != NULL; i++)
+            scalar |= !strcmp(item, scalars[i]);
+        int real = !strcmp(item, "float32") || !strcmp(item, "float64");
+        int boolean = !strcmp(item, "bool");
+        if(!scalar)
+            return 0;
+        if(value->kind == ZIR_EXPR_UNARY && !strcmp(value->op, "-") &&
+           value->right >= 0 && value->right < e->fn->expr_count && !boolean)
+            value = &e->fn->exprs[value->right];
+        if(!(value->kind == ZIR_EXPR_INT && !boolean) &&
+           !(value->kind == ZIR_EXPR_FLOAT && real) &&
+           !(value->kind == ZIR_EXPR_IDENT && boolean && !value->is_move &&
+             (!strcmp(value->name, "true") || !strcmp(value->name, "false"))))
+            return 0;
+    }
+    return 1;
+}
+
+/* Writes a constant array literal's brace list straight to the output, so
+ * a table of any size needs no expression buffer. COLUMN tracks the line
+ * width to wrap long tables. */
+static void
+emit_constant_initializer(Emitter *e, int index, int *column)
+{
+    const ZirExpr *expr = &e->fn->exprs[index];
+    char value[ZIR_TEXT_MAX], plain[ZIR_TEXT_MAX];
+    fputc('{', e->out);
+    (*column)++;
+    for(int child = expr->first_child; child >= 0;
+        child = e->fn->exprs[child].next_sibling) {
+        const ZirExpr *entry = &e->fn->exprs[child];
+        if(child != expr->first_child) {
+            fputc(',', e->out);
+            (*column)++;
+        }
+        if(*column >= 96) {
+            fputc('\n', e->out);
+            for(int i = 0; i <= e->indent; i++) fputs("    ", e->out);
+            *column = 4 * (e->indent + 1);
+        } else if(child != expr->first_child) {
+            fputc(' ', e->out);
+            (*column)++;
+        }
+        if(ArrayElementType(canonical(entry->type), NULL, 0, NULL)) {
+            emit_constant_initializer(e, entry->right, column);
+            continue;
+        }
+        emit_expr(e, entry->right, entry->type, value, sizeof(value));
+        const char *shown = bare(value, plain, sizeof(plain));
+        fputs(shown, e->out);
+        *column += (int)strlen(shown);
+    }
+    fputc('}', e->out);
+    (*column)++;
+}
+
+/* A constant array literal as a function-local static table. A declaration
+ * copies the table into its own storage; any other use gets a mutable copy,
+ * as the literal's value may be changed or viewed through a slice. */
+static void
+constant_array_table(Emitter *e, int index, const char *type, int braced,
+                     char *out, size_t size)
+{
+    char table[ZIR_NAME_MAX], element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+    int column;
+    fresh(e, table);
+    array_target_type(e, type, element, sizeof(element), bounds, sizeof(bounds));
+    for(int i = 0; i < e->indent; i++) fputs("    ", e->out);
+    column = 4 * e->indent +
+        fprintf(e->out, "static const %s %s%s = ", element, table, bounds);
+    emit_constant_initializer(e, index, &column);
+    fputs(";\n", e->out);
+    if(braced) {
+        copy_text(out, size, table);
+        return;
+    }
+    char copy[ZIR_NAME_MAX];
+    fresh(e, copy);
+    declare(e, copy, type, table);
+    copy_text(out, size, copy);
+}
+
 /* The one member of a plain enum holding value, by the target's own
  * constant name: Shape_CIRCLE in C, ShapeCIRCLE in Go. Flags and values
  * two members share keep the number. */
@@ -821,6 +935,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             break;
         }
         if(c_brace_list(e, expr, type, braced, out, size)) {
+            e->pure = 1;
+            return;
+        }
+        if(e->target == ZIR_C && constant_array_literal(e, index, type, 0)) {
+            constant_array_table(e, index, type, braced, out, size);
             e->pure = 1;
             return;
         }

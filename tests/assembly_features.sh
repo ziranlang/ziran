@@ -212,7 +212,7 @@ features = ['popcnt', 'sse2', 'ssse3', 'sse4.1', 'sse4.2', 'avx', 'avx2',
             'avx512f', 'bmi', 'bmi2', 'lzcnt', 'fma', 'aes', 'pclmul']
 targets = [arch+'+'+feature for arch in ['x86', 'x86_64'] for feature in features]
 targets += ['aarch64+'+f for f in ['aes', 'crc32', 'pmull', 'sha2', 'atomics', 'simd']]
-targets += ['aarch64+aes+crc32']
+targets += ['aarch64+aes+crc32', 'arm+neon']
 Path(sys.argv[1]).write_text('\n'.join(
     f'F{i} :: () #asm("{target}", "", "", "", "", "") {{}}' for i, target in enumerate(targets)))
 PY
@@ -220,11 +220,106 @@ PY
 "${CC:-cc}" -O2 -Werror -I"$repo/include" -I"$work/matrix" \
     -c "$work/matrix/matrix.c" -o "$work/matrix/native.o"
 if test -n "${ANDROID_NDK_HOME:-}"; then
-    for triple in aarch64-linux-android24 i686-linux-android24; do
+    for triple in aarch64-linux-android24 armv7a-linux-androideabi24 i686-linux-android24; do
         "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-clang" \
             -O2 -Werror -I"$repo/include" -I"$work/matrix" \
             -c "$work/matrix/matrix.c" -o "$work/matrix/$triple.o"
     done
+fi
+
+# ARMv7 NEON is selected from the kernel's AT_HWCAP. A CPU without NEON takes
+# the arm baseline and ZIRAN_NO_ASM the portable body. The loads use vld1
+# without an alignment qualifier, so the unaligned buffer must not fault.
+cat > "$work/neon.zi" <<'ZI'
+#program_export
+NeonPath :: () -> s32 #asm("arm+neon", "mov %[out], #2", "=r", "", "", "") #asm("arm", "mov %[out], #1", "=r", "", "", "") { return 0 }
+#program_export
+SumChunks :: (data: *u8, chunks: u32) -> u32 #asm("arm+neon", "mov r12, %[data]\n\tmovs r3, %[chunks]\n\tvmov.i32 q1, #0\n\tbeq 2f\n1:\n\tvld1.8 {d0, d1}, [r12]!\n\tvpaddl.u8 q0, q0\n\tvpadal.u16 q1, q0\n\tsubs r3, r3, #1\n\tbne 1b\n2:\n\tvadd.i32 d2, d2, d3\n\tvpadd.i32 d2, d2, d2\n\tvmov.32 %[out], d2[0]", "=r", "r;r", "r3;r12;d0;d1;d2;d3;cc;memory", "") {
+    total: u32
+    i: u32 = 0
+    while i < chunks * 16 { total += cast(u32)data[i]; i += 1 }
+    return total
+}
+#program_export
+BlockSum :: (data: *u8, chunks: u32) -> u32 {
+    total: u32
+    #asm("arm+neon", "mov r12, %[data]\n\tmovs r3, %[chunks]\n\tvmov.i32 q1, #0\n\tbeq 2f\n1:\n\tvld1.8 {d0, d1}, [r12]!\n\tvpaddl.u8 q0, q0\n\tvpadal.u16 q1, q0\n\tsubs r3, r3, #1\n\tbne 1b\n2:\n\tvadd.i32 d2, d2, d3\n\tvpadd.i32 d2, d2, d2\n\tvmov.32 %[total], d2[0]", "=r:total", "r:data;r:chunks", "r3;r12;d0;d1;d2;d3;cc;memory", "") {
+        i: u32 = 0
+        while i < chunks * 16 { total += cast(u32)data[i]; i += 1 }
+    }
+    return total
+}
+#program_export
+Answer :: () -> s64 { return 40 + cast(s64)NeonPath() }
+ZI
+cat > "$work/neon-host.c" <<'C'
+#include "neon.h"
+#include <stdint.h>
+#include <stdio.h>
+int main(void) {
+    static uint8_t buffer[16 * 9 + 1];
+    for(unsigned i = 0; i < sizeof(buffer); i++) buffer[i] = (uint8_t)(i * 37 + 11);
+    for(uint32_t chunks = 0; chunks <= 9; chunks++) {
+        uint32_t expected = 0;
+        for(uint32_t i = 0; i < chunks * 16; i++) expected += buffer[1 + i];
+        if(SumChunks(buffer + 1, chunks) != expected || BlockSum(buffer + 1, chunks) != expected) {
+            printf("sum mismatch at %u chunks\n", (unsigned)chunks);
+            return 1;
+        }
+    }
+    printf("%d\n", (int)NeonPath());
+    return 0;
+}
+C
+"$ziran" ir --root "$work" -o "$work/neon-ir" "$work/neon.zi"
+"$ziran" build --target=c --root "$work" -o "$work/neon-c" "$work/neon.zi"
+"$ziran" build --target=c --root "$work/neon-ir" -o "$work/neon-saved-c" "$work/neon-ir/neon.zir"
+cmp "$work/neon-c/neon.c" "$work/neon-saved-c/neon.c"
+"$ziran" bundle --root "$work" --entry neon:Answer -o "$work/neon.zx" "$work/neon.zi"
+test "$("$ziran" run "$work/neon.zx")" = 40
+"${CC:-cc}" -std=c11 -O2 -Werror -I"$repo/include" -I"$work/neon-c" \
+    "$work/neon-c/neon.c" "$work/neon-host.c" -o "$work/neon-native"
+case $(uname -m) in
+    arm*) "$work/neon-native" >/dev/null ;;
+    *) test "$("$work/neon-native")" = 0 ;;
+esac
+# Both compilers, ARM and Thumb-2 callers, run under qemu-arm. Its masked CPU
+# drops NEON together with the 32 double registers, as QEMU requires.
+qemu_arm=${ZIRAN_QEMU_ARM:-qemu-arm}
+arm_ran=0
+if command -v "$qemu_arm" >/dev/null 2>&1; then
+    printf 'int main(void) { return 0; }\n' > "$work/arm-probe.c"
+    for compiler in "${ZIRAN_ARM_CC:-arm-linux-gnueabihf-gcc}" "${ZIRAN_ARM_CLANG:-clang --target=arm-linux-gnueabihf}"; do
+        # Unquoted on purpose: a compiler command may carry its target option.
+        if ! $compiler -static "$work/arm-probe.c" -o "$work/arm-probe" >/dev/null 2>&1 ||
+           ! "$qemu_arm" "$work/arm-probe"; then
+            echo "assembly-features: skipping ARMv7 runs with $compiler"
+            continue
+        fi
+        $compiler -O2 -Werror -I"$repo/include" -I"$work/matrix" \
+            -c "$work/matrix/matrix.c" -o "$work/matrix/arm.o"
+        for mode in -mthumb -marm; do
+            $compiler $mode -std=c11 -O2 -static -Werror -I"$repo/include" -I"$work/neon-c" \
+                "$work/neon-c/neon.c" "$work/neon-host.c" -o "$work/neon-arm"
+            test "$("$qemu_arm" -cpu cortex-a15 "$work/neon-arm")" = 2
+            test "$("$qemu_arm" -cpu cortex-a15,neon=off,vfp-d32=off "$work/neon-arm")" = 1
+        done
+        $compiler -std=c11 -O2 -static -Werror -DZIRAN_NO_ASM -I"$repo/include" -I"$work/neon-c" \
+            "$work/neon-c/neon.c" "$work/neon-host.c" -o "$work/neon-arm"
+        test "$("$qemu_arm" -cpu cortex-a15 "$work/neon-arm")" = 0
+        arm_ran=$((arm_ran + 1))
+    done
+else
+    echo "assembly-features: $qemu_arm is unavailable; skipping ARMv7 NEON runs"
+fi
+if test "${ARM_REQUIRED:-0}" = 1 && test "$arm_ran" != 2; then
+    echo 'assembly-features: ARM_REQUIRED=1 needs qemu-arm and both ARMv7 compilers' >&2
+    exit 1
+fi
+if test -n "${ANDROID_NDK_HOME:-}"; then
+    "$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin/armv7a-linux-androideabi24-clang" \
+        -std=c11 -O2 -Werror -I"$repo/include" -I"$work/neon-c" \
+        "$work/neon-c/neon.c" "$work/neon-host.c" -o "$work/neon-android"
 fi
 
 reject() {
@@ -240,6 +335,21 @@ F :: () #asm("x86_64+unknown", "", "", "", "", "") {}
 ZI
 reject 'unsupported #asm CPU feature' <<'ZI'
 F :: () #asm("aarch64+avx2", "", "", "", "", "") {}
+ZI
+reject 'unsupported #asm CPU feature' <<'ZI'
+F :: () #asm("arm+simd", "", "", "", "", "") {}
+ZI
+reject 'unsupported #asm CPU feature' <<'ZI'
+F :: () #asm("aarch64+neon", "", "", "", "", "") {}
+ZI
+reject 'unsupported #asm CPU feature' <<'ZI'
+F :: () #asm("wasm32+neon", "", "", "", "", "") {}
+ZI
+reject 'unsupported #asm CPU feature' <<'ZI'
+F :: () #asm("x86_64+simd128", "", "", "", "", "") {}
+ZI
+reject 'shadowed by an earlier' <<'ZI'
+F :: () #asm("wasm32", "", "", "", "", "") #asm("wasm32+simd128", "", "", "", "", "") {}
 ZI
 reject 'duplicate #asm CPU feature' <<'ZI'
 F :: () #asm("x86_64+popcnt+popcnt", "", "", "", "", "") {}

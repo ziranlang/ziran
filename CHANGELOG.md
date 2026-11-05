@@ -22,6 +22,8 @@
   `std/float_text` adds `Float64ReprInto`.
 - `std/resample` gives native programs Pillow's resize as allocation-free
   row kernels, with SSE2, AVX2 and NEON versions that make the same bytes.
+- `#asm` adds `arm+neon` for ARMv7, selected at run time, and
+  `wasm32+simd128` for WebAssembly builds made with `-msimd128`.
 
 - Native C generation accepts checked pointer casts to imported C callback types;
   Go and portable targets continue to reject C callbacks.

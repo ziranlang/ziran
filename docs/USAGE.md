@@ -53,11 +53,12 @@ use `"volatile"` when the operation must survive dead-result elimination.
 Follow the [GNU extended assembly contract](https://gcc.gnu.org/onlinedocs/gcc/Extended-Asm.html)
 for register lifetimes, early clobbers, matching constraints, flags and memory.
 
-Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `riscv64`, `riscv32`,
-`powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses the native
-compiler's target macros, so cross-compilation selects the destination
-architecture. Append required CPU features with `+`, for example
-`"x86_64+popcnt"`, `"x86_64+avx2+bmi2"`, or `"aarch64+crc32"`.
+Architecture names are `x86_64`, `x86`, `aarch64`, `arm`, `wasm32`, `riscv64`,
+`riscv32`, `powerpc64`, `powerpc`, `s390x`, and `loongarch64`. Selection uses
+the native compiler's target macros, so cross-compilation selects the
+destination architecture. Append required CPU features with `+`, for example
+`"x86_64+popcnt"`, `"x86_64+avx2+bmi2"`, `"aarch64+crc32"`, `"arm+neon"`, or
+`"wasm32+simd128"`.
 
 ```zi
 Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=r", "r", "cc", "") {
@@ -71,9 +72,9 @@ Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=
 Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
-use the compiler's CPU detection; Linux/Android AArch64 C uses the kernel's
-hardware-capability information. Other platforms or unavailable capabilities
-use the next eligible variant or the checked Ziran body. `ZIRAN_NO_ASM` forces
+use the compiler's CPU detection; Linux/Android AArch64 and ARMv7 C use the
+kernel's hardware-capability information. Other platforms or unavailable
+capabilities use the next eligible variant or the checked Ziran body. `ZIRAN_NO_ASM` forces
 the portable body. Build the caller for the oldest CPU you intend to support;
 globally enabling `-march=native` or extra ISA options can also affect its
 ordinary generated code.
@@ -81,6 +82,7 @@ ordinary generated code.
 x86 and x86_64 features are `popcnt`, `sse2`, `ssse3`, `sse4.1`, `sse4.2`,
 `avx`, `avx2`, `avx512f`, `bmi`, `bmi2`, `lzcnt`, `fma`, `aes`, and `pclmul`.
 AArch64 features are `aes`, `crc32`, `pmull`, `sha2`, `atomics`, and `simd`.
+ARMv7 (`arm`) has `neon`, and `wasm32` has `simd128`.
 Other architecture/feature combinations are rejected. Feature combinations
 require every listed feature. Variants are considered in source order; put
 more demanding variants first and an architecture-only variant last. Duplicate
@@ -89,6 +91,24 @@ guaranteed by the selected build target. See
 [GCC CPU detection](https://gcc.gnu.org/onlinedocs/gcc/x86-Built-in-Functions.html),
 [function target attributes](https://clang.llvm.org/docs/AttributeReference.html#target),
 and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/arm64/elf_hwcaps.html).
+
+`arm+neon` variants need ARMv7-A or later with a hard-float ABI (Linux
+`armhf`, Android `armeabi-v7a` from API 18). Their helpers run in ARM state, so
+Thumb-2 callers work, and the caller keeps the build's FPU option. Name the
+NEON registers you use in the clobbers (`d0;d1` for `q0`). Write `vld1`/`vst1`
+without `:64`/`:128` alignment qualifiers unless the address is known to be
+aligned: a qualified access to a misaligned address faults.
+
+A WebAssembly engine rejects a whole module that holds SIMD instructions it
+does not support, so `wasm32+simd128` is a build option rather than a run-time
+check. Its variants are compiled in, inline, only when the generated C is
+built with `-msimd128`; otherwise the next variant or the Ziran body runs.
+Build the module twice, with and without `-msimd128`, and load the SIMD module
+only where `WebAssembly.validate` accepts a SIMD module. Operands are locals
+(`local.get %[value]`, `local.set %[out]`), and inputs must not be written.
+`v128` values cannot be operands: keep them on the operand stack, carried
+through `block (v128) -> (v128)` and `loop (v128) -> (v128)`, or pass memory by
+pointer. Use `v128.load 0:p2align=0` for unaligned data.
 
 Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence. These variants do not yet provide
@@ -122,7 +142,11 @@ the tag. Default builds retain a compile-time-disabled native branch.
 
 Run `tests/assembly.sh build/bin/ziran` for source/saved IR execution and
 rejection checks, and `tests/assembly_features.sh` for CPU selection,
-concurrent calls, unavailable features and isolated helpers.
+concurrent calls, unavailable features and isolated helpers. It runs ARMv7
+NEON and its masked fallback under `qemu-arm` with GCC and Clang
+(`ZIRAN_ARM_CC`, `ZIRAN_ARM_CLANG`, `ZIRAN_QEMU_ARM`; `ARM_REQUIRED=1` fails
+instead of skipping). `tests/zx_wasm.sh` builds SIMD128 and baseline modules
+with `ZIRAN_WASM_CC` (default `clang`, `WASM_REQUIRED=1` to require it).
 `tests/go_assembly.sh` checks native and default Go builds, forced fallback,
 strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
 source/saved IR. `bench/go_assembly.py` compares whole-loop and per-operation

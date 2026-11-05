@@ -20,12 +20,13 @@ typedef struct Assembly {
     uint64_t features;
 } Assembly;
 
-enum { ASM_X86_64, ASM_X86, ASM_AARCH64 };
+enum { ASM_X86_64, ASM_X86, ASM_AARCH64, ASM_ARM, ASM_WASM32 };
 static const struct { const char *name, *guard; } architectures[] = {
     {"x86_64", "defined(__x86_64__)"},
     {"x86", "defined(__i386__)"},
     {"aarch64", "defined(__aarch64__)"},
     {"arm", "defined(__arm__)"},
+    {"wasm32", "defined(__wasm32__)"},
     {"riscv64", "defined(__riscv) && __riscv_xlen == 64"},
     {"riscv32", "defined(__riscv) && __riscv_xlen == 32"},
     {"powerpc64", "defined(__powerpc64__)"},
@@ -35,31 +36,58 @@ static const struct { const char *name, *guard; } architectures[] = {
 };
 
 /* Runtime predicates and code-generation options are separate: an isolated
- * helper may use these instructions, while its caller keeps the build's ISA. */
+ * helper may use these instructions, while its caller keeps the build's ISA.
+ * Each architecture column is the helper's target option, or NULL where the
+ * feature does not exist. hwcap is the Linux AT_HWCAP bit on AArch64/ARMv7.
+ * WebAssembly features are build options instead; see runtime_selected. */
 static const struct {
-    const char *name, *x86, *aarch64, *hwcap;
+    const char *name, *x86, *aarch64, *hwcap, *arm, *wasm32;
 } cpu_features[] = {
-    {"popcnt", "popcnt", NULL, NULL},
-    {"sse2", "sse2", NULL, NULL},
-    {"ssse3", "ssse3", NULL, NULL},
-    {"sse4.1", "sse4.1", NULL, NULL},
-    {"sse4.2", "sse4.2", NULL, NULL},
-    {"avx", "avx", NULL, NULL},
-    {"avx2", "avx2", NULL, NULL},
-    {"avx512f", "avx512f", NULL, NULL},
-    {"bmi", "bmi", NULL, NULL},
-    {"bmi2", "bmi2", NULL, NULL},
-    {"lzcnt", "lzcnt", NULL, NULL},
-    {"fma", "fma", NULL, NULL},
-    {"aes", "aes", "+aes", "HWCAP_AES"},
-    {"pclmul", "pclmul", NULL, NULL},
-    {"crc32", NULL, "+crc", "HWCAP_CRC32"},
-    {"pmull", NULL, "+aes", "HWCAP_PMULL"},
-    {"sha2", NULL, "+sha2", "HWCAP_SHA2"},
-    {"atomics", NULL, "+lse", "HWCAP_ATOMICS"},
-    {"simd", NULL, "+simd", "HWCAP_ASIMD"}
+    {"popcnt", "popcnt", NULL, NULL, NULL, NULL},
+    {"sse2", "sse2", NULL, NULL, NULL, NULL},
+    {"ssse3", "ssse3", NULL, NULL, NULL, NULL},
+    {"sse4.1", "sse4.1", NULL, NULL, NULL, NULL},
+    {"sse4.2", "sse4.2", NULL, NULL, NULL, NULL},
+    {"avx", "avx", NULL, NULL, NULL, NULL},
+    {"avx2", "avx2", NULL, NULL, NULL, NULL},
+    {"avx512f", "avx512f", NULL, NULL, NULL, NULL},
+    {"bmi", "bmi", NULL, NULL, NULL, NULL},
+    {"bmi2", "bmi2", NULL, NULL, NULL, NULL},
+    {"lzcnt", "lzcnt", NULL, NULL, NULL, NULL},
+    {"fma", "fma", NULL, NULL, NULL, NULL},
+    {"aes", "aes", "+aes", "HWCAP_AES", NULL, NULL},
+    {"pclmul", "pclmul", NULL, NULL, NULL, NULL},
+    {"crc32", NULL, "+crc", "HWCAP_CRC32", NULL, NULL},
+    {"pmull", NULL, "+aes", "HWCAP_PMULL", NULL, NULL},
+    {"sha2", NULL, "+sha2", "HWCAP_SHA2", NULL, NULL},
+    {"atomics", NULL, "+lse", "HWCAP_ATOMICS", NULL, NULL},
+    {"simd", NULL, "+simd", "HWCAP_ASIMD", NULL, NULL},
+    {"neon", NULL, NULL, "HWCAP_NEON", "neon", NULL},
+    {"simd128", NULL, NULL, NULL, NULL, "simd128"}
 };
 #define CPU_FEATURES (sizeof(cpu_features) / sizeof(*cpu_features))
+
+static const char *
+feature_option(int architecture, size_t feature)
+{
+    switch(architecture) {
+    case ASM_X86_64: case ASM_X86: return cpu_features[feature].x86;
+    case ASM_AARCH64: return cpu_features[feature].aarch64;
+    case ASM_ARM: return cpu_features[feature].arm;
+    case ASM_WASM32: return cpu_features[feature].wasm32;
+    default: return NULL;
+    }
+}
+
+/* An engine validates a WebAssembly module whole, so a module holding SIMD
+ * instructions cannot load where SIMD is missing. Its feature variants are
+ * therefore compiled in only when the build enables the feature, inline and
+ * without a helper or a cached runtime check. */
+static int
+runtime_selected(const Assembly *assembly)
+{
+    return assembly->features && assembly->architecture != ASM_WASM32;
+}
 
 static int
 assembly_error(ZirSourceSpan span, const char *message)
@@ -86,8 +114,7 @@ assembly_target(Assembly *assembly, ZirSourceSpan span)
         int feature = -1;
         for(size_t i = 0; i < CPU_FEATURES; i++)
             if(strlen(cpu_features[i].name) == length && !memcmp(name, cpu_features[i].name, length) &&
-               ((assembly->architecture <= ASM_X86 && cpu_features[i].x86) ||
-                (assembly->architecture == ASM_AARCH64 && cpu_features[i].aarch64)))
+               feature_option(assembly->architecture, i))
                 feature = (int)i;
         if(feature < 0) return assembly_error(span, "unknown or unsupported #asm CPU feature for architecture");
         uint64_t bit = UINT64_C(1) << feature;
@@ -654,14 +681,69 @@ assembly_guard(FILE *out, const Assembly *assembly)
 {
     fprintf(out, "!defined(ZIRAN_NO_ASM) && (defined(__GNUC__) || defined(__clang__)) && (%s)",
             architectures[assembly->architecture].guard);
-    if(assembly->features && assembly->architecture <= ASM_X86)
+    if(!assembly->features) return;
+    if(assembly->architecture <= ASM_X86)
         fputs(" && !defined(_MSC_VER)", out);
-    if(assembly->features && assembly->architecture == ASM_AARCH64) {
+    /* NEON exists on ARMv7-A and later application cores; a soft-float ABI
+     * has no VFP/NEON registers, and bionic declares getauxval from API 18. */
+    if(assembly->architecture == ASM_ARM)
+        fputs(" && defined(__linux__) && !defined(__SOFTFP__) && __ARM_ARCH >= 7 &&"
+              " __ARM_ARCH_PROFILE == 'A' && (!defined(__ANDROID__) || __ANDROID_API__ >= 18)", out);
+    if(assembly->architecture == ASM_AARCH64)
         fputs(" && defined(__linux__)", out);
-        for(size_t i = 0; i < CPU_FEATURES; i++)
-            if(assembly->features & (UINT64_C(1) << i))
-                fprintf(out, " && defined(%s)", cpu_features[i].hwcap);
+    for(size_t i = 0; i < CPU_FEATURES; i++) {
+        if(!(assembly->features & (UINT64_C(1) << i))) continue;
+        if(assembly->architecture == ASM_AARCH64 || assembly->architecture == ASM_ARM)
+            fprintf(out, " && defined(%s)", cpu_features[i].hwcap);
+        else if(assembly->architecture == ASM_WASM32)
+            fprintf(out, " && defined(__wasm_%s__)", cpu_features[i].wasm32);
     }
+}
+
+/* Linux AArch64 and ARMv7 detect features through the kernel's AT_HWCAP. */
+static void
+assembly_includes(FILE *out, const Assembly *assembly)
+{
+    if(!assembly->features ||
+       (assembly->architecture != ASM_AARCH64 && assembly->architecture != ASM_ARM)) return;
+    fprintf(out, "#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(%s)\n"
+                 "#include <sys/auxv.h>\n#include <asm/hwcap.h>\n#endif\n",
+            assembly->architecture == ASM_ARM ? "__arm__" : "__aarch64__");
+}
+
+/* ARMv7 helpers always run in A32 state, so one template serves Thumb-2 and
+ * ARM builds. GCC selects the FPU; Clang names the LLVM feature. */
+static void
+assembly_attribute(FILE *out, const Assembly *assembly)
+{
+    for(int compiler = 0; compiler < (assembly->architecture == ASM_ARM ? 2 : 1); compiler++) {
+        if(assembly->architecture == ASM_ARM)
+            fputs(compiler ? "#else\n" : "#if defined(__clang__)\n", out);
+        fputs("__attribute__((noinline, unused, target(\"", out);
+        int first = 1;
+        if(assembly->architecture == ASM_ARM) { fputs("arm", out); first = 0; }
+        for(size_t i = 0; i < CPU_FEATURES; i++) {
+            if(!(assembly->features & (UINT64_C(1) << i))) continue;
+            if(!first) fputc(',', out);
+            if(compiler) fputs("fpu=", out);
+            fputs(feature_option(assembly->architecture, i), out);
+            first = 0;
+        }
+        fputs("\")))", out);
+        if(assembly->architecture == ASM_ARM) fputc('\n', out);
+    }
+    if(assembly->architecture == ASM_ARM) fputs("#endif\n", out);
+}
+
+/* Clang assembles inline ARM templates for the translation unit's FPU, not
+ * the helper's target attribute; GCC already emits the same directive. */
+static void
+assembly_template_prefix(FILE *out, const Assembly *assembly)
+{
+    if(assembly->architecture != ASM_ARM || !assembly->features) return;
+    for(size_t i = 0; i < CPU_FEATURES; i++)
+        if(assembly->features & (UINT64_C(1) << i))
+            fprintf(out, "\".fpu %s\\n\\t\" ", cpu_features[i].arm);
 }
 
 static int
@@ -757,6 +839,7 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
     fputs("        __asm__", out);
     if(*assembly->part[5]) fputs(" __volatile__", out);
     fputc('(', out);
+    assembly_template_prefix(out, assembly);
     assembly_operand_text(out, assembly->part[1], names, outputs->count + parameters->count, 1);
     const char *constraints[ASSEMBLY_OPERANDS];
     operand_list(assembly->part[2], constraints);
@@ -806,22 +889,13 @@ assembly_helpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-        if(assembly.features) {
-            if(assembly.architecture == ASM_AARCH64)
-                fputs("#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(__aarch64__)\n"
-                      "#include <sys/auxv.h>\n#include <asm/hwcap.h>\n#endif\n", out);
+        if(runtime_selected(&assembly)) {
+            assembly_includes(out, &assembly);
             fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
             char helper[ZIR_NAME_MAX];
             assembly_helper_name(module, fn, target, ordinal, helper, sizeof(helper));
-            fputs("__attribute__((noinline, unused, target(\"", out);
-            int first = 1;
-            for(size_t i = 0; i < CPU_FEATURES; i++) {
-                if(!(assembly.features & (UINT64_C(1) << i))) continue;
-                if(!first) fputc(',', out);
-                fputs(assembly.architecture == ASM_AARCH64 ? cpu_features[i].aarch64 : cpu_features[i].x86, out);
-                first = 0;
-            }
-            fprintf(out, "\"))) static %s\n%s(%s)\n{\n", result_type, helper, args);
+            assembly_attribute(out, &assembly);
+            fprintf(out, " static %s\n%s(%s)\n{\n", result_type, helper, args);
             assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
             fputs("}\n#endif\n", out);
         }
@@ -850,7 +924,7 @@ assembly_predicate(FILE *out, const Assembly *assembly)
     for(size_t i = 0; i < CPU_FEATURES; i++) {
         if(!(assembly->features & (UINT64_C(1) << i))) continue;
         if(!first) fputs(" && ", out);
-        if(assembly->architecture == ASM_AARCH64)
+        if(assembly->architecture == ASM_AARCH64 || assembly->architecture == ASM_ARM)
             fprintf(out, "(getauxval(AT_HWCAP) & %s) != 0", cpu_features[i].hwcap);
         else if(!strcmp(cpu_features[i].name, "lzcnt"))
             fprintf(out, "(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n"
@@ -873,7 +947,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-        if(assembly.features) {
+        if(runtime_selected(&assembly)) {
             if(!features++) fputs("#if ", out);
             else fputs(" || (", out);
             assembly_guard(out, &assembly);
@@ -894,7 +968,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
         while(*skip_ws(cursor)) {
             Assembly assembly;
             if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-            if(assembly.features) {
+            if(runtime_selected(&assembly)) {
                 fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
                 fprintf(out, "            if(%s == 1 && (", selected);
                 assembly_predicate(out, &assembly);
@@ -908,7 +982,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
         while(*skip_ws(cursor)) {
             Assembly assembly;
             if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-            if(assembly.features) {
+            if(runtime_selected(&assembly)) {
                 char helper[ZIR_NAME_MAX];
                 assembly_helper_name(module, fn, target, ordinal, helper, sizeof(helper));
                 fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
@@ -931,7 +1005,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-        if(assembly.features) continue;
+        if(runtime_selected(&assembly)) continue;
         fputs("#if ", out); assembly_guard(out, &assembly); fputs("\n    {\n", out);
         assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
         fputs("    }\n#endif\n", out);
@@ -976,7 +1050,7 @@ EmitAssemblyAvailable(FILE *out, const ZirFunction *fn, int statement)
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
         fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
-        if(assembly.features) {
+        if(runtime_selected(&assembly)) {
             if(assembly.architecture == ASM_X86 || assembly.architecture == ASM_X86_64)
                 fputs("    __builtin_cpu_init();\n", out);
             fputs("    if(", out); assembly_predicate(out, &assembly); fputs(") return 1;\n", out);
@@ -1026,7 +1100,9 @@ block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
     for(int i = 0; i < bindings->outputs + bindings->inputs; i++) names[i] = bindings->items[i].alias;
     fputs("        __asm__", out);
     if(*assembly->part[5]) fputs(" __volatile__", out);
-    fputc('(', out); assembly_operand_text(out, assembly->part[1], names, bindings->outputs + bindings->inputs, 1);
+    fputc('(', out);
+    if(helper) assembly_template_prefix(out, assembly);
+    assembly_operand_text(out, assembly->part[1], names, bindings->outputs + bindings->inputs, 1);
     for(int direction = 0; direction < 2; direction++) {
         fputs("\n            : ", out);
         int count = direction ? bindings->inputs : bindings->outputs;
@@ -1094,27 +1170,18 @@ assembly_block_helpers(FILE *out, const ZirModule *module,
             BlockBindings bindings = {0};
             if(!read_assembly(&cursor, &assembly, st->span) ||
                !block_bindings(&assembly, &bindings, st->span)) exit(1);
-            if(assembly.features) {
-                if(assembly.architecture == ASM_AARCH64)
-                    fputs("#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(__aarch64__)\n"
-                          "#include <sys/auxv.h>\n#include <asm/hwcap.h>\n#endif\n", out);
+            if(runtime_selected(&assembly)) {
+                assembly_includes(out, &assembly);
                 fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
                 char name[ZIR_NAME_MAX];
                 block_helper_name(module, fn, target, statement, variant, name, sizeof(name));
-                fputs("__attribute__((noinline, unused, target(\"", out);
-                int first = 1;
-                for(size_t i = 0; i < CPU_FEATURES; i++) {
-                    if(!(assembly.features & (UINT64_C(1) << i))) continue;
-                    if(!first) fputc(',', out);
-                    fputs(assembly.architecture == ASM_AARCH64 ? cpu_features[i].aarch64 : cpu_features[i].x86, out);
-                    first = 0;
-                }
+                assembly_attribute(out, &assembly);
                 char returned[ZIR_NAME_MAX * 4] = "void";
                 int first_argument = block_returns_register(&bindings);
                 if(first_argument)
                     block_native_type(module, block_binding_type(fn, statement, bindings.items[0].name),
                                       target, returned, sizeof(returned), st->span);
-                fprintf(out, "\"))) static %s\n%s(", returned, name);
+                fprintf(out, " static %s\n%s(", returned, name);
                 for(int i = first_argument; i < bindings.outputs + bindings.inputs; i++) {
                     const char *type = block_binding_type(fn, statement, bindings.items[i].name);
                     char native[ZIR_NAME_MAX * 4];
@@ -1149,7 +1216,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, st->span)) exit(1);
-        features |= assembly.features != 0;
+        features |= runtime_selected(&assembly);
     }
     char done[ZIR_NAME_MAX], state[ZIR_NAME_MAX], selected[ZIR_NAME_MAX];
     ArrayAbiName(fn, 1000 + statement * 3, done, sizeof(done));
@@ -1178,7 +1245,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
             if(!read_assembly(&cursor, &assembly, st->span)) exit(1);
             fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
             fprintf(out, "            if(%s == 1", selected);
-            if(assembly.features) { fputs(" && (", out); assembly_predicate(out, &assembly); fputc(')', out); }
+            if(runtime_selected(&assembly)) { fputs(" && (", out); assembly_predicate(out, &assembly); fputc(')', out); }
             fprintf(out, ") %s = %d;\n#endif\n", selected, variant + 2);
             variant++;
         }
@@ -1194,7 +1261,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
         fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
         if(features) fprintf(out, "        if(%s == %d) {\n", selected, variant + 2);
         else fprintf(out, "        if(!%s) {\n", done);
-        if(assembly.features) {
+        if(runtime_selected(&assembly)) {
             char helper[ZIR_NAME_MAX];
             block_helper_name(module, fn, target, statement, variant, helper, sizeof(helper));
             int first_argument = block_returns_register(&bindings);

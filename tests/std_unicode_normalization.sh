@@ -1,5 +1,5 @@
 #!/bin/sh
-# check-cost: 650
+# check-cost: 600
 set -eu
 ziran=$1
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
@@ -25,8 +25,6 @@ for form in source saved; do
         set -- --root "$work/ir" --module-path "$work/ir"
     fi
     "$ziran" bundle "$@" --entry "$fixture:NativeMain" -o "$work/$form.zx" "$input"
-    run_vm "$ziran" run "$work/$form.zx"
-    run_vm "$(dirname -- "$ziran")/zi2zx-vm" run "$work/$form.zx"
     for target in c go; do
         output="$work/$form-$target"
         if test "$target" = go; then
@@ -38,7 +36,11 @@ for form in source saved; do
         fi
     done
 done
+# The source and saved bundles are the same bytes, so one run of each engine
+# covers both; the VM is the slowest part of this check under the sanitizers.
 cmp "$work/source.zx" "$work/saved.zx"
+run_vm "$ziran" run "$work/source.zx"
+run_vm "$(dirname -- "$ziran")/zi2zx-vm" run "$work/source.zx"
 if test -n "${ZIRAN_UNICODE_UCD:-}"; then
     "$ziran" build --root scripts --module-path std --target=c --exe --entry unicode_normalization_data:main \
         -o "$work/generator" scripts/unicode_normalization_data.zi

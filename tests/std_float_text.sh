@@ -1,5 +1,5 @@
 #!/bin/sh
-# check-cost: 815
+# check-cost: 750
 set -eu
 ziran=$1
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
@@ -28,8 +28,6 @@ for form in source saved; do
         set -- --root "$work/ir" --module-path "$work/ir"
     fi
     "$ziran" bundle "$@" --entry float_text_cases:NativeMain -o "$work/$form.zx" "$input"
-    run_bundle "$ziran" run "$work/$form.zx"
-    run_bundle "$(dirname -- "$ziran")/zi2zx-vm" run "$work/$form.zx"
     for target in c go; do
         output="$work/$form-$target"
         if test "$target" = go; then
@@ -40,7 +38,11 @@ for form in source saved; do
             "$output/float_text_cases"
         fi
     done
-    echo "float text: $form C/Go/native bundle/VM passed"
+    echo "float text: $form C/Go passed"
 done
+# The source and saved bundles are the same bytes, so one run of each engine
+# covers both; the VM is the slowest part of this check under the sanitizers.
 cmp "$work/source.zx" "$work/saved.zx"
+run_bundle "$ziran" run "$work/source.zx"
+run_bundle "$(dirname -- "$ziran")/zi2zx-vm" run "$work/source.zx"
 echo 'float text and JSON: edge, every binade boundary, seeded random and long decimal parity passed on C/Go/VM from source and saved IR'

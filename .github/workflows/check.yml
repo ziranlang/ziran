@@ -71,7 +71,8 @@ jobs:
   sanitize:
     name: sanitize (${{ matrix.shard }}/2)
     runs-on: ubuntu-24.04
-    timeout-minutes: 25
+    # A shard takes 15-20 minutes; runner speed varies by about twice.
+    timeout-minutes: 35
     strategy:
       fail-fast: false
       matrix:

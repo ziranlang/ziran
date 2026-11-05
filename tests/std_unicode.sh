@@ -1,5 +1,5 @@
 #!/bin/sh
-# check-cost: 185
+# check-cost: 265
 set -eu
 ziran=$1
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS

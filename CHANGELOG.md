@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Native C generation accepts checked pointer casts to imported C callback types;
+  Go and portable targets continue to reject C callbacks.
+
 - Package overrides selecting one locked revision now share its dependency graph
   across older transitive revisions, including newly added dependencies.
 

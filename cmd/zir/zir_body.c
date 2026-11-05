@@ -127,6 +127,7 @@ supported_expression_node(const ZirModule *module, const ZirFunction *fn,
         const ZirType *declared = FindType(module, e->name, NULL);
         if(e->name[0] != '*' && !TargetType(e->name, ZIR_C) &&
            !enum_type(module, e->name) &&
+           !(declared && declared->is_procedure_type && declared->is_c_call) &&
            !(declared && declared->foreign_target[0])) return 0;
         break;
     }

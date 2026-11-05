@@ -1,0 +1,3 @@
+// Regression: size_of is the only use that needs a Slice declaration.
+#program_export
+Answer :: () -> usize { return size_of([]u8) }

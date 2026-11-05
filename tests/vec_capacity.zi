@@ -1,0 +1,160 @@
+#import "vec"
+#import "option"
+
+Item :: struct { bytes: Vec(u8); label: string; number: s64; }
+Plain :: struct { label: string; number: s64; flag: bool; }
+
+Make :: () -> Vec(Item) {
+    items: Vec(Item)
+    if !VecResize(items, 2) { empty: Vec(Item); return empty }
+    VecResize(items[0].bytes, 3)
+    VecResize(items[1].bytes, 4)
+    return items
+}
+
+#program_export
+Answer :: () -> s32 {
+    if Bounded() != 42 { return -100 }
+    bytes: Vec(u8)
+    if !VecReserve(bytes, 0) || !VecResize(bytes, 0) { return -1 }
+    if bytes.count != 0 || bytes.capacity != 0 { return -2 }
+    if !VecReserve(bytes, 65) { return -3 }
+    capacity := bytes.capacity
+    if bytes.count != 0 || capacity < 65 { return -4 }
+    if !VecResize(bytes, 33) || bytes.capacity != capacity { return -5 }
+    for i: 0..32 { if bytes[i] != 0 { return -6 }; bytes[i] = cast(u8)(i + 1) }
+    if !VecReserve(bytes, 2) || bytes.count != 33 || bytes[32] != 33 { return -7 }
+    if !VecResize(bytes, 5) || bytes.capacity != capacity || bytes[4] != 5 { return -8 }
+    if !VecResize(bytes, 34) || bytes[4] != 5 { return -9 }
+    for i: 5..33 { if bytes[i] != 0 { return -10 } }
+    if VecResize(bytes, -1) || VecReserve(bytes, -1) { return -11 }
+    if bytes.count != 34 || bytes.capacity != capacity || bytes[4] != 5 { return -12 }
+    if size_of(usize) == 4 {
+        limit: Vec(u64)
+        if VecReserve(limit, 536870912) || VecResize(limit, 536870912) || VecResizeBounded(limit, 536870912, 536870912) { return -32 }
+        if limit.count != 0 || limit.capacity != 0 { return -33 }
+    }
+    words: Vec(u64)
+    VecResize(words, 2)
+    words[0] = 99
+    if VecReserve(words, 9223372036854775807) || VecResize(words, 9223372036854775807) || VecResizeBounded(words, 9223372036854775807, 9223372036854775807) { return -13 }
+    if words.count != 2 || words[0] != 99 { return -14 }
+    if !VecResize(bytes, 0) || bytes.capacity != capacity { return -15 }
+    if !VecPush(bytes, 7) || bytes.count != 1 || bytes[0] != 7 { return -16 }
+    if !VecResize(bytes, 2) || bytes[1] != 0 { return -17 }
+    popped := VecPop(bytes)
+    if !popped.has_value || !VecPush(bytes, 8) || bytes.count != 2 || bytes[1] != 8 { return -18 }
+    plain: Vec(Plain)
+    if !VecResize(plain, 3) { return -19 }
+    if plain[1].label.count != 0 || plain[1].number != 0 || plain[1].flag { return -20 }
+    plain[1].label = "old"
+    if !VecResize(plain, 1) || !VecResize(plain, 3) || plain[1].label.count != 0 { return -21 }
+    owned := Make()
+    if owned.count != 2 || owned[0].bytes.count != 3 || owned[1].number != 0 { return -22 }
+    owned[0].bytes[0] = 42
+    if !VecReserve(owned, 16) || owned[0].bytes[0] != 42 { return -23 }
+    if !VecResize(owned, 1) || owned[0].bytes[0] != 42 { return -24 }
+    if !VecResize(owned, 3) || owned[1].bytes.count != 0 || owned[1].label.count != 0 { return -25 }
+    VecResize(owned[1].bytes, 5)
+    if !VecResize(owned, 2) { return -30 }
+    taken := VecPop(owned)
+    if !taken.has_value || taken.value.bytes.count != 5 { return -31 }
+    VecClear(owned)
+    if owned.count != 0 { return -26 }
+    if !VecResize(owned, 2) || owned[0].bytes.count != 0 { return -27 }
+    VecResize(owned[0].bytes, 2)
+    moved := owned
+    if moved[0].bytes.count != 2 { return -28 }
+    if true { view := VecSlice(bytes, 0, 2); if view[1] != 8 { return -29 } }
+    Make()
+    return 42
+}
+
+// The native test harness fails realloc during each of these growth calls.
+#program_export
+Failure :: () -> s32 {
+    bytes: Vec(u8)
+    if !VecResize(bytes, 4) { return -1 }
+    bytes[0] = 71
+    capacity := bytes.capacity
+    if VecReserve(bytes, 8192) || VecResize(bytes, 8192) || VecResizeBounded(bytes, 8193, 9000) { return -2 }
+    if bytes.count != 4 || bytes.capacity != capacity || bytes[0] != 71 { return -3 }
+    if !VecResize(bytes, 3) || !VecResize(bytes, 4) || bytes[3] != 0 { return -4 }
+    items: Vec(Item)
+    if !VecResize(items, 2) || !VecResize(items[0].bytes, 2) { return -5 }
+    items[0].bytes[0] = 81
+    old_capacity := items.capacity
+    if VecResize(items, 8192) || VecReserve(items, 8192) || VecResizeBounded(items, 8193, 9000) { return -6 }
+    if items.count != 2 || items.capacity != old_capacity || items[0].bytes[0] != 81 { return -7 }
+    return 42
+}
+
+// Two individually valid reserves exceed the VM's aggregate array budget.
+// Reserve does not initialize/touch payload bytes.
+#program_export
+Budget :: () -> s32 {
+    first: Vec(u8)
+    if !VecReserve(first, 600000000) { return -1 }
+    second: Vec(u8)
+    VecResize(second, 3)
+    second[0] = 91
+    capacity := second.capacity
+    if VecReserve(second, 600000000) || VecResize(second, 600000000) { return -2 }
+    if second.count != 3 || second.capacity != capacity || second[0] != 91 { return -3 }
+    if first.capacity < 600000000 { return -4 }
+    return 42
+}
+
+#program_export
+Reuse :: () -> s32 {
+    bytes: Vec(u8)
+    if !VecReserve(bytes, 64) { return -1 }
+    if !VecResize(bytes, 63) || !VecResize(bytes, 0) || !VecResize(bytes, 32) { return -2 }
+    if !VecReserve(bytes, 64) || !VecPush(bytes, 9) || bytes[32] != 9 { return -3 }
+    return 42
+}
+
+steps: s64 = 0;
+Requested :: () -> s64 { steps = steps * 10 + 1; return 3; }
+Ceiling :: () -> s64 { steps = steps * 10 + 2; return 5; }
+
+Bounded :: () -> s32 {
+    words: Vec(u32)
+    if !VecResizeBounded(words, 0, 0) || words.capacity != 0 { return -1; }
+    if !VecResizeBounded(words, 3, 5) || words.count != 3 || words.capacity < 3 || words.capacity > 5 { return -2; }
+    for index: 0..2 { if words[index] != 0 { return -3; } }
+    words[0] = 71;
+    if !VecResizeBounded(words, 5, 5) || words.capacity != 5 || words[0] != 71 || words[4] != 0 { return -4; }
+    if VecResizeBounded(words, 6, 5) || VecResizeBounded(words, -1, 5) || VecResizeBounded(words, 1, -1) { return -5; }
+    if VecResizeBounded(words, 1, 4) || VecResizeBounded(words, 0, 0) { return -6; }
+    if words.count != 5 || words.capacity != 5 || words[0] != 71 { return -7; }
+    if !VecResizeBounded(words, 1, 5) || !VecResizeBounded(words, 5, 5) || words[4] != 0 || words[0] != 71 { return -8; }
+    if !VecResizeBounded(words, 6, 7) || words.capacity > 7 || words.capacity < 6 || words[5] != 0 { return -9; }
+    wide: Vec(u32)
+    if !VecResizeBounded(wide, 1, 9223372036854775807) || wide[0] != 0 { return -10; }
+    owned: Vec(Item)
+    if !VecResizeBounded(owned, 2, 3) { return -11; }
+    VecResize(owned[0].bytes, 2);
+    VecResize(owned[1].bytes, 4);
+    owned[0].bytes[0] = 91;
+    old_capacity := owned.capacity;
+    if VecResizeBounded(owned, 1, 1) || owned.capacity != old_capacity || owned.count != 2 || owned[1].bytes.count != 4 { return -12; }
+    if !VecResizeBounded(owned, 1, 3) || !VecResizeBounded(owned, 3, 3) || owned.capacity != 3 { return -13; }
+    if owned[0].bytes[0] != 91 || owned[1].bytes.count != 0 || owned[2].label.count != 0 || owned[2].number != 0 { return -14; }
+    VecResize(owned[2].bytes, 4);
+    moved := VecPop(owned);
+    if !moved.has_value || moved.value.bytes.count != 4 || owned.count != 2 { return -15; }
+    evaluations: Vec(u8)
+    steps = 0;
+    if !VecResizeBounded(evaluations, Requested(), Ceiling()) || steps != 12 { return -16; }
+    return 42;
+}
+
+#program_export
+BoundedAllocation :: () -> s32 {
+    words: Vec(u32);
+    if !VecResizeBounded(words, 3, 5) || !VecResizeBounded(words, 5, 5) { return -1; }
+    if !VecResizeBounded(words, 6, 7) { return -2; }
+    if VecResizeBounded(words, 1, 5) || VecResizeBounded(words, 8, 7) { return -3; }
+    return 42;
+}

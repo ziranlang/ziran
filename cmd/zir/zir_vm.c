@@ -736,6 +736,22 @@ array_length_fits(const ZirModule *module, const char *element, size_t length)
     return validity <= VM_MAX_ARRAY_BYTES - sizeof(Array) - payload;
 }
 
+/* Packed scalar/inline-record defaults are all zeroes. Mark only the newly
+ * initialized range live; reserved capacity remains invalid. */
+void
+array_zero_range(Array *array, size_t low, size_t high)
+{
+    size_t width = array->storage == ARRAY_INLINE_RECORD ?
+        array->inline_record->size : array_width(array->storage);
+    memset(array->data + low * width, 0, (high - low) * width);
+    unsigned char *valid = array->data + array->data_bytes;
+    while(low < high && (low & 7)) { valid[low >> 3] |= (unsigned char)(1u << (low & 7)); low++; }
+    size_t bytes = (high - low) / 8;
+    memset(valid + low / 8, 255, bytes);
+    low += bytes * 8;
+    while(low < high) { valid[low >> 3] |= (unsigned char)(1u << (low & 7)); low++; }
+}
+
 Array *
 allocate_array_try(Vm *vm, const ZirModule *owner, const char *element,
                    int length, int fail_hard)

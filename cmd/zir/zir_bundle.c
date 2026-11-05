@@ -750,7 +750,7 @@ static int
 builtin_call(const char *name)
 {
     return MapPrimitiveName(name) || !strcmp(name, "TextView") ||
-           !strcmp(name, "VecPush") || !strcmp(name, "VecClear") ||
+           !strcmp(name, "VecPush") || !strcmp(name, "VecReserve") || (!strcmp(name, "VecResize") || !strcmp(name, "VecResizeBounded")) || !strcmp(name, "VecClear") ||
            !strcmp(name, "VecFree") || !strcmp(name, "VecSwap") ||
            !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||

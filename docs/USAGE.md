@@ -805,6 +805,68 @@ when no module of your own has that name.
 Dependencies from other Git repositories import the same way, as
 `#import "NAME/Module"`; see [Packages](PACKAGES.md).
 
+### Vector capacity and initialized length
+
+Import `vec` to use `Vec(T)`. `VecReserve(values, capacity: s64) -> bool`
+reserves at least that **total** capacity without changing `values.count`.
+`VecResize(values, count: s64) -> bool` changes the initialized length: new
+entries receive the same default values as uninitialized local declarations
+(zero scalars, empty strings, nil views/maps, recursively empty owned vectors).
+Shrinking drops removed owned entries and retains capacity. Reused entries
+are initialized again on growth; capacity beyond count is never indexable.
+Neither operation consumes the vector. Pass mutable storage directly; a live
+borrowed view prevents either operation, just as it prevents `VecPush`.
+
+```jai
+#import "vec"
+pixels: Vec(u8)
+if !VecResize(pixels, 4096) { return false }
+pixels[0] = 255
+```
+
+Sizes are `s64`; negative sizes, size overflow, and failed allocation return
+`false`, preserving the old elements, count and capacity. Zero is valid and
+reserving zero allocates nothing. Native C uses one fallible growth allocation;
+byte resize initializes its new range in bulk. Other element types use typed
+default initialization rather than raw byte clearing of managed values. C,
+Go, and portable `.zx` support both operations from source and saved `.zir`.
+The VM also returns `false` when its array-storage budget prevents growth.
+Go catches recoverable allocation range panics, but physical out-of-memory
+failure can terminate the Go runtime. Capacities and allocation limits depend
+on the target; a successful capacity request never guarantees future growth.
+`VecGet` and `VecClone` cannot copy owned elements; mutate them in place or
+move an element with `VecPop`. `VecPush` retains its existing restriction on
+nested owned elements. `sh tests/vec_capacity.sh build/bin/ziran` runs the
+focused source, saved-IR, C, Go and portable local tests.
+
+
+`VecResizeBounded(values, count: s64, maximum_capacity: s64) -> bool` uses
+`VecResize`'s initialized-length and owned-element semantics while bounding the
+resulting backing capacity. It rejects negative sizes, a count above the
+ceiling, or an existing capacity above the ceiling, including on a shrink/no-op.
+Rejection or allocation failure leaves storage, length and elements unchanged.
+Growth clamps the selected capacity to the ceiling; reuse retains capacity.
+A ceiling is not an allocation request, so a large positive ceiling is allowed
+when the actual selected allocation fits the target's element/byte limits.
+An empty Vec accepts count/ceiling zero without allocation. Future operations
+must supply their own ceilings; the bound is not a stored property of the Vec.
+
+```zi
+scratch: Vec(u32)
+maximum_elements: s64 = 1024
+if !VecResizeBounded(scratch, 700, maximum_elements) { return false; }
+// scratch.count == 700; 700 <= scratch.capacity <= maximum_elements.
+```
+
+This bounds logical backing element capacity, not allocator size classes,
+runtime objects, managed-element allocations, VM validity maps or physical RSS.
+During growth old and new backing allocations may be live together. A caller
+with a concurrent-live scratch budget must reserve the full possible new
+backing allocation in addition to already-live old capacity, then reconcile
+against actual capacity after success. Default staging for managed elements
+and runtime object overhead require separate accounting. Ordinary Go fatal
+physical OOM remains outside recoverable allocation failures.
+
 ### Building text
 
 `std/format.zi` builds text on an owned `Vec(u8)` builder. `Append(*builder,

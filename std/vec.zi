@@ -1,3 +1,14 @@
+// VecResizeBounded(values, count:s64, maximum_capacity:s64) -> bool has
+// VecResize's initialized-length semantics and caps the backing element
+// capacity. Negative sizes, count above the ceiling or existing capacity
+// above the ceiling fail unchanged; shrinking never silently frees capacity.
+// Bounds logical backing capacity, not allocator/runtime overhead or RSS.
+// VecReserve(values, capacity: s64) -> bool reserves at least that total
+// capacity without changing count. VecResize(values, count: s64) -> bool
+// adjusts initialized length, giving new elements their language defaults
+// and dropping removed owned elements. Both retain capacity on shrink/no-op,
+// reject negative/overflow sizes, and leave storage unchanged on failure.
+// Pass mutable storage, not a pointer; live borrowed views forbid mutation.
 // Owned growable storage. Operations on Vec values are compiler primitives;
 // the data pointer is private to those operations.
 Vec :: struct($T: Type) {

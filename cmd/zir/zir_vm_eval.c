@@ -1,5 +1,6 @@
 #include "zir_memory.h"
 #include "zir_vm_internal.h"
+#include <limits.h>
 /* Buffers vm_print keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 struct VmPrintBuffers {
@@ -879,7 +880,7 @@ vm_expression_calls(const ZirFunction *function, int index, int depth)
 
 typedef enum Builtin {
     BuiltinNamed, BuiltinTextView, BuiltinPrint, BuiltinNew, BuiltinFree,
-    BuiltinVecPush, BuiltinVecClear, BuiltinVecFree, BuiltinVecSwap,
+    BuiltinVecPush, BuiltinVecReserve, BuiltinVecResize, BuiltinVecResizeBounded, BuiltinVecClear, BuiltinVecFree, BuiltinVecSwap,
     BuiltinVecPop, BuiltinVecGet, BuiltinVecClone, BuiltinVecSlice,
     BuiltinBuilderAppend, BuiltinBuilderFinish
 } Builtin;
@@ -921,6 +922,11 @@ builtin_call(const char *name)
             break;
         case 'G':
             if(!strcmp(name, "Get")) return BuiltinVecGet;
+            break;
+        case 'R':
+            if(!strcmp(name, "Reserve")) return BuiltinVecReserve;
+            if(!strcmp(name, "Resize")) return BuiltinVecResize;
+            if(!strcmp(name, "ResizeBounded")) return BuiltinVecResizeBounded;
             break;
         case 'S':
             if(!strcmp(name, "Swap")) return BuiltinVecSwap;
@@ -2898,6 +2904,81 @@ eval_expression(Frame *frame, int index, int depth)
                 *vec = *other;
                 *other = saved;
                 value = (Value){.kind = VALUE_VOID};
+                break;
+            }
+            if(builtin == BuiltinVecReserve || builtin == BuiltinVecResize || builtin == BuiltinVecResizeBounded) {
+                int bounded=builtin==BuiltinVecResizeBounded;
+                int resize = builtin != BuiltinVecReserve;
+                int second = frame->function->exprs[first].next_sibling;
+                Value request = eval(frame, second, depth + 1);
+                Value maximum=int_value(INT64_MAX);
+                if(bounded) maximum=eval(frame,frame->function->exprs[second].next_sibling,depth+1);
+                Value *data = record_field(vec->record, "data");
+                Value *count = record_field(vec->record, "count");
+                Value *capacity = record_field(vec->record, "capacity");
+                if(frame->vm->failed || data == NULL || count == NULL || capacity == NULL ||
+                   request.kind != VALUE_INT || maximum.kind != VALUE_INT || count->kind != VALUE_INT || capacity->kind != VALUE_INT) {
+                    frame->vm->failed = 1;
+                    break;
+                }
+                int64_t needed = request.integer;
+                value = int_value(0);
+                if(maximum.integer<0 || needed>maximum.integer || capacity->integer>maximum.integer ||
+                   needed < 0 || needed > INT_MAX ||
+                   !array_length_fits(frame->module, element, (size_t)needed))
+                    break;
+                int64_t old_count = count->integer;
+                Array *grown = NULL, *defaults = NULL;
+                if(needed > capacity->integer) {
+                    grown = allocate_array_try(frame->vm, frame->module, element, (int)needed, 0);
+                    if(grown == NULL) break;
+                }
+                /* Boxed defaults can allocate records/arrays. Stage them so a
+                 * failed initialization cannot publish a partial new length. */
+                Array *storage = grown != NULL ? grown : data->array;
+                if(resize && needed > old_count && storage->storage == ARRAY_BOXED) {
+                    defaults = allocate_array_try(frame->vm, frame->module, element, (int)(needed - old_count), 0);
+                    if(defaults == NULL) {
+                        if(grown) retire_value(frame->vm, (Value){.kind=VALUE_ARRAY,.array=grown}, 0);
+                        break;
+                    }
+                    for(int64_t i = 0; i < needed - old_count && !frame->vm->failed; i++)
+                        array_set(defaults, (size_t)i, default_value(frame->vm, frame->module, element, 0));
+                    if(frame->vm->failed) {
+                        /* Checked element types have valid defaults; failure
+                         * here is a recoverable default-storage allocation. */
+                        frame->vm->failed = 0;
+                        retire_value(frame->vm, (Value){.kind=VALUE_ARRAY,.array=defaults}, 0);
+                        if(grown) retire_value(frame->vm, (Value){.kind=VALUE_ARRAY,.array=grown}, 0);
+                        break;
+                    }
+                }
+                if(grown != NULL) {
+                    for(int64_t i = 0; i < old_count; i++) {
+                        array_set(grown, (size_t)i, array_get(data->array, (size_t)i));
+                        array_set(data->array, (size_t)i, (Value){0});
+                    }
+                    retire_value(frame->vm, *data, 0);
+                    *data = (Value){.kind=VALUE_ARRAY,.array=grown};
+                    *capacity = int_value(needed);
+                }
+                if(resize) {
+                    for(int64_t i = needed; i < old_count; i++) {
+                        retire_value(frame->vm, array_get(storage, (size_t)i), 0);
+                        array_set(storage, (size_t)i, (Value){0});
+                    }
+                    if(needed > old_count) {
+                        if(storage->storage != ARRAY_BOXED)
+                            array_zero_range(storage, (size_t)old_count, (size_t)needed);
+                        else for(int64_t i = old_count; i < needed; i++) {
+                            array_set(storage, (size_t)i, array_get(defaults, (size_t)(i-old_count)));
+                            array_set(defaults, (size_t)(i-old_count), (Value){0});
+                        }
+                    }
+                    *count = int_value(needed);
+                }
+                if(defaults) retire_value(frame->vm, (Value){.kind=VALUE_ARRAY,.array=defaults}, 0);
+                value = int_value(1);
                 break;
             }
             if(builtin == BuiltinVecClone) {

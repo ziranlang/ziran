@@ -1347,7 +1347,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     char temporary[ZIR_NAME_MAX];
                     fresh(e, temporary);
                     declare(e, temporary, expr->type, buffers->value);
-                    drop_temporary_vec(e, temporary);
+                    drop_temporary_vec(e, temporary, e->fn->exprs[st->expr_root].type);
                 } else if(*buffers->value && expr->kind == ZIR_EXPR_CALL &&
                           !plain_identifier(buffers->value) &&
                           !(e->target == ZIR_GO && enum_type(e->module, expr->type)))

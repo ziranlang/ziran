@@ -274,14 +274,27 @@ resolve(Emitter *e, const char *name, char *out, size_t size)
     e->resolve(e->context, name, out, size);
 }
 
-static void
+void
 drop_owned_value(Emitter *e, const char *value, const char *type,
                  const ZirModule *module, int depth)
 {
     char element[ZIR_NAME_MAX];
     if(depth > 32 || value == NULL || type == NULL)
         return;
-    if(VecElementType(module, type, NULL, 0)) {
+    if(VecElementType(module, type, element, sizeof(element))) {
+        if(emitter_type_contains_vec(module, element, 0)) {
+            char index[ZIR_NAME_MAX], item[ZIR_TEXT_MAX];
+            fresh(e, index);
+            if(e->target == ZIR_GO)
+                line(e, "for %s := int64(0); %s < (%s).Count; %s++ {", index, index, value, index);
+            else
+                line(e, "for (int64_t %s = 0; %s < (%s).count; ++%s) {", index, index, value, index);
+            e->indent++;
+            format(item, sizeof(item), "(%s).%s[%s]", value, e->target == ZIR_GO ? "Data" : "data", index);
+            drop_owned_value(e, item, element, module, depth + 1);
+            e->indent--;
+            line(e, "}");
+        }
         if(e->target == ZIR_GO) {
             line(e, "%s.Data = nil", value);
             line(e, "%s.Capacity = 0", value);
@@ -422,32 +435,16 @@ drop_locals(Emitter *e, int first)
             drop_owned_value(e, binding, e->locals[i].type, e->module, 0);
             continue;
         }
-        if(e->target == ZIR_GO) {
-            line(e, "%s.Data = nil", alias);
-            line(e, "%s.Capacity = 0", alias);
-            line(e, "%s.Count = 0", alias);
-        } else {
-            line(e, "free(%s->data);", alias);
-            line(e, "%s->data = NULL;", alias);
-            line(e, "%s->capacity = 0;", alias);
-            line(e, "%s->count = 0;", alias);
-        }
+        char value[ZIR_NAME_MAX + 4];
+        format(value, sizeof(value), "(*%s)", alias);
+        drop_owned_value(e, value, local->type, e->module, 0);
     }
 }
 
 void
-drop_temporary_vec(Emitter *e, const char *name)
+drop_temporary_vec(Emitter *e, const char *name, const char *type)
 {
-    if(e->target == ZIR_GO) {
-        line(e, "%s.Data = nil", name);
-        line(e, "%s.Capacity = 0", name);
-        line(e, "%s.Count = 0", name);
-    } else {
-        line(e, "free(%s.data);", name);
-        line(e, "%s.data = NULL;", name);
-        line(e, "%s.capacity = 0;", name);
-        line(e, "%s.count = 0;", name);
-    }
+    drop_owned_value(e, name, type, e->module, 0);
 }
 
 int

@@ -194,6 +194,103 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
              e->target == ZIR_GO ? "" : ";");
         out[0] = '\0'; e->pure = 0; return;
     }
+    if(!strcmp(expr->name, "VecReserve") || (!strcmp(expr->name, "VecResize") || !strcmp(expr->name, "VecResizeBounded"))) {
+        int bounded = !strcmp(expr->name,"VecResizeBounded");
+        int resize = (!strcmp(expr->name, "VecResize") || !strcmp(expr->name, "VecResizeBounded"));
+        int second = e->fn->exprs[first].next_sibling;
+        char requested[ZIR_NAME_MAX], grown[ZIR_NAME_MAX], index[ZIR_NAME_MAX], maximum[ZIR_NAME_MAX];
+        emit_expr(e, second, "s64", buffers->value, sizeof(buffers->value));
+        fresh(e, item_name);
+        fresh(e, requested);
+        declare(e, requested, "s64", buffers->value);
+        if(bounded) {
+            int third=e->fn->exprs[second].next_sibling;
+            emit_expr(e,third,"s64",buffers->value,sizeof(buffers->value));
+            fresh(e,maximum); declare(e,maximum,"s64",buffers->value);
+        }
+        fresh(e, result_name);
+        declare(e, result_name, "bool", "false");
+        fresh(e, grown);
+        fresh(e, index);
+        if(e->target == ZIR_GO) {
+            /* Build the replacement before publishing it. recover handles
+             * make's range panic; Go's fatal physical OOM is not recoverable. */
+            line(e, "%s = func() (ok bool) {", result_name);
+            e->indent++;
+            line(e, "defer func() { if recover() != nil { ok = false } }()");
+            line(e, "if %s < 0 { return false }", requested);
+            if(bounded) line(e,"if %s < 0 || %s > %s || %s.Capacity > %s { return false }",maximum,requested,maximum,buffers->vector,maximum);
+            line(e, "if %s > %s.Capacity {", requested, buffers->vector);
+            e->indent++;
+            const char *scalar = TargetType(element, ZIR_GO);
+            if(scalar) copy_text(mapped, sizeof(mapped), scalar);
+            else e->resolve(e->context, element, mapped, sizeof(mapped));
+            line(e, "var %s %s", item_name, mapped);
+            line(e, "if uint64(%s) > uint64(^uint(0) >> 1) { return false }", requested);
+            line(e, "if unsafe.Sizeof(%s) != 0 && uint64(%s) > uint64(^uint(0) >> 1)/uint64(unsafe.Sizeof(%s)) { return false }", item_name, requested, item_name);
+            line(e, "%s := make([]%s, %s.Count, int(%s))", grown, mapped, buffers->vector, requested);
+            line(e, "copy(%s, %s.Data[:%s.Count])", grown, buffers->vector, buffers->vector);
+            line(e, "%s.Data = %s", buffers->vector, grown);
+            line(e, "%s.Capacity = %s", buffers->vector, requested);
+            e->indent--; line(e, "}");
+            if(resize) {
+                line(e, "var %s %s", item_name, mapped);
+                line(e, "if %s < %s.Count {", requested, buffers->vector);
+                e->indent++;
+                line(e, "for %s := %s; %s < %s.Count; %s++ {", index, requested, index, buffers->vector, index);
+                e->indent++;
+                format(buffers->field, sizeof(buffers->field), "%s.Data[%s]", buffers->vector, index);
+                if(emitter_type_contains_vec(e->module, element, 0))
+                    drop_owned_value(e, buffers->field, element, e->module, 0);
+                line(e, "%s = %s", buffers->field, item_name);
+                e->indent--; line(e, "}");
+                e->indent--; line(e, "}");
+                line(e, "%s.Data = %s.Data[:%s]", buffers->vector, buffers->vector, requested);
+                line(e, "for %s := %s.Count; %s < %s; %s++ { %s.Data[%s] = %s }", index, buffers->vector, index, requested, index, buffers->vector, index, item_name);
+                line(e, "%s.Count = %s", buffers->vector, requested);
+            }
+            line(e, "return true");
+            e->indent--; line(e, "}()");
+        } else {
+            const char *scalar = TargetType(element, e->target);
+            if(scalar) copy_text(mapped, sizeof(mapped), scalar);
+            else e->resolve(e->context, element, mapped, sizeof(mapped));
+            if(bounded) line(e,"if (%s >= 0 && %s >= 0 && %s <= %s && (%s).capacity <= %s) {",requested,maximum,requested,maximum,buffers->vector,maximum);
+            else line(e, "if (%s >= 0) {", requested);
+            e->indent++;
+            line(e, "%s = %s <= (%s).capacity;", result_name, requested, buffers->vector);
+            line(e, "if (!%s) {", result_name);
+            e->indent++;
+            if(bounded)
+                line(e,"void *%s = ZirVecReserveBounded((void *)(%s).data, &(%s).capacity, (%s).count, %s - (%s).count, sizeof(*(%s).data), %s);",grown,buffers->vector,buffers->vector,buffers->vector,requested,buffers->vector,buffers->vector,maximum);
+            else
+            line(e, "void *%s = ZirVecReserve((void *)(%s).data, &(%s).capacity, (%s).count, %s - (%s).count, sizeof(*(%s).data));", grown, buffers->vector, buffers->vector, buffers->vector, requested, buffers->vector, buffers->vector);
+            line(e, "if (%s != NULL) { (%s).data = (%s *)%s; %s = true; }", grown, buffers->vector, mapped, grown, result_name);
+            e->indent--; line(e, "}");
+            if(resize) {
+                line(e, "if (%s) {", result_name); e->indent++;
+                if(emitter_type_contains_vec(e->module, element, 0)) {
+                    line(e, "for (int64_t %s = %s; %s < (%s).count; ++%s) {", index, requested, index, buffers->vector, index);
+                    e->indent++;
+                    format(buffers->field, sizeof(buffers->field), "(%s).data[%s]", buffers->vector, index);
+                    drop_owned_value(e, buffers->field, element, e->module, 0);
+                    e->indent--; line(e, "}");
+                }
+                if(!strcmp(element, "u8")) {
+                    line(e, "if (%s > (%s).count) memset((%s).data + (%s).count, 0, (size_t)(%s - (%s).count));", requested, buffers->vector, buffers->vector, buffers->vector, requested, buffers->vector);
+                } else {
+                    if(record_type(e->module, element)) zero_record(e, element, buffers->value, sizeof(buffers->value));
+                    else copy_text(buffers->value, sizeof(buffers->value), zero_value(element, e->target));
+                    declare(e, item_name, element, buffers->value);
+                    line(e, "for (int64_t %s = (%s).count; %s < %s; ++%s) (%s).data[%s] = %s;", index, buffers->vector, index, requested, index, buffers->vector, index, item_name);
+                }
+                line(e, "(%s).count = %s;", buffers->vector, requested);
+                e->indent--; line(e, "}");
+            }
+            e->indent--; line(e, "}");
+        }
+        copy_text(out, size, result_name); e->pure = 1; return;
+    }
     if(push) {
         int second = e->fn->exprs[first].next_sibling;
         if(second < 0) fatal(expr, "VecPush requires a value");
@@ -203,8 +300,8 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
         fresh(e, result_name);
         declare(e, result_name, "bool", "false");
         if(e->target == ZIR_GO) {
-            line(e, "%s.Data = append(%s.Data, %s)",
-                 buffers->vector, buffers->vector, item_name);
+            line(e, "%s.Data = append(%s.Data[:%s.Count], %s)",
+                 buffers->vector, buffers->vector, buffers->vector, item_name);
             line(e, "%s.Count = int64(len(%s.Data))", buffers->vector, buffers->vector);
             line(e, "%s.Capacity = int64(cap(%s.Data))", buffers->vector, buffers->vector);
             line(e, "%s = true", result_name);
@@ -419,6 +516,17 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
         copy_text(out, size, finished);
         e->pure = 0;
         return;
+    }
+    if(emitter_type_contains_vec(e->module, element, 0)) {
+        char index[ZIR_NAME_MAX]; fresh(e, index);
+        if(e->target == ZIR_GO)
+            line(e, "for %s := int64(0); %s < %s.Count; %s++ {", index, index, buffers->vector, index);
+        else
+            line(e, "for (int64_t %s = 0; %s < (%s).count; ++%s) {", index, index, buffers->vector, index);
+        e->indent++;
+        format(buffers->field, sizeof(buffers->field), "(%s).%s[%s]", buffers->vector, e->target == ZIR_GO ? "Data" : "data", index);
+        drop_owned_value(e, buffers->field, element, e->module, 0);
+        e->indent--; line(e, "}");
     }
     if(!strcmp(expr->name, "VecFree")) {
         if(e->target == ZIR_GO)
@@ -1153,7 +1261,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             e->pure = 1;
             return;
         }
-        if(!strcmp(expr->name, "VecPush") ||
+        if(!strcmp(expr->name, "VecPush") || !strcmp(expr->name, "VecReserve") || (!strcmp(expr->name, "VecResize") || !strcmp(expr->name, "VecResizeBounded")) ||
            !strcmp(expr->name, "VecClear") ||
            !strcmp(expr->name, "VecFree") ||
            !strcmp(expr->name, "VecSwap") ||

@@ -727,7 +727,7 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
             }
             return valid && placeholders == arguments;
         }
-        if(!strcmp(expression->name, "VecPush") ||
+        if(!strcmp(expression->name, "VecPush") || !strcmp(expression->name, "VecReserve") || (!strcmp(expression->name, "VecResize") || !strcmp(expression->name, "VecResizeBounded")) ||
            !strcmp(expression->name, "VecClear") ||
            !strcmp(expression->name, "VecFree") ||
            !strcmp(expression->name, "VecSwap") ||
@@ -755,6 +755,16 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                !verify_expression(module, function, bindings, binding_count,
                                   first, depth + 1))
                 return 0;
+            if(!strcmp(expression->name,"VecReserve") || !strcmp(expression->name,"VecResize") || !strcmp(expression->name,"VecResizeBounded")) {
+                int bounded=!strcmp(expression->name,"VecResizeBounded");
+                int third=second>=0 ? function->exprs[second].next_sibling : -1;
+                if(second<0 || strcmp(function->exprs[second].type,"s64") || strcmp(expression->type,"bool") ||
+                   !verify_expression(module,function,bindings,binding_count,second,depth+1)) return 0;
+                if(!bounded) return third<0;
+                return third>=0 && function->exprs[third].next_sibling<0 &&
+                    !strcmp(function->exprs[third].type,"s64") &&
+                    verify_expression(module,function,bindings,binding_count,third,depth+1);
+            }
             if(clone)
                 return second >= 0 &&
                        function->exprs[second].next_sibling < 0 &&

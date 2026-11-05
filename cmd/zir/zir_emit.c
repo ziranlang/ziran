@@ -257,7 +257,9 @@ ModuleUsesSlices(const ZirModule *module)
             if(SliceElementType(fn->stmts[j].type, NULL, 0))
                 return 1;
         for(int j = 0; j < fn->expr_count; j++)
-            if(SliceElementType(fn->exprs[j].type, NULL, 0))
+            if(SliceElementType(fn->exprs[j].type, NULL, 0) ||
+               (fn->exprs[j].kind == ZIR_EXPR_SIZE_OF &&
+                SliceElementType(fn->exprs[j].name, NULL, 0)))
                 return 1;
     }
     return 0;
@@ -270,7 +272,7 @@ ModuleUsesVecOperations(const ZirModule *module)
         for(int e = 0; e < module->functions[f].expr_count; e++) {
             const ZirExpr *expr = &module->functions[f].exprs[e];
             if(expr->kind == ZIR_EXPR_CALL &&
-               (!strcmp(expr->name, "VecPush") ||
+               (!strcmp(expr->name, "VecPush") || !strcmp(expr->name, "VecReserve") || (!strcmp(expr->name, "VecResize") || !strcmp(expr->name, "VecResizeBounded")) ||
                 !strcmp(expr->name, "VecClear") ||
                 !strcmp(expr->name, "VecFree") ||
                 !strcmp(expr->name, "VecSwap") ||

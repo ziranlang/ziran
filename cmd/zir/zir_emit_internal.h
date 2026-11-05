@@ -200,10 +200,11 @@ void array_target_type(Emitter *e, const char *type, char *target_element,
                        size_t element_size, char *bounds, size_t bounds_size);
 void declare(Emitter *e, const char *name, const char *type, const char *value);
 void resolve(Emitter *e, const char *name, char *out, size_t size);
+void drop_owned_value(Emitter *e, const char *value, const char *type, const ZirModule *module, int depth);
 void clear_owned_value(Emitter *e, const char *value, const char *type, const ZirModule *module, int depth);
 void track_local(Emitter *e, const char *name, const char *type);
 void drop_locals(Emitter *e, int first);
-void drop_temporary_vec(Emitter *e, const char *name);
+void drop_temporary_vec(Emitter *e, const char *name, const char *type);
 int has_owned_locals(const Emitter *e);
 int operation(const char *op);
 int integer_literal_bits(const char *text, uint64_t *bits);

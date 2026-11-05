@@ -1904,7 +1904,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 type = contains ? "bool" : count ? "s64" : "void";
             break;
         }
-        if(!strcmp(e->name, "VecPush") || !strcmp(e->name, "VecClear") ||
+        if(!strcmp(e->name, "VecPush") || !strcmp(e->name, "VecReserve") || (!strcmp(e->name, "VecResize") || !strcmp(e->name, "VecResizeBounded")) || !strcmp(e->name, "VecClear") ||
            !strcmp(e->name, "VecFree") || !strcmp(e->name, "VecSwap") ||
            !strcmp(e->name, "VecPop") || !strcmp(e->name, "VecGet") ||
            !strcmp(e->name, "VecClone") || !strcmp(e->name, "VecSlice") ||
@@ -1919,6 +1919,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             int first = e->first_child;
             int second = first >= 0 ? c->fn->exprs[first].next_sibling : -1;
             int push = !strcmp(e->name, "VecPush");
+            int capacity_op = !strcmp(e->name, "VecReserve") || (!strcmp(e->name, "VecResize") || !strcmp(e->name, "VecResizeBounded"));
             int swap = !strcmp(e->name, "VecSwap");
             int pop = !strcmp(e->name, "VecPop");
             int get = !strcmp(e->name, "VecGet");
@@ -1947,7 +1948,21 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 error(c, e->span,
                       "cannot mutate a Vec with a live borrowed view",
                       e->name);
-            if(push) {
+            if((get || clone) && contains_vec(c->module, element, 0))
+                error(c, e->span, "cannot copy owned Vec elements; mutate in place or use VecPop", element);
+            if(capacity_op) {
+                int bounded=!strcmp(e->name,"VecResizeBounded");
+                int third=second>=0 ? c->fn->exprs[second].next_sibling : -1;
+                if(second<0 || (bounded ? third<0 || c->fn->exprs[third].next_sibling>=0 : third>=0))
+                    error(c,e->span,bounded ? "Vec capacity operation requires two s64 sizes" : "Vec capacity operation requires one s64 size",e->name);
+                else for(int argument=second; argument>=0; argument=c->fn->exprs[argument].next_sibling) {
+                    const char *requested=expression_type(c,argument);
+                    e=&c->fn->exprs[index];
+                    if(strcmp(requested,"s64") && strcmp(requested,"integer"))
+                        error(c,e->span,"Vec capacity operation requires an s64 size",requested);
+                    if(!strcmp(requested,"integer")) c->fn->exprs[argument].type=KeepName("s64");
+                }
+            } else if(push) {
                 if(contains_vec(c->module, element, 0))
                     error(c, e->span, "nested Vec elements are not supported", element);
                 if(second < 0 || c->fn->exprs[second].next_sibling >= 0)
@@ -2072,7 +2087,7 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     type = c->vec_slice_type;
                 else
                     type = "";
-            } else if(push || text_append || clone)
+            } else if(push || capacity_op || text_append || clone)
                 type = "bool";
             else if(text_finish)
                 type = "string";

@@ -642,6 +642,7 @@ Record *allocate_record(Vm *vm, const ZirModule *owner, const ZirType *type, int
 int array_length_fits(const ZirModule *module, const char *element, size_t length);
 const InlineRecord *inline_record_shape(Vm *vm, const ZirModule *owner, const ZirType *type);
 void collect_unreachable(Vm *vm);
+void array_zero_range(Array *array, size_t low, size_t high);
 Array *allocate_array_try(Vm *vm, const ZirModule *owner, const char *element, int length, int fail_hard);
 Value default_value(Vm *vm, const ZirModule *module, const char *type, int depth);
 Value coerce(Vm *vm, const ZirModule *module, Value value, const char *type);

@@ -2189,7 +2189,9 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 const ZirFunction *fn = &m->functions[fi];
                 for(int ei = 0; ei < fn->expr_count; ei++) {
                     const ZirExpr *expr = &fn->exprs[ei];
-                    if(expr->kind == ZIR_EXPR_SIZE_OF ||
+                    if((expr->kind == ZIR_EXPR_CALL &&
+                        (!strcmp(expr->name, "VecReserve") || (!strcmp(expr->name, "VecResize") || !strcmp(expr->name, "VecResizeBounded")))) ||
+                       expr->kind == ZIR_EXPR_SIZE_OF ||
                        (expr->kind == ZIR_EXPR_CAST && expr->type[0] == '*') ||
                        (expr->kind == ZIR_EXPR_INDEX && expr->left >= 0 &&
                         fn->exprs[expr->left].type[0] == '*')) {

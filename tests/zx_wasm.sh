@@ -283,14 +283,12 @@ EOF
         echo "zx-wasm-test: SIMD128 results '$results' for portable $portable"
         exit 1
     }
-    # The baseline module must hold no SIMD instruction at all.
-    objdump=$($wasmcc -print-prog-name=llvm-objdump)
-    if command -v "$objdump" >/dev/null 2>&1; then
-        "$objdump" -d "$work/simd-simd.wasm" | grep -q 'i32x4\.add'
-        if "$objdump" -d "$work/simd-baseline.wasm" | grep -Eq 'v128|[if](8x16|16x8|32x4|64x2)'; then
-            echo "zx-wasm-test: the baseline module holds SIMD instructions"
-            exit 1
-        fi
+    # The assembler rejects SIMD instructions in a build without SIMD, so the
+    # baseline module built above holds none of the SIMD templates.
+    if wasm_build simd -D__wasm_simd128__ -o "$work/simd-forced.wasm" >"$work/simd-forced.log" 2>&1 ||
+       ! grep -q 'instruction requires: simd128' "$work/simd-forced.log"; then
+        echo "zx-wasm-test: a build without -msimd128 accepted the SIMD templates"
+        exit 1
     fi
     if test "$($wasmcc -dumpversion | cut -d. -f1)" -ge 19; then
         wasm_build carried -msimd128 -o "$work/carried-simd.wasm"

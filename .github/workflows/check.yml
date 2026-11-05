@@ -23,6 +23,9 @@ jobs:
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
+        # site_pages.sh marks std modules shipped in the latest v* tag.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
@@ -75,6 +78,9 @@ jobs:
         shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
+        # site_pages.sh marks std modules shipped in the latest v* tag.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'

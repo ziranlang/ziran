@@ -1,0 +1,4 @@
+Increment :: (value: s32) -> s32 { return value + 1 }
+#law Portable abi Increment;
+#program_export
+Answer :: () -> s32 { return Increment(41) }

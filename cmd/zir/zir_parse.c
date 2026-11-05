@@ -1,3 +1,4 @@
+#include "zir_document.h"
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
@@ -97,6 +98,7 @@ lower_jai_multiline_strings(const char *source, const char *path)
     if(output == NULL) die("out of memory reading source");
     compiler_source_RewriteRawStrings(input, (Slice){output, result.count}, ZIR_NAME_MAX);
     output[result.count] = '\0';
+    if(strcmp(source, output)) DocumentMarkRewritten(path);
     return output;
 }
 

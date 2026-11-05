@@ -1,0 +1,4 @@
+Add :: (a: s32, b: s32) -> s32 { return a + b }
+#law Sum custom Add(20, 22) == 42;
+#program_export
+Answer :: () -> s32 { return Add(20, 22) }

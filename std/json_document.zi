@@ -24,13 +24,19 @@ using Vectors :: #import "vec"
 FloatText :: #import "float_text"
 
 JsonKind :: enum u8 { Missing :: 0; Null :: 1; False :: 2; True :: 3; Number :: 4; String :: 5; Array :: 6; Object :: 7; }
+JsonEraser :: #type (context: *void, bytes: []u8) -> void;
+JsonNoErase :: (context: *void, bytes: []u8) { unused context; unused bytes }
 
 JsonNode :: struct {
     kind: JsonKind
     // A number's text, or a string's decoded value.
     text: string
+    // Escaped/generated/deep-copied bytes are owned, never a self-referential
+    // string view. Use the public accessors for either representation.
+    owned_text: Vec(u8)
     // The member name, when the node belongs to an object.
     key: string
+    owned_key: Vec(u8)
     first: s32
     last: s32
     next: s32
@@ -43,6 +49,8 @@ JsonDocument :: struct {
     // Why the last JsonRead failed, and the byte offset where it did.
     error: string
     error_at: s64
+    erase: JsonEraser
+    erase_context: *void
 }
 
 JsonStyle :: struct {
@@ -89,14 +97,52 @@ Reader :: struct {
 }
 
 Add :: (document: *JsonDocument, kind: JsonKind, text: string) -> s32 {
-    node: JsonNode
-    node.kind = kind
-    node.text = text
-    node.first = -1
-    node.last = -1
-    node.next = -1
-    VecPush(document.nodes, node)
-    return cast(s32)(document.nodes.count - 1)
+    at := document.nodes.count
+    if at >= 2147483647 || !VecResize(document.nodes, at + 1) {
+        document.error = "out of memory reading JSON"
+        return -1
+    }
+    document.nodes[at].kind = kind
+    document.nodes[at].text = text
+    document.nodes[at].first = -1
+    document.nodes[at].last = -1
+    document.nodes[at].next = -1
+    return cast(s32)at
+}
+
+EraseBuffer :: (document: *JsonDocument, bytes: *Vec(u8)) {
+    owned: Vec(u8)
+    VecSwap(owned, <<bytes)
+    if document.erase != null && owned.count > 0 {
+        document.erase(document.erase_context, VecSlice(owned, 0, owned.count))
+    }
+}
+
+CopyBytesInto :: (document: *JsonDocument, node: s32, key: bool, output: *Vec(u8)) -> bool {
+    if output == null || node < 0 || node >= document.nodes.count { return false }
+    if output == *document.nodes[node].owned_text || output == *document.nodes[node].owned_key { return false }
+    count := ifx key then document.nodes[node].owned_key.count else document.nodes[node].owned_text.count
+    length := ifx count > 0 then count else (ifx key then document.nodes[node].key.count else document.nodes[node].text.count)
+    if length > 9223372036854775807 - output.count || !VecReserve(<<output, output.count + length) { return false }
+    if count > 0 {
+        for at: 0..count - 1 {
+            byte := ifx key then document.nodes[node].owned_key[at] else document.nodes[node].owned_text[at]
+            if !VecPush(<<output, byte) { return false }
+        }
+        return true
+    }
+    return BuilderAppend(<<output, ifx key then document.nodes[node].key else document.nodes[node].text)
+}
+
+EqualText :: (document: *JsonDocument, node: s32, key: bool, value: string) -> bool {
+    count := ifx key then document.nodes[node].owned_key.count else document.nodes[node].owned_text.count
+    if count == 0 { return (ifx key then document.nodes[node].key else document.nodes[node].text) == value }
+    if count != value.count { return false }
+    for at: 0..count - 1 {
+        byte := ifx key then document.nodes[node].owned_key[at] else document.nodes[node].owned_text[at]
+        if byte != value[at] { return false }
+    }
+    return true
 }
 
 Link :: (document: *JsonDocument, parent: s32, child: s32) {
@@ -145,27 +191,27 @@ Hex4 :: (reader: *Reader, at: s64) -> s32 {
     return value
 }
 
-PutCodePoint :: (bytes: *Vec(u8), point: s32) {
+PutCodePoint :: (bytes: *Vec(u8), point: s32) -> bool {
     if point < 128 {
-        VecPush(<<bytes, cast(u8)point)
+        return VecPush(<<bytes, cast(u8)point)
     } else if point < 2048 {
-        VecPush(<<bytes, cast(u8)(192 | (point >> 6)))
-        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+        return VecPush(<<bytes, cast(u8)(192 | (point >> 6))) &&
+            VecPush(<<bytes, cast(u8)(128 | (point & 63)))
     } else if point < 65536 {
-        VecPush(<<bytes, cast(u8)(224 | (point >> 12)))
-        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
-        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+        return VecPush(<<bytes, cast(u8)(224 | (point >> 12))) &&
+            VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63))) &&
+            VecPush(<<bytes, cast(u8)(128 | (point & 63)))
     } else {
-        VecPush(<<bytes, cast(u8)(240 | (point >> 18)))
-        VecPush(<<bytes, cast(u8)(128 | ((point >> 12) & 63)))
-        VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63)))
-        VecPush(<<bytes, cast(u8)(128 | (point & 63)))
+        return VecPush(<<bytes, cast(u8)(240 | (point >> 18))) &&
+            VecPush(<<bytes, cast(u8)(128 | ((point >> 12) & 63))) &&
+            VecPush(<<bytes, cast(u8)(128 | ((point >> 6) & 63))) &&
+            VecPush(<<bytes, cast(u8)(128 | (point & 63)))
     }
 }
 
 // Reads the string starting at the opening quote; the text is a view when
 // it has no escapes.
-ReadString :: (reader: *Reader, text: string, ok: *bool) -> string {
+ReadString :: (reader: *Reader, text: string, ok: *bool, bytes: *Vec(u8)) -> string {
     <<ok = false
     start := reader.at + 1
     at := start
@@ -183,23 +229,26 @@ ReadString :: (reader: *Reader, text: string, ok: *bool) -> string {
         <<ok = true
         return text[start:at]
     }
-    bytes: Vec(u8)
+    // Reserve before the first decoded private byte exists. Growth must not
+    // leave old plaintext allocations outside the registered eraser's reach.
+    if !VecReserve(<<bytes, at - start) { Fail(reader, "out of memory reading JSON"); return "" }
     at = start
     while reader.text[at] != #char "\"" {
         byte := reader.text[at]
         if byte != #char "\\" {
-            VecPush(bytes, byte)
+            if !VecPush(<<bytes, byte) { Fail(reader, "out of memory reading JSON"); return "" }
             at += 1
             continue
         }
         escape := reader.text[at + 1]
         at += 2
-        if escape == #char "\"" || escape == #char "\\" || escape == #char "/" { VecPush(bytes, escape) }
-        else if escape == #char "b" { VecPush(bytes, cast(u8)8) }
-        else if escape == #char "f" { VecPush(bytes, cast(u8)12) }
-        else if escape == #char "n" { VecPush(bytes, cast(u8)10) }
-        else if escape == #char "r" { VecPush(bytes, cast(u8)13) }
-        else if escape == #char "t" { VecPush(bytes, cast(u8)9) }
+        saved := true
+        if escape == #char "\"" || escape == #char "\\" || escape == #char "/" { saved = VecPush(<<bytes, escape) }
+        else if escape == #char "b" { saved = VecPush(<<bytes, cast(u8)8) }
+        else if escape == #char "f" { saved = VecPush(<<bytes, cast(u8)12) }
+        else if escape == #char "n" { saved = VecPush(<<bytes, cast(u8)10) }
+        else if escape == #char "r" { saved = VecPush(<<bytes, cast(u8)13) }
+        else if escape == #char "t" { saved = VecPush(<<bytes, cast(u8)9) }
         else if escape == #char "u" {
             point := Hex4(reader, at)
             if point < 0 { Fail(reader, "invalid \\u escape"); reader.at = at; return "" }
@@ -214,16 +263,17 @@ ReadString :: (reader: *Reader, text: string, ok: *bool) -> string {
                     at += 6
                 }
             }
-            PutCodePoint(*bytes, point)
+            saved = PutCodePoint(bytes, point)
         } else {
             Fail(reader, "invalid escape")
             reader.at = at - 1
             return ""
         }
+        if !saved { Fail(reader, "out of memory reading JSON"); return "" }
     }
     reader.at = at + 1
     <<ok = true
-    return BuilderFinish(bytes)
+    return ""
 }
 
 ReadNumber :: (reader: *Reader, document: *JsonDocument) -> s32 {
@@ -262,6 +312,7 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
     byte := reader.text[reader.at]
     if byte == #char "{" {
         object := Add(document, .Object, "")
+        if object < 0 { return Fail(reader, document.error) }
         reader.at += 1
         Skip(reader)
         if reader.at < reader.text.count && reader.text[reader.at] == #char "}" { reader.at += 1; return object }
@@ -269,7 +320,9 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
             Skip(reader)
             if reader.at >= reader.text.count || reader.text[reader.at] != #char "\"" { return Fail(reader, "expected a member name") }
             ok := false
-            key := ReadString(reader, reader.text, *ok)
+            key_bytes: Vec(u8)
+            defer { EraseBuffer(document, *key_bytes) }
+            key := ReadString(reader, reader.text, *ok, *key_bytes)
             if !ok { return -1 }
             Skip(reader)
             if reader.at >= reader.text.count || reader.text[reader.at] != #char ":" { return Fail(reader, "expected ':'") }
@@ -277,6 +330,7 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
             value := ReadValue(reader, document, depth + 1)
             if value < 0 { return -1 }
             document.nodes[value].key = key
+            VecSwap(document.nodes[value].owned_key, key_bytes)
             Link(document, object, value)
             Skip(reader)
             if reader.at >= reader.text.count { return Fail(reader, "unterminated object") }
@@ -287,6 +341,7 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
     }
     if byte == #char "[" {
         array := Add(document, .Array, "")
+        if array < 0 { return Fail(reader, document.error) }
         reader.at += 1
         Skip(reader)
         if reader.at < reader.text.count && reader.text[reader.at] == #char "]" { reader.at += 1; return array }
@@ -303,9 +358,14 @@ ReadValue :: (reader: *Reader, document: *JsonDocument, depth: s32) -> s32 {
     }
     if byte == #char "\"" {
         ok := false
-        text := ReadString(reader, reader.text, *ok)
+        bytes: Vec(u8)
+        defer { EraseBuffer(document, *bytes) }
+        text := ReadString(reader, reader.text, *ok, *bytes)
         if !ok { return -1 }
-        return Add(document, .String, text)
+        node := Add(document, .String, text)
+        if node < 0 { return Fail(reader, document.error) }
+        VecSwap(document.nodes[node].owned_text, bytes)
+        return node
     }
     if byte == #char "-" || Digit(byte) { return ReadNumber(reader, document) }
     if Literal(reader, "true") { return Add(document, .True, "") }
@@ -323,13 +383,34 @@ Copy :: (text: string) -> string {
 }
 
 #scope_export
-// Reads TEXT as the document's root, after clearing it. False, with error
-// and error_at set, when TEXT is not one complete JSON value.
-JsonRead :: (document: *JsonDocument, text: string) -> bool {
+// Register an optional owner-supplied eraser before building/copying private
+// text. It receives actual owned bytes, including failed partial strings.
+// Call JsonReset before the document leaves scope; borrowed source bytes stay
+// the caller's responsibility. No cryptographic dependency lives in JSON.
+JsonSetEraser :: (document: *JsonDocument, erase: JsonEraser, context: *void = null) {
+    document.erase = erase
+    document.erase_context = context
+}
+
+JsonReset :: (document: *JsonDocument) {
+    if document == null { return }
+    for at: 0..document.nodes.count - 1 {
+        EraseBuffer(document, *document.nodes[at].owned_text)
+        EraseBuffer(document, *document.nodes[at].owned_key)
+    }
     VecClear(document.nodes)
     document.root = -1
     document.error = ""
     document.error_at = 0
+}
+
+// Reads TEXT as the document's root, after clearing it. False, with error
+// and error_at set, when TEXT is not one complete JSON value.
+JsonRead :: (document: *JsonDocument, text: string, erase: JsonEraser = JsonNoErase,
+    erase_context: *void = null) -> bool {
+    if document == null { return false }
+    JsonReset(document)
+    JsonSetEraser(document, erase, erase_context)
     reader: Reader
     reader.text = text
     root := ReadValue(*reader, document, 0)
@@ -338,7 +419,9 @@ JsonRead :: (document: *JsonDocument, text: string) -> bool {
         if reader.at < text.count { root = Fail(*reader, "extra data after the value") }
     }
     if root < 0 {
+        JsonReset(document)
         document.error = reader.error
+        if document.error == "" { document.error = "out of memory reading JSON" }
         document.error_at = reader.at
         return false
     }
@@ -371,7 +454,13 @@ JsonNext :: (document: *JsonDocument, node: s32) -> s32 {
 // A member's name.
 JsonKey :: (document: *JsonDocument, node: s32) -> string {
     if node < 0 || node >= document.nodes.count { return "" }
-    return Copy(document.nodes[node].key)
+    bytes: Vec(u8)
+    if !CopyBytesInto(document, node, true, *bytes) { EraseBuffer(document, *bytes); return "" }
+    return BuilderFinish(bytes)
+}
+
+JsonKeyInto :: (document: *JsonDocument, node: s32, output: *Vec(u8)) -> bool {
+    return CopyBytesInto(document, node, true, output)
 }
 
 // The object's last member named KEY, or -1.
@@ -380,7 +469,7 @@ JsonMember :: (document: *JsonDocument, object: s32, key: string) -> s32 {
     found: s32 = -1
     child := document.nodes[object].first
     while child >= 0 {
-        if document.nodes[child].key == key { found = child }
+        if EqualText(document, child, true, key) { found = child }
         child = document.nodes[child].next
     }
     return found
@@ -401,26 +490,41 @@ JsonElement :: (document: *JsonDocument, array: s32, index: s32) -> s32 {
 // A string's value; "" for anything else.
 JsonString :: (document: *JsonDocument, node: s32) -> string {
     if JsonKindOf(document, node) != .String { return "" }
-    return Copy(document.nodes[node].text)
+    bytes: Vec(u8)
+    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return "" }
+    return BuilderFinish(bytes)
+}
+
+JsonStringInto :: (document: *JsonDocument, node: s32, output: *Vec(u8)) -> bool {
+    return JsonKindOf(document, node) == .String && CopyBytesInto(document, node, false, output)
 }
 
 // Whether NODE is the string VALUE, without copying it.
 JsonIs :: (document: *JsonDocument, node: s32, value: string) -> bool {
     if JsonKindOf(document, node) != .String { return false }
-    return document.nodes[node].text == value
+    return EqualText(document, node, false, value)
 }
 
 // A number's text as written; "" for anything else.
 JsonNumberText :: (document: *JsonDocument, node: s32) -> string {
     if JsonKindOf(document, node) != .Number { return "" }
-    return Copy(document.nodes[node].text)
+    bytes: Vec(u8)
+    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return "" }
+    return BuilderFinish(bytes)
+}
+
+JsonNumberTextInto :: (document: *JsonDocument, node: s32, output: *Vec(u8)) -> bool {
+    return JsonKindOf(document, node) == .Number && CopyBytesInto(document, node, false, output)
 }
 
 // A whole number in the signed 64-bit range, without a fraction or exponent.
 // Returns false for overflow; the document retains the original number text.
 JsonInteger :: (document: *JsonDocument, node: s32) -> (value: s64, ok: bool) {
     if JsonKindOf(document, node) != .Number { return 0, false }
-    text := document.nodes[node].text
+    bytes: Vec(u8)
+    defer { EraseBuffer(document, *bytes) }
+    if !CopyBytesInto(document, node, false, *bytes) { return 0, false }
+    text := TextView(VecSlice(bytes, 0, bytes.count))
     if text.count == 0 { return 0, false }
     negative := text[0] == #char "-"
     at: s64 = ifx negative then 1 else 0
@@ -461,14 +565,34 @@ JsonNewInteger :: (document: *JsonDocument, value: s64) -> s32 {
     }
     if value < 0 { at -= 1; digits[at] = #char "-" }
     text: Vec(u8)
-    while at < 24 { VecPush(text, digits[at]); at += 1 }
-    return Add(document, .Number, BuilderFinish(text))
+    defer { EraseBuffer(document, *text) }
+    if !VecReserve(text, 24) { document.error = "out of memory creating JSON integer"; return -1 }
+    while at < 24 {
+        if !VecPush(text, digits[at]) { document.error = "out of memory creating JSON integer"; return -1 }
+        at += 1
+    }
+    node := Add(document, .Number, "")
+    if node >= 0 { VecSwap(document.nodes[node].owned_text, text) }
+    return node
 }
 
 // A number written as TEXT, which must be a valid JSON number.
 JsonNewNumber :: (document: *JsonDocument, text: string) -> s32 { return Add(document, .Number, text) }
 
 JsonNewString :: (document: *JsonDocument, value: string) -> s32 { return Add(document, .String, value) }
+// Own VALUE when the caller's string storage will end before this document.
+// JsonNewString above deliberately retains its borrowed-input contract.
+JsonNewStringCopy :: (document: *JsonDocument, value: string) -> s32 {
+    bytes: Vec(u8)
+    defer { EraseBuffer(document, *bytes) }
+    if !VecReserve(bytes, value.count) || !BuilderAppend(bytes, value) {
+        document.error = "out of memory copying JSON string"
+        return -1
+    }
+    node := Add(document, .String, "")
+    if node >= 0 { VecSwap(document.nodes[node].owned_text, bytes) }
+    return node
+}
 JsonNewArray :: (document: *JsonDocument) -> s32 { return Add(document, .Array, "") }
 JsonNewObject :: (document: *JsonDocument) -> s32 { return Add(document, .Object, "") }
 
@@ -476,6 +600,7 @@ JsonNewObject :: (document: *JsonDocument) -> s32 { return Add(document, .Object
 JsonAppend :: (document: *JsonDocument, array: s32, child: s32) -> bool {
     if JsonKindOf(document, array) != .Array || JsonKindOf(document, child) == .Missing { return false }
     document.nodes[child].key = ""
+    EraseBuffer(document, *document.nodes[child].owned_key)
     Link(document, array, child)
     return true
 }
@@ -486,10 +611,11 @@ JsonAppend :: (document: *JsonDocument, array: s32, child: s32) -> bool {
 JsonSet :: (document: *JsonDocument, object: s32, key: string, child: s32) -> bool {
     if JsonKindOf(document, object) != .Object || JsonKindOf(document, child) == .Missing { return false }
     document.nodes[child].key = key
+    EraseBuffer(document, *document.nodes[child].owned_key)
     previous: s32 = -1
     at := document.nodes[object].first
     while at >= 0 {
-        if document.nodes[at].key == key {
+        if EqualText(document, at, true, key) {
             document.nodes[child].next = document.nodes[at].next
             if previous < 0 { document.nodes[object].first = child } else { document.nodes[previous].next = child }
             if document.nodes[object].last == at { document.nodes[object].last = child }
@@ -504,6 +630,19 @@ JsonSet :: (document: *JsonDocument, object: s32, key: string, child: s32) -> bo
     return true
 }
 
+// Like JsonSet, with a document-owned copy of KEY. Use this when the caller's
+// key storage will be released before the document is written.
+JsonSetCopy :: (document: *JsonDocument, object: s32, key: string, child: s32) -> bool {
+    if JsonKindOf(document, object) != .Object || JsonKindOf(document, child) == .Missing { return false }
+    bytes: Vec(u8)
+    defer { EraseBuffer(document, *bytes) }
+    if !VecReserve(bytes, key.count) || !BuilderAppend(bytes, key) { document.error = "out of memory copying JSON key"; return false }
+    if !JsonSet(document, object, key, child) { return false }
+    document.nodes[child].key = ""
+    VecSwap(document.nodes[child].owned_key, bytes)
+    return true
+}
+
 #scope_file
 // Removes every member named KEY after KEEP.
 Unlink :: (document: *JsonDocument, object: s32, key: string, keep: s32) {
@@ -511,7 +650,7 @@ Unlink :: (document: *JsonDocument, object: s32, key: string, keep: s32) {
     at := document.nodes[keep].next
     while at >= 0 {
         next := document.nodes[at].next
-        if document.nodes[at].key == key {
+        if EqualText(document, at, true, key) {
             document.nodes[previous].next = next
             if document.nodes[object].last == at { document.nodes[object].last = previous }
             document.nodes[object].count -= 1
@@ -531,7 +670,7 @@ JsonRemove :: (document: *JsonDocument, object: s32, key: string) -> bool {
     at := document.nodes[object].first
     while at >= 0 {
         next := document.nodes[at].next
-        if document.nodes[at].key == key {
+        if EqualText(document, at, true, key) {
             if previous < 0 { document.nodes[object].first = next } else { document.nodes[previous].next = next }
             if document.nodes[object].last == at { document.nodes[object].last = previous }
             document.nodes[object].count -= 1
@@ -558,11 +697,18 @@ JsonClear :: (document: *JsonDocument, node: s32) {
 JsonCopy :: (target: *JsonDocument, source: *JsonDocument, node: s32) -> s32 {
     kind := JsonKindOf(source, node)
     if kind == .Missing { return -1 }
-    copy := Add(target, kind, source.nodes[node].text)
+    copy := Add(target, kind, "")
+    if copy < 0 { return -1 }
+    bytes: Vec(u8)
+    defer { EraseBuffer(target, *bytes) }
+    if !CopyBytesInto(source, node, false, *bytes) { target.error = "out of memory copying JSON"; return -1 }
+    VecSwap(target.nodes[copy].owned_text, bytes)
     child := source.nodes[node].first
     while child >= 0 {
         inner := JsonCopy(target, source, child)
-        target.nodes[inner].key = source.nodes[child].key
+        if inner < 0 { return -1 }
+        if !CopyBytesInto(source, child, true, *bytes) { target.error = "out of memory copying JSON"; return -1 }
+        VecSwap(target.nodes[inner].owned_key, bytes)
         Link(target, copy, inner)
         child = source.nodes[child].next
     }
@@ -572,30 +718,33 @@ JsonCopy :: (target: *JsonDocument, source: *JsonDocument, node: s32) -> s32 {
 #scope_file
 HEX :: "0123456789abcdef";
 
-Escape :: (output: *Vec(u8), point: s32) {
-    BuilderAppend(<<output, "\\u")
-    VecPush(<<output, HEX[(point >> 12) & 15])
-    VecPush(<<output, HEX[(point >> 8) & 15])
-    VecPush(<<output, HEX[(point >> 4) & 15])
-    VecPush(<<output, HEX[point & 15])
+Escape :: (output: *Vec(u8), point: s32) -> bool {
+    if !BuilderAppend(<<output, "\\u") { return false }
+    if !VecPush(<<output, HEX[(point >> 12) & 15]) { return false }
+    if !VecPush(<<output, HEX[(point >> 8) & 15]) { return false }
+    if !VecPush(<<output, HEX[(point >> 4) & 15]) { return false }
+    if !VecPush(<<output, HEX[point & 15]) { return false }
+    return true
 }
 
 #scope_export
 // Appends VALUE as a quoted JSON string, escaped as json.dumps escapes it.
-JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) {
-    VecPush(<<output, #char "\"")
+JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) -> bool {
+    if output == null || output.count > 9223372036854775805 || value.count > (9223372036854775807 - output.count - 2) / 6 ||
+        !VecReserve(<<output, output.count + 2 + value.count * 6) { return false }
+    if !VecPush(<<output, #char "\"") { return false }
     at: s64 = 0
     while at < value.count {
         byte := value[at]
-        if byte == #char "\"" { BuilderAppend(<<output, "\\\""); at += 1; continue }
-        if byte == #char "\\" { BuilderAppend(<<output, "\\\\"); at += 1; continue }
-        if byte == 10 { BuilderAppend(<<output, "\\n"); at += 1; continue }
-        if byte == 13 { BuilderAppend(<<output, "\\r"); at += 1; continue }
-        if byte == 9 { BuilderAppend(<<output, "\\t"); at += 1; continue }
-        if byte == 8 { BuilderAppend(<<output, "\\b"); at += 1; continue }
-        if byte == 12 { BuilderAppend(<<output, "\\f"); at += 1; continue }
-        if byte < 32 || (ascii && byte == 127) { Escape(output, cast(s32)byte); at += 1; continue }
-        if byte < 128 || !ascii { VecPush(<<output, byte); at += 1; continue }
+        if byte == #char "\"" { if !BuilderAppend(<<output, "\\\"") { return false }; at += 1; continue }
+        if byte == #char "\\" { if !BuilderAppend(<<output, "\\\\") { return false }; at += 1; continue }
+        if byte == 10 { if !BuilderAppend(<<output, "\\n") { return false }; at += 1; continue }
+        if byte == 13 { if !BuilderAppend(<<output, "\\r") { return false }; at += 1; continue }
+        if byte == 9 { if !BuilderAppend(<<output, "\\t") { return false }; at += 1; continue }
+        if byte == 8 { if !BuilderAppend(<<output, "\\b") { return false }; at += 1; continue }
+        if byte == 12 { if !BuilderAppend(<<output, "\\f") { return false }; at += 1; continue }
+        if byte < 32 || (ascii && byte == 127) { if !Escape(output, cast(s32)byte) { return false }; at += 1; continue }
+        if byte < 128 || !ascii { if !VecPush(<<output, byte) { return false }; at += 1; continue }
         // A UTF-8 sequence as one code point; an invalid byte stands alone.
         point: s32 = byte
         length: s64 = 1
@@ -612,45 +761,117 @@ JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) {
         }
         if point >= 65536 {
             point -= 65536
-            Escape(output, 55296 + (point >> 10))
-            Escape(output, 56320 + (point & 1023))
+            if !Escape(output, 55296 + (point >> 10)) { return false }
+            if !Escape(output, 56320 + (point & 1023)) { return false }
         } else {
-            Escape(output, point)
+            if !Escape(output, point) { return false }
         }
         at += length
     }
-    VecPush(<<output, #char "\"")
+    if !VecPush(<<output, #char "\"") { return false }
+    return true
 }
 
 JsonQuote :: (value: string, ascii: bool = true) -> string {
     output: Vec(u8)
-    JsonQuoteInto(*output, value, ascii)
+    if !JsonQuoteInto(*output, value, ascii) { return "" }
     return BuilderFinish(output)
 }
 
 #scope_file
-KeyBefore :: (a: string, b: string) -> bool {
-    index: s64 = 0
-    while index < a.count && index < b.count {
-        if a[index] != b[index] { return a[index] < b[index] }
-        index += 1
+ByteAt :: (document: *JsonDocument, node: s32, key: bool, at: s64) -> u8 {
+    if key {
+        if document.nodes[node].owned_key.count > 0 { return document.nodes[node].owned_key[at] }
+        return document.nodes[node].key[at]
     }
-    return a.count < b.count
+    if document.nodes[node].owned_text.count > 0 { return document.nodes[node].owned_text[at] }
+    return document.nodes[node].text[at]
 }
 
-Line :: (output: *Vec(u8), style: JsonStyle, depth: s32) {
-    VecPush(<<output, cast(u8)10)
+ByteCount :: (document: *JsonDocument, node: s32, key: bool) -> s64 {
+    if key {
+        if document.nodes[node].owned_key.count > 0 { return document.nodes[node].owned_key.count }
+        return document.nodes[node].key.count
+    }
+    if document.nodes[node].owned_text.count > 0 { return document.nodes[node].owned_text.count }
+    return document.nodes[node].text.count
+}
+
+KeyBeforeNodes :: (document: *JsonDocument, left: s32, right: s32) -> bool {
+    a := ByteCount(document, left, true)
+    b := ByteCount(document, right, true)
+    at: s64 = 0
+    while at < a && at < b {
+        x := ByteAt(document, left, true, at)
+        y := ByteAt(document, right, true, at)
+        if x != y { return x < y }
+        at += 1
+    }
+    return a < b
+}
+
+QuoteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, key: bool, ascii: bool) -> bool {
+    bytes: Vec(u8)
+    defer { EraseBuffer(document, *bytes) }
+    if !CopyBytesInto(document, node, key, *bytes) { document.error = "out of memory writing JSON"; return false }
+    return JsonQuoteInto(output, TextView(VecSlice(bytes, 0, bytes.count)), ascii)
+}
+
+Line :: (output: *Vec(u8), style: JsonStyle, depth: s32) -> bool {
+    if !VecPush(<<output, cast(u8)10) { return false }
     spaces: s64 = cast(s64)style.indent * depth
-    while spaces > 0 { VecPush(<<output, #char " "); spaces -= 1 }
+    while spaces > 0 { if !VecPush(<<output, #char " ") { return false }; spaces -= 1 }
+    return true
 }
 
-WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle, depth: s32) {
+// A conservative bound, computed before private output bytes exist. Reserving
+// once prevents allocator relocation from leaving old plaintext behind.
+SizeAdd :: (total: *s64, amount: s64) -> bool {
+    if amount < 0 || amount > 9223372036854775807 - <<total { return false }
+    <<total += amount
+    return true
+}
+
+MeasureNode :: (document: *JsonDocument, node: s32, style: JsonStyle, depth: s32, total: *s64) -> bool {
+    if depth > MAX_DEPTH || JsonKindOf(document, node) == .Missing { return false }
     kind := document.nodes[node].kind
-    if kind == .Null { BuilderAppend(<<output, "null"); return }
-    if kind == .True { BuilderAppend(<<output, "true"); return }
-    if kind == .False { BuilderAppend(<<output, "false"); return }
+    length := ByteCount(document, node, false)
+    if kind == .String {
+        if length > (9223372036854775807 - 2) / 6 { return false }
+        return SizeAdd(total, 2 + length * 6)
+    }
+    if kind == .Number { return SizeAdd(total, length) && (!style.python_floats || SizeAdd(total, 64)) }
+    if kind == .Null || kind == .True || kind == .False { return SizeAdd(total, 5) }
+    if !SizeAdd(total, 2) { return false }
+    child := document.nodes[node].first
+    visited: s64 = 0
+    while child >= 0 {
+        visited += 1
+        if visited > document.nodes.count || JsonKindOf(document, child) == .Missing { return false }
+        if !SizeAdd(total, style.item_separator.count) { return false }
+        if style.indent >= 0 && !SizeAdd(total, 1 + cast(s64)style.indent * (depth + 1)) { return false }
+        if kind == .Object {
+            keyLength := ByteCount(document, child, true)
+            if keyLength > (9223372036854775807 - 2) / 6 ||
+                !SizeAdd(total, 2 + keyLength * 6) || !SizeAdd(total, style.key_separator.count) { return false }
+        }
+        if !MeasureNode(document, child, style, depth + 1, total) { return false }
+        child = document.nodes[child].next
+    }
+    return style.indent < 0 || SizeAdd(total, 1 + cast(s64)style.indent * depth)
+}
+
+WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle, depth: s32) -> bool {
+    kind := document.nodes[node].kind
+    if kind == .Null { return BuilderAppend(<<output, "null") }
+    if kind == .True { return BuilderAppend(<<output, "true") }
+    if kind == .False { return BuilderAppend(<<output, "false") }
     if kind == .Number {
-        text := document.nodes[node].text
+        bytes: Vec(u8)
+        formatted: Vec(u8)
+        defer { EraseBuffer(document, *bytes); EraseBuffer(document, *formatted) }
+        if !CopyBytesInto(document, node, false, *bytes) { return false }
+        text := TextView(VecSlice(bytes, 0, bytes.count))
         if style.python_floats {
             at: s64 = 0
             floating: bool = false
@@ -661,34 +882,32 @@ WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonS
             if floating {
                 value, ok := FloatText.ParseFloat64(text)
                 if ok {
-                    formatted := FloatText.Float64Repr(value)
-                    if formatted == "inf" { formatted = "Infinity" }
-                    if formatted == "-inf" { formatted = "-Infinity" }
-                    BuilderAppend(<<output, formatted)
-                    return
+                    if !FloatText.Float64ReprInto(value, *formatted) { return false }
+                    repr := TextView(VecSlice(formatted, 0, formatted.count))
+                    if repr == "inf" { return BuilderAppend(<<output, "Infinity") }
+                    if repr == "-inf" { return BuilderAppend(<<output, "-Infinity") }
+                    return BuilderAppend(<<output, repr)
                 }
             }
         }
-        BuilderAppend(<<output, text)
-        return
+        return BuilderAppend(<<output, text)
     }
-    if kind == .String { JsonQuoteInto(output, document.nodes[node].text, style.ascii); return }
+    if kind == .String { return QuoteNode(output, document, node, false, style.ascii) }
     object := kind == .Object
-    if document.nodes[node].count == 0 {
-        BuilderAppend(<<output, ifx object then "{}" else "[]")
-        return
-    }
-    VecPush(<<output, ifx object then #char "{" else #char "[")
+    if document.nodes[node].count == 0 { return BuilderAppend(<<output, ifx object then "{}" else "[]") }
+    if !VecPush(<<output, ifx object then #char "{" else #char "[") { return false }
     members: Vec(s32)
     child := document.nodes[node].first
-    while child >= 0 { VecPush(members, child); child = document.nodes[child].next }
+    while child >= 0 {
+        if !VecPush(members, child) { return false }
+        child = document.nodes[child].next
+    }
     if object && style.sort_keys {
-        // Name order, ties in document order.
         sorted: s64 = 1
         while sorted < members.count {
             moving := members[sorted]
             at := sorted
-            while at > 0 && KeyBefore(document.nodes[moving].key, document.nodes[members[at - 1]].key) {
+            while at > 0 && KeyBeforeNodes(document, moving, members[at - 1]) {
                 members[at] = members[at - 1]
                 at -= 1
             }
@@ -699,24 +918,37 @@ WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonS
     index: s64 = 0
     while index < members.count {
         child = members[index]
-        if index > 0 { BuilderAppend(<<output, style.item_separator) }
-        if style.indent >= 0 { Line(output, style, depth + 1) }
-        if object {
-            JsonQuoteInto(output, document.nodes[child].key, style.ascii)
-            BuilderAppend(<<output, style.key_separator)
-        }
-        WriteNode(output, document, child, style, depth + 1)
+        if index > 0 && !BuilderAppend(<<output, style.item_separator) { return false }
+        if style.indent >= 0 && !Line(output, style, depth + 1) { return false }
+        if object && (!QuoteNode(output, document, child, true, style.ascii) ||
+            !BuilderAppend(<<output, style.key_separator)) { return false }
+        if !WriteNode(output, document, child, style, depth + 1) { return false }
         index += 1
     }
-    if style.indent >= 0 { Line(output, style, depth) }
-    VecPush(<<output, ifx object then #char "}" else #char "]")
+    if style.indent >= 0 && !Line(output, style, depth) { return false }
+    return VecPush(<<output, ifx object then #char "}" else #char "]")
 }
 
 #scope_export
 // NODE and everything in it as JSON text in STYLE, without a final newline.
 JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> string {
-    if JsonKindOf(document, node) == .Missing { return "" }
     output: Vec(u8)
-    WriteNode(*output, document, node, style, 0)
+    if !JsonWriteInto(*output, document, node, style) { EraseBuffer(document, *output); return "" }
     return BuilderFinish(output)
+}
+
+// Append to caller-owned storage. It must not back this document's borrowed
+// input, or be one of its owned node buffers. Discard partial output on error.
+// Sensitive callers start with empty/wiped storage or pre-reserve its lifetime
+// maximum; they erase their own output and borrowed input after use.
+JsonWriteInto :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonStyle) -> bool {
+    if output == null || JsonKindOf(document, node) == .Missing { return false }
+    document.error = ""
+    size: s64 = output.count
+    if !MeasureNode(document, node, style, 0, *size) || !VecReserve(<<output, size) ||
+        !WriteNode(output, document, node, style, 0) {
+        document.error = "out of memory or invalid tree writing JSON"
+        return false
+    }
+    return true
 }

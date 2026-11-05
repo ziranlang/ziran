@@ -253,44 +253,53 @@ Shortest :: (value: float64, digits: []u8) -> (count: s32, order: s32) {
 // Finite integral values retain .0; signed zero, inf and nan are preserved.
 // The returned string owns its storage.
 Float64Repr :: (value: float64) -> string {
-    if value != value { return "nan" }
+    output: Vec(u8)
+    if !Float64ReprInto(value, *output) { return "" }
+    return BuilderFinish(output)
+}
+
+// Append one representation to caller-owned storage. Reserve before writing
+// so an allocation rejection leaves the prior output unchanged.
+Float64ReprInto :: (value: float64, output: *Vec(u8)) -> bool {
+    if output == null || output.count > 9223372036854775743 ||
+        !VecReserve(<<output, output.count + 64) { return false }
+    if value != value { return BuilderAppend(<<output, "nan") }
     negative := value < 0.0 || (value == 0.0 && 1.0 / value < 0.0)
     if negative { value = -value }
-    if !Finite64(value) { return ifx negative then "-inf" else "inf" }
-    if value == 0.0 { return ifx negative then "-0.0" else "0.0" }
+    if !Finite64(value) { return BuilderAppend(<<output, ifx negative then "-inf" else "inf") }
+    if value == 0.0 { return BuilderAppend(<<output, ifx negative then "-0.0" else "0.0") }
     digits: [18]u8
     count, order := Shortest(value, digits[:])
-    output: Vec(u8)
-    if negative { VecPush(output, #char "-") }
+    if negative { VecPush(<<output, #char "-") }
     if order < -4 || order >= 16 {
-        VecPush(output, digits[0] + #char "0")
+        VecPush(<<output, digits[0] + #char "0")
         if count > 1 {
-            VecPush(output, #char ".")
+            VecPush(<<output, #char ".")
             i: s32 = 1
-            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+            while i < count { VecPush(<<output, digits[i] + #char "0"); i += 1 }
         }
-        VecPush(output, #char "e")
-        VecPush(output, ifx order < 0 then #char "-" else #char "+")
+        VecPush(<<output, #char "e")
+        VecPush(<<output, ifx order < 0 then #char "-" else #char "+")
         if order < 0 { order = -order }
-        if order >= 100 { VecPush(output, cast(u8)(order / 100) + #char "0") }
-        VecPush(output, cast(u8)((order / 10) % 10) + #char "0")
-        VecPush(output, cast(u8)(order % 10) + #char "0")
+        if order >= 100 { VecPush(<<output, cast(u8)(order / 100) + #char "0") }
+        VecPush(<<output, cast(u8)((order / 10) % 10) + #char "0")
+        VecPush(<<output, cast(u8)(order % 10) + #char "0")
     } else {
         i: s32 = 0
         if order < 0 {
-            BuilderAppend(output, "0.")
-            while i < -order - 1 { VecPush(output, #char "0"); i += 1 }
+            BuilderAppend(<<output, "0.")
+            while i < -order - 1 { VecPush(<<output, #char "0"); i += 1 }
             i = 0
-            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+            while i < count { VecPush(<<output, digits[i] + #char "0"); i += 1 }
         } else {
             while i <= order {
-                VecPush(output, ifx i < count then digits[i] + #char "0" else #char "0")
+                VecPush(<<output, ifx i < count then digits[i] + #char "0" else #char "0")
                 i += 1
             }
-            VecPush(output, #char ".")
-            if i >= count { VecPush(output, #char "0") }
-            while i < count { VecPush(output, digits[i] + #char "0"); i += 1 }
+            VecPush(<<output, #char ".")
+            if i >= count { VecPush(<<output, #char "0") }
+            while i < count { VecPush(<<output, digits[i] + #char "0"); i += 1 }
         }
     }
-    return BuilderFinish(output)
+    return true
 }

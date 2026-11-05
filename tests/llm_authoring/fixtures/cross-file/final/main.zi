@@ -1,0 +1,4 @@
+Math :: #import "sums";
+#law Result custom Answer() == 42;
+#program_export
+Answer :: () -> s32 { return Math.Add(10, 11) + Math.Add(10, 11) }

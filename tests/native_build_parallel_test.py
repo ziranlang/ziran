@@ -218,7 +218,10 @@ try:
         (work/'link.release').touch()
         assert first.wait(timeout=30) == 0
         records = [json.loads(line) for line in (work/f'build-{index}.log').read_text().splitlines()]
-        assert any('output truncated' in r['message'] for r in records), records
+        # The 2048-byte record bound can cut the log's own suffix; the
+        # structured flag then reports the truncation.
+        assert any('output truncated' in r['message'] or r.get('truncation', {}).get('message')
+                   for r in records), records
     if workers > 1 and Path('/proc/self/stat').is_file():
         # Hold every other worker while one fails. Once that PID has been
         # reaped, no further compilation may start; all already-started

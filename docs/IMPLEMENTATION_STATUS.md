@@ -981,6 +981,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   Native C and Go targets also permit a temporary slice of a fixed
   array field reached through a direct record-pointer parameter. The caller
   owns that record for the call; the checker rejects returning the slice.
+  A string or slice stored in that record belongs to the caller, so it may
+  be returned, including through checked calls.
   Portable bundles still reject pointer programs.
   Borrowed arrays retain record elements written by called functions after
   those functions return; the portable slice test covers replacing a nested

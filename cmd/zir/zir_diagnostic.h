@@ -5,6 +5,11 @@
 #include <stdarg.h>
 
 typedef struct DiagnosticDetails {
+    const char *semantic_id;
+    const char *cause_kind; /* fixed taxonomy, never inferred from the message */
+    const char *subject;
+    const struct ZirDocument *document;
+    const char *related_relation;
     const char *expected_type;
     const char *actual_type;
     ZirSourceSpan related_span;

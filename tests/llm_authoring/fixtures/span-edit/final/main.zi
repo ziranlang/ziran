@@ -1,0 +1,3 @@
+// café
+#program_export
+Answer :: () -> s32 { return 42 }

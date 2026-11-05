@@ -37,6 +37,7 @@ func repr(v float64) string {
 func main() {
 	fmt.Println(`#import "float_text"
 #import "binary"
+#import "text_buffer"
 Fixture :: #import "std_float_text"
 
 `)
@@ -105,6 +106,12 @@ Fixture :: #import "std_float_text"
     }
     if Float64Repr(want) != expected {
         print("repr case %: % versus %\n", index, Float64Repr(want), expected)
+        return false
+    }
+    output: Vec(u8)
+    if !BuilderAppend(output, "prefix:") || !Float64ReprInto(want, *output) ||
+        TextView(VecSlice(output, 7, output.count)) != expected {
+        print("repr Into case %\n", index)
         return false
     }
     return true

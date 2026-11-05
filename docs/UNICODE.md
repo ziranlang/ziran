@@ -9,6 +9,11 @@ Public procedures:
 ```zi
 CaseFold :: (text: string) -> string
 Lower :: (text: string) -> string
+LowerInto :: (text: string, output: *Vec(u8)) -> bool
+NFCInto :: (text: string, output: *Vec(u8)) -> bool
+IsLetter :: (codepoint: u32) -> bool
+IsNumber :: (codepoint: u32) -> bool
+IsWhiteSpace :: (codepoint: u32) -> bool
 Capitalize :: (text: string) -> string
 IsWord :: (codepoint: u32) -> bool
 IsDecimal :: (codepoint: u32) -> bool
@@ -29,6 +34,29 @@ ignoring Case_Ignorable characters on both sides. Context uses the original
 input, including for `Capitalize`. Locale-specific Turkish, Azeri and
 Lithuanian tailoring is excluded, matching Python's locale-independent string
 methods.
+
+`LowerInto` applies the same mappings and contextual final sigma rule, with
+strict UTF-8 input validation. `NFCInto` applies canonical recursive
+decomposition, stable canonical combining-class ordering, and blocked
+composition with the full composition exclusions. Hangul decomposition and
+composition are algorithmic. Compatibility mappings remain untouched: `ﬃ`
+and `①` are unchanged. NFC does not case-fold, lowercase, trim or tailor text.
+
+Both Into procedures replace the previous bytes of a caller-owned `Vec(u8)`.
+They succeed on empty input and preserve embedded NUL. Malformed UTF-8 or
+allocation/size failure returns false with output count zero; backing capacity
+may remain for reuse. They check all vector growth and impose no fixed text
+limit beyond representable storage and available allocation. Input must not
+borrow the output buffer. Storage belongs to the caller and remains valid
+until it mutates or releases the vector. Existing immutable-string procedures
+retain their replacement-on-malformed-input behavior.
+
+`IsLetter` matches exactly the Unicode General_Category aggregate L (Lu, Ll,
+Lt, Lm, Lo). `IsNumber` matches exactly N (Nd, Nl, No), including fractions,
+superscripts and Roman numerals. Neither includes combining marks or ASCII
+underscore. `IsWhiteSpace` uses Unicode's White_Space property (25 scalars);
+it excludes the U+001C..U+001F controls accepted by Python-style `IsSpace`.
+All three return false for surrogates and values above U+10FFFF.
 
 `Capitalize` titlecases the first scalar, including full expansions, and
 lowercases subsequent scalars. Thus `ǆABC` becomes `ǅabc`, `ßABC` becomes
@@ -113,6 +141,39 @@ each literal contains at most 448 bytes. Generated tests store expected UTF-8
 strings independently of that packed representation.
 
 ## Local tests
+
+Canonical normalization and exact L/N/White_Space use the separately generated
+`std/unicode_normalization_data.zi`; the existing case table/generator is
+unchanged. Regenerate with:
+
+```sh
+build-queue -- build/bin/ziran run --target=c scripts/unicode_normalization_data.zi -- \
+    build/unicode-ucd std/unicode_normalization_data.zi tests/spec/unicode_normalization_cases.zi
+```
+
+The additional official Unicode 17.0.0 inputs and SHA-256 digests are:
+
+```text
+CompositionExclusions.txt 2f239196ef3b5b61db5cc476e9bd80f534d15aa1b74e1be1dea5d042a344c85f
+PropList.txt              130dcddcaadaf071008bdfce1e7743e04fdfbc910886f017d9f9ac931d8c64dd
+NormalizationTest.txt     5019ffd530751a741900c849c0e010332f142a3612234639bd200b82138a87db
+```
+
+The generated test corpus preserves all five UTF-8 columns of the primary
+[NormalizationTest](https://www.unicode.org/Public/17.0.0/ucd/NormalizationTest.txt).
+The normalization suite tests its five NFC invariants for every row and
+identity normalization for every assigned scalar absent from Part 1, as
+required by UAX #15. Source and saved IR execute on C, Go and both portable
+bundle runners. Focused cases cover strict malformed UTF-8, empty/reused
+outputs, NUL, recursive/blocked composition, Hangul, lowercase context and
+the distinction between Python whitespace and Unicode White_Space.
+
+```sh
+build-queue -- sh tests/std_unicode_normalization.sh build/bin/ziran
+```
+
+Set `ZIRAN_UNICODE_UCD=build/unicode-ucd` to also regenerate and compare both
+normalization outputs byte for byte. Normal tests need no network access.
 
 ```sh
 build-queue -- sh tests/std_unicode.sh build/bin/ziran

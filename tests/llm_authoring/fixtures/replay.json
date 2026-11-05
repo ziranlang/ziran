@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "corpus_version": "1.0.0",
+  "task_id": "span-edit",
+  "experiment": "baseline",
+  "provenance": {
+    "kind": "synthetic_fixture",
+    "source": "hand-authored offline replay regression"
+  },
+  "attempts": [
+    {
+      "index": 0,
+      "events": [
+        {
+          "kind": "prompt",
+          "text": "Change only the numeric return value of Answer from 41 to 42 using an exact UTF-8 byte span edit."
+        },
+        {
+          "kind": "tool",
+          "text": "Offline fixture; no provider or tokenizer invoked."
+        },
+        {
+          "kind": "completion",
+          "text": "Apply the supplied exact byte replacement."
+        }
+      ],
+      "edits": [
+        {
+          "path": "main.zi",
+          "base_sha256": "fe6fdb4031a83cb9b662845429e3c96b1cc3fc6e80142be7de7eaad43d6169e4",
+          "start_byte": 54,
+          "end_byte": 56,
+          "replacement_file": "span-edit/replacement.zi"
+        }
+      ]
+    }
+  ]
+}

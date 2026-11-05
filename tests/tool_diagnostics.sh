@@ -24,7 +24,7 @@ def diagnostics(command, code=None, *, env=None, success=False):
     items = [json.loads(line) for line in result.stderr.decode('utf-8').splitlines()]
     assert items, (command, result.stderr)
     for item in items:
-        assert item['schema_version'] == 1, item
+        assert item['schema_version'] == 2, item
         assert item['severity'] in ('error', 'warning'), item
         assert isinstance(item['code'], str) and isinstance(item['message'], str), item
         assert all(key in item for key in ('path', 'line', 'column', 'end_line', 'end_column')), item
@@ -34,7 +34,7 @@ def diagnostics(command, code=None, *, env=None, success=False):
 
 # Invalid arguments honor a later JSON flag, including in the formatter.
 for tool in ('zi2c', 'zi2go', 'zi2zir', 'zi2zx', 'zi-api',
-             'zi-inspect', 'zi-fmt'):
+             'zi-inspect', 'zi-fmt', 'zi-edit'):
     diagnostics([binary / tool, '--unknown', '--diagnostics=json'], 'command.arguments')
 
 diagnostics([ziran, 'build', '--target=unknown', '--diagnostics=json'], 'package.command')
@@ -71,7 +71,7 @@ command = [ziran, 'build', '--target=c', '--exe', '--entry', 'native:Answer',
            '--diagnostics=json', '--root', work, '-o', work / 'c', source]
 items = diagnostics(command, 'zir_c.toolchain', env=child_env)
 assert any('文🙂' in item['message'] and 'ÿ' in item['message'] and
-           'output truncated' in item['message'] for item in items), items
+           item['truncation']['message'] for item in items), items
 diagnostics(command, 'zir_c.toolchain', env=os.environ | {'CC': str(work / 'missing-cc')})
 
 # The launcher's uncaptured exec failure must not leak perror text into JSON.
@@ -82,8 +82,11 @@ diagnostics([launcher, 'check', '--diagnostics=json', '--root', work, source], '
 probe = work / 'diagnostic.c'
 probe.write_text(r'''
 #include "zir_diagnostic.h"
+#include "zir_document.h"
 #include <assert.h>
 #include <stdlib.h>
+const ZirDocument *DocumentFind(const char *path) { (void)path; return NULL; }
+int DocumentOffset(const ZirDocument *doc, int line, int column, size_t *offset) { (void)doc; (void)line; (void)column; (void)offset; return 0; }
 static int prohibit_allocation;
 void *AllocateOrExit(size_t size) { assert(!prohibit_allocation); return malloc(size); }
 const char *SpanPath(ZirSourceSpan span) { (void)span; return ""; }

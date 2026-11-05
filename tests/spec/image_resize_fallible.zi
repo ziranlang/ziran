@@ -1,0 +1,72 @@
+I :: #import "image";
+using Vectors :: #import "vec";
+
+#scope_file
+inputs: [5]I.Image;
+widths: [5]s32 = .[9,4,9,4,5];
+heights: [5]s32 = .[7,7,3,3,3];
+// Independent Pillow BICUBIC RGBA output hashes, including a vertical-first
+// extreme aspect ratio and invisible colour/partial alpha at every scale.
+golden: [5]s64 = .[1344294108,767879121,1027314714,972359094,7152635];
+Hash :: (image: *I.Image) -> s64 {
+    value: s64 = 17
+    for at: 0..image.pixels.count-1 { value = (value * 257 + cast(s64)image.pixels[at]) % 2147483647 }
+    return value
+}
+Unchanged :: (image: *I.Image) -> bool {
+    for at: 0..image.pixels.count-1 {
+        if image.pixels[at] != cast(u8)((at*37+at/7*11)%256) { return false }
+    }
+    return true
+}
+Empty :: (image: *I.Image) -> bool { return image.width == 0 && image.height == 0 && image.pixels.count == 0 }
+
+#scope_export
+#program_export
+Prepare :: () -> s32 {
+    for mode: 0..4 {
+        image := I.NewImage(ifx mode == 4 then 1 else 9,ifx mode == 4 then 401 else 7)
+        inputs[mode].width = image.width; inputs[mode].height = image.height
+        VecSwap(inputs[mode].pixels,image.pixels)
+        if !I.ImageValid(*inputs[mode]) { return 1 }
+        for at: 0..inputs[mode].pixels.count-1 { inputs[mode].pixels[at] = cast(u8)((at*37+at/7*11)%256) }
+    }
+    return 42
+}
+#program_export
+Exercise :: (mode: s32) -> s32 {
+    output: I.Image
+    ok := I.ResizeBicubicInto(*inputs[mode],widths[mode],heights[mode],*output)
+    if !Unchanged(*inputs[mode]) { return 2 }
+    if !ok { return ifx Empty(*output) then 0 else 3 }
+    if !I.ImageValid(*output) || output.width != widths[mode] || output.height != heights[mode] || Hash(*output) != golden[mode] { return 4 }
+    output.pixels[0] = output.pixels[0] ^ 255
+    return ifx Unchanged(*inputs[mode]) then 42 else 5
+}
+#program_export
+Finish :: () {
+    for at: 0..4 { empty: I.Image; VecSwap(empty.pixels,inputs[at].pixels); inputs[at].width = 0; inputs[at].height = 0 }
+}
+#program_export
+NativeMain :: () -> s32 {
+    if Prepare() != 42 { return 1 }
+    defer { Finish() }
+    for repeat: 0..19 { for mode: 0..4 { if Exercise(cast(s32)mode) != 42 { return cast(s32)(2+mode) } } }
+    output := I.NewImage(2,2,1,2,3,4)
+    invalid: I.Image
+    if I.ResizeBicubicInto(*invalid,3,4,*output) || !Empty(*output) { return 10 }
+    if I.ResizeBicubicInto(null,3,4,*output) || !Empty(*output) { return 11 }
+    if I.ResizeBicubicInto(*inputs[0],0,4,*output) || !Empty(*output) { return 12 }
+    if I.ResizeBicubicInto(*inputs[0],2147483647,2147483647,*output) || !Empty(*output) { return 13 }
+    if I.ResizeBicubicInto(*inputs[0],4,3,null) || !Unchanged(*inputs[0]) { return 14 }
+    if I.ResizeBicubicInto(*inputs[0],4,3,*inputs[0]) || !Unchanged(*inputs[0]) { return 15 }
+    // Output replacement and failure after a previous success release its
+    // owned storage, while the source remains usable.
+    for repeat: 0..19 {
+        if !I.ResizeBicubicInto(*inputs[0],4,3,*output) || Hash(*output) != golden[3] { return 16 }
+        if I.ResizeBicubicInto(*inputs[0],-1,3,*output) || !Empty(*output) { return 17 }
+    }
+    oversized: I.Image; oversized.width = 2147483647; oversized.height = 2147483647
+    if I.ImageValid(*oversized) || I.ResizeBicubicInto(*oversized,1,1,*output) || !Empty(*output) { return 18 }
+    return 0
+}

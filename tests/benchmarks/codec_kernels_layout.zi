@@ -1,0 +1,31 @@
+// Logical size_of and actual native record operations are separate evidence.
+Probe :: struct { prefix: u8; pointer: *u8; tail: u32; }
+// Exercise a real slice value as well as its size (emits native Slice support).
+#program_export
+ReadSlice :: (bytes: []u8) -> s64 { return cast(s64)bytes.count }
+#program_export
+PointerSize :: () -> s64 { return size_of(*u8) }
+#program_export
+WordSize :: () -> s64 { return size_of(usize) }
+#program_export
+SliceSize :: () -> s64 { return size_of([]u8) }
+#program_export
+RecordSize :: () -> s64 { return size_of(Probe) }
+#program_export
+Sizes :: () -> s64 {
+    return PointerSize() * 1000000 + WordSize() * 10000 +
+           SliceSize() * 100 + RecordSize()
+}
+#program_export
+ReadProbe :: (probe: *Probe) -> s64 {
+    return cast(s64)probe.prefix + cast(s64)probe.pointer.* + cast(s64)probe.tail
+}
+#program_export
+RoundTrip :: () -> s64 {
+    byte: u8 = 19
+    probe: Probe
+    probe.prefix = 7
+    probe.pointer = *byte
+    probe.tail = 16
+    return ReadProbe(*probe)
+}

@@ -68,6 +68,223 @@ def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
     call(str(output / "app"), cwd=app, env=env)
 
 
+def check_unborn_overrides(ziran: str, root: Path, compiler: Path, env: dict) -> None:
+    """Explicit development roots work without inventing a committed revision."""
+    env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
+    fixture = root / "unborn-overrides"
+    fixture.mkdir()
+    library, provider, source, tool = [fixture / name for name in
+                                       ("library", "provider", "source", "tool")]
+    for repo in (library, provider, source, tool):
+        init(repo, env)
+    write(library / "ziran.toml", '''[package]
+name = "Library"
+module_roots = ["src"]
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+[exports]
+api = "src/api.zi"
+''')
+    write(library / "src/api.zi", '''Value :: struct { number: s32 }
+New :: () -> Value { return .{ number = 42 } }
+''')
+    write(provider / "ziran.toml", f'''[package]
+name = "Provider"
+module_roots = ["src"]
+[dependencies.Library]
+git = "{library.as_uri()}"
+ref = "{'a' * 40}"
+[exports]
+api = "src/api.zi"
+''')
+    write(provider / "src/api.zi", '''#import "Library/api"
+Echo :: (value: Value) -> Value { return value }
+''')
+    write(source / "payload.txt", "uncommitted source\n")
+    write(tool / "VERSION", "uncommitted toolchain\n")
+    app = fixture / "app"
+    app.mkdir()
+    manifest = f'''[package]
+name = "Unborn"
+entry = "src/main.zi"
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+[dependencies.Provider]
+git = "{provider.as_uri()}"
+[dependencies.raw]
+git = "{source.as_uri()}"
+source = true
+'''
+    write(app / "ziran.toml", manifest)
+    local = (f'[overrides]\nziran = "{compiler}"\nProvider = "{provider}"\n'
+             f'Library = "{library}"\ndirect = "{library}"\nraw = "{source}"\n')
+    write(app / "ziran.local.toml", local)
+    call(ziran, "lock", "--offline", cwd=app, env=env)
+    # add must resolve/preserve an unborn source just like lock, including
+    # branch and exact-pin aliases reaching one shared module type identity.
+    call(ziran, "add", library.as_uri(), "--name", "direct", cwd=app, env=env)
+    write(app / "src/main.zi", '''#import "direct/api"
+#import "Provider/api"
+#program_export
+main :: () -> s32 {
+    if Echo(New()).number != 42 { return 1 }
+    return 0
+}
+''')
+    locked_bytes = (app / "ziran.lock").read_bytes()
+    lock = json.loads(locked_bytes)
+    assert len(lock["packages"]) == 3, lock
+    for entry, repo in ((entry, {"Library": library, "Provider": provider,
+                                "raw": source}[entry["name"]])
+                        for entry in lock["packages"]):
+        assert "commit" not in entry, entry
+        assert entry["development"] == "unborn:" + hashlib.sha256(
+            str(repo.resolve()).encode()).hexdigest(), entry
+    assert len(lock["toolchain"]["commit"]) == 40, lock
+    call(ziran, "lock", "--offline", cwd=app, env=env)
+    assert (app / "ziran.lock").read_bytes() == locked_bytes
+    refused = call(ziran, "update", "direct", cwd=app, env=env, succeed=False)
+    assert "targeted update cannot preserve an unborn package snapshot" in refused, refused
+    assert (app / "ziran.lock").read_bytes() == locked_bytes
+    assert call(ziran, "pkg", "path", "direct", "--offline", cwd=app, env=env).strip() == str(library)
+    assert call(ziran, "pkg", "path", "raw", "--offline", cwd=app, env=env).strip() == str(source)
+    call(ziran, "check", "--offline", cwd=app, env=env)
+    call(ziran, "run", "--offline", cwd=app, env=env)
+    # A package's own exports are checked normally, too.
+    write(library / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    call(ziran, "lock", "--offline", cwd=library, env=env)
+    call(ziran, "check", "--offline", cwd=library, env=env)
+    assert (app / "ziran.lock").read_bytes() == locked_bytes
+    refused = call(ziran, "check", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    assert "local overrides" in refused, refused
+    (app / "ziran.local.toml").unlink()
+    refused = call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    assert "development-only" in refused, refused
+    refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    assert "requires an explicit local override" in refused, refused
+    write(app / "ziran.local.toml", local)
+
+    # Neither enclosing repositories nor non-Git directories are overrides.
+    nongit = fixture / "nongit"
+    nongit.mkdir()
+    corrupt = fixture / "corrupt"
+    init(corrupt, env)
+    write(corrupt / ".git/refs/heads/master", "f" * 40 + "\n")
+    for invalid in (library / "src", nongit, corrupt):
+        write(app / "ziran.local.toml", local.replace(str(library), str(invalid)))
+        refused = call(ziran, "lock", "--offline", cwd=app, env=env, succeed=False)
+        assert "override" in refused, refused
+        assert (app / "ziran.lock").read_bytes() == locked_bytes
+    write(app / "ziran.local.toml", local)
+    # Development metadata cannot disguise a fake commit or coexist with one.
+    for bogus in ("f" * 40, "z" * 40, "unborn:invalid"):
+        broken = json.loads(locked_bytes)
+        broken["packages"][0]["commit"] = bogus
+        write(app / "ziran.lock", json.dumps(broken))
+        refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+        assert "cannot read ziran.lock" in refused, refused
+    (app / "ziran.lock").write_bytes(locked_bytes)
+    current_manifest = (app / "ziran.toml").read_text()
+    write(app / "ziran.toml", current_manifest.replace('ref = "master"', 'ref = "other"'))
+    refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    assert "dependencies differ" in refused, refused
+    write(app / "ziran.toml", current_manifest)
+
+    # An unborn toolchain is also explicitly marked and requires its override.
+    write(app / "ziran.local.toml", local.replace(f'ziran = "{compiler}"', f'ziran = "{tool}"'))
+    call(ziran, "lock", "--offline", cwd=app, env=env)
+    tool_lock = json.loads((app / "ziran.lock").read_text())
+    assert "commit" not in tool_lock["toolchain"], tool_lock
+    assert tool_lock["toolchain"]["development"].startswith("unborn:"), tool_lock
+    refused = call(ziran, "update", "direct", cwd=app, env=env, succeed=False)
+    assert "targeted update cannot preserve an unborn toolchain snapshot" in refused, refused
+    assert json.loads((app / "ziran.lock").read_text()) == tool_lock
+    call(ziran, "pkg", "path", "direct", "--offline", cwd=app, env=env)
+    write(app / "ziran.local.toml", local.replace(f'ziran = "{compiler}"\n', ''))
+    refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    assert "development-only toolchain" in refused, refused
+    for invalid in (nongit, corrupt):
+        write(app / "ziran.local.toml", local.replace(f'ziran = "{compiler}"', f'ziran = "{invalid}"'))
+        refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+        assert "override" in refused, refused
+    write(app / "ziran.local.toml", local)
+    # A real first fixture commit replaces the development marker on relock;
+    # no canonical package or compiler commit is made by this test.
+    development_bytes = (app / "ziran.lock").read_bytes()
+    commit(library, env)
+    head = call("git", "rev-parse", "HEAD", cwd=library, env=env).strip()
+    call(ziran, "check", "--offline", cwd=app, env=env)
+    assert (app / "ziran.lock").read_bytes() == development_bytes
+    call(ziran, "lock", "--offline", cwd=app, env=env)
+    committed = json.loads((app / "ziran.lock").read_text())
+    entry = next(item for item in committed["packages"] if item["name"] == "Library")
+    assert entry["commit"] == head and "development" not in entry, entry
+    call(ziran, "check", "--offline", cwd=app, env=env)
+    print("PASS: unborn overrides support add, exports, shared imports, check and native execution; invalid roots and development locks reject", flush=True)
+
+
+def check_local_locked_pins(ziran: str, root: Path, env: dict) -> None:
+    """Normal immutable pins still require real commits and exact declarations."""
+    env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
+    fixture = root / "locked-pins"
+    fixture.mkdir()
+    repos = [fixture / name for name in ("source", "tool")]
+    urls = [repo.as_uri() for repo in repos]
+    pins = []
+    for repo, url in zip(repos, urls):
+        init(repo, env)
+        write(repo / "VERSION", "1\n")
+        commit(repo, env)
+        pins.append(call("git", "rev-parse", "HEAD", cwd=repo, env=env).strip())
+        call("git", "remote", "add", "origin", url, cwd=repo, env=env)
+    app = fixture / "app"
+    app.mkdir()
+    manifest = f'''[package]
+name = "Pinned"
+[toolchain]
+git = "{urls[1]}"
+ref = "{pins[1]}"
+[dependencies.raw]
+git = "{urls[0]}"
+ref = "{pins[0]}"
+source = true
+'''
+    write(app / "ziran.toml", manifest)
+    write(app / "ziran.local.toml", f'[overrides]\nziran = "{repos[1]}"\nraw = "{repos[0]}"\n')
+    call(ziran, "lock", "--offline", cwd=app, env=env)
+    lock = (app / "ziran.lock").read_bytes()
+    # Move the original fixtures into their cache locations. No clone,
+    # alternate source checkout, link or network operation is needed.
+    cached = []
+    for repo, url, pin in zip(repos, urls, pins):
+        identity = "p" + hashlib.sha256(f"{url}\n{pin}".encode()).hexdigest()[:16]
+        destination = Path(env["XDG_CACHE_HOME"]) / "ziran/sources" / identity
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        repo.rename(destination)
+        cached.append(destination)
+    (app / "ziran.local.toml").unlink()
+    assert call(ziran, "pkg", "path", "raw", "--locked", "--offline",
+                cwd=app, env=env).strip() == str(cached[0])
+    for missing in ("0" * 40, "f" * 40):
+        write(app / "ziran.toml", manifest.replace(pins[0], missing))
+        refused = call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+        assert "dependencies differ" in refused, refused
+    write(app / "ziran.toml", manifest)
+    broken = json.loads(lock)
+    broken["packages"][0]["commit"] = "f" * 40
+    write(app / "ziran.lock", json.dumps(broken))
+    call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    broken["packages"][0]["commit"] = "z" * 40
+    write(app / "ziran.lock", json.dumps(broken))
+    refused = call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    assert "cannot read ziran.lock" in refused, refused
+    (app / "ziran.lock").write_bytes(lock)
+    # A plausible HEAD string with a missing object is not a committed pin.
+    write(cached[0] / ".git/refs/heads/master", "f" * 40 + "\n")
+    call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    print("PASS: ordinary cached --locked pins work offline; changed, false and missing commit identities reject", flush=True)
+
+
 def check_shared_commit_refs(ziran: str, root: Path, env: dict) -> None:
     """A branch in one manifest and its commit in another lock one package."""
     env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
@@ -516,8 +733,9 @@ def main() -> None:
     # The compiler repository is the one holding this test, wherever the
     # binary under test was built.
     compiler = Path(__file__).resolve().parents[1]
-    (compiler / "work").mkdir(exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="ziran-packages-", dir=compiler / "work") as scratch:
+    scratch_root = compiler / "build/scratch"
+    scratch_root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="ziran-packages-", dir=scratch_root) as scratch:
         root = Path(scratch)
         env = os.environ.copy()
         env.pop("DISPLAY", None)
@@ -527,6 +745,26 @@ def main() -> None:
         env["GIT_CONFIG_COUNT"] = "1"
         env["GIT_CONFIG_KEY_0"] = "protocol.file.allow"
         env["GIT_CONFIG_VALUE_0"] = "always"
+
+        local_only = "--local-overrides-only" in sys.argv[2:]
+        if local_only:
+            # Enforce the constrained suite's contract for subprocesses too.
+            real_git = shutil.which("git")
+            assert real_git
+            guard = root / "bin/git"
+            write(guard, f'''#!{sys.executable}
+import os, sys
+if any(arg in ("clone", "worktree", "fetch", "ls-remote") for arg in sys.argv[1:]):
+    sys.exit("constrained package fixtures forbid cloning, worktrees and fetching")
+os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])
+''')
+            guard.chmod(0o755)
+            env["PATH"] = str(guard.parent) + os.pathsep + env["PATH"]
+        check_unborn_overrides(ziran, root, compiler, env)
+        check_local_locked_pins(ziran, root, env)
+        if local_only:
+            print("PASS: constrained local package suite (no clones, worktrees or fetching)", flush=True)
+            return
 
         check_transitive_add(ziran, root, env)
         check_shared_commit_refs(ziran, root, env)

@@ -1,6 +1,8 @@
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
+#include "zir_document.h"
+#include "zir_semantic.h"
 /* Buffers expression_type keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ExpressionTypeBuffers {
@@ -1071,6 +1073,8 @@ name_edit_span(Checker *c, const ZirExpr *expression, ZirSourceSpan *span)
                           source[0] == '/' ? "" : c->module->source_root,
                           source[0] == '/' || !c->module->source_root[0] ? "" : "/", source);
     if(length < 0 || (size_t)length >= sizeof(path)) return 0;
+    const ZirDocument *document=DocumentForSpan(c->module, expression->span);
+    if(!document || document->rewritten) return 0;
     FILE *file = fopen(path, "rb");
     if(file == NULL) return 0;
     if(fseek(file, 0, SEEK_END) != 0) { fclose(file); return 0; }
@@ -1084,11 +1088,13 @@ name_edit_span(Checker *c, const ZirExpr *expression, ZirSourceSpan *span)
     int valid = read == (size_t)bytes && !ferror(file);
     fclose(file);
     text[read] = 0;
+    char digest[65]; DocumentDigest(text, read, digest);
+    valid = valid && read==document->bytes && !strcmp(digest, document->sha256);
     ZirLexer lexer;
     LexerInit(&lexer, text, source);
     int found = 0;
     while(valid) {
-        ZirToken token = LexerNext(&lexer);
+        ZirToken token = LexerNextCode(&lexer);
         if(token.kind == ZIR_TOKEN_EOF || token.span.line > expression->span.line) break;
         if(token.kind == ZIR_TOKEN_IDENT && !token.truncated &&
            token.span.line == expression->span.line &&
@@ -1110,7 +1116,9 @@ unresolved_error(Checker *c, const ZirExpr *expression, int procedures)
     const char *replacement = NULL;
     const char *detail = unresolved_detail(c, expression->name, procedures,
                                            message, sizeof(message), &replacement);
-    DiagnosticDetails details = {.suggested_name = replacement};
+    char id[68];
+    if(c->fn) FunctionSemanticId(c->module, c->fn, id);
+    DiagnosticDetails details = {.cause_kind=procedures ? "unresolved_function" : "unresolved_name", .subject=expression->name, .suggested_name = replacement, .semantic_id=c->fn ? id : NULL, .document=DocumentForSpan(c->module, expression->span)};
     if(replacement != NULL && name_edit_span(c, expression, &details.edit_span)) {
         details.replacement = replacement;
         details.original = expression->name;
@@ -1277,6 +1285,25 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     e->left = -1;
                 break;
             }
+        }
+    }
+    /* A named ordinary record literal provides a unique sibling context in
+     * a local conditional. Resolve the declared type, never search records by
+     * field shape or speculate about a call/foreign/owned value. Both arms
+     * still undergo the normal field/type/ownership checks below. */
+    if(!c->fn->from_ir && !c->fn->is_global_initializer && e->kind == ZIR_EXPR_CONDITIONAL && !c->expected_type[0] &&
+       e->right >= 0 && e->third >= 0) {
+        ZirExpr *yes=&c->fn->exprs[e->right], *no=&c->fn->exprs[e->third];
+        ZirExpr *typed=NULL, *anonymous=NULL;
+        if(yes->kind==ZIR_EXPR_COMPOUND && no->kind==ZIR_EXPR_COMPOUND) {
+            if(yes->name[0] && !no->name[0]) { typed=yes; anonymous=no; }
+            else if(no->name[0] && !yes->name[0]) { typed=no; anonymous=yes; }
+        }
+        if(typed) {
+            const ZirType *record=FindType(c->module,typed->name,NULL);
+            if(record && !record->is_enum && !record->is_union && !record->is_extern && !record->is_procedure_type &&
+               !record->foreign_target[0] && !contains_vec(c->module,typed->name,0))
+                anonymous->name=KeepName(typed->name);
         }
     }
     /* Checking an operand can append expressions, such as a widening cast,

@@ -45,6 +45,10 @@ for path in sources:
     for match in re.finditer(r"(?:Diagnostic(?:V|Detailed|Target)?|Warning)\s*\(", text):
         end = match.end()
         tail = text[end:text.find(");", end)]
+        # Function declarations are not diagnostic calls. Metadata in their
+        # bodies (such as cause kinds) must not become registered codes.
+        if re.match(r"\s*ZirSourceSpan\b", tail):
+            continue
         literal = re.search(r'"([A-Za-z0-9_.-]+)"', tail)
         if literal:
             emitted.add(literal.group(1))

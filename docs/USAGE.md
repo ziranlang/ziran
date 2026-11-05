@@ -886,7 +886,9 @@ ties to even; overflow succeeds as infinity and underflow as signed zero.
 with Python's `repr` layout: fixed notation for decimal orders -4 through 15,
 otherwise lowercase `e`, a signed exponent with at least two digits, and `.0`
 on fixed integral values. It preserves negative zero and writes `inf`, `-inf`
-and `nan`. Both procedures use bounded exact integer arithmetic in Ziran,
+and `nan`. `Float64ReprInto(value, output: *Vec(u8)) -> bool` appends the
+same text to caller-owned bytes, reserving before writing and reporting
+allocation rejection. Both conversions use bounded exact integer arithmetic in Ziran,
 without foreign calls, locale state or a Python runtime. Parsing scans all
 input bytes, retaining at most 1100 significant digits plus a sticky flag;
 this exceeds the length of every binary64 rounding boundary. Run
@@ -938,6 +940,14 @@ and omits empty fields, like `str.split()` without a separator. Its pieces
 borrow the input. All operations run unchanged on C, Go and the portable VM,
 without a host Unicode library. See [Unicode](UNICODE.md) for exact semantics,
 the native table generator and conformance tests.
+
+`NFCInto(text: string, output: *Vec(u8)) -> bool` and `LowerInto` use reusable
+caller-owned buffers: they replace previous bytes, reject malformed UTF-8 and
+empty the output on failure. NFC performs canonical Unicode 17 decomposition,
+ordering and composition, including Hangul; compatibility normalization is
+excluded. `IsLetter` and `IsNumber` match exact General_Category L and N;
+`IsWhiteSpace` matches Unicode White_Space, excluding `IsSpace`'s extra
+U+001C..U+001F controls. See [Unicode](UNICODE.md) for ownership and conformance.
 
 `std/string_range.zi` provides `Substring(source, start, length)` over borrowed
 bytes, using Ziran's checked `source[low:high]` string range syntax. Choose
@@ -1080,6 +1090,36 @@ the stored node text is never changed. Float overflow writes `Infinity` or
 `sh tests/std_json_document.sh build/bin/ziran` for tree operations and default
 layout, and `sh tests/std_float_text.sh build/bin/ziran` for canonical floats.
 
+Documents own decoded escape buffers and generated integer text; normal
+document cleanup releases them. `JsonReset` releases those buffers and clears
+the tree, retaining vector capacity for reuse. Unescaped input, `JsonNewString`
+and `JsonNewNumber` remain borrowed. Consume their views before changing that
+storage. `JsonSetCopy` acts like `JsonSet` but owns a copy of its key; ordinary
+`JsonSet` borrows its key. `JsonNewStringCopy` owns a copy of its value;
+`JsonNewString` and `JsonNewNumber` continue to borrow. `JsonCopy` deep-copies
+text and keys into the target, so the source may
+be reset or dropped first, including when copying within one document.
+`JsonString`, `JsonKey` and `JsonNumberText` still return independent owned
+strings. `JsonStringInto(document, node, output)`, `JsonKeyInto` and
+`JsonNumberTextInto` instead append to caller-owned `Vec(u8)` storage and return
+false on allocation failure or a missing/wrong-kind node. `JsonWriteInto` and
+`JsonQuoteInto` also return false on allocation failure; discard partial output
+on failure. Their output must not alias the document's input or owned buffers.
+`JsonWrite` and `JsonQuote` detach owned strings.
+
+For private data, pass `JsonRead(document, text, erase, context)` or register
+`JsonSetEraser(document, erase, context)` before constructing a document. The
+crypto-independent callback `(context: *void, bytes: []u8) -> void` must overwrite
+the supplied mutable bytes. It runs before owned decoded/copied/generated text,
+discarded keys and internal text temporaries are freed, including failed reads.
+Explicitly `defer { JsonReset(*document) }` before a private document leaves
+scope; normal implicit vector destruction cannot call the registered eraser.
+The caller owns erasure of borrowed input and Into output, and starts output
+empty/wiped or reserves its full lifetime maximum before storing private bytes.
+Use Into accessors rather than detached string returns for private data.
+The parser and writer reserve before copying private bytes, so their own growth
+does not relocate plaintext into allocations the eraser cannot reach.
+
 `std/zip.zi` reads classic ZIP directories from caller-owned bytes, verifies
 stored entries with CRC-32, and writes stored archives into caller-owned output.
 It rejects split, encrypted, and malformed archives, and duplicate requested
@@ -1111,6 +1151,13 @@ sizes. Gap `0` means Pillow's `None`; other gaps must be finite and at least
 Like Pillow's RGBA path, they resample premultiplied bytes without an
 integer reduction step, regardless of gap. Unchanged sizes preserve all bytes,
 including RGB under zero alpha; neither operation applies EXIF orientation.
+`ResizeBicubicInto(image: *Image, width: s32, height: s32, output: *Image) -> bool`
+provides the same default bicubic pixels with checked allocation and dimension
+arithmetic. Output owns its pixels and can be reused; it must not alias the
+source or borrow its pixel storage. Failure empties output and releases partial
+buffers; null output or identical source/output records fail unchanged. The
+source remains unchanged. Run `sh tests/image_resize_fallible.sh build/bin/ziran`
+for portable parity, native allocation faults and sanitizer lifetime tests.
 Run `make -f Makefile -f tests/native_image_thumbnail.mk image-thumbnail-test`
 for 40 frozen Pillow 12.3.0 bitmap oracles through native C source/saved IR,
 plus Go and portable source/saved-IR assertions (no Python dependency).
@@ -1136,6 +1183,24 @@ checked on every call. Only programs that import it link
 `tests/vorbis_linux.sh` needs ffmpeg with libvorbis; with the Vorbis
 development headers (or `VORBIS_INCLUDE`) it also compares the record sizes
 with the C compiler's.
+
+The reusable `audio` package, maintained in `ziranlang/packages/audio`, adds
+Opus and quality sinc conversion without a GUI or audio-device dependency.
+`audio/opus` exposes bounded Ogg decoding and single-owner encoder/decoder
+states with caller-owned scratch. `audio/pipeline` adds whole-buffer encoding
+with automatic sinc resampling. The Ogg decoder applies
+pre-skip, header gain and final trim; `DecoderRewind` resets a validated
+immutable input without rescanning it. `audio/resample` wraps libsamplerate's
+best-quality sinc, including 44.1–48 kHz conversion and incremental processing.
+`audio/ogg` inspection and `audio/wav` PCM16/float32 input with PCM16 output
+also run in portable bundles. Native codec/sinc calls require the C target;
+portable bundles reject those FFI calls explicitly. Native consumers declare
+`links = ["opus", "samplerate", "m"]` in their root package manifest.
+The package's `audio` CLI provides `encode`, `decode`, `inspect`, `transcode`
+and `resample`, with bitrate, VBR, constrained VBR and named bandwidth caps.
+Its README documents ownership, frame/byte limits, supported formats and
+tested targets. Existing Vorbis modules remain independent.
+
 `std/zip_file_linux.zi` writes stored ZIP entries directly to a caller-owned
 file from borrowed byte slices, including mapped files. The caller controls
 file creation and publication. Its test checks the output with Python's ZIP
@@ -1275,11 +1340,20 @@ valid only until `UnmapFile`, and writes to that slice do not change the file.
 `std/process_capture_linux.zi` captures a child process without a shell;
 `std/net_http_linux.zi` uses it to send JSON over HTTPS through `curl`.
 `std/process_channel_linux.zi` keeps an owned child open for bidirectional byte
-I/O. `StartChannel` takes an explicit argument vector and optionally merges
-stderr into the channel. `ChannelSend` and `ChannelReceive` use caller-owned
-buffers and bounded waits. `WaitChannel` joins the child and records its exit
+I/O. `StartChannel` takes 1 through 32 explicit arguments (each at most 4095
+non-NUL bytes) and optionally merges stderr into the channel. Invalid argument
+counts fail before creating a socket or child. `ChannelSend` and `ChannelReceive` use caller-owned
+buffers and bounded waits. A third `discard_stderr` argument defaults to false;
+when true the child sends stderr to `/dev/null` without mixing it into stdout.
+Merging and discarding together are rejected before launch. `WaitChannel` joins
+the child and records its exit
 code. `CloseChannel` closes the stream, waits for the requested grace period,
 then terminates only the child's own process group if it is still running.
+`CancelChannel` instead signals the still-owned unreaped child group before
+joining, so cancellation also stops descendants retaining stdout after their
+parent exits. It closes the endpoint and reaps the direct child; repeating it
+after joining is harmless. Do not reap the parent separately while awaiting
+stdout, because its unreaped PID proves this process-group ownership.
 Keep one owner for each channel and close it before releasing its storage;
 failed sends may have delivered a prefix and must not be blindly replayed.
 
@@ -1292,6 +1366,11 @@ reports `started = false`. `std/file_tree_linux.zi` creates, lists, copies and
 removes folders, reads a path's kind, owner UID (`PathInfo.owner_uid`), permissions,
 size and modification time,
 replaces a file atomically, takes `flock` locks and matches shell wildcards.
+`PathInfo.modified` gives signed seconds since the Unix epoch;
+`modified_nanoseconds` gives its fractional nanoseconds from 0 through 999999999,
+not total nanoseconds. Missing paths return zero for both fields. Programs that
+combine them into a signed 64-bit timestamp must check multiplication/addition
+overflow for their supported date range.
 `PathStatus(path, false)` reports a symbolic link's own metadata.
 `ResolvePath(path)` returns the canonical absolute path with symbolic links and
 dot components resolved, or empty for a missing or invalid path.
@@ -1378,3 +1457,26 @@ locale. Supported civil tokens are `%a`, `%A`, `%b`, `%B`, `%h`, `%C`, `%d`,
 `%S`, `%T`, `%u`, `%w`, `%X`, `%y`, `%Y`, `%n`, `%t`, and `%%`. The calendar
 calculations and formatting also run from portable bundles without a clock
 host.
+
+Local conditional construction can share an explicitly named ordinary record
+type between its arms:
+
+```zi
+Pair :: struct { value: s32; }
+Choose :: (yes: bool) -> Pair {
+    result := ifx yes then Pair.{value=41} else .{value=42};
+    return result;
+}
+```
+
+The reverse arm order works too, including nested fields with their checked
+record context. At least one arm must explicitly name that record. This does
+not search types by their fields, infer public signatures or imports, or infer
+owned, foreign, union, enum or procedure types from an unnamed sibling.
+Ambiguous constructors and mismatched fields remain errors. The checked source
+and saved IR retain the resolved record type; both arms keep their ordinary
+lazy runtime evaluation.
+
+For checked, hash-bound source changes see [source edits](SEMANTIC_EDIT.md).
+An optional byte-exact transport with source maps is described in
+[compact transport](TRANSPORT_VIEW.md); `.zi` remains canonical source.

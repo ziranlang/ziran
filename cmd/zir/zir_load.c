@@ -2,6 +2,7 @@
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_load.h"
+#include "zir_overlay.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_parse.h"
@@ -248,6 +249,10 @@ add_program_named(LoadContext *context, const char *path, const char *root,
         Diagnostic(Span(path, 1, 1), "module.input",
                    "cannot open module input: %s", path);
         return 0;
+    }
+    if(!SourceOverlayAllowed(canonical)) {
+        Diagnostic(Span(path,1,1),"module.input","module import escapes the edit root and explicit search roots: %s",path);
+        free(canonical); return 0;
     }
     for(int i = 0; i < set->count; i++)
         if(strcmp(set->paths[i], canonical) == 0) {

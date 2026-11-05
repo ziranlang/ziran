@@ -51,7 +51,9 @@ NewImage :: (width: s32, height: s32, red: u8 = 0, green: u8 = 0, blue: u8 = 0, 
 
 // Whether the picture has a size and every pixel.
 ImageValid :: (image: *Image) -> bool {
-    return image.width > 0 && image.height > 0 && image.pixels.count == cast(s64)image.width * image.height * 4
+    return image != null && image.width > 0 && image.height > 0 &&
+        cast(s64)image.width * image.height <= 2305843009213693951 &&
+        image.pixels.count == cast(s64)image.width * image.height * 4
 }
 
 CopyImage :: (image: *Image) -> Image {
@@ -307,25 +309,33 @@ Filter :: (filter: s32, x: float64) -> float64 {
 Truncate :: (value: float64) -> s32 { return cast(s32)value }
 
 // Pillow's precompute_coeffs and normalize_coeffs_8bpc for one axis.
-Coefficients :: (input: s32, output: s32, filter: s32) -> Weights {
-    result: Weights
+CoefficientsInto :: (input: s32, output: s32, filter: s32, result: *Weights) -> bool {
+    if input <= 0 || output <= 0 { return false }
     scale := cast(float64)input / cast(float64)output
     filter_scale := ifx scale < 1.0 then 1.0 else scale
     inverse_scale := 1.0 / filter_scale
     support := (ifx filter == 1 then 3.0 else (ifx filter == 2 then 2.0 else 0.5)) * filter_scale
+    // size remains s32; lengths and every product below use s64. Reject
+    // before a narrowing conversion, allocation or indexed write can wrap.
+    if support > 1073741822.0 { return false }
     whole := Truncate(support)
     if cast(float64)whole < support { whole += 1 }
     size := whole * 2 + 1
-    result.size = size
+    count := cast(s64)output * size
+    if count > 2305843009213693951 { return false }
+    if !VecResize(result.weights,count) || !VecResize(result.bounds,cast(s64)output*2) { return false }
     values: Vec(float64)
+    if !VecResize(values,cast(s64)size) { return false }
+    result.size = size
     for out: 0..output - 1 {
         center := (cast(float64)out + 0.5) * scale
-        low := Truncate(center - support + 0.5)
-        if low < 0 { low = 0 }
-        high := Truncate(center + support + 0.5)
-        if high > input { high = input }
+        // Clamping in float64 first preserves representable legacy values
+        // and avoids converting a support endpoint outside s32.
+        lower := center - support + 0.5
+        upper := center + support + 0.5
+        low := ifx lower < 0.0 then 0 else Truncate(lower)
+        high := ifx upper > cast(float64)input then input else Truncate(upper)
         high -= low
-        VecClear(values)
         total := 0.0
         for at: 0..size - 1 {
             weight := 0.0
@@ -333,19 +343,19 @@ Coefficients :: (input: s32, output: s32, filter: s32) -> Weights {
                 distance := cast(float64)(at + low) - center + 0.5
                 weight = Filter(filter, ifx filter == 2 then distance * inverse_scale else distance / filter_scale)
             }
-            VecPush(values, weight)
+            values[at] = weight
             total += weight
         }
         for at: 0..size - 1 {
             weight := values[at]
             if at < high && total != 0.0 { weight = weight / total }
             scaled := weight * cast(float64)(1 << PRECISION)
-            VecPush(result.weights, ifx scaled < 0.0 then Truncate(scaled - 0.5) else Truncate(scaled + 0.5))
+            result.weights[cast(s64)out * size + at] = ifx scaled < 0.0 then Truncate(scaled - 0.5) else Truncate(scaled + 0.5)
         }
-        VecPush(result.bounds, low)
-        VecPush(result.bounds, high)
+        result.bounds[cast(s64)out*2] = low
+        result.bounds[cast(s64)out*2+1] = high
     }
-    return result
+    return true
 }
 
 Clip8 :: (value: s64) -> u8 {
@@ -380,16 +390,29 @@ Unpremultiply :: (image: *Image) {
     }
 }
 
-Horizontal :: (image: *Image, width: s32, filter: s32) -> Image {
-    weights := Coefficients(image.width, width, filter)
-    result := NewImage(width, image.height)
+// These helpers fill local, empty owned records. Failure drops every
+// partial vector through the ordinary Ziran owned-value lifetime.
+AllocateImageInto :: (width: s32, height: s32, output: *Image) -> bool {
+    if width <= 0 || height <= 0 || cast(s64)width*height > 2305843009213693951 { return false }
+    if !VecResize(output.pixels,cast(s64)width*height*4) { return false }
+    output.width = width; output.height = height
+    return true
+}
+CopyImageInto :: (image: *Image, output: *Image) -> bool {
+    if !ImageValid(image) || !AllocateImageInto(image.width,image.height,output) { return false }
+    for at: 0..image.pixels.count-1 { output.pixels[at] = image.pixels[at] }
+    return true
+}
+HorizontalInto :: (image: *Image, width: s32, filter: s32, result: *Image) -> bool {
+    weights: Weights
+    if !CoefficientsInto(image.width,width,filter,*weights) || !AllocateImageInto(width,image.height,result) { return false }
     for y: 0..image.height - 1 {
         for x: 0..width - 1 {
-            low := weights.bounds[x * 2]
-            count := weights.bounds[x * 2 + 1]
+            low := weights.bounds[cast(s64)x * 2]
+            count := weights.bounds[cast(s64)x * 2 + 1]
             sums: [4]s64 = .[1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1)]
             for at: 0..count - 1 {
-                weight := cast(s64)weights.weights[x * weights.size + at]
+                weight := cast(s64)weights.weights[cast(s64)x * weights.size + at]
                 from := (cast(s64)y * image.width + low + at) * 4
                 for channel: 0..3 { sums[channel] += cast(s64)image.pixels[from + channel] * weight }
             }
@@ -397,19 +420,18 @@ Horizontal :: (image: *Image, width: s32, filter: s32) -> Image {
             for channel: 0..3 { result.pixels[to + channel] = Clip8(sums[channel]) }
         }
     }
-    return result
+    return true
 }
-
-Vertical :: (image: *Image, height: s32, filter: s32) -> Image {
-    weights := Coefficients(image.height, height, filter)
-    result := NewImage(image.width, height)
+VerticalInto :: (image: *Image, height: s32, filter: s32, result: *Image) -> bool {
+    weights: Weights
+    if !CoefficientsInto(image.height,height,filter,*weights) || !AllocateImageInto(image.width,height,result) { return false }
     for y: 0..height - 1 {
-        low := weights.bounds[y * 2]
-        count := weights.bounds[y * 2 + 1]
+        low := weights.bounds[cast(s64)y * 2]
+        count := weights.bounds[cast(s64)y * 2 + 1]
         for x: 0..image.width - 1 {
             sums: [4]s64 = .[1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1), 1 << (PRECISION - 1)]
             for at: 0..count - 1 {
-                weight := cast(s64)weights.weights[y * weights.size + at]
+                weight := cast(s64)weights.weights[cast(s64)y * weights.size + at]
                 from := (cast(s64)(low + at) * image.width + x) * 4
                 for channel: 0..3 { sums[channel] += cast(s64)image.pixels[from + channel] * weight }
             }
@@ -417,39 +439,48 @@ Vertical :: (image: *Image, height: s32, filter: s32) -> Image {
             for channel: 0..3 { result.pixels[to + channel] = Clip8(sums[channel]) }
         }
     }
-    return result
+    return true
 }
-
-Resample :: (image: *Image, width: s32, height: s32, filter: s32) -> Image {
-    if !ImageValid(image) || width <= 0 || height <= 0 { return NewImage(0, 0) }
-    if width == image.width && height == image.height { return CopyImage(image) }
-    work := CopyImage(image)
+MoveImage :: (source: *Image, output: *Image) {
+    output.width = source.width; output.height = source.height
+    VecSwap(output.pixels,source.pixels)
+    source.width = 0; source.height = 0
+}
+ClearImage :: (output: *Image) {
+    previous: Image
+    VecSwap(previous.pixels,output.pixels)
+    output.width = 0; output.height = 0
+}
+ResampleInto :: (image: *Image, width: s32, height: s32, filter: s32, output: *Image) -> bool {
+    if output == null || image == output { return false }
+    ClearImage(output)
+    if !ImageValid(image) || width <= 0 || height <= 0 || cast(s64)width*height > 2305843009213693951 { return false }
+    work: Image
+    if !CopyImageInto(image,*work) { return false }
+    if width == image.width && height == image.height { MoveImage(*work,output); return true }
     Premultiply(*work)
+    result: Image
     if width != image.width && height != image.height {
-        // Pillow 12.3 resizes extremely tall images vertically first.
+        intermediate: Image
+        // Preserve Pillow's extremely-tall-image pass ordering exactly.
         if filter == 2 && cast(s64)image.height > cast(s64)image.width * 100 && height < image.height {
-            tall := Vertical(*work, height, filter)
-            both := Horizontal(*tall, width, filter)
-            Unpremultiply(*both)
-            return both
+            if !VerticalInto(*work,height,filter,*intermediate) || !HorizontalInto(*intermediate,width,filter,*result) { return false }
+        } else {
+            if !HorizontalInto(*work,width,filter,*intermediate) || !VerticalInto(*intermediate,height,filter,*result) { return false }
         }
-        wide := Horizontal(*work, width, filter)
-        both := Vertical(*wide, height, filter)
-        Unpremultiply(*both)
-        return both
+    } else if width != image.width {
+        if !HorizontalInto(*work,width,filter,*result) { return false }
+    } else {
+        if !VerticalInto(*work,height,filter,*result) { return false }
     }
-    if width != image.width {
-        wide := Horizontal(*work, width, filter)
-        Unpremultiply(*wide)
-        return wide
-    }
-    if height != image.height {
-        tall := Vertical(*work, height, filter)
-        Unpremultiply(*tall)
-        return tall
-    }
-    Unpremultiply(*work)
-    return work
+    Unpremultiply(*result)
+    MoveImage(*result,output)
+    return true
+}
+Resample :: (image: *Image, width: s32, height: s32, filter: s32) -> Image {
+    result: Image
+    unused ResampleInto(image,width,height,filter,*result)
+    return result
 }
 
 #scope_export
@@ -495,6 +526,15 @@ ResizeLanczos :: (image: *Image, width: s32, height: s32) -> Image {
 ResizeBicubic :: (image: *Image, width: s32, height: s32, reducing_gap: float64 = 0.0) -> Image {
     if !Finite64(reducing_gap) || (reducing_gap != 0.0 && reducing_gap < 1.0) { return NewImage(0, 0) }
     return Resample(image, width, height, 2)
+}
+
+// Fallible Pillow bicubic resize, equivalent to ResizeBicubic's default
+// gap. OUTPUT owns its result and may be reused; it must not alias IMAGE or
+// borrow IMAGE's pixel storage. Failure empties OUTPUT (including dimensions)
+// and releases partial buffers. Null output or identical records fail without
+// mutation. IMAGE and its pixels stay unchanged on success and failure.
+ResizeBicubicInto :: (image: *Image, width: s32, height: s32, output: *Image) -> bool {
+    return ResampleInto(image,width,height,2,output)
 }
 
 // An owned RGBA thumbnail, matching Pillow's default bicubic thumbnail.

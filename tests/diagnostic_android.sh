@@ -14,10 +14,13 @@ HEADER
 cat > "$work/test.c" <<'C'
 #define ZIR_MEMORY_IMPLEMENTATION
 #include "zir_diagnostic.h"
+#include "zir_document.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+const ZirDocument *DocumentFind(const char *path) { (void)path; return NULL; }
+int DocumentOffset(const ZirDocument *doc, int line, int column, size_t *offset) { (void)doc; (void)line; (void)column; (void)offset; return 0; }
 static int calls;
 static char message[1024];
 void *AllocateOrExit(size_t size) { void *p = malloc(size); assert(p); return p; }

@@ -1,0 +1,3 @@
+Callback :: #type (value: s32) -> s32 #c_call;
+#program_export
+Answer :: () -> s32 { return 41 }

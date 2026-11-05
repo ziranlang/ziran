@@ -13,6 +13,9 @@ typedef struct Origin {
     int invalid;
     int unknown;
     const uint64_t *globals;
+    /* Views loaded from the pointee of direct pointer parameter i: the
+     * caller stored them there, so they live as long as the caller's. */
+    uint64_t pointees;
 } Origin;
 
 /* Origins share immutable bit sets until the lifetime check finishes. */
@@ -267,6 +270,7 @@ merge(BorrowCheck *check, Origin a, Origin b)
 {
     Origin result = a;
     result.parameters |= b.parameters;
+    result.pointees |= b.pointees;
     if(b.depth > result.depth)
         result.depth = b.depth;
     result.invalid |= b.invalid;
@@ -301,6 +305,7 @@ accumulate(BorrowCheck *check, Origin *destination, Origin source)
 {
     Origin next = merge(check, *destination, source);
     if(next.parameters != destination->parameters ||
+       next.pointees != destination->pointees ||
        next.depth != destination->depth ||
        next.invalid != destination->invalid ||
        next.unknown != destination->unknown ||
@@ -912,6 +917,72 @@ address_backing(BorrowCheck *check, int index, int *known)
     return source->global_index >= 0 ? root_place(source) : (BorrowPlace){0};
 }
 
+static int
+direct_pointer_parameter(const BorrowBinding *source)
+{
+    return source != NULL && source->type[0] == '*' &&
+        source->parameter >= 0 && source->parameter < 64 &&
+        source->local < 0 && source->origin.depth == 1 &&
+        !source->origin.invalid;
+}
+
+/* The binding whose storage a pointer expression reaches, following local
+ * pointer aliases and taken addresses, or NULL. */
+static BorrowBinding *
+pointee_binding(BorrowCheck *check, int index)
+{
+    const ZirExpr *expression = &check->current->fn->exprs[index];
+    if(expression->kind == ZIR_EXPR_UNARY &&
+       (!strcmp(expression->op, "&") || !strcmp(expression->op, "*")))
+        return storage_place(check, expression->right, 1).root;
+    if(expression->kind != ZIR_EXPR_IDENT || expression->type[0] != '*')
+        return NULL;
+    BorrowBinding *source = binding(check, expression->name);
+    if(source != NULL && source->address_known &&
+       source->address_backing.root != NULL)
+        return source->address_backing.root;
+    return source;
+}
+
+/* The direct pointer parameter whose pointee holds the view that this
+ * member or element expression copies, or -1. A stored string or slice
+ * descriptor does not borrow the pointee's own storage: its bytes belong to
+ * whatever the caller stored there. Slices of fixed-array fields still
+ * borrow the pointee itself (ZIR_EXPR_SLICE). */
+static int
+pointee_parameter(BorrowCheck *check, int index)
+{
+    const ZirFunction *fn = check->current->fn;
+    if(!view_type(check, fn->exprs[index].type))
+        return -1;
+    const ZirExpr *root = destination_root(fn, index);
+    if(root == NULL || root->type[0] != '*')
+        return -1;
+    BorrowBinding *source = binding(check, root->name);
+    if(source != NULL && source->address_known &&
+       source->address_backing.root != NULL)
+        source = source->address_backing.root;
+    return direct_pointer_parameter(source) ? source->parameter : -1;
+}
+
+/* Origin of the views stored in a pointer argument's pointee, used for a
+ * callee that returns one of them. Unproved pointees keep the pointer's own
+ * origin. */
+static Origin
+pointee_view_origin(BorrowCheck *check, int index)
+{
+    BorrowBinding *source = pointee_binding(check, index);
+    if(direct_pointer_parameter(source)) {
+        Origin origin = {0};
+        origin.pointees = UINT64_C(1) << source->parameter;
+        return origin;
+    }
+    if(source != NULL && source->type[0] != '*' && view_type(check, source->type))
+        return source->local >= 0 ? check->current->locals[source->local] :
+            source->origin;
+    return expression_origin(check, index);
+}
+
 static BorrowSource *
 text_view_backings(BorrowCheck *check, int index)
 {
@@ -1020,8 +1091,16 @@ text_view_backings(BorrowCheck *check, int index)
     for(int child = expression->first_child; child >= 0;
         child = fn->exprs[child].next_sibling) {
         int parameter = fn->exprs[child].argument_index;
-        if(parameter < 0 || parameter >= 64 ||
-           !(summary->returned.parameters & (UINT64_C(1) << parameter)))
+        if(parameter < 0 || parameter >= 64)
+            continue;
+        if(summary->returned.pointees & (UINT64_C(1) << parameter)) {
+            /* As with a member copy, keep the pointee's known stored
+             * backing without borrowing the pointee record itself. */
+            BorrowBinding *pointee = pointee_binding(check, child);
+            if(pointee != NULL)
+                result = merge_sources(check, result, pointee->text_backings);
+        }
+        if(!(summary->returned.parameters & (UINT64_C(1) << parameter)))
             continue;
         BorrowSource *candidate = text_view_backings(check, child);
         if(candidate == NULL && !view_type(check, fn->exprs[child].type))
@@ -1052,9 +1131,12 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
     for(int child = expression->first_child; child >= 0;
         child = check->current->fn->exprs[child].next_sibling) {
         int parameter = check->current->fn->exprs[child].argument_index;
-        if(parameter >= 0 && parameter < 64 &&
-           (summary->returned.parameters & (UINT64_C(1) << parameter)))
+        if(parameter < 0 || parameter >= 64)
+            continue;
+        if(summary->returned.parameters & (UINT64_C(1) << parameter))
             result = merge(check, result, expression_origin(check, child));
+        if(summary->returned.pointees & (UINT64_C(1) << parameter))
+            result = merge(check, result, pointee_view_origin(check, child));
     }
     return result;
 }
@@ -1097,8 +1179,15 @@ expression_origin(BorrowCheck *check, int index)
     }
     case ZIR_EXPR_MEMBER:
     case ZIR_EXPR_POINTER_MEMBER:
-    case ZIR_EXPR_INDEX:
+    case ZIR_EXPR_INDEX: {
+        int parameter = pointee_parameter(check, index);
+        if(parameter >= 0) {
+            Origin origin = {0};
+            origin.pointees = UINT64_C(1) << parameter;
+            return origin;
+        }
         return expression_origin(check, expression->left);
+    }
     case ZIR_EXPR_SLICE: {
         const ZirExpr *base = &fn->exprs[expression->left];
         Origin backing = expression_origin(check, expression->left);
@@ -1337,15 +1426,19 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                  * cannot escape a borrow, even through a pointer target. */
                 int static_storage =
                     !source.invalid && !source.unknown && source.depth == 0 &&
-                    source.parameters == 0;
+                    source.parameters == 0 && source.pointees == 0;
                 int direct_view = destination->kind == ZIR_EXPR_IDENT &&
                     (SliceElementType(destination->type, NULL, 0) ||
                      !strcmp(destination->type, "string"));
+                /* Stored pointee views are only proved live for this call,
+                 * so storing one keeps the pointer parameter's own depth. */
+                int source_depth =
+                    source.pointees != 0 && source.depth < 1 ? 1 : source.depth;
                 if(!static_storage &&
                    (target == NULL ||
                     (target->captured && target->global_index < 0) ||
                     (source.invalid && direct_view) ||
-                    source.depth > target->depth)) {
+                    source_depth > target->depth)) {
                     reject(check, statement->span,
                            !strcmp(destination->type, "string") ?
                            "text view assignment may escape its backing storage" :

@@ -1,3 +1,4 @@
+#include "zir_document.h"
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_parse_internal.h"
@@ -165,6 +166,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     compile_context.future_functions = &future_functions;
     compile_context.future_globals = &future_globals;
     module = ProgramAddModule(program, module_name, buffers->rel, Span(buffers->rel, 1, 1));
+    if(module) module->document = DocumentFind(path);
     if(module == NULL)
         die("out of memory");
     if(root != NULL) {
@@ -1105,7 +1107,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     }
                 }
                 fn = ModuleAddFunction(module, name, buffers->args, ret, 0,
-                                          Span(buffers->rel, line_no, 1));
+                                          Span(buffers->rel, pending_start_line, pending_start_column));
                 fn->assembly_text = assembly_text;
                 copy_text(fn->overload_name, sizeof(fn->overload_name), overload_name);
                 if(conversion) {
@@ -2035,6 +2037,8 @@ parse_operation(const char *path, const char *root, const char *source,
     ZirProgram *program = NULL;
     ImportResolver imports = {resolver, context};
     if(setjmp(recovery->jump) == 0) {
+        if(source && !DocumentRecord(path, source, strlen(source)))
+            die_at(Span(path, 0, 0), "source document identity limit exceeded");
         char *lowered = source ? lower_jai_multiline_strings(source, path) : read_lowered_source(path);
         program = parse_source(path, root, lowered, resolver ? resolve_imports_outside_operation : NULL, &imports, defines, define_count);
         free(lowered);

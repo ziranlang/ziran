@@ -62,7 +62,7 @@ import json, pathlib, sys
 items = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
 assert len(items) == 1, items
 item = items[0]
-assert item['schema_version'] == 1 and item['severity'] == 'error', item
+assert item['schema_version'] == 2 and item['severity'] == 'error', item
 assert item['target'] == sys.argv[2] and item['capability'] == sys.argv[3], item
 assert item['code'] in ('check.record', 'check.foreign') and item['line'] > 0, item
 PY

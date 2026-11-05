@@ -1,0 +1,78 @@
+#import "json_document_lifetime_test"
+#import "json_document"
+#import "text_buffer"
+FloatText :: #import "float_text"
+
+EraseState :: struct { calls: s32; bytes: s64; nonzero: s64 }
+Wipe :: (context: *void, bytes: []u8) {
+    state := cast(*EraseState)context
+    if state != null {
+        state.calls += 1
+        state.bytes += bytes.count
+    }
+    for at: 0..bytes.count - 1 {
+        if state != null && bytes[at] != 0 { state.nonzero += 1 }
+        bytes[at] = 0
+    }
+}
+
+#program_export
+Secure :: () -> s32 {
+    state: EraseState
+    doc: JsonDocument
+    defer { JsonReset(*doc) }
+    if !JsonRead(*doc, "{\"\\u006b\":\"secret\\n\",\"n\":1e3}", Wipe, cast(*void)*state) { return 1 }
+    if state.calls != 0 { return 2 }
+    output: Vec(u8)
+    if !JsonWriteInto(*output, *doc, doc.root, JsonPythonStyle(-1, false, true, true)) { return 3 }
+    if TextView(VecSlice(output, 0, output.count)) != "{\"k\": \"secret\\n\", \"n\": 1000.0}" { return 4 }
+    if state.calls < 5 || state.nonzero < 10 { return 5 }
+    Wipe(null, VecSlice(output, 0, output.count))
+    VecClear(output)
+    JsonReset(*doc)
+    count := state.calls
+    if JsonRead(*doc, "{\"\\u006b\":\"secret\\n\\uQ000\"}", Wipe, cast(*void)*state) || doc.root != -1 { return 6 }
+    if state.calls < count + 2 { return 7 }
+    if !JsonRead(*doc, "{\"\\u006b\":\"secret\\n\"}", Wipe, cast(*void)*state) { return 8 }
+    child := JsonFirst(*doc, doc.root)
+    if !JsonRemove(*doc, doc.root, "k") { return 9 }
+    array := JsonNewArray(*doc)
+    count = state.calls
+    if !JsonAppend(*doc, array, child) || state.calls != count + 1 { return 10 }
+    JsonReset(*doc)
+    return 42
+}
+
+// A native allocator rejects each allocation in turn. Every public fallible
+// operation must report rejection, preserve valid ownership and permit reset.
+#program_export
+Faults :: () -> s32 {
+    doc: JsonDocument
+    target: JsonDocument
+    JsonSetEraser(*target, Wipe)
+    defer { JsonReset(*doc); JsonReset(*target) }
+    if !JsonRead(*doc, "{\"\\u006b\":\"secret\\n\",\"n\":1e3}", Wipe) {
+        return ifx doc.error != "" && doc.root == -1 then 0 else 1
+    }
+    integer := JsonNewInteger(*doc, -9223372036854775807 - 1)
+    if integer < 0 { return ifx doc.error != "" then 0 else 2 }
+    if !JsonSetCopy(*doc, doc.root, "integer", integer) { return ifx doc.error != "" then 0 else 3 }
+    owned := JsonNewStringCopy(*doc, "secret owned string")
+    if owned < 0 { return ifx doc.error != "" then 0 else 6 }
+    target.root = JsonCopy(*target, *doc, doc.root)
+    if target.root < 0 { return ifx target.error != "" then 0 else 4 }
+    bytes: Vec(u8)
+    defer { Wipe(null, VecSlice(bytes, 0, bytes.count)) }
+    if !JsonStringInto(*target, JsonMember(*target, target.root, "k"), *bytes) { return 0 }
+    Wipe(null, VecSlice(bytes, 0, bytes.count)); VecClear(bytes)
+    if !JsonWriteInto(*bytes, *target, target.root, JsonPythonStyle(2, true, true, true)) {
+        return ifx target.error != "" then 0 else 5
+    }
+    quoted: Vec(u8)
+    defer { Wipe(null, VecSlice(quoted, 0, quoted.count)) }
+    if !JsonQuoteInto(*quoted, "secret\n", true) { return 0 }
+    formatted: Vec(u8)
+    defer { Wipe(null, VecSlice(formatted, 0, formatted.count)) }
+    if !FloatText.Float64ReprInto(1e3, *formatted) { return 0 }
+    return 42
+}

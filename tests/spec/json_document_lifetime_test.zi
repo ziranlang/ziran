@@ -1,0 +1,91 @@
+#import "json_document"
+#import "text_buffer"
+
+StringEquals :: (doc: *JsonDocument, node: s32, expected: string) -> bool {
+    bytes: Vec(u8)
+    return JsonStringInto(doc, node, *bytes) && TextView(VecSlice(bytes, 0, bytes.count)) == expected
+}
+KeyEquals :: (doc: *JsonDocument, node: s32, expected: string) -> bool {
+    bytes: Vec(u8)
+    return JsonKeyInto(doc, node, *bytes) && TextView(VecSlice(bytes, 0, bytes.count)) == expected
+}
+NumberEquals :: (doc: *JsonDocument, node: s32, expected: string) -> bool {
+    bytes: Vec(u8)
+    return JsonNumberTextInto(doc, node, *bytes) && TextView(VecSlice(bytes, 0, bytes.count)) == expected
+}
+
+CopiedLocal :: () -> JsonDocument {
+    source: JsonDocument
+    JsonRead(*source, "{\"\\u006b\":\"snow \\u96ea\\n\",\"n\":123456789012345678901234567890}")
+    target: JsonDocument
+    target.root = JsonCopy(*target, *source, source.root)
+    JsonReset(*source)
+    return target
+}
+
+#program_export
+Answer :: () -> s32 {
+    target := CopiedLocal()
+    member := JsonMember(*target, target.root, "k")
+    if !KeyEquals(*target, member, "k") || !StringEquals(*target, member, "snow 雪\n") ||
+        !NumberEquals(*target, JsonMember(*target, target.root, "n"), "123456789012345678901234567890") { return 1 }
+    copied := JsonCopy(*target, *target, target.root)
+    output: Vec(u8)
+    if !JsonWriteInto(*output, *target, copied, JsonCompactStyle(false)) ||
+        TextView(VecSlice(output, 0, output.count)) != "{\"k\":\"snow 雪\\n\",\"n\":123456789012345678901234567890}" { return 2 }
+    // Existing getters keep returning independent, caller-owned strings.
+    detached := JsonString(*target, member)
+    detachedKey := JsonKey(*target, member)
+    detachedNumber := JsonNumberText(*target, JsonMember(*target, target.root, "n"))
+    JsonReset(*target); JsonReset(*target)
+    if detached != "snow 雪\n" || detachedKey != "k" || detachedNumber != "123456789012345678901234567890" || target.root != -1 { return 3 }
+    source: JsonDocument
+    if !JsonRead(*source, "{\"plain\":\"borrowed\"}") { return 4 }
+    target.root = JsonCopy(*target, *source, source.root)
+    // Reset/drop target first; it must never free source's borrowed literal.
+    JsonReset(*target)
+    if !StringEquals(*source, JsonMember(*source, source.root, "plain"), "borrowed") { return 5 }
+    if JsonRead(*source, "{\"\\u006b\":\"escape\\n\",\"bad\":}") || source.root != -1 { return 6 }
+    JsonReset(*source)
+    if !JsonRead(*source, "[]") { return 7 }
+    if !JsonAppend(*source, source.root, JsonNewInteger(*source, -9223372036854775807 - 1)) { return 8 }
+    if !NumberEquals(*source, JsonFirst(*source, source.root), "-9223372036854775808") { return 9 }
+    key: Vec(u8)
+    BuilderAppend(key, "temporary")
+    object := JsonNewObject(*source)
+    if !JsonSetCopy(*source, object, TextView(VecSlice(key, 0, key.count)), JsonNewString(*source, "copied key")) { return 10 }
+    VecClear(key)
+    BuilderAppend(key, "different")
+    if !JsonIs(*source, JsonMember(*source, object, "temporary"), "copied key") { return 11 }
+    owned := JsonNewStringCopy(*source, TextView(VecSlice(key, 0, key.count)))
+    VecClear(key)
+    BuilderAppend(key, "overwrite")
+    if !JsonIs(*source, owned, "different") { return 12 }
+    // Caller views are borrowed, not taken over by the document.
+    unused JsonNewString(*source, "literal")
+    unused JsonNewNumber(*source, "0.5")
+    JsonReset(*source)
+    return 42
+}
+
+// No detached strings in this path: the native harness measures every owned
+// allocation across repeated reads, failed reads, integer creation and copies.
+#program_export
+Memory :: () -> s32 {
+    source: JsonDocument
+    target: JsonDocument
+    output: Vec(u8)
+    for i: 0..4999 {
+        if !JsonRead(*source, "{\"\\u006b\":\"value\\n\\ud83d\\ude00\",\"a\":[1,2,3],\"float\":1e3}") { return 1 }
+        if !JsonSet(*source, source.root, "integer", JsonNewInteger(*source, i)) { return 2 }
+        target.root = JsonCopy(*target, *source, source.root)
+        JsonReset(*source)
+        if !StringEquals(*target, JsonMember(*target, target.root, "k"), "value\n😀") { return 3 }
+        if !JsonWriteInto(*output, *target, target.root, JsonPythonStyle(-1, false, true, true)) { return 4 }
+        VecClear(output)
+        JsonReset(*target)
+        if JsonRead(*source, "{\"\\u006b\":\"value\\n\",\"bad\":}") { return 5 }
+        JsonReset(*source)
+    }
+    return 42
+}

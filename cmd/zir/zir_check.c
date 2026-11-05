@@ -1,6 +1,8 @@
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_check_internal.h"
+#include "zir_document.h"
+#include "zir_semantic.h"
 
 static const char *apply_using_filter(const char *filter, const char *name, char *buffer, size_t size);
 
@@ -569,7 +571,10 @@ void
 error(Checker *c, ZirSourceSpan span, const char *message, const char *detail)
 {
     c->errors++;
-    Diagnostic(span, "check.type", "%s%s%s",
+    char id[68];
+    if(c->fn) FunctionSemanticId(c->module, c->fn, id);
+    DiagnosticDetails details = {.semantic_id=c->fn ? id : NULL, .document=DocumentForSpan(c->module, span)};
+    DiagnosticDetailed(span, "check.type", &details, "%s%s%s",
             message, detail && *detail ? ": " : "", detail ? detail : "");
 }
 
@@ -578,8 +583,11 @@ type_error(Checker *c, ZirSourceSpan span, const char *message,
            const char *subject, const char *expected, const char *actual,
            ZirSourceSpan declaration)
 {
-    char detail[ZIR_TEXT_MAX];
+    char detail[ZIR_TEXT_MAX], id[68];
+    if(c->fn) FunctionSemanticId(c->module, c->fn, id);
     DiagnosticDetails details = {
+        .semantic_id=c->fn ? id : NULL, .document=DocumentForSpan(c->module, span), .related_relation="requires_type",
+        .cause_kind="type_mismatch", .subject=subject,
         .expected_type = expected, .actual_type = actual,
         .related_span = declaration,
         .related_message = "The required type is declared here"

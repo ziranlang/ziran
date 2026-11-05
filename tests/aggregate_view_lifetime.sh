@@ -50,8 +50,15 @@ Bad :: () -> Box {
 }
 ZI
 cat > "$work/pointer_escape.zi" <<'ZI'
-Box :: struct { text: string; }
+Box :: struct { bytes: [2]u8; text: string; }
 Bad :: (source: *Box) -> Box {
+    value: Box = Box.{text = TextView(source.bytes[:])}
+    return value
+}
+ZI
+cat > "$work/pointer_copy.zi" <<'ZI'
+Box :: struct { text: string; }
+Copy :: (source: *Box) -> Box {
     value: Box = Box.{text = source.text}
     return value
 }
@@ -92,6 +99,7 @@ PY
 done
 
 "$ziran" check --root "$work" "$work/pointer_local.zi"
+"$ziran" check --root "$work" "$work/pointer_copy.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/good.zi"
 "$ziran" bundle --root "$work" --entry good:Answer \
     -o "$work/source.zx" "$work/good.zi"

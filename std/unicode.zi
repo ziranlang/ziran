@@ -1,6 +1,7 @@
 // Locale-independent Unicode 17.0 text operations. No host Unicode library.
 U :: #import "std/utf8";
 D :: #import "unicode_data";
+N :: #import "std/unicode_normalization";
 using Vectors :: #import "std/vec";
 
 #scope_file
@@ -69,12 +70,73 @@ Transform :: (text: string, mode: s32) -> string {
     return BuilderFinish(output)
 }
 
+CheckedScalar :: (output: *Vec(u8), point: u32) -> bool {
+    bytes: [4]u8
+    count: s64 = 1
+    if point < 128 { bytes[0] = cast(u8)point }
+    else if point < 2048 {
+        bytes[0] = cast(u8)(192 | (point >> 6)); bytes[1] = cast(u8)(128 | (point & 63)); count = 2
+    } else if point < 65536 {
+        bytes[0] = cast(u8)(224 | (point >> 12)); bytes[1] = cast(u8)(128 | ((point >> 6) & 63))
+        bytes[2] = cast(u8)(128 | (point & 63)); count = 3
+    } else {
+        bytes[0] = cast(u8)(240 | (point >> 18)); bytes[1] = cast(u8)(128 | ((point >> 12) & 63))
+        bytes[2] = cast(u8)(128 | ((point >> 6) & 63)); bytes[3] = cast(u8)(128 | (point & 63)); count = 4
+    }
+    for byte: bytes[0:count] { if !VecPush(<<output,byte) { return false } }
+    return true
+}
+
 #scope_export
 // Full default (non-Turkic) case folding, including multi-scalar expansions.
 CaseFold :: (text: string) -> string { return Transform(text, 0) }
 
 // Full default lowercase, including the contextual Greek final sigma rule.
 Lower :: (text: string) -> string { return Transform(text, 1) }
+
+// Replace caller-owned output with full default lowercase, including final
+// sigma. Unlike Lower, reject malformed UTF-8. Input must not borrow output.
+// Empty input succeeds; every failure empties output (capacity may remain).
+LowerInto :: (text: string, output: *Vec(u8)) -> bool {
+    if output == null { return false }
+    VecClear(<<output)
+    if !U.Valid(text) { return false }
+    at: s64; preceded: bool
+    while at < text.count {
+        length := text.count-at
+        if length > 4 { length = 4 }
+        decoded := U.Decode(text[at:at+length],0)
+        point := decoded.value; after := at+decoded.after
+        if point == 931 && preceded && !FollowedByCased(text,after) {
+            if !CheckedScalar(output,962) { VecClear(<<output); return false }
+        } else {
+            record := D.Mapping(point,1)
+            if record.count == 0 {
+                if !CheckedScalar(output,point) { VecClear(<<output); return false }
+            } else {
+                index: s32
+                while index < cast(s32)record[3] {
+                    if !CheckedScalar(output,D.Point(record,4+index*3)) { VecClear(<<output); return false }
+                    index += 1
+                }
+            }
+        }
+        flags := D.Property(point)
+        if (flags & 8) == 0 { preceded = (flags & 4) != 0 }
+        at = after
+    }
+    return true
+}
+
+// Canonical Unicode normalization; same ownership/failure contract as
+// LowerInto. No compatibility decomposition or locale tailoring.
+NFCInto :: (text: string, output: *Vec(u8)) -> bool { return N.NFCInto(text,output) }
+
+// Exact General_Category L and N aggregates, and Unicode White_Space.
+// White_Space excludes Python IsSpace's extra U+001C..U+001F controls.
+IsLetter :: (point: u32) -> bool { return (N.Properties(point) & 1) != 0 }
+IsNumber :: (point: u32) -> bool { return (N.Properties(point) & 2) != 0 }
+IsWhiteSpace :: (point: u32) -> bool { return (N.Properties(point) & 4) != 0 }
 
 // Python str.capitalize: titlecase the first scalar, lowercase the remainder.
 Capitalize :: (text: string) -> string { return Transform(text, 2) }

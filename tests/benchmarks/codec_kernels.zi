@@ -1,0 +1,91 @@
+// Small scalar codec building blocks, not complete image decoders.
+// Inputs and intermediates stay in range; signed shifts/overflow are avoided.
+Swap32 :: (value: u32) -> u32 #asm("x86", "bswap %[out]", "=r", "0", "", "") #asm("x86_64", "bswap %[out]", "=r", "0", "", "") #asm("aarch64", "rev %w[out], %w[value]", "=r", "r", "", "") {
+    return ((value & 255) << 24) | ((value & 65280) << 8) |
+           ((value >> 8) & 65280) | ((value >> 24) & 255)
+}
+
+// Interleave four byte planes, reverse each packed word, and retain feedback
+// so a compiler cannot replace repeated passes with one invariant result.
+#program_export
+BytePlane :: (rounds: s64, seed: s64) -> s64 {
+    plane: [256]u8
+    for i: 0..255 { plane[i] = cast(u8)((i * 13 + seed) % 256) }
+    checksum: s64 = 0
+    pass: s64 = 0
+    while pass < rounds {
+        for i: 0..63 {
+            packed := cast(u32)plane[i] | (cast(u32)plane[i + 64] << 8) |
+                      (cast(u32)plane[i + 128] << 16) | (cast(u32)plane[i + 192] << 24)
+            swapped := Swap32(packed)
+            byte := cast(u8)((cast(s64)((swapped ^ (swapped >> 24)) & 255) + pass + seed) % 256)
+            plane[i] = byte
+            checksum += cast(s64)byte * (i + 1) + cast(s64)swapped
+        }
+        pass += 1
+    }
+    return checksum
+}
+
+// A separable three-tap [1 2 1]/4 integer filter with replicated edges.
+#program_export
+Filter :: (rounds: s64, seed: s64) -> s64 {
+    samples: [256]s32
+    output: [256]s32
+    for i: 0..255 { samples[i] = cast(s32)((i * 17 + seed) % 256) }
+    checksum: s64 = 0
+    pass: s64 = 0
+    while pass < rounds {
+        for i: 0..255 {
+            left := ifx i == 0 then 0 else i - 1
+            right := ifx i == 255 then 255 else i + 1
+            output[i] = (samples[left] + 2 * samples[i] + samples[right] + 2) / 4
+            checksum += cast(s64)output[i] * (i + 1)
+        }
+        for i: 0..255 { samples[i] = (output[i] + cast(s32)(pass % 7)) % 256 }
+        pass += 1
+    }
+    return checksum
+}
+
+// Full-range RGB -> Y using specified integer coefficients and rounding.
+// This is an exact arithmetic fixture, not a claim of a codec color profile.
+#program_export
+Color :: (rounds: s64, seed: s64) -> s64 {
+    red: [256]u8
+    green: [256]u8
+    blue: [256]u8
+    for i: 0..255 {
+        red[i] = cast(u8)((i * 3 + seed) % 256)
+        green[i] = cast(u8)((i * 5 + seed * 2) % 256)
+        blue[i] = cast(u8)((i * 7 + seed * 3) % 256)
+    }
+    checksum: s64 = 0
+    pass: s64 = 0
+    while pass < rounds {
+        for i: 0..255 {
+            y := (77 * cast(s32)red[i] + 150 * cast(s32)green[i] +
+                  29 * cast(s32)blue[i] + 128) / 256
+            checksum += cast(s64)y * (i + 1)
+            red[i] = cast(u8)((cast(s64)y + seed + pass) % 256)
+        }
+        pass += 1
+    }
+    return checksum
+}
+
+// Identical small workloads for process-level .zx and Wasm measurements.
+#program_export
+BytePlaneBench :: () -> s64 { return BytePlane(8, 37) }
+#program_export
+FilterBench :: () -> s64 { return Filter(8, 37) }
+#program_export
+ColorBench :: () -> s64 { return Color(8, 37) }
+
+// Exercise zero passes, edge-valued seeds, feedback and replicated edges.
+#program_export
+Validate :: () -> s64 {
+    return BytePlane(0, 0) + BytePlane(1, 255) + BytePlane(3, 1) +
+           Filter(0, 0) + Filter(1, 255) + Filter(3, 1) +
+           Color(0, 0) + Color(1, 255) + Color(3, 1)
+}

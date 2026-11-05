@@ -1,0 +1,30 @@
+Node :: struct { value: s32; label: string; }
+Parent :: struct { inner: Node; }
+calls: s32 = 0;
+Bump :: () -> s32 { calls += 1; return 40; }
+Pick :: (yes: bool) -> Node {
+    result := ifx yes then Node.{value=Bump(), label="named"} else .{value=42, label="inferred"};
+    return result;
+}
+Reverse :: (yes: bool) -> Node {
+    result := ifx yes then .{value=7} else Node.{value=8};
+    return result;
+}
+Nested :: (yes: bool) -> Parent {
+    result := ifx yes then Parent.{inner=.{value=41}} else .{inner=.{value=42}};
+    return result;
+}
+#law ReversePure effect Reverse == pure;
+#program_export
+Answer :: () -> s32 {
+    first := Pick(true);
+    second := Pick(false);
+    third := Reverse(true);
+    fourth := Reverse(false);
+    fifth := Nested(false);
+    if first.value != 40 || second.value != 42 || calls != 1 { return -1; }
+    if second.label != "inferred" || first.label != "named" { return -2; }
+    if third.value != 7 || fourth.value != 8 || fifth.inner.value != 42 { return -3; }
+    return 42;
+}
+main :: () { print("%\n", Answer()); }

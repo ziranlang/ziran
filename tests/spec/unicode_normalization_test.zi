@@ -1,0 +1,115 @@
+U :: #import "std/unicode";
+D :: #import "unicode_normalization_cases";
+using Vectors :: #import "std/vec";
+
+Check :: (text: string, expected: string, output: *Vec(u8)) -> bool {
+    if !U.NFCInto(text,output) { print("NFC rejected valid input %\n",text); return false }
+    bytes: Vec(u8); VecSwap(bytes,<<output)
+    result := TextView(VecSlice(bytes,0,bytes.count)) == expected
+    if !result { print("NFC mismatch: got % expected %\n",TextView(VecSlice(bytes,0,bytes.count)),expected) }
+    VecSwap(bytes,<<output)
+    return result
+}
+Lower :: (text: string, expected: string, output: *Vec(u8)) -> bool {
+    if !U.LowerInto(text,output) { print("lowercase rejected valid input %\n",text); return false }
+    bytes: Vec(u8); VecSwap(bytes,<<output)
+    result := TextView(VecSlice(bytes,0,bytes.count)) == expected
+    if !result { print("lowercase mismatch: got % expected %\n",TextView(VecSlice(bytes,0,bytes.count)),expected) }
+    VecSwap(bytes,<<output)
+    return result
+}
+Point :: (data: string, at: s32) -> u32 {
+    return cast(u32)data[at] | (cast(u32)data[at+1]<<7) | (cast(u32)data[at+2]<<14)
+}
+Scalar :: (point: u32, output: *Vec(u8)) -> bool {
+    VecClear(<<output)
+    if point < 128 { return VecPush(<<output,cast(u8)point) }
+    if point < 2048 {
+        return VecPush(<<output,cast(u8)(192 | (point>>6))) && VecPush(<<output,cast(u8)(128 | (point&63)))
+    }
+    if point < 65536 {
+        return VecPush(<<output,cast(u8)(224 | (point>>12))) && VecPush(<<output,cast(u8)(128 | ((point>>6)&63))) &&
+            VecPush(<<output,cast(u8)(128 | (point&63)))
+    }
+    return VecPush(<<output,cast(u8)(240 | (point>>18))) && VecPush(<<output,cast(u8)(128 | ((point>>12)&63))) &&
+        VecPush(<<output,cast(u8)(128 | ((point>>6)&63))) && VecPush(<<output,cast(u8)(128 | (point&63)))
+}
+Focused :: () -> bool {
+    out: Vec(u8)
+    if U.NFCInto("valid",null) || U.LowerInto("valid",null) { return false }
+    if !Check("A\xcc\x8a","Å",*out) || !Check("\xe2\x84\xab","Å",*out) ||
+       !Check("\xe1\x84\x80\xe1\x85\xa1\xe1\x86\xa8","각",*out) ||
+       !Check("ﬃ①","ﬃ①",*out) || !Check("\x00e\xcc\x81\x00","\x00é\x00",*out) || !Check("","",*out) { print("focused assertion group 1 failed\n"); return false }
+    if !Lower("AΣ\xcc\x81","aς\xcc\x81",*out) || !Lower("ΟΣΑ","οσα",*out) ||
+       !Lower("İẞ𐐀","i\xcc\x87ß𐐨",*out) || !Lower("\x00A","\x00a",*out) || !Lower("","",*out) { print("focused assertion group 2 failed\n"); return false }
+    // Both Into procedures replace previous bytes, retain caller ownership,
+    // and empty the result on every malformed-input failure.
+    malformed: [14]u8 = .[255,128,192,175,237,160,128,244,144,128,128,226,130,65]
+    if U.NFCInto(TextView(malformed[:]),*out) || out.count != 0 { print("focused assertion group 3 failed\n"); return false }
+    if !Lower("ABC","abc",*out) || U.LowerInto(TextView(malformed[:]),*out) || out.count != 0 { print("focused assertion group 4 failed\n"); return false }
+    for point: 28..31 { if U.IsWhiteSpace(cast(u32)point) || !U.IsSpace(cast(u32)point) { print("control property %\n",point); print("focused assertion group 5 failed\n"); return false } }
+    spaces: [25]u32 = .[9,10,11,12,13,32,133,160,5760,8192,8193,8194,8195,8196,8197,8198,8199,8200,8201,8202,8232,8233,8239,8287,12288]
+    for point: spaces { if !U.IsWhiteSpace(point) { print("space property %\n",point); print("focused assertion group 6 failed\n"); return false } }
+    letters: [8]u32 = .[65,233,931,20013,66304,66928,7981,12442]
+    // U+309A is a combining mark, unlike the letters preceding it.
+    for at: 0..6 { if !U.IsLetter(letters[at]) { print("letter property %\n",letters[at]); print("focused assertion group 7 failed\n"); return false } }
+    if U.IsLetter(letters[7]) || U.IsLetter(8544) || U.IsLetter(95) || U.IsLetter(769) { print("focused assertion group 8 failed\n"); return false }
+    numbers: [6]u32 = .[48,1633,178,8531,8544,120792]
+    for point: numbers { if !U.IsNumber(point) { print("focused assertion group 9 failed\n"); return false } }
+    if U.IsLetter(66369) || !U.IsNumber(66369) { print("focused assertion group 10 failed\n"); return false }
+    // A numeric-value Lo character remains a letter, unlike Gothic Nl.
+    if !U.IsLetter(63851) || U.IsNumber(63851) { return false }
+    invalid: [7]u32 = .[0,95,55296,57343,1114112,0xffffffff,128578]
+    for point: invalid { if U.IsLetter(point) || U.IsNumber(point) || U.IsWhiteSpace(point) { print("focused assertion group 11 failed\n"); return false } }
+    return true
+}
+
+#program_export
+NativeMain :: () -> s32 {
+    if !Focused() { print("normalization focused cases failed\n"); return 1 }
+    output: Vec(u8)
+    rows: s32
+    for chunk: 0..cast(s32)D.RowsCount-1 {
+        data := D.Rows(chunk)
+        at: s64
+        while at < data.count {
+            columns: [5]string
+            for col: 0..4 {
+                if at+2 > data.count { return 2 }
+                count := cast(s64)data[at] | (cast(s64)data[at+1]<<7); at += 2
+                if count > data.count-at { return 3 }
+                columns[col] = data[at:at+count]; at += count
+            }
+            if !Check(columns[0],columns[1],*output) || !Check(columns[1],columns[1],*output) ||
+               !Check(columns[2],columns[1],*output) || !Check(columns[3],columns[3],*output) ||
+               !Check(columns[4],columns[3],*output) {
+                print("official NFC row % failed\n",rows+1); return 4
+            }
+            rows += 1
+        }
+    }
+    if rows != D.RowCount { return 5 }
+    for range: 0..cast(s32)D.PropertyRangesCount-1 {
+        data := D.PropertyRanges(range/32); at := (range%32)*7
+        flags := cast(s32)data[at+6]
+        for endpoint: 0..cast(s32)1 {
+            point := Point(data,at+endpoint*3)
+            if U.IsLetter(point) != ((flags&1) != 0) || U.IsNumber(point) != ((flags&2) != 0) ||
+               U.IsWhiteSpace(point) != ((flags&4) != 0) { print("property scalar % failed\n",point); return 7 }
+        }
+    }
+    // UAX #15 conformance clause 2: every assigned scalar absent from Part 1
+    // normalizes to itself, including private-use and supplementary scalars.
+    input: Vec(u8)
+    for range: 0..cast(s32)D.IdentityRangesCount-1 {
+        data := D.IdentityRanges(range/32); at := (range%32)*6
+        point := Point(data,at); end := Point(data,at+3)
+        while point <= end {
+            if !Scalar(point,*input) || !Check(TextView(VecSlice(input,0,input.count)),TextView(VecSlice(input,0,input.count)),*output) {
+                print("identity scalar % failed\n",point); return 6
+            }
+            point += 1
+        }
+    }
+    return 0
+}

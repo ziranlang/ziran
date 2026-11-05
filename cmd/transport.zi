@@ -1,0 +1,213 @@
+// Optional, byte-exact transport. This encoding is never accepted as .zi.
+#import "std/byte_text_linux"
+#import "std/file_linux"
+using Vectors :: #import "std/vec"
+#import "format_source"
+Diagnostics :: #import "diagnostics"
+
+#scope_file
+HEADER :: "ZI-COMPACT-1\n";
+MAX_BYTES :: 16777216;
+MAX_SEGMENTS :: 65536;
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+Digest :: (text: string) -> *u8 #foreign compiler "ZiranToolDigest";
+WriteMap :: (path: string, text: string) -> s32 #foreign compiler "ZiranToolWriteMap";
+ReadText :: (path: string, limit: s64) -> *u8 #foreign compiler "ZiranToolReadText";
+Release :: (storage: *u8) #foreign libc "free";
+
+Mapping :: struct {
+    source_start: s64
+    source_end: s64
+    transport_start: s64
+    transport_end: s64
+    kind: u8 // 0 literal, 1 repeated whitespace, 2 escaped tilde
+}
+
+Fail :: (message: string) -> s32 {
+    if Diagnostics.IsJson() { Diagnostics.Emit("command.arguments", message, "") }
+    else { Diagnostics.WriteText("ziran transport: ", true); Diagnostics.WriteText(message, true); Diagnostics.WriteText("\n", true) }
+    return 1
+}
+
+Append :: (output: *Vec(u8), value: string) {
+    for byte: value { VecPush(<<output, byte) }
+}
+
+Number :: (output: *Vec(u8), value: s64) {
+    digits: [20]u8
+    count: s64 = 0
+    remaining := value
+    while remaining > 0 {
+        digits[count] = cast(u8)(remaining % 10) + #char "0"
+        count += 1
+        remaining /= 10
+    }
+    if count == 0 { VecPush(<<output, #char "0"); return }
+    while count > 0 { count -= 1; VecPush(<<output, digits[count]) }
+}
+
+Code :: (byte: u8) -> u8 {
+    if byte == 32 { return #char "s" }
+    if byte == 9 { return #char "t" }
+    if byte == 10 { return #char "n" }
+    if byte == 13 { return #char "r" }
+    return 0
+}
+
+Record :: (mapping: *Vec(Mapping), start: s64, end: s64, low: s64, high: s64, kind: u8, wanted: bool) -> bool {
+    if !wanted || start == end { return true }
+    if mapping.count >= MAX_SEGMENTS { return false }
+    VecPush(<<mapping, .{source_start=start, source_end=end, transport_start=low, transport_end=high, kind=kind})
+    return true
+}
+
+Encode :: (source: string, output: *Vec(u8), mapping: *Vec(Mapping), wanted: bool) -> bool {
+    if source.count > MAX_BYTES || !VecReserve(<<output, cast(s64)source.count * 2 + cast(s64)HEADER.count) { return false }
+    Append(output, HEADER)
+    at: s64 = 0
+    literal: s64 = 0
+    literal_low := output.count
+    while at < cast(s64)source.count {
+        byte := source[at]
+        end := at + 1
+        code := Code(byte)
+        if code != 0 { while end < cast(s64)source.count && source[end] == byte { end += 1 } }
+        if byte == #char "~" || (code != 0 && end - at >= 8) {
+            if !Record(mapping, literal, at, literal_low, output.count, 0, wanted) { return false }
+            low := output.count
+            VecPush(<<output, #char "~")
+            if byte == #char "~" { VecPush(<<output, #char "~") }
+            else { VecPush(<<output, code); Number(output, end - at); VecPush(<<output, #char ";") }
+            kind: u8 = 1
+            if byte == #char "~" { kind = 2 }
+            if !Record(mapping, at, end, low, output.count, kind, wanted) { return false }
+            at = end
+            literal = at
+            literal_low = output.count
+        } else { VecPush(<<output, byte); at += 1 }
+    }
+    return Record(mapping, literal, at, literal_low, output.count, 0, wanted)
+}
+
+Decode :: (source: string, output: *Vec(u8)) -> bool {
+    if source.count < HEADER.count || source[0:cast(s64)HEADER.count] != HEADER { return false }
+    if !VecReserve(<<output, cast(s64)source.count) { return false }
+    at: s64 = cast(s64)HEADER.count
+    while at < cast(s64)source.count {
+        byte := source[at]
+        at += 1
+        if byte != #char "~" {
+            if output.count == MAX_BYTES { return false }
+            VecPush(<<output, byte)
+            continue
+        }
+        if at == cast(s64)source.count { return false }
+        tag := source[at]
+        at += 1
+        if tag == #char "~" {
+            if output.count == MAX_BYTES { return false }
+            VecPush(<<output, #char "~")
+            continue
+        }
+        value: u8 = 0
+        if tag == #char "s" { value = 32 }
+        if tag == #char "t" { value = 9 }
+        if tag == #char "n" { value = 10 }
+        if tag == #char "r" { value = 13 }
+        if value == 0 || at == cast(s64)source.count || source[at] < #char "1" || source[at] > #char "9" { return false }
+        count: s64 = 0
+        while at < cast(s64)source.count && source[at] >= #char "0" && source[at] <= #char "9" {
+            digit := cast(s64)(source[at] - #char "0")
+            if count > (MAX_BYTES - digit) / 10 { return false }
+            count = count * 10 + digit
+            at += 1
+        }
+        if at == cast(s64)source.count || source[at] != #char ";" || count < 8 || count > MAX_BYTES - output.count { return false }
+        at += 1
+        low := output.count
+        if !VecResize(<<output, low + count) { return false }
+        // Resize initialized these bytes. The repeat replaces only initialized
+        // elements through an ordinary checked index; no unchecked Vec access.
+        for index: 0..count - 1 { (<<output)[low + index] = value }
+    }
+    return true
+}
+
+MapJson :: (mapping: *Vec(Mapping), source: string, transport: string, output: *Vec(u8)) -> bool {
+    if !VecReserve(<<output, mapping.count * 180 + 512) { return false }
+    Append(output, "{\"schema_version\":1,\"coordinate_space\":\"utf8_bytes\",\"source_sha256\":\"")
+    Append(output, TextFromCString(Digest(source)))
+    Append(output, "\",\"transport_sha256\":\"")
+    Append(output, TextFromCString(Digest(transport)))
+    Append(output, "\",\"source_bytes\":")
+    Number(output, cast(s64)source.count)
+    Append(output, ",\"transport_bytes\":")
+    Number(output, cast(s64)transport.count)
+    Append(output, ",\"header_bytes\":")
+    Number(output, cast(s64)HEADER.count)
+    Append(output, ",\"segments\":[")
+    for index: 0..mapping.count - 1 {
+        if index > 0 { Append(output, ",") }
+        part := (<<mapping)[index]
+        Append(output, "{\"source_start\":"); Number(output, part.source_start)
+        Append(output, ",\"source_end\":"); Number(output, part.source_end)
+        Append(output, ",\"transport_start\":"); Number(output, part.transport_start)
+        Append(output, ",\"transport_end\":"); Number(output, part.transport_end)
+        Append(output, ",\"kind\":")
+        if part.kind == 0 { Append(output, "\"literal\"") }
+        else if part.kind == 1 { Append(output, "\"repeat\"") }
+        else { Append(output, "\"escape\"") }
+        Append(output, "}")
+    }
+    Append(output, "]}\n")
+    return true
+}
+
+#scope_export
+Run :: (argc: s32, argv: **u8) -> s32 {
+    action := TextFromCString(argv[1])
+    path: string = ""
+    map_path: string = ""
+    index: s32 = 2
+    while index < argc {
+        part := TextFromCString(argv[index])
+        if part == "--map" && index + 1 < argc { index += 1; map_path = TextFromCString(argv[index]) }
+        else if part == "--diagnostics=json" || part == "--diagnostics=text" { }
+        else if part.count > 0 && part[0] != #char "-" && path == "" { path = part }
+        else { return Fail("usage: ziran compact|expand [--map FILE.json] INPUT") }
+        index += 1
+    }
+    if path == "" || (map_path != "" && (map_path == path || (map_path.count >= 3 && map_path[cast(s64)map_path.count - 3:] == ".zi"))) { return Fail("invalid input or map destination") }
+    memory := ReadText(path, 33554464)
+    if memory == null { return 1 }
+    defer Release(memory)
+    text := TextFromCString(memory)
+    source: string = text
+    decoded: Vec(u8)
+    defer VecFree(decoded)
+    if action == "expand" {
+        if !Decode(text, *decoded) { return Fail("malformed or oversized compact transport") }
+        source = TextFromBytes(VecSlice(decoded, 0, decoded.count))
+    }
+    if source.count > MAX_BYTES { return Fail("decoded source exceeds byte budget") }
+    canonical := FormatSource(source)
+    defer VecFree(canonical)
+    if source != TextFromBytes(VecSlice(canonical, 0, canonical.count)) { return Fail("transport requires canonical formatted source") }
+    encoded: Vec(u8)
+    mapping: Vec(Mapping)
+    defer VecFree(encoded)
+    defer VecFree(mapping)
+    if !Encode(source, *encoded, *mapping, map_path != "") { return Fail("transport exceeds allocation or mapping budget") }
+    compact := TextFromBytes(VecSlice(encoded, 0, encoded.count))
+    if action == "expand" && compact != text { return Fail("noncanonical compact encoding") }
+    if map_path != "" {
+        map: Vec(u8)
+        defer VecFree(map)
+        if !MapJson(*mapping, source, compact, *map) { return Fail("cannot allocate source map") }
+        if WriteMap(map_path, TextFromBytes(VecSlice(map, 0, map.count))) == 0 { return 1 }
+    }
+    if action == "expand" { Diagnostics.WriteText(source, false) }
+    else { Diagnostics.WriteText(compact, false) }
+    return 0
+}

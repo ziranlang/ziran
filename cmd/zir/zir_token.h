@@ -36,6 +36,9 @@ typedef struct ZirLexer {
 
 void LexerInit(ZirLexer *lx, const char *src, const char *path);
 ZirToken LexerNext(ZirLexer *lx);
+/* Raw source tooling: skip line/block comments, retaining physical UTF-8 byte
+ * coordinates. LexerNext itself retains its expression-scanner semantics. */
+ZirToken LexerNextCode(ZirLexer *lx);
 const char *TokenKindName(ZirTokenKind kind);
 
 #endif /* ZIRAN_ZIR_TOKEN_H */

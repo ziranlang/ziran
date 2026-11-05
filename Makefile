@@ -92,7 +92,7 @@ STATEMENT_C := $(BUILD_DIR)/compiler-statement
 STATEMENT_READY := $(STATEMENT_C)/.generated
 endif
 override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C)
-FRONTEND := cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
+FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_native.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
     cmd/zir/zir_proof_kernel.c \
@@ -119,7 +119,7 @@ RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_he
 LEAN ?= lean
 CHECK_JOBS ?= 4
 CHECK_SHARD ?=
-all: $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
+all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
 	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust
 
 proof-model:
@@ -133,7 +133,7 @@ USER_BIN ?= $(HOME)/.local/bin
 USER_SHARE ?= $(HOME)/.local/share/ziran/bootstrap
 install-user: all
 	mkdir -p $(USER_BIN) $(USER_SHARE)/build/bin
-	@set -e; for tool in ziran zi-fmt zi2zir zi-api zi-inspect zi2c zi2go zi2zx zi2wasm; do \
+	@set -e; for tool in ziran zi-fmt zi-edit zi2zir zi-api zi-inspect zi2c zi2go zi2zx zi2wasm; do \
 		temporary=$$(mktemp "$(USER_SHARE)/build/bin/.$$tool.XXXXXX"); \
 		trap 'rm -f "$$temporary"' EXIT; \
 		cp "$(BIN_DIR)/$$tool" "$$temporary"; chmod 755 "$$temporary"; \
@@ -336,6 +336,11 @@ $(BIN_DIR)/zi-fmt: $(FORMAT_SOURCES) $(BIN_DIR)/zi2c $(BUILD_DIR)/.compiler-flag
 	$(BIN_DIR)/zi2c --entry format:main $(ZIRAN_DEFINES) --root cmd --module-path std \
 	    -o $(FORMAT_C) cmd/format.zi
 	$(NICE) $(CC) $(CFLAGS) -I$(FORMAT_C) -o $@ $(FORMAT_C)/*.c -lm
+
+EDIT_C := $(BUILD_DIR)/edit-c
+$(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagnostics.zi std/json_document.zi cmd/zir/zir_edit.c cmd/zir/zir_edit.h $(BIN_DIR)/zi2c $(FRONTEND_OBJECTS) | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry edit:main $(ZIRAN_DEFINES) --root cmd --module-path std -o $(EDIT_C) cmd/edit.zi
+	$(NICE) $(CC) $(CFLAGS) -I$(EDIT_C) -o $@ $(EDIT_C)/*.c cmd/zir/zir_edit.c $(FRONTEND_OBJECTS) -lm
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zir-ir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm

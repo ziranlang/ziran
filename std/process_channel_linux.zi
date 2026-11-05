@@ -1,6 +1,7 @@
 // An owned native child with bidirectional byte I/O. Arguments pass directly
 // to execvp, and each child has its own process group. Do not copy a live
-// channel: one owner must join it before releasing its storage.
+// channel: one owner must join it before releasing its storage. The explicit
+// argv contains 1 through 32 arguments, each at most 4095 non-NUL bytes.
 Capture :: #import "process_capture_linux"
 Socket :: #import "socket_linux"
 Timer :: #import "timer_linux"
@@ -13,6 +14,7 @@ ChannelKillRaw :: (pid: s32, signal: s32) -> s32 #foreign libc "kill";
 ChannelForkRaw :: () -> s32 #foreign libc "fork";
 ChannelDupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
 ChannelCloseRaw :: (fd: s32) -> s32 #foreign libc "close";
+ChannelOpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
 ChannelExecRaw :: (path: *u8, arguments: *Capture.CapturePointer) -> s32 #foreign libc "execvp";
 ChannelExitRaw :: (code: s32) -> void #foreign libc "_exit";
 ChannelWaitRaw :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
@@ -28,14 +30,14 @@ ProcessChannel :: struct {
 }
 
 #program_export
-StartChannel :: (arguments: []string, merge_stderr: bool) -> ProcessChannel {
+StartChannel :: (arguments: []string, merge_stderr: bool, discard_stderr: bool = false) -> ProcessChannel {
     result: ProcessChannel
     result.socket.fd = -1; result.code = 127
-    if arguments.count == 0 || arguments.count > 16 {
+    if arguments.count == 0 || arguments.count > 32 || (merge_stderr && discard_stderr) {
         result.error = 22; return result
     }
-    bytes: [16]Capture.CaptureArgument
-    pointers: [17]Capture.CapturePointer
+    bytes: [32]Capture.CaptureArgument
+    pointers: [33]Capture.CapturePointer
     for i: 0..cast(s32)arguments.count - 1 {
         if !CopyCString(arguments[i], bytes[i].bytes[:]) {
             result.error = 7; return result
@@ -64,6 +66,13 @@ StartChannel :: (arguments: []string, merge_stderr: bool) -> ProcessChannel {
         if ChannelGroupRaw(0, 0) != 0 || ChannelDupRaw(fds[1], 0) < 0 ||
             ChannelDupRaw(fds[1], 1) < 0 { ChannelExitRaw(127) }
         if merge_stderr && ChannelDupRaw(fds[1], 2) < 0 { ChannelExitRaw(127) }
+        if discard_stderr {
+            null_path: [10]u8 = .[47, 100, 101, 118, 47, 110, 117, 108, 108, 0]
+            discarded := ChannelOpenRaw(*null_path[0], 1 | 524288, 0)
+            if discarded < 0 { ChannelExitRaw(127) }
+            if ChannelDupRaw(discarded, 2) < 0 || ChannelFlagsRaw(2, 2, 0) != 0 { ChannelExitRaw(127) }
+            if discarded > 2 { ChannelCloseRaw(discarded) }
+        }
         // dup2(fd, fd) keeps CLOEXEC. When a standard descriptor was closed,
         // socketpair can return its number; retain that redirected endpoint
         // across exec, without opening stderr when it was not requested.
@@ -103,6 +112,15 @@ ChannelSend :: (channel: ProcessChannel, input: []u8, timeout_ms: s32) -> s64 {
         if error != 4 && error != 11 { return -1 }
     }
     return sent
+}
+
+// End this child's input without closing its output. The caller may continue
+// ChannelReceive and must still WaitChannel/CloseChannel. A second half-close
+// is harmless while the channel remains open. Further sends safely fail.
+#program_export
+CloseChannelInput :: (channel: ProcessChannel) -> bool {
+    if channel.pid <= 0 { return false }
+    return Socket.SocketCloseWrite(channel.socket)
 }
 
 #program_export
@@ -182,4 +200,16 @@ CloseChannel :: (channel: *ProcessChannel, timeout_ms: s32) -> bool {
         if channel.error != 4 { return false }
     }
     return false
+}
+
+// Cancellation keeps the unreaped PID as proof of process-group ownership.
+// Signal the group before WaitChannel can reap an already-exited parent whose
+// descendant still owns stdout. Already joined channels only close their fd.
+#program_export
+CancelChannel :: (channel: *ProcessChannel) -> bool {
+    if channel == null { return false }
+    if !channel.exited && channel.pid > 0 {
+        if ChannelKillRaw(-channel.pid,9) != 0 { unused ChannelKillRaw(channel.pid,9) }
+    }
+    return CloseChannel(channel,0)
 }

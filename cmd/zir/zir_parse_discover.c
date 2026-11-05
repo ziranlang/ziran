@@ -1,3 +1,5 @@
+#include "zir_overlay.h"
+#include "zir_document.h"
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_files.h"
@@ -1562,6 +1564,15 @@ char *read_lowered_source(const char *path);
 static char *
 read_lowered_source_with_buffers(const char *path, ReadLoweredSourceBuffers *buffers)
 {
+    if(!SourceOverlayAllowed(path))
+        die_at(Span(path, 0, 0), "source import escapes the edit root and standard library");
+    size_t overlay_count;
+    const char *overlay=SourceOverlayRead(path, &overlay_count);
+    if(overlay) {
+        if(!DocumentRecord(path, overlay, overlay_count))
+            die_at(Span(path, 0, 0), "source document identity limit exceeded");
+        return lower_jai_multiline_strings(overlay, path);
+    }
     FILE *in = fopen(path, "rb");
     if(in == NULL)
         die_at(Span(path, 0, 0), "open failed: %s", strerror(errno));
@@ -1582,6 +1593,8 @@ read_lowered_source_with_buffers(const char *path, ReadLoweredSourceBuffers *buf
             die("out of memory reading source");
         input.text[0] = '\0';
     }
+    if(!DocumentRecord(path, input.text, input.length))
+        die_at(Span(path, 0, 0), "source document identity limit exceeded");
     char *lowered = lower_jai_multiline_strings(input.text, path);
     free(input.text);
     return lowered;

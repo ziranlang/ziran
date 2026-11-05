@@ -326,7 +326,7 @@ AddCurlHeader :: (headers: **void, prefix: string, value: string,
 
 AddNamedHeader :: (headers: **void, name: string, value: string,
     buffer: []u8) -> bool {
-    if !HeaderName(name) || name.count + 2 >= buffer.count ||
+    if !HeaderName(name) || value.count >= 8192 || name.count + 2 >= buffer.count ||
     value.count >= buffer.count - name.count - 2 { return false }
     index: s64 = 0
     while index < cast(s64)name.count {
@@ -429,19 +429,20 @@ SendCurlConfigured :: (request: HttpRequest, output: []u8, timeout_ms: s32, dire
         }
     }
 
-    // ML-DSA signatures and other protocol headers can exceed 4 KiB.
-    header: [8192]u8
+    // Named values allow 8191 bytes independently of the validated name.
+    // Include the maximum 255-byte name, ': ', and the trailing NUL.
+    header: [8449]u8
     if configured && request.token.count > 0 {
         configured = AddCurlHeader(*headers, "Authorization: Bearer ",
-            request.token, header[:])
+            request.token, header[0:8192])
     }
     if configured && request.accept.count > 0 {
         configured = AddCurlHeader(*headers, "Accept: ",
-            request.accept, header[:])
+            request.accept, header[0:8192])
     }
     if configured && request.content_type.count > 0 {
         configured = AddCurlHeader(*headers, "Content-Type: ",
-            request.content_type, header[:])
+            request.content_type, header[0:8192])
     }
     if configured && request.headers.count > 32 { configured = false }
     index: s64 = 0

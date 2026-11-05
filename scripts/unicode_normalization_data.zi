@@ -1,0 +1,307 @@
+#!/usr/bin/env -S ziran run --target=c
+// Unicode 17.0.0 NFC/property tables and independent official test corpus.
+// Unicode License V3; see LICENSE-Unicode. No host Unicode dependency.
+#import "std/file"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec";
+
+#scope_file
+Entry :: struct { flags: s32; ccc: s32; a: s32; b: s32; count: s32; excluded: bool; listed: bool; }
+Pair :: struct { a: s32; b: s32; point: s32; }
+Hex :: (text: string) -> s32 {
+    value: s32
+    if text.count == 0 || text.count > 6 { return -1 }
+    for byte: text {
+        digit: s32 = -1
+        if byte >= 48 && byte <= 57 { digit = cast(s32)byte - 48 }
+        if byte >= 65 && byte <= 70 { digit = cast(s32)byte - 55 }
+        if digit < 0 { return -1 }
+        value = value * 16 + digit
+    }
+    return value
+}
+Fields :: (line: string) -> Vec(string) {
+    comment := TextFind(line,"#")
+    if comment >= 0 { line = line[0:comment] }
+    result := TextSplit(line,";")
+    index: s64
+    while index < result.count { result[index] = TextTrim(result[index]); index += 1 }
+    return result
+}
+Load :: (directory: string, name: string) -> string {
+    path: Vec(u8)
+    BuilderPrint(*path,"%/%",directory,name)
+    text,ok := ReadEntireFile(BuilderFinish(path))
+    if !ok { print("cannot read %\n",name); return "" }
+    return text
+}
+ReadUnicode :: (entries: *Vec(Entry), text: string) -> bool {
+    first: s32 = -1
+    lines := TextLines(text)
+    for line: VecSlice(lines,0,lines.count) {
+        f := Fields(line)
+        if f.count == 1 && f[0] == "" { continue }
+        if f.count != 15 { return false }
+        point := Hex(f[0])
+        if point < 0 || point > 1114111 { return false }
+        entry: Entry
+        if f[2] != "Cs" && f[2] != "Cn" { entry.flags = 8 }
+        if TextHasPrefix(f[2],"L") { entry.flags |= 1 }
+        if TextHasPrefix(f[2],"N") { entry.flags |= 2 }
+        for byte: f[3] {
+            if byte < 48 || byte > 57 { return false }
+            entry.ccc = entry.ccc * 10 + cast(s32)byte - 48
+            if entry.ccc > 255 { return false }
+        }
+        if f[5] != "" && !TextHasPrefix(f[5],"<") {
+            parts := TextSplit(f[5]," ")
+            if parts.count < 1 || parts.count > 2 { return false }
+            entry.count = cast(s32)parts.count
+            entry.a = Hex(parts[0])
+            if parts.count == 2 { entry.b = Hex(parts[1]) }
+            if entry.a < 0 || entry.b < 0 || entry.a > 1114111 || entry.b > 1114111 { return false }
+        }
+        if TextHasSuffix(f[1],", First>") { first = point; continue }
+        start := point
+        if TextHasSuffix(f[1],", Last>") {
+            if first < 0 { return false }
+            start = first; first = -1
+        }
+        while start <= point { entries.*[start] = entry; start += 1 }
+    }
+    return first == -1
+}
+ReadExclusions :: (entries: *Vec(Entry), text: string) -> bool {
+    lines := TextLines(text)
+    for line: VecSlice(lines,0,lines.count) {
+        f := Fields(line)
+        if f[0] == "" { continue }
+        point := Hex(f[0])
+        if point < 0 || point > 1114111 { return false }
+        entries.*[point].excluded = true
+    }
+    return true
+}
+ReadSpaces :: (entries: *Vec(Entry), text: string) -> bool {
+    lines := TextLines(text)
+    for line: VecSlice(lines,0,lines.count) {
+        f := Fields(line)
+        if f[0] == "" { continue }
+        if f.count < 2 { return false }
+        if f[1] != "White_Space" { continue }
+        bounds := TextSplit(f[0],"..")
+        start := Hex(bounds[0]); end := Hex(bounds[bounds.count-1])
+        if start < 0 || end < start || end > 1114111 { return false }
+        while start <= end { entries.*[start].flags |= 4; start += 1 }
+    }
+    return true
+}
+Byte :: (out: *Vec(u8), value: s32) {
+    digits := "0123456789abcdef"
+    BuilderAppend(<<out,"\\x")
+    VecPush(<<out,digits[(value >> 4) & 15]); VecPush(<<out,digits[value & 15])
+}
+Point :: (out: *Vec(u8), value: s32) {
+    Byte(out,value & 127); Byte(out,(value >> 7) & 127); Byte(out,value >> 14)
+}
+Scalar :: (out: *Vec(u8), point: s32) {
+    if point < 128 { VecPush(<<out,cast(u8)point) }
+    else if point < 2048 {
+        VecPush(<<out,cast(u8)(192 | (point >> 6))); VecPush(<<out,cast(u8)(128 | (point & 63)))
+    } else if point < 65536 {
+        VecPush(<<out,cast(u8)(224 | (point >> 12))); VecPush(<<out,cast(u8)(128 | ((point >> 6) & 63)))
+        VecPush(<<out,cast(u8)(128 | (point & 63)))
+    } else {
+        VecPush(<<out,cast(u8)(240 | (point >> 18))); VecPush(<<out,cast(u8)(128 | ((point >> 12) & 63)))
+        VecPush(<<out,cast(u8)(128 | ((point >> 6) & 63))); VecPush(<<out,cast(u8)(128 | (point & 63)))
+    }
+}
+Start :: (out: *Vec(u8), name: string) {
+    BuilderPrint(out,"% :: (index: s32) -> string {\n    if index == {\n",name)
+}
+Finish :: (out: *Vec(u8), name: string, count: s32, group: s32) {
+    if count % group != 0 { BuilderAppend(<<out,"\"\n") }
+    BuilderPrint(out,"    }\n    return \"\"\n}\n%Count :: %;\n",name,count)
+}
+Expansion :: (entries: *Vec(Entry), point: s32, depth: s32) -> s32 {
+    if depth > 32 { return 0 }
+    if point >= 44032 && point < 55204 { return 3 }
+    e := entries.*[point]
+    if e.count == 0 { return 1 }
+    a := Expansion(entries,e.a,depth+1)
+    if a == 0 { return 0 }
+    if e.count == 1 { return a }
+    b := Expansion(entries,e.b,depth+1)
+    if b == 0 { return 0 }
+    return a+b
+}
+EmitTables :: (entries: *Vec(Entry), path: string) -> bool {
+    out: Vec(u8)
+    BuilderAppend(out,"// Generated by scripts/unicode_normalization_data.zi; Unicode 17.0.0.\n// Copyright Unicode, Inc. Unicode License V3; see LICENSE-Unicode.\n#scope_file\n")
+    Start(*out,"Decompositions")
+    count: s32
+    pairs: Vec(Pair)
+    for point: 0..cast(s32)1114111 {
+        e := entries.*[point]
+        if e.count == 0 { continue }
+        expanded := Expansion(entries,point,0)
+        if expanded < 1 || expanded > 4 { print("invalid Unicode17 canonical expansion at %\n",point); return false }
+        if count % 32 == 0 { BuilderPrint(*out,"        case %; return \"",count / 32) }
+        Point(*out,point); Byte(*out,e.count); Point(*out,e.a); Point(*out,e.b); count += 1
+        if count % 32 == 0 { BuilderAppend(out,"\"\n") }
+        // Full_Composition_Exclusion additionally includes singletons and
+        // decompositions whose first scalar is a non-starter (UAX #15).
+        if e.count == 2 && !e.excluded && entries.*[e.a].ccc == 0 {
+            pair: Pair; pair.a = e.a; pair.b = e.b; pair.point = point
+            if !VecPush(pairs,pair) { return false }
+            at := pairs.count - 1
+            while at > 0 && (pairs[at-1].a > pair.a || (pairs[at-1].a == pair.a && pairs[at-1].b > pair.b)) {
+                pairs[at] = pairs[at-1]; at -= 1
+            }
+            pairs[at] = pair
+        }
+    }
+    Finish(*out,"Decompositions",count,32)
+    Start(*out,"Compositions"); count = 0
+    for p: VecSlice(pairs,0,pairs.count) {
+        if count % 32 == 0 { BuilderPrint(*out,"        case %; return \"",count / 32) }
+        Point(*out,p.a); Point(*out,p.b); Point(*out,p.point); count += 1
+        if count % 32 == 0 { BuilderAppend(out,"\"\n") }
+    }
+    Finish(*out,"Compositions",count,32)
+    Start(*out,"Properties"); count = 0
+    point: s32
+    while point <= 1114111 {
+        e := entries.*[point]; end := point
+        while end < 1114111 && entries.*[end+1].ccc == e.ccc && (entries.*[end+1].flags & 7) == (e.flags & 7) { end += 1 }
+        if e.ccc != 0 || (e.flags & 7) != 0 {
+            if count % 32 == 0 { BuilderPrint(*out,"        case %; return \"",count / 32) }
+            Point(*out,point); Point(*out,end); Byte(*out,e.flags & 7)
+            Byte(*out,e.ccc & 127); Byte(*out,e.ccc >> 7); count += 1
+            if count % 32 == 0 { BuilderAppend(out,"\"\n") }
+        }
+        point = end + 1
+    }
+    Finish(*out,"Properties",count,32)
+    BuilderAppend(out,Runtime)
+    return WriteEntireFile(path,BuilderFinish(out))
+}
+EmitTests :: (entries: *Vec(Entry), text: string, path: string) -> bool {
+    out: Vec(u8)
+    BuilderAppend(out,"// Official Unicode 17.0.0 NormalizationTest, all five columns.\n// Copyright Unicode, Inc. Unicode License V3; see LICENSE-Unicode.\n// UTF-8 strings, independently of implementation's packed scalar tables.\n#scope_export\n")
+    Start(*out,"Rows")
+    rows: s32; chunks: s32; chunk: Vec(u8); part1: bool
+    lines := TextLines(text)
+    for line: VecSlice(lines,0,lines.count) {
+        f := Fields(line)
+        if f[0] == "" { continue }
+        if TextHasPrefix(f[0],"@") { part1 = TextHasPrefix(f[0],"@Part1"); continue }
+        if f.count < 5 { return false }
+        if chunk.count >= 512 {
+            BuilderPrint(*out,"        case %; return \"",chunks)
+            for byte: VecSlice(chunk,0,chunk.count) { Byte(*out,cast(s32)byte) }
+            BuilderAppend(out,"\"\n"); chunks += 1; VecClear(chunk)
+        }
+        for col: 0..4 {
+            value: Vec(u8)
+            points := TextSplit(f[col]," ")
+            for item: VecSlice(points,0,points.count) {
+                point := Hex(item)
+                if point < 0 || point > 1114111 || (point >= 55296 && point <= 57343) { return false }
+                Scalar(*value,point)
+                if part1 && col == 0 { entries.*[point].listed = true }
+            }
+            if value.count > 16383 { return false }
+            VecPush(chunk,cast(u8)(value.count & 127)); VecPush(chunk,cast(u8)(value.count >> 7))
+            for byte: VecSlice(value,0,value.count) { VecPush(chunk,byte) }
+        }
+        rows += 1
+    }
+    if chunk.count > 0 {
+        BuilderPrint(*out,"        case %; return \"",chunks)
+        for byte: VecSlice(chunk,0,chunk.count) { Byte(*out,cast(s32)byte) }
+        BuilderAppend(out,"\"\n"); chunks += 1
+    }
+    BuilderPrint(*out,"    }\n    return \"\"\n}\nRowsCount :: %;\nRowCount :: %;\n",chunks,rows)
+    Start(*out,"IdentityRanges")
+    point: s32; count: s32
+    while point <= 1114111 {
+        if (entries.*[point].flags & 8) == 0 || entries.*[point].listed { point += 1; continue }
+        end := point
+        while end < 1114111 && (entries.*[end+1].flags & 8) != 0 && !entries.*[end+1].listed { end += 1 }
+        if count % 32 == 0 { BuilderPrint(*out,"        case %; return \"",count / 32) }
+        Point(*out,point); Point(*out,end); count += 1
+        if count % 32 == 0 { BuilderAppend(out,"\"\n") }
+        point = end + 1
+    }
+    Finish(*out,"IdentityRanges",count,32)
+    print("Generated % official normalization rows, % identity ranges\n",rows,count)
+    Start(*out,"PropertyRanges"); count = 0; point = 0
+    // Expected exact category/property values at both sides of every UCD
+    // boundary, independent of the implementation's CCC/property record layout.
+    while point <= 1114111 {
+        flags := entries.*[point].flags & 7; end := point
+        while end < 1114111 && (entries.*[end+1].flags & 7) == flags { end += 1 }
+        if count % 32 == 0 { BuilderPrint(*out,"        case %; return \"",count/32) }
+        Point(*out,point); Point(*out,end); Byte(*out,flags); count += 1
+        if count % 32 == 0 { BuilderAppend(out,"\"\n") }
+        point = end+1
+    }
+    Finish(*out,"PropertyRanges",count,32)
+    return WriteEntireFile(path,BuilderFinish(out))
+}
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 4 { print("usage: unicode_normalization_data UCD_DIR OUTPUT.zi TEST_DATA.zi\n"); return 2 }
+    directory := TextFromCString(argv[1])
+    unicode := Load(directory,"UnicodeData.txt")
+    exclusions := Load(directory,"CompositionExclusions.txt")
+    spaces := Load(directory,"PropList.txt")
+    tests := Load(directory,"NormalizationTest.txt")
+    if unicode == "" || !TextHasPrefix(exclusions,"# CompositionExclusions-17.0.0.txt") ||
+       !TextHasPrefix(spaces,"# PropList-17.0.0.txt") || !TextHasPrefix(tests,"# NormalizationTest-17.0.0.txt") { return 1 }
+    entries: Vec(Entry)
+    if !VecResize(entries,1114112) { return 1 }
+    if !ReadUnicode(*entries,unicode) || !ReadExclusions(*entries,exclusions) || !ReadSpaces(*entries,spaces) { return 1 }
+    if !EmitTables(*entries,TextFromCString(argv[2])) || !EmitTests(*entries,tests,TextFromCString(argv[3])) { return 1 }
+    return 0
+}
+#scope_file
+Runtime :: #string END
+#scope_export
+Point :: (data: string, at: s32) -> u32 {
+    return cast(u32)data[at] | (cast(u32)data[at+1] << 7) | (cast(u32)data[at+2] << 14)
+}
+Decomposition :: (point: u32) -> string {
+    low: s32; high: s32 = cast(s32)DecompositionsCount
+    while low < high {
+        middle := low + (high-low)/2; data := Decompositions(middle/32); at := (middle%32)*10
+        found := Point(data,at)
+        if found == point { return data[at:at+10] }
+        if found < point { low = middle+1 } else { high = middle }
+    }
+    return ""
+}
+Composition :: (a: u32, b: u32) -> u32 {
+    low: s32; high: s32 = cast(s32)CompositionsCount
+    while low < high {
+        middle := low+(high-low)/2; data := Compositions(middle/32); at := (middle%32)*9
+        left := Point(data,at); right := Point(data,at+3)
+        if left == a && right == b { return Point(data,at+6) }
+        if left < a || (left == a && right < b) { low = middle+1 } else { high = middle }
+    }
+    return 0
+}
+Property :: (point: u32) -> s32 {
+    low: s32; high: s32 = cast(s32)PropertiesCount
+    while low < high {
+        middle := low+(high-low)/2; data := Properties(middle/32); at := (middle%32)*9
+        if point < Point(data,at) { high = middle }
+        else if point > Point(data,at+3) { low = middle+1 }
+        else { return cast(s32)data[at+6] | (cast(s32)data[at+7] << 3) | (cast(s32)data[at+8] << 10) }
+    }
+    return 0
+}
+END

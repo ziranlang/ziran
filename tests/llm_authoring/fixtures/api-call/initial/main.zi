@@ -1,0 +1,3 @@
+Text :: #import "text";
+#program_export
+Answer :: () -> s32 { if Text.ContainsFoldASCII("abc", "bc") { return 0 }; return 42 }

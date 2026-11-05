@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+- `ziran edit` previews and applies checked source edits; `ziran compact` and
+  `ziran expand` give `.zi` files an optional lossless compact transport.
+- JSON diagnostics keep each message within 2048 bytes and report cuts in a
+  `truncation` field.
+- `std/unicode` adds Unicode 17 `NFCInto`, `LowerInto` and exact letter,
+  number and white-space properties.
+- `std/json_document` owns its bytes per node, adds `JsonReset`, caller-owned
+  `Into` accessors and erasers that wipe private buffers.
+- `std/file_tree_linux` adds `FileSnapshot` and `SameFileSnapshot` to tell
+  whether a file was changed or replaced.
+- `std/process_channel_linux` accepts up to 32 arguments and can discard
+  stderr; `std/socket_linux` adds `SocketCloseWrite`.
+- Curl HTTP accepts named header values up to 8191 bytes.
+- `std/image` adds fallible caller-owned resampling and bicubic resize;
+  `std/float_text` adds `Float64ReprInto`.
+
 - Native C generation accepts checked pointer casts to imported C callback types;
   Go and portable targets continue to reject C callbacks.
 

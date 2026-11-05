@@ -1,0 +1,100 @@
+// Canonical Unicode 17.0 NFC. Portable C/Go/VM; no platform Unicode library.
+U :: #import "std/utf8";
+D :: #import "std/unicode_normalization_data";
+using Vectors :: #import "vec";
+
+#scope_file
+Class :: (point: u32) -> s32 { return D.Property(point) >> 3 }
+
+Ordered :: (points: *Vec(u32), point: u32) -> bool {
+    if !VecPush(<<points,point) { return false }
+    ccc := Class(point)
+    if ccc == 0 { return true }
+    at := points.count - 1
+    // Stable canonical ordering: equal classes never exchange positions and
+    // a starter (class zero) terminates this segment.
+    while at > 0 && Class(points.*[at-1]) > ccc {
+        points.*[at] = points.*[at-1]; at -= 1
+    }
+    points.*[at] = point
+    return true
+}
+
+Decompose :: (points: *Vec(u32), point: u32) -> bool {
+    // UAX #15 Hangul decomposition, including the absent trailing Jamo.
+    if point >= 44032 && point < 55204 {
+        index := point - 44032
+        if !Ordered(points,4352 + index/588) || !Ordered(points,4449 + (index%588)/28) { return false }
+        if index%28 != 0 { return Ordered(points,4519 + index%28) }
+        return true
+    }
+    record := D.Decomposition(point)
+    if record.count == 0 { return Ordered(points,point) }
+    // Only canonical mappings are in the checked, acyclic Unicode tables.
+    if !Decompose(points,D.Point(record,4)) { return false }
+    if record[3] == 2 { return Decompose(points,D.Point(record,7)) }
+    return true
+}
+
+Compose :: (a: u32, b: u32) -> u32 {
+    if a >= 4352 && a < 4371 && b >= 4449 && b < 4470 {
+        return 44032 + (a-4352)*588 + (b-4449)*28
+    }
+    if a >= 44032 && a < 55204 && (a-44032)%28 == 0 && b > 4519 && b < 4547 { return a+b-4519 }
+    return D.Composition(a,b)
+}
+
+ScalarInto :: (out: *Vec(u8), point: u32) -> bool {
+    if point < 128 { return VecPush(<<out,cast(u8)point) }
+    if point < 2048 {
+        return VecPush(<<out,cast(u8)(192 | (point>>6))) && VecPush(<<out,cast(u8)(128 | (point&63)))
+    }
+    if point < 65536 {
+        return VecPush(<<out,cast(u8)(224 | (point>>12))) && VecPush(<<out,cast(u8)(128 | ((point>>6)&63))) &&
+            VecPush(<<out,cast(u8)(128 | (point&63)))
+    }
+    return VecPush(<<out,cast(u8)(240 | (point>>18))) && VecPush(<<out,cast(u8)(128 | ((point>>12)&63))) &&
+        VecPush(<<out,cast(u8)(128 | ((point>>6)&63))) && VecPush(<<out,cast(u8)(128 | (point&63)))
+}
+
+#scope_export
+Properties :: (point: u32) -> s32 { return D.Property(point) & 7 }
+
+// Replace output with NFC bytes. Input must be valid UTF-8 and must not borrow
+// output. On any invalid input/allocation failure output is empty; capacity
+// may be retained. Empty input succeeds. Caller owns output, with no size cap
+// beyond Vec's checked element/byte representability and available allocation.
+NFCInto :: (text: string, output: *Vec(u8)) -> bool {
+    if output == null { return false }
+    VecClear(<<output)
+    if !U.Valid(text) { return false }
+    points: Vec(u32)
+    at: s64
+    while at < text.count {
+        length := text.count-at
+        if length > 4 { length = 4 }
+        decoded := U.Decode(text[at:at+length],0)
+        if !Decompose(*points,decoded.value) { return false }
+        at += decoded.after
+    }
+    starter: s64 = -1
+    last: s32
+    written: s64
+    at = 0
+    while at < points.count {
+        point := points[at]; ccc := Class(point); composite: u32
+        if starter >= 0 && (last == 0 || last < ccc) { composite = Compose(points[starter],point) }
+        if composite != 0 { points[starter] = composite }
+        else {
+            if ccc == 0 { starter = written }
+            points[written] = point; written += 1; last = ccc
+        }
+        at += 1
+    }
+    at = 0
+    while at < written {
+        if !ScalarInto(output,points[at]) { VecClear(<<output); return false }
+        at += 1
+    }
+    return true
+}

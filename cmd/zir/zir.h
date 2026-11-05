@@ -408,10 +408,12 @@ struct ZirModule;
 int VecElementType(const struct ZirModule *module, const char *type,
                    char *element, size_t element_size);
 
+struct ZirDocument;
 typedef struct ZirModule {
     CompilerContext *context; /* lookup/cache owner; distinct from source origin */
     char name[ZIR_NAME_MAX];
     char source_path[ZIR_PATH_MAX];
+    const struct ZirDocument *document; /* raw source identity; never serialized */
     char source_root[ZIR_PATH_MAX]; /* source-only path for call-site defaults */
     char lookup_path[ZIR_PATH_MAX]; /* checker context; never serialized */
     ZirSourceSpan span;

@@ -1,0 +1,4 @@
+Math :: #import "arithmetic";
+#law Result custom Answer() == 42;
+#program_export
+Answer :: () -> s32 { return Math.First(10, 11) + Math.Second(10, 11) }

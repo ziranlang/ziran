@@ -34,6 +34,10 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == "/connection":
             self.respond(200, str(self.client_address[1]).encode())
+        elif self.path == "/header":
+            value = self.headers.get("X-Daochi-Admin", "")
+            self.respond(200 if value == "v" * len(value) and len(value) in (4096, 8191) else 400,
+                         str(len(value)).encode())
         elif self.path == "/thread":
             time.sleep(0.05)
             self.respond(200, self.headers.get("Authorization", "missing").encode())
@@ -84,7 +88,8 @@ class Handler(BaseHTTPRequestHandler):
             self.respond(400, b"invalid")
 
 
-with tempfile.TemporaryDirectory(prefix="ziran-curl-") as temporary:
+(ROOT / "build/tests/tmp").mkdir(parents=True, exist_ok=True)
+with tempfile.TemporaryDirectory(prefix="ziran-curl-", dir=ROOT / "build/tests/tmp") as temporary:
     generated = Path(temporary) / "generated"
     executable = Path(temporary) / "client"
     subprocess.run([

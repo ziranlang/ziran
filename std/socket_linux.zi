@@ -118,6 +118,14 @@ OpenTCPv4 :: (address: [4]u8, port: u16, timeout_ms: s32) -> LinuxSocket {
     return result
 }
 
+// Signal write EOF while keeping this owned descriptor readable. Repeating a
+// successful write shutdown is harmless; SocketClose still releases ownership.
+#program_export
+SocketCloseWrite :: (socket: LinuxSocket) -> bool {
+    if !socket.valid { return false }
+    return ShutdownRaw(socket.fd, 1) == 0
+}
+
 #program_export
 SocketCancel :: (socket: LinuxSocket) -> bool {
     if !socket.valid { return false }

@@ -14,6 +14,7 @@
 // time with statx, whose record has one layout on every little-endian Linux
 // architecture.
 #import "c_string"
+#import "byte_text_linux"
 #import "sort"
 using Files :: #import "file_linux"
 using Vectors :: #import "vec"
@@ -37,6 +38,7 @@ EffectiveUserRaw :: () -> u32 #foreign libc "geteuid";
 WorkingDirectoryRaw :: (output: *u8, size: u64) -> *u8 #foreign libc "getcwd";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
 ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
+FreeOwnedRaw :: (memory: *void) #foreign libc "free";
 SymbolicLinkRaw :: (target: *u8, path: *u8) -> s32 #foreign libc "symlink";
 ReadLinkRaw :: (path: *u8, output: *u8, capacity: u64) -> s64 #foreign libc "readlink";
 
@@ -60,6 +62,17 @@ PathInfo :: struct {
     size: s64
     // Seconds since 1970 UTC.
     modified: s64
+    // Fractional nanoseconds of modified, 0 through 999999999; not total ns.
+    modified_nanoseconds: u32
+    // Linux statx availability mask; identity_valid requires type, inode,
+    // size, ctime and mtime, with valid fractions and a representable size.
+    metadata_mask: u32
+    identity_valid: bool
+    inode: u64
+    changed: s64
+    changed_nanoseconds: u32
+    device_major: u32
+    device_minor: u32
 }
 
 // The path's kind, owner UID, permissions, size and modification time. A link is
@@ -71,6 +84,7 @@ PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
     record: StatxRecord
     flags: s32 = ifx follow_links then 0 else NO_FOLLOW
     if StatxRaw(CURRENT_DIRECTORY, *name[0], flags, BASIC_STATS, *record) != 0 { return info }
+    info.metadata_mask = cast(u32)record.words[0]
     mode := cast(s32)((record.words[3] >> 32) & 65535)
     type := mode & 61440
     info.kind = .Other
@@ -79,9 +93,39 @@ PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
     if type == 40960 { info.kind = .Link }
     info.owner_uid = cast(u32)(record.words[2] >> 32)
     info.mode = mode & 4095
-    info.size = cast(s64)record.words[5]
-    info.modified = cast(s64)record.words[14]
+    if (info.metadata_mask & 512) != 0 { info.size = cast(s64)record.words[5] }
+    if (info.metadata_mask & 256) != 0 { info.inode = record.words[4] }
+    modified_fraction := cast(u32)record.words[15]
+    changed_fraction := cast(u32)record.words[13]
+    if (info.metadata_mask & 64) != 0 && modified_fraction < 1000000000 {
+        info.modified = cast(s64)record.words[14]
+        info.modified_nanoseconds = modified_fraction
+    }
+    if (info.metadata_mask & 128) != 0 && changed_fraction < 1000000000 {
+        info.changed = cast(s64)record.words[12]
+        info.changed_nanoseconds = changed_fraction
+    }
+    // Device identifiers are statx stx_dev fields (not the rdev fields).
+    info.device_major = cast(u32)record.words[17]
+    info.device_minor = cast(u32)(record.words[17] >> 32)
+    info.identity_valid = (info.metadata_mask & 961) == 961 && info.size >= 0 &&
+        modified_fraction < 1000000000 && changed_fraction < 1000000000
     return info
+}
+
+// A complete identity of a regular file without following its final symlink.
+FileSnapshot :: (path: string) -> PathInfo {
+    result := PathStatus(path, false)
+    if result.kind != .File { result.identity_valid = false }
+    return result
+}
+
+SameFileSnapshot :: (left: PathInfo, right: PathInfo) -> bool {
+    return left.identity_valid && right.identity_valid && left.kind == .File && right.kind == .File &&
+        left.device_major == right.device_major && left.device_minor == right.device_minor &&
+        left.inode == right.inode && left.size == right.size && left.modified == right.modified &&
+        left.modified_nanoseconds == right.modified_nanoseconds && left.changed == right.changed &&
+        left.changed_nanoseconds == right.changed_nanoseconds
 }
 
 IsFile :: (path: string) -> bool { return PathStatus(path).kind == .File }
@@ -155,25 +199,35 @@ ResolvePath :: (path: string) -> string {
 // parent. The parent and its ancestors must stay at stable paths during the
 // call. PREFIX is a single name component; six random characters follow it.
 // Returns the canonical absolute child path, or empty on failure. The caller
-// owns cleanup with RemoveTree. Permissions are 0700, restricted by umask.
+// owns the returned allocation and directory cleanup with RemoveTree.
+// Permissions are 0700, restricted by umask.
 CreateTemporaryDirectory :: (parent: string, prefix: string = "ziran-") -> string {
     for prefix { if it == #char "/" || it == 0 { return "" } }
     directory := ResolvePath(parent)
     if directory.count == 0 { return "" }
+    defer { ReleaseOwnedText(directory) }
     info := PathStatus(directory, false)
     if info.kind != .Directory || info.owner_uid != EffectiveUserRaw() { return "" }
+    // Allocate the returned owner before creating anything. mkdtemp changes
+    // only the final six bytes, copied back without a further allocation.
+    output: Vec(u8)
+    if !BuilderAppend(output,directory) ||
+        (directory[directory.count-1] != #char "/" && !VecPush(output,#char "/")) ||
+        !BuilderAppend(output,prefix) || !BuilderAppend(output,"XXXXXX") { return "" }
     name: [4096]u8
-    if !CopyCString(JoinPath(directory, JoinTemporaryName(prefix)), name[:]) { return "" }
+    if !CopyCString(TextView(VecSlice(output,0,output.count)),name[:]) { return "" }
     if TemporaryDirectoryRaw(*name[0]) == null { return "" }
-    return CopyText(name[:])
+    for at: 0..output.count-1 { output[at] = name[at] }
+    return BuilderFinish(output)
 }
 
 #scope_file
-JoinTemporaryName :: (prefix: string) -> string {
-    result: Vec(u8)
-    BuilderAppend(result, prefix)
-    BuilderAppend(result, "XXXXXX")
-    return BuilderFinish(result)
+// Only exact owned results from ResolvePath/CopyText are passed here. Generic
+// strings, JoinPath's absolute-name branch and caller views may be borrowed.
+ReleaseOwnedText :: (text: string) {
+    if text.count == 0 { return }
+    descriptor := cast(*TextDescriptor)*text
+    FreeOwnedRaw(cast(*void)descriptor.data)
 }
 
 #scope_export
@@ -188,7 +242,7 @@ CopyText :: (bytes: []u8) -> string {
     result: Vec(u8)
     for bytes {
         if it == 0 { break }
-        VecPush(result, it)
+        if !VecPush(result, it) { return "" }
     }
     return BuilderFinish(result)
 }
@@ -207,28 +261,52 @@ CreateDirectories :: (path: string, mode: s32 = 493) -> bool {
     return IsDirectory(path)
 }
 
+#scope_file
+ReleaseNames :: (names: *Vec(string), from: s64) {
+    owned: Vec(string)
+    VecSwap(owned,<<names)
+    index := from
+    while index < owned.count { ReleaseOwnedText(owned[index]); index += 1 }
+    VecSwap(owned,<<names)
+}
+
+#scope_export
 // The names in a folder, without "." and "..", sorted by their bytes.
+// Appends independently owned entry names in sorted order. The caller owns
+// each nonempty string as well as the Vec; failed scans append nothing.
 ListDirectory :: (path: string, names: *Vec(string)) -> bool {
+    if names == null { return false }
     cursor := OpenDirectory(path)
     if !cursor.valid { return false }
+    open := true
+    defer { if open { unused CloseDirectory(*cursor) } }
     found: Vec(string)
+    transferred: s64
+    defer { ReleaseNames(*found,transferred) }
     while true {
         entry := NextDirectoryEntry(*cursor)
         if !entry.valid { break }
+        view := TextFromBytes(entry.name[0:entry.name_count])
+        if view == "." || view == ".." { continue }
         text := CopyText(entry.name[0:entry.name_count])
-        if text != "." && text != ".." { VecPush(found, text) }
+        if text.count == 0 { return false }
+        if !VecPush(found,text) { ReleaseOwnedText(text); return false }
     }
     failed := cursor.failed
-    CloseDirectory(*cursor)
-    if failed { return false }
+    closed := CloseDirectory(*cursor)
+    open = false
+    if failed || !closed { return false }
     SortText(found)
-    index: s64 = 0
-    while index < found.count { VecPush(<<names, found[index]); index += 1 }
+    if names.count > 9223372036854775807-found.count || !VecReserve(<<names,names.count+found.count) { return false }
+    while transferred < found.count {
+        if !VecPush(<<names,found[transferred]) { return false }
+        transferred += 1
+    }
     return true
 }
 
 // Removes PATH and, for a folder, everything in it. Links are removed, never
-// followed. True when nothing remains at PATH.
+// followed. True when nothing remains at PATH. All traversal scratch is freed.
 RemoveTree :: (path: string) -> bool {
     info := PathStatus(path, false)
     if info.kind == .Missing { return true }
@@ -237,10 +315,14 @@ RemoveTree :: (path: string) -> bool {
     if info.kind != .Directory { return UnlinkRaw(*name[0]) == 0 }
     names: Vec(string)
     if !ListDirectory(path, *names) { return false }
+    defer { ReleaseNames(*names,0) }
     ok := true
     index: s64 = 0
     while index < names.count {
-        if !RemoveTree(JoinPath(path, names[index])) { ok = false }
+        child: Vec(u8)
+        if !BuilderAppend(child,path) || (path[path.count-1] != #char "/" && !VecPush(child,#char "/")) ||
+            !BuilderAppend(child,names[index]) { return false }
+        if !RemoveTree(TextView(VecSlice(child,0,child.count))) { ok = false }
         index += 1
     }
     return ok && RemoveDirectoryRaw(*name[0]) == 0

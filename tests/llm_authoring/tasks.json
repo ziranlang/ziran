@@ -1,0 +1,490 @@
+{
+  "schema_version": 1,
+  "corpus_version": "1.0.0",
+  "provenance": {
+    "kind": "local_fixture",
+    "source": "L-01 hand-authored regression corpus; not a private holdout or model evaluation"
+  },
+  "tokenizer_families": [
+    "openai",
+    "anthropic",
+    "sentencepiece"
+  ],
+  "experiments": {
+    "baseline": {
+      "status": "available",
+      "source_surface": "canonical_zi"
+    },
+    "compact": {
+      "status": "planned",
+      "source_surface": "compact_transport",
+      "requires": [
+        "round_trip",
+        "source_maps",
+        "canonical_sha256"
+      ]
+    },
+    "semantic-edit": {
+      "status": "planned",
+      "source_surface": "semantic_edits",
+      "requires": [
+        "document_versions",
+        "semantic_ids",
+        "canonical_sha256"
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "id": "pure-law",
+      "genre": "pure_procedure_law",
+      "prompt": "Add a pure Add(a: s32, b: s32) procedure and named laws Sum and Pure. Answer must call Add(20, 22).",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "pure-law/initial/main.zi",
+          "sha256": "ed23e5d68babe773d7590f11cd1559218a5b8584c75171f8c3da5c9ad148ad1c"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "pure-law/final/main.zi",
+          "sha256": "2573b8c3f22b289ec50eef3ef793756297a4280954386fdc2fb6d8129fe83744"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "0\n"
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved",
+                "Pure": "proved"
+              }
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved",
+                "Pure": "proved"
+              }
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved",
+                "Pure": "proved"
+              }
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": true
+    },
+    {
+      "id": "diagnostic-repair",
+      "genre": "diagnostic_repair",
+      "prompt": "Use the checker diagnostic to repair the Add call without changing Add or its public signature.",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "diagnostic-repair/initial/main.zi",
+          "sha256": "3f8445a621970cd14d0f388aa52790ee7a34e1aa304971b3b8050c45ec7a682e"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "diagnostic-repair/final/main.zi",
+          "sha256": "757a6f53231e228a1a6c4500c179be86df5cba99de280b517b5d47fd3de37bf2"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "zx": {
+              "exit_code": 1,
+              "diagnostics": [
+                {
+                  "code": "check.type",
+                  "expected_type": "s32",
+                  "actual_type": "string"
+                }
+              ],
+              "laws": {}
+            }
+          }
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": false
+    },
+    {
+      "id": "api-call",
+      "genre": "api_call_modification",
+      "prompt": "Use std/text StartsWithFoldASCII instead of ContainsFoldASCII. Prefix AB matches abc; prefix bc does not. Keep UTF-8 bytes outside ASCII unchanged.",
+      "context": [
+        "std/text.zi"
+      ],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "api-call/initial/main.zi",
+          "sha256": "fcf80433590763ade9935bb4bc27ec65bd03b36ce4c6c29cab3e425cb7d59c69"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "api-call/final/main.zi",
+          "sha256": "31377c63e36343ed60bc702d43c75a027b951b077230f0aee3c72676efe9b0a3"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "0\n"
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": true
+    },
+    {
+      "id": "cross-file",
+      "genre": "cross_file_import_refactor",
+      "prompt": "Move repeated addition from arithmetic.zi into sums.zi as Add; update the named import and both call sites, delete arithmetic.zi, preserve Answer and law Result.",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "cross-file/initial/main.zi",
+          "sha256": "bb7530f0f1e21a809889107d350e303e9d248ea3d6d7c296b48a94e0b8b64aa2"
+        },
+        "arithmetic.zi": {
+          "fixture": "cross-file/initial/arithmetic.zi",
+          "sha256": "7eb52a6c6216035a3a8f7e6deebb224e66c3e62cd6342b3371c521034a451222"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "cross-file/final/main.zi",
+          "sha256": "bfe43051a3622894eb70a445f59a685f845e9d582939a4cc65ef2d1a71c03d0e"
+        },
+        "sums.zi": {
+          "fixture": "cross-file/final/sums.zi",
+          "sha256": "df486ce70990676a45ec7f1d0d2e105fc769c23d15329e54a6d30f78020c6ce1"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            }
+          },
+          "run_stdout": "42\n"
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {
+                "Result": "proved"
+              }
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": true
+    },
+    {
+      "id": "capability-portable",
+      "genre": "capability_rejection_portable_parity",
+      "prompt": "Replace the unused C-only callback type with a portable pure Increment procedure; Answer must return Increment(41). The initial C callback must be rejected by go and zx preflight.",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "capability-portable/initial/main.zi",
+          "sha256": "595a1db8862347781289c33fd28021a405d0116889559bcdf2b4dc0f433ea08c"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "capability-portable/final/main.zi",
+          "sha256": "9966ea81fac37a99783a3eb5be2c473395bd49f8e9452ca496dd52c0ad8b6ab4"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 1,
+              "laws": {},
+              "diagnostics": [
+                {
+                  "capability": "procedures.c-call",
+                  "target": "go"
+                }
+              ]
+            },
+            "zx": {
+              "exit_code": 1,
+              "laws": {},
+              "diagnostics": [
+                {
+                  "capability": "procedures.c-call",
+                  "target": "zx"
+                }
+              ]
+            }
+          }
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {
+                "Portable": "proved"
+              }
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {
+                "Portable": "proved"
+              }
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {
+                "Portable": "proved"
+              }
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": true
+    },
+    {
+      "id": "law-repair",
+      "genre": "law_repair",
+      "prompt": "Repair Add using the disproved Sum law; keep Sum and the exported Answer signature.",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "law-repair/initial/main.zi",
+          "sha256": "e8de2bb139f316018f189333372add2eb7a6c201791d3e11ee7fa180198bfdf4"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "law-repair/final/main.zi",
+          "sha256": "1580af3fa6958cf59cd24ba26b99a200c8076e6898d836a91e85beaa62859139"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "zx": {
+              "exit_code": 1,
+              "laws": {
+                "Sum": "disproved"
+              }
+            }
+          }
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved"
+              }
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved"
+              }
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {
+                "Sum": "proved"
+              }
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": false
+    },
+    {
+      "id": "span-edit",
+      "genre": "edit_application",
+      "prompt": "Change only the numeric return value of Answer from 41 to 42 using an exact UTF-8 byte span edit.",
+      "context": [],
+      "entry": "main:Answer",
+      "retry_limit": 2,
+      "repair_budget": 2,
+      "initial": {
+        "main.zi": {
+          "fixture": "span-edit/initial/main.zi",
+          "sha256": "fe6fdb4031a83cb9b662845429e3c96b1cc3fc6e80142be7de7eaad43d6169e4"
+        }
+      },
+      "solution": {
+        "main.zi": {
+          "fixture": "span-edit/final/main.zi",
+          "sha256": "0be82343d92f9315b15a1b943d5f2f4e6ad684810bd7654b8613f55cce547cdb"
+        }
+      },
+      "expected": {
+        "initial": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "41\n"
+        },
+        "final": {
+          "checks": {
+            "c": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "go": {
+              "exit_code": 0,
+              "laws": {}
+            },
+            "zx": {
+              "exit_code": 0,
+              "laws": {}
+            }
+          },
+          "run_stdout": "42\n"
+        }
+      },
+      "portable_parity": true
+    }
+  ]
+}

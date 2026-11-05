@@ -1,0 +1,162 @@
+// Versioned edits keep canonical .zi as the only writable source format.
+#import "std/json_document"
+#import "std/byte_text_linux"
+using Vectors :: #import "std/vec"
+#import "format_source"
+Diagnostics :: #import "diagnostics"
+Transport :: #import "transport"
+
+#scope_file
+libc :: #system_library "libc";
+compiler :: #system_library "ziran";
+ReadRequest :: (path: string, limit: s64) -> *u8 #foreign compiler "ZiranToolReadText";
+Define :: (edit: *u8, name: string) -> s32 #foreign compiler "ZiranEditDefine";
+NativeJson :: () -> s32 #foreign compiler "ZiranEditJsonEnabled";
+Release :: (memory: *u8) #foreign libc "free";
+OpenEdit :: (root: string, path: string, hash: string) -> *u8 #foreign compiler "ZiranEditOpen";
+ModulePath :: (edit: *u8, path: string) -> s32 #foreign compiler "ZiranEditModulePath";
+AddEdit :: (edit: *u8, start: s64, end: s64, original: string, replacement: string, semantic: string) -> s32 #foreign compiler "ZiranEditAdd";
+BuildEdit :: (edit: *u8) -> *u8 #foreign compiler "ZiranEditBuild";
+SourceEdit :: (edit: *u8) -> *u8 #foreign compiler "ZiranEditSource";
+EditSize :: (edit: *u8) -> s64 #foreign compiler "ZiranEditSize";
+SourceSize :: (edit: *u8) -> s64 #foreign compiler "ZiranEditSourceSize";
+ValidateEdit :: (edit: *u8) -> s32 #foreign compiler "ZiranEditValidate";
+FinishEdit :: (edit: *u8, formatted: string, apply: s32) -> s32 #foreign compiler "ZiranEditFinish";
+CloseEdit :: (edit: *u8) #foreign compiler "ZiranEditClose";
+SetNativeFormat :: (format: string) -> s32 #foreign compiler "ZiranEditDiagnosticFormat";
+
+Fail :: (message: string) -> s32 {
+    if Diagnostics.IsJson() { Diagnostics.Emit("command.arguments", message, "") }
+    else { Diagnostics.WriteText("ziran edit: ", true); Diagnostics.WriteText(message, true); Diagnostics.WriteText("\n", true) }
+    return 1
+}
+
+// Require the exact set of known members and reject duplicate object keys.
+Keys :: (document: *JsonDocument, node: s32, allowed: string) -> bool {
+    if JsonKindOf(document, node) != .Object { return false }
+    child := JsonFirst(document, node)
+    while child >= 0 {
+        key := JsonKey(document, child)
+        found: bool = false
+        at: s64 = 0
+        while at < cast(s64)allowed.count {
+            end := at
+            while end < cast(s64)allowed.count && allowed[end] != #char "|" { end += 1 }
+            if key == allowed[at:end] { found = true }
+            at = end + 1
+        }
+        if !found { return false }
+        other := JsonNext(document, child)
+        while other >= 0 {
+            if key == JsonKey(document, other) { return false }
+            other = JsonNext(document, other)
+        }
+        child = JsonNext(document, child)
+    }
+    return true
+}
+
+ApplyRequest :: (text: string, root: string, apply: bool, module_paths: []string, defines: []string) -> s32 {
+    document: JsonDocument
+    defer VecFree(document.nodes)
+    if !JsonRead(*document, text) { return Fail("malformed JSON request") }
+    top := document.root
+    if !Keys(*document, top, "schema_version|path|document_sha256|edits") || JsonCount(*document, top) != 4 { return Fail("invalid request members") }
+    version, version_ok := JsonInteger(*document, JsonMember(*document, top, "schema_version"))
+    if !version_ok || version != 1 { return Fail("unsupported edit schema version") }
+    path_node := JsonMember(*document, top, "path")
+    hash_node := JsonMember(*document, top, "document_sha256")
+    edits := JsonMember(*document, top, "edits")
+    if JsonKindOf(*document, path_node) != .String || JsonKindOf(*document, hash_node) != .String ||
+       JsonKindOf(*document, edits) != .Array || JsonCount(*document, edits) < 1 || JsonCount(*document, edits) > 256 { return Fail("invalid document or edit count") }
+    path := JsonString(*document, path_node)
+    handle := OpenEdit(root, path, JsonString(*document, hash_node))
+    if handle == null { return 1 }
+    defer CloseEdit(handle)
+    for path: module_paths { if ModulePath(handle, path) == 0 { return 1 } }
+    for name: defines { if Define(handle, name) == 0 { return 1 } }
+    child := JsonFirst(*document, edits)
+    while child >= 0 {
+        if !Keys(*document, child, "start_byte|end_byte|semantic_id|original|replacement") { return Fail("invalid edit members") }
+        original := JsonMember(*document, child, "original")
+        replacement := JsonMember(*document, child, "replacement")
+        semantic := JsonMember(*document, child, "semantic_id")
+        start: s64 = -1
+        end: s64 = -1
+        identity: string = ""
+        if JsonKindOf(*document, original) != .String || JsonKindOf(*document, replacement) != .String { return Fail("edit requires exact original and replacement strings") }
+        if semantic >= 0 {
+            if JsonCount(*document, child) != 3 || JsonKindOf(*document, semantic) != .String { return Fail("declaration edit requires only semantic_id, original, replacement") }
+            identity = JsonString(*document, semantic)
+            if identity.count != 67 { return Fail("invalid semantic identity") }
+        } else {
+            low, low_ok := JsonInteger(*document, JsonMember(*document, child, "start_byte"))
+            high, high_ok := JsonInteger(*document, JsonMember(*document, child, "end_byte"))
+            if JsonCount(*document, child) != 4 || !low_ok || !high_ok { return Fail("span edit requires integer byte offsets") }
+            start = low
+            end = high
+        }
+        if AddEdit(handle, start, end, JsonString(*document, original), JsonString(*document, replacement), identity) == 0 { return 1 }
+        child = JsonNext(*document, child)
+    }
+    candidate := BuildEdit(handle)
+    if candidate == null || ValidateEdit(handle) == 0 { return 1 }
+    formatted := FormatSource(TextFromBytes(BytesFromPointer(candidate, cast(u64)EditSize(handle))))
+    defer VecFree(formatted)
+    before := FormatSource(TextFromBytes(BytesFromPointer(SourceEdit(handle), cast(u64)SourceSize(handle))))
+    defer VecFree(before)
+    result := TextFromBytes(VecSlice(formatted, 0, formatted.count))
+    if result == TextFromBytes(VecSlice(before, 0, before.count)) { return Fail("edit changes formatting only") }
+    flag: s32 = 0
+    if apply { flag = 1 }
+    if FinishEdit(handle, result, flag) == 0 { return 1 }
+    Diagnostics.WriteText("{\"schema_version\":1,\"path\":", false)
+    Diagnostics.Quote(path, false)
+    Diagnostics.WriteText(",\"applied\":", false)
+    if apply { Diagnostics.WriteText("true", false) } else { Diagnostics.WriteText("false", false) }
+    Diagnostics.WriteText(",\"source\":", false)
+    Diagnostics.Quote(result, false)
+    Diagnostics.WriteText("}\n", false)
+    return 0
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    root: string = ""
+    request: string = ""
+    apply: bool = false
+    module_paths: [32]string
+    module_count: s64 = 0
+    defines: [32]string
+    define_count: s64 = 0
+    if NativeJson() != 0 { Diagnostics.SetFormat("json") }
+    for at: 1..cast(s64)argc - 1 {
+        option := TextFromCString(argv[at])
+        if option == "--diagnostics=json" { Diagnostics.SetFormat("json"); unused SetNativeFormat("json") }
+        if option == "--diagnostics=text" { Diagnostics.SetFormat("text"); unused SetNativeFormat("text") }
+    }
+    if argc > 1 && (TextFromCString(argv[1]) == "compact" || TextFromCString(argv[1]) == "expand") { return Transport.Run(argc, argv) }
+    index: s32 = 1
+    while index < argc {
+        part := TextFromCString(argv[index])
+        if part == "--apply" { apply = true }
+        else if part == "--root" && index + 1 < argc { index += 1; root = TextFromCString(argv[index]) }
+        else if part == "--module-path" && index + 1 < argc && module_count < 32 {
+            index += 1; module_paths[module_count] = TextFromCString(argv[index]); module_count += 1
+        }
+        else if part == "--define" && index + 1 < argc && define_count < 32 {
+            index += 1; defines[define_count] = TextFromCString(argv[index]); define_count += 1
+        }
+        else if part == "--diagnostics=json" { Diagnostics.SetFormat("json"); unused SetNativeFormat("json") }
+        else if part == "--diagnostics=text" { Diagnostics.SetFormat("text"); unused SetNativeFormat("text") }
+        else if part.count > 0 && part[0] != #char "-" && request == "" { request = part }
+        else { return Fail("usage: ziran edit --root DIR [--module-path DIR] [--apply] request.json") }
+        index += 1
+    }
+    if root == "" || request == "" { return Fail("usage: ziran edit --root DIR [--module-path DIR] [--apply] request.json") }
+    memory := ReadRequest(request, 1048576)
+    if memory == null { return 1 }
+    defer Release(memory)
+    return ApplyRequest(TextFromCString(memory), root, apply, module_paths[0:module_count], defines[0:define_count])
+}

@@ -50,6 +50,37 @@ LexerNext(ZirLexer *lx)
     return token;
 }
 
+static void source_advance(ZirLexer *lexer)
+{
+    if(lexer->src[lexer->pos++] == '\n') { lexer->line++; lexer->column=1; }
+    else lexer->column++;
+}
+
+ZirToken LexerNextCode(ZirLexer *lexer)
+{
+    for(;;) {
+        while(lexer->pos < lexer->length &&
+              (lexer->src[lexer->pos]==' ' ||
+               (lexer->src[lexer->pos]>='\t' && lexer->src[lexer->pos]<='\r')))
+            source_advance(lexer);
+        if(lexer->pos+1 >= lexer->length || lexer->src[lexer->pos]!='/') break;
+        if(lexer->src[lexer->pos+1]=='/') {
+            while(lexer->pos<lexer->length && lexer->src[lexer->pos]!='\n') source_advance(lexer);
+        } else if(lexer->src[lexer->pos+1]=='*') {
+            source_advance(lexer); source_advance(lexer);
+            int depth=1;
+            while(depth && lexer->pos<lexer->length) {
+                if(lexer->pos+1<lexer->length && lexer->src[lexer->pos]=='/' && lexer->src[lexer->pos+1]=='*') {
+                    source_advance(lexer); source_advance(lexer); depth++;
+                } else if(lexer->pos+1<lexer->length && lexer->src[lexer->pos]=='*' && lexer->src[lexer->pos+1]=='/') {
+                    source_advance(lexer); source_advance(lexer); depth--;
+                } else source_advance(lexer);
+            }
+        } else break;
+    }
+    return LexerNext(lexer);
+}
+
 const char *
 TokenKindName(ZirTokenKind kind)
 {

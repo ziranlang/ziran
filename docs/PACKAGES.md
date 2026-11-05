@@ -76,6 +76,14 @@ entry = "src/main.zi"
 links = ["curl"]
 ```
 
+System links apply to the root manifest that declares them; they are not
+inherited from a dependency's `[package]` table. For example, a native consumer
+of `audio/pipeline` and `audio/resample` declares
+`links = ["opus", "samplerate", "m"]` in its own `[package]` table.
+An `audio/opus` codec-only consumer needs `links = ["opus", "m"]`.
+Portable `audio/ogg` inspection and `audio/wav` conversion need no codec
+libraries. A custom native host supplies the corresponding linker flags.
+
 `ziran install --prefix DIR` installs under `DIR/bin`; `[install] bin` changes
 the command name. The copy replaces an installed program in one step.
 
@@ -274,7 +282,15 @@ ziran = "../../ziranlang/ziran"
 ```
 
 Each override is the top of its own Git checkout: `ziran lock` records the
-commit checked out there. A directory inside another repository, such as an
+commit checked out there. An explicitly overridden checkout whose branch has
+no first commit is also usable for local development, including an overridden
+toolchain. Its lock entry has a `development` field instead of `commit`, with
+an `unborn:` identity derived deterministically from the canonical checkout
+path. This identifies local source; it does not claim a committed revision or
+a reproducible source snapshot. This is an optional field in lock format 1;
+older toolchains that require `commit` reject these development-only entries.
+Only a genuine unborn branch qualifies; missing commit objects and invalid Git
+metadata are refused. A directory inside another repository, such as an
 uninitialized submodule, is refused, because its HEAD would be the enclosing
 repository's commit. A root dependency's override selects that source for
 all incoming edges, including transitive dependencies with different aliases
@@ -289,8 +305,15 @@ merging their identities. The lock on disk remains unchanged. Conflicting
 overrides for one source are refused.
 
 After removing overrides, run `ziran lock` to resolve the declared revisions
-again. Exact pins select their declared commits rather than retaining a newer
-local override commit. `--locked` refuses an override-only ref substitution.
+again. Development-only entries require their explicit overrides and cannot
+be fetched into the immutable cache. `--locked` rejects a development-only
+lock even after overrides have been removed. Once a checkout has its first
+commit, `ziran lock` records the real commit instead. Exact pins select their
+declared commits rather than retaining a local development identity or newer
+override commit. `--locked` refuses an override-only ref substitution.
+Targeted updates cannot preserve an unrelated unborn package or toolchain's
+source snapshot; use `ziran lock` or a full `ziran update` while developing
+such a graph.
 
 Production builds omit overrides and use the locked Git commits. A host module
 that calls into the application can use an explicit reverse bridge:

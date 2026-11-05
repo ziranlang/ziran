@@ -166,11 +166,13 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     executable: string = ""
     check: bool = command == "check"
     bundle: bool = command == "bundle" || command == "run"
+    transport: bool = command == "compact" || command == "expand"
     build: bool = command == "build"
     if check || command == "ir" { executable = "zi2zir" }
     else if command == "api" { executable = "zi-api" }
     else if command == "inspect" { executable = "zi-inspect" }
     else if command == "fmt" { executable = "zi-fmt" }
+    else if command == "edit" || transport { executable = "zi-edit" }
     else if bundle { executable = "zi2zx" }
     else if build {
         target: string = ""
@@ -233,10 +235,10 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         child[count] = "--prune-stale"
         count += 1
     }
-    if bundle { child[count] = command; count += 1 }
+    if bundle || transport { child[count] = command; count += 1 }
     // `ziran run --project FILE.zx` runs a bundle with the pinned toolchain
     // that built it; a bundle takes no source root.
-    if project && command != "run" && !PkgHasArgument(arguments, "--root") {
+    if project && command != "run" && !transport && !PkgHasArgument(arguments, "--root") {
         child[count] = "--root"
         count += 1
         child[count] = PkgJoin3(root, "/", current.roots[0])

@@ -5,7 +5,8 @@ set -eu
 
 ziran=$1
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$root/build/tests/tmp"
+work=$(mktemp -d "$root/build/tests/tmp/json-document.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/std_json_document.zi" <<'ZI'
@@ -84,3 +85,40 @@ ZI
 "${CC:-cc}" -std=c99 -I"$root/include" -I"$work/c" \
     "$work/c"/*.c -lm -o "$work/program"
 (cd "$work" && ./program)
+
+# Stable owned document text, independent deep copies, reset/error reuse and
+# caller-owned output must agree in source, saved IR, C, Go and the portable VM.
+"$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \
+    -o "$work/ir" "$root/tests/spec/json_document_lifetime_test.zi"
+"$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \
+    -o "$work/ir" "$root/tests/spec/json_document_secure_test.zi"
+for form in source saved; do
+    native_input="$root/tests/spec/json_document_secure_test.zi"
+    input="$root/tests/spec/json_document_lifetime_test.zi"
+    module_root="$root/tests/spec"
+    if test "$form" = saved; then input="$work/ir/json_document_lifetime_test.zir"; native_input="$work/ir/json_document_secure_test.zir"; module_root="$work/ir"; fi
+    "$ziran" bundle --root "$module_root" --module-path "$root/std" \
+        --entry json_document_lifetime_test:Answer -o "$work/$form.zx" "$input"
+    test "$("$ziran" run "$work/$form.zx")" = 42
+    output="$work/$form-c"
+    "$ziran" build --target=c --root "$module_root" --module-path "$root/std" -o "$output" "$native_input"
+    "${CC:-cc}" -std=c99 -DZIRAN_BOUNDS_CHECK -I"$root/include" -I"$output" \
+        "$output"/*.c "$root/tests/spec/json_document_lifetime_alloc.c" \
+        -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -lm -o "$output/lifetime"
+    "$output/lifetime"
+    "${CC:-cc}" -std=c99 -DLIFETIME_MEMORY_ONLY -DZIRAN_BOUNDS_CHECK \
+        -fsanitize=address,undefined -fno-omit-frame-pointer -I"$root/include" -I"$output" \
+        "$output"/*.c "$root/tests/spec/json_document_lifetime_alloc.c" \
+        -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free -lm -o "$output/lifetime-sanitized"
+    "$output/lifetime-sanitized"
+    output="$work/$form-go"
+    "$ziran" build --target=go --pkg main --root "$module_root" --module-path "$root/std" -o "$output" "$native_input"
+    cat > "$output/main.go" <<'GO'
+package main
+func main() {
+    if JsonDocumentLifetimeTest_Answer() != 42 || JsonDocumentLifetimeTest_Memory() != 42 || JsonDocumentSecureTest_Secure() != 42 || JsonDocumentSecureTest_Faults() != 42 { panic("JSON document lifetime differs") }
+}
+GO
+    GO111MODULE=off GOMAXPROCS=2 GOFLAGS=-p=2 go run "$output"/*.go
+done
+echo 'JSON documents passed source/saved-IR C/Go/VM and bounded allocation lifecycle tests'

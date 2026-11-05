@@ -116,10 +116,10 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
         locked.name = PkgJsonField(json, item, "name")
         locked.url = PkgJsonField(json, item, "url")
         locked.ref = PkgJsonField(json, item, "ref")
-        locked.commit = PkgJsonField(json, item, "commit")
+        locked.commit = PkgReadIdentity(json, item)
         if locked.id.count == 0 || locked.name.count == 0 ||
             locked.url.count == 0 || locked.ref.count == 0 ||
-            locked.commit.count != 40 ||
+            locked.commit.count == 0 ||
             !PkgParseEdges(json, FieldAt(json, item, "dependencies"),
                 *locked.edges[0], *locked.edge_count) { return false }
         refs_at: s32 = FieldAt(json, item, "dependency_refs")
@@ -145,9 +145,9 @@ PkgReadLock :: (path: string, output: *PkgLock) -> bool {
     tool: s32 = FieldAt(json, 0, "toolchain")
     output.tool_url = PkgJsonField(json, tool, "url")
     output.tool_ref = PkgJsonField(json, tool, "ref")
-    output.tool_commit = PkgJsonField(json, tool, "commit")
+    output.tool_commit = PkgReadIdentity(json, tool)
     if output.tool_url.count == 0 || output.tool_ref.count == 0 ||
-       output.tool_commit.count != 40 { return false }
+       output.tool_commit.count == 0 { return false }
     output.valid = true
     return true
 }
@@ -292,6 +292,32 @@ PkgValidCommit :: (commit: string) -> bool {
     return true
 }
 
+// Development identities are path-scoped, explicitly uncommitted revisions.
+// They never pass PkgValidCommit or enter the immutable source cache.
+PkgValidDevelopment :: (identity: string) -> bool {
+    if identity.count != 71 || identity[0:7] != "unborn:" { return false }
+    index: s64 = 7
+    while index < identity.count {
+        ch: u8 = identity[index]
+        if !((ch >= cast(u8)48 && ch <= cast(u8)57) ||
+             (ch >= cast(u8)97 && ch <= cast(u8)102)) { return false }
+        index += 1
+    }
+    return true
+}
+
+PkgReadIdentity :: (json: string, object: s32) -> string {
+    commit: string = PkgJsonField(json, object, "commit")
+    development: string = PkgJsonField(json, object, "development")
+    if FieldAt(json, object, "development") < 0 && PkgValidCommit(commit) {
+        return commit
+    }
+    if FieldAt(json, object, "commit") < 0 && PkgValidDevelopment(development) {
+        return development
+    }
+    return ""
+}
+
 // The commit checked out at directory, or "" unless directory is the top
 // of its own checkout: inside another repository, such as an uninitialized
 // submodule, HEAD is the enclosing repository's commit. --show-prefix is
@@ -303,10 +329,50 @@ PkgGitHead :: (directory: string) -> string {
     args[2] = directory
     args[3] = "rev-parse"
     args[4] = "--show-prefix"
-    args[5] = "HEAD"
+    args[5] = "HEAD^{commit}"
     result: PkgProcessResult = PkgCapture(args[0:6], "")
     if result.code != 0 || !PkgValidCommit(result.text) { return "" }
     return PkgJoin("", result.text)
+}
+
+// Only an explicit override may select an unborn checkout. Verify the actual
+// canonical root, then a symbolic HEAD whose branch ref is genuinely absent;
+// a corrupt/detached HEAD must not be mistaken for an unborn repository.
+PkgOverrideIdentity :: (directory: string) -> string {
+    commit: string = PkgGitHead(directory)
+    if commit.count > 0 { return commit }
+    args: [6]string
+    args[0] = "git"
+    args[1] = "-C"
+    args[2] = directory
+    args[3] = "rev-parse"
+    args[4] = "--show-toplevel"
+    result: PkgProcessResult = PkgCapture(args[0:5], "")
+    canonical: string = PkgCanonical(directory)
+    if result.code != 0 || canonical.count == 0 || result.text != canonical {
+        unused PkgFail(PkgJoin("override is not the top of a Git checkout: ", directory))
+        return ""
+    }
+    args[3] = "symbolic-ref"
+    args[4] = "--quiet"
+    args[5] = "HEAD"
+    result = PkgCapture(args[:], "")
+    if result.code == 0 && result.text.count > 11 && result.text[0:11] == "refs/heads/" {
+        args[3] = "show-ref"
+        args[4] = "--verify"
+        args[5] = PkgJoin("", result.text)
+        // show-ref without --quiet reports a missing ref with status 128;
+        // --quiet distinguishes absence (1) from corrupt Git metadata (128).
+        quiet: [7]string
+        index: s32 = 0
+        while index < 6 { quiet[index] = args[index]; index += 1 }
+        quiet[6] = "--quiet"
+        if PkgCapture(quiet[:], "").code == 1 {
+            return PkgJoin("unborn:", PkgDigest(canonical))
+        }
+    }
+    unused PkgFail(PkgJoin("override has no valid commit or unborn branch: ", directory))
+    return ""
 }
 
 // Runs a Git command whose argument at url_index names a repository. When
@@ -639,7 +705,9 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
         if best < 0 { return false }
         item: *PkgLocked = *locked.packages[best]
         if written > 0 { PkgAppend(*builder, ",\n") }
-        PkgAppend(*builder, "    {\n      \"commit\": ")
+        PkgAppend(*builder, "    {\n      ")
+        if PkgValidDevelopment(item.commit) { PkgAppend(*builder, "\"development\": ") }
+        else { PkgAppend(*builder, "\"commit\": ") }
         PkgAppendJson(*builder, item.commit)
         PkgAppend(*builder, ",\n      \"dependencies\": ")
         PkgWriteEdges(*builder, *item.edges[0], item.edge_count)
@@ -669,7 +737,9 @@ PkgWriteLock :: (root: string, locked: *PkgLock) -> bool {
     }
     PkgAppend(*builder, ",\n    \"name\": ")
     PkgAppendJson(*builder, locked.root_name)
-    PkgAppend(*builder, "\n  },\n  \"toolchain\": {\n    \"commit\": ")
+    PkgAppend(*builder, "\n  },\n  \"toolchain\": {\n    ")
+    if PkgValidDevelopment(locked.tool_commit) { PkgAppend(*builder, "\"development\": ") }
+    else { PkgAppend(*builder, "\"commit\": ") }
     PkgAppendJson(*builder, locked.tool_commit)
     PkgAppend(*builder, ",\n    \"ref\": ")
     PkgAppendJson(*builder, locked.tool_ref)
@@ -695,6 +765,10 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
        !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides) { return false }
     PkgReadLock(PkgJoin(root, "/ziran.lock"), old)
     targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
+    if targeted && old.valid && PkgValidDevelopment(old.tool_commit) {
+        unused PkgFail("targeted update cannot preserve an unborn toolchain snapshot; run ziran lock or ziran update")
+        return false
+    }
     if refresh == "ziran" {
         if !old.valid || current.name != old.root_name ||
            !PkgSameSource(current.tool_git, old.tool_url) ||
@@ -783,17 +857,20 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
             // A targeted update reads an unrelated package's pinned manifest,
             // even when its development override has newer or dirty inputs.
             if targeted && old.valid && previous >= 0 && !next.refresh {
+                if PkgValidDevelopment(old.packages[previous].commit) {
+                    unused PkgFail("targeted update cannot preserve an unborn package snapshot; run ziran lock or ziran update")
+                    return false
+                }
                 item.commit = old.packages[previous].commit
                 item.path = PkgCheckout(next.url, item.commit, false)
             } else if override.count > 0 {
-                item.commit = PkgGitHead(override)
+                item.commit = PkgOverrideIdentity(override)
                 item.path = override
                 if item.commit.count == 0 {
-                    unused PkgFail(PkgJoin("override is not the top of a Git checkout: ", override))
                     return false
                 }
             } else {
-                if previous >= 0 && !next.refresh &&
+                if previous >= 0 && PkgValidCommit(old.packages[previous].commit) && !next.refresh &&
                     (!PkgValidCommit(next.ref) || old.packages[previous].commit == next.ref) {
                     item.commit = old.packages[previous].commit
                 } else {
@@ -801,7 +878,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 }
                 item.path = PkgCheckout(next.url, item.commit, false)
             }
-            if !PkgValidCommit(item.commit) || item.path.count == 0 {
+            if (!PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit)) || item.path.count == 0 {
                 return false
             }
             // Manifests may name one commit by different refs, a branch in
@@ -879,23 +956,22 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
     resolved.tool_url = current.tool_git
     resolved.tool_ref = current.tool_ref
     tool_override: string = PkgFindOverride(overrides, "ziran", root)
-    if targeted && old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
+    if targeted && old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
        old.tool_ref == resolved.tool_ref {
         resolved.tool_commit = old.tool_commit
     } else if tool_override.count > 0 {
-        resolved.tool_commit = PkgGitHead(tool_override)
+        resolved.tool_commit = PkgOverrideIdentity(tool_override)
         if resolved.tool_commit.count == 0 {
-            unused PkgFail(PkgJoin("override is not the top of a Git checkout: ", tool_override))
             return false
         }
-    } else if old.valid && PkgSameSource(old.tool_url, resolved.tool_url) &&
+    } else if old.valid && PkgValidCommit(old.tool_commit) && PkgSameSource(old.tool_url, resolved.tool_url) &&
         old.tool_ref == resolved.tool_ref && refresh != "*" &&
         refresh != "ziran" {
         resolved.tool_commit = old.tool_commit
     } else {
         resolved.tool_commit = PkgRemoteCommit(resolved.tool_url, resolved.tool_ref)
     }
-    if !PkgValidCommit(resolved.tool_commit) { return false }
+    if !PkgValidCommit(resolved.tool_commit) && !PkgValidDevelopment(resolved.tool_commit) { return false }
     return PkgWriteLock(root, resolved)
 }
 
@@ -910,7 +986,7 @@ PkgApplyOverrideIdentities :: (root: string, overrides: *PkgOverrides,
         path: string = PkgSourceOverride(overrides, current, locked,
             item.url, item.name, root)
         if path.count > 0 {
-            commit: string = PkgGitHead(path)
+            commit: string = PkgOverrideIdentity(path)
             if commit.count == 0 { return false }
             old_id: string = item.id
             item.commit = commit
@@ -972,6 +1048,18 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         PkgFail("local overrides are not allowed with --locked")
         return false
     }
+    if locked_mode {
+        development: bool = PkgValidDevelopment(locked.tool_commit)
+        index: s32 = 0
+        while index < locked.count {
+            development = development || PkgValidDevelopment(locked.packages[index].commit)
+            index += 1
+        }
+        if development {
+            unused PkgFail("development-only ziran.lock cannot be used with --locked; run ziran lock without overrides")
+            return false
+        }
+    }
     if current.name != locked.root_name ||
        current.dependency_count != locked.root_edge_count ||
        !PkgSameSource(current.tool_git, locked.tool_url) ||
@@ -1007,7 +1095,7 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         override: string = PkgSourceOverride(overrides, current, locked,
             item.url, item.name, root)
         if override.count > 0 {
-            commit: string = PkgGitHead(override)
+            commit: string = PkgOverrideIdentity(override)
             if commit.count == 0 { return false }
             // Several locked revisions can select one checkout. Validate its
             // declarations against the graph locked for that actual identity,
@@ -1023,6 +1111,10 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
         }
         item.path = override
         if item.path.count == 0 {
+            if PkgValidDevelopment(item.commit) {
+                unused PkgFail("development-only package requires an explicit local override; run ziran lock")
+                return false
+            }
             item.path = PkgCheckout(item.url, item.commit, offline)
         }
         if item.path.count == 0 { return false }
@@ -1050,7 +1142,14 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     }
     locked.tool_path = PkgFindOverride(overrides, "ziran", root)
     if locked.tool_path.count == 0 {
+        if PkgValidDevelopment(locked.tool_commit) {
+            unused PkgFail("development-only toolchain requires an explicit local override; run ziran lock")
+            return false
+        }
         locked.tool_path = PkgCheckout(locked.tool_url, locked.tool_commit, offline)
+    } else {
+        locked.tool_commit = PkgOverrideIdentity(locked.tool_path)
+        if locked.tool_commit.count == 0 { return false }
     }
     return locked.tool_path.count > 0 &&
         PkgApplyOverrideIdentities(root, overrides, current, locked)

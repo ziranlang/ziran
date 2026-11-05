@@ -62,7 +62,29 @@ main(int argc, char **argv)
         direct = SendCurlDirectWithin(request, buffer, 1000);
         assert(direct.code == 0 && direct.status == 200 && direct.length == sizeof binary);
         assert(memcmp(output, binary, sizeof binary) == 0);
-        puts("Ziran direct HTTP bypasses proxies, retains redirects, HEAD and binary bodies");
+        request.method = StringLiteral("GET");
+        request.body = StringLiteral("");
+        request.url = url(address, sizeof address, argv[1], "/header");
+        char operator_value[8192];
+        memset(operator_value, 'v', sizeof operator_value);
+        HttpHeader operator_header = {
+            .name = StringLiteral("X-Daochi-Admin"),
+        };
+        request.headers = (Slice){.data=&operator_header,.length=1};
+        const size_t accepted[] = {4096, 8191};
+        for (size_t i=0; i<sizeof accepted/sizeof accepted[0]; i++) {
+            operator_header.value = StringView(operator_value, accepted[i]);
+            direct = SendCurlDirectWithin(request, buffer, 1000);
+            assert(direct.code == 0 && direct.status == 200);
+            assert(strtoul(output, NULL, 10) == accepted[i]);
+        }
+        operator_header.value = StringView(operator_value, sizeof operator_value);
+        direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == -1 && direct.status == 0 && direct.length == 0 && output[0] == 0);
+        operator_header.value = StringLiteral("bad\r\nX-Injected: yes");
+        direct = SendCurlDirectWithin(request, buffer, 1000);
+        assert(direct.code == -1 && direct.status == 0 && output[0] == 0);
+        puts("Ziran direct HTTP bypasses proxies, retains redirects, HEAD/binary bodies and named-header value bounds");
         return 0;
     }
     CurlResult result = SendCurl(request, buffer);

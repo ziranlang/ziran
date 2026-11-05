@@ -9,7 +9,7 @@ NATIVE_ZX ?= $(if $(NATIVE_ZX_MACHINE),1,0)
 ifeq ($(NATIVE_ZX),1)
 NATIVE_ZX_HEADERS := $(wildcard cmd/zir/zx_native_include/*.h) third_party/tinycc/include/tccdefs.h
 NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native.c cmd/zir/zir_zx_native_run.c \
-    cmd/zir/zir_zx_native_lower.c cmd/zir/zir_zx_host.c cmd/zir/zir_sha256.c \
+    cmd/zir/zir_zx_native_lower.c cmd/zir/zir_zx_host.c \
     cmd/zir-c/zir_c_lower.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c) \
     $(RUNTIME_OBJECTS) $(BUILD_DIR)/obj/zx_native_headers.o $(BUILD_DIR)/obj/tinycc.o
 LIB_OBJECTS += $(NATIVE_ZX_OBJECTS)
@@ -55,7 +55,7 @@ endif
 
 LINKED_ZX ?= $(if $(filter wasm%,$(TARGET_MACHINE)),1,0)
 ifeq ($(LINKED_ZX),1)
-NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native_run.c cmd/zir/zir_sha256.c)
+NATIVE_ZX_OBJECTS := $(call obj,cmd/zir/zir_zx_native_run.c)
 LIB_OBJECTS += $(NATIVE_ZX_OBJECTS)
 $(BUILD_DIR)/libziran.a: $(NATIVE_ZX_OBJECTS) native-zx.mk
 $(call obj,cmd/zir/zir_host.c): CFLAGS += -DZIRAN_LINKED_ZX

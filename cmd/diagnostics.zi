@@ -73,12 +73,33 @@ Quote :: (value: string, error: bool) {
     WriteText("\"", error)
 }
 
+// Budgets apply before escaping (at most six JSON bytes per input byte).
+// Slice only at a validated UTF-8 boundary. Invalid bytes remain escaped.
+Bounded :: (value: string, limit: s64) -> string {
+    index: s64 = 0
+    while index < cast(s64)value.count && index < limit {
+        length := Utf8Length(value, index)
+        if length == 0 { length = 1 }
+        if length > limit - index { break }
+        index += length
+    }
+    return value[0:index]
+}
+
 Emit :: (code: string, message: string, path: string) {
-    WriteText("{\"schema_version\":1,\"severity\":\"error\",\"code\":", true)
-    Quote(code, true)
+    bounded_message := Bounded(message, 2048)
+    WriteText("{\"schema_version\":2,\"severity\":\"error\",\"code\":", true)
+    Quote(Bounded(code, 128), true)
     WriteText(",\"message\":", true)
-    Quote(message, true)
+    Quote(bounded_message, true)
     WriteText(",\"path\":", true)
-    Quote(path, true)
-    WriteText(",\"line\":0,\"column\":0,\"end_line\":0,\"end_column\":0}\n", true)
+    if path.count > 1024 { WriteText("null", true) }
+    else { Quote(path, true) }
+    WriteText(",\"line\":0,\"column\":0,\"end_line\":0,\"end_column\":0,\"semantic_id\":null,\"cause\":null,\"document\":null,\"related_graph\":{\"nodes\":[],\"edges\":[]},\"alternatives\":[],\"truncation\":{\"message\":", true)
+    if bounded_message.count < message.count { WriteText("true", true) }
+    else { WriteText("false", true) }
+    WriteText(",\"metadata\":", true)
+    if code.count > 128 || path.count > 1024 { WriteText("true", true) }
+    else { WriteText("false", true) }
+    WriteText("}}\n", true)
 }

@@ -1,0 +1,10 @@
+#!/bin/sh
+set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+ziran=${1:?pass the ziran command}
+shift
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY XDG_SESSION_ID DBUS_SESSION_BUS_ADDRESS
+unset SESSION_MANAGER DESKTOP_SESSION XDG_CURRENT_DESKTOP XDG_SESSION_TYPE
+unset XDG_RUNTIME_DIR DESKTOP_STARTUP_ID ICEAUTHORITY SSH_AUTH_SOCK
+export ZIRAN_DESKTOP_RECOVERY=0 HARMONY_DESKTOP_RECOVERY=0 PYTHONDONTWRITEBYTECODE=1
+exec python3 "$repo/tests/authoring_workflows.py" --ziran "$ziran" "$@"

@@ -106,9 +106,11 @@ built with `-msimd128`; otherwise the next variant or the Ziran body runs.
 Build the module twice, with and without `-msimd128`, and load the SIMD module
 only where `WebAssembly.validate` accepts a SIMD module. Operands are locals
 (`local.get %[value]`, `local.set %[out]`), and inputs must not be written.
-`v128` values cannot be operands: keep them on the operand stack, carried
-through `block (v128) -> (v128)` and `loop (v128) -> (v128)`, or pass memory by
-pointer. Use `v128.load 0:p2align=0` for unaligned data.
+`v128` values cannot be operands: keep them on the operand stack or in memory
+passed by pointer. From Clang 19 (current Emscripten qualifies) a template can
+carry them through `block (v128) -> (v128)` and `loop (v128) -> (v128)`; Clang 18
+crashes on any typed block in inline assembly. Use `v128.load 0:p2align=0` for
+unaligned data.
 
 Assembly and the fallback must implement the same behavior; checking the
 fallback does not prove their equivalence. These variants do not yet provide

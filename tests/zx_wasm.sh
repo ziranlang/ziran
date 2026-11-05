@@ -178,13 +178,13 @@ test "$("$zi2zx_vm" run "$work/zx_wasm_test.zx")" = "$expected"
 # An engine rejects a whole module that holds SIMD instructions it lacks, so
 # wasm32+simd128 variants enter generated C only when the build enables SIMD.
 # One source yields a SIMD module and a baseline module; both must validate
-# and agree with the portable body. v128 values stay on the operand stack,
-# carried through blocks and loops, and loads use alignment 1.
+# and agree with the portable body. Loads use alignment 1, and the v128
+# accumulator lives in memory because Clang 18 cannot assemble typed blocks.
 cat >"$work/simd.zi" <<'EOF'
 #program_export
 SimdPath :: () -> s32 #asm("wasm32+simd128", "i32.const 2\n\tlocal.set %[out]", "=r", "", "", "") #asm("wasm32", "i32.const 1\n\tlocal.set %[out]", "=r", "", "", "") { return 0 }
 #program_export
-SumChunks :: (data: *u8, chunks: u32, scratch: *u32) -> u32 #asm("wasm32+simd128", "local.get %[scratch]\n\tv128.const 0, 0, 0, 0\n\tblock (v128) -> (v128)\n\tlocal.get %[chunks]\n\ti32.eqz\n\tbr_if 0\n\tlocal.get %[data]\n\tlocal.get %[chunks]\n\ti32.const 4\n\ti32.shl\n\ti32.add\n\tlocal.set %[out]\n\tloop (v128) -> (v128)\n\tlocal.get %[out]\n\tlocal.get %[chunks]\n\ti32.const 4\n\ti32.shl\n\ti32.sub\n\tv128.load 0:p2align=0\n\ti16x8.extadd_pairwise_i8x16_u\n\ti32x4.extadd_pairwise_i16x8_u\n\ti32x4.add\n\tlocal.get %[out]\n\ti32.const 16\n\ti32.add\n\tlocal.tee %[out]\n\tlocal.get %[data]\n\tlocal.get %[chunks]\n\ti32.const 5\n\ti32.shl\n\ti32.add\n\ti32.lt_u\n\tbr_if 0\n\tend_loop\n\tend_block\n\tv128.store 0:p2align=2\n\tlocal.get %[scratch]\n\ti32.load 0\n\tlocal.get %[scratch]\n\ti32.load 4\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 8\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 12\n\ti32.add\n\tlocal.set %[out]", "=&r", "r;r;r", "memory", "") {
+SumChunks :: (data: *u8, chunks: u32, scratch: *u32) -> u32 #asm("wasm32+simd128", "local.get %[scratch]\n\tv128.const 0, 0, 0, 0\n\tv128.store 0:p2align=2\n\tblock\n\tlocal.get %[chunks]\n\ti32.eqz\n\tbr_if 0\n\tlocal.get %[data]\n\tlocal.set %[out]\n\tloop\n\tlocal.get %[scratch]\n\tlocal.get %[scratch]\n\tv128.load 0:p2align=2\n\tlocal.get %[out]\n\tv128.load 0:p2align=0\n\ti16x8.extadd_pairwise_i8x16_u\n\ti32x4.extadd_pairwise_i16x8_u\n\ti32x4.add\n\tv128.store 0:p2align=2\n\tlocal.get %[out]\n\ti32.const 16\n\ti32.add\n\tlocal.tee %[out]\n\tlocal.get %[data]\n\tlocal.get %[chunks]\n\ti32.const 4\n\ti32.shl\n\ti32.add\n\ti32.lt_u\n\tbr_if 0\n\tend_loop\n\tend_block\n\tlocal.get %[scratch]\n\ti32.load 0\n\tlocal.get %[scratch]\n\ti32.load 4\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 8\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 12\n\ti32.add\n\tlocal.set %[out]", "=&r", "r;r;r", "memory", "") {
     unused scratch
     total: u32
     i: u32 = 0
@@ -214,7 +214,35 @@ Answer :: () -> s64 {
     return (total * 10 + cast(s64)BlockPath()) * 10 + cast(s64)SimdPath()
 }
 EOF
-"$ziran" build --target=c --root "$work" -o "$work/simd-c" "$work/simd.zi"
+# From Clang 19, a v128 can stay on the operand stack through block and loop
+# signatures; that kernel runs in a module of its own.
+cat >"$work/carried.zi" <<'EOF'
+#program_export
+Carried :: (data: *u8, chunks: u32, scratch: *u32) -> u32 #asm("wasm32+simd128", "local.get %[scratch]\n\tv128.const 0, 0, 0, 0\n\tblock (v128) -> (v128)\n\tlocal.get %[chunks]\n\ti32.eqz\n\tbr_if 0\n\tlocal.get %[data]\n\tlocal.get %[chunks]\n\ti32.const 4\n\ti32.shl\n\ti32.add\n\tlocal.set %[out]\n\tloop (v128) -> (v128)\n\tlocal.get %[out]\n\tlocal.get %[chunks]\n\ti32.const 4\n\ti32.shl\n\ti32.sub\n\tv128.load 0:p2align=0\n\ti16x8.extadd_pairwise_i8x16_u\n\ti32x4.extadd_pairwise_i16x8_u\n\ti32x4.add\n\tlocal.get %[out]\n\ti32.const 16\n\ti32.add\n\tlocal.tee %[out]\n\tlocal.get %[data]\n\tlocal.get %[chunks]\n\ti32.const 5\n\ti32.shl\n\ti32.add\n\ti32.lt_u\n\tbr_if 0\n\tend_loop\n\tend_block\n\tv128.store 0:p2align=2\n\tlocal.get %[scratch]\n\ti32.load 0\n\tlocal.get %[scratch]\n\ti32.load 4\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 8\n\ti32.add\n\tlocal.get %[scratch]\n\ti32.load 12\n\ti32.add\n\tlocal.set %[out]", "=&r", "r;r;r", "memory", "") {
+    unused scratch
+    total: u32
+    i: u32 = 0
+    while i < chunks * 16 { total += cast(u32)data[i]; i += 1 }
+    return total
+}
+#program_export
+Answer :: () -> s64 {
+    buffer: [161]u8
+    i: s32 = 0
+    while i < 161 { buffer[i] = cast(u8)(i * 37 + 11); i += 1 }
+    scratch: [4]u32
+    total: s64 = 0
+    chunks: u32 = 0
+    while chunks <= 10 {
+        total = total * 3 + cast(s64)Carried(*buffer[1], chunks, *scratch[0])
+        chunks += 1
+    }
+    return total
+}
+EOF
+for name in simd carried; do
+    "$ziran" build --target=c --root "$work" -o "$work/$name-c" "$work/$name.zi"
+done
 printf '#include <stdio.h>\n#include "simd.h"\nint main(void) { printf("%%lld\\n", (long long)Answer()); }\n' \
     >"$work/simd-host.c"
 "${CC:-cc}" -std=c11 -O2 -I"$repo/include" -I"$work/simd-c" \
@@ -232,14 +260,15 @@ printf '_Noreturn static inline void abort(void) { __builtin_trap(); }\n' >"$wor
 wasmcc=${ZIRAN_WASM_CC:-clang}
 simd_ran=0
 wasm_build() {
+    name=$1; shift
     # Unquoted on purpose: the compiler command may carry options.
     $wasmcc --target=wasm32 -std=c11 -O2 -mbulk-memory -ffreestanding -nostdlib \
-        -isystem "$work/freestanding" -I"$repo/include" -I"$work/simd-c" "$@" \
-        -Wl,--no-entry -Wl,--export=Answer "$work/simd-c/simd.c"
+        -isystem "$work/freestanding" -I"$repo/include" -I"$work/$name-c" "$@" \
+        -Wl,--no-entry -Wl,--export=Answer "$work/$name-c/$name.c"
 }
-if wasm_build -o "$work/simd-baseline.wasm" >/dev/null 2>&1; then
-    wasm_build -msimd128 -o "$work/simd-simd.wasm"
-    wasm_build -msimd128 -DZIRAN_NO_ASM -o "$work/simd-portable.wasm"
+if wasm_build simd -o "$work/simd-baseline.wasm" >/dev/null 2>&1; then
+    wasm_build simd -msimd128 -o "$work/simd-simd.wasm"
+    wasm_build simd -msimd128 -DZIRAN_NO_ASM -o "$work/simd-portable.wasm"
     cat >"$work/run_simd.js" <<'EOF'
 const fs = require('fs');
 for (const file of process.argv.slice(2)) {
@@ -262,6 +291,18 @@ EOF
             echo "zx-wasm-test: the baseline module holds SIMD instructions"
             exit 1
         fi
+    fi
+    if test "$($wasmcc -dumpversion | cut -d. -f1)" -ge 19; then
+        wasm_build carried -msimd128 -o "$work/carried-simd.wasm"
+        wasm_build carried -o "$work/carried-baseline.wasm"
+        results=$("$nodebin" "$work/run_simd.js" "$work/carried-simd.wasm" \
+            "$work/carried-baseline.wasm" | tr '\n' ' ')
+        test "$results" = "$((portable / 100)) $((portable / 100)) " || {
+            echo "zx-wasm-test: stack-carried SIMD128 results '$results' for portable $portable"
+            exit 1
+        }
+    else
+        echo "zx-wasm-test: $wasmcc is older than Clang 19; skipping the stack-carried SIMD128 kernel"
     fi
     simd_ran=1
 else

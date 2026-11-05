@@ -4,8 +4,9 @@
 # Pillow resizes, for Lanczos, bicubic and box over odd sizes, boxes,
 # extreme pictures and split row ranges. Runs natively at -O0 and -O2 and
 # with ZIRAN_NO_ASM. With the Android NDK (ANDROID_NDK_HOME) it also builds
-# AArch64 and ARMv7, running each under qemu-aarch64 / qemu-arm when those
-# are on PATH (or named by QEMU_AARCH64 / QEMU_ARM).
+# AArch64 and ARMv7, running each under the qemu-user named by QEMU_AARCH64 /
+# QEMU_ARM. Static Bionic binaries need an NDK that aligns arm64 TLS to 64
+# bytes and, on 32-bit ARM, host PIDs up to 65535, so the runs are opt-in.
 set -eu
 
 ziran=$1
@@ -186,21 +187,21 @@ if test -n "${ANDROID_NDK_HOME:-}"; then
         "$bin/$triple-clang" -std=c99 -O2 -static -Wno-parentheses-equality -I"$root/include" -I"$work/c" \
             "$work/c"/*.c -lz -lm -o "$work/$triple"
     done
-    qemu=${QEMU_AARCH64:-$(command -v qemu-aarch64 || true)}
+    qemu=${QEMU_AARCH64:-}
     if test -n "$qemu"; then
         "$qemu" "$work/aarch64-linux-android24" > "$work/aarch64.out"
         sed 's/^/aarch64: /' "$work/aarch64.out"
         expect_levels "$work/aarch64.out" scalar neon
         grep -qx 'best: neon' "$work/aarch64.out"
     else
-        echo "AArch64 built; no qemu-aarch64 to run it"
+        echo "AArch64 built; set QEMU_AARCH64 to run it"
     fi
-    qemu=${QEMU_ARM:-$(command -v qemu-arm || true)}
+    qemu=${QEMU_ARM:-}
     if test -n "$qemu"; then
         "$qemu" "$work/armv7a-linux-androideabi24" > "$work/armv7.out"
         sed 's/^/armv7: /' "$work/armv7.out"
         grep -q '^cases: ' "$work/armv7.out"
     else
-        echo "ARMv7 built; no qemu-arm to run it"
+        echo "ARMv7 built; set QEMU_ARM to run it"
     fi
 fi

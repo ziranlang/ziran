@@ -75,7 +75,10 @@ typedef struct Writer {
     uint32_t string_count, string_capacity;
     uint32_t *slots;
     uint32_t slot_count;
-    size_t text_bytes;
+    /* Bytes a reader will charge against ZIR_READ_BUDGET for what is
+     * written so far, and why writing stopped, if it did. */
+    size_t charged;
+    const char *problem;
     int last_line;
     const char *last_path;
     int has_span;
@@ -172,8 +175,10 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
 #define ZIR_FORMAT_VERSION 59u
 /* Memory a reader may spend on one program's records and on the text its
- * strings stand for; writers refuse programs whose strings exceed it. */
+ * strings stand for. Writers charge the same, so every program written can
+ * be read back; this budget, not a count or length cap, bounds saved IR. */
 #define ZIR_READ_BUDGET (256u * 1024u * 1024u)
+#define ZIR_READ_BUDGET_PROBLEM "checked IR exceeds the 256 MiB IR read budget"
 enum { ASSEMBLY_BLOCK_FLAG = 1u << 30 };
 
 static const Field import_fields[] = {
@@ -548,6 +553,18 @@ writer_free_strings(Writer *out)
     free(out->slots);
 }
 
+/* Charges COUNT records of SIZE bytes exactly as the reader will. */
+static int
+writer_charge(Writer *out, size_t count, size_t size)
+{
+    if(size != 0 && count > (ZIR_READ_BUDGET - out->charged) / size) {
+        out->problem = ZIR_READ_BUDGET_PROBLEM;
+        return 0;
+    }
+    out->charged += count * size;
+    return 1;
+}
+
 /* Empty is 0; a string seen before is its index times two plus one; a new
  * string is its length times two, then its bytes. The written program
  * stays alive and unchanged while it is written, so the table borrows it. */
@@ -555,13 +572,12 @@ static int
 write_string(Writer *out, const char *value, size_t capacity)
 {
     size_t length = strnlen(value, capacity);
-    if(length == capacity || length > UINT32_MAX / 2)
+    if(length == capacity)
         return 0;
     if(length == 0)
         return write_u32(out, 0);
-    if(length > ZIR_READ_BUDGET - out->text_bytes)
+    if(!writer_charge(out, length, 1) || length > UINT32_MAX / 2)
         return 0;
-    out->text_bytes += length;
     if(!writer_grow_strings(out))
         return 0;
     uint32_t slot;
@@ -596,7 +612,7 @@ read_serial_string(Reader *reader, const char **text, uint32_t *length)
             return 0;
         }
         if(reader->strings[index].length > reader->budget) {
-            reader->problem = "strings exceed IR limit";
+            reader->problem = ZIR_READ_BUDGET_PROBLEM;
             return 0;
         }
         reader->budget -= reader->strings[index].length;
@@ -605,12 +621,8 @@ read_serial_string(Reader *reader, const char **text, uint32_t *length)
         return 1;
     }
     uint32_t size = tag / 2;
-    if(size >= ZIR_KEPT_TEXT_MAX) {
-        reader->problem = "string exceeds field limit";
-        return 0;
-    }
     if(size > reader->budget) {
-        reader->problem = "strings exceed IR limit";
+        reader->problem = ZIR_READ_BUDGET_PROBLEM;
         return 0;
     }
     reader->budget -= size;
@@ -762,7 +774,7 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
                 continue;
             if(out->portable && fields[i].kind == FIELD_FUNCTION_ASSEMBLY) text = "";
             if(out->portable && fields[i].kind == FIELD_STATEMENT_TEXT && StatementHasAssembly(record)) text = "{";
-            size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
+            size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : SIZE_MAX;
             if(!write_string(out, text ? text : "", limit))
                 return 0;
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
@@ -812,8 +824,8 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             uint32_t length;
             if(!read_serial_string(reader, &text, &length))
                 return 0;
-            size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : ZIR_KEPT_TEXT_MAX;
-            if(length >= limit || (fields[i].kind == FIELD_ASSEMBLY_TEXT && length == 0)) {
+            if(fields[i].kind == FIELD_ASSEMBLY_TEXT &&
+               (length == 0 || length >= fields[i].size)) {
                 reader->problem = length == 0 ? "empty assembly block metadata" : "string exceeds field limit";
                 return 0;
             }
@@ -848,6 +860,7 @@ write_records(Writer *out, const void *records, int count, size_t size,
               const Field *fields, size_t field_count)
 {
     if(count < 0 || (count > 0 && records == NULL) ||
+       !writer_charge(out, (size_t)count, size) ||
        !write_u32(out, (uint32_t)count))
         return 0;
     for(int i = 0; i < count; i++)
@@ -864,8 +877,14 @@ read_records(Reader *reader, int *count, size_t size,
     uint32_t length;
     if(!read_u32(reader, &length))
         return NULL;
-    if(length > 100000 || size == 0 || length > reader->budget / size) {
+    /* The memory budget, not a fixed count, bounds records: a function
+     * holding a long literal has one expression per element. */
+    if(length > INT32_MAX || size == 0) {
         reader->problem = "record count exceeds IR limit";
+        return NULL;
+    }
+    if(length > reader->budget / size) {
+        reader->problem = ZIR_READ_BUDGET_PROBLEM;
         return NULL;
     }
     reader->budget -= (size_t)length * size;
@@ -925,9 +944,13 @@ write_law_graphs(Writer *out, const ZirModule *module)
 {
     for(int l = 0; l < module->law_count; l++) {
         const ZirFunction *claim = module->laws[l].claim;
-        if(!write_u32(out, claim != NULL) || (claim && !write_function(out, claim))) return 0;
+        if(!write_u32(out, claim != NULL) ||
+           (claim && (!writer_charge(out, 1, sizeof(ZirFunction)) ||
+                      !write_function(out, claim)))) return 0;
     }
-    if(!write_u32(out, (uint32_t)module->proof_count)) return 0;
+    if(module->proof_count < 0 ||
+       !writer_charge(out, (size_t)module->proof_count, sizeof(ZirProof)) ||
+       !write_u32(out, (uint32_t)module->proof_count)) return 0;
     for(int p = 0; p < module->proof_count; p++) {
         const ZirProof *proof = &module->proofs[p];
         if(!write_fields(out, proof, proof_fields, FIELD_COUNT(proof_fields)) ||
@@ -951,7 +974,7 @@ read_law_graphs(Reader *reader, ZirModule *module)
         }
     }
     uint32_t count;
-    if(!read_u32(reader, &count) || count > 100000 ||
+    if(!read_u32(reader, &count) || count > INT32_MAX ||
        count > reader->budget / sizeof(ZirProof)) return 0;
     reader->budget -= (size_t)count * sizeof(ZirProof);
     module->proofs = calloc(count ? count : 1, sizeof(ZirProof));
@@ -979,6 +1002,8 @@ write_module(Writer *out, const ZirModule *module)
                     law_waiver_fields) ||
        !WRITE_ARRAY(out, module, types, type_count, type_fields) ||
        !WRITE_ARRAY(out, module, imports, import_count, import_fields) ||
+       module->function_count < 0 ||
+       !writer_charge(out, (size_t)module->function_count, sizeof(ZirFunction)) ||
        !write_u32(out, (uint32_t)module->function_count))
         return 0;
     for(int i = 0; i < module->function_count; i++)
@@ -1008,8 +1033,9 @@ read_module(Reader *reader, ZirModule *module)
     READ_ARRAY(reader, module, imports, import_count, import_fields);
     if(!read_u32(reader, &count))
         return 0;
-    if(count > 100000 || count > reader->budget / sizeof(ZirFunction)) {
-        reader->problem = "function count exceeds IR limit";
+    if(count > INT32_MAX || count > reader->budget / sizeof(ZirFunction)) {
+        reader->problem = count > INT32_MAX ? "function count exceeds IR limit" :
+                          ZIR_READ_BUDGET_PROBLEM;
         return 0;
     }
     reader->budget -= (size_t)count * sizeof(ZirFunction);
@@ -1283,6 +1309,16 @@ validate_program(const ZirProgram *program)
     return 1;
 }
 
+/* Names a limit that stopped writing; the caller still reports the failed
+ * output. */
+static int
+report_write_problem(const ZirProgram *program, const Writer *out)
+{
+    if(out->problem != NULL && program != NULL && program->module_count > 0)
+        Diagnostic(program->modules[0].span, "zir.output", "%s", out->problem);
+    return 0;
+}
+
 static int
 write_program(const ZirProgram *program, Writer *out, int validate)
 {
@@ -1290,11 +1326,13 @@ write_program(const ZirProgram *program, Writer *out, int validate)
     if(program == NULL || out == NULL || (validate && !validate_program(program)) ||
        !write_bytes(out, magic, sizeof(magic)) ||
        !write_version(out, ZIR_FORMAT_VERSION) ||
+       program->module_count < 0 ||
+       !writer_charge(out, (size_t)program->module_count, sizeof(ZirModule)) ||
        !write_u32(out, (uint32_t)program->module_count))
-        return 0;
+        return report_write_problem(program, out);
     for(int i = 0; i < program->module_count; i++)
         if(!write_module(out, &program->modules[i]))
-            return 0;
+            return report_write_problem(program, out);
     return out->measure || (flush_writer(out) && fflush(out->out) == 0);
 }
 
@@ -1368,7 +1406,7 @@ ProgramRead_in_context(FILE *in, const char *path)
     }
     if(!read_u32(&reader, &count))
         goto failed;
-    if(count == 0 || count > 100000 || count > reader.budget / sizeof(ZirModule)) {
+    if(count == 0 || count > INT32_MAX || count > reader.budget / sizeof(ZirModule)) {
         reader.problem = "invalid module count";
         goto failed;
     }

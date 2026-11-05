@@ -100,9 +100,10 @@ int main(int argc, char **argv)
     if(oversized) {
         /* One shared string, written once, stands for more than the 256 MiB
          * of text a reader accepts, without a large source fixture. */
-        large_text = malloc(ZIR_KEPT_TEXT_MAX);
+        enum { LARGE_TEXT = 1 << 20 };
+        large_text = malloc(LARGE_TEXT);
         assert(large_text);
-        memset(large_text, 'x', ZIR_KEPT_TEXT_MAX - 1); large_text[ZIR_KEPT_TEXT_MAX - 1] = 0;
+        memset(large_text, 'x', LARGE_TEXT - 1); large_text[LARGE_TEXT - 1] = 0;
         first->stmts = calloc(400, sizeof(*first->stmts)); assert(first->stmts);
         first->stmt_count = first->stmt_cap = 400;
         for(int i = 0; i < 400; i++) { first->stmts[i] = saved_statements[0]; first->stmts[i].text = large_text; }

@@ -793,6 +793,24 @@ Hello, "world"!
 END;
 ```
 
+## Returned views
+
+A returned slice, text view or record of views must borrow storage the caller
+still owns after the call: a slice or string parameter, a view already stored
+in a pointed-to record, or static text. A pointer parameter lends its own
+array storage only for the call, so return a view of it by taking the storage
+as a slice instead:
+
+```jai
+Owner :: struct { values: [4]u16; label: string; }
+Rest :: (values: []u16) -> []u16 { return values[1:] }    // view of caller storage
+Label :: (owner: *Owner) -> string { return owner.label }  // view stored in the record
+// Rejected: (owner: *Owner) -> []u16 { return owner.values[:] }
+```
+
+Call it as `Rest(owner.values[:])`. Inside the call, views of
+`owner.values` may be read and written freely.
+
 ## Standard library
 
 Import a standard module as `#import "std/text"`. In a project the pinned

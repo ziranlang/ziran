@@ -139,7 +139,7 @@ if "$compiler" --check-only --root "$work" "$work/escape_slice.zi" \
     echo "slice borrowed through pointer escaped its call" >&2
     exit 1
 fi
-grep -q 'returned slice borrows local or temporary storage' "$work/err"
+grep -q 'returned slice borrows backing storage behind pointer parameter node' "$work/err"
 
 if "$bin/zi2zx" bundle --root "$work" --entry read:Write \
     -o "$work/read.zx" "$work/read.zi" 2>"$work/bundle.err"; then

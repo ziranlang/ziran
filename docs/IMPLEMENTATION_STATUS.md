@@ -533,11 +533,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   source and saved IR on C, Go, and `.zx`.
 - Statements may be longer than 4 KB, such as a table of records written as
   one array literal: source text is kept whole through parsing, checking,
-  and saved IR (up to 1 MB per text), and C store an array literal
+  and saved IR with no length cap (saved IR is bounded only by its 256 MiB
+  read budget, which writers charge too), and C store an array literal
   too long for one initializer element by element. Before, such a
   statement failed with "expression is not supported by language checking"
   or silently. `tests/long_literals.sh` checks source and saved IR on C,
-  Go, and `.zx`.
+  Go, and `.zx`; `tests/large_array_literals.sh` checks 20,000-, 70,000-
+  and 260,000-element tables, which parse and check in linear time.
 - `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an

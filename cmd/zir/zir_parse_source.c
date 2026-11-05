@@ -7,8 +7,13 @@
 typedef struct ParseSourceBuffers {
     char line[SOURCE_LINE_MAX];
     char rel[SOURCE_PATH_MAX];
-    char pending[SOURCE_LINE_MAX * 4];
-    char logical[SOURCE_LINE_MAX * 4];
+    /* One statement joined from its physical lines. Both buffers grow with
+     * the statement, so a long literal has no fixed size cap; logical keeps
+     * room for in-place rewrites of the joined text. */
+    char *pending;
+    size_t pending_capacity;
+    char *logical;
+    size_t logical_capacity;
     char results_record[ZIR_NAME_MAX]; /* current procedure's several results */
     char binding_targets[16][ZIR_NAME_MAX];
     char binding_value[ZIR_TEXT_MAX];
@@ -43,6 +48,68 @@ typedef struct ParseSourceBuffers {
     char using_path_text[SOURCE_LINE_MAX * 2];
 } ParseSourceBuffers;
 
+enum { LOGICAL_LINE_MIN = SOURCE_LINE_MAX * 4 };
+
+static void
+reserve_source_text(char **text, size_t *capacity, size_t needed,
+                    ZirSourceSpan span)
+{
+    if(*text != NULL && needed <= *capacity)
+        return;
+    size_t next = *capacity > LOGICAL_LINE_MIN ? *capacity : LOGICAL_LINE_MIN;
+    while(next < needed) {
+        if(next > (size_t)INT_MAX / 2)
+            die_at(span, "source statement exceeds %d bytes", INT_MAX / 2);
+        next *= 2;
+    }
+    char *grown = realloc(*text, next);
+    if(grown == NULL)
+        die_at(span, "out of memory joining a source statement");
+    *text = grown;
+    *capacity = next;
+}
+
+/* Join one more physical line onto the pending statement. */
+static int
+append_pending_line(ParseSourceBuffers *buffers, int length, char separator,
+                    const char *text, ZirSourceSpan span)
+{
+    size_t size = strlen(text);
+    size_t at = (size_t)length;
+    reserve_source_text(&buffers->pending, &buffers->pending_capacity,
+                        at + (at > 0) + size + 1, span);
+    if(at > 0)
+        buffers->pending[at++] = separator;
+    memcpy(buffers->pending + at, text, size + 1);
+    return (int)(at + size);
+}
+
+/* Room for an in-place rewrite of text inside the logical line. It covers
+ * twice the text, as reserved when the line was joined, without making each
+ * later statement's scratch copy as large as the longest one. Text outside
+ * the logical line keeps the parser's fixed line buffers. */
+static size_t
+logical_room(const ParseSourceBuffers *buffers, const char *at)
+{
+    if(at >= buffers->logical && at < buffers->logical + buffers->logical_capacity) {
+        size_t room = buffers->logical_capacity - (size_t)(at - buffers->logical);
+        size_t wanted = strlen(at) * 2 + LOGICAL_LINE_MIN;
+        return wanted < room ? wanted : room;
+    }
+    return SOURCE_LINE_MAX * 2;
+}
+
+static void
+free_parse_source_buffers(void *value)
+{
+    ParseSourceBuffers *buffers = value;
+    if(buffers == NULL)
+        return;
+    free(buffers->pending);
+    free(buffers->logical);
+    free(buffers);
+}
+
 static ZirProgram *parse_source(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
              const char *const *defines, int define_count);
@@ -66,6 +133,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     int depth = 0;
     /* Compile-time imports recurse into parse_source while this line is in
      * use. Keep each invocation's logical source separate. */
+    reserve_source_text(&buffers->pending, &buffers->pending_capacity,
+                        LOGICAL_LINE_MIN, Span(path, 1, 1));
+    reserve_source_text(&buffers->logical, &buffers->logical_capacity,
+                        LOGICAL_LINE_MIN, Span(path, 1, 1));
     buffers->pending[0] = '\0';
     int have_look = 0;
     /* One-line control blocks ('if cond { body }') are split into header /
@@ -287,13 +358,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 pending_start_column = trimmed_column;
             }
             pending_end_column = source_end_column_for_trimmed(buffers->raw, trimmed);
-            if(pending_len > 0 && pending_len + 2 < (int)sizeof(buffers->pending)) {
-                buffers->pending[pending_len++] = '\n';
-                buffers->pending[pending_len] = '\0';
-            }
-            strncat(buffers->pending, trimmed, sizeof(buffers->pending) - pending_len - 1);
-            pending_len = (int)strlen(buffers->pending);
-            pending_len = (int)strlen(buffers->pending);
+            pending_len = append_pending_line(buffers, pending_len, '\n', trimmed,
+                Span(buffers->rel, pending_start_line, pending_start_column));
             /* Decide whether braces at paren-depth 0 on this logical line are
              * block braces (control/headers open scopes) or expression braces
              * (compound literals / initializers continue the statement). */
@@ -301,60 +367,65 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 int header_line = 0;
                 char w0[16];
                 size_t wl = 0;
-                for(const char *w = buffers->pending;
-                    *w != '\0' && (isalnum((unsigned char)*w) || *w == '_') &&
-                    wl + 1 < sizeof(w0); w++)
-                    w0[wl++] = *w;
-                w0[wl] = '\0';
-                /* Keyword headers must be followed by ' ', '(' or '{':
-                 * 'item->x = ...' / 'state.x' are member statements, not
-                 * block headers (their compound-literal braces are
-                 * expression braces). */
-                {
-                    char nc = buffers->pending[wl];
-                    char block_callee[ZIR_NAME_MAX];
-                    char block_name[ZIR_NAME_MAX];
-                    header_line =
-                        buffers->pending[0] == '#' ||
-                        strcmp(buffers->pending, "{") == 0 ||   /* bare scope-open */
-                        parse_block_call_header(buffers->pending, block_callee,
-                                                sizeof(block_callee), block_name,
-                                                sizeof(block_name)) ||
-                        /* 'name :: Type = {' carries an initializer, not a
-                         * body: its braces are expression braces so the
-                         * logical line continues until they balance. Header
-                         * forms ('name :: struct {', 'f :: (args) {', typedefs,
-                         * externs) never contain ' = '. */
-                        looks_like_function_header(buffers->pending) ||
-                        (strstr(buffers->pending, " :: ") != NULL &&
-                         strstr(buffers->pending, " = ") == NULL) ||
-                        (nc != '\0' && nc != '-' && nc != '.' &&
-                         (strchr(" ({", nc) != NULL || nc == ':') &&
-                         (strcmp(w0, "if") == 0 ||
-                          strcmp(w0, "else") == 0 ||
-                          strcmp(w0, "while") == 0 ||
-                          strcmp(w0, "for") == 0 ||
-                          strcmp(w0, "defer") == 0 ||
-                          strcmp(w0, "switch") == 0 ||
-                          strcmp(w0, "match") == 0 ||
-                          strcmp(w0, "do") == 0 ||
-                          strcmp(w0, "case") == 0 ||
-                          strcmp(w0, "struct") == 0 ||
-                          strcmp(w0, "enum") == 0 ||
-                          strcmp(w0, "state") == 0));
-                }
-                /* A proof certificate is one declaration, including its
-                 * complete block. Its braces accumulate like an initializer. */
-                if(starts_word(buffers->pending, "#proof")) header_line = 0;
-                /* K&R "} else {" / "} else if (...) {" also covers Jai's
-                 * "} else #if COND {" compile-time branch. The leading and
-                 * trailing braces balance as one logical header line. */
-                if(!header_line && buffers->pending[0] == '}') {
-                    const char *eq = buffers->pending + 1;
-                    while(*eq == ' ' || *eq == '\t')
-                        eq++;
-                    if(starts_word(eq, "else"))
-                        header_line = 1;
+                /* Only braces read the classification, and it scans the whole
+                 * pending statement: skip it for brace-free lines so a long
+                 * wrapped literal joins in linear time. */
+                if(strpbrk(trimmed, "{}") != NULL) {
+                    for(const char *w = buffers->pending;
+                        *w != '\0' && (isalnum((unsigned char)*w) || *w == '_') &&
+                        wl + 1 < sizeof(w0); w++)
+                        w0[wl++] = *w;
+                    w0[wl] = '\0';
+                    /* Keyword headers must be followed by ' ', '(' or '{':
+                     * 'item->x = ...' / 'state.x' are member statements, not
+                     * block headers (their compound-literal braces are
+                     * expression braces). */
+                    {
+                        char nc = buffers->pending[wl];
+                        char block_callee[ZIR_NAME_MAX];
+                        char block_name[ZIR_NAME_MAX];
+                        header_line =
+                            buffers->pending[0] == '#' ||
+                            strcmp(buffers->pending, "{") == 0 ||   /* bare scope-open */
+                            parse_block_call_header(buffers->pending, block_callee,
+                                                    sizeof(block_callee), block_name,
+                                                    sizeof(block_name)) ||
+                            /* 'name :: Type = {' carries an initializer, not a
+                             * body: its braces are expression braces so the
+                             * logical line continues until they balance. Header
+                             * forms ('name :: struct {', 'f :: (args) {', typedefs,
+                             * externs) never contain ' = '. */
+                            looks_like_function_header(buffers->pending) ||
+                            (strstr(buffers->pending, " :: ") != NULL &&
+                             strstr(buffers->pending, " = ") == NULL) ||
+                            (nc != '\0' && nc != '-' && nc != '.' &&
+                             (strchr(" ({", nc) != NULL || nc == ':') &&
+                             (strcmp(w0, "if") == 0 ||
+                              strcmp(w0, "else") == 0 ||
+                              strcmp(w0, "while") == 0 ||
+                              strcmp(w0, "for") == 0 ||
+                              strcmp(w0, "defer") == 0 ||
+                              strcmp(w0, "switch") == 0 ||
+                              strcmp(w0, "match") == 0 ||
+                              strcmp(w0, "do") == 0 ||
+                              strcmp(w0, "case") == 0 ||
+                              strcmp(w0, "struct") == 0 ||
+                              strcmp(w0, "enum") == 0 ||
+                              strcmp(w0, "state") == 0));
+                    }
+                    /* A proof certificate is one declaration, including its
+                     * complete block. Its braces accumulate like an initializer. */
+                    if(starts_word(buffers->pending, "#proof")) header_line = 0;
+                    /* K&R "} else {" / "} else if (...) {" also covers Jai's
+                     * "} else #if COND {" compile-time branch. The leading and
+                     * trailing braces balance as one logical header line. */
+                    if(!header_line && buffers->pending[0] == '}') {
+                        const char *eq = buffers->pending + 1;
+                        while(*eq == ' ' || *eq == '\t')
+                            eq++;
+                        if(starts_word(eq, "else"))
+                            header_line = 1;
+                    }
                 }
                 {
                 int in_chr = 0;
@@ -469,16 +540,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                                         physical_line_no);
                         lt = trim(buffers->la);
                         pending_end_column = source_end_column_for_trimmed(buffers->la, lt);
-                        if(pending_len > 0 &&
-                           pending_len + 2 < (int)sizeof(buffers->pending)) {
-                            buffers->pending[pending_len++] =
-                                last == '}' && starts_word(lt, "else") ?
-                                ' ' : '\n';
-                            buffers->pending[pending_len] = '\0';
-                        }
-                        strncat(buffers->pending, lt,
-                                sizeof(buffers->pending) - pending_len - 1);
-                        pending_len = (int)strlen(buffers->pending);
+                        pending_len = append_pending_line(buffers, pending_len,
+                            last == '}' && starts_word(lt, "else") ? ' ' : '\n', lt,
+                            Span(buffers->rel, pending_start_line,
+                                 pending_start_column));
                         line_no++;
                     }
                 }
@@ -488,7 +553,13 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         int export_directive = 0;
         char export_directive_symbol[ZIR_NAME_MAX] = "";
         {
-            snprintf(buffers->logical, sizeof(buffers->logical), "%s", buffers->pending);
+            size_t joined = strlen(buffers->pending);
+            /* In-place rewrites (local procedure names, several results)
+             * may lengthen the statement. */
+            reserve_source_text(&buffers->logical, &buffers->logical_capacity,
+                joined * 2 + LOGICAL_LINE_MIN,
+                Span(buffers->rel, pending_start_line, pending_start_column));
+            memcpy(buffers->logical, buffers->pending, joined + 1);
             t = buffers->logical;
             char *separator = statement_separator(buffers->logical);
             if(separator != NULL) {
@@ -522,7 +593,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     if(buffers->body[0])
                         prepend_logical_line(buffers->onelineq, &onelineq_count,
                                              buffers->body, Span(buffers->rel, line_no, 1));
-                    snprintf(buffers->logical, sizeof(buffers->logical), "%s", buffers->head);
+                    snprintf(buffers->logical, buffers->logical_capacity, "%s", buffers->head);
                     t = buffers->logical;
                 }
             } else {
@@ -539,12 +610,12 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     if(buffers->body[0])
                         prepend_logical_line(buffers->onelineq, &onelineq_count,
                                              buffers->body, Span(buffers->rel, line_no, 1));
-                    snprintf(buffers->logical, sizeof(buffers->logical), "%s", buffers->head);
+                    snprintf(buffers->logical, buffers->logical_capacity, "%s", buffers->head);
                     t = buffers->logical;
                 }
             }
             if(mode == FUNCTION) {
-                split_jai_control_line(buffers->logical, sizeof(buffers->logical), buffers->onelineq,
+                split_jai_control_line(buffers->logical, logical_room(buffers, buffers->logical), buffers->onelineq,
                                        &onelineq_count,
                                        Span(buffers->rel, line_no, 1));
                 t = buffers->logical;
@@ -558,7 +629,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
          * enclosing procedure call it by that name. As in Jai, it sees no
          * locals of the enclosing procedure. */
         if(mode == FUNCTION && local_depth > 0) {
-            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+            rename_local_procedures(t, logical_room(buffers, t), local_names, local_count,
                                     Span(buffers->rel, line_no, 1));
             defer_line(&deferred, t, buffers->rel, line_no, 0, 1);
             local_depth += net_block_braces(t);
@@ -581,7 +652,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         fn->name, (int)(end - t), t) >= ZIR_NAME_MAX)
                 die_at(Span(buffers->rel, line_no, 1), "local procedure name is too long");
             local_count++;
-            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+            rename_local_procedures(t, logical_room(buffers, t), local_names, local_count,
                                     Span(buffers->rel, line_no, 1));
             defer_line(&deferred, t, buffers->rel, line_no, 0, 1);
             local_depth = net_block_braces(t);
@@ -589,7 +660,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             continue;
         }
         if(mode == FUNCTION && local_count > 0)
-            rename_local_procedures(t, SOURCE_LINE_MAX * 4, local_names, local_count,
+            rename_local_procedures(t, logical_room(buffers, t), local_names, local_count,
                                     Span(buffers->rel, line_no, 1));
         char *string_source = NULL;
         const char *assembly_text = NULL;
@@ -1629,7 +1700,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     eq++;
                 if(depth > 1 && starts_word(eq, "else")) {
                     split_jai_control_line((char *)eq,
-                                           SOURCE_LINE_MAX * 4 - (size_t)(eq - t),
+                                           logical_room(buffers, eq),
                                            buffers->onelineq, &onelineq_count,
                                            Span(buffers->rel, line_no, 1));
                     ZirSourceSpan span = SpanEnd(buffers->rel, line_no,
@@ -1739,7 +1810,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                             kind = ZIR_STMT_IF_CASE;
                     }
                     if(kind == ZIR_STMT_RETURN && results_count > 0)
-                        lower_multiple_return(t, SOURCE_LINE_MAX * 4,
+                        lower_multiple_return(t, logical_room(buffers, t),
                                               buffers->results_record,
                                               results_count, span);
                     if(kind == ZIR_STMT_EXPR && !using_binding && !parallel_for) {
@@ -1965,14 +2036,18 @@ parse_source(const char *path, const char *root, const char *source,
     static const char scratch_key;
     static _Thread_local CompilerScratchCache scratch_cache;
     CompilerScratch *scratch_hint = CompilerScratchCached(&scratch_cache,
-        &scratch_key, free);
+        &scratch_key, free_parse_source_buffers);
     ParseSourceBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
-    if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
+    if(!buffers) {
+        buffers = AllocateOrExit(sizeof(*buffers));
+        buffers->pending = buffers->logical = NULL;
+        buffers->pending_capacity = buffers->logical_capacity = 0;
+    }
     uint64_t profile_started = ProfileStart();
     ZirProgram *returned = parse_source_with_buffers(path, root, source, resolver, resolver_context, defines, define_count, buffers);
     ProfileEnd("parse", profile_started);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
-        free(buffers);
+        free_parse_source_buffers(buffers);
     return returned;
 }
 

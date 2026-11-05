@@ -24,6 +24,10 @@ typedef struct ExprParser {
     int stmt_index;
     int expand_defaults;
     int32_t failed, depth;
+    /* Span at source offset span_offset, so node spans resume from the last
+     * node instead of rescanning: a long literal makes one node per element. */
+    size_t span_offset;
+    ZirSourceSpan span_cursor;
 } ExprParser;
 
 static void
@@ -49,13 +53,40 @@ take(ExprParser *p, const char *s)
     return 1;
 }
 
+static ZirSourceSpan
+span_at(ExprParser *p, size_t offset)
+{
+    size_t at = p->span_offset;
+    ZirSourceSpan span = p->span_cursor;
+    if(offset < at) {
+        size_t line_start = offset;
+        for(size_t i = offset; i < at; i++)
+            if(p->source[i] == '\n') span.line--;
+        while(line_start > 0 && p->source[line_start - 1] != '\n') line_start--;
+        span.column = line_start == 0 ? p->span.column + (int)offset :
+            (int)(offset - line_start) + 1;
+    } else {
+        for(size_t i = at; i < offset; i++) {
+            if(p->source[i] == '\n') {
+                span.line++;
+                span.column = 1;
+            } else {
+                span.column++;
+            }
+        }
+    }
+    p->span_offset = offset;
+    p->span_cursor = span;
+    return span;
+}
+
 static int
 node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
      const char *op, int left, int right)
 {
     char buffer[ZIR_TEXT_MAX];
     size_t n = p->begin > start ? p->begin - start : 0;
-    ZirSourceSpan span = p->span;
+    ZirSourceSpan span = span_at(p, start);
     ZirExpr *e;
     /* A long literal, such as a table of records, keeps all its text. */
     char *text = n < sizeof(buffer) ? buffer : malloc(n + 1);
@@ -63,14 +94,6 @@ node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
     memcpy(text, p->source + start, n);
     text[n] = 0;
     trim_in_place(text);
-    for(size_t i = 0; i < start; i++) {
-        if(p->source[i] == '\n') {
-            span.line++;
-            span.column = 1;
-        } else {
-            span.column++;
-        }
-    }
     e = FunctionAddExpr(p->fn, kind, text, span);
     if(text != buffer) free(text);
     if(!e) { p->failed = 1; return -1; }
@@ -730,6 +753,7 @@ parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
     int initial = fn->expr_count, result;
     if(!*skip_ws(text)) return -1;
     p.fn = fn; p.module = module; p.span = span; p.source = text;
+    p.span_cursor = span;
     p.expected_type = expected_type;
     p.stmt_index = stmt_index;
     p.expand_defaults = expand_defaults;

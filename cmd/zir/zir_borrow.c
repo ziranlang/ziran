@@ -4,6 +4,7 @@
 #include "zir_text.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -16,6 +17,11 @@ typedef struct Origin {
     /* Views loaded from the pointee of direct pointer parameter i: the
      * caller stored them there, so they live as long as the caller's. */
     uint64_t pointees;
+    /* Direct pointer parameters whose pointee storage itself this view
+     * borrows. The caller lends that storage only for the call, so such a
+     * view keeps depth 1; these bits only name the parameter when a return
+     * is rejected. */
+    uint64_t lent;
 } Origin;
 
 /* Origins share immutable bit sets until the lifetime check finishes. */
@@ -271,6 +277,7 @@ merge(BorrowCheck *check, Origin a, Origin b)
     Origin result = a;
     result.parameters |= b.parameters;
     result.pointees |= b.pointees;
+    result.lent |= b.lent;
     if(b.depth > result.depth)
         result.depth = b.depth;
     result.invalid |= b.invalid;
@@ -306,6 +313,7 @@ accumulate(BorrowCheck *check, Origin *destination, Origin source)
     Origin next = merge(check, *destination, source);
     if(next.parameters != destination->parameters ||
        next.pointees != destination->pointees ||
+       next.lent != destination->lent ||
        next.depth != destination->depth ||
        next.invalid != destination->invalid ||
        next.unknown != destination->unknown ||
@@ -1156,8 +1164,12 @@ expression_origin(BorrowCheck *check, int index)
              * keeps the pointee live for this invocation. Views of its
              * fixed-array fields may be used here, never returned. */
             if(source != NULL && source->local < 0 &&
-               source->origin.depth == 1 && !source->origin.invalid)
-                return source->origin;
+               source->origin.depth == 1 && !source->origin.invalid) {
+                Origin pointee = source->origin;
+                if(direct_pointer_parameter(source))
+                    pointee.lent = UINT64_C(1) << source->parameter;
+                return pointee;
+            }
             if(source != NULL && source->address_known &&
                source->address_backing.root != NULL) {
                 Origin pointee = {0};
@@ -1165,6 +1177,9 @@ expression_origin(BorrowCheck *check, int index)
                 if(source->address_backing.root->global_index >= 0)
                     pointee.globals = global_bit(check,
                         source->address_backing.root->global_index);
+                if(direct_pointer_parameter(source->address_backing.root))
+                    pointee.lent = UINT64_C(1) <<
+                        source->address_backing.root->parameter;
                 return pointee;
             }
             Origin unknown = {0};
@@ -1200,6 +1215,8 @@ expression_origin(BorrowCheck *check, int index)
                 if(place.root->global_index >= 0)
                     origin.globals = global_bit(check,
                                                 place.root->global_index);
+                if(direct_pointer_parameter(place.root))
+                    origin.lent = UINT64_C(1) << place.root->parameter;
                 return origin;
             }
         }
@@ -1306,6 +1323,51 @@ add_binding(BorrowCheck *check, const char *name, const char *type,
     item->global_index = -1;
     item->parameter = -1;
     return item;
+}
+
+/* Say which storage a rejected returned view borrows and how to keep it. */
+static void
+reject_return(BorrowCheck *check, ZirSourceSpan span, Origin source)
+{
+    const ZirFunction *fn = check->current->fn;
+    const char *kind = !strcmp(fn->return_type, "string") ? "text view" :
+        SliceElementType(fn->return_type, NULL, 0) ? "slice" : "value";
+    if(check->failed)
+        return;
+    /* Deeper origins include a block local; name the pointer only when its
+     * pointee may be the sole reason. */
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    int lent = -1;
+    for(int i = 0; i < 64 && i < parameters->count && lent < 0; i++)
+        if(source.lent & (UINT64_C(1) << i))
+            lent = i;
+    if(lent >= 0 && !source.invalid && !source.unknown && source.depth <= 1) {
+        char related[ZIR_NAME_MAX + 64];
+        snprintf(related, sizeof(related),
+                 "pointer parameter %s is declared here",
+                 parameters->items[lent].name);
+        DiagnosticDetails details = {0};
+        details.related_span = fn->span;
+        details.related_message = related;
+        DiagnosticDetailed(span, "check.slice_lifetime", &details,
+            "returned %s borrows backing storage behind pointer parameter %s, "
+            "which the caller lends only for this call; pass that storage as "
+            "a slice parameter and return a view of it, or copy the elements",
+            kind, parameters->items[lent].name);
+        check->failed = 1;
+        return;
+    }
+    if(!source.invalid && source.unknown && source.depth == 0) {
+        Diagnostic(span, "check.slice_lifetime",
+            "returned %s borrows backing storage through a pointer whose "
+            "lifetime cannot be proved; pass that storage as a slice "
+            "parameter and return a view of it, or copy the elements", kind);
+        check->failed = 1;
+        return;
+    }
+    Diagnostic(span, "check.slice_lifetime",
+               "returned %s borrows local or temporary storage", kind);
+    check->failed = 1;
 }
 
 static void check_function(BorrowCheck *check, BorrowFunction *function);
@@ -1489,12 +1551,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                   view_type(check, fn->return_type)) {
             Origin source = expression_origin(check, statement->expr_root);
             if(source.invalid || source.unknown || source.depth > 0)
-                reject(check, statement->span,
-                       !strcmp(fn->return_type, "string") ?
-                       "returned text view borrows local or temporary storage" :
-                       SliceElementType(fn->return_type, NULL, 0) ?
-                       "returned slice borrows local or temporary storage" :
-                       "returned value borrows local or temporary storage");
+                reject_return(check, statement->span, source);
             accumulate(check, &function->returned, source);
         }
         if(statement->kind == ZIR_STMT_IF || statement->kind == ZIR_STMT_WHILE ||

@@ -210,7 +210,9 @@ parse_file_global_with_buffers(ZirModule *module, const char *declaration,
         while(*value != '\0' && length + 1 < sizeof(buffers->init))
             buffers->init[length++] = *value++;
         if(*value != '\0')
-            die_at(span, "file-scope variable initializer is too long");
+            die_at(span, "file-scope variable initializer exceeds %d bytes; "
+                   "declare the table as a local in a procedure, or fill the variable from one",
+                   (int)sizeof(buffers->init) - 1);
         while(length > 0 && (isspace((unsigned char)buffers->init[length - 1]) ||
                              buffers->init[length - 1] == ';')) length--;
         if(length == 0)
@@ -631,8 +633,13 @@ void
 prepend_logical_line(char queue[16][SOURCE_LINE_MAX * 2], int *count,
                      const char *line, ZirSourceSpan span)
 {
-    if(*count >= 16 || strlen(line) >= sizeof(queue[0]))
+    if(*count >= 16)
         die_at(span, "too many statements on one source line");
+    /* Queued parts re-enter the parser through its physical line buffer. */
+    if(strlen(line) >= SOURCE_LINE_MAX)
+        die_at(span, "statement after ';', in a one-line block or in a local "
+               "procedure exceeds %d bytes; start it on its own line at "
+               "procedure or file scope", SOURCE_LINE_MAX - 1);
     memmove(queue[1], queue[0], (size_t)*count * sizeof(queue[0]));
     copy_text(queue[0], sizeof(queue[0]), line);
     (*count)++;

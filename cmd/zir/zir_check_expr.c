@@ -2696,7 +2696,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                third : right;
         break;
     }
-    default: error(c, e->span, "expression is not supported by language checking", e->text); break;
+    default: {
+        const char *text = e->text ? e->text : "";
+        while(isspace((unsigned char)*text)) text++;
+        /* The parser keeps an expression it could not read whole. An array
+         * literal takes its element type from a declaration or a prefix. */
+        if(e->kind == ZIR_EXPR_UNKNOWN && text[0] == '.' && text[1] == '[')
+            error(c, e->span, "array literal .[...] could not be read here: an untyped "
+                  ".[...] needs a declaration that names its array type, or write "
+                  "the element type, as in s32.[1, 2]; each element must be a "
+                  "complete expression", "");
+        else
+            error(c, e->span, "expression is not supported by language checking", e->text);
+        break;
+    }
     }
     if(*ScalarType(type)) type = ScalarType(type);
     if(type != e->type)

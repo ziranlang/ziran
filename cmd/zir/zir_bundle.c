@@ -1602,7 +1602,11 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
     keep[entry_m][entry_f] = 1;
     for(int m = 0; m < program->module_count; m++)
         for(int f = 0; f < program->modules[m].function_count; f++)
-            if(program->modules[m].functions[f].retained_root)
+            if(program->modules[m].functions[f].retained_root ||
+               /* A Go package exposes every #program_export function, so
+                * each one is a root whether or not --entry reaches it. */
+               (native == 2 && program->modules[m].functions[f].exported &&
+                !program->modules[m].functions[f].is_extern))
                 keep[m][f] = 1;
     /* Verification roots retain the code and enum domains named by their
      * obligations even when the executable entry does not call that code. */

@@ -22,9 +22,20 @@ int SourceOverlayPermitRoot(const char *root) {
     if(!overlay_path || !root || overlay_roots_count==32) return 0;
     overlay_roots[overlay_roots_count++]=root; return 1;
 }
+// Windows has no realpath; _fullpath gives the absolute path, written with
+// the forward slashes CanonicalPath also uses.
+static char *canonical_path(const char *path) {
+#ifdef _WIN32
+    char *result=_fullpath(NULL,path,0);
+    for(char *p=result; p && *p; p++) if(*p=='\\') *p='/';
+    return result;
+#else
+    return realpath(path,NULL);
+#endif
+}
 int SourceOverlayAllowed(const char *path) {
     if(!overlay_path || !overlay_root) return 1;
-    char *canonical=realpath(path,NULL);
+    char *canonical=canonical_path(path);
     int allowed=canonical && (within(canonical,overlay_root) || within(canonical,overlay_standard));
     for(int i=0; canonical && !allowed && i<overlay_roots_count; i++) allowed=within(canonical,overlay_roots[i]);
     free(canonical); return allowed;

@@ -103,6 +103,6 @@ for entry in (program,output/'main.zir'):
  assert result.returncode==0 and result.stdout==b'42\n',(entry,result.returncode,result.stderr)
 print('semantic edit: preview/apply, declaration IDs, rollback, paths, imports, UTF-8, stale versions PASS')
 PY
-"${CC:-cc}" -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/semantic_edit_runtime.c" "$repo/cmd/zir/zir_edit.c" "$(dirname "$ziran")/../libziran.a" -Wl,--wrap=renameat -Wl,--wrap=fstat -lm -pthread -ldl -o "$work/runtime"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/semantic_edit_runtime.c" "$repo/cmd/zir/zir_edit.c" "$(dirname "$ziran")/../libziran.a" -Wl,--wrap=renameat -Wl,--wrap=fstat -lm -pthread -ldl -o "$work/runtime"
 (cd "$work/source" && ../runtime) 2> "$work/runtime.err"
 test -z "$(find "$work/source" -maxdepth 1 -name '.zi-edit-*' -print -quit)"

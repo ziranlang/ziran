@@ -509,7 +509,9 @@ def main():
     library = bins.parent / 'libziran.a'
     if not library.is_file():
         raise RuntimeError(f'logical TypeLayout audit needs {library}; build toolchain first')
-    invoke([cc, *cflags, '-I', ROOT / 'cmd/zir', '-I', ROOT / 'include',
+    # A sanitized libziran.a (make sanitize) needs its instrumentation flags.
+    library_flags = os.environ.get('VM_CFLAGS', '').split()
+    invoke([cc, *cflags, *library_flags, '-I', ROOT / 'cmd/zir', '-I', ROOT / 'include',
             out / 'logical-layout.c', library, '-lm', '-pthread', '-o', out / 'logical-layout'], 'compile', 'logical TypeLayout probe')
     logical = json.loads(invoke([out / 'logical-layout', FIXTURES, layout_source], 'audit', 'logical TypeLayout source')[0])
     if [(r['size'], r['alignment']) for r in logical] != [(8, 8), (8, 8), (16, 8), (24, 8)]:

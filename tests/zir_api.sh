@@ -116,6 +116,6 @@ for k in ('constants','functions'):
         assert r['span']['coordinate_space']=='rewritten_source'
         assert r['span']['start_byte'] is None and r['span']['end_byte'] is None
 PY2
-"${CC:-cc}" -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/zir_api_document.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/documents"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/zir_api_document.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/documents"
 "$work/documents"
 echo 'zir api: scoped checked retrieval, stable identities, captured document hashes/UTF8 spans, saved-IR unknown bytes, ownership/laws, deterministic complete bounded JSON passed'

@@ -1,0 +1,916 @@
+// Pillow's separable resampling of 8-bit RGBA as allocation-free row
+// kernels, with SSE2, AVX2 and NEON versions that make the same bytes.
+//
+//     axis: ResampleAxis
+//     ResampleAxisInto(*axis, 640, 853, RESAMPLE_LANCZOS)  // weights once
+//     ResampleRowHorizontal(*axis, source_row, target_row) // then every row
+//
+// ResamplePlan resizes a whole premultiplied picture in two passes with
+// scratch it owns, so resizing again to the same size never allocates; its
+// passes split into row ranges for worker threads.
+//
+// Weights are Pillow's 22-bit fixed point, each pass rounds to bytes and
+// the arithmetic is on the stored (premultiplied) bytes, not linear light,
+// as in Pillow. The scalar loops are the reference; the fastest kernels
+// this CPU has are chosen once. An axis whose sums could leave 32 bits,
+// which Pillow's filters never produce, uses the scalar loops. Pointer
+// kernels need a native target; std/image keeps the portable resizes.
+using Vectors :: #import "vec"
+#import "math"
+
+RESAMPLE_BOX :: 0
+RESAMPLE_LANCZOS :: 1
+RESAMPLE_BICUBIC :: 2
+
+RESAMPLE_SCALAR :: 0
+RESAMPLE_SSE2 :: 1
+RESAMPLE_AVX2 :: 2
+RESAMPLE_NEON :: 3
+
+// Weights from INPUT source positions to OUTPUT positions along one axis.
+ResampleAxis :: struct {
+    input: s32
+    output: s32
+    // Weights kept per output position, and u32 words per packed entry.
+    size: s32
+    entry: s32
+    // Every partial sum fits in 32 bits, so the vector kernels are exact.
+    exact: bool
+    // First source position and tap count of each output position.
+    bounds: Vec(s32)
+    weights: Vec(s32)
+    // Each output: first position, count, then per pair of taps the 16-bit
+    // low halves of both weights and their high halves.
+    packed: Vec(u32)
+    scratch: Vec(float64)
+}
+
+// Both passes of one resize and the rows between them.
+ResamplePlan :: struct {
+    horizontal: ResampleAxis
+    vertical: ResampleAxis
+    source_width: s32
+    source_height: s32
+    width: s32
+    height: s32
+    horizontal_pass: bool
+    vertical_pass: bool
+    // Source rows the horizontal pass makes, from first_row.
+    first_row: s32
+    rows: s32
+    // The horizontal pass's rows when the vertical pass reads them.
+    intermediate: Vec(u8)
+}
+
+#scope_file
+ROUND :: 2097152
+LIMIT :: 1069547520
+
+resample_forced: s32 = -1;
+
+Truncate :: (value: float64) -> s32 { return cast(s32)value }
+
+Sinc :: (x: float64) -> float64 {
+    if x == 0.0 { return 1.0 }
+    angle := x * 3.14159265358979323846
+    return Sin(angle) / angle
+}
+
+// std/image's filters, evaluated in the same order.
+Filter :: (filter: s32, x: float64) -> float64 {
+    if filter == RESAMPLE_LANCZOS {
+        if x >= -3.0 && x < 3.0 { return Sinc(x) * Sinc(x / 3.0) }
+        return 0.0
+    }
+    if filter == RESAMPLE_BICUBIC {
+        distance := ifx x < 0.0 then -x else x
+        if distance < 1.0 { return ((1.5 * distance - 2.5) * distance) * distance + 1.0 }
+        if distance < 2.0 { return (((distance - 5.0) * distance + 8.0) * distance - 4.0) * -0.5 }
+        return 0.0
+    }
+    if x > -0.5 && x <= 0.5 { return 1.0 }
+    return 0.0
+}
+
+Clip32 :: (value: s32) -> u8 {
+    if value >= LIMIT { return 255 }
+    if value <= 0 { return 0 }
+    return cast(u8)(value >> 22)
+}
+
+Clip64 :: (value: s64) -> u8 {
+    if value >= cast(s64)LIMIT { return 255 }
+    if value <= 0 { return 0 }
+    return cast(u8)(value >> 22)
+}
+
+// The low 16 bits of WEIGHT as a signed half; the rest is the high half.
+LowHalf :: (weight: s32) -> s32 {
+    bits := weight & 65535
+    return ifx bits >= 32768 then bits - 65536 else bits
+}
+HighHalf :: (weight: s32) -> s32 { return (weight - LowHalf(weight)) / 65536 }
+PackHalves :: (first: s32, second: s32) -> u32 {
+    return cast(u32)(first & 65535) | (cast(u32)(second & 65535) << 16)
+}
+
+// Reference loops. Partial sums of an exact axis stay inside 32 bits.
+HorizontalScalar :: (axis: *ResampleAxis, source: *u8, target: *u8) {
+    size := cast(s64)axis.size
+    bounds := *axis.bounds[0]
+    weights := *axis.weights[0]
+    for x: cast(s64)0..cast(s64)axis.output - 1 {
+        low := cast(s64)bounds[x * 2]
+        count := cast(s64)bounds[x * 2 + 1]
+        row := x * size
+        at := low * 4
+        to := x * 4
+        if axis.exact {
+            r: s32 = ROUND; g: s32 = ROUND; b: s32 = ROUND; a: s32 = ROUND
+            for k: cast(s64)0..count - 1 {
+                w := weights[row + k]
+                r += cast(s32)source[at] * w
+                g += cast(s32)source[at + 1] * w
+                b += cast(s32)source[at + 2] * w
+                a += cast(s32)source[at + 3] * w
+                at += 4
+            }
+            target[to] = Clip32(r); target[to + 1] = Clip32(g)
+            target[to + 2] = Clip32(b); target[to + 3] = Clip32(a)
+        } else {
+            r: s64 = ROUND; g: s64 = ROUND; b: s64 = ROUND; a: s64 = ROUND
+            for k: cast(s64)0..count - 1 {
+                w := cast(s64)weights[row + k]
+                r += cast(s64)source[at] * w
+                g += cast(s64)source[at + 1] * w
+                b += cast(s64)source[at + 2] * w
+                a += cast(s64)source[at + 3] * w
+                at += 4
+            }
+            target[to] = Clip64(r); target[to + 1] = Clip64(g)
+            target[to + 2] = Clip64(b); target[to + 3] = Clip64(a)
+        }
+    }
+}
+
+// Bytes [START, END) of one output row from COUNT rows STRIDE bytes apart,
+// in blocks so each source row is read in order.
+VerticalScalar :: (rows: *u8, stride: s64, weights: *s32, count: s64, exact: bool,
+    target: *u8, start: s64, end: s64) {
+    if !exact {
+        for i: start..end - 1 {
+            sum: s64 = ROUND
+            at := i
+            for k: cast(s64)0..count - 1 {
+                sum += cast(s64)rows[at] * cast(s64)weights[k]
+                at += stride
+            }
+            target[i] = Clip64(sum)
+        }
+        return
+    }
+    sums: [64]s32
+    block := start
+    while block < end {
+        n := end - block
+        if n > 64 { n = 64 }
+        for i: cast(s64)0..n - 1 { sums[i] = ROUND }
+        for k: cast(s64)0..count - 1 {
+            w := weights[k]
+            at := k * stride + block
+            for i: cast(s64)0..n - 1 { sums[i] += cast(s32)rows[at + i] * w }
+        }
+        for i: cast(s64)0..n - 1 { target[block + i] = Clip32(sums[i]) }
+        block += n
+    }
+}
+
+// The kernels below each implement their scalar body. A horizontal kernel
+// makes a whole row; a vertical kernel makes BYTES bytes, a multiple of its
+// width. Packed entries hold 16-bit weight halves for pmaddwd, whose two
+// products per lane combine as low + (high << 16), exactly, modulo 2^32.
+HasAvx2 :: () -> s32 #asm("x86_64+avx2", "movl $1, %[out]", "=r", "", "", "") { return 0 }
+HasSse2 :: () -> s32 #asm("x86_64", "movl $1, %[out]", "=r", "", "", "") { return 0 }
+HasNeon :: () -> s32 #asm("aarch64", "mov %w[out], #1", "=r", "", "", "") { return 0 }
+
+HorizontalSse2 :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("x86_64", "movq %[packed], %%r10
+        movq %[target], %%r11
+        movq %[output], %%rax
+        pxor %%xmm7, %%xmm7
+        movl $2097152, %%ecx
+        movd %%ecx, %%xmm6
+        pshufd $0, %%xmm6, %%xmm6
+        testq %%rax, %%rax
+        jle 9f
+    1:
+        movslq (%%r10), %%rcx
+        leaq (%[source],%%rcx,4), %%rcx
+        movl 4(%%r10), %%r8d
+        leaq 8(%%r10), %%rdx
+        movdqa %%xmm6, %%xmm0
+        pxor %%xmm1, %%xmm1
+        movl %%r8d, %%r9d
+        shrl $1, %%r9d
+        jz 3f
+    2:
+        movq (%%rcx), %%xmm2
+        punpcklbw %%xmm7, %%xmm2
+        pshufd $0x4e, %%xmm2, %%xmm3
+        punpcklwd %%xmm3, %%xmm2
+        movd (%%rdx), %%xmm4
+        pshufd $0, %%xmm4, %%xmm4
+        movd 4(%%rdx), %%xmm5
+        pshufd $0, %%xmm5, %%xmm5
+        pmaddwd %%xmm2, %%xmm4
+        paddd %%xmm4, %%xmm0
+        pmaddwd %%xmm2, %%xmm5
+        paddd %%xmm5, %%xmm1
+        addq $8, %%rcx
+        addq $8, %%rdx
+        decl %%r9d
+        jnz 2b
+    3:
+        testl $1, %%r8d
+        jz 4f
+        movd (%%rcx), %%xmm2
+        punpcklbw %%xmm7, %%xmm2
+        punpcklwd %%xmm7, %%xmm2
+        movd (%%rdx), %%xmm4
+        pshufd $0, %%xmm4, %%xmm4
+        movd 4(%%rdx), %%xmm5
+        pshufd $0, %%xmm5, %%xmm5
+        pmaddwd %%xmm2, %%xmm4
+        paddd %%xmm4, %%xmm0
+        pmaddwd %%xmm2, %%xmm5
+        paddd %%xmm5, %%xmm1
+    4:
+        pslld $16, %%xmm1
+        paddd %%xmm1, %%xmm0
+        psrad $22, %%xmm0
+        packssdw %%xmm0, %%xmm0
+        packuswb %%xmm0, %%xmm0
+        movd %%xmm0, (%%r11)
+        addq $4, %%r11
+        addq %[entry], %%r10
+        decq %%rax
+        jnz 1b
+    9:",
+        "", "r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;cc;memory", "volatile") {
+    HorizontalScalar(axis, source, target)
+}
+
+HorizontalAvx2 :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("x86_64+avx2", "movq %[packed], %%r10
+        movq %[target], %%r11
+        movq %[output], %%rax
+        vpxor %%xmm7, %%xmm7, %%xmm7
+        movl $2097152, %%ecx
+        vmovd %%ecx, %%xmm6
+        vpshufd $0, %%xmm6, %%xmm6
+        movl $2, %%ecx
+        vmovd %%ecx, %%xmm8
+        vpshufd $0, %%xmm8, %%xmm8
+        vinserti128 $1, %%xmm8, %%ymm7, %%ymm8
+        movl $1, %%ecx
+        vmovd %%ecx, %%xmm9
+        vpbroadcastd %%xmm9, %%ymm9
+        vpaddd %%ymm8, %%ymm9, %%ymm9
+        testq %%rax, %%rax
+        jle 9f
+    1:
+        movslq (%%r10), %%rcx
+        leaq (%[source],%%rcx,4), %%rcx
+        movl 4(%%r10), %%r8d
+        leaq 8(%%r10), %%rdx
+        vmovdqa %%ymm6, %%ymm0
+        vpxor %%xmm1, %%xmm1, %%xmm1
+        movl %%r8d, %%r9d
+        shrl $2, %%r9d
+        jz 3f
+    2:
+        vpmovzxbw (%%rcx), %%ymm2
+        vpshufd $0x4e, %%ymm2, %%ymm3
+        vpunpcklwd %%ymm3, %%ymm2, %%ymm2
+        vmovdqu (%%rdx), %%xmm4
+        vpermd %%ymm4, %%ymm8, %%ymm5
+        vpermd %%ymm4, %%ymm9, %%ymm4
+        vpmaddwd %%ymm2, %%ymm5, %%ymm5
+        vpaddd %%ymm5, %%ymm0, %%ymm0
+        vpmaddwd %%ymm2, %%ymm4, %%ymm4
+        vpaddd %%ymm4, %%ymm1, %%ymm1
+        addq $16, %%rcx
+        addq $16, %%rdx
+        decl %%r9d
+        jnz 2b
+    3:
+        testl $2, %%r8d
+        jz 4f
+        vmovq (%%rcx), %%xmm2
+        vpunpcklbw %%xmm7, %%xmm2, %%xmm2
+        vpshufd $0x4e, %%xmm2, %%xmm3
+        vpunpcklwd %%xmm3, %%xmm2, %%xmm2
+        vpbroadcastd (%%rdx), %%xmm4
+        vpbroadcastd 4(%%rdx), %%xmm5
+        vpmaddwd %%xmm2, %%xmm4, %%xmm4
+        vpmaddwd %%xmm2, %%xmm5, %%xmm5
+        vpaddd %%ymm4, %%ymm0, %%ymm0
+        vpaddd %%ymm5, %%ymm1, %%ymm1
+        addq $8, %%rcx
+        addq $8, %%rdx
+    4:
+        testl $1, %%r8d
+        jz 5f
+        vmovd (%%rcx), %%xmm2
+        vpunpcklbw %%xmm7, %%xmm2, %%xmm2
+        vpunpcklwd %%xmm7, %%xmm2, %%xmm2
+        vpbroadcastd (%%rdx), %%xmm4
+        vpbroadcastd 4(%%rdx), %%xmm5
+        vpmaddwd %%xmm2, %%xmm4, %%xmm4
+        vpmaddwd %%xmm2, %%xmm5, %%xmm5
+        vpaddd %%ymm4, %%ymm0, %%ymm0
+        vpaddd %%ymm5, %%ymm1, %%ymm1
+    5:
+        vextracti128 $1, %%ymm0, %%xmm2
+        vpaddd %%xmm2, %%xmm0, %%xmm0
+        vextracti128 $1, %%ymm1, %%xmm3
+        vpaddd %%xmm3, %%xmm1, %%xmm1
+        vpslld $16, %%xmm1, %%xmm1
+        vpaddd %%xmm1, %%xmm0, %%xmm0
+        vpsrad $22, %%xmm0, %%xmm0
+        vpackssdw %%xmm0, %%xmm0, %%xmm0
+        vpackuswb %%xmm0, %%xmm0, %%xmm0
+        vmovd %%xmm0, (%%r11)
+        addq $4, %%r11
+        addq %[entry], %%r10
+        decq %%rax
+        jnz 1b
+    9:
+        vzeroupper",
+        "", "r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;cc;memory", "volatile") {
+    HorizontalScalar(axis, source, target)
+}
+
+HorizontalNeon :: (source: *u8, bounds: *s32, weights: *s32, size: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("aarch64", "mov w9, #0x200000
+        dup v31.4s, w9
+        mov x10, %[bounds]
+        mov x11, %[weights]
+        mov x12, %[target]
+        mov x13, %[output]
+        lsl x14, %[size], #2
+        cbz x13, 9f
+    1:
+        ldpsw x15, x16, [x10], #8
+        add x15, %[source], x15, lsl #2
+        mov x17, x11
+        mov v16.16b, v31.16b
+        movi v17.4s, #0
+        lsr x9, x16, #1
+        cbz x9, 3f
+    2:
+        ldr d0, [x15], #8
+        ldr d1, [x17], #8
+        uxtl v0.8h, v0.8b
+        uxtl v2.4s, v0.4h
+        uxtl2 v3.4s, v0.8h
+        mla v16.4s, v2.4s, v1.s[0]
+        mla v17.4s, v3.4s, v1.s[1]
+        subs x9, x9, #1
+        b.ne 2b
+    3:
+        tbz x16, #0, 4f
+        ldr s0, [x15]
+        ldr s1, [x17]
+        uxtl v0.8h, v0.8b
+        uxtl v2.4s, v0.4h
+        mla v16.4s, v2.4s, v1.s[0]
+    4:
+        add v16.4s, v16.4s, v17.4s
+        sshr v16.4s, v16.4s, #22
+        sqxtn v16.4h, v16.4s
+        sqxtun v16.8b, v16.8h
+        str s16, [x12], #4
+        add x11, x11, x14
+        subs x13, x13, #1
+        b.ne 1b
+    9:",
+        "", "r;r;r;r;r;r;g", "x9;x10;x11;x12;x13;x14;x15;x16;x17;v0;v1;v2;v3;v16;v17;v31;cc;memory", "volatile") {
+    HorizontalScalar(axis, source, target)
+}
+
+VerticalSse2 :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, weights: *s32) #asm("x86_64", "movl $2097152, %%ecx
+        movd %%ecx, %%xmm14
+        pshufd $0, %%xmm14, %%xmm14
+        pxor %%xmm15, %%xmm15
+        movq %[count], %%r11
+        addq $1, %%r11
+        shrq $1, %%r11
+        movq %[stride], %%r10
+        testq $1, %[count]
+        jz 0f
+        xorl %%r10d, %%r10d
+    0:
+        xorl %%eax, %%eax
+        cmpq %[bytes], %%rax
+        jge 9f
+    1:
+        movdqa %%xmm14, %%xmm0
+        movdqa %%xmm14, %%xmm1
+        movdqa %%xmm14, %%xmm2
+        movdqa %%xmm14, %%xmm3
+        pxor %%xmm4, %%xmm4
+        pxor %%xmm5, %%xmm5
+        pxor %%xmm6, %%xmm6
+        pxor %%xmm7, %%xmm7
+        movq %[rows], %%rcx
+        movq %[pairs], %%rdx
+        movq %%r11, %%r8
+    2:
+        movq %[stride], %%r9
+        cmpq $1, %%r8
+        cmove %%r10, %%r9
+        addq %%rcx, %%r9
+        movdqu (%%rcx,%%rax), %%xmm8
+        movdqu (%%r9,%%rax), %%xmm9
+        movdqa %%xmm8, %%xmm10
+        punpcklbw %%xmm9, %%xmm8
+        punpckhbw %%xmm9, %%xmm10
+        movd (%%rdx), %%xmm12
+        pshufd $0, %%xmm12, %%xmm12
+        movd 4(%%rdx), %%xmm13
+        pshufd $0, %%xmm13, %%xmm13
+        movdqa %%xmm8, %%xmm9
+        punpcklbw %%xmm15, %%xmm9
+        movdqa %%xmm9, %%xmm11
+        pmaddwd %%xmm12, %%xmm9
+        paddd %%xmm9, %%xmm0
+        pmaddwd %%xmm13, %%xmm11
+        paddd %%xmm11, %%xmm4
+        punpckhbw %%xmm15, %%xmm8
+        movdqa %%xmm8, %%xmm11
+        pmaddwd %%xmm12, %%xmm8
+        paddd %%xmm8, %%xmm1
+        pmaddwd %%xmm13, %%xmm11
+        paddd %%xmm11, %%xmm5
+        movdqa %%xmm10, %%xmm9
+        punpcklbw %%xmm15, %%xmm9
+        movdqa %%xmm9, %%xmm11
+        pmaddwd %%xmm12, %%xmm9
+        paddd %%xmm9, %%xmm2
+        pmaddwd %%xmm13, %%xmm11
+        paddd %%xmm11, %%xmm6
+        punpckhbw %%xmm15, %%xmm10
+        movdqa %%xmm10, %%xmm11
+        pmaddwd %%xmm12, %%xmm10
+        paddd %%xmm10, %%xmm3
+        pmaddwd %%xmm13, %%xmm11
+        paddd %%xmm11, %%xmm7
+        leaq (%%rcx,%[stride],2), %%rcx
+        addq $8, %%rdx
+        decq %%r8
+        jnz 2b
+        pslld $16, %%xmm4
+        paddd %%xmm4, %%xmm0
+        psrad $22, %%xmm0
+        pslld $16, %%xmm5
+        paddd %%xmm5, %%xmm1
+        psrad $22, %%xmm1
+        pslld $16, %%xmm6
+        paddd %%xmm6, %%xmm2
+        psrad $22, %%xmm2
+        pslld $16, %%xmm7
+        paddd %%xmm7, %%xmm3
+        psrad $22, %%xmm3
+        packssdw %%xmm1, %%xmm0
+        packssdw %%xmm3, %%xmm2
+        packuswb %%xmm2, %%xmm0
+        movq %[target], %%r9
+        movdqu %%xmm0, (%%r9,%%rax)
+        addq $16, %%rax
+        cmpq %[bytes], %%rax
+        jl 1b
+    9:",
+        "", "r;r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;xmm10;xmm11;xmm12;xmm13;xmm14;xmm15;cc;memory", "volatile") {
+    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
+}
+
+VerticalAvx2 :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, weights: *s32) #asm("x86_64+avx2", "movl $2097152, %%ecx
+        vmovd %%ecx, %%xmm14
+        vpbroadcastd %%xmm14, %%ymm14
+        vpxor %%xmm15, %%xmm15, %%xmm15
+        movq %[count], %%r11
+        addq $1, %%r11
+        shrq $1, %%r11
+        movq %[stride], %%r10
+        testq $1, %[count]
+        jz 0f
+        xorl %%r10d, %%r10d
+    0:
+        xorl %%eax, %%eax
+        cmpq %[bytes], %%rax
+        jge 9f
+    1:
+        vmovdqa %%ymm14, %%ymm0
+        vmovdqa %%ymm14, %%ymm1
+        vmovdqa %%ymm14, %%ymm2
+        vmovdqa %%ymm14, %%ymm3
+        vpxor %%xmm4, %%xmm4, %%xmm4
+        vpxor %%xmm5, %%xmm5, %%xmm5
+        vpxor %%xmm6, %%xmm6, %%xmm6
+        vpxor %%xmm7, %%xmm7, %%xmm7
+        movq %[rows], %%rcx
+        movq %[pairs], %%rdx
+        movq %%r11, %%r8
+    2:
+        movq %[stride], %%r9
+        cmpq $1, %%r8
+        cmove %%r10, %%r9
+        addq %%rcx, %%r9
+        vmovdqu (%%rcx,%%rax), %%ymm8
+        vmovdqu (%%r9,%%rax), %%ymm9
+        vpunpckhbw %%ymm9, %%ymm8, %%ymm10
+        vpunpcklbw %%ymm9, %%ymm8, %%ymm8
+        vpbroadcastd (%%rdx), %%ymm12
+        vpbroadcastd 4(%%rdx), %%ymm13
+        vpunpcklbw %%ymm15, %%ymm8, %%ymm9
+        vpmaddwd %%ymm12, %%ymm9, %%ymm11
+        vpaddd %%ymm11, %%ymm0, %%ymm0
+        vpmaddwd %%ymm13, %%ymm9, %%ymm9
+        vpaddd %%ymm9, %%ymm4, %%ymm4
+        vpunpckhbw %%ymm15, %%ymm8, %%ymm8
+        vpmaddwd %%ymm12, %%ymm8, %%ymm11
+        vpaddd %%ymm11, %%ymm1, %%ymm1
+        vpmaddwd %%ymm13, %%ymm8, %%ymm8
+        vpaddd %%ymm8, %%ymm5, %%ymm5
+        vpunpcklbw %%ymm15, %%ymm10, %%ymm9
+        vpmaddwd %%ymm12, %%ymm9, %%ymm11
+        vpaddd %%ymm11, %%ymm2, %%ymm2
+        vpmaddwd %%ymm13, %%ymm9, %%ymm9
+        vpaddd %%ymm9, %%ymm6, %%ymm6
+        vpunpckhbw %%ymm15, %%ymm10, %%ymm10
+        vpmaddwd %%ymm12, %%ymm10, %%ymm11
+        vpaddd %%ymm11, %%ymm3, %%ymm3
+        vpmaddwd %%ymm13, %%ymm10, %%ymm10
+        vpaddd %%ymm10, %%ymm7, %%ymm7
+        leaq (%%rcx,%[stride],2), %%rcx
+        addq $8, %%rdx
+        decq %%r8
+        jnz 2b
+        vpslld $16, %%ymm4, %%ymm4
+        vpaddd %%ymm4, %%ymm0, %%ymm0
+        vpsrad $22, %%ymm0, %%ymm0
+        vpslld $16, %%ymm5, %%ymm5
+        vpaddd %%ymm5, %%ymm1, %%ymm1
+        vpsrad $22, %%ymm1, %%ymm1
+        vpslld $16, %%ymm6, %%ymm6
+        vpaddd %%ymm6, %%ymm2, %%ymm2
+        vpsrad $22, %%ymm2, %%ymm2
+        vpslld $16, %%ymm7, %%ymm7
+        vpaddd %%ymm7, %%ymm3, %%ymm3
+        vpsrad $22, %%ymm3, %%ymm3
+        vpackssdw %%ymm1, %%ymm0, %%ymm0
+        vpackssdw %%ymm3, %%ymm2, %%ymm2
+        vpackuswb %%ymm2, %%ymm0, %%ymm0
+        movq %[target], %%r9
+        vmovdqu %%ymm0, (%%r9,%%rax)
+        addq $32, %%rax
+        cmpq %[bytes], %%rax
+        jl 1b
+    9:
+        vzeroupper",
+        "", "r;r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;xmm10;xmm11;xmm12;xmm13;xmm14;xmm15;cc;memory", "volatile") {
+    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
+}
+
+VerticalNeon :: (rows: *u8, stride: s64, weights: *s32, count: s64, target: *u8, bytes: s64) #asm("aarch64", "mov w9, #0x200000
+        dup v31.4s, w9
+        mov x10, #0
+        cmp x10, %[bytes]
+        b.ge 9f
+    1:
+        mov v16.16b, v31.16b
+        mov v17.16b, v31.16b
+        mov v18.16b, v31.16b
+        mov v19.16b, v31.16b
+        add x11, %[rows], x10
+        mov x12, %[weights]
+        mov x13, %[count]
+    2:
+        ldr q0, [x11]
+        ld1r {v1.4s}, [x12], #4
+        uxtl v2.8h, v0.8b
+        uxtl2 v3.8h, v0.16b
+        uxtl v4.4s, v2.4h
+        uxtl2 v5.4s, v2.8h
+        uxtl v6.4s, v3.4h
+        uxtl2 v7.4s, v3.8h
+        mla v16.4s, v4.4s, v1.4s
+        mla v17.4s, v5.4s, v1.4s
+        mla v18.4s, v6.4s, v1.4s
+        mla v19.4s, v7.4s, v1.4s
+        add x11, x11, %[stride]
+        subs x13, x13, #1
+        b.ne 2b
+        sshr v16.4s, v16.4s, #22
+        sshr v17.4s, v17.4s, #22
+        sshr v18.4s, v18.4s, #22
+        sshr v19.4s, v19.4s, #22
+        sqxtn v20.4h, v16.4s
+        sqxtn2 v20.8h, v17.4s
+        sqxtn v21.4h, v18.4s
+        sqxtn2 v21.8h, v19.4s
+        sqxtun v22.8b, v20.8h
+        sqxtun2 v22.16b, v21.8h
+        str q22, [%[target], x10]
+        add x10, x10, #16
+        cmp x10, %[bytes]
+        b.lt 1b
+    9:",
+        "", "r;r;r;r;r;r", "x9;x10;x11;x12;x13;v0;v1;v2;v3;v4;v5;v6;v7;v16;v17;v18;v19;v20;v21;v22;v31;cc;memory", "volatile") {
+    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
+}
+
+Level :: () -> s32 {
+    if resample_forced >= 0 { return resample_forced }
+    return ResampleKernels()
+}
+
+#scope_export
+// The fastest kernels this program and CPU have: RESAMPLE_AVX2,
+// RESAMPLE_SSE2, RESAMPLE_NEON or RESAMPLE_SCALAR. A build with
+// ZIRAN_NO_ASM, a compiler without GNU assembly and .zx use the scalar ones.
+ResampleKernels :: () -> s32 {
+    if HasAvx2() != 0 { return RESAMPLE_AVX2 }
+    if HasSse2() != 0 { return RESAMPLE_SSE2 }
+    if HasNeon() != 0 { return RESAMPLE_NEON }
+    return RESAMPLE_SCALAR
+}
+
+// For tests and benchmarks, before any rows run: use LEVEL's kernels from
+// now on, or the fastest again for -1. False, changing nothing, when this
+// CPU lacks them.
+ResampleUseKernels :: (level: s32) -> bool {
+    if level < 0 { resample_forced = -1; return true }
+    available := level == RESAMPLE_SCALAR ||
+        (level == RESAMPLE_SSE2 && HasSse2() != 0) ||
+        (level == RESAMPLE_AVX2 && HasAvx2() != 0) ||
+        (level == RESAMPLE_NEON && HasNeon() != 0)
+    if available { resample_forced = level }
+    return available
+}
+
+// Pillow's weights for scaling the source span [START, END) of INPUT
+// positions to OUTPUT positions, as Image.resize's box does; positions
+// outside the source are left out and the rest renormalized. Reusing an
+// axis reuses its storage. False leaves the axis empty.
+ResampleAxisBoxInto :: (axis: *ResampleAxis, input: s32, start: float64, end: float64,
+    output: s32, filter: s32) -> bool {
+    axis.input = 0; axis.output = 0
+    if input <= 0 || output <= 0 || !(start >= 0.0) || !(end <= cast(float64)input) || !(end > start) {
+        return false
+    }
+    scale := (end - start) / cast(float64)output
+    filter_scale := ifx scale < 1.0 then 1.0 else scale
+    inverse_scale := 1.0 / filter_scale
+    support := (ifx filter == RESAMPLE_LANCZOS then 3.0 else
+        (ifx filter == RESAMPLE_BICUBIC then 2.0 else 0.5)) * filter_scale
+    if support > 1073741822.0 { return false }
+    whole := Truncate(support)
+    if cast(float64)whole < support { whole += 1 }
+    size := whole * 2 + 1
+    pairs := (size + 1) / 2
+    entry := 2 + pairs * 2
+    count := cast(s64)output * size
+    if count > 2305843009213693951 / 4 || cast(s64)output * entry > 2305843009213693951 / 4 { return false }
+    if !VecResize(axis.weights, count) || !VecResize(axis.bounds, cast(s64)output * 2) ||
+        !VecResize(axis.packed, cast(s64)output * entry) || !VecResize(axis.scratch, cast(s64)size) {
+        return false
+    }
+    exact := true
+    for out: 0..output - 1 {
+        center := start + (cast(float64)out + 0.5) * scale
+        lower := center - support + 0.5
+        upper := center + support + 0.5
+        low := ifx lower < 0.0 then 0 else Truncate(lower)
+        high := ifx upper > cast(float64)input then input else Truncate(upper)
+        high -= low
+        total := 0.0
+        for at: 0..size - 1 {
+            weight := 0.0
+            if at < high {
+                distance := cast(float64)(at + low) - center + 0.5
+                weight = Filter(filter, ifx filter == RESAMPLE_BICUBIC then distance * inverse_scale else distance / filter_scale)
+            }
+            axis.scratch[at] = weight
+            total += weight
+        }
+        row := cast(s64)out * size
+        positive: s64 = 0
+        negative: s64 = 0
+        for at: 0..size - 1 {
+            weight := axis.scratch[at]
+            if at < high && total != 0.0 { weight = weight / total }
+            scaled := weight * 4194304.0
+            fixed := ifx scaled < 0.0 then Truncate(scaled - 0.5) else Truncate(scaled + 0.5)
+            axis.weights[row + at] = fixed
+            if fixed > 0 { positive += fixed } else { negative -= fixed }
+        }
+        // A span with no taps adds nothing, as in Pillow, through one
+        // zero-weight tap the kernels can read.
+        if high < 1 {
+            low = ifx low < 0 then 0 else (ifx low >= input then input - 1 else low)
+            high = 1
+        }
+        if cast(s64)ROUND + 255 * positive > 2147483647 || cast(s64)ROUND - 255 * negative < -2147483648 {
+            exact = false
+        }
+        axis.bounds[cast(s64)out * 2] = low
+        axis.bounds[cast(s64)out * 2 + 1] = high
+        at := cast(s64)out * entry
+        axis.packed[at] = cast(u32)low
+        axis.packed[at + 1] = cast(u32)high
+        for pair: 0..pairs - 1 {
+            first := ifx pair * 2 < size then axis.weights[row + pair * 2] else 0
+            second := ifx pair * 2 + 1 < size then axis.weights[row + pair * 2 + 1] else 0
+            axis.packed[at + 2 + pair * 2] = PackHalves(LowHalf(first), LowHalf(second))
+            axis.packed[at + 3 + pair * 2] = PackHalves(HighHalf(first), HighHalf(second))
+        }
+    }
+    axis.input = input; axis.output = output
+    axis.size = size; axis.entry = entry; axis.exact = exact
+    return true
+}
+
+// Pillow's weights for scaling all INPUT positions to OUTPUT positions.
+ResampleAxisInto :: (axis: *ResampleAxis, input: s32, output: s32, filter: s32) -> bool {
+    return ResampleAxisBoxInto(axis, input, 0.0, cast(float64)input, output, filter)
+}
+
+// AXIS.output pixels of TARGET from AXIS.input pixels of SOURCE.
+ResampleRowHorizontal :: (axis: *ResampleAxis, source: *u8, target: *u8) {
+    if axis.output <= 0 || source == null || target == null { return }
+    level := Level()
+    if axis.exact && level == RESAMPLE_AVX2 {
+        HorizontalAvx2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
+    } else if axis.exact && level == RESAMPLE_SSE2 {
+        HorizontalSse2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
+    } else if axis.exact && level == RESAMPLE_NEON {
+        HorizontalNeon(source, *axis.bounds[0], *axis.weights[0], cast(s64)axis.size, cast(s64)axis.output, target, axis)
+    } else {
+        HorizontalScalar(axis, source, target)
+    }
+}
+
+// Output row ROW of a vertical AXIS: WIDTH pixels of TARGET from the
+// source rows at SOURCE, STRIDE bytes apart.
+ResampleRowVertical :: (axis: *ResampleAxis, row: s32, source: *u8, stride: s64, width: s32, target: *u8) {
+    if row < 0 || row >= axis.output || width <= 0 || source == null || target == null { return }
+    low := cast(s64)axis.bounds[cast(s64)row * 2]
+    count := cast(s64)axis.bounds[cast(s64)row * 2 + 1]
+    rows := *source[low * stride]
+    weights := *axis.weights[cast(s64)row * axis.size]
+    pairs := *axis.packed[cast(s64)row * axis.entry + 2]
+    bytes := cast(s64)width * 4
+    done: s64 = 0
+    if axis.exact {
+        level := Level()
+        if level == RESAMPLE_AVX2 {
+            done = bytes - bytes % 32
+            if done > 0 { VerticalAvx2(rows, stride, pairs, count, target, done, weights) }
+        }
+        if (level == RESAMPLE_AVX2 || level == RESAMPLE_SSE2) && bytes - done >= 16 {
+            chunk := (bytes - done) - (bytes - done) % 16
+            VerticalSse2(*rows[done], stride, pairs, count, *target[done], chunk, weights)
+            done += chunk
+        }
+        if level == RESAMPLE_NEON {
+            done = bytes - bytes % 16
+            if done > 0 { VerticalNeon(rows, stride, weights, count, target, done) }
+        }
+    }
+    if done < bytes { VerticalScalar(rows, stride, weights, count, axis.exact, target, done, bytes) }
+}
+
+// Pillow's premultiplication of COUNT RGBA pixels in place, and its inverse.
+ResamplePremultiply :: (pixels: *u8, count: s64) {
+    at: s64 = 0
+    end := count * 4
+    while at < end {
+        alpha := cast(u32)pixels[at + 3]
+        if alpha != 255 {
+            for channel: cast(s64)0..2 {
+                value := cast(u32)pixels[at + channel] * alpha + 128
+                pixels[at + channel] = cast(u8)(((value >> 8) + value) >> 8)
+            }
+        }
+        at += 4
+    }
+}
+
+ResampleUnpremultiply :: (pixels: *u8, count: s64) {
+    at: s64 = 0
+    end := count * 4
+    while at < end {
+        alpha := cast(u32)pixels[at + 3]
+        if alpha != 0 && alpha != 255 {
+            for channel: cast(s64)0..2 {
+                value := 255 * cast(u32)pixels[at + channel] / alpha
+                pixels[at + channel] = cast(u8)(ifx value > 255 then 255 else value)
+            }
+        }
+        at += 4
+    }
+}
+
+// Plans resizing the box (X, Y, BOX_WIDTH, BOX_HEIGHT) of a SOURCE_WIDTH by
+// SOURCE_HEIGHT picture to WIDTH by HEIGHT, passes as Pillow chooses them.
+// Reusing a plan reuses its storage. False leaves no pass to run.
+ResamplePlanInto :: (plan: *ResamplePlan, source_width: s32, source_height: s32,
+    x: float64, y: float64, box_width: float64, box_height: float64,
+    width: s32, height: s32, filter: s32) -> bool {
+    plan.width = 0; plan.height = 0; plan.rows = 0
+    plan.horizontal_pass = false; plan.vertical_pass = false
+    if source_width <= 0 || source_height <= 0 || width <= 0 || height <= 0 ||
+        cast(s64)width * height > 1073741824 || cast(s64)source_width * source_height > 1073741824 ||
+        !(x >= 0.0) || !(y >= 0.0) || !(box_width > 0.0) || !(box_height > 0.0) ||
+        !(x + box_width <= cast(float64)source_width) || !(y + box_height <= cast(float64)source_height) {
+        return false
+    }
+    right := x + box_width
+    bottom := y + box_height
+    horizontal := width != source_width || x != 0.0 || right != cast(float64)width
+    vertical := height != source_height || y != 0.0 || bottom != cast(float64)height
+    if horizontal && !ResampleAxisBoxInto(*plan.horizontal, source_width, x, right, width, filter) { return false }
+    if vertical && !ResampleAxisBoxInto(*plan.vertical, source_height, y, bottom, height, filter) { return false }
+    plan.first_row = 0
+    plan.rows = height
+    if vertical {
+        last := cast(s64)height - 1
+        plan.first_row = plan.vertical.bounds[0]
+        plan.rows = plan.vertical.bounds[last * 2] + plan.vertical.bounds[last * 2 + 1] - plan.first_row
+        // The vertical pass reads the horizontal pass's rows from 0.
+        if horizontal {
+            for out: cast(s64)0..cast(s64)height - 1 {
+                plan.vertical.bounds[out * 2] -= plan.first_row
+                plan.vertical.packed[out * plan.vertical.entry] = cast(u32)plan.vertical.bounds[out * 2]
+            }
+            if !VecResize(plan.intermediate, cast(s64)width * plan.rows * 4) { return false }
+        }
+    }
+    plan.source_width = source_width; plan.source_height = source_height
+    plan.width = width; plan.height = height
+    plan.horizontal_pass = horizontal; plan.vertical_pass = vertical
+    return true
+}
+
+// Rows the first pass makes, then the second: ranges of these numbers can
+// run on different threads, all first-pass rows before any second-pass row.
+ResamplePlanFirstRows :: (plan: *ResamplePlan) -> s32 {
+    if plan.width <= 0 { return 0 }
+    if plan.horizontal_pass || !plan.vertical_pass { return plan.rows }
+    return 0
+}
+ResamplePlanSecondRows :: (plan: *ResamplePlan) -> s32 {
+    return ifx plan.width > 0 && plan.vertical_pass then plan.height else 0
+}
+
+// First-pass rows [FIRST, END) from premultiplied SOURCE (STRIDE bytes per
+// row) into the plan, or into TARGET when there is no second pass.
+ResamplePlanFirst :: (plan: *ResamplePlan, source: *u8, stride: s64,
+    target: *u8, target_stride: s64, first: s32, end: s32) {
+    limit := ResamplePlanFirstRows(plan)
+    if first < 0 { first = 0 }
+    if end > limit { end = limit }
+    if first >= end { return }
+    into := target
+    into_stride := target_stride
+    if plan.vertical_pass { into = *plan.intermediate[0]; into_stride = cast(s64)plan.width * 4 }
+    for row: first..end - 1 {
+        from := *source[(cast(s64)plan.first_row + row) * stride]
+        to := *into[cast(s64)row * into_stride]
+        if plan.horizontal_pass {
+            ResampleRowHorizontal(*plan.horizontal, from, to)
+        } else {
+            for at: cast(s64)0..cast(s64)plan.width * 4 - 1 { to[at] = from[at] }
+        }
+    }
+}
+
+// Second-pass rows [FIRST, END) of TARGET (TARGET_STRIDE bytes per row).
+ResamplePlanSecond :: (plan: *ResamplePlan, source: *u8, stride: s64,
+    target: *u8, target_stride: s64, first: s32, end: s32) {
+    limit := ResamplePlanSecondRows(plan)
+    if first < 0 { first = 0 }
+    if end > limit { end = limit }
+    if first >= end { return }
+    from := source
+    from_stride := stride
+    if plan.horizontal_pass { from = *plan.intermediate[0]; from_stride = cast(s64)plan.width * 4 }
+    for row: first..end - 1 {
+        ResampleRowVertical(*plan.vertical, row, from, from_stride, plan.width, *target[cast(s64)row * target_stride])
+    }
+}
+
+// The whole resize on this thread: premultiplied SOURCE into TARGET.
+ResamplePlanRun :: (plan: *ResamplePlan, source: *u8, stride: s64, target: *u8, target_stride: s64) {
+    ResamplePlanFirst(plan, source, stride, target, target_stride, 0, ResamplePlanFirstRows(plan))
+    ResamplePlanSecond(plan, source, stride, target, target_stride, 0, ResamplePlanSecondRows(plan))
+}

@@ -1181,6 +1181,19 @@ for portable parity, native allocation faults and sanitizer lifetime tests.
 Run `make -f Makefile -f tests/native_image_thumbnail.mk image-thumbnail-test`
 for 40 frozen Pillow 12.3.0 bitmap oracles through native C source/saved IR,
 plus Go and portable source/saved-IR assertions (no Python dependency).
+`std/resample.zi` makes the same box, bicubic and Lanczos bytes for native
+programs that resize repeatedly, such as a UI drawing a picture at its
+on-screen size: `ResampleAxisInto` computes one axis's weights once, and
+`ResampleRowHorizontal`/`ResampleRowVertical` then write rows without
+allocating. `ResamplePlanInto` plans a whole premultiplied picture or a
+fractional source box as Pillow's `Image.resize(box=...)` does, and its two
+passes split into row ranges for worker threads. SSE2 and AVX2 on x86-64 and
+NEON on AArch64 run the rows with the scalar loops' exact bytes, chosen once
+per CPU; other targets, `ZIRAN_NO_ASM` and `.zx` use the scalar loops.
+Filtering is on the stored bytes, as in Pillow, not in linear light. Run
+`sh tests/lanczos_isa_bitexact.sh build/bin/ziran` (with `ANDROID_NDK_HOME`
+and qemu-user for AArch64 and ARMv7) to compare every kernel with the scalar
+loops and those with std/image.
 `std/png_linux.zi` reads every standard PNG into an `Image` and writes RGBA,
 RGB and palette files; `std/jpeg.zi` writes baseline JPEGs at an IJG quality;
 `std/zlib_linux.zi` compresses and decompresses whole zlib, gzip or raw

@@ -20,6 +20,8 @@
 - Curl HTTP accepts named header values up to 8191 bytes.
 - `std/image` adds fallible caller-owned resampling and bicubic resize;
   `std/float_text` adds `Float64ReprInto`.
+- `std/resample` gives native programs Pillow's resize as allocation-free
+  row kernels, with SSE2, AVX2 and NEON versions that make the same bytes.
 
 - Native C generation accepts checked pointer casts to imported C callback types;
   Go and portable targets continue to reject C callbacks.

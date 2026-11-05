@@ -77,10 +77,29 @@ source_identifier_byte(unsigned char byte)
     return compiler_source_SourceIdentifier(byte);
 }
 
+/* The line limit applies to what the author wrote. Checking it before raw
+ * #string bodies are lowered keeps the diagnostic on the real line. */
+static void
+check_physical_lines(const char *source, const char *path)
+{
+    int line = 1;
+    for(const char *start = source; *start != '\0'; line++) {
+        const char *end = strchr(start, '\n');
+        size_t length = end != NULL ? (size_t)(end - start) : strlen(start);
+        if(length > 0 && start[length - 1] == '\r') length--;
+        if(length > SOURCE_PHYSICAL_LINE_MAX)
+            die_at(Span(path, line, SOURCE_PHYSICAL_LINE_MAX + 1),
+                   "source line exceeds %d characters", SOURCE_PHYSICAL_LINE_MAX);
+        if(end == NULL) break;
+        start = end + 1;
+    }
+}
+
 /* C owns parser storage and diagnostics; scanning rules live in Ziran. */
 char *
 lower_jai_multiline_strings(const char *source, const char *path)
 {
+    check_physical_lines(source, path);
     String input = source_view(source);
     SourceRewrite result = compiler_source_RewriteRawStrings(input, (Slice){0}, ZIR_NAME_MAX);
     ZirSourceSpan span = Span(path, result.line, result.column);

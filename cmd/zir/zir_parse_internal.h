@@ -41,7 +41,10 @@ void ParseCacheLeave(void *previous);
 
 enum {
     SOURCE_PATH_MAX = 1024,
-    SOURCE_LINE_MAX = 4096
+    /* Longest physical source line. A raw #string body lowers to one line, so
+     * SOURCE_LINE_MAX bounds the lowered text, not what the author wrote. */
+    SOURCE_PHYSICAL_LINE_MAX = 4095,
+    SOURCE_LINE_MAX = 16384
 };
 
 typedef struct SourceBuffer {

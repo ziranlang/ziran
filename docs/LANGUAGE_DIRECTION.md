@@ -336,8 +336,8 @@ Jai raw multiline strings use `#string END` followed by their exact text and
 a closing `END` at the start of a line. The opening line contains only the
 delimiter, and the newline before the closing line belongs to the string.
 Quotes, backslashes, tabs, and UTF-8 text in the body are preserved. The
-current source line and string literal size limit still applies after lowering
-to the checked IR.
+4095 character source line limit applies to each physical line of the body;
+the lowered literal itself may reach 16383 characters.
 Nested `/* ... */` comments and `//` line comments may appear between tokens;
 comment delimiters inside quoted strings remain text. Legacy `# ` comments
 are rejected. An unclosed block comment is a source error, including in a

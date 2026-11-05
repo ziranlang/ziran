@@ -162,16 +162,19 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
                 while(*q == ' ' || *q == '\t') q++;
                 if(*q == ']') {
                     size_t element_length = type_text_length(q + 1);
-                    char element[SOURCE_LINE_MAX];
-                    if(element_length == 0 || element_length >= sizeof(element))
+                    char *element = AllocateOrExit(SOURCE_LINE_MAX);
+                    if(element_length == 0 || element_length >= SOURCE_LINE_MAX) {
+                        free(element);
                         die_at(Span(path, line_no, (int)(p - line) + 1),
                                "[..] needs an element type");
+                    }
                     memcpy(element, q + 1, element_length);
                     element[element_length] = '\0';
                     normalize_jai_source_tokens(element, path, physical_path, line_no);
                     int written = snprintf(buffers->normalized + used,
                                            sizeof(buffers->normalized) - used,
                                            "Vec(%s)", skip_ws(element));
+                    free(element);
                     if(written < 0 || (size_t)written >= sizeof(buffers->normalized) - used)
                         die_at(Span(path, line_no, 1), "source line exceeds size limit");
                     used += (size_t)written;
@@ -263,15 +266,19 @@ normalize_jai_source_tokens(char *line, const char *path,
         size_t length = OperatorTokenLength(op);
         const char *after = skip_inline_ws(op + length);
         if(length > 0 && strncmp(after, "::", 2) == 0) {
-            char token[4], rewritten[SOURCE_LINE_MAX * 2];
+            char token[4];
+            char *rewritten = AllocateOrExit(SOURCE_LINE_MAX * 2);
             memcpy(token, op, length);
             token[length] = '\0';
-            int written = snprintf(rewritten, sizeof(rewritten), "%.*s%s %s",
+            int written = snprintf(rewritten, SOURCE_LINE_MAX * 2, "%.*s%s %s",
                                    (int)(start - line), line,
                                    OperatorProcedureName(token), after);
-            if(written < 0 || (size_t)written >= SOURCE_LINE_MAX)
+            if(written < 0 || (size_t)written >= SOURCE_LINE_MAX) {
+                free(rewritten);
                 die_at(Span(path, line_no, 1), "source line exceeds size limit");
+            }
             strcpy(line, rewritten);
+            free(rewritten);
         } else if(length == 0 && *op != ':' && strstr(start, "::") != NULL) {
             die_at(Span(path, line_no, 1),
                    "operator procedures are written operator + :: (a: T, b: T) -> T, "
@@ -683,12 +690,13 @@ discover_typed_global(const char *source, const char *path,
        strchr(source, ':') == NULL || strstr(source, "::") != NULL ||
        (!isalpha((unsigned char)source[0]) && source[0] != '_'))
         return;
-    char line[SOURCE_LINE_MAX];
+    char *line = AllocateOrExit(SOURCE_LINE_MAX);
     ZirModule parsed = {0};
-    copy_text(line, sizeof(line), source);
+    copy_text(line, SOURCE_LINE_MAX, source);
     normalize_jai_source_tokens(line, rel, path, line_no);
     parse_file_global(&parsed, line, Span(rel, line_no, 1),
                       scope_public, scope_file, NULL, 0);
+    free(line);
     if(parsed.global_count != 1) {
         free(parsed.globals);
         return;

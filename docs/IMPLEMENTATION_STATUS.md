@@ -783,9 +783,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - Jai `#string DELIMITER` raw multiline literals preserve their body bytes,
   including whitespace and the newline before the closing delimiter. Source
   and saved IR execute identically on the portable runner, C and Go.
-  `zi-fmt` preserves raw bodies and closing delimiter columns. The existing
-  source line and string literal size limit applies after the literal is
-  lowered.
+  `zi-fmt` preserves raw bodies and closing delimiter columns. The 4095
+  character source line limit counts the physical lines the author wrote, body
+  lines included, and is reported at the real line. The lowered literal as a
+  whole may reach 16383 characters, and later diagnostics keep their lines.
 - Nested block comments and inline `//` comments are stripped without changing
   quoted strings or source line locations. Unclosed comments are diagnosed in
   entry and loaded files; source and saved IR agree across portable, C, and

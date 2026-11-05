@@ -145,3 +145,59 @@ if ! grep -Eq 'after_literal\.zi:4:[0-9]+:.*invalid top-level declaration' \
     cat "$work/after_literal.err" >&2
     exit 1
 fi
+
+# The line limit counts physical lines: a body of three 2000-character lines
+# is far past one line's limit once lowered, yet every line is short.
+awk 'BEGIN {
+    print "Text :: #string END"
+    for (n = 0; n < 3; n++) { for (i = 0; i < 2000; i++) printf "x"; print "" }
+    print "END;"
+    print "#program_export"
+    print "Answer :: () -> s32 {"
+    print "    if Text.count != 6003 { return 0 }"
+    print "    return 42"
+    print "}"
+    print "Broken :: 1 +"
+}' > "$work/long_body.zi"
+if "$ziran" check --root "$work" "$work/long_body.zi" 2> "$work/long_body.err"; then
+    echo 'invalid declaration after a long #string was accepted' >&2
+    exit 1
+fi
+if grep -Fq 'exceeds' "$work/long_body.err"; then
+    cat "$work/long_body.err" >&2
+    exit 1
+fi
+# The three body lines and END keep their places: the broken line is line 11.
+grep -Eq 'long_body\.zi:11:' "$work/long_body.err" || {
+    cat "$work/long_body.err" >&2
+    exit 1
+}
+awk 'BEGIN {
+    print "Text :: #string END"
+    for (n = 0; n < 3; n++) { for (i = 0; i < 2000; i++) printf "x"; print "" }
+    print "END;"
+    print "#program_export"
+    print "Answer :: () -> s32 {"
+    print "    if Text.count != 6003 { return 0 }"
+    print "    return 42"
+    print "}"
+}' > "$work/long_ok.zi"
+"$ziran" check --root "$work" "$work/long_ok.zi"
+
+# A physical line over the limit is refused at its own line, inside a body too.
+awk 'BEGIN {
+    print "Text :: #string END"
+    print "short"
+    for (i = 0; i < 4100; i++) printf "x"
+    print ""
+    print "END;"
+}' > "$work/long_line.zi"
+if "$ziran" check --root "$work" "$work/long_line.zi" 2> "$work/long_line.err"; then
+    echo 'over-long physical line inside #string was accepted' >&2
+    exit 1
+fi
+grep -Eq 'long_line\.zi:3:[0-9]+: source line exceeds 4095 characters' \
+    "$work/long_line.err" || {
+    cat "$work/long_line.err" >&2
+    exit 1
+}

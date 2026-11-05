@@ -1,5 +1,6 @@
 // Pillow's separable resampling of 8-bit RGBA as allocation-free row
-// kernels, with SSE2, AVX2 and NEON versions that make the same bytes.
+// kernels, with SSE2, AVX2 and NEON (AArch64 and ARMv7) versions that make
+// the same bytes.
 //
 //     axis: ResampleAxis
 //     ResampleAxisInto(*axis, 640, 853, RESAMPLE_LANCZOS)  // weights once
@@ -192,6 +193,29 @@ VerticalScalar :: (rows: *u8, stride: s64, weights: *s32, count: s64, exact: boo
 HasAvx2 :: () -> s32 #asm("x86_64+avx2", "movl $1, %[out]", "=r", "", "", "") { return 0 }
 HasSse2 :: () -> s32 #asm("x86_64", "movl $1, %[out]", "=r", "", "", "") { return 0 }
 HasNeon :: () -> s32 #asm("aarch64", "mov %w[out], #1", "=r", "", "", "") { return 0 }
+HasArmNeon :: () -> s32 #asm("arm+neon", "mov %[out], #1", "=r", "", "", "") { return 0 }
+
+// A32 has too few registers for every argument as an operand, so the ARMv7
+// kernels read theirs from one of these. Their I32 suffixes are upper case:
+// the source scan reads a string's continuation lines as tokens and rejects
+// the lower-case spelling; both assemblers ignore the case.
+ArmRow :: struct {
+    source: *u8
+    bounds: *s32
+    weights: *s32
+    // Bytes from one output position's weights to the next.
+    step: s32
+    output: s32
+    target: *u8
+}
+ArmColumns :: struct {
+    rows: *u8
+    stride: s32
+    weights: *s32
+    count: s32
+    target: *u8
+    bytes: s32
+}
 
 HorizontalSse2 :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("x86_64", "movq %[packed], %%r10
         movq %[target], %%r11
@@ -394,6 +418,55 @@ HorizontalNeon :: (source: *u8, bounds: *s32, weights: *s32, size: s64, output: 
     9:",
         "", "r;r;r;r;r;r;g", "x9;x10;x11;x12;x13;x14;x15;x16;x17;v0;v1;v2;v3;v16;v17;v31;cc;memory", "volatile") {
     HorizontalScalar(axis, source, target)
+}
+
+HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [%[row]]
+        ldr r2, [%[row], #4]
+        ldr r3, [%[row], #8]
+        ldr r4, [%[row], #12]
+        ldr r5, [%[row], #16]
+        ldr r6, [%[row], #20]
+        cmp r5, #0
+        beq 9f
+    1:
+        ldr r8, [r2], #4
+        ldr r10, [r2], #4
+        add r8, r1, r8, lsl #2
+        mov r12, r3
+        vmov.I32 q8, #0x200000
+        vmov.I32 q9, #0
+    2:
+        cmp r10, #2
+        blt 3f
+        vld1.8 {d0}, [r8]!
+        vld1.32 {d2}, [r12]!
+        vmovl.u8 q2, d0
+        vmovl.u16 q3, d4
+        vmovl.u16 q10, d5
+        vmla.I32 q8, q3, d2[0]
+        vmla.I32 q9, q10, d2[1]
+        sub r10, r10, #2
+        b 2b
+    3:
+        cmp r10, #0
+        beq 4f
+        vld1.32 {d0[0]}, [r8]
+        vld1.32 {d2[0]}, [r12]
+        vmovl.u8 q2, d0
+        vmovl.u16 q3, d4
+        vmla.I32 q8, q3, d2[0]
+    4:
+        vadd.I32 q8, q8, q9
+        vshr.s32 q8, q8, #22
+        vqmovn.s32 d22, q8
+        vqmovun.s16 d24, q11
+        vst1.32 {d24[0]}, [r6]!
+        add r3, r3, r4
+        subs r5, r5, #1
+        bne 1b
+    9:",
+        "", "r;g", "r1;r2;r3;r4;r5;r6;r8;r10;r12;lr;d0;d2;d4;d5;d6;d7;d16;d17;d18;d19;d20;d21;d22;d23;d24;cc;memory", "volatile") {
+    HorizontalScalar(axis, row.source, row.target)
 }
 
 VerticalSse2 :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, weights: *s32) #asm("x86_64", "movl $2097152, %%ecx
@@ -628,6 +701,58 @@ VerticalNeon :: (rows: *u8, stride: s64, weights: *s32, count: s64, target: *u8,
     VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
 }
 
+VerticalArm :: (columns: *ArmColumns) #asm("arm+neon", "ldr r2, [%[columns], #4]
+        mov r8, #0
+        ldr r1, [%[columns], #20]
+        cmp r8, r1
+        bge 9f
+    1:
+        vmov.I32 q8, #0x200000
+        vmov.I32 q9, #0x200000
+        vmov.I32 q10, #0x200000
+        vmov.I32 q11, #0x200000
+        ldr r10, [%[columns]]
+        add r10, r10, r8
+        ldr r12, [%[columns], #8]
+        ldr lr, [%[columns], #12]
+    2:
+        vld1.8 {d0, d1}, [r10], r2
+        vld1.32 {d2[0]}, [r12]!
+        vmovl.u8 q2, d0
+        vmovl.u16 q12, d4
+        vmovl.u16 q13, d5
+        vmla.I32 q8, q12, d2[0]
+        vmla.I32 q9, q13, d2[0]
+        vmovl.u8 q2, d1
+        vmovl.u16 q12, d4
+        vmovl.u16 q13, d5
+        vmla.I32 q10, q12, d2[0]
+        vmla.I32 q11, q13, d2[0]
+        subs lr, lr, #1
+        bne 2b
+        vshr.s32 q8, q8, #22
+        vshr.s32 q9, q9, #22
+        vshr.s32 q10, q10, #22
+        vshr.s32 q11, q11, #22
+        vqmovn.s32 d24, q8
+        vqmovn.s32 d25, q9
+        vqmovn.s32 d26, q10
+        vqmovn.s32 d27, q11
+        vqmovun.s16 d0, q12
+        vqmovun.s16 d1, q13
+        ldr r1, [%[columns], #16]
+        add r1, r1, r8
+        vst1.8 {d0, d1}, [r1]
+        add r8, r8, #16
+        ldr r1, [%[columns], #20]
+        cmp r8, r1
+        blt 1b
+    9:",
+        "", "r", "r1;r2;r8;r10;r12;lr;d0;d1;d2;d4;d5;d16;d17;d18;d19;d20;d21;d22;d23;d24;d25;d26;d27;cc;memory", "volatile") {
+    VerticalScalar(columns.rows, cast(s64)columns.stride, columns.weights, cast(s64)columns.count, true,
+        columns.target, 0, cast(s64)columns.bytes)
+}
+
 Level :: () -> s32 {
     if resample_forced >= 0 { return resample_forced }
     return ResampleKernels()
@@ -635,12 +760,13 @@ Level :: () -> s32 {
 
 #scope_export
 // The fastest kernels this program and CPU have: RESAMPLE_AVX2,
-// RESAMPLE_SSE2, RESAMPLE_NEON or RESAMPLE_SCALAR. A build with
-// ZIRAN_NO_ASM, a compiler without GNU assembly and .zx use the scalar ones.
+// RESAMPLE_SSE2, RESAMPLE_NEON (AArch64, or ARMv7 with NEON) or
+// RESAMPLE_SCALAR. A build with ZIRAN_NO_ASM, a compiler without GNU
+// assembly and .zx use the scalar ones.
 ResampleKernels :: () -> s32 {
     if HasAvx2() != 0 { return RESAMPLE_AVX2 }
     if HasSse2() != 0 { return RESAMPLE_SSE2 }
-    if HasNeon() != 0 { return RESAMPLE_NEON }
+    if HasNeon() != 0 || HasArmNeon() != 0 { return RESAMPLE_NEON }
     return RESAMPLE_SCALAR
 }
 
@@ -652,7 +778,7 @@ ResampleUseKernels :: (level: s32) -> bool {
     available := level == RESAMPLE_SCALAR ||
         (level == RESAMPLE_SSE2 && HasSse2() != 0) ||
         (level == RESAMPLE_AVX2 && HasAvx2() != 0) ||
-        (level == RESAMPLE_NEON && HasNeon() != 0)
+        (level == RESAMPLE_NEON && (HasNeon() != 0 || HasArmNeon() != 0))
     if available { resample_forced = level }
     return available
 }
@@ -752,8 +878,11 @@ ResampleRowHorizontal :: (axis: *ResampleAxis, source: *u8, target: *u8) {
         HorizontalAvx2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
     } else if axis.exact && level == RESAMPLE_SSE2 {
         HorizontalSse2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
-    } else if axis.exact && level == RESAMPLE_NEON {
+    } else if axis.exact && level == RESAMPLE_NEON && HasNeon() != 0 {
         HorizontalNeon(source, *axis.bounds[0], *axis.weights[0], cast(s64)axis.size, cast(s64)axis.output, target, axis)
+    } else if axis.exact && level == RESAMPLE_NEON {
+        row := ArmRow.{source, *axis.bounds[0], *axis.weights[0], axis.size * 4, axis.output, target}
+        HorizontalArm(*row, axis)
     } else {
         HorizontalScalar(axis, source, target)
     }
@@ -783,7 +912,12 @@ ResampleRowVertical :: (axis: *ResampleAxis, row: s32, source: *u8, stride: s64,
         }
         if level == RESAMPLE_NEON {
             done = bytes - bytes % 16
-            if done > 0 { VerticalNeon(rows, stride, weights, count, target, done) }
+            if done > 0 && HasNeon() != 0 {
+                VerticalNeon(rows, stride, weights, count, target, done)
+            } else if done > 0 {
+                columns := ArmColumns.{rows, cast(s32)stride, weights, cast(s32)count, target, cast(s32)done}
+                VerticalArm(*columns)
+            }
         }
     }
     if done < bytes { VerticalScalar(rows, stride, weights, count, axis.exact, target, done, bytes) }

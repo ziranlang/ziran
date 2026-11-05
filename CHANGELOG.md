@@ -23,7 +23,8 @@
 - `std/image` adds fallible caller-owned resampling and bicubic resize;
   `std/float_text` adds `Float64ReprInto`.
 - `std/resample` gives native programs Pillow's resize as allocation-free
-  row kernels, with SSE2, AVX2 and NEON versions that make the same bytes.
+  row kernels, with SSE2, AVX2 and NEON (AArch64 and ARMv7) versions that
+  make the same bytes.
 - `#asm` adds `arm+neon` for ARMv7, selected at run time, and
   `wasm32+simd128` for WebAssembly builds made with `-msimd128`.
 

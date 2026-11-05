@@ -1,12 +1,13 @@
 #!/bin/sh
-# std/resample: every SSE2, AVX2 and NEON row kernel makes the same bytes
-# as the scalar reference, and the scalar reference the same as std/image's
-# Pillow resizes, for Lanczos, bicubic and box over odd sizes, boxes,
-# extreme pictures and split row ranges. Runs natively at -O0 and -O2 and
+# std/resample: every SSE2, AVX2 and NEON (AArch64 and ARMv7) row kernel
+# makes the same bytes as the scalar reference, and the scalar reference the
+# same as std/image's Pillow resizes, for Lanczos, bicubic and box over odd
+# sizes, boxes, extreme pictures and split row ranges. Runs natively at -O0 and -O2 and
 # with ZIRAN_NO_ASM. With the Android NDK (ANDROID_NDK_HOME) it also builds
 # AArch64 and ARMv7, running each under the qemu-user named by QEMU_AARCH64 /
-# QEMU_ARM. Static Bionic binaries need an NDK that aligns arm64 TLS to 64
-# bytes and, on 32-bit ARM, host PIDs up to 65535, so the runs are opt-in.
+# QEMU_ARM, or ARMv7 on the device ARMV7_ADB_SERIAL names. Static Bionic
+# binaries need an NDK that aligns arm64 TLS to 64 bytes and, on 32-bit ARM,
+# host PIDs up to 65535, so the runs are opt-in.
 set -eu
 
 ziran=$1
@@ -197,11 +198,19 @@ if test -n "${ANDROID_NDK_HOME:-}"; then
         echo "AArch64 built; set QEMU_AARCH64 to run it"
     fi
     qemu=${QEMU_ARM:-}
+    device=${ARMV7_ADB_SERIAL:-}
     if test -n "$qemu"; then
         "$qemu" "$work/armv7a-linux-androideabi24" > "$work/armv7.out"
+    elif test -n "$device"; then
+        remote=/data/local/tmp/ziran-lanczos-isa
+        adb -s "$device" push "$work/armv7a-linux-androideabi24" "$remote" >/dev/null
+        adb -s "$device" shell "chmod 755 $remote && $remote; status=\$?; rm -f $remote; exit \$status" > "$work/armv7.out"
+    fi
+    if test -f "$work/armv7.out"; then
         sed 's/^/armv7: /' "$work/armv7.out"
-        grep -q '^cases: ' "$work/armv7.out"
+        expect_levels "$work/armv7.out" scalar neon
+        grep -qx 'best: neon' "$work/armv7.out"
     else
-        echo "ARMv7 built; set QEMU_ARM to run it"
+        echo "ARMv7 built; set QEMU_ARM or ARMV7_ADB_SERIAL to run it"
     fi
 fi

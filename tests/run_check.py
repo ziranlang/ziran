@@ -3,12 +3,18 @@
 
 Every tests/*.sh script is a check. Each script uses its own mktemp directory,
 so separate scripts can safely run together after the toolchain is built.
+
+A long check declares its rough cost in a header line, `# check-cost: SECONDS`
+(its time in the sanitized CI run). Declared checks are spread over the shards
+longest first and start before the others, so no shard is left waiting on two
+long checks that started late.
 """
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 import os
+import re
 from pathlib import Path
 import shlex
 import shutil
@@ -42,6 +48,32 @@ def failure_tail(log):
     if size > 16384:
         lines = lines[1:]
     return "\n".join(lines[-60:])
+
+
+COST = re.compile(r"^# check-cost: ([0-9]+)$", re.MULTILINE)
+
+
+def declared_cost(script):
+    with Path(script).open(encoding="utf-8", errors="replace") as source:
+        match = COST.search(source.read(4096))
+    return int(match.group(1)) if match else 0
+
+
+def plan_checks(checks, costs, part=1, parts=1):
+    """Return shard PART of PARTS in start order. Every shard computes the same
+    partition: costly checks go to the least-loaded shard, longest first, and
+    the rest are dealt in name order."""
+    costly = sorted((check for check in checks if costs.get(check[0], 0)),
+                    key=lambda check: (-costs[check[0]], check[0]))
+    load = [0] * parts
+    mine = []
+    for check in costly:
+        target = min(range(parts), key=lambda index: (load[index], index))
+        load[target] += costs[check[0]]
+        if target == part - 1:
+            mine.append(check)
+    rest = [check for check in checks if not costs.get(check[0], 0)]
+    return mine + rest[part - 1::parts]
 
 
 def positive_int(value):
@@ -87,15 +119,16 @@ def main():
         "vm_locale.sh": str(bin_dir / "vm-locale-test"),
     }
     checks = [("bundle-link-test", [str(bin_dir / "bundle-link-test")])]
+    costs = {}
     for script in sorted((repo / "tests").glob("*.sh")):
+        costs[script.name] = declared_cost(script)
         compiler = str(bin_dir / "zi2zir") if script.name == "pointer_member_check.sh" else ziran
         command = ["sh", str(script), compiler]
         if script.name in extra:
             command.append(extra[script.name])
         checks.append((script.name, command))
     checks = [(name, command) for name, command in checks if args.filter in name]
-    if args.shard:
-        checks = checks[args.shard[0] - 1::args.shard[1]]
+    checks = plan_checks(checks, costs, *(args.shard or (1, 1)))
     if not checks:
         parser.error(f"no checks match {args.filter!r}")
     log_dir = (args.log_dir or bin_dir.parent / "check-logs").resolve()

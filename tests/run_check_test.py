@@ -37,6 +37,24 @@ class CheckRunnerTest(unittest.TestCase):
             self.assertEqual(passed["exit_code"], 0)
             self.assertEqual(Path(passed["log"]).read_text(), "ok\n")
 
+    def test_costly_checks_are_balanced_over_shards_and_start_first(self):
+        names = ["a.sh", "b.sh", "c.sh", "d.sh", "e.sh", "f.sh", "g.sh"]
+        checks = [(name, ["sh", name]) for name in names]
+        costs = {"b.sh": 800, "d.sh": 650, "f.sh": 300}
+        shards = [[name for name, _ in runner.plan_checks(checks, costs, part, 2)] for part in (1, 2)]
+        self.assertEqual(shards, [["b.sh", "a.sh", "e.sh"], ["d.sh", "f.sh", "c.sh", "g.sh"]])
+        self.assertEqual(sorted(shards[0] + shards[1]), names)
+        whole = [name for name, _ in runner.plan_checks(checks, costs)]
+        self.assertEqual(whole, ["b.sh", "d.sh", "f.sh", "a.sh", "c.sh", "e.sh", "g.sh"])
+
+    def test_cost_comes_from_the_script_header(self):
+        with tempfile.TemporaryDirectory() as directory:
+            script = Path(directory) / "slow.sh"
+            script.write_text("#!/bin/sh\n# check-cost: 815\nset -eu\n")
+            self.assertEqual(runner.declared_cost(script), 815)
+            script.write_text("#!/bin/sh\nset -eu\n")
+            self.assertEqual(runner.declared_cost(script), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

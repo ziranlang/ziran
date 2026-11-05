@@ -1,4 +1,5 @@
 #!/bin/sh
+# check-cost: 360
 # An array literal has no size cap: a table of tens of thousands of elements,
 # or more than 1 MB of source text, checks in linear time and runs the same
 # from source and saved IR on the VM, C and Go. Limits that remain name

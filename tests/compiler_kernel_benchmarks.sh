@@ -1,4 +1,5 @@
 #!/bin/sh
+# check-cost: 235
 # Run with: build-queue -- sh tests/compiler_kernel_benchmarks.sh [options]
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

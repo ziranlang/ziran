@@ -1,4 +1,5 @@
 #!/bin/sh
+# check-cost: 110
 set -eu
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)

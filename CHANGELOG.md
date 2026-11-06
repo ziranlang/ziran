@@ -17,6 +17,9 @@
   `t[i]` in `for i: 0..7` over a `[8]T` array, `view[i]` in
   `for i: 0..view.count-1`, `table[x & 255]`, and `bytes[at]` after
   `line := row * 16` and `at := line + (offset & 15)`.
+- Generated C also leaves out bounds checks an earlier guard proves, such as
+  `input[row * stride + column]` in loops over `row` and `column` after an
+  `if` that returns when `input.count` is too small.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

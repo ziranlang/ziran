@@ -411,7 +411,7 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
             int64_t loop_cursor_26 = 0LL;
             while (loop_cursor_26 < loop_count_26) {
                 int64_t loop_index_26 = loop_cursor_26;
-                Entry entry = ((Entry *)loop_view_26.data)[SliceIndex(loop_view_26, (int64_t)loop_index_26)];
+                Entry entry = ((Entry *)loop_view_26.data)[loop_index_26];
                 if (StringEqual(entry.name, name)) {
                     return (Evaluation){0};
                 }

@@ -784,11 +784,11 @@ compiler_expression_CharacterByte(String literal)
 {
     bool value_0 = (int64_t)(literal).length == 3LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 34;
     if (value_0 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) < 128) {
-        return (int32_t)((uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1));
+        return (int32_t)((uint8_t)literal.data[1]);
     }
     bool value_1 = (int64_t)(literal).length == 4LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
     if (value_1 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 3) == 34) {
-        uint8_t escape = (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2);
+        uint8_t escape = (uint8_t)literal.data[2];
         if (escape == 48) {
             return 0;
         }
@@ -811,8 +811,8 @@ compiler_expression_CharacterByte(String literal)
     }
     bool value_2 = (int64_t)(literal).length == 6LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
     if (value_2 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 120 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 5) == 34) {
-        int32_t high = compiler_expression_Hex((uint8_t)ZIRAN_INDEX(literal.data, literal.length, 3));
-        int32_t low = compiler_expression_Hex((uint8_t)ZIRAN_INDEX(literal.data, literal.length, 4));
+        int32_t high = compiler_expression_Hex((uint8_t)literal.data[3]);
+        int32_t low = compiler_expression_Hex((uint8_t)literal.data[4]);
         if (high >= 0 && low >= 0) {
             return (int32_t)(((uint32_t)high * 16u) + (uint32_t)low);
         }

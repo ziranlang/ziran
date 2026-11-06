@@ -551,7 +551,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `>>`, `+`, `-` and `*`, and from loop conditions. A local's range follows
   its initializer through any chain of locals, such as `line := row * 16`
   and `at := line + offset`, and a declaration without a value starts at
-  zero. A local or parameter
+  zero. An enclosing `if` or `while` condition, earlier `&&` and `||`
+  operands and an earlier `if` ending in `return`, `break` or `continue`
+  bound what they compare until it changes. Their comparisons of sums and
+  products, such as `input.count < (height + 3) * stride + width + 4`, prove
+  indexes such as `row * stride + column` below a slice count or array length
+  when no step can wrap; `tests/guarded_index_ranges.sh` checks four proven
+  functions and five reads that keep their checks. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing `while` condition
   until the body writes it again, and stays nonnegative when it only grows by

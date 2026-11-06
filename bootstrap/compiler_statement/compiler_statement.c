@@ -131,7 +131,7 @@ compiler_statement_CompileCondition(String source)
         int64_t loop_cursor_25 = 0LL;
         while (loop_cursor_25 < loop_count_25) {
             int64_t loop_index_25 = loop_cursor_25;
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_25.data, loop_view_25.length, loop_index_25);
+            uint8_t byte = (uint8_t)loop_view_25.data[loop_index_25];
             if (byte == 0) {
                 return (CompileHeader){0};
             }

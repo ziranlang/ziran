@@ -696,7 +696,7 @@ compiler_declaration_ImportDeclaration(String source, int64_t name_limit, int64_
         int64_t loop_cursor_20 = 0LL;
         while (loop_cursor_20 < loop_count_20) {
             int64_t loop_index_20 = loop_cursor_20;
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_20.data, loop_view_20.length, loop_index_20);
+            uint8_t byte = (uint8_t)loop_view_20.data[loop_index_20];
             if (byte == 34 || byte == 62 || byte < 32) {
                 result.error = DeclarationError_ImportCharacter;
                 return result;
@@ -901,7 +901,7 @@ compiler_declaration_SystemLibrary(String source, int64_t name_limit, int64_t pa
         int64_t loop_cursor_21 = 0LL;
         while (loop_cursor_21 < loop_count_21) {
             int64_t loop_index_21 = loop_cursor_21;
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_21.data, loop_view_21.length, loop_index_21);
+            uint8_t byte = (uint8_t)loop_view_21.data[loop_index_21];
             if (byte < 32 || byte == 34 || byte == 92) {
                 result.error = DeclarationError_LibraryCharacter;
                 return result;
@@ -988,9 +988,9 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
                 attribute = 3LL;
             }
             if (attribute >= 0LL) {
-                ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute) = (int32_t)((uint32_t)(ZIRAN_INDEX(attributes, sizeof(attributes) / sizeof(attributes[0]), attribute)) + 1u);
+                attributes[attribute] = (int32_t)((uint32_t)(attributes[attribute]) + 1u);
                 if (directive >= 0LL) {
-                    ZIRAN_INDEX(after_foreign, sizeof(after_foreign) / sizeof(after_foreign[0]), attribute) = true;
+                    after_foreign[attribute] = true;
                 }
             }
         }

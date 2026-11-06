@@ -151,7 +151,7 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                 int64_t loop_cursor_63 = 0LL;
                 while (loop_cursor_63 < loop_count_63) {
                     int64_t loop_index_63 = loop_cursor_63;
-                    uint8_t byte = ((uint8_t *)loop_view_63.data)[SliceIndex(loop_view_63, (int64_t)loop_index_63)];
+                    uint8_t byte = ((uint8_t *)loop_view_63.data)[loop_index_63];
                     if (byte == 0) {
                         return result;
                     }
@@ -206,7 +206,7 @@ compiler_type_ArrayElement(String type)
         int64_t loop_cursor_12 = 0LL;
         while (loop_cursor_12 < loop_count_12) {
             int64_t loop_index_12 = loop_cursor_12;
-            uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_12.data, loop_view_12.length, loop_index_12);
+            uint8_t byte = (uint8_t)loop_view_12.data[loop_index_12];
             if (byte < 48 || byte > 57) {
                 digits = false;
                 break;
@@ -224,7 +224,7 @@ compiler_type_ArrayElement(String type)
             int64_t loop_cursor_21 = 0LL;
             while (loop_cursor_21 < loop_count_21) {
                 int64_t loop_index_21 = loop_cursor_21;
-                uint8_t byte = (uint8_t)ZIRAN_INDEX(loop_view_21.data, loop_view_21.length, loop_index_21);
+                uint8_t byte = (uint8_t)loop_view_21.data[loop_index_21];
                 capacity = (int64_t)(((uint64_t)capacity * UINT64_C(10)) + (uint64_t)(((uint8_t)((uint32_t)byte - 48u))));
                 if (capacity > 1048576LL) {
                     return (ElementType){0};
@@ -365,7 +365,7 @@ compiler_type_Byte(String source, int64_t at)
     if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
-    return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+    return (uint8_t)source.data[at];
 }
 
 static int64_t

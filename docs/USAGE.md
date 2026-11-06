@@ -290,6 +290,16 @@ starts at zero. An
 index whose variable has its address taken or is changed before the read keeps
 its check. Run `sh tests/proven_index_ranges.sh build/bin/ziran`.
 
+Guards count too. After
+`if stride > 64 || input.count < cast(s64)(height + 3) * stride + width + 4 { return }`,
+with `width` and `height` bounded the same way, `input[row * stride + column]`
+in `for row: 0..height + 3` and `for column: 0..width + 3` reads without a
+check. An enclosing `if` or `while` condition, earlier `&&` and `||`
+operands, and an earlier `if` that ends in `return`, `break` or `continue`
+all act as guards until a value they compare changes. Every step of the
+index must provably not wrap. Run
+`sh tests/guarded_index_ranges.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

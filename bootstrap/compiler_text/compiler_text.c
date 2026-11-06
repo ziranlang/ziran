@@ -27,7 +27,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
         int64_t range_last_8 = (int64_t)(b).length;
         int64_t j = range_first_8;
         while (j <= range_last_8) {
-            ZIRAN_INDEX(previous, sizeof(previous) / sizeof(previous[0]), j) = (int32_t)(j);
+            previous[j] = (int32_t)(j);
             if (j == range_last_8) {
                 break;
             }
@@ -40,14 +40,14 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
         current[0] = best;
         int64_t j = 1LL;
         while (j <= (int64_t)(b).length) {
-            bool value_1 = (uint8_t)ZIRAN_INDEX(a.data, a.length, ((int64_t)((uint64_t)i - UINT64_C(1)))) != (uint8_t)ZIRAN_INDEX(b.data, b.length, ((int64_t)((uint64_t)j - UINT64_C(1))));
+            bool value_1 = (uint8_t)a.data[((int64_t)((uint64_t)i - UINT64_C(1)))] != (uint8_t)b.data[((int64_t)((uint64_t)j - UINT64_C(1)))];
             int32_t value_2 = 0;
             if (value_1) {
                 value_2 = 1;
             }
-            int32_t substitute = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + (uint32_t)value_2);
-            int32_t remove = (int32_t)((uint32_t)(ZIRAN_INDEX(previous, 128, j)) + 1u);
-            int32_t insert = (int32_t)((uint32_t)(ZIRAN_INDEX(current, 128, ((int64_t)((uint64_t)j - UINT64_C(1))))) + 1u);
+            int32_t substitute = (int32_t)((uint32_t)((previous)[((int64_t)((uint64_t)j - UINT64_C(1)))]) + (uint32_t)value_2);
+            int32_t remove = (int32_t)((uint32_t)((previous)[j]) + 1u);
+            int32_t insert = (int32_t)((uint32_t)((current)[((int64_t)((uint64_t)j - UINT64_C(1)))]) + 1u);
             int32_t value = substitute;
             if (remove < value) {
                 value = remove;
@@ -55,7 +55,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
             if (insert < value) {
                 value = insert;
             }
-            ZIRAN_INDEX(current, sizeof(current) / sizeof(current[0]), j) = value;
+            current[j] = value;
             if (value < best) {
                 best = value;
             }
@@ -69,7 +69,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
             int64_t range_last_36 = (int64_t)(b).length;
             int64_t j = range_first_36;
             while (j <= range_last_36) {
-                ZIRAN_INDEX(previous, sizeof(previous) / sizeof(previous[0]), j) = ZIRAN_INDEX(current, 128, j);
+                previous[j] = (current)[j];
                 if (j == range_last_36) {
                     break;
                 }
@@ -78,7 +78,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
         }
         i = (int64_t)((uint64_t)i + UINT64_C(1));
     }
-    int32_t distance = ZIRAN_INDEX(previous, 128, (int64_t)(b).length);
+    int32_t distance = (previous)[(int64_t)(b).length];
     if (distance > limit) {
         return (int32_t)((uint32_t)limit + 1u);
     }
@@ -496,14 +496,14 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
     }
     if (((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)at)] == 37 && ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(bytes).length || ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] != 37)) {
         if ((int64_t)(output).length > 0LL) {
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 0;
+            ((uint8_t *)output.data)[0] = 0;
         }
         return (FormatStep){.valid = true, .argument = true, .present = true, .next = (int64_t)((uint64_t)at + UINT64_C(1))};
     }
     if ((int64_t)(output).length < 3LL) {
         return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 34;
+    ((uint8_t *)output.data)[0] = 34;
     int64_t used = 1LL;
     while (at < (int64_t)(bytes).length) {
         uint8_t byte = ((uint8_t *)bytes.data)[SliceIndex(bytes, (int64_t)at)];
@@ -579,7 +579,7 @@ compiler_text_Byte(String source, int64_t at)
     if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
-    return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+    return (uint8_t)source.data[at];
 }
 
 static int64_t

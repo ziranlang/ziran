@@ -21,7 +21,7 @@ compiler_source_Byte(String source, int64_t at)
     if (at < 0LL || at >= (int64_t)(source).length) {
         return 0;
     }
-    return (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+    return (uint8_t)source.data[at];
 }
 
 static bool
@@ -685,7 +685,7 @@ compiler_source_SplitControlBlock(String source)
         return result;
     }
     int64_t control = 0LL;
-    if ((uint8_t)ZIRAN_INDEX(source.data, source.length, 0) == 125) {
+    if ((uint8_t)source.data[0] == 125) {
         int64_t after = compiler_source_SkipSpace(source, 1LL);
         if (compiler_source_StartsWord(StringRange(source, (int64_t)after, (int64_t)source.length), StringLiteral("else"))) {
             control = after;
@@ -703,7 +703,7 @@ compiler_source_SplitControlBlock(String source)
     bool value_3 = value_2 && !StringEqual(word, StringLiteral("switch")) && !StringEqual(word, StringLiteral("case"));
     bool value_4 = value_3 && !StringEqual(word, StringLiteral("guard")) && !StringEqual(word, StringLiteral("do"));
     if (value_4) {
-        bool value_5 = (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) == 35;
+        bool value_5 = (uint8_t)source.data[0] == 35;
         bool value_6 = value_5 && compiler_source_StartsWord(source, StringLiteral("#asm"));
         value_4 = !value_6;
     }

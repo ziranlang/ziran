@@ -593,7 +593,13 @@
   <code>&gt;&gt;</code>, <code>+</code>, <code>-</code> and <code>*</code>, and from loop conditions. A local's range follows
   its initializer through any chain of locals, such as <code>line := row * 16</code>
   and <code>at := line + offset</code>, and a declaration without a value starts at
-  zero. A local or parameter
+  zero. An enclosing <code>if</code> or <code>while</code> condition, earlier <code>&amp;&amp;</code> and <code>||</code>
+  operands and an earlier <code>if</code> ending in <code>return</code>, <code>break</code> or <code>continue</code>
+  bound what they compare until it changes. Their comparisons of sums and
+  products, such as <code>input.count &lt; (height + 3) * stride + width + 4</code>, prove
+  indexes such as <code>row * stride + column</code> below a slice count or array length
+  when no step can wrap; <code>tests/guarded_index_ranges.sh</code> checks four proven
+  functions and five reads that keep their checks. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing <code>while</code> condition
   until the body writes it again, and stays nonnegative when it only grows by

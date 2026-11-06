@@ -1876,7 +1876,19 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             break;
         }
     /* Forward prototypes for private functions: initializers and earlier
-     * definitions may reference them before their definition. */
+     * definitions may reference them before their definition. A private
+     * procedure every caller inlined has no call left, which is no fault. */
+    for(i = 0; i < m->function_count; i++)
+        if(!m->functions[i].is_template && !m->functions[i].is_public && !m->functions[i].is_extern)
+            break;
+    if(i < m->function_count)
+        fputs("#ifndef ZIRAN_MAYBE_UNUSED\n"
+              "#if defined(__GNUC__) || defined(__clang__)\n"
+              "#define ZIRAN_MAYBE_UNUSED __attribute__((unused))\n"
+              "#else\n"
+              "#define ZIRAN_MAYBE_UNUSED\n"
+              "#endif\n"
+              "#endif\n", c);
     for(i = 0; i < m->function_count; i++) {
         const ZirFunction *fn = &m->functions[i];
         char cname[LOWER_NAME_MAX];
@@ -1888,7 +1900,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
         strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
                          cret, sizeof(cret));
-        fprintf(c, "static %s%s %s(%s);\n", inlining_prefix(fn),
+        fprintf(c, "static %s%s %s(%s) ZIRAN_MAYBE_UNUSED;\n", inlining_prefix(fn),
                 cret[0] ? cret : "void", cname, buffers->cargs);
     }
     for(i = 0; i < m->global_count; i++) {

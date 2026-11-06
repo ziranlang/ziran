@@ -3,10 +3,17 @@
 #include "zir_bounds.h"
 #include "zir_string.h"
 #include "compiler_text.h"
-static uint8_t compiler_text_Byte(String source, int64_t at);
-static int64_t compiler_text_AfterQuote(String source, int64_t at);
-static int32_t compiler_text_HexDigit(uint8_t byte);
-static int64_t compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output);
+#ifndef ZIRAN_MAYBE_UNUSED
+#if defined(__GNUC__) || defined(__clang__)
+#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
+#else
+#define ZIRAN_MAYBE_UNUSED
+#endif
+#endif
+static uint8_t compiler_text_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_text_AfterQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_text_HexDigit(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output) ZIRAN_MAYBE_UNUSED;
 static String Operators[16] = {{"==", sizeof("==") - 1}, {"!=", sizeof("!=") - 1}, {"<=", sizeof("<=") - 1}, {">=", sizeof(">=") - 1}, {"<<", sizeof("<<") - 1}, {">>", sizeof(">>") - 1}, {"+", sizeof("+") - 1}, {"-", sizeof("-") - 1}, {"*", sizeof("*") - 1}, {"/", sizeof("/") - 1}, {"%", sizeof("%") - 1}, {"<", sizeof("<") - 1}, {">", sizeof(">") - 1}, {"&", sizeof("&") - 1}, {"|", sizeof("|") - 1}, {"^", sizeof("^") - 1}};
 static String Procedures[16] = {{"operator_equal", sizeof("operator_equal") - 1}, {"operator_not_equal", sizeof("operator_not_equal") - 1}, {"operator_less_equal", sizeof("operator_less_equal") - 1}, {"operator_greater_equal", sizeof("operator_greater_equal") - 1}, {"operator_shift_left", sizeof("operator_shift_left") - 1}, {"operator_shift_right", sizeof("operator_shift_right") - 1}, {"operator_add", sizeof("operator_add") - 1}, {"operator_subtract", sizeof("operator_subtract") - 1}, {"operator_multiply", sizeof("operator_multiply") - 1}, {"operator_divide", sizeof("operator_divide") - 1}, {"operator_modulo", sizeof("operator_modulo") - 1}, {"operator_less", sizeof("operator_less") - 1}, {"operator_greater", sizeof("operator_greater") - 1}, {"operator_bit_and", sizeof("operator_bit_and") - 1}, {"operator_bit_or", sizeof("operator_bit_or") - 1}, {"operator_bit_xor", sizeof("operator_bit_xor") - 1}};
 
@@ -107,8 +114,13 @@ compiler_text_SkipSpace(String source, int64_t at, bool inline_only)
                 break;
             }
         } else {
-            bool value_0 = compiler_text_SpaceByte(byte);
-            if (!value_0) {
+            uint8_t value_0 = byte;
+            bool value_1 = false;
+            {
+                uint8_t byte = value_0;
+                value_1 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            if (!value_1) {
                 break;
             }
         }
@@ -122,7 +134,18 @@ compiler_text_TrimRange(String source)
 {
     int64_t begin = compiler_text_SkipSpace(source, 0LL, false);
     int64_t end = (int64_t)(source).length;
-    while (end > begin && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_0 = end > begin;
+        if (value_0) {
+            uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_2 = false;
+            {
+                uint8_t byte = value_1;
+                value_2 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_0 = value_2;
+        }
+        if (!value_0) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     return (SourceRange){.begin = begin, .end = end};
@@ -132,13 +155,35 @@ int64_t
 compiler_text_BlockHeaderEnd(String source)
 {
     int64_t end = (int64_t)(source).length;
-    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_0 = end > 0LL;
+        if (value_0) {
+            uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_2 = false;
+            {
+                uint8_t byte = value_1;
+                value_2 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_0 = value_2;
+        }
+        if (!value_0) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     if (end > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))) == 123) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
-    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_4 = end > 0LL;
+        if (value_4) {
+            uint8_t value_5 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_6 = false;
+            {
+                uint8_t byte = value_5;
+                value_6 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_4 = value_6;
+        }
+        if (!value_4) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     return end;
@@ -313,19 +358,35 @@ compiler_text_TopLevelAssignment(String source)
                     depth = (int32_t)((uint32_t)depth - 1u);
                 }
             } else {
-                bool value_0 = byte == 61 && depth == 0 && compiler_text_Byte(source, (int64_t)((uint64_t)at + UINT64_C(1))) != 61;
-                bool value_1 = value_0;
-                if (value_1) {
-                    bool value_2 = at == 0LL;
-                    if (!value_2) {
-                        bool value_3 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 61 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 33;
-                        bool value_4 = value_3 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 60;
-                        bool value_5 = value_4 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 62;
-                        value_2 = value_5;
+                bool value_0 = byte == 61 && depth == 0;
+                if (value_0) {
+                    String value_1 = source;
+                    int64_t value_2 = (int64_t)((uint64_t)at + UINT64_C(1));
+                    uint8_t value_3 = 0;
+                    {
+                        String source = value_1;
+                        int64_t at = value_2;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_3 = 0;
+                            goto value_4;
+                        }
+                        value_3 = (uint8_t)source.data[at];
+                    value_4: ;
                     }
-                    value_1 = value_2;
+                    value_0 = (value_3 != 61);
                 }
-                if (value_1) {
+                bool value_5 = value_0;
+                if (value_5) {
+                    bool value_6 = at == 0LL;
+                    if (!value_6) {
+                        bool value_7 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 61 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 33;
+                        bool value_8 = value_7 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 60;
+                        bool value_9 = value_8 && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))) != 62;
+                        value_6 = value_9;
+                    }
+                    value_5 = value_6;
+                }
+                if (value_5) {
                     return at;
                 }
             }
@@ -395,7 +456,26 @@ compiler_text_DecodeString(String source, Slice output)
                         if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(source).length) {
                             return (DecodedLiteral){.valid = false, .count = 0LL};
                         }
-                        int32_t digit = compiler_text_HexDigit((uint8_t)ZIRAN_INDEX(source.data, source.length, at));
+                        uint8_t value_0 = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+                        int32_t value_1 = 0;
+                        {
+                            uint8_t byte = value_0;
+                            if (byte >= 48 && byte <= 57) {
+                                value_1 = (int32_t)((uint32_t)(byte) - 48u);
+                                goto value_2;
+                            }
+                            if (byte >= 97 && byte <= 102) {
+                                value_1 = (int32_t)(((uint32_t)(byte) - 97u) + 10u);
+                                goto value_2;
+                            }
+                            if (byte >= 65 && byte <= 70) {
+                                value_1 = (int32_t)(((uint32_t)(byte) - 65u) + 10u);
+                                goto value_2;
+                            }
+                            value_1 = -1;
+                        value_2: ;
+                        }
+                        int32_t digit = value_1;
                         if (digit < 0) {
                             return (DecodedLiteral){.valid = false, .count = 0LL};
                         }

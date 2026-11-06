@@ -822,6 +822,64 @@ go_binding_read_later(const ZirFunction *fn, int declaration)
     return read;
 }
 
+/* Whether a C local is surely never read: no identifier anywhere in the
+ * procedure but a whole-variable assignment target spells its name. Names
+ * are kept as hashes, so a collision only keeps a harmless warning. */
+static int
+c_binding_unread(const ZirFunction *fn, const char *name)
+{
+    static _Thread_local const ZirFunction *function;
+    static _Thread_local const ZirExpr *exprs;
+    static _Thread_local int expr_count, capacity;
+    static _Thread_local unsigned *hashes;
+    unsigned hash = 2166136261u;
+    if(function != fn || exprs != fn->exprs || expr_count != fn->expr_count) {
+        int need = 16;
+        while(need < fn->expr_count * 2)
+            need *= 2;
+        unsigned char *target = calloc((size_t)fn->expr_count + 1, 1);
+        if(target == NULL) {
+            function = NULL;
+            return 0;
+        }
+        if(need > capacity) {
+            unsigned *grown = realloc(hashes, (size_t)need * sizeof(*grown));
+            if(grown == NULL) {
+                free(target);
+                function = NULL;
+                return 0;
+            }
+            hashes = grown;
+            capacity = need;
+        }
+        memset(hashes, 0, (size_t)capacity * sizeof(*hashes));
+        for(int s = 0; s < fn->stmt_count; s++)
+            if(fn->stmts[s].lhs_root >= 0 && fn->exprs[fn->stmts[s].lhs_root].kind == ZIR_EXPR_IDENT)
+                target[fn->stmts[s].lhs_root] = 1;
+        for(int x = 0; x < fn->expr_count; x++) {
+            if(fn->exprs[x].kind != ZIR_EXPR_IDENT || fn->exprs[x].name == NULL || target[x])
+                continue;
+            unsigned h = 2166136261u;
+            for(const char *c = fn->exprs[x].name; *c; c++)
+                h = (h ^ (unsigned char)*c) * 16777619u;
+            h |= 1;
+            for(unsigned k = h & (unsigned)(capacity - 1); hashes[k] != h; k = (k + 1) & (unsigned)(capacity - 1))
+                if(hashes[k] == 0) { hashes[k] = h; break; }
+        }
+        free(target);
+        function = fn;
+        exprs = fn->exprs;
+        expr_count = fn->expr_count;
+    }
+    for(const char *c = name; *c; c++)
+        hash = (hash ^ (unsigned char)*c) * 16777619u;
+    hash |= 1;
+    for(unsigned k = hash & (unsigned)(capacity - 1); hashes[k] != 0; k = (k + 1) & (unsigned)(capacity - 1))
+        if(hashes[k] == hash)
+            return 0;
+    return 1;
+}
+
 /* Whether an initializer already has the declared type, so a Go
  * declaration can drop the type and an enum one its conversion. Untyped
  * constants, null, and procedure values keep the written type. */
@@ -985,6 +1043,239 @@ counted_iterations(const ZirFunction *fn, int loop, int close, int64_t *count)
         return 0;
     if(*count < 0)
         *count = 0;
+    return 1;
+}
+
+/* ---- Inlining small procedures (C) ----------------------------------- */
+
+enum {
+    INLINE_BODY_STATEMENTS = 24, INLINE_BODY_EXPRESSIONS = 96, INLINE_NESTING = 2,
+    INLINE_RECORD_FIELDS = 16, INLINE_RECORD_DEPTH = 3
+};
+
+/* A parameter, local or result type an inlined body can hold in a plain C
+ * variable: no array, which travels by ABI pointer, and nothing owned. */
+static int
+inline_value_type_in(const ZirModule *m, const char *type, int depth)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record;
+    const ZirTypeField *field;
+    size_t offset = 0;
+    int fields = 0, more;
+    if(type == NULL || *type == '\0')
+        return 0;
+    type = canonical(type);
+    if(strchr(type, '[') != NULL || emitter_type_contains_vec(m, type, 0) ||
+       OwnedTextType(m, type))
+        return 0;
+    if(*type == '*' || BuiltinTypeName(type))
+        return 1;
+    record = FindType(m, type, &owner);
+    if(record == NULL)
+        return 0;
+    if(record->is_enum || record->is_procedure_type)
+        return 1;
+    if(record->is_union || record->is_extern || depth >= INLINE_RECORD_DEPTH)
+        return 0;
+    while((more = TypeNextFieldShared(record, &offset, &field)) == 1)
+        if(++fields > INLINE_RECORD_FIELDS ||
+           !inline_value_type_in(owner != NULL ? owner : m, field->type, depth + 1))
+            return 0;
+    return more == 0;
+}
+
+/* A type an inlined body may hold in a caller's frame: a scalar, a pointer
+ * or a small record of those, never an array a caller would carry for good. */
+static int
+inline_value_type(const ZirModule *m, const char *type)
+{
+    return inline_value_type_in(m, type, 0);
+}
+
+/* The procedure of module m a call names, when its body can stand in for
+ * the call: small, straight-line code with no loops, referring to no module
+ * variable (whose C name a caller's local could hide), in plain types. */
+static const ZirFunction *
+inline_callee(const Emitter *e, const ZirExpr *call)
+{
+    const ZirModule *m = e->module;
+    const ZirFunction *fn = NULL;
+    if(e->target != ZIR_C || e->inline_depth >= INLINE_NESTING || *call->slot_type ||
+       call->name[0] == '\0' || strchr(call->name, '.') != NULL)
+        return NULL;
+    for(int i = 0; i < m->function_count && fn == NULL; i++)
+        if(!strcmp(m->functions[i].name, call->name))
+            fn = &m->functions[i];
+    if(fn == NULL || fn == e->fn || fn->is_template || fn->is_extern || fn->exported ||
+       fn->simd_target || fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
+       (fn->assembly_text && *fn->assembly_text) || NativeProgramMain(m, fn) ||
+       fn->inlining == ZIR_INLINE_COLD || !fn->checked ||
+       fn->stmt_count == 0 || fn->stmt_count > INLINE_BODY_STATEMENTS ||
+       fn->expr_count > INLINE_BODY_EXPRESSIONS || !CanEmitBody(m, fn))
+        return NULL;
+    if(strcmp(fn->return_type, "void") && !inline_value_type(m, fn->return_type))
+        return NULL;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    int arguments = 0;
+    for(int child = call->first_child; child >= 0; child = e->fn->exprs[child].next_sibling)
+        arguments++;
+    if(arguments != parameters->count)
+        return NULL;
+    for(int i = 0; i < parameters->count; i++)
+        if(parameters->items[i].name == NULL || parameters->items[i].is_using ||
+           !inline_value_type(m, parameters->items[i].type))
+            return NULL;
+    for(int i = 0; i < fn->stmt_count; i++) {
+        const ZirStmt *st = &fn->stmts[i];
+        if(st->is_parallel || st->is_gpu || st->is_using || StatementHasAssembly(st))
+            return NULL;
+        switch(st->kind) {
+        case ZIR_STMT_BLOCK_OPEN: case ZIR_STMT_BLOCK_CLOSE: case ZIR_STMT_ASSIGN:
+        case ZIR_STMT_EXPR: case ZIR_STMT_IF: case ZIR_STMT_RETURN:
+            break;
+        case ZIR_STMT_DECL:
+            if(!inline_value_type(m, st->type))
+                return NULL;
+            break;
+        default:
+            return NULL;
+        }
+    }
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *x = &fn->exprs[i];
+        if(x->is_function_value)
+            return NULL;
+        if(x->kind == ZIR_EXPR_CALL && x->name[0] && !strcmp(x->name, fn->name))
+            return NULL;
+        /* A foreign procedure is declared only where its own module's
+         * body is, never in a header an inlined copy may land in, so a
+         * plain call must name one of the module's own procedures. */
+        if(x->kind == ZIR_EXPR_CALL && strchr(x->name, '.') == NULL) {
+            int own = 0;
+            for(int f = 0; f < m->function_count && !own; f++)
+                own = !strcmp(m->functions[f].name, x->name) &&
+                      !m->functions[f].is_extern && !m->functions[f].uses_host;
+            if(!own)
+                return NULL;
+        }
+        if(x->kind == ZIR_EXPR_IDENT)
+            for(int g = 0; g < m->global_count; g++)
+                if(!strcmp(m->globals[g].name, x->name))
+                    return NULL;
+    }
+    return fn;
+}
+
+/* C text for an integer literal, such as 7, -3 or 4LL. */
+static int
+inline_literal(const char *text)
+{
+    if(*text == '-')
+        text++;
+    if(!isdigit((unsigned char)*text))
+        return 0;
+    while(isalnum((unsigned char)*text))
+        text++;
+    return *text == '\0';
+}
+
+int
+emit_inline_call(Emitter *e, const ZirExpr *call, char *out, size_t size)
+{
+    const ZirFunction *fn = inline_callee(e, call);
+    if(fn == NULL)
+        return 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    int count = parameters->count;
+    char (*values)[ZIR_TEXT_MAX] = calloc((size_t)(count > 0 ? count : 1), sizeof(*values));
+    Local *locals = calloc((size_t)fn->stmt_count + count + 65, sizeof(*locals));
+    char result[ZIR_NAME_MAX] = "", label[ZIR_NAME_MAX];
+    if(values == NULL || locals == NULL) {
+        free(values);
+        free(locals);
+        return 0;
+    }
+    /* Arguments run left to right in the caller, each into a variable
+     * unless it is a literal or a name no later argument could change. */
+    for(int child = call->first_child; child >= 0; child = e->fn->exprs[child].next_sibling) {
+        int ordinal = e->fn->exprs[child].argument_index;
+        const char *type = parameters->items[ordinal].type;
+        int later_calls = 0;
+        for(int next = e->fn->exprs[child].next_sibling; next >= 0;
+            next = e->fn->exprs[next].next_sibling)
+            later_calls |= expression_calls(e->fn, next);
+        e->call_in_place = 0;
+        emit_expr(e, child, type, values[ordinal], sizeof(values[ordinal]));
+        char plain[ZIR_TEXT_MAX];
+        bare(values[ordinal], plain, sizeof(plain));
+        int keep = inline_literal(plain) || (plain_identifier(plain) && !later_calls);
+        for(int p = 0; keep && p < count; p++) {
+            char binding[ZIR_NAME_MAX];
+            TargetBindingName(fn, e->target, parameters->items[p].name, binding, sizeof(binding));
+            keep = strcmp(binding, plain) != 0;
+        }
+        if(keep) {
+            copy_text(values[ordinal], sizeof(values[ordinal]), plain);
+        } else {
+            char captured[ZIR_NAME_MAX];
+            fresh(e, captured);
+            declare(e, captured, type, values[ordinal]);
+            copy_text(values[ordinal], sizeof(values[ordinal]), captured);
+        }
+    }
+    if(strcmp(fn->return_type, "void")) {
+        char zero[ZIR_TEXT_MAX];
+        fresh(e, result);
+        if(record_type(e->module, fn->return_type))
+            zero_record(e, fn->return_type, zero, sizeof(zero));
+        else
+            copy_text(zero, sizeof(zero), zero_value(fn->return_type, e->target));
+        declare(e, result, fn->return_type, zero);
+    }
+    fresh(e, label);
+    Emitter inner = *e;
+    inner.fn = fn;
+    inner.locals = locals;
+    inner.local_count = 0;
+    inner.depth = 0;
+    inner.loop_count = 0;
+    inner.loop_header[0] = '\0';
+    inner.sequence_terminated = 0;
+    inner.call_in_place = 0;
+    inner.array_destination = NULL;
+    inner.array_operand = 0;
+    inner.short_declaration = 0;
+    inner.braced_initializer = 0;
+    inner.inline_result = result[0] ? result : NULL;
+    inner.inline_label = label;
+    inner.inline_tail = fn->stmt_count - 1;
+    inner.inline_jumps = 0;
+    inner.inline_depth = e->inline_depth + 1;
+    inner.ranges = RangeFactsBuild(fn);
+    line(e, "{");
+    inner.indent = e->indent + 1;
+    /* The call still costs the step its entry would have charged. */
+    if(run_guards)
+        line(&inner, "ZIR_STEP();");
+    for(int p = 0; p < count; p++) {
+        declare(&inner, parameters->items[p].name, parameters->items[p].type, values[p]);
+        track_local(&inner, parameters->items[p].name, canonical(parameters->items[p].type));
+        if(c_binding_unread(fn, parameters->items[p].name)) {
+            char binding[ZIR_NAME_MAX];
+            TargetBindingName(fn, ZIR_C, parameters->items[p].name, binding, sizeof(binding));
+            line(&inner, "(void)%s;", binding);
+        }
+    }
+    emit_sequence(&inner, 0, fn->stmt_count);
+    RangeFactsFree(inner.ranges);
+    e->serial = inner.serial;
+    if(inner.inline_jumps)
+        line(e, "%s: ;", label);
+    line(e, "}");
+    free(values);
+    free(locals);
+    copy_text(out, size, result);
     return 1;
 }
 
@@ -1366,6 +1657,21 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             assign_value(e, buffers->lhs, e->fn->exprs[st->lhs_root].type, buffers->result);
             break;
         case ZIR_STMT_RETURN:
+            if(e->inline_label != NULL) {
+                /* An inlined body's return sets the caller's result and
+                 * leaves the body, which its last statement already does. */
+                if(st->expr_root >= 0 && e->inline_result != NULL) {
+                    e->call_in_place = 1;
+                    emit_expr(e, st->expr_root, e->fn->return_type, buffers->value, sizeof(buffers->value));
+                    assign_value(e, e->inline_result, e->fn->return_type,
+                                 bare(buffers->value, buffers->plain, sizeof(buffers->plain)));
+                }
+                if(i != e->inline_tail) {
+                    line(e, "goto %s;", e->inline_label);
+                    e->inline_jumps++;
+                }
+                e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+            }
             if(st->expr_root >= 0) {
                 const char *returned_type = e->fn->return_type;
                 const ZirExpr *returned = &e->fn->exprs[st->expr_root];

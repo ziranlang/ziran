@@ -1703,6 +1703,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             e->pure = 1;
             return;
         }
+        if(emit_inline_call(e, expr, buffers->result, sizeof(buffers->result))) {
+            copy_text(out, size, buffers->result);
+            e->pure = buffers->result[0] != '\0';
+            return;
+        }
         emit_call(e, expr, NULL, buffers->result, sizeof(buffers->result));
         if(!strcmp(type,"void")) {line(e,"%s%s",buffers->result,e->target==ZIR_GO?"":";");out[0]=0;e->pure=0;return;}
         break;

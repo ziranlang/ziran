@@ -123,6 +123,13 @@ typedef struct Emitter {
     /* "ssse3", "sse41" or "avx2" while a #target procedure's clone for that
      * x86-64 tier is emitted, whose std/simd helpers carry that prefix. */
     const char *simd_tier;
+    /* While a small procedure's body is emitted in place of a call to it:
+     * the caller's variable its result goes to (NULL for void), the label
+     * after the body that a return jumps to unless it is the body's last
+     * statement, how many returns jumped, and how deep inlining nests. */
+    const char *inline_result;
+    const char *inline_label;
+    int inline_tail, inline_jumps, inline_depth;
 } Emitter;
 
 /* Bound for readable inlined expressions. Longer results stay in named
@@ -241,6 +248,10 @@ int IndexInRange(const Emitter *e, int index, int64_t count);
  * identifier base names. */
 int IndexBelowCount(const Emitter *e, int index, int base);
 int expression_calls(const ZirFunction *fn, int index);
+/* Emit call, a call of a small procedure of this module, as that
+ * procedure's body in place, leaving the result's C text in out. Returns 0,
+ * having emitted nothing, when the call is not inlined. */
+int emit_inline_call(Emitter *e, const ZirExpr *call, char *out, size_t size);
 /* Whether a call run later could change what expression index reads. */
 int call_can_change(const Emitter *e, int index);
 void emit_print(Emitter *e, const ZirExpr *expr);

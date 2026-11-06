@@ -2,15 +2,22 @@
 #define ZIRAN_COMPILER_SCAN_H_PRIVATE 1
 #include "compiler_scan.h"
 #undef ZIRAN_COMPILER_SCAN_H_PRIVATE
-static uint8_t compiler_scan_Byte(String source, int64_t at);
-static bool compiler_scan_Space(uint8_t byte);
-static bool compiler_scan_Digit(uint8_t byte);
-static bool compiler_scan_Letter(uint8_t byte);
-static bool compiler_scan_Identifier(uint8_t byte);
-static void compiler_scan_Advance(Cursor* cursor, String source);
-static bool compiler_scan_Contains(String bytes, uint8_t byte);
-static bool compiler_scan_Exponent(uint8_t byte, bool hexadecimal);
-static int64_t compiler_scan_OperatorLength(String source, int64_t at);
+#ifndef ZIRAN_MAYBE_UNUSED
+#if defined(__GNUC__) || defined(__clang__)
+#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
+#else
+#define ZIRAN_MAYBE_UNUSED
+#endif
+#endif
+static uint8_t compiler_scan_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Space(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Digit(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Letter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Identifier(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static void compiler_scan_Advance(Cursor* cursor, String source) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Contains(String bytes, uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_scan_Exponent(uint8_t byte, bool hexadecimal) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_scan_OperatorLength(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 
 static uint8_t
 compiler_scan_Byte(String source, int64_t at)
@@ -42,14 +49,42 @@ compiler_scan_Letter(uint8_t byte)
 static bool
 compiler_scan_Identifier(uint8_t byte)
 {
-    bool value_0 = compiler_scan_Letter(byte);
-    return value_0 || compiler_scan_Digit(byte);
+    uint8_t value_0 = byte;
+    bool value_1 = false;
+    {
+        uint8_t byte = value_0;
+        value_1 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+    }
+    bool value_3 = value_1;
+    if (!value_3) {
+        uint8_t value_4 = byte;
+        bool value_5 = false;
+        {
+            uint8_t byte = value_4;
+            value_5 = byte >= 48 && byte <= 57;
+        }
+        value_3 = value_5;
+    }
+    return value_3;
 }
 
 static void
 compiler_scan_Advance(Cursor* cursor, String source)
 {
-    if (compiler_scan_Byte(source, cursor->at) == 10) {
+    String value_0 = source;
+    int64_t value_1 = cursor->at;
+    uint8_t value_2 = 0;
+    {
+        String source = value_0;
+        int64_t at = value_1;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_2 = 0;
+            goto value_3;
+        }
+        value_2 = (uint8_t)source.data[at];
+    value_3: ;
+    }
+    if (value_2 == 10) {
         cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
         cursor->column = 1;
     } else {
@@ -82,21 +117,60 @@ compiler_scan_Exponent(uint8_t byte, bool hexadecimal)
 static int64_t
 compiler_scan_OperatorLength(String source, int64_t at)
 {
-    uint8_t first = compiler_scan_Byte(source, at);
-    uint8_t second = compiler_scan_Byte(source, (int64_t)((uint64_t)at + UINT64_C(1)));
+    String value_0 = source;
+    int64_t value_1 = at;
+    uint8_t value_2 = 0;
+    {
+        String source = value_0;
+        int64_t at = value_1;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_2 = 0;
+            goto value_3;
+        }
+        value_2 = (uint8_t)source.data[at];
+    value_3: ;
+    }
+    uint8_t first = value_2;
+    String value_4 = source;
+    int64_t value_5 = (int64_t)((uint64_t)at + UINT64_C(1));
+    uint8_t value_6 = 0;
+    {
+        String source = value_4;
+        int64_t at = value_5;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_6 = 0;
+            goto value_7;
+        }
+        value_6 = (uint8_t)source.data[at];
+    value_7: ;
+    }
+    uint8_t second = value_6;
     if ((first == 60 || first == 62) && second == first) {
-        if (compiler_scan_Byte(source, (int64_t)((uint64_t)at + UINT64_C(2))) == 61) {
+        String value_8 = source;
+        int64_t value_9 = (int64_t)((uint64_t)at + UINT64_C(2));
+        uint8_t value_10 = 0;
+        {
+            String source = value_8;
+            int64_t at = value_9;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_10 = 0;
+                goto value_11;
+            }
+            value_10 = (uint8_t)source.data[at];
+        value_11: ;
+        }
+        if (value_10 == 61) {
             return 3LL;
         }
         return 2LL;
     }
-    bool value_0 = (first == 58 && (second == 58 || second == 61)) || (first == 43 && second == 43) || (first == 45 && (second == 45 || second == 62));
-    bool value_1 = value_0 || (first == 61 && (second == 62 || second == 61));
-    if (!value_1) {
-        bool value_2 = compiler_scan_Contains(StringLiteral("!<>+-*/%&|^"), first);
-        value_1 = (value_2 && second == 61);
+    bool value_12 = (first == 58 && (second == 58 || second == 61)) || (first == 43 && second == 43) || (first == 45 && (second == 45 || second == 62));
+    bool value_13 = value_12 || (first == 61 && (second == 62 || second == 61));
+    if (!value_13) {
+        bool value_14 = compiler_scan_Contains(StringLiteral("!<>+-*/%&|^"), first);
+        value_13 = (value_14 && second == 61);
     }
-    if (value_1 || (first == 38 && second == 38) || (first == 124 && second == 124)) {
+    if (value_13 || (first == 38 && second == 38) || (first == 124 && second == 124)) {
         return 2LL;
     }
     if (compiler_scan_Contains(StringLiteral("+-*/%=!<>.&|^\?~"), first)) {
@@ -109,94 +183,635 @@ Scan
 compiler_scan_NextToken(String source, int64_t at, int32_t line, int32_t column)
 {
     Cursor cursor = {.at = at, .line = line, .column = column};
-    while (compiler_scan_Space(compiler_scan_Byte(source, cursor.at))) {
-        compiler_scan_Advance(&(cursor), source);
+    while (true) {
+        String value_0 = source;
+        int64_t value_1 = cursor.at;
+        uint8_t value_2 = 0;
+        {
+            String source = value_0;
+            int64_t at = value_1;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_2 = 0;
+                goto value_3;
+            }
+            value_2 = (uint8_t)source.data[at];
+        value_3: ;
+        }
+        bool value_4 = false;
+        {
+            uint8_t byte = value_2;
+            value_4 = byte == 32 || (byte >= 9 && byte <= 13);
+        }
+        if (!value_4) { break; }
+        Cursor* value_6 = &(cursor);
+        String value_7 = source;
+        {
+            Cursor* cursor = value_6;
+            String source = value_7;
+            String value_9 = source;
+            int64_t value_10 = cursor->at;
+            uint8_t value_11 = 0;
+            {
+                String source = value_9;
+                int64_t at = value_10;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_11 = 0;
+                    goto value_12;
+                }
+                value_11 = (uint8_t)source.data[at];
+            value_12: ;
+            }
+            if (value_11 == 10) {
+                cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                cursor->column = 1;
+            } else {
+                cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+            }
+            cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+        }
     }
     Scan token = {0};
     token.begin = cursor.at;
     token.line = cursor.line;
     token.column = cursor.column;
-    uint8_t byte = compiler_scan_Byte(source, cursor.at);
+    String value_13 = source;
+    int64_t value_14 = cursor.at;
+    uint8_t value_15 = 0;
+    {
+        String source = value_13;
+        int64_t at = value_14;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_15 = 0;
+            goto value_16;
+        }
+        value_15 = (uint8_t)source.data[at];
+    value_16: ;
+    }
+    uint8_t byte = value_15;
     if (byte == 0) {
         token.kind = TokenKind_Eof;
-    } else if (byte == 35 || compiler_scan_Letter(byte)) {
-        token.kind = TokenKind_Ident;
-        if (byte == 35) {
-            token.kind = TokenKind_Directive;
-        }
-        compiler_scan_Advance(&(cursor), source);
-        while (compiler_scan_Identifier(compiler_scan_Byte(source, cursor.at))) {
-            compiler_scan_Advance(&(cursor), source);
-        }
     } else {
-        bool value_0 = compiler_scan_Digit(byte);
-        if (value_0 || (byte == 46 && compiler_scan_Digit(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1)))))) {
-            bool real = byte == 46;
-            bool value_1 = byte == 48;
-            if (value_1) {
-                bool value_2 = compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 120;
-                bool value_3 = value_2 || compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) == 88;
-                value_1 = value_3;
+        bool value_17 = byte == 35;
+        if (!value_17) {
+            uint8_t value_18 = byte;
+            bool value_19 = false;
+            {
+                uint8_t byte = value_18;
+                value_19 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
             }
-            bool hexadecimal = value_1;
-            compiler_scan_Advance(&(cursor), source);
+            value_17 = value_19;
+        }
+        if (value_17) {
+            token.kind = TokenKind_Ident;
+            if (byte == 35) {
+                token.kind = TokenKind_Directive;
+            }
+            Cursor* value_21 = &(cursor);
+            String value_22 = source;
+            {
+                Cursor* cursor = value_21;
+                String source = value_22;
+                String value_24 = source;
+                int64_t value_25 = cursor->at;
+                uint8_t value_26 = 0;
+                {
+                    String source = value_24;
+                    int64_t at = value_25;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_26 = 0;
+                        goto value_27;
+                    }
+                    value_26 = (uint8_t)source.data[at];
+                value_27: ;
+                }
+                if (value_26 == 10) {
+                    cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                    cursor->column = 1;
+                } else {
+                    cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                }
+                cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+            }
             while (true) {
-                uint8_t current = compiler_scan_Byte(source, cursor.at);
-                bool value_4 = compiler_scan_Identifier(current);
-                bool value_5 = !value_4 && current != 46;
-                if (value_5) {
-                    bool value_6 = (current == 43 || current == 45) && compiler_scan_Exponent(compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) - UINT64_C(1))), hexadecimal);
-                    value_5 = !value_6;
+                String value_28 = source;
+                int64_t value_29 = cursor.at;
+                uint8_t value_30 = 0;
+                {
+                    String source = value_28;
+                    int64_t at = value_29;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_30 = 0;
+                        goto value_31;
+                    }
+                    value_30 = (uint8_t)source.data[at];
+                value_31: ;
                 }
-                if (value_5) {
-                    break;
+                bool value_32 = false;
+                {
+                    uint8_t byte = value_30;
+                    uint8_t value_34 = byte;
+                    bool value_35 = false;
+                    {
+                        uint8_t byte = value_34;
+                        value_35 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                    }
+                    bool value_37 = value_35;
+                    if (!value_37) {
+                        uint8_t value_38 = byte;
+                        bool value_39 = false;
+                        {
+                            uint8_t byte = value_38;
+                            value_39 = byte >= 48 && byte <= 57;
+                        }
+                        value_37 = value_39;
+                    }
+                    value_32 = value_37;
                 }
-                if (current == 46 || compiler_scan_Exponent(current, hexadecimal)) {
-                    real = true;
-                }
-                compiler_scan_Advance(&(cursor), source);
-            }
-            token.kind = TokenKind_Int;
-            if (real) {
-                token.kind = TokenKind_Float;
-            }
-        } else if (byte == 34 || byte == 39) {
-            token.kind = TokenKind_String;
-            if (byte == 39) {
-                token.kind = TokenKind_Char;
-            }
-            compiler_scan_Advance(&(cursor), source);
-            while (compiler_scan_Byte(source, cursor.at) != 0) {
-                uint8_t current = compiler_scan_Byte(source, cursor.at);
-                compiler_scan_Advance(&(cursor), source);
-                if (current == 92 && compiler_scan_Byte(source, cursor.at) != 0) {
-                    compiler_scan_Advance(&(cursor), source);
-                } else if (current == byte) {
-                    break;
+                if (!value_32) { break; }
+                Cursor* value_41 = &(cursor);
+                String value_42 = source;
+                {
+                    Cursor* cursor = value_41;
+                    String source = value_42;
+                    String value_44 = source;
+                    int64_t value_45 = cursor->at;
+                    uint8_t value_46 = 0;
+                    {
+                        String source = value_44;
+                        int64_t at = value_45;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_46 = 0;
+                            goto value_47;
+                        }
+                        value_46 = (uint8_t)source.data[at];
+                    value_47: ;
+                    }
+                    if (value_46 == 10) {
+                        cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                        cursor->column = 1;
+                    } else {
+                        cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                    }
+                    cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
                 }
             }
         } else {
-            bool value_7 = compiler_scan_Contains(StringLiteral("{}()[],;"), byte);
-            bool value_8 = value_7;
-            if (!value_8) {
-                bool value_9 = byte == 58 && compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 58;
-                bool value_10 = value_9 && compiler_scan_Byte(source, (int64_t)((uint64_t)(cursor.at) + UINT64_C(1))) != 61;
-                value_8 = value_10;
+            uint8_t value_48 = byte;
+            bool value_49 = false;
+            {
+                uint8_t byte = value_48;
+                value_49 = byte >= 48 && byte <= 57;
             }
-            if (value_8) {
-                token.kind = TokenKind_Punct;
-                compiler_scan_Advance(&(cursor), source);
-            } else {
-                int64_t length = compiler_scan_OperatorLength(source, cursor.at);
-                token.kind = TokenKind_Operator;
-                if (length == 0LL) {
-                    token.kind = TokenKind_Unknown;
-                    length = 1LL;
+            bool value_51 = value_49;
+            if (!value_51) {
+                bool value_52 = byte == 46;
+                if (value_52) {
+                    String value_53 = source;
+                    int64_t value_54 = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
+                    uint8_t value_55 = 0;
+                    {
+                        String source = value_53;
+                        int64_t at = value_54;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_55 = 0;
+                            goto value_56;
+                        }
+                        value_55 = (uint8_t)source.data[at];
+                    value_56: ;
+                    }
+                    bool value_57 = false;
+                    {
+                        uint8_t byte = value_55;
+                        value_57 = byte >= 48 && byte <= 57;
+                    }
+                    value_52 = value_57;
                 }
-                int64_t index = 0LL;
-                while (index < length) {
-                    compiler_scan_Advance(&(cursor), source);
-                    index = (int64_t)((uint64_t)index + UINT64_C(1));
+                value_51 = value_52;
+            }
+            if (value_51) {
+                bool real = byte == 46;
+                bool value_59 = byte == 48;
+                if (value_59) {
+                    String value_60 = source;
+                    int64_t value_61 = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
+                    uint8_t value_62 = 0;
+                    {
+                        String source = value_60;
+                        int64_t at = value_61;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_62 = 0;
+                            goto value_63;
+                        }
+                        value_62 = (uint8_t)source.data[at];
+                    value_63: ;
+                    }
+                    bool value_64 = value_62 == 120;
+                    if (!value_64) {
+                        String value_65 = source;
+                        int64_t value_66 = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
+                        uint8_t value_67 = 0;
+                        {
+                            String source = value_65;
+                            int64_t at = value_66;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_67 = 0;
+                                goto value_68;
+                            }
+                            value_67 = (uint8_t)source.data[at];
+                        value_68: ;
+                        }
+                        value_64 = (value_67 == 88);
+                    }
+                    value_59 = value_64;
+                }
+                bool hexadecimal = value_59;
+                Cursor* value_69 = &(cursor);
+                String value_70 = source;
+                {
+                    Cursor* cursor = value_69;
+                    String source = value_70;
+                    String value_72 = source;
+                    int64_t value_73 = cursor->at;
+                    uint8_t value_74 = 0;
+                    {
+                        String source = value_72;
+                        int64_t at = value_73;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_74 = 0;
+                            goto value_75;
+                        }
+                        value_74 = (uint8_t)source.data[at];
+                    value_75: ;
+                    }
+                    if (value_74 == 10) {
+                        cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                        cursor->column = 1;
+                    } else {
+                        cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                    }
+                    cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                }
+                while (true) {
+                    String value_76 = source;
+                    int64_t value_77 = cursor.at;
+                    uint8_t value_78 = 0;
+                    {
+                        String source = value_76;
+                        int64_t at = value_77;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_78 = 0;
+                            goto value_79;
+                        }
+                        value_78 = (uint8_t)source.data[at];
+                    value_79: ;
+                    }
+                    uint8_t current = value_78;
+                    bool value_80 = false;
+                    {
+                        uint8_t byte = current;
+                        uint8_t value_82 = byte;
+                        bool value_83 = false;
+                        {
+                            uint8_t byte = value_82;
+                            value_83 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                        }
+                        bool value_85 = value_83;
+                        if (!value_85) {
+                            uint8_t value_86 = byte;
+                            bool value_87 = false;
+                            {
+                                uint8_t byte = value_86;
+                                value_87 = byte >= 48 && byte <= 57;
+                            }
+                            value_85 = value_87;
+                        }
+                        value_80 = value_85;
+                    }
+                    bool value_89 = !value_80 && current != 46;
+                    if (value_89) {
+                        bool value_90 = current == 43 || current == 45;
+                        if (value_90) {
+                            String value_91 = source;
+                            int64_t value_92 = (int64_t)((uint64_t)(cursor.at) - UINT64_C(1));
+                            uint8_t value_93 = 0;
+                            {
+                                String source = value_91;
+                                int64_t at = value_92;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_93 = 0;
+                                    goto value_94;
+                                }
+                                value_93 = (uint8_t)source.data[at];
+                            value_94: ;
+                            }
+                            bool value_95 = hexadecimal;
+                            bool value_96 = false;
+                            {
+                                uint8_t byte = value_93;
+                                bool hexadecimal = value_95;
+                                if (hexadecimal) {
+                                    value_96 = byte == 112 || byte == 80;
+                                    goto value_97;
+                                }
+                                value_96 = byte == 101 || byte == 69;
+                            value_97: ;
+                            }
+                            value_90 = value_96;
+                        }
+                        value_89 = !value_90;
+                    }
+                    if (value_89) {
+                        break;
+                    }
+                    bool value_98 = current == 46;
+                    if (!value_98) {
+                        bool value_99 = hexadecimal;
+                        bool value_100 = false;
+                        {
+                            uint8_t byte = current;
+                            bool hexadecimal = value_99;
+                            if (hexadecimal) {
+                                value_100 = byte == 112 || byte == 80;
+                                goto value_101;
+                            }
+                            value_100 = byte == 101 || byte == 69;
+                        value_101: ;
+                        }
+                        value_98 = value_100;
+                    }
+                    if (value_98) {
+                        real = true;
+                    }
+                    Cursor* value_102 = &(cursor);
+                    String value_103 = source;
+                    {
+                        Cursor* cursor = value_102;
+                        String source = value_103;
+                        String value_105 = source;
+                        int64_t value_106 = cursor->at;
+                        uint8_t value_107 = 0;
+                        {
+                            String source = value_105;
+                            int64_t at = value_106;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_107 = 0;
+                                goto value_108;
+                            }
+                            value_107 = (uint8_t)source.data[at];
+                        value_108: ;
+                        }
+                        if (value_107 == 10) {
+                            cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                            cursor->column = 1;
+                        } else {
+                            cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                        }
+                        cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                    }
+                }
+                token.kind = TokenKind_Int;
+                if (real) {
+                    token.kind = TokenKind_Float;
+                }
+            } else if (byte == 34 || byte == 39) {
+                token.kind = TokenKind_String;
+                if (byte == 39) {
+                    token.kind = TokenKind_Char;
+                }
+                Cursor* value_109 = &(cursor);
+                String value_110 = source;
+                {
+                    Cursor* cursor = value_109;
+                    String source = value_110;
+                    String value_112 = source;
+                    int64_t value_113 = cursor->at;
+                    uint8_t value_114 = 0;
+                    {
+                        String source = value_112;
+                        int64_t at = value_113;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_114 = 0;
+                            goto value_115;
+                        }
+                        value_114 = (uint8_t)source.data[at];
+                    value_115: ;
+                    }
+                    if (value_114 == 10) {
+                        cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                        cursor->column = 1;
+                    } else {
+                        cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                    }
+                    cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                }
+                while (true) {
+                    String value_116 = source;
+                    int64_t value_117 = cursor.at;
+                    uint8_t value_118 = 0;
+                    {
+                        String source = value_116;
+                        int64_t at = value_117;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_118 = 0;
+                            goto value_119;
+                        }
+                        value_118 = (uint8_t)source.data[at];
+                    value_119: ;
+                    }
+                    if (!(value_118 != 0)) { break; }
+                    String value_120 = source;
+                    int64_t value_121 = cursor.at;
+                    uint8_t value_122 = 0;
+                    {
+                        String source = value_120;
+                        int64_t at = value_121;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_122 = 0;
+                            goto value_123;
+                        }
+                        value_122 = (uint8_t)source.data[at];
+                    value_123: ;
+                    }
+                    uint8_t current = value_122;
+                    Cursor* value_124 = &(cursor);
+                    String value_125 = source;
+                    {
+                        Cursor* cursor = value_124;
+                        String source = value_125;
+                        String value_127 = source;
+                        int64_t value_128 = cursor->at;
+                        uint8_t value_129 = 0;
+                        {
+                            String source = value_127;
+                            int64_t at = value_128;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_129 = 0;
+                                goto value_130;
+                            }
+                            value_129 = (uint8_t)source.data[at];
+                        value_130: ;
+                        }
+                        if (value_129 == 10) {
+                            cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                            cursor->column = 1;
+                        } else {
+                            cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                        }
+                        cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                    }
+                    bool value_131 = current == 92;
+                    if (value_131) {
+                        String value_132 = source;
+                        int64_t value_133 = cursor.at;
+                        uint8_t value_134 = 0;
+                        {
+                            String source = value_132;
+                            int64_t at = value_133;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_134 = 0;
+                                goto value_135;
+                            }
+                            value_134 = (uint8_t)source.data[at];
+                        value_135: ;
+                        }
+                        value_131 = (value_134 != 0);
+                    }
+                    if (value_131) {
+                        Cursor* value_136 = &(cursor);
+                        String value_137 = source;
+                        {
+                            Cursor* cursor = value_136;
+                            String source = value_137;
+                            String value_139 = source;
+                            int64_t value_140 = cursor->at;
+                            uint8_t value_141 = 0;
+                            {
+                                String source = value_139;
+                                int64_t at = value_140;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_141 = 0;
+                                    goto value_142;
+                                }
+                                value_141 = (uint8_t)source.data[at];
+                            value_142: ;
+                            }
+                            if (value_141 == 10) {
+                                cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                                cursor->column = 1;
+                            } else {
+                                cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                            }
+                            cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                        }
+                    } else if (current == byte) {
+                        break;
+                    }
+                }
+            } else {
+                bool value_143 = compiler_scan_Contains(StringLiteral("{}()[],;"), byte);
+                bool value_144 = value_143;
+                if (!value_144) {
+                    bool value_145 = byte == 58;
+                    if (value_145) {
+                        String value_146 = source;
+                        int64_t value_147 = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
+                        uint8_t value_148 = 0;
+                        {
+                            String source = value_146;
+                            int64_t at = value_147;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_148 = 0;
+                                goto value_149;
+                            }
+                            value_148 = (uint8_t)source.data[at];
+                        value_149: ;
+                        }
+                        value_145 = (value_148 != 58);
+                    }
+                    bool value_150 = value_145;
+                    if (value_150) {
+                        String value_151 = source;
+                        int64_t value_152 = (int64_t)((uint64_t)(cursor.at) + UINT64_C(1));
+                        uint8_t value_153 = 0;
+                        {
+                            String source = value_151;
+                            int64_t at = value_152;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_153 = 0;
+                                goto value_154;
+                            }
+                            value_153 = (uint8_t)source.data[at];
+                        value_154: ;
+                        }
+                        value_150 = (value_153 != 61);
+                    }
+                    value_144 = value_150;
+                }
+                if (value_144) {
+                    token.kind = TokenKind_Punct;
+                    Cursor* value_155 = &(cursor);
+                    String value_156 = source;
+                    {
+                        Cursor* cursor = value_155;
+                        String source = value_156;
+                        String value_158 = source;
+                        int64_t value_159 = cursor->at;
+                        uint8_t value_160 = 0;
+                        {
+                            String source = value_158;
+                            int64_t at = value_159;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_160 = 0;
+                                goto value_161;
+                            }
+                            value_160 = (uint8_t)source.data[at];
+                        value_161: ;
+                        }
+                        if (value_160 == 10) {
+                            cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                            cursor->column = 1;
+                        } else {
+                            cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                        }
+                        cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                    }
+                } else {
+                    int64_t length = compiler_scan_OperatorLength(source, cursor.at);
+                    token.kind = TokenKind_Operator;
+                    if (length == 0LL) {
+                        token.kind = TokenKind_Unknown;
+                        length = 1LL;
+                    }
+                    int64_t index = 0LL;
+                    while (index < length) {
+                        Cursor* value_162 = &(cursor);
+                        String value_163 = source;
+                        {
+                            Cursor* cursor = value_162;
+                            String source = value_163;
+                            String value_165 = source;
+                            int64_t value_166 = cursor->at;
+                            uint8_t value_167 = 0;
+                            {
+                                String source = value_165;
+                                int64_t at = value_166;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_167 = 0;
+                                    goto value_168;
+                                }
+                                value_167 = (uint8_t)source.data[at];
+                            value_168: ;
+                            }
+                            if (value_167 == 10) {
+                                cursor->line = (int32_t)((uint32_t)(cursor->line) + 1u);
+                                cursor->column = 1;
+                            } else {
+                                cursor->column = (int32_t)((uint32_t)(cursor->column) + 1u);
+                            }
+                            cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+                        }
+                        index = (int64_t)((uint64_t)index + UINT64_C(1));
+                    }
                 }
             }
         }

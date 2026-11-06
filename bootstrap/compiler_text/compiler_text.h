@@ -91,8 +91,13 @@ compiler_text_SkipSpace_ziran_inline(String source, int64_t at, bool inline_only
                 break;
             }
         } else {
-            bool value_0 = compiler_text_SpaceByte(byte);
-            if (!value_0) {
+            uint8_t value_0 = byte;
+            bool value_1 = false;
+            {
+                uint8_t byte = value_0;
+                value_1 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            if (!value_1) {
                 break;
             }
         }
@@ -105,13 +110,35 @@ static inline int64_t
 compiler_text_BlockHeaderEnd_ziran_inline(String source)
 {
     int64_t end = (int64_t)(source).length;
-    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_0 = end > 0LL;
+        if (value_0) {
+            uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_2 = false;
+            {
+                uint8_t byte = value_1;
+                value_2 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_0 = value_2;
+        }
+        if (!value_0) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     if (end > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))) == 123) {
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
-    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_4 = end > 0LL;
+        if (value_4) {
+            uint8_t value_5 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_6 = false;
+            {
+                uint8_t byte = value_5;
+                value_6 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_4 = value_6;
+        }
+        if (!value_4) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     return end;

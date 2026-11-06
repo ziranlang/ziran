@@ -3,17 +3,24 @@
 #include "zir_bounds.h"
 #include "zir_string.h"
 #include "compiler_source.h"
-static uint8_t compiler_source_Byte(String source, int64_t at);
-static bool compiler_source_Space(uint8_t byte);
-static bool compiler_source_Letter(uint8_t byte);
-static int64_t compiler_source_SkipSpace(String source, int64_t at);
-static bool compiler_source_Matches(String source, int64_t at, String text);
-static int64_t compiler_source_Find(String source, String text);
-static int64_t compiler_source_AfterQuote(String source, int64_t at);
-static int64_t compiler_source_ClosedQuote(String source, int64_t at);
-static void compiler_source_Put(Slice output, int64_t* used, uint8_t byte);
-static void compiler_source_PutScanned(Slice output, int64_t* used, uint8_t byte, int64_t* gaps);
-static void compiler_source_PutRaw(Slice output, int64_t* used, uint8_t byte);
+#ifndef ZIRAN_MAYBE_UNUSED
+#if defined(__GNUC__) || defined(__clang__)
+#define ZIRAN_MAYBE_UNUSED __attribute__((unused))
+#else
+#define ZIRAN_MAYBE_UNUSED
+#endif
+#endif
+static uint8_t compiler_source_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static bool compiler_source_Space(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static bool compiler_source_Letter(uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_source_SkipSpace(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static bool compiler_source_Matches(String source, int64_t at, String text) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_source_Find(String source, String text) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_source_AfterQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static int64_t compiler_source_ClosedQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
+static void compiler_source_Put(Slice output, int64_t* used, uint8_t byte) ZIRAN_MAYBE_UNUSED;
+static void compiler_source_PutScanned(Slice output, int64_t* used, uint8_t byte, int64_t* gaps) ZIRAN_MAYBE_UNUSED;
+static void compiler_source_PutRaw(Slice output, int64_t* used, uint8_t byte) ZIRAN_MAYBE_UNUSED;
 
 static uint8_t
 compiler_source_Byte(String source, int64_t at)
@@ -39,7 +46,18 @@ compiler_source_Letter(uint8_t byte)
 static int64_t
 compiler_source_SkipSpace(String source, int64_t at)
 {
-    while (at < (int64_t)(source).length && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, at))) {
+    while (true) {
+        bool value_0 = at < (int64_t)(source).length;
+        if (value_0) {
+            uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+            bool value_2 = false;
+            {
+                uint8_t byte = value_1;
+                value_2 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_0 = value_2;
+        }
+        if (!value_0) { break; }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     return at;
@@ -57,7 +75,18 @@ compiler_source_Find(String source, String text)
 {
     int64_t at = 0LL;
     while (at <= (int64_t)(source).length) {
-        if (compiler_source_Matches(source, at, text)) {
+        String value_0 = source;
+        int64_t value_1 = at;
+        String value_2 = text;
+        bool value_3 = false;
+        {
+            String source = value_0;
+            int64_t at = value_1;
+            String text = value_2;
+            bool value_5 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_3 = value_5 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (value_3) {
             return at;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
@@ -154,18 +183,44 @@ compiler_source_PutRaw(Slice output, int64_t* used, uint8_t byte)
 bool
 compiler_source_SourceIdentifier(uint8_t byte)
 {
-    bool value_0 = compiler_source_Letter(byte);
-    return value_0 || (byte >= 48 && byte <= 57);
+    uint8_t value_0 = byte;
+    bool value_1 = false;
+    {
+        uint8_t byte = value_0;
+        value_1 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+    }
+    return value_1 || (byte >= 48 && byte <= 57);
 }
 
 bool
 compiler_source_StartsWord(String source, String word)
 {
-    bool value_0 = compiler_source_Matches(source, 0LL, word);
-    if (!value_0) {
+    String value_0 = source;
+    bool value_1 = false;
+    {
+        String source = value_0;
+        int64_t at = 0LL;
+        String text = word;
+        bool value_3 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+        value_1 = value_3 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+    }
+    if (!value_1) {
         return false;
     }
-    uint8_t byte = compiler_source_Byte(source, (int64_t)(word).length);
+    String value_4 = source;
+    int64_t value_5 = (int64_t)(word).length;
+    uint8_t value_6 = 0;
+    {
+        String source = value_4;
+        int64_t at = value_5;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_6 = 0;
+            goto value_7;
+        }
+        value_6 = (uint8_t)source.data[at];
+    value_7: ;
+    }
+    uint8_t byte = value_6;
     return byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
 }
 
@@ -174,19 +229,58 @@ compiler_source_IdentifierText(String source, bool member_path)
 {
     bool value_0 = (int64_t)(source).length == 0LL;
     if (!value_0) {
-        bool value_1 = compiler_source_Letter((uint8_t)ZIRAN_INDEX(source.data, source.length, 0));
-        value_0 = !value_1;
+        uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, 0);
+        bool value_2 = false;
+        {
+            uint8_t byte = value_1;
+            value_2 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+        }
+        value_0 = !value_2;
     }
     if (value_0) {
         return false;
     }
     int64_t at = 1LL;
     while (at < (int64_t)(source).length) {
-        if (compiler_source_SourceIdentifier((uint8_t)ZIRAN_INDEX(source.data, source.length, at))) {
+        uint8_t value_4 = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+        bool value_5 = false;
+        {
+            uint8_t byte = value_4;
+            uint8_t value_7 = byte;
+            bool value_8 = false;
+            {
+                uint8_t byte = value_7;
+                value_8 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+            }
+            value_5 = value_8 || (byte >= 48 && byte <= 57);
+        }
+        if (value_5) {
             at = (int64_t)((uint64_t)at + UINT64_C(1));
         } else {
-            bool value_2 = member_path && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 46;
-            if (value_2 && compiler_source_Letter(compiler_source_Byte(source, (int64_t)((uint64_t)at + UINT64_C(1))))) {
+            bool value_10 = member_path && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 46;
+            bool value_11 = value_10;
+            if (value_11) {
+                String value_12 = source;
+                int64_t value_13 = (int64_t)((uint64_t)at + UINT64_C(1));
+                uint8_t value_14 = 0;
+                {
+                    String source = value_12;
+                    int64_t at = value_13;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_14 = 0;
+                        goto value_15;
+                    }
+                    value_14 = (uint8_t)source.data[at];
+                value_15: ;
+                }
+                bool value_16 = false;
+                {
+                    uint8_t byte = value_14;
+                    value_16 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                }
+                value_11 = value_16;
+            }
+            if (value_11) {
                 at = (int64_t)((uint64_t)at + UINT64_C(2));
             } else {
                 return false;
@@ -199,15 +293,63 @@ compiler_source_IdentifierText(String source, bool member_path)
 bool
 compiler_source_NonJaiControl(String source, String word)
 {
-    bool value_0 = compiler_source_StartsWord(source, word);
-    if (!value_0) {
+    String value_0 = source;
+    String value_1 = word;
+    bool value_2 = false;
+    {
+        String source = value_0;
+        String word = value_1;
+        String value_4 = source;
+        bool value_5 = false;
+        {
+            String source = value_4;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_7 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_5 = value_7 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_5) {
+            value_2 = false;
+            goto value_3;
+        }
+        String value_8 = source;
+        int64_t value_9 = (int64_t)(word).length;
+        uint8_t value_10 = 0;
+        {
+            String source = value_8;
+            int64_t at = value_9;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_10 = 0;
+                goto value_11;
+            }
+            value_10 = (uint8_t)source.data[at];
+        value_11: ;
+        }
+        uint8_t byte = value_10;
+        value_2 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_3: ;
+    }
+    if (!value_2) {
         return false;
     }
     int64_t at = compiler_source_SkipSpace(source, (int64_t)(word).length);
-    uint8_t byte = compiler_source_Byte(source, at);
+    String value_12 = source;
+    int64_t value_13 = at;
+    uint8_t value_14 = 0;
+    {
+        String source = value_12;
+        int64_t at = value_13;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_14 = 0;
+            goto value_15;
+        }
+        value_14 = (uint8_t)source.data[at];
+    value_15: ;
+    }
+    uint8_t byte = value_14;
     if (byte == 40) {
-        int64_t value_1 = compiler_source_Find(StringRange(source, (int64_t)at, (int64_t)source.length), StringLiteral("{"));
-        return value_1 >= 0LL;
+        int64_t value_16 = compiler_source_Find(StringRange(source, (int64_t)at, (int64_t)source.length), StringLiteral("{"));
+        return value_16 >= 0LL;
     }
     String operators = StringLiteral(":=.[+-*/%&|^<>!");
     for (int64_t it_index = 0LL; it_index < (int64_t)(operators).length; it_index++) {
@@ -216,17 +358,75 @@ compiler_source_NonJaiControl(String source, String word)
             return false;
         }
     }
-    return byte == 0 || byte == 59 || byte == 123 || compiler_source_SourceIdentifier(byte);
+    bool value_17 = byte == 0 || byte == 59 || byte == 123;
+    if (!value_17) {
+        uint8_t value_18 = byte;
+        bool value_19 = false;
+        {
+            uint8_t byte = value_18;
+            uint8_t value_21 = byte;
+            bool value_22 = false;
+            {
+                uint8_t byte = value_21;
+                value_22 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+            }
+            value_19 = value_22 || (byte >= 48 && byte <= 57);
+        }
+        value_17 = value_19;
+    }
+    return value_17;
 }
 
 bool
 compiler_source_LooksLikeLabel(String source)
 {
     int64_t at = 0LL;
-    while (compiler_source_SourceIdentifier(compiler_source_Byte(source, at))) {
+    while (true) {
+        String value_0 = source;
+        int64_t value_1 = at;
+        uint8_t value_2 = 0;
+        {
+            String source = value_0;
+            int64_t at = value_1;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_2 = 0;
+                goto value_3;
+            }
+            value_2 = (uint8_t)source.data[at];
+        value_3: ;
+        }
+        bool value_4 = false;
+        {
+            uint8_t byte = value_2;
+            uint8_t value_6 = byte;
+            bool value_7 = false;
+            {
+                uint8_t byte = value_6;
+                value_7 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+            }
+            value_4 = value_7 || (byte >= 48 && byte <= 57);
+        }
+        if (!value_4) { break; }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    if (at == 0LL || compiler_source_Byte(source, at) != 58) {
+    bool value_9 = at == 0LL;
+    if (!value_9) {
+        String value_10 = source;
+        int64_t value_11 = at;
+        uint8_t value_12 = 0;
+        {
+            String source = value_10;
+            int64_t at = value_11;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_12 = 0;
+                goto value_13;
+            }
+            value_12 = (uint8_t)source.data[at];
+        value_13: ;
+        }
+        value_9 = (value_12 != 58);
+    }
+    if (value_9) {
         return false;
     }
     at = compiler_source_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)));
@@ -236,49 +436,471 @@ compiler_source_LooksLikeLabel(String source)
 StatementKind
 compiler_source_ClassifyStatement(String source)
 {
-    if (compiler_source_Byte(source, 0LL) == 125) {
+    String value_0 = source;
+    uint8_t value_1 = 0;
+    {
+        String source = value_0;
+        int64_t at = 0LL;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_1 = 0;
+            goto value_2;
+        }
+        value_1 = (uint8_t)source.data[at];
+    value_2: ;
+    }
+    if (value_1 == 125) {
         return StatementKind_BlockClose;
     }
     if (StringEqual(source, StringLiteral("{"))) {
         return StatementKind_BlockOpen;
     }
-    bool value_0 = compiler_source_Byte(source, 0LL) == 35;
-    if (value_0 && compiler_source_StartsWord(source, StringLiteral("#asm"))) {
+    String value_3 = source;
+    uint8_t value_4 = 0;
+    {
+        String source = value_3;
+        int64_t at = 0LL;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_4 = 0;
+            goto value_5;
+        }
+        value_4 = (uint8_t)source.data[at];
+    value_5: ;
+    }
+    bool value_6 = value_4 == 35;
+    if (value_6) {
+        String value_7 = source;
+        String value_8 = StringLiteral("#asm");
+        bool value_9 = false;
+        {
+            String source = value_7;
+            String word = value_8;
+            String value_11 = source;
+            bool value_12 = false;
+            {
+                String source = value_11;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_14 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_12 = value_14 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_12) {
+                value_9 = false;
+                goto value_10;
+            }
+            String value_15 = source;
+            int64_t value_16 = (int64_t)(word).length;
+            uint8_t value_17 = 0;
+            {
+                String source = value_15;
+                int64_t at = value_16;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_17 = 0;
+                    goto value_18;
+                }
+                value_17 = (uint8_t)source.data[at];
+            value_18: ;
+            }
+            uint8_t byte = value_17;
+            value_9 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_10: ;
+        }
+        value_6 = value_9;
+    }
+    if (value_6) {
         return StatementKind_BlockOpen;
     }
-    bool value_1 = compiler_source_StartsWord(source, StringLiteral("if"));
-    if (value_1 || compiler_source_StartsWord(source, StringLiteral("else"))) {
+    String value_19 = source;
+    String value_20 = StringLiteral("if");
+    bool value_21 = false;
+    {
+        String source = value_19;
+        String word = value_20;
+        String value_23 = source;
+        bool value_24 = false;
+        {
+            String source = value_23;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_26 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_24 = value_26 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_24) {
+            value_21 = false;
+            goto value_22;
+        }
+        String value_27 = source;
+        int64_t value_28 = (int64_t)(word).length;
+        uint8_t value_29 = 0;
+        {
+            String source = value_27;
+            int64_t at = value_28;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_29 = 0;
+                goto value_30;
+            }
+            value_29 = (uint8_t)source.data[at];
+        value_30: ;
+        }
+        uint8_t byte = value_29;
+        value_21 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_22: ;
+    }
+    bool value_31 = value_21;
+    if (!value_31) {
+        String value_32 = source;
+        String value_33 = StringLiteral("else");
+        bool value_34 = false;
+        {
+            String source = value_32;
+            String word = value_33;
+            String value_36 = source;
+            bool value_37 = false;
+            {
+                String source = value_36;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_39 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_37 = value_39 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_37) {
+                value_34 = false;
+                goto value_35;
+            }
+            String value_40 = source;
+            int64_t value_41 = (int64_t)(word).length;
+            uint8_t value_42 = 0;
+            {
+                String source = value_40;
+                int64_t at = value_41;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_42 = 0;
+                    goto value_43;
+                }
+                value_42 = (uint8_t)source.data[at];
+            value_43: ;
+            }
+            uint8_t byte = value_42;
+            value_34 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_35: ;
+        }
+        value_31 = value_34;
+    }
+    if (value_31) {
         return StatementKind_If;
     }
-    if (compiler_source_StartsWord(source, StringLiteral("while"))) {
+    String value_44 = source;
+    String value_45 = StringLiteral("while");
+    bool value_46 = false;
+    {
+        String source = value_44;
+        String word = value_45;
+        String value_48 = source;
+        bool value_49 = false;
+        {
+            String source = value_48;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_51 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_49 = value_51 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_49) {
+            value_46 = false;
+            goto value_47;
+        }
+        String value_52 = source;
+        int64_t value_53 = (int64_t)(word).length;
+        uint8_t value_54 = 0;
+        {
+            String source = value_52;
+            int64_t at = value_53;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_54 = 0;
+                goto value_55;
+            }
+            value_54 = (uint8_t)source.data[at];
+        value_55: ;
+        }
+        uint8_t byte = value_54;
+        value_46 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_47: ;
+    }
+    if (value_46) {
         return StatementKind_While;
     }
-    if (compiler_source_StartsWord(source, StringLiteral("for"))) {
+    String value_56 = source;
+    String value_57 = StringLiteral("for");
+    bool value_58 = false;
+    {
+        String source = value_56;
+        String word = value_57;
+        String value_60 = source;
+        bool value_61 = false;
+        {
+            String source = value_60;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_63 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_61 = value_63 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_61) {
+            value_58 = false;
+            goto value_59;
+        }
+        String value_64 = source;
+        int64_t value_65 = (int64_t)(word).length;
+        uint8_t value_66 = 0;
+        {
+            String source = value_64;
+            int64_t at = value_65;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_66 = 0;
+                goto value_67;
+            }
+            value_66 = (uint8_t)source.data[at];
+        value_67: ;
+        }
+        uint8_t byte = value_66;
+        value_58 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_59: ;
+    }
+    if (value_58) {
         return StatementKind_For;
     }
-    bool value_2 = compiler_source_StartsWord(source, StringLiteral("case"));
-    if (value_2 || StringEqual(source, StringLiteral("case;"))) {
+    String value_68 = source;
+    String value_69 = StringLiteral("case");
+    bool value_70 = false;
+    {
+        String source = value_68;
+        String word = value_69;
+        String value_72 = source;
+        bool value_73 = false;
+        {
+            String source = value_72;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_75 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_73 = value_75 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_73) {
+            value_70 = false;
+            goto value_71;
+        }
+        String value_76 = source;
+        int64_t value_77 = (int64_t)(word).length;
+        uint8_t value_78 = 0;
+        {
+            String source = value_76;
+            int64_t at = value_77;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_78 = 0;
+                goto value_79;
+            }
+            value_78 = (uint8_t)source.data[at];
+        value_79: ;
+        }
+        uint8_t byte = value_78;
+        value_70 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_71: ;
+    }
+    if (value_70 || StringEqual(source, StringLiteral("case;"))) {
         return StatementKind_Case;
     }
-    bool value_3 = compiler_source_StartsWord(source, StringLiteral("return"));
-    if (value_3 || StringEqual(source, StringLiteral("return;"))) {
+    String value_80 = source;
+    String value_81 = StringLiteral("return");
+    bool value_82 = false;
+    {
+        String source = value_80;
+        String word = value_81;
+        String value_84 = source;
+        bool value_85 = false;
+        {
+            String source = value_84;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_87 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_85 = value_87 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_85) {
+            value_82 = false;
+            goto value_83;
+        }
+        String value_88 = source;
+        int64_t value_89 = (int64_t)(word).length;
+        uint8_t value_90 = 0;
+        {
+            String source = value_88;
+            int64_t at = value_89;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_90 = 0;
+                goto value_91;
+            }
+            value_90 = (uint8_t)source.data[at];
+        value_91: ;
+        }
+        uint8_t byte = value_90;
+        value_82 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_83: ;
+    }
+    if (value_82 || StringEqual(source, StringLiteral("return;"))) {
         return StatementKind_Return;
     }
     if (StringEqual(source, StringLiteral("unreachable")) || StringEqual(source, StringLiteral("unreachable;"))) {
         return StatementKind_Unreachable;
     }
-    bool value_4 = compiler_source_StartsWord(source, StringLiteral("break"));
-    if (value_4 || StringEqual(source, StringLiteral("break;"))) {
+    String value_92 = source;
+    String value_93 = StringLiteral("break");
+    bool value_94 = false;
+    {
+        String source = value_92;
+        String word = value_93;
+        String value_96 = source;
+        bool value_97 = false;
+        {
+            String source = value_96;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_99 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_97 = value_99 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_97) {
+            value_94 = false;
+            goto value_95;
+        }
+        String value_100 = source;
+        int64_t value_101 = (int64_t)(word).length;
+        uint8_t value_102 = 0;
+        {
+            String source = value_100;
+            int64_t at = value_101;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_102 = 0;
+                goto value_103;
+            }
+            value_102 = (uint8_t)source.data[at];
+        value_103: ;
+        }
+        uint8_t byte = value_102;
+        value_94 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_95: ;
+    }
+    if (value_94 || StringEqual(source, StringLiteral("break;"))) {
         return StatementKind_Break;
     }
-    bool value_5 = compiler_source_StartsWord(source, StringLiteral("continue"));
-    if (value_5 || StringEqual(source, StringLiteral("continue;"))) {
+    String value_104 = source;
+    String value_105 = StringLiteral("continue");
+    bool value_106 = false;
+    {
+        String source = value_104;
+        String word = value_105;
+        String value_108 = source;
+        bool value_109 = false;
+        {
+            String source = value_108;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_111 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_109 = value_111 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_109) {
+            value_106 = false;
+            goto value_107;
+        }
+        String value_112 = source;
+        int64_t value_113 = (int64_t)(word).length;
+        uint8_t value_114 = 0;
+        {
+            String source = value_112;
+            int64_t at = value_113;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_114 = 0;
+                goto value_115;
+            }
+            value_114 = (uint8_t)source.data[at];
+        value_115: ;
+        }
+        uint8_t byte = value_114;
+        value_106 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_107: ;
+    }
+    if (value_106 || StringEqual(source, StringLiteral("continue;"))) {
         return StatementKind_Continue;
     }
-    if (compiler_source_StartsWord(source, StringLiteral("defer"))) {
+    String value_116 = source;
+    String value_117 = StringLiteral("defer");
+    bool value_118 = false;
+    {
+        String source = value_116;
+        String word = value_117;
+        String value_120 = source;
+        bool value_121 = false;
+        {
+            String source = value_120;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_123 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_121 = value_123 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_121) {
+            value_118 = false;
+            goto value_119;
+        }
+        String value_124 = source;
+        int64_t value_125 = (int64_t)(word).length;
+        uint8_t value_126 = 0;
+        {
+            String source = value_124;
+            int64_t at = value_125;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_126 = 0;
+                goto value_127;
+            }
+            value_126 = (uint8_t)source.data[at];
+        value_127: ;
+        }
+        uint8_t byte = value_126;
+        value_118 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_119: ;
+    }
+    if (value_118) {
         return StatementKind_Defer;
     }
-    if (compiler_source_StartsWord(source, StringLiteral("unused"))) {
+    String value_128 = source;
+    String value_129 = StringLiteral("unused");
+    bool value_130 = false;
+    {
+        String source = value_128;
+        String word = value_129;
+        String value_132 = source;
+        bool value_133 = false;
+        {
+            String source = value_132;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_135 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_133 = value_135 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_133) {
+            value_130 = false;
+            goto value_131;
+        }
+        String value_136 = source;
+        int64_t value_137 = (int64_t)(word).length;
+        uint8_t value_138 = 0;
+        {
+            String source = value_136;
+            int64_t at = value_137;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_138 = 0;
+                goto value_139;
+            }
+            value_138 = (uint8_t)source.data[at];
+        value_139: ;
+        }
+        uint8_t byte = value_138;
+        value_130 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_131: ;
+    }
+    if (value_130) {
         return StatementKind_Unused;
     }
     int64_t colon = compiler_source_Find(source, StringLiteral(": "));
@@ -291,7 +913,16 @@ compiler_source_ClassifyStatement(String source)
     String rejected[11] = {StringLiteral("s8 "), StringLiteral("s16 "), StringLiteral("s32 "), StringLiteral("s64 "), StringLiteral("float32 "), StringLiteral("float64 "), StringLiteral("bool "), StringLiteral("unsigned "), StringLiteral("long "), StringLiteral("const "), StringLiteral("struct ")};
     for (int64_t it_index = 0LL; it_index < 11; it_index++) {
         String prefix = (rejected)[it_index];
-        if (compiler_source_Matches(source, 0LL, prefix)) {
+        String value_140 = source;
+        bool value_141 = false;
+        {
+            String source = value_140;
+            int64_t at = 0LL;
+            String text = prefix;
+            bool value_143 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_141 = value_143 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (value_141) {
             return StatementKind_Declaration;
         }
     }
@@ -309,25 +940,42 @@ compiler_source_ClassifyStatement(String source)
             if (depth > 0) {
                 depth = (int32_t)((uint32_t)depth - 1u);
             }
-        } else if (depth == 0 && compiler_source_Matches(source, at, StringLiteral(":="))) {
-            return StatementKind_Declaration;
-        } else if (byte == 61 && depth == 0) {
-            return StatementKind_Assignment;
+        } else {
+            bool value_144 = depth == 0;
+            if (value_144) {
+                String value_145 = source;
+                int64_t value_146 = at;
+                String value_147 = StringLiteral(":=");
+                bool value_148 = false;
+                {
+                    String source = value_145;
+                    int64_t at = value_146;
+                    String text = value_147;
+                    bool value_150 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_148 = value_150 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                }
+                value_144 = value_148;
+            }
+            if (value_144) {
+                return StatementKind_Declaration;
+            } else if (byte == 61 && depth == 0) {
+                return StatementKind_Assignment;
+            }
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    int64_t value_6 = compiler_source_Find(source, StringLiteral("("));
-    bool value_7 = value_6 >= 0LL;
-    if (!value_7) {
-        int64_t value_8 = compiler_source_Find(source, StringLiteral("+"));
-        value_7 = (value_8 >= 0LL);
+    int64_t value_151 = compiler_source_Find(source, StringLiteral("("));
+    bool value_152 = value_151 >= 0LL;
+    if (!value_152) {
+        int64_t value_153 = compiler_source_Find(source, StringLiteral("+"));
+        value_152 = (value_153 >= 0LL);
     }
-    bool value_9 = value_7;
-    if (!value_9) {
-        int64_t value_10 = compiler_source_Find(source, StringLiteral("-"));
-        value_9 = (value_10 >= 0LL);
+    bool value_154 = value_152;
+    if (!value_154) {
+        int64_t value_155 = compiler_source_Find(source, StringLiteral("-"));
+        value_154 = (value_155 >= 0LL);
     }
-    if (value_9) {
+    if (value_154) {
         return StatementKind_Expression;
     }
     return StatementKind_Unknown;
@@ -367,19 +1015,64 @@ compiler_source_ContainsDirective(String source, String directive)
     while (at < (int64_t)(source).length) {
         if ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 34) {
             at = compiler_source_AfterQuote(source, at);
-        } else if (compiler_source_Matches(source, at, StringLiteral("//"))) {
-            return false;
         } else {
-            bool value_0 = compiler_source_Matches(source, at, directive);
-            bool value_1 = value_0;
-            if (value_1) {
-                bool value_2 = compiler_source_SourceIdentifier(compiler_source_Byte(source, (int64_t)((uint64_t)at + (uint64_t)((int64_t)(directive).length))));
-                value_1 = !value_2;
+            String value_0 = source;
+            int64_t value_1 = at;
+            String value_2 = StringLiteral("//");
+            bool value_3 = false;
+            {
+                String source = value_0;
+                int64_t at = value_1;
+                String text = value_2;
+                bool value_5 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_3 = value_5 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
             }
-            if (value_1) {
-                return true;
+            if (value_3) {
+                return false;
             } else {
-                at = (int64_t)((uint64_t)at + UINT64_C(1));
+                String value_6 = source;
+                int64_t value_7 = at;
+                bool value_8 = false;
+                {
+                    String source = value_6;
+                    int64_t at = value_7;
+                    String text = directive;
+                    bool value_10 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_8 = value_10 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                }
+                bool value_11 = value_8;
+                if (value_11) {
+                    String value_12 = source;
+                    int64_t value_13 = (int64_t)((uint64_t)at + (uint64_t)((int64_t)(directive).length));
+                    uint8_t value_14 = 0;
+                    {
+                        String source = value_12;
+                        int64_t at = value_13;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_14 = 0;
+                            goto value_15;
+                        }
+                        value_14 = (uint8_t)source.data[at];
+                    value_15: ;
+                    }
+                    bool value_16 = false;
+                    {
+                        uint8_t byte = value_14;
+                        uint8_t value_18 = byte;
+                        bool value_19 = false;
+                        {
+                            uint8_t byte = value_18;
+                            value_19 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                        }
+                        value_16 = value_19 || (byte >= 48 && byte <= 57);
+                    }
+                    value_11 = !value_16;
+                }
+                if (value_11) {
+                    return true;
+                } else {
+                    at = (int64_t)((uint64_t)at + UINT64_C(1));
+                }
             }
         }
     }
@@ -402,9 +1095,37 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         bool value_0 = !line_comment && quote == 0;
         if (value_0) {
-            bool value_1 = compiler_source_Matches(source, at, StringLiteral("/*"));
-            bool value_2 = value_1 || (comment_depth > 0 && compiler_source_Matches(source, at, StringLiteral("*/")));
-            value_0 = value_2;
+            String value_1 = source;
+            int64_t value_2 = at;
+            String value_3 = StringLiteral("/*");
+            bool value_4 = false;
+            {
+                String source = value_1;
+                int64_t at = value_2;
+                String text = value_3;
+                bool value_6 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_4 = value_6 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            bool value_7 = value_4;
+            if (!value_7) {
+                bool value_8 = comment_depth > 0;
+                if (value_8) {
+                    String value_9 = source;
+                    int64_t value_10 = at;
+                    String value_11 = StringLiteral("*/");
+                    bool value_12 = false;
+                    {
+                        String source = value_9;
+                        int64_t at = value_10;
+                        String text = value_11;
+                        bool value_14 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                        value_12 = value_14 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                    }
+                    value_8 = value_12;
+                }
+                value_7 = value_8;
+            }
+            value_0 = value_7;
         }
         if (value_0) {
             if (byte == 47) {
@@ -419,52 +1140,204 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
             continue;
         }
         if (!line_comment && comment_depth == 0 && quote == 0) {
-            if (compiler_source_Matches(source, at, StringLiteral("//"))) {
+            String value_15 = source;
+            int64_t value_16 = at;
+            String value_17 = StringLiteral("//");
+            bool value_18 = false;
+            {
+                String source = value_15;
+                int64_t at = value_16;
+                String text = value_17;
+                bool value_20 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_18 = value_20 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (value_18) {
                 line_comment = true;
             } else if (byte == 34 || byte == 39) {
                 quote = byte;
             } else {
-                bool value_3 = compiler_source_Matches(source, at, StringLiteral("#string"));
-                bool value_4 = value_3;
-                if (value_4) {
-                    bool value_5 = at == 0LL;
-                    if (!value_5) {
-                        bool value_6 = compiler_source_SourceIdentifier((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1)))));
-                        value_5 = !value_6;
-                    }
-                    value_4 = value_5;
+                String value_21 = source;
+                int64_t value_22 = at;
+                String value_23 = StringLiteral("#string");
+                bool value_24 = false;
+                {
+                    String source = value_21;
+                    int64_t at = value_22;
+                    String text = value_23;
+                    bool value_26 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_24 = value_26 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
                 }
-                if (value_4 && ((int64_t)((uint64_t)at + UINT64_C(7)) == (int64_t)(source).length || compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(7))))))) {
+                bool value_27 = value_24;
+                if (value_27) {
+                    bool value_28 = at == 0LL;
+                    if (!value_28) {
+                        uint8_t value_29 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at - UINT64_C(1))));
+                        bool value_30 = false;
+                        {
+                            uint8_t byte = value_29;
+                            uint8_t value_32 = byte;
+                            bool value_33 = false;
+                            {
+                                uint8_t byte = value_32;
+                                value_33 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                            }
+                            value_30 = value_33 || (byte >= 48 && byte <= 57);
+                        }
+                        value_28 = !value_30;
+                    }
+                    value_27 = value_28;
+                }
+                bool value_35 = value_27;
+                if (value_35) {
+                    bool value_36 = (int64_t)((uint64_t)at + UINT64_C(7)) == (int64_t)(source).length;
+                    if (!value_36) {
+                        uint8_t value_37 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)at + UINT64_C(7))));
+                        bool value_38 = false;
+                        {
+                            uint8_t byte = value_37;
+                            value_38 = byte == 32 || (byte >= 9 && byte <= 13);
+                        }
+                        value_36 = value_38;
+                    }
+                    value_35 = value_36;
+                }
+                if (value_35) {
                     result.line = line;
                     result.column = column;
                     int64_t cursor = (int64_t)((uint64_t)at + UINT64_C(7));
                     while (true) {
-                        bool value_7 = compiler_source_Byte(source, cursor) == 32;
-                        if (!(value_7 || compiler_source_Byte(source, cursor) == 9)) { break; }
+                        String value_40 = source;
+                        uint8_t value_41 = 0;
+                        {
+                            String source = value_40;
+                            int64_t at = cursor;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_41 = 0;
+                                goto value_42;
+                            }
+                            value_41 = (uint8_t)source.data[at];
+                        value_42: ;
+                        }
+                        bool value_43 = value_41 == 32;
+                        if (!value_43) {
+                            String value_44 = source;
+                            uint8_t value_45 = 0;
+                            {
+                                String source = value_44;
+                                int64_t at = cursor;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_45 = 0;
+                                    goto value_46;
+                                }
+                                value_45 = (uint8_t)source.data[at];
+                            value_46: ;
+                            }
+                            value_43 = (value_45 == 9);
+                        }
+                        if (!value_43) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     int64_t begin = cursor;
-                    while (compiler_source_SourceIdentifier(compiler_source_Byte(source, cursor))) {
+                    while (true) {
+                        String value_47 = source;
+                        uint8_t value_48 = 0;
+                        {
+                            String source = value_47;
+                            int64_t at = cursor;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_48 = 0;
+                                goto value_49;
+                            }
+                            value_48 = (uint8_t)source.data[at];
+                        value_49: ;
+                        }
+                        bool value_50 = false;
+                        {
+                            uint8_t byte = value_48;
+                            uint8_t value_52 = byte;
+                            bool value_53 = false;
+                            {
+                                uint8_t byte = value_52;
+                                value_53 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                            }
+                            value_50 = value_53 || (byte >= 48 && byte <= 57);
+                        }
+                        if (!value_50) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     int64_t end = cursor;
                     result.marker_begin = begin;
                     result.marker_end = end;
-                    bool value_8 = end == begin || (int64_t)((uint64_t)end - (uint64_t)begin) >= marker_limit;
-                    if (!value_8) {
-                        bool value_9 = compiler_source_Letter(compiler_source_Byte(source, begin));
-                        value_8 = !value_9;
+                    bool value_55 = end == begin || (int64_t)((uint64_t)end - (uint64_t)begin) >= marker_limit;
+                    if (!value_55) {
+                        String value_56 = source;
+                        uint8_t value_57 = 0;
+                        {
+                            String source = value_56;
+                            int64_t at = begin;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_57 = 0;
+                                goto value_58;
+                            }
+                            value_57 = (uint8_t)source.data[at];
+                        value_58: ;
+                        }
+                        bool value_59 = false;
+                        {
+                            uint8_t byte = value_57;
+                            value_59 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                        }
+                        value_55 = !value_59;
                     }
-                    if (value_8) {
+                    if (value_55) {
                         result.error = SourceError_Delimiter;
                         return result;
                     }
                     while (true) {
-                        bool value_10 = compiler_source_Byte(source, cursor) == 32;
-                        if (!(value_10 || compiler_source_Byte(source, cursor) == 9)) { break; }
+                        String value_61 = source;
+                        uint8_t value_62 = 0;
+                        {
+                            String source = value_61;
+                            int64_t at = cursor;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_62 = 0;
+                                goto value_63;
+                            }
+                            value_62 = (uint8_t)source.data[at];
+                        value_63: ;
+                        }
+                        bool value_64 = value_62 == 32;
+                        if (!value_64) {
+                            String value_65 = source;
+                            uint8_t value_66 = 0;
+                            {
+                                String source = value_65;
+                                int64_t at = cursor;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_66 = 0;
+                                    goto value_67;
+                                }
+                                value_66 = (uint8_t)source.data[at];
+                            value_67: ;
+                            }
+                            value_64 = (value_66 == 9);
+                        }
+                        if (!value_64) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
-                    if (compiler_source_Byte(source, cursor) == 13) {
+                    String value_68 = source;
+                    uint8_t value_69 = 0;
+                    {
+                        String source = value_68;
+                        int64_t at = cursor;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_69 = 0;
+                            goto value_70;
+                        }
+                        value_69 = (uint8_t)source.data[at];
+                    value_70: ;
+                    }
+                    if (value_69 == 13) {
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     if (cursor >= (int64_t)(source).length || (uint8_t)ZIRAN_INDEX(source.data, source.length, cursor) != 10) {
@@ -475,13 +1348,44 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
                     int64_t close = body;
                     String marker = StringRange(source, (int64_t)begin, (int64_t)end);
                     while (close < (int64_t)(source).length) {
-                        bool value_11 = compiler_source_Matches(source, close, marker);
-                        bool value_12 = value_11;
-                        if (value_12) {
-                            bool value_13 = compiler_source_SourceIdentifier(compiler_source_Byte(source, (int64_t)((uint64_t)close + (uint64_t)((int64_t)(marker).length))));
-                            value_12 = !value_13;
+                        String value_71 = source;
+                        bool value_72 = false;
+                        {
+                            String source = value_71;
+                            int64_t at = close;
+                            String text = marker;
+                            bool value_74 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                            value_72 = value_74 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
                         }
-                        if (value_12) {
+                        bool value_75 = value_72;
+                        if (value_75) {
+                            String value_76 = source;
+                            int64_t value_77 = (int64_t)((uint64_t)close + (uint64_t)((int64_t)(marker).length));
+                            uint8_t value_78 = 0;
+                            {
+                                String source = value_76;
+                                int64_t at = value_77;
+                                if (at < 0LL || at >= (int64_t)(source).length) {
+                                    value_78 = 0;
+                                    goto value_79;
+                                }
+                                value_78 = (uint8_t)source.data[at];
+                            value_79: ;
+                            }
+                            bool value_80 = false;
+                            {
+                                uint8_t byte = value_78;
+                                uint8_t value_82 = byte;
+                                bool value_83 = false;
+                                {
+                                    uint8_t byte = value_82;
+                                    value_83 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                                }
+                                value_80 = value_83 || (byte >= 48 && byte <= 57);
+                            }
+                            value_75 = !value_80;
+                        }
+                        if (value_75) {
                             break;
                         }
                         while (close < (int64_t)(source).length && (uint8_t)ZIRAN_INDEX(source.data, source.length, close) != 10) {
@@ -552,20 +1456,44 @@ compiler_source_StripComments(String source, Slice output, int32_t depth)
     while (at < (int64_t)(source).length) {
         uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
         if (depth > 0) {
-            if (compiler_source_Matches(source, at, StringLiteral("/*"))) {
+            String value_0 = source;
+            int64_t value_1 = at;
+            String value_2 = StringLiteral("/*");
+            bool value_3 = false;
+            {
+                String source = value_0;
+                int64_t at = value_1;
+                String text = value_2;
+                bool value_5 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_3 = value_5 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (value_3) {
                 depth = (int32_t)((uint32_t)depth + 1u);
                 at = (int64_t)((uint64_t)at + UINT64_C(2));
-            } else if (compiler_source_Matches(source, at, StringLiteral("*/"))) {
-                depth = (int32_t)((uint32_t)depth - 1u);
-                at = (int64_t)((uint64_t)at + UINT64_C(2));
-                if (depth == 0) {
-                    compiler_source_Put(output, &(used), 32);
-                }
             } else {
-                if (byte == 10) {
-                    compiler_source_Put(output, &(used), byte);
+                String value_6 = source;
+                int64_t value_7 = at;
+                String value_8 = StringLiteral("*/");
+                bool value_9 = false;
+                {
+                    String source = value_6;
+                    int64_t at = value_7;
+                    String text = value_8;
+                    bool value_11 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_9 = value_11 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
                 }
-                at = (int64_t)((uint64_t)at + UINT64_C(1));
+                if (value_9) {
+                    depth = (int32_t)((uint32_t)depth - 1u);
+                    at = (int64_t)((uint64_t)at + UINT64_C(2));
+                    if (depth == 0) {
+                        compiler_source_Put(output, &(used), 32);
+                    }
+                } else {
+                    if (byte == 10) {
+                        compiler_source_Put(output, &(used), byte);
+                    }
+                    at = (int64_t)((uint64_t)at + UINT64_C(1));
+                }
             }
         } else if (quote != 0) {
             compiler_source_Put(output, &(used), byte);
@@ -580,16 +1508,42 @@ compiler_source_StripComments(String source, Slice output, int32_t depth)
             quote = byte;
             compiler_source_Put(output, &(used), byte);
             at = (int64_t)((uint64_t)at + UINT64_C(1));
-        } else if (compiler_source_Matches(source, at, StringLiteral("//"))) {
-            while (at < (int64_t)(source).length && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 10) {
-                at = (int64_t)((uint64_t)at + UINT64_C(1));
-            }
-        } else if (compiler_source_Matches(source, at, StringLiteral("/*"))) {
-            depth = 1;
-            at = (int64_t)((uint64_t)at + UINT64_C(2));
         } else {
-            compiler_source_Put(output, &(used), byte);
-            at = (int64_t)((uint64_t)at + UINT64_C(1));
+            String value_12 = source;
+            int64_t value_13 = at;
+            String value_14 = StringLiteral("//");
+            bool value_15 = false;
+            {
+                String source = value_12;
+                int64_t at = value_13;
+                String text = value_14;
+                bool value_17 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_15 = value_17 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (value_15) {
+                while (at < (int64_t)(source).length && (uint8_t)ZIRAN_INDEX(source.data, source.length, at) != 10) {
+                    at = (int64_t)((uint64_t)at + UINT64_C(1));
+                }
+            } else {
+                String value_18 = source;
+                int64_t value_19 = at;
+                String value_20 = StringLiteral("/*");
+                bool value_21 = false;
+                {
+                    String source = value_18;
+                    int64_t at = value_19;
+                    String text = value_20;
+                    bool value_23 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_21 = value_23 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                }
+                if (value_21) {
+                    depth = 1;
+                    at = (int64_t)((uint64_t)at + UINT64_C(2));
+                } else {
+                    compiler_source_Put(output, &(used), byte);
+                    at = (int64_t)((uint64_t)at + UINT64_C(1));
+                }
+            }
         }
     }
     return (CommentScan){.count = used, .depth = depth};
@@ -628,8 +1582,36 @@ compiler_source_NetBlockBraces(String source)
 int64_t
 compiler_source_StatementSeparator(String source)
 {
-    bool value_0 = compiler_source_Byte(source, 0LL) == 125;
-    if (value_0 && compiler_source_Byte(source, compiler_source_SkipSpace(source, 1LL)) == 125) {
+    String value_0 = source;
+    uint8_t value_1 = 0;
+    {
+        String source = value_0;
+        int64_t at = 0LL;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_1 = 0;
+            goto value_2;
+        }
+        value_1 = (uint8_t)source.data[at];
+    value_2: ;
+    }
+    bool value_3 = value_1 == 125;
+    if (value_3) {
+        String value_4 = source;
+        int64_t value_5 = compiler_source_SkipSpace(source, 1LL);
+        uint8_t value_6 = 0;
+        {
+            String source = value_4;
+            int64_t at = value_5;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_6 = 0;
+                goto value_7;
+            }
+            value_6 = (uint8_t)source.data[at];
+        value_7: ;
+        }
+        value_3 = (value_6 == 125);
+    }
+    if (value_3) {
         return 0LL;
     }
     int64_t at = 0LL;
@@ -658,17 +1640,91 @@ compiler_source_StatementSeparator(String source)
             braces = (int32_t)((uint32_t)braces - 1u);
         } else if (byte == 59 && parentheses == 0 && brackets == 0 && braces == 0) {
             int64_t after = compiler_source_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)));
-            bool value_1 = after < (int64_t)(source).length;
-            if (value_1) {
-                bool value_2 = compiler_source_StartsWord(source, StringLiteral("for"));
-                value_1 = !(value_2 && (first_brace < 0LL || at < first_brace));
+            bool value_8 = after < (int64_t)(source).length;
+            if (value_8) {
+                String value_9 = source;
+                String value_10 = StringLiteral("for");
+                bool value_11 = false;
+                {
+                    String source = value_9;
+                    String word = value_10;
+                    String value_13 = source;
+                    bool value_14 = false;
+                    {
+                        String source = value_13;
+                        int64_t at = 0LL;
+                        String text = word;
+                        bool value_16 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                        value_14 = value_16 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                    }
+                    if (!value_14) {
+                        value_11 = false;
+                        goto value_12;
+                    }
+                    String value_17 = source;
+                    int64_t value_18 = (int64_t)(word).length;
+                    uint8_t value_19 = 0;
+                    {
+                        String source = value_17;
+                        int64_t at = value_18;
+                        if (at < 0LL || at >= (int64_t)(source).length) {
+                            value_19 = 0;
+                            goto value_20;
+                        }
+                        value_19 = (uint8_t)source.data[at];
+                    value_20: ;
+                    }
+                    uint8_t byte = value_19;
+                    value_11 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+                value_12: ;
+                }
+                value_8 = !(value_11 && (first_brace < 0LL || at < first_brace));
             }
-            bool value_3 = value_1;
-            if (value_3) {
-                bool value_4 = conditional >= 0LL && conditional < at && compiler_source_StartsWord(StringRange(source, (int64_t)after, (int64_t)source.length), StringLiteral("else"));
-                value_3 = !value_4;
+            bool value_21 = value_8;
+            if (value_21) {
+                bool value_22 = conditional >= 0LL && conditional < at;
+                if (value_22) {
+                    String value_23 = StringRange(source, (int64_t)after, (int64_t)source.length);
+                    String value_24 = StringLiteral("else");
+                    bool value_25 = false;
+                    {
+                        String source = value_23;
+                        String word = value_24;
+                        String value_27 = source;
+                        bool value_28 = false;
+                        {
+                            String source = value_27;
+                            int64_t at = 0LL;
+                            String text = word;
+                            bool value_30 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                            value_28 = value_30 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                        }
+                        if (!value_28) {
+                            value_25 = false;
+                            goto value_26;
+                        }
+                        String value_31 = source;
+                        int64_t value_32 = (int64_t)(word).length;
+                        uint8_t value_33 = 0;
+                        {
+                            String source = value_31;
+                            int64_t at = value_32;
+                            if (at < 0LL || at >= (int64_t)(source).length) {
+                                value_33 = 0;
+                                goto value_34;
+                            }
+                            value_33 = (uint8_t)source.data[at];
+                        value_34: ;
+                        }
+                        uint8_t byte = value_33;
+                        value_25 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+                    value_26: ;
+                    }
+                    value_22 = value_25;
+                }
+                value_21 = !value_22;
             }
-            if (value_3) {
+            if (value_21) {
                 return at;
             }
         }
@@ -687,27 +1743,118 @@ compiler_source_SplitControlBlock(String source)
     int64_t control = 0LL;
     if ((uint8_t)source.data[0] == 125) {
         int64_t after = compiler_source_SkipSpace(source, 1LL);
-        if (compiler_source_StartsWord(StringRange(source, (int64_t)after, (int64_t)source.length), StringLiteral("else"))) {
+        String value_0 = StringRange(source, (int64_t)after, (int64_t)source.length);
+        String value_1 = StringLiteral("else");
+        bool value_2 = false;
+        {
+            String source = value_0;
+            String word = value_1;
+            String value_4 = source;
+            bool value_5 = false;
+            {
+                String source = value_4;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_7 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_5 = value_7 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_5) {
+                value_2 = false;
+                goto value_3;
+            }
+            String value_8 = source;
+            int64_t value_9 = (int64_t)(word).length;
+            uint8_t value_10 = 0;
+            {
+                String source = value_8;
+                int64_t at = value_9;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_10 = 0;
+                    goto value_11;
+                }
+                value_10 = (uint8_t)source.data[at];
+            value_11: ;
+            }
+            uint8_t byte = value_10;
+            value_2 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_3: ;
+        }
+        if (value_2) {
             control = after;
         }
     }
     int64_t end = control;
     while (true) {
-        bool value_0 = end < (int64_t)(source).length && compiler_source_SourceIdentifier((uint8_t)ZIRAN_INDEX(source.data, source.length, end));
-        if (!(value_0 && (int64_t)((uint64_t)end - (uint64_t)control) < 15LL)) { break; }
+        bool value_12 = end < (int64_t)(source).length;
+        if (value_12) {
+            uint8_t value_13 = (uint8_t)ZIRAN_INDEX(source.data, source.length, end);
+            bool value_14 = false;
+            {
+                uint8_t byte = value_13;
+                uint8_t value_16 = byte;
+                bool value_17 = false;
+                {
+                    uint8_t byte = value_16;
+                    value_17 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                }
+                value_14 = value_17 || (byte >= 48 && byte <= 57);
+            }
+            value_12 = value_14;
+        }
+        if (!(value_12 && (int64_t)((uint64_t)end - (uint64_t)control) < 15LL)) { break; }
         end = (int64_t)((uint64_t)end + UINT64_C(1));
     }
     String word = StringRange(source, (int64_t)control, (int64_t)end);
-    bool value_1 = !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")) && !StringEqual(word, StringLiteral("while"));
-    bool value_2 = value_1 && !StringEqual(word, StringLiteral("for")) && !StringEqual(word, StringLiteral("defer"));
-    bool value_3 = value_2 && !StringEqual(word, StringLiteral("switch")) && !StringEqual(word, StringLiteral("case"));
-    bool value_4 = value_3 && !StringEqual(word, StringLiteral("guard")) && !StringEqual(word, StringLiteral("do"));
-    if (value_4) {
-        bool value_5 = (uint8_t)source.data[0] == 35;
-        bool value_6 = value_5 && compiler_source_StartsWord(source, StringLiteral("#asm"));
-        value_4 = !value_6;
+    bool value_19 = !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")) && !StringEqual(word, StringLiteral("while"));
+    bool value_20 = value_19 && !StringEqual(word, StringLiteral("for")) && !StringEqual(word, StringLiteral("defer"));
+    bool value_21 = value_20 && !StringEqual(word, StringLiteral("switch")) && !StringEqual(word, StringLiteral("case"));
+    bool value_22 = value_21 && !StringEqual(word, StringLiteral("guard")) && !StringEqual(word, StringLiteral("do"));
+    bool value_23 = value_22;
+    if (value_23) {
+        bool value_24 = (uint8_t)source.data[0] == 35;
+        bool value_25 = value_24;
+        if (value_25) {
+            String value_26 = source;
+            String value_27 = StringLiteral("#asm");
+            bool value_28 = false;
+            {
+                String source = value_26;
+                String word = value_27;
+                String value_30 = source;
+                bool value_31 = false;
+                {
+                    String source = value_30;
+                    int64_t at = 0LL;
+                    String text = word;
+                    bool value_33 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_31 = value_33 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                }
+                if (!value_31) {
+                    value_28 = false;
+                    goto value_29;
+                }
+                String value_34 = source;
+                int64_t value_35 = (int64_t)(word).length;
+                uint8_t value_36 = 0;
+                {
+                    String source = value_34;
+                    int64_t at = value_35;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_36 = 0;
+                        goto value_37;
+                    }
+                    value_36 = (uint8_t)source.data[at];
+                value_37: ;
+                }
+                uint8_t byte = value_36;
+                value_28 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+            value_29: ;
+            }
+            value_25 = value_28;
+        }
+        value_23 = !value_25;
     }
-    if (value_4) {
+    if (value_23) {
         return result;
     }
     int64_t at = 0LL;
@@ -726,16 +1873,27 @@ compiler_source_SplitControlBlock(String source)
             parentheses = (int32_t)((uint32_t)parentheses - 1u);
         } else if (byte == 123 && parentheses == 0) {
             int64_t before = at;
-            while (before > 0LL && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))))) {
+            while (true) {
+                bool value_38 = before > 0LL;
+                if (value_38) {
+                    uint8_t value_39 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1))));
+                    bool value_40 = false;
+                    {
+                        uint8_t byte = value_39;
+                        value_40 = byte == 32 || (byte >= 9 && byte <= 13);
+                    }
+                    value_38 = value_40;
+                }
+                if (!value_38) { break; }
                 before = (int64_t)((uint64_t)before - UINT64_C(1));
             }
-            bool value_7 = expressions > 0;
-            if (!value_7) {
-                bool value_8 = before > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))) == 46;
-                bool value_9 = value_8 && (before < 2LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(2)))) != 46);
-                value_7 = value_9;
+            bool value_42 = expressions > 0;
+            if (!value_42) {
+                bool value_43 = before > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(1)))) == 46;
+                bool value_44 = value_43 && (before < 2LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)before - UINT64_C(2)))) != 46);
+                value_42 = value_44;
             }
-            if (value_7) {
+            if (value_42) {
                 expressions = (int32_t)((uint32_t)expressions + 1u);
             } else {
                 opening = at;
@@ -771,28 +1929,75 @@ compiler_source_SplitControlBlock(String source)
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     if (at >= (int64_t)(source).length) {
-        int64_t value_10 = compiler_source_SkipSpace(source, (int64_t)((uint64_t)opening + UINT64_C(1)));
-        int64_t value_11 = (int64_t)(source).length;
-        if (value_10 >= value_11) {
+        int64_t value_45 = compiler_source_SkipSpace(source, (int64_t)((uint64_t)opening + UINT64_C(1)));
+        int64_t value_46 = (int64_t)(source).length;
+        if (value_45 >= value_46) {
             return result;
         }
         return (ControlBlock){.valid = true, .head_end = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_begin = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_end = (int64_t)(source).length, .tail_begin = (int64_t)(source).length, .open = true};
     }
     int64_t tail = compiler_source_SkipSpace(source, (int64_t)((uint64_t)at + UINT64_C(1)));
-    if (compiler_source_Byte(source, tail) == 59) {
+    String value_47 = source;
+    uint8_t value_48 = 0;
+    {
+        String source = value_47;
+        int64_t at = tail;
+        if (at < 0LL || at >= (int64_t)(source).length) {
+            value_48 = 0;
+            goto value_49;
+        }
+        value_48 = (uint8_t)source.data[at];
+    value_49: ;
+    }
+    if (value_48 == 59) {
         tail = compiler_source_SkipSpace(source, (int64_t)((uint64_t)tail + UINT64_C(1)));
     }
-    bool value_12 = tail < (int64_t)(source).length;
-    if (value_12) {
-        bool value_13 = StringEqual(word, StringLiteral("do")) || StringEqual(word, StringLiteral("case")) || StringEqual(word, StringLiteral("guard"));
-        bool value_14 = value_13;
-        if (!value_14) {
-            bool value_15 = compiler_source_StartsWord(StringRange(source, (int64_t)tail, (int64_t)source.length), StringLiteral("else"));
-            value_14 = (value_15 && !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")));
+    bool value_50 = tail < (int64_t)(source).length;
+    if (value_50) {
+        bool value_51 = StringEqual(word, StringLiteral("do")) || StringEqual(word, StringLiteral("case")) || StringEqual(word, StringLiteral("guard"));
+        bool value_52 = value_51;
+        if (!value_52) {
+            String value_53 = StringRange(source, (int64_t)tail, (int64_t)source.length);
+            String value_54 = StringLiteral("else");
+            bool value_55 = false;
+            {
+                String source = value_53;
+                String word = value_54;
+                String value_57 = source;
+                bool value_58 = false;
+                {
+                    String source = value_57;
+                    int64_t at = 0LL;
+                    String text = word;
+                    bool value_60 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                    value_58 = value_60 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                }
+                if (!value_58) {
+                    value_55 = false;
+                    goto value_56;
+                }
+                String value_61 = source;
+                int64_t value_62 = (int64_t)(word).length;
+                uint8_t value_63 = 0;
+                {
+                    String source = value_61;
+                    int64_t at = value_62;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_63 = 0;
+                        goto value_64;
+                    }
+                    value_63 = (uint8_t)source.data[at];
+                value_64: ;
+                }
+                uint8_t byte = value_63;
+                value_55 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+            value_56: ;
+            }
+            value_52 = (value_55 && !StringEqual(word, StringLiteral("if")) && !StringEqual(word, StringLiteral("else")));
         }
-        value_12 = value_14;
+        value_50 = value_52;
     }
-    if (value_12) {
+    if (value_50) {
         return result;
     }
     return (ControlBlock){.valid = true, .head_end = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_begin = (int64_t)((uint64_t)opening + UINT64_C(1)), .body_end = at, .tail_begin = tail, .open = false};
@@ -836,7 +2041,24 @@ compiler_source_ProcedureHeaderParts(String source)
             begin = (int64_t)((uint64_t)begin + UINT64_C(1));
         }
         int64_t end = begin;
-        while (end < colons && compiler_source_SourceIdentifier((uint8_t)ZIRAN_INDEX(source.data, source.length, end))) {
+        while (true) {
+            bool value_0 = end < colons;
+            if (value_0) {
+                uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, end);
+                bool value_2 = false;
+                {
+                    uint8_t byte = value_1;
+                    uint8_t value_4 = byte;
+                    bool value_5 = false;
+                    {
+                        uint8_t byte = value_4;
+                        value_5 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                    }
+                    value_2 = value_5 || (byte >= 48 && byte <= 57);
+                }
+                value_0 = value_2;
+            }
+            if (!value_0) { break; }
             end = (int64_t)((uint64_t)end + UINT64_C(1));
         }
         header.name = StringRange(source, (int64_t)begin, (int64_t)end);
@@ -851,7 +2073,18 @@ compiler_source_ProcedureHeaderParts(String source)
     }
     closing = (int64_t)((uint64_t)closing + (uint64_t)opening);
     int64_t end = closing;
-    while (end > (int64_t)((uint64_t)opening + UINT64_C(1)) && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_7 = end > (int64_t)((uint64_t)opening + UINT64_C(1));
+        if (value_7) {
+            uint8_t value_8 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_9 = false;
+            {
+                uint8_t byte = value_8;
+                value_9 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_7 = value_9;
+        }
+        if (!value_7) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     header.parameters = StringRange(source, (int64_t)((int64_t)((uint64_t)opening + UINT64_C(1))), (int64_t)end);
@@ -859,8 +2092,18 @@ compiler_source_ProcedureHeaderParts(String source)
     while (at < (int64_t)(source).length && ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 32 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 9)) {
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    bool value_0 = compiler_source_Matches(source, at, StringLiteral("->"));
-    if (!value_0) {
+    String value_11 = source;
+    int64_t value_12 = at;
+    String value_13 = StringLiteral("->");
+    bool value_14 = false;
+    {
+        String source = value_11;
+        int64_t at = value_12;
+        String text = value_13;
+        bool value_16 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+        value_14 = value_16 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+    }
+    if (!value_14) {
         return header;
     }
     at = (int64_t)((uint64_t)at + UINT64_C(2));
@@ -871,7 +2114,18 @@ compiler_source_ProcedureHeaderParts(String source)
     while (end < (int64_t)(source).length && (uint8_t)ZIRAN_INDEX(source.data, source.length, end) != 35 && (uint8_t)ZIRAN_INDEX(source.data, source.length, end) != 123) {
         end = (int64_t)((uint64_t)end + UINT64_C(1));
     }
-    while (end > at && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_17 = end > at;
+        if (value_17) {
+            uint8_t value_18 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_19 = false;
+            {
+                uint8_t byte = value_18;
+                value_19 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_17 = value_19;
+        }
+        if (!value_17) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     header.result = StringRange(source, (int64_t)at, (int64_t)end);
@@ -902,13 +2156,29 @@ compiler_source_NormalizeTypeSpacing(String source, Slice output)
             while (next < (int64_t)(source).length && ((uint8_t)ZIRAN_INDEX(source.data, source.length, next) == 32 || (uint8_t)ZIRAN_INDEX(source.data, source.length, next) == 9)) {
                 next = (int64_t)((uint64_t)next + UINT64_C(1));
             }
-            uint8_t following = compiler_source_Byte(source, next);
-            bool value_0 = next > at;
-            if (value_0) {
-                bool value_1 = compiler_source_Letter(following);
-                value_0 = (value_1 || following == 91 || following == 36);
+            String value_0 = source;
+            uint8_t value_1 = 0;
+            {
+                String source = value_0;
+                int64_t at = next;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_1 = 0;
+                    goto value_2;
+                }
+                value_1 = (uint8_t)source.data[at];
+            value_2: ;
             }
-            if (value_0) {
+            uint8_t following = value_1;
+            bool value_3 = next > at;
+            if (value_3) {
+                bool value_4 = false;
+                {
+                    uint8_t byte = following;
+                    value_4 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                }
+                value_3 = (value_4 || following == 91 || following == 36);
+            }
+            if (value_3) {
                 at = next;
             }
         }
@@ -928,11 +2198,22 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
     }
     int64_t used = 0LL;
     if (normalize_type) {
-        while (count > 0LL && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)count - UINT64_C(1)))))) {
+        while (true) {
+            bool value_0 = count > 0LL;
+            if (value_0) {
+                uint8_t value_1 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)count - UINT64_C(1))));
+                bool value_2 = false;
+                {
+                    uint8_t byte = value_1;
+                    value_2 = byte == 32 || (byte >= 9 && byte <= 13);
+                }
+                value_0 = value_2;
+            }
+            if (!value_0) { break; }
             count = (int64_t)((uint64_t)count - UINT64_C(1));
         }
-        Slice value_0 = output;
-        used = compiler_source_NormalizeTypeSpacing(StringRange(source, (int64_t)0LL, (int64_t)count), SliceRange(value_0, (int64_t)0LL, (int64_t)count, sizeof(uint8_t)));
+        Slice value_4 = output;
+        used = compiler_source_NormalizeTypeSpacing(StringRange(source, (int64_t)0LL, (int64_t)count), SliceRange(value_4, (int64_t)0LL, (int64_t)count, sizeof(uint8_t)));
     } else {
         {
             int64_t range_first_15 = 0LL;
@@ -984,8 +2265,57 @@ compiler_source_BraceOutsideLiterals(String source)
 bool
 compiler_source_LooksLikeProcedureHeader(String source)
 {
-    bool value_0 = compiler_source_StartsWord(source, StringLiteral("#import"));
-    if (value_0 || compiler_source_Matches(source, 0LL, StringLiteral("#import,"))) {
+    String value_0 = source;
+    String value_1 = StringLiteral("#import");
+    bool value_2 = false;
+    {
+        String source = value_0;
+        String word = value_1;
+        String value_4 = source;
+        bool value_5 = false;
+        {
+            String source = value_4;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_7 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_5 = value_7 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_5) {
+            value_2 = false;
+            goto value_3;
+        }
+        String value_8 = source;
+        int64_t value_9 = (int64_t)(word).length;
+        uint8_t value_10 = 0;
+        {
+            String source = value_8;
+            int64_t at = value_9;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_10 = 0;
+                goto value_11;
+            }
+            value_10 = (uint8_t)source.data[at];
+        value_11: ;
+        }
+        uint8_t byte = value_10;
+        value_2 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_3: ;
+    }
+    bool value_12 = value_2;
+    if (!value_12) {
+        String value_13 = source;
+        String value_14 = StringLiteral("#import,");
+        bool value_15 = false;
+        {
+            String source = value_13;
+            int64_t at = 0LL;
+            String text = value_14;
+            bool value_17 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_15 = value_17 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        value_12 = value_15;
+    }
+    if (value_12) {
         return false;
     }
     int64_t colons = compiler_source_Find(source, StringLiteral("::"));
@@ -994,37 +2324,334 @@ compiler_source_LooksLikeProcedureHeader(String source)
     }
     int64_t at = compiler_source_SkipSpace(source, (int64_t)((uint64_t)colons + UINT64_C(2)));
     int64_t end = (int64_t)(source).length;
-    while (end > at && compiler_source_Space((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+    while (true) {
+        bool value_18 = end > at;
+        if (value_18) {
+            uint8_t value_19 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_20 = false;
+            {
+                uint8_t byte = value_19;
+                value_20 = byte == 32 || (byte >= 9 && byte <= 13);
+            }
+            value_18 = value_20;
+        }
+        if (!value_18) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     String body = StringRange(source, (int64_t)at, (int64_t)end);
-    if (compiler_source_StartsWord(body, StringLiteral("#as"))) {
-        String value_1 = body;
-        int64_t value_2 = compiler_source_SkipSpace(body, 3LL);
-        body = StringRange(value_1, (int64_t)value_2, (int64_t)value_1.length);
+    String value_22 = StringLiteral("#as");
+    bool value_23 = false;
+    {
+        String source = body;
+        String word = value_22;
+        String value_25 = source;
+        bool value_26 = false;
+        {
+            String source = value_25;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_28 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_26 = value_28 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_26) {
+            value_23 = false;
+            goto value_24;
+        }
+        String value_29 = source;
+        int64_t value_30 = (int64_t)(word).length;
+        uint8_t value_31 = 0;
+        {
+            String source = value_29;
+            int64_t at = value_30;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_31 = 0;
+                goto value_32;
+            }
+            value_31 = (uint8_t)source.data[at];
+        value_32: ;
+        }
+        uint8_t byte = value_31;
+        value_23 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_24: ;
     }
-    bool value_3 = compiler_source_StartsWord(body, StringLiteral("#import"));
-    bool value_4 = value_3 || compiler_source_Matches(body, 0LL, StringLiteral("#import,"));
-    bool value_5 = value_4 || compiler_source_StartsWord(body, StringLiteral("#defined"));
-    bool value_6 = value_5 || compiler_source_StartsWord(body, StringLiteral("#define"));
-    bool value_7 = value_6 || compiler_source_StartsWord(body, StringLiteral("struct"));
-    bool value_8 = value_7 || compiler_source_StartsWord(body, StringLiteral("enum"));
-    bool value_9 = value_8 || compiler_source_StartsWord(body, StringLiteral("union"));
-    bool value_10 = value_9;
-    if (!value_10) {
-        int64_t value_11 = compiler_source_Find(body, StringLiteral("#type"));
-        value_10 = (value_11 >= 0LL);
+    if (value_23) {
+        String value_33 = body;
+        int64_t value_34 = compiler_source_SkipSpace(body, 3LL);
+        body = StringRange(value_33, (int64_t)value_34, (int64_t)value_33.length);
     }
-    if (value_10 || compiler_source_Byte(body, 0LL) != 40) {
+    String value_35 = StringLiteral("#import");
+    bool value_36 = false;
+    {
+        String source = body;
+        String word = value_35;
+        String value_38 = source;
+        bool value_39 = false;
+        {
+            String source = value_38;
+            int64_t at = 0LL;
+            String text = word;
+            bool value_41 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_39 = value_41 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (!value_39) {
+            value_36 = false;
+            goto value_37;
+        }
+        String value_42 = source;
+        int64_t value_43 = (int64_t)(word).length;
+        uint8_t value_44 = 0;
+        {
+            String source = value_42;
+            int64_t at = value_43;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_44 = 0;
+                goto value_45;
+            }
+            value_44 = (uint8_t)source.data[at];
+        value_45: ;
+        }
+        uint8_t byte = value_44;
+        value_36 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+    value_37: ;
+    }
+    bool value_46 = value_36;
+    if (!value_46) {
+        String value_47 = StringLiteral("#import,");
+        bool value_48 = false;
+        {
+            String source = body;
+            int64_t at = 0LL;
+            String text = value_47;
+            bool value_50 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_48 = value_50 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        value_46 = value_48;
+    }
+    bool value_51 = value_46;
+    if (!value_51) {
+        String value_52 = StringLiteral("#defined");
+        bool value_53 = false;
+        {
+            String source = body;
+            String word = value_52;
+            String value_55 = source;
+            bool value_56 = false;
+            {
+                String source = value_55;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_58 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_56 = value_58 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_56) {
+                value_53 = false;
+                goto value_54;
+            }
+            String value_59 = source;
+            int64_t value_60 = (int64_t)(word).length;
+            uint8_t value_61 = 0;
+            {
+                String source = value_59;
+                int64_t at = value_60;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_61 = 0;
+                    goto value_62;
+                }
+                value_61 = (uint8_t)source.data[at];
+            value_62: ;
+            }
+            uint8_t byte = value_61;
+            value_53 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_54: ;
+        }
+        value_51 = value_53;
+    }
+    bool value_63 = value_51;
+    if (!value_63) {
+        String value_64 = StringLiteral("#define");
+        bool value_65 = false;
+        {
+            String source = body;
+            String word = value_64;
+            String value_67 = source;
+            bool value_68 = false;
+            {
+                String source = value_67;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_70 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_68 = value_70 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_68) {
+                value_65 = false;
+                goto value_66;
+            }
+            String value_71 = source;
+            int64_t value_72 = (int64_t)(word).length;
+            uint8_t value_73 = 0;
+            {
+                String source = value_71;
+                int64_t at = value_72;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_73 = 0;
+                    goto value_74;
+                }
+                value_73 = (uint8_t)source.data[at];
+            value_74: ;
+            }
+            uint8_t byte = value_73;
+            value_65 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_66: ;
+        }
+        value_63 = value_65;
+    }
+    bool value_75 = value_63;
+    if (!value_75) {
+        String value_76 = StringLiteral("struct");
+        bool value_77 = false;
+        {
+            String source = body;
+            String word = value_76;
+            String value_79 = source;
+            bool value_80 = false;
+            {
+                String source = value_79;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_82 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_80 = value_82 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_80) {
+                value_77 = false;
+                goto value_78;
+            }
+            String value_83 = source;
+            int64_t value_84 = (int64_t)(word).length;
+            uint8_t value_85 = 0;
+            {
+                String source = value_83;
+                int64_t at = value_84;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_85 = 0;
+                    goto value_86;
+                }
+                value_85 = (uint8_t)source.data[at];
+            value_86: ;
+            }
+            uint8_t byte = value_85;
+            value_77 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_78: ;
+        }
+        value_75 = value_77;
+    }
+    bool value_87 = value_75;
+    if (!value_87) {
+        String value_88 = StringLiteral("enum");
+        bool value_89 = false;
+        {
+            String source = body;
+            String word = value_88;
+            String value_91 = source;
+            bool value_92 = false;
+            {
+                String source = value_91;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_94 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_92 = value_94 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_92) {
+                value_89 = false;
+                goto value_90;
+            }
+            String value_95 = source;
+            int64_t value_96 = (int64_t)(word).length;
+            uint8_t value_97 = 0;
+            {
+                String source = value_95;
+                int64_t at = value_96;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_97 = 0;
+                    goto value_98;
+                }
+                value_97 = (uint8_t)source.data[at];
+            value_98: ;
+            }
+            uint8_t byte = value_97;
+            value_89 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_90: ;
+        }
+        value_87 = value_89;
+    }
+    bool value_99 = value_87;
+    if (!value_99) {
+        String value_100 = StringLiteral("union");
+        bool value_101 = false;
+        {
+            String source = body;
+            String word = value_100;
+            String value_103 = source;
+            bool value_104 = false;
+            {
+                String source = value_103;
+                int64_t at = 0LL;
+                String text = word;
+                bool value_106 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_104 = value_106 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (!value_104) {
+                value_101 = false;
+                goto value_102;
+            }
+            String value_107 = source;
+            int64_t value_108 = (int64_t)(word).length;
+            uint8_t value_109 = 0;
+            {
+                String source = value_107;
+                int64_t at = value_108;
+                if (at < 0LL || at >= (int64_t)(source).length) {
+                    value_109 = 0;
+                    goto value_110;
+                }
+                value_109 = (uint8_t)source.data[at];
+            value_110: ;
+            }
+            uint8_t byte = value_109;
+            value_101 = byte == 0 || byte == 32 || byte == 9 || byte == 40 || byte == 34 || byte == 123;
+        value_102: ;
+        }
+        value_99 = value_101;
+    }
+    bool value_111 = value_99;
+    if (!value_111) {
+        int64_t value_112 = compiler_source_Find(body, StringLiteral("#type"));
+        value_111 = (value_112 >= 0LL);
+    }
+    bool value_113 = value_111;
+    if (!value_113) {
+        uint8_t value_114 = 0;
+        {
+            String source = body;
+            int64_t at = 0LL;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_114 = 0;
+                goto value_115;
+            }
+            value_114 = (uint8_t)source.data[at];
+        value_115: ;
+        }
+        value_113 = (value_114 != 40);
+    }
+    if (value_113) {
         return false;
     }
-    int64_t value_12 = compiler_source_Find(body, StringLiteral("{"));
-    bool value_13 = value_12 >= 0LL;
-    if (!value_13) {
-        int64_t value_14 = compiler_source_Find(body, StringLiteral("->"));
-        value_13 = (value_14 >= 0LL);
+    int64_t value_116 = compiler_source_Find(body, StringLiteral("{"));
+    bool value_117 = value_116 >= 0LL;
+    if (!value_117) {
+        int64_t value_118 = compiler_source_Find(body, StringLiteral("->"));
+        value_117 = (value_118 >= 0LL);
     }
-    if (value_13) {
+    if (value_117) {
         return true;
     }
     int32_t depth = 0;
@@ -1059,13 +2686,13 @@ compiler_source_LooksLikeProcedureHeader(String source)
     if (byte == 34 || byte == 39 || (byte >= 48 && byte <= 57)) {
         return false;
     }
-    int64_t value_15 = compiler_source_Find(StringRange(body, (int64_t)begin, (int64_t)body.length), StringLiteral("\?"));
-    bool value_16 = value_15 < 0LL;
-    if (value_16) {
-        int64_t value_17 = compiler_source_Find(StringRange(body, (int64_t)begin, (int64_t)body.length), StringLiteral(":"));
-        value_16 = (value_17 >= 0LL);
+    int64_t value_119 = compiler_source_Find(StringRange(body, (int64_t)begin, (int64_t)body.length), StringLiteral("\?"));
+    bool value_120 = value_119 < 0LL;
+    if (value_120) {
+        int64_t value_121 = compiler_source_Find(StringRange(body, (int64_t)begin, (int64_t)body.length), StringLiteral(":"));
+        value_120 = (value_121 >= 0LL);
     }
-    return value_16;
+    return value_120;
 }
 
 ControlBlock
@@ -1073,13 +2700,29 @@ compiler_source_SplitProcedureBody(String source)
 {
     ControlBlock block = {0};
     int64_t opening = compiler_source_OpeningBraceOutsideLiterals(source);
-    bool value_0 = opening < 0LL || compiler_source_Byte(source, (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1))) != 125;
-    bool value_1 = value_0;
-    if (!value_1) {
-        bool value_2 = compiler_source_LooksLikeProcedureHeader(source);
-        value_1 = !value_2;
+    bool value_0 = opening < 0LL;
+    if (!value_0) {
+        String value_1 = source;
+        int64_t value_2 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
+        uint8_t value_3 = 0;
+        {
+            String source = value_1;
+            int64_t at = value_2;
+            if (at < 0LL || at >= (int64_t)(source).length) {
+                value_3 = 0;
+                goto value_4;
+            }
+            value_3 = (uint8_t)source.data[at];
+        value_4: ;
+        }
+        value_0 = (value_3 != 125);
     }
-    if (value_1) {
+    bool value_5 = value_0;
+    if (!value_5) {
+        bool value_6 = compiler_source_LooksLikeProcedureHeader(source);
+        value_5 = !value_6;
+    }
+    if (value_5) {
         return block;
     }
     int32_t depth = 0;
@@ -1132,13 +2775,45 @@ compiler_source_ProcedureMustUse(String source, String result_type)
         if ((uint8_t)ZIRAN_INDEX(tail.data, tail.length, at) == 34) {
             at = compiler_source_AfterQuote(StringRange(tail, (int64_t)0LL, (int64_t)end), at);
         } else {
-            bool value_0 = compiler_source_Matches(StringRange(tail, (int64_t)0LL, (int64_t)end), at, StringLiteral("#must"));
-            bool value_1 = value_0;
-            if (value_1) {
-                bool value_2 = compiler_source_SourceIdentifier(compiler_source_Byte(tail, (int64_t)((uint64_t)at + UINT64_C(5))));
-                value_1 = !value_2;
+            String value_0 = StringRange(tail, (int64_t)0LL, (int64_t)end);
+            int64_t value_1 = at;
+            String value_2 = StringLiteral("#must");
+            bool value_3 = false;
+            {
+                String source = value_0;
+                int64_t at = value_1;
+                String text = value_2;
+                bool value_5 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_3 = value_5 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
             }
-            if (value_1) {
+            bool value_6 = value_3;
+            if (value_6) {
+                int64_t value_7 = (int64_t)((uint64_t)at + UINT64_C(5));
+                uint8_t value_8 = 0;
+                {
+                    String source = tail;
+                    int64_t at = value_7;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_8 = 0;
+                        goto value_9;
+                    }
+                    value_8 = (uint8_t)source.data[at];
+                value_9: ;
+                }
+                bool value_10 = false;
+                {
+                    uint8_t byte = value_8;
+                    uint8_t value_12 = byte;
+                    bool value_13 = false;
+                    {
+                        uint8_t byte = value_12;
+                        value_13 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                    }
+                    value_10 = value_13 || (byte >= 48 && byte <= 57);
+                }
+                value_6 = !value_10;
+            }
+            if (value_6) {
                 int64_t after = compiler_source_SkipSpace(tail, (int64_t)((uint64_t)at + UINT64_C(5)));
                 if (after < end && (uint8_t)ZIRAN_INDEX(tail.data, tail.length, after) != 35) {
                     return MustUseModifier_Arguments;
@@ -1188,20 +2863,64 @@ compiler_source_ProcedureInlining(String source)
     int64_t at = 0LL;
     while (at < end) {
         int64_t length = 0LL;
-        if (compiler_source_Matches(head, at, StringLiteral("#inline"))) {
+        int64_t value_0 = at;
+        String value_1 = StringLiteral("#inline");
+        bool value_2 = false;
+        {
+            String source = head;
+            int64_t at = value_0;
+            String text = value_1;
+            bool value_4 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+            value_2 = value_4 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        }
+        if (value_2) {
             length = 7LL;
-        } else if (compiler_source_Matches(head, at, StringLiteral("#cold"))) {
-            length = 5LL;
+        } else {
+            int64_t value_5 = at;
+            String value_6 = StringLiteral("#cold");
+            bool value_7 = false;
+            {
+                String source = head;
+                int64_t at = value_5;
+                String text = value_6;
+                bool value_9 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_7 = value_9 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+            }
+            if (value_7) {
+                length = 5LL;
+            }
         }
         if ((uint8_t)ZIRAN_INDEX(tail.data, tail.length, at) == 34) {
             at = compiler_source_AfterQuote(head, at);
         } else {
-            bool value_0 = length > 0LL;
-            if (value_0) {
-                bool value_1 = compiler_source_SourceIdentifier(compiler_source_Byte(head, (int64_t)((uint64_t)at + (uint64_t)length)));
-                value_0 = !value_1;
+            bool value_10 = length > 0LL;
+            if (value_10) {
+                int64_t value_11 = (int64_t)((uint64_t)at + (uint64_t)length);
+                uint8_t value_12 = 0;
+                {
+                    String source = head;
+                    int64_t at = value_11;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_12 = 0;
+                        goto value_13;
+                    }
+                    value_12 = (uint8_t)source.data[at];
+                value_13: ;
+                }
+                bool value_14 = false;
+                {
+                    uint8_t byte = value_12;
+                    uint8_t value_16 = byte;
+                    bool value_17 = false;
+                    {
+                        uint8_t byte = value_16;
+                        value_17 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                    }
+                    value_14 = value_17 || (byte >= 48 && byte <= 57);
+                }
+                value_10 = !value_14;
             }
-            if (value_0) {
+            if (value_10) {
                 int64_t after = compiler_source_SkipSpace(head, (int64_t)((uint64_t)at + (uint64_t)length));
                 if (after < end && (uint8_t)ZIRAN_INDEX(head.data, head.length, after) != 35) {
                     return InliningModifier_Arguments;
@@ -1259,13 +2978,44 @@ compiler_source_ProcedureTarget(String source)
         if ((uint8_t)ZIRAN_INDEX(head.data, head.length, at) == 34) {
             at = compiler_source_AfterQuote(head, at);
         } else {
-            bool value_0 = compiler_source_Matches(head, at, StringLiteral("#target"));
-            bool value_1 = value_0;
-            if (value_1) {
-                bool value_2 = compiler_source_SourceIdentifier(compiler_source_Byte(head, (int64_t)((uint64_t)at + UINT64_C(7))));
-                value_1 = !value_2;
+            int64_t value_0 = at;
+            String value_1 = StringLiteral("#target");
+            bool value_2 = false;
+            {
+                String source = head;
+                int64_t at = value_0;
+                String text = value_1;
+                bool value_4 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                value_2 = value_4 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
             }
-            if (value_1) {
+            bool value_5 = value_2;
+            if (value_5) {
+                int64_t value_6 = (int64_t)((uint64_t)at + UINT64_C(7));
+                uint8_t value_7 = 0;
+                {
+                    String source = head;
+                    int64_t at = value_6;
+                    if (at < 0LL || at >= (int64_t)(source).length) {
+                        value_7 = 0;
+                        goto value_8;
+                    }
+                    value_7 = (uint8_t)source.data[at];
+                value_8: ;
+                }
+                bool value_9 = false;
+                {
+                    uint8_t byte = value_7;
+                    uint8_t value_11 = byte;
+                    bool value_12 = false;
+                    {
+                        uint8_t byte = value_11;
+                        value_12 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                    }
+                    value_9 = value_12 || (byte >= 48 && byte <= 57);
+                }
+                value_5 = !value_9;
+            }
+            if (value_5) {
                 int64_t after = compiler_source_SkipSpace(head, (int64_t)((uint64_t)at + UINT64_C(7)));
                 if (after < end && (uint8_t)ZIRAN_INDEX(head.data, head.length, after) != 35) {
                     return TargetModifier_Arguments;

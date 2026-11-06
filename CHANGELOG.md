@@ -93,6 +93,10 @@
   and 24% faster at `-O0`. Optimized builds are unchanged.
 - `ziran run` charges a loop over literal bounds, such as `for i: 0..7`, its
   whole step count once as it starts rather than at every iteration.
+- Generated C emits a call of a small procedure of the same module as that
+  procedure's body, so `ziran run` (TinyCC) and unoptimized builds skip the
+  call: an AV1 decode runs about 7% faster under `ziran run` and 4% faster at
+  `-O0`. A private procedure every caller inlined is no C warning.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

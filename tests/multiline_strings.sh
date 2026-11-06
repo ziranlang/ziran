@@ -291,3 +291,17 @@ for kind in const global; do
         GO111MODULE=off go run "$out/$name.go" "$out/main.go"
     done
 done
+
+# A template string over 2 KB that spans physical lines keeps the line numbers
+# of every declaration after it.
+awk 'BEGIN {
+    print "// Four."
+    printf "Four :: () -> s64 #asm(\"x86_64\", \""
+    for (n = 0; n < 52; n++) { if (n) print ""; printf "        movq %%r10, %%r11 ; pad pad pad pad pad" }
+    print "\", \"=r:out\", \"\", \"\", \"\") { return 0 }"
+    print ""
+    print "// Five."
+    print "Five :: () -> s64 { return 5 }"
+}' > "$work/api_lines.zi"
+five=$(grep -n '^Five ::' "$work/api_lines.zi" | cut -d: -f1)
+"$ziran" api --json --root "$work" "$work/api_lines.zi" | grep -q "\"line\":$five[,}]"

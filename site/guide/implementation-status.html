@@ -825,9 +825,11 @@
 <li>Jai <code>#string DELIMITER</code> raw multiline literals preserve their body bytes,
   including whitespace and the newline before the closing delimiter. Source
   and saved IR execute identically on the portable runner, C and Go.
-  <code>zi-fmt</code> preserves raw bodies and closing delimiter columns. The existing
-  source line and string literal size limit applies after the literal is
-  lowered.</li>
+  <code>zi-fmt</code> preserves raw bodies and closing delimiter columns. The 4095
+  character source line limit counts the physical lines the author wrote, body
+  lines included, and is reported at the real line. A string literal
+  has no length limit, as a constant or a global initializer, on the portable
+  runner, C and Go, and later diagnostics keep their lines.</li>
 <li>Nested block comments and inline <code>//</code> comments are stripped without changing
   quoted strings or source line locations. Unclosed comments are diagnosed in
   entry and loaded files; source and saved IR agree across portable, C, and

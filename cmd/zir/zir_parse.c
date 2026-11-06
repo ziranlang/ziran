@@ -127,7 +127,10 @@ shorten_long_literals(char *source)
                 if(source[end] == '\\' && end + 1 < length) end++;
                 end++;
             }
-            if(byte == '"' && end < length && end - at - 1 >= LONG_LITERAL_MIN) {
+            /* A literal that spans physical lines keeps them: a marker would
+             * drop the newlines and shift every later line number. */
+            if(byte == '"' && end < length && end - at - 1 >= LONG_LITERAL_MIN &&
+               memchr(source + at + 1, '\n', end - at - 1) == NULL) {
                 if(out == NULL) {
                     out = malloc(length + 1);
                     if(out == NULL) die("out of memory reading source");

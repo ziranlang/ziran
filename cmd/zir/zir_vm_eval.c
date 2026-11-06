@@ -2632,8 +2632,21 @@ eval_expression(Frame *frame, int index, int depth)
             Value initialized = eval(frame, initializer->right, depth + 1);
             if(frame->vm->failed)
                 break;
-            field->value = coerce(frame->vm, value.record->owner,
+            Value stored = coerce(frame->vm, value.record->owner,
                                   initialized, field->field.type);
+            if(frame->vm->failed)
+                break;
+            /* The field's default and, when storing took a copy, a moved
+             * or fresh owned initializer are left without an owner. */
+            if(vm_type_contains_vec(frame->vm, value.record->owner,
+                                    field->field.type, 0)) {
+                retire_value(frame->vm, field->value, 0);
+                if(initialized.kind == VALUE_RECORD &&
+                   (stored.kind != VALUE_RECORD ||
+                    stored.record != initialized.record))
+                    retire_value(frame->vm, initialized, 0);
+            }
+            field->value = stored;
         }
         break;
     }
@@ -3141,6 +3154,9 @@ eval_expression(Frame *frame, int index, int depth)
                         inline_record_set(&result,(unsigned)item_index,selected);
                         inline_record_set(&result,(unsigned)has_index,int_value(1));
                     } else {
+                        /* The default element built for the empty result
+                         * is replaced, so it has no owner. */
+                        retire_value(frame->vm, *item, 0);
                         *item=selected;
                         *has_value=int_value(1);
                     }
@@ -3285,6 +3301,12 @@ eval_expression(Frame *frame, int index, int depth)
                 }
                 Value stored = coerce(frame->vm, frame->module, item, element);
                 if(frame->vm->failed) break;
+                /* An owned element was moved or freshly built for this push;
+                 * when storing it took a copy, the original has no owner. */
+                if(item.kind == VALUE_RECORD &&
+                   (stored.kind != VALUE_RECORD || stored.record != item.record) &&
+                   vm_type_contains_vec(frame->vm, frame->module, element, 0))
+                    retire_value(frame->vm, item, 0);
                 array_set(data->array, (size_t)count->integer, stored);
                 count->integer++;
                 value = int_value(1);

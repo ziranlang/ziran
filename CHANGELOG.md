@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- A Vec can hold Vecs and records that own Vecs: `VecPush` moves the element
+  in, `groups[i].parts[j]` reads and writes in place, and dropping frees the
+  inner Vecs. A discarded owned record result, such as `VecPop`'s, is freed.
 - A local override that no longer matches `ziran.lock` now names the package, its source and the mismatched pin instead of "cannot fetch locked packages"; `GIT_TRACE` no longer makes a clean package cache look modified.
 - `std/thread_linux` links and polls on macOS, which has no `pthread_tryjoin_np`.
 - Array literals have no size cap and check in linear time; saved IR is

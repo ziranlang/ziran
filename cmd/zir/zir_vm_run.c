@@ -205,7 +205,15 @@ coerce_storage_expression(Frame *frame, int expression, Value value,
        !vm_type_contains_vec(frame->vm, frame->module, type, 0) &&
        return_storage_owned(value, 0))
         return coerce_expression(frame->vm, frame->module, value, type);
-    return coerce(frame->vm, frame->module, value, type);
+    Value stored = coerce(frame->vm, frame->module, value, type);
+    /* Storing a fresh owned record copies it; the original has no owner. */
+    if(expression >= 0 && value.kind == VALUE_RECORD &&
+       (stored.kind != VALUE_RECORD || stored.record != value.record) &&
+       (frame->function->exprs[expression].kind == ZIR_EXPR_CALL ||
+        frame->function->exprs[expression].kind == ZIR_EXPR_COMPOUND) &&
+       vm_type_contains_vec(frame->vm, frame->module, type, 0))
+        retire_value(frame->vm, value, 0);
+    return stored;
 }
 
 
@@ -356,8 +364,8 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             Value unused = eval(frame, statement->expr_root, 0);
             if(!vm->failed && statement->expr_root >= 0 &&
                function->exprs[statement->expr_root].kind == ZIR_EXPR_CALL &&
-               vm_vec_element_type(vm, frame->module,
-                   function->exprs[statement->expr_root].type, NULL, 0)) {
+               vm_type_contains_vec(vm, frame->module,
+                   function->exprs[statement->expr_root].type, 0)) {
                 retire_value(vm, unused, 0);
                 release_retired(vm);
             }

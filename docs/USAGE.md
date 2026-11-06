@@ -881,9 +881,26 @@ Go catches recoverable allocation range panics, but physical out-of-memory
 failure can terminate the Go runtime. Capacities and allocation limits depend
 on the target; a successful capacity request never guarantees future growth.
 `VecGet` and `VecClone` cannot copy owned elements; mutate them in place or
-move an element with `VecPop`. `VecPush` retains its existing restriction on
-nested owned elements. `sh tests/vec_capacity.sh build/bin/ziran` runs the
-focused source, saved-IR, C, Go and portable local tests.
+move an element with `VecPop`. `sh tests/vec_capacity.sh build/bin/ziran`
+runs the focused source, saved-IR, C, Go and portable local tests.
+
+A Vec can hold records that own Vecs. `VecPush` moves such an element in from
+a local binding, a call result or a `.{...}` literal, so the source cannot be
+used afterwards. Read and change elements in place: `groups[i].parts[j]`,
+`VecPush(groups[i].parts, x)`, or `for * groups { ... }`. `for groups` and
+`x := groups[i]` would copy owned storage and are rejected. Clearing, popping,
+freeing or leaving scope frees the inner Vecs too. `Vec(Vec(T))` works the
+same way. C, Go and portable `.zx` support this; wasm has no Vec storage.
+`tests/nested_vec_elements.sh` checks it, including a leak check.
+
+```zi
+Group :: struct { name: string; parts: Vec(string); }
+groups: Vec(Group)
+group: Group
+VecPush(group.parts, "a")
+VecPush(groups, group)
+groups[0].parts[0] = "b"
+```
 
 
 `VecResizeBounded(values, count: s64, maximum_capacity: s64) -> bool` uses

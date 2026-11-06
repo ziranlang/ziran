@@ -503,6 +503,12 @@ restart:
             }
             if(st->expr_root >= 0 &&
                contains_vec(c->module, st->type, 0) &&
+               c->fn->exprs[st->expr_root].kind == ZIR_EXPR_INDEX)
+                error(c, st->span,
+                      "owned Vec elements cannot be copied; index in place or iterate with for *",
+                      st->name);
+            else if(st->expr_root >= 0 &&
+               contains_vec(c->module, st->type, 0) &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
                !owned_initializer_shape(c, st->expr_root))

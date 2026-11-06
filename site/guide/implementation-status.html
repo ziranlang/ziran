@@ -718,9 +718,9 @@
   <code>array_free(a)</code>, and <code>array_reset_keeping_memory(*a)</code> are the matching Vec
   operations. Indexing, <code>.count</code>, and <code>for</code> work as on Vec. A local <code>[..]T</code>
   passed where <code>[]T</code> is expected lends a view (<code>VecSlice</code>) instead of moving.
-  Vecs of fixed arrays and nested Vecs are rejected; wrap the element in a
-  record. <code>tests/resizable_arrays.sh</code> checks source and saved IR on C,
-  Go, and <code>.zx</code>.</li>
+  Vecs of fixed arrays are rejected; wrap the array in a record. Nested
+  Vecs (<code>[..][..]T</code>) and Vecs of records that own Vecs work.
+  <code>tests/resizable_arrays.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>.</li>
 <li>Procedures return several results as in Jai: <code>-&gt; s32, s32</code> or named
   <code>-&gt; (low: s32, high: s32)</code>, <code>return a, b</code>, <code>q, r := F()</code>, <code>q, r = F()</code>, and
   <code>_</code> to skip one. A call used as one value gives its first result. The results

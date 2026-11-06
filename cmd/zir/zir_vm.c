@@ -181,8 +181,7 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
     if(record == NULL || record->is_extern)
         return 0;
     if(VecElementType(module, type, element, sizeof(element)))
-        return portable_type_at(module, element, depth + 1, path) &&
-               !VecElementType(module, element, NULL, 0);
+        return portable_type_at(module, element, depth + 1, path);
     if(record->is_procedure_type) {
         if(record->is_c_call)
             return 0;

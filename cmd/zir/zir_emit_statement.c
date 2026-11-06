@@ -1338,12 +1338,13 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             if(st->expr_root>=0) {
                 const ZirExpr *expr = &e->fn->exprs[st->expr_root];
                 /* A call whose result goes unused is a statement of its own;
-                 * an owned Vec result is kept so it can be released. */
-                e->call_in_place = !VecElementType(e->module, expr->type, NULL, 0);
+                 * an owned result, such as a Vec or a record holding one, is
+                 * kept so it can be released. */
+                int owned = emitter_type_contains_vec(e->module, expr->type, 0);
+                e->call_in_place = !owned;
                 emit_expr(e, st->expr_root, expr->type, buffers->value,
                           sizeof(buffers->value));
-                if(*buffers->value && expr->kind == ZIR_EXPR_CALL &&
-                   VecElementType(e->module, expr->type, NULL, 0)) {
+                if(*buffers->value && expr->kind == ZIR_EXPR_CALL && owned) {
                     char temporary[ZIR_NAME_MAX];
                     fresh(e, temporary);
                     declare(e, temporary, expr->type, buffers->value);

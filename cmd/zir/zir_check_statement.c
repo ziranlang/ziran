@@ -2019,7 +2019,11 @@ mark_expr_moves(Checker *c, int index)
         child = c->fn->exprs[child].next_sibling) {
         Binding *binding = e->kind == ZIR_EXPR_CALL ?
             lexical_owned_binding(c, child) : NULL;
-        int consumes = !primitive || !strcmp(e->name, "VecFree") ||
+        /* VecPush moves an owned element into its storage. */
+        int pushed = primitive && !strcmp(e->name, "VecPush") &&
+                     child != e->first_child &&
+                     contains_vec(c->module, c->fn->exprs[child].type, 0);
+        int consumes = !primitive || pushed || !strcmp(e->name, "VecFree") ||
                        !strcmp(e->name, "BuilderFinish");
         if(binding != NULL && consumes) {
             if(binding->moved || binding->moved_path_count != 0) {
@@ -2032,7 +2036,7 @@ mark_expr_moves(Checker *c, int index)
                       "cannot move a Vec with a live borrowed view",
                       binding->name);
             binding->moved = 1;
-            if(!primitive)
+            if(!primitive || pushed)
                 c->fn->exprs[child].is_move = 1;
         } else if(consumes && mark_moved_member_path(c, child))
             continue;
@@ -2068,7 +2072,9 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
         child = c->fn->exprs[child].next_sibling) {
         int child_transfer =
             (expr->kind == ZIR_EXPR_CALL &&
-             !vec_primitive_name(expr->name) &&
+             (!vec_primitive_name(expr->name) ||
+              (!strcmp(expr->name, "VecPush") &&
+               child != expr->first_child)) &&
              contains_vec(c->module, c->fn->exprs[child].type, 0)) ||
             (expr->kind == ZIR_EXPR_COMPOUND &&
              c->fn->exprs[child].kind == ZIR_EXPR_FIELD_INIT &&
@@ -2076,6 +2082,8 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
         check_vec_call_results(c, child, child_transfer, 0);
     }
     check_vec_call_results(c, expr->left, 0, 0);
-    check_vec_call_results(c, expr->right, 0, 0);
+    /* An owned field initializer hands its value to the record. */
+    check_vec_call_results(c, expr->right,
+                           expr->kind == ZIR_EXPR_FIELD_INIT && transferred, 0);
     check_vec_call_results(c, expr->third, 0, 0);
 }

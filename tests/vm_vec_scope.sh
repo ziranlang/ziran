@@ -9,6 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/scope.zi" <<'ZI'
 #import "vec"
+#import "option"
 host_api :: #system_library "host_api";
 ProbeHost :: () -> s64 #foreign host_api;
 
@@ -26,9 +27,27 @@ Make :: () -> Vec(s32) {
 
 Take :: (values: Vec(s32)) -> s32 { return values[0] }
 
+Group :: struct { parts: Vec(s32); }
+
+Nested :: () -> s32 {
+    groups: Vec(Group)
+    group: Group
+    VecPush(group.parts, 3)
+    VecPush(groups, group)
+    VecPush(groups, .{parts = Make()})
+    VecPush(groups[1].parts, 4)
+    grid: Vec(Vec(s32))
+    VecPush(grid, Make())
+    VecPush(grid[0], 8)
+    VecResize(grid, 2)
+    VecPop(groups)
+    return groups[0].parts[0] + grid[0][1]
+}
+
 #program_export
 Check :: () -> s32 {
     if Inner() != 7 { return 1 }
+    if Nested() != 11 { return 10 }
     if ProbeHost() != 0 { return 2 }
     {
         values: Vec(s32)

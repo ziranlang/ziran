@@ -1991,8 +1991,6 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     if(!strcmp(requested,"integer")) c->fn->exprs[argument].type=KeepName("s64");
                 }
             } else if(push) {
-                if(contains_vec(c->module, element, 0))
-                    error(c, e->span, "nested Vec elements are not supported", element);
                 if(second < 0 || c->fn->exprs[second].next_sibling >= 0)
                     error(c, e->span, "VecPush requires a value", e->name);
                 else if(vector_known) {
@@ -2005,6 +2003,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     e = &c->fn->exprs[index];
                     if(!compatible_checked(c, element, item_type))
                         error(c, e->span, "VecPush element type mismatch", element);
+                    /* An owned element moves into the Vec, as an owned call
+                     * argument moves into its callee. */
+                    else if(contains_vec(c->module, element, 0) &&
+                            c->fn->exprs[second].kind != ZIR_EXPR_IDENT &&
+                            c->fn->exprs[second].kind != ZIR_EXPR_CALL &&
+                            !owned_initializer_shape(c, second))
+                        error(c, c->fn->exprs[second].span,
+                              "VecPush of an owned element moves a binding or takes a call result",
+                              element);
+                    else if(contains_vec(c->module, element, 0) &&
+                            global_vec_source(c, second))
+                        error(c, c->fn->exprs[second].span,
+                              "global Vec storage cannot move; use a local",
+                              c->fn->exprs[second].name);
                     else if(!strcmp(item_type, "integer") ||
                             !strcmp(item_type, "real")) {
                         const char *scalar = ScalarType(element);

@@ -1,6 +1,6 @@
 // Pillow's separable resampling of 8-bit RGBA as allocation-free row
-// kernels, with SSE2, AVX2, NEON (AArch64 and ARMv7) and WebAssembly SIMD128
-// versions that make the same bytes.
+// kernels, with x86-64 (std/simd, SSE2 to AVX2), NEON (AArch64 and ARMv7)
+// and WebAssembly SIMD128 versions that make the same bytes.
 //
 //     axis: ResampleAxis
 //     ResampleAxisInto(*axis, 640, 853, RESAMPLE_LANCZOS)  // weights once
@@ -18,6 +18,7 @@
 // kernels need a native target; std/image keeps the portable resizes.
 using Vectors :: #import "vec"
 #import "math"
+Simd :: #import "simd"
 
 RESAMPLE_BOX :: 0
 RESAMPLE_LANCZOS :: 1
@@ -200,6 +201,226 @@ HasArmNeon :: () -> s32 #asm("arm+neon", "mov %[out], #1", "=r", "", "", "") { r
 HasSimd128 :: () -> s32 #asm("wasm32+simd128", "i32.const 1
         local.set %[out]", "=r", "", "", "") { return 0 }
 
+// The x86-64 kernels, in std/simd: #target builds SSE2, SSSE3, SSE4.1 and
+// AVX2 copies of each and calls the best one the CPU runs. RESAMPLE_AVX2
+// takes the 256-bit kernels, which are slow without AVX2.
+
+// Two taps of one output pixel from SOURCE + PIXEL: each 32-bit lane holds
+// one channel of both taps for MulAddPairs.
+HorizontalStep :: (source: *u8, pixel: s64, packed: *u32, w: s64, low: *s32x4, high: *s32x4) #inline {
+    words := Simd.Reinterpret(s16x8, Simd.WidenLow(Simd.LoadLow(u8x16, source, pixel)))
+    taps := Simd.InterleaveLow(words, Simd.Reinterpret(s16x8, Simd.Shuffle(Simd.Reinterpret(s32x4, words), 2, 3, 0, 1)))
+    low.* = Simd.Add(low.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w]))))
+    high.* = Simd.Add(high.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w + 1]))))
+}
+
+// The last tap of an odd count, its partner weight 0.
+HorizontalOdd :: (source: *u8, pixel: s64, packed: *u32, w: s64, low: *s32x4, high: *s32x4) #inline {
+    word := cast(u32)source[pixel] | (cast(u32)source[pixel + 1] << 8) |
+        (cast(u32)source[pixel + 2] << 16) | (cast(u32)source[pixel + 3] << 24)
+    words := Simd.Reinterpret(s16x8, Simd.WidenLow(Simd.Reinterpret(u8x16, Simd.WithLane(Simd.Zero(u32x4), 0, word))))
+    taps := Simd.InterleaveLow(words, Simd.Zero(s16x8))
+    low.* = Simd.Add(low.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w]))))
+    high.* = Simd.Add(high.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w + 1]))))
+}
+
+HorizontalFinish :: (target: *u8, to: s64, low: s32x4, high: s32x4) #inline {
+    sum := Simd.ShiftRight(Simd.Add(low, Simd.ShiftLeft(high, 16)), 22)
+    halves := Simd.Narrow(s16x8, sum, sum)
+    out := Simd.Lane(Simd.Reinterpret(u32x4, Simd.Narrow(u8x16, halves, halves)), 0)
+    target[to] = cast(u8)out
+    target[to + 1] = cast(u8)(out >> 8)
+    target[to + 2] = cast(u8)(out >> 16)
+    target[to + 3] = cast(u8)(out >> 24)
+}
+
+// OUTPUT pixels of TARGET from the packed weights, ENTRY words apart:
+// four taps a step, then two, then an odd last one.
+HorizontalTyped :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8) #target {
+    at: s64 = 0
+    x: s64 = 0
+    while x < output {
+        count := cast(s64)packed[at + 1]
+        pixel := cast(s64)cast(s32)packed[at] * 4
+        w := at + 2
+        low := Simd.Splat(s32x4, ROUND)
+        high := Simd.Zero(s32x4)
+        quads := count / 4
+        while quads > 0 {
+            // The taps in order 0 2 1 3, then their bytes interleaved so each
+            // 32-bit lane holds one channel of taps 0 and 1, or 2 and 3.
+            spread := Simd.Reinterpret(u8x16, Simd.Shuffle(Simd.Reinterpret(u32x4, Simd.Load(u8x16, source, pixel)), 0, 2, 1, 3))
+            bytes := Simd.InterleaveLow(spread, Simd.Reinterpret(u8x16, Simd.Shuffle(Simd.Reinterpret(u32x4, spread), 2, 3, 2, 3)))
+            first := Simd.Reinterpret(s16x8, Simd.InterleaveLow(bytes, Simd.Zero(u8x16)))
+            second := Simd.Reinterpret(s16x8, Simd.InterleaveHigh(bytes, Simd.Zero(u8x16)))
+            weights := Simd.Load(u32x4, packed, w)
+            low = Simd.Add(low, Simd.MulAddPairs(first, Simd.Reinterpret(s16x8, Simd.Shuffle(weights, 0, 0, 0, 0))))
+            high = Simd.Add(high, Simd.MulAddPairs(first, Simd.Reinterpret(s16x8, Simd.Shuffle(weights, 1, 1, 1, 1))))
+            low = Simd.Add(low, Simd.MulAddPairs(second, Simd.Reinterpret(s16x8, Simd.Shuffle(weights, 2, 2, 2, 2))))
+            high = Simd.Add(high, Simd.MulAddPairs(second, Simd.Reinterpret(s16x8, Simd.Shuffle(weights, 3, 3, 3, 3))))
+            pixel += 16
+            w += 4
+            quads -= 1
+        }
+        if count % 4 >= 2 {
+            HorizontalStep(source, pixel, packed, w, *low, *high)
+            pixel += 8
+            w += 2
+        }
+        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, *low, *high) }
+        HorizontalFinish(target, x * 4, low, high)
+        at += entry
+        x += 1
+    }
+}
+
+// HorizontalTyped with 256-bit vectors, eight or four taps a step, for
+// AVX2. A step's byte shuffle gives each 32-bit lane one channel of two
+// neighbouring taps; each 128-bit block takes the weights of its own pair.
+HorizontalTypedWide :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8) #target {
+    order := Simd.Make(u8x16, 0, 4, 1, 5, 2, 6, 3, 7, 8, 12, 9, 13, 10, 14, 11, 15)
+    orders := Simd.Combine(order, order)
+    at: s64 = 0
+    x: s64 = 0
+    while x < output {
+        count := cast(s64)packed[at + 1]
+        pixel := cast(s64)cast(s32)packed[at] * 4
+        w := at + 2
+        low := Simd.Splat(s32x4, ROUND)
+        high := Simd.Zero(s32x4)
+        if count >= 4 {
+            low8 := Simd.Zero(s32x8)
+            high8 := Simd.Zero(s32x8)
+            octs := count / 8
+            while octs > 0 {
+                bytes := Simd.ByteShuffle(Simd.Load(u8x32, source, pixel), orders)
+                first := Simd.Reinterpret(s16x16, Simd.InterleaveLow(bytes, Simd.Zero(u8x32)))
+                second := Simd.Reinterpret(s16x16, Simd.InterleaveHigh(bytes, Simd.Zero(u8x32)))
+                weights := Simd.Load(u32x8, packed, w)
+                low8 = Simd.Add(low8, Simd.MulAddPairs(first, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 0, 0, 0, 0))))
+                high8 = Simd.Add(high8, Simd.MulAddPairs(first, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 1, 1, 1, 1))))
+                low8 = Simd.Add(low8, Simd.MulAddPairs(second, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 2, 2, 2, 2))))
+                high8 = Simd.Add(high8, Simd.MulAddPairs(second, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 3, 3, 3, 3))))
+                pixel += 32
+                w += 8
+                octs -= 1
+            }
+            if count % 8 >= 4 {
+                taps := Simd.Reinterpret(s16x16, Simd.Widen(Simd.ByteShuffle(Simd.Load(u8x16, source, pixel), order)))
+                weights := Simd.Reinterpret(u32x8, Simd.Widen(Simd.Load(u32x4, packed, w)))
+                low8 = Simd.Add(low8, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 0, 0, 0, 0))))
+                high8 = Simd.Add(high8, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x16, Simd.Shuffle(weights, 2, 2, 2, 2))))
+                pixel += 16
+                w += 4
+            }
+            low = Simd.Add(low, Simd.Add(Simd.Low(low8), Simd.High(low8)))
+            high = Simd.Add(Simd.Low(high8), Simd.High(high8))
+        }
+        if count % 4 >= 2 {
+            HorizontalStep(source, pixel, packed, w, *low, *high)
+            pixel += 8
+            w += 2
+        }
+        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, *low, *high) }
+        HorizontalFinish(target, x * 4, low, high)
+        at += entry
+        x += 1
+    }
+}
+
+// BYTES bytes of one output row, a multiple of 16, two source rows a step;
+// WIDE takes 32 bytes at a time first, for AVX2. An odd COUNT's last step
+// reads its row twice, the second time with weight 0.
+VerticalTyped :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, wide: bool) #target {
+    steps := (count + 1) / 2
+    last := ifx count % 2 == 1 then cast(s64)0 else stride
+    i: s64 = 0
+    if wide {
+        while i + 32 <= bytes {
+            a0 := Simd.Splat(s32x8, ROUND)
+            a1 := a0
+            a2 := a0
+            a3 := a0
+            h0 := Simd.Zero(s32x8)
+            h1 := h0
+            h2 := h0
+            h3 := h0
+            at := i
+            step: s64 = 0
+            while step < steps {
+                next := ifx step == steps - 1 then last else stride
+                x := Simd.Load(u8x32, rows, at)
+                y := Simd.Load(u8x32, rows, at + next)
+                lo := Simd.InterleaveLow(x, y)
+                hi := Simd.InterleaveHigh(x, y)
+                wl := Simd.Reinterpret(s16x16, Simd.Splat(u32x8, pairs[step * 2]))
+                wh := Simd.Reinterpret(s16x16, Simd.Splat(u32x8, pairs[step * 2 + 1]))
+                v := Simd.Reinterpret(s16x16, Simd.WidenLow(lo))
+                a0 = Simd.Add(a0, Simd.MulAddPairs(v, wl))
+                h0 = Simd.Add(h0, Simd.MulAddPairs(v, wh))
+                v = Simd.Reinterpret(s16x16, Simd.WidenHigh(lo))
+                a1 = Simd.Add(a1, Simd.MulAddPairs(v, wl))
+                h1 = Simd.Add(h1, Simd.MulAddPairs(v, wh))
+                v = Simd.Reinterpret(s16x16, Simd.WidenLow(hi))
+                a2 = Simd.Add(a2, Simd.MulAddPairs(v, wl))
+                h2 = Simd.Add(h2, Simd.MulAddPairs(v, wh))
+                v = Simd.Reinterpret(s16x16, Simd.WidenHigh(hi))
+                a3 = Simd.Add(a3, Simd.MulAddPairs(v, wl))
+                h3 = Simd.Add(h3, Simd.MulAddPairs(v, wh))
+                at += stride * 2
+                step += 1
+            }
+            r0 := Simd.ShiftRight(Simd.Add(a0, Simd.ShiftLeft(h0, 16)), 22)
+            r1 := Simd.ShiftRight(Simd.Add(a1, Simd.ShiftLeft(h1, 16)), 22)
+            r2 := Simd.ShiftRight(Simd.Add(a2, Simd.ShiftLeft(h2, 16)), 22)
+            r3 := Simd.ShiftRight(Simd.Add(a3, Simd.ShiftLeft(h3, 16)), 22)
+            Simd.Store(target, i, Simd.Narrow(u8x32, Simd.Narrow(s16x16, r0, r1), Simd.Narrow(s16x16, r2, r3)))
+            i += 32
+        }
+    }
+    while i + 16 <= bytes {
+        a0 := Simd.Splat(s32x4, ROUND)
+        a1 := a0
+        a2 := a0
+        a3 := a0
+        h0 := Simd.Zero(s32x4)
+        h1 := h0
+        h2 := h0
+        h3 := h0
+        at := i
+        step: s64 = 0
+        while step < steps {
+            next := ifx step == steps - 1 then last else stride
+            x := Simd.Load(u8x16, rows, at)
+            y := Simd.Load(u8x16, rows, at + next)
+            lo := Simd.InterleaveLow(x, y)
+            hi := Simd.InterleaveHigh(x, y)
+            wl := Simd.Reinterpret(s16x8, Simd.Splat(u32x4, pairs[step * 2]))
+            wh := Simd.Reinterpret(s16x8, Simd.Splat(u32x4, pairs[step * 2 + 1]))
+            v := Simd.Reinterpret(s16x8, Simd.WidenLow(lo))
+            a0 = Simd.Add(a0, Simd.MulAddPairs(v, wl))
+            h0 = Simd.Add(h0, Simd.MulAddPairs(v, wh))
+            v = Simd.Reinterpret(s16x8, Simd.WidenHigh(lo))
+            a1 = Simd.Add(a1, Simd.MulAddPairs(v, wl))
+            h1 = Simd.Add(h1, Simd.MulAddPairs(v, wh))
+            v = Simd.Reinterpret(s16x8, Simd.WidenLow(hi))
+            a2 = Simd.Add(a2, Simd.MulAddPairs(v, wl))
+            h2 = Simd.Add(h2, Simd.MulAddPairs(v, wh))
+            v = Simd.Reinterpret(s16x8, Simd.WidenHigh(hi))
+            a3 = Simd.Add(a3, Simd.MulAddPairs(v, wl))
+            h3 = Simd.Add(h3, Simd.MulAddPairs(v, wh))
+            at += stride * 2
+            step += 1
+        }
+        r0 := Simd.ShiftRight(Simd.Add(a0, Simd.ShiftLeft(h0, 16)), 22)
+        r1 := Simd.ShiftRight(Simd.Add(a1, Simd.ShiftLeft(h1, 16)), 22)
+        r2 := Simd.ShiftRight(Simd.Add(a2, Simd.ShiftLeft(h2, 16)), 22)
+        r3 := Simd.ShiftRight(Simd.Add(a3, Simd.ShiftLeft(h3, 16)), 22)
+        Simd.Store(target, i, Simd.Narrow(u8x16, Simd.Narrow(s16x8, r0, r1), Simd.Narrow(s16x8, r2, r3)))
+        i += 16
+    }
+}
+
 // A32 has too few registers for every argument as an operand, so the ARMv7
 // kernels read theirs from one of these.
 ArmRow :: struct {
@@ -218,162 +439,6 @@ ArmColumns :: struct {
     count: s32
     target: *u8
     bytes: s32
-}
-
-HorizontalSse2 :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("x86_64", "movq %[packed], %%r10
-        movq %[target], %%r11
-        movq %[output], %%rax
-        pxor %%xmm7, %%xmm7
-        movl $2097152, %%ecx
-        movd %%ecx, %%xmm6
-        pshufd $0, %%xmm6, %%xmm6
-        testq %%rax, %%rax
-        jle 9f
-    1:
-        movslq (%%r10), %%rcx
-        leaq (%[source],%%rcx,4), %%rcx
-        movl 4(%%r10), %%r8d
-        leaq 8(%%r10), %%rdx
-        movdqa %%xmm6, %%xmm0
-        pxor %%xmm1, %%xmm1
-        movl %%r8d, %%r9d
-        shrl $1, %%r9d
-        jz 3f
-    2:
-        movq (%%rcx), %%xmm2
-        punpcklbw %%xmm7, %%xmm2
-        pshufd $0x4e, %%xmm2, %%xmm3
-        punpcklwd %%xmm3, %%xmm2
-        movd (%%rdx), %%xmm4
-        pshufd $0, %%xmm4, %%xmm4
-        movd 4(%%rdx), %%xmm5
-        pshufd $0, %%xmm5, %%xmm5
-        pmaddwd %%xmm2, %%xmm4
-        paddd %%xmm4, %%xmm0
-        pmaddwd %%xmm2, %%xmm5
-        paddd %%xmm5, %%xmm1
-        addq $8, %%rcx
-        addq $8, %%rdx
-        decl %%r9d
-        jnz 2b
-    3:
-        testl $1, %%r8d
-        jz 4f
-        movd (%%rcx), %%xmm2
-        punpcklbw %%xmm7, %%xmm2
-        punpcklwd %%xmm7, %%xmm2
-        movd (%%rdx), %%xmm4
-        pshufd $0, %%xmm4, %%xmm4
-        movd 4(%%rdx), %%xmm5
-        pshufd $0, %%xmm5, %%xmm5
-        pmaddwd %%xmm2, %%xmm4
-        paddd %%xmm4, %%xmm0
-        pmaddwd %%xmm2, %%xmm5
-        paddd %%xmm5, %%xmm1
-    4:
-        pslld $16, %%xmm1
-        paddd %%xmm1, %%xmm0
-        psrad $22, %%xmm0
-        packssdw %%xmm0, %%xmm0
-        packuswb %%xmm0, %%xmm0
-        movd %%xmm0, (%%r11)
-        addq $4, %%r11
-        addq %[entry], %%r10
-        decq %%rax
-        jnz 1b
-    9:",
-        "", "r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;cc;memory", "volatile") {
-    HorizontalScalar(axis, source, target)
-}
-
-HorizontalAvx2 :: (source: *u8, packed: *u32, entry: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("x86_64+avx2", "movq %[packed], %%r10
-        movq %[target], %%r11
-        movq %[output], %%rax
-        vpxor %%xmm7, %%xmm7, %%xmm7
-        movl $2097152, %%ecx
-        vmovd %%ecx, %%xmm6
-        vpshufd $0, %%xmm6, %%xmm6
-        movl $2, %%ecx
-        vmovd %%ecx, %%xmm8
-        vpshufd $0, %%xmm8, %%xmm8
-        vinserti128 $1, %%xmm8, %%ymm7, %%ymm8
-        movl $1, %%ecx
-        vmovd %%ecx, %%xmm9
-        vpbroadcastd %%xmm9, %%ymm9
-        vpaddd %%ymm8, %%ymm9, %%ymm9
-        testq %%rax, %%rax
-        jle 9f
-    1:
-        movslq (%%r10), %%rcx
-        leaq (%[source],%%rcx,4), %%rcx
-        movl 4(%%r10), %%r8d
-        leaq 8(%%r10), %%rdx
-        vmovdqa %%ymm6, %%ymm0
-        vpxor %%xmm1, %%xmm1, %%xmm1
-        movl %%r8d, %%r9d
-        shrl $2, %%r9d
-        jz 3f
-    2:
-        vpmovzxbw (%%rcx), %%ymm2
-        vpshufd $0x4e, %%ymm2, %%ymm3
-        vpunpcklwd %%ymm3, %%ymm2, %%ymm2
-        vmovdqu (%%rdx), %%xmm4
-        vpermd %%ymm4, %%ymm8, %%ymm5
-        vpermd %%ymm4, %%ymm9, %%ymm4
-        vpmaddwd %%ymm2, %%ymm5, %%ymm5
-        vpaddd %%ymm5, %%ymm0, %%ymm0
-        vpmaddwd %%ymm2, %%ymm4, %%ymm4
-        vpaddd %%ymm4, %%ymm1, %%ymm1
-        addq $16, %%rcx
-        addq $16, %%rdx
-        decl %%r9d
-        jnz 2b
-    3:
-        testl $2, %%r8d
-        jz 4f
-        vmovq (%%rcx), %%xmm2
-        vpunpcklbw %%xmm7, %%xmm2, %%xmm2
-        vpshufd $0x4e, %%xmm2, %%xmm3
-        vpunpcklwd %%xmm3, %%xmm2, %%xmm2
-        vpbroadcastd (%%rdx), %%xmm4
-        vpbroadcastd 4(%%rdx), %%xmm5
-        vpmaddwd %%xmm2, %%xmm4, %%xmm4
-        vpmaddwd %%xmm2, %%xmm5, %%xmm5
-        vpaddd %%ymm4, %%ymm0, %%ymm0
-        vpaddd %%ymm5, %%ymm1, %%ymm1
-        addq $8, %%rcx
-        addq $8, %%rdx
-    4:
-        testl $1, %%r8d
-        jz 5f
-        vmovd (%%rcx), %%xmm2
-        vpunpcklbw %%xmm7, %%xmm2, %%xmm2
-        vpunpcklwd %%xmm7, %%xmm2, %%xmm2
-        vpbroadcastd (%%rdx), %%xmm4
-        vpbroadcastd 4(%%rdx), %%xmm5
-        vpmaddwd %%xmm2, %%xmm4, %%xmm4
-        vpmaddwd %%xmm2, %%xmm5, %%xmm5
-        vpaddd %%ymm4, %%ymm0, %%ymm0
-        vpaddd %%ymm5, %%ymm1, %%ymm1
-    5:
-        vextracti128 $1, %%ymm0, %%xmm2
-        vpaddd %%xmm2, %%xmm0, %%xmm0
-        vextracti128 $1, %%ymm1, %%xmm3
-        vpaddd %%xmm3, %%xmm1, %%xmm1
-        vpslld $16, %%xmm1, %%xmm1
-        vpaddd %%xmm1, %%xmm0, %%xmm0
-        vpsrad $22, %%xmm0, %%xmm0
-        vpackssdw %%xmm0, %%xmm0, %%xmm0
-        vpackuswb %%xmm0, %%xmm0, %%xmm0
-        vmovd %%xmm0, (%%r11)
-        addq $4, %%r11
-        addq %[entry], %%r10
-        decq %%rax
-        jnz 1b
-    9:
-        vzeroupper",
-        "", "r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;cc;memory", "volatile") {
-    HorizontalScalar(axis, source, target)
 }
 
 HorizontalNeon :: (source: *u8, bounds: *s32, weights: *s32, size: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("aarch64", "mov w9, #0x200000
@@ -470,190 +535,6 @@ HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [
     9:",
         "", "r;g", "r1;r2;r3;r4;r5;r6;r8;r10;r12;lr;d0;d2;d4;d5;d6;d7;d16;d17;d18;d19;d20;d21;d22;d23;d24;cc;memory", "volatile") {
     HorizontalScalar(axis, row.source, row.target)
-}
-
-VerticalSse2 :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, weights: *s32) #asm("x86_64", "movl $2097152, %%ecx
-        movd %%ecx, %%xmm14
-        pshufd $0, %%xmm14, %%xmm14
-        pxor %%xmm15, %%xmm15
-        movq %[count], %%r11
-        addq $1, %%r11
-        shrq $1, %%r11
-        movq %[stride], %%r10
-        testq $1, %[count]
-        jz 0f
-        xorl %%r10d, %%r10d
-    0:
-        xorl %%eax, %%eax
-        cmpq %[bytes], %%rax
-        jge 9f
-    1:
-        movdqa %%xmm14, %%xmm0
-        movdqa %%xmm14, %%xmm1
-        movdqa %%xmm14, %%xmm2
-        movdqa %%xmm14, %%xmm3
-        pxor %%xmm4, %%xmm4
-        pxor %%xmm5, %%xmm5
-        pxor %%xmm6, %%xmm6
-        pxor %%xmm7, %%xmm7
-        movq %[rows], %%rcx
-        movq %[pairs], %%rdx
-        movq %%r11, %%r8
-    2:
-        movq %[stride], %%r9
-        cmpq $1, %%r8
-        cmove %%r10, %%r9
-        addq %%rcx, %%r9
-        movdqu (%%rcx,%%rax), %%xmm8
-        movdqu (%%r9,%%rax), %%xmm9
-        movdqa %%xmm8, %%xmm10
-        punpcklbw %%xmm9, %%xmm8
-        punpckhbw %%xmm9, %%xmm10
-        movd (%%rdx), %%xmm12
-        pshufd $0, %%xmm12, %%xmm12
-        movd 4(%%rdx), %%xmm13
-        pshufd $0, %%xmm13, %%xmm13
-        movdqa %%xmm8, %%xmm9
-        punpcklbw %%xmm15, %%xmm9
-        movdqa %%xmm9, %%xmm11
-        pmaddwd %%xmm12, %%xmm9
-        paddd %%xmm9, %%xmm0
-        pmaddwd %%xmm13, %%xmm11
-        paddd %%xmm11, %%xmm4
-        punpckhbw %%xmm15, %%xmm8
-        movdqa %%xmm8, %%xmm11
-        pmaddwd %%xmm12, %%xmm8
-        paddd %%xmm8, %%xmm1
-        pmaddwd %%xmm13, %%xmm11
-        paddd %%xmm11, %%xmm5
-        movdqa %%xmm10, %%xmm9
-        punpcklbw %%xmm15, %%xmm9
-        movdqa %%xmm9, %%xmm11
-        pmaddwd %%xmm12, %%xmm9
-        paddd %%xmm9, %%xmm2
-        pmaddwd %%xmm13, %%xmm11
-        paddd %%xmm11, %%xmm6
-        punpckhbw %%xmm15, %%xmm10
-        movdqa %%xmm10, %%xmm11
-        pmaddwd %%xmm12, %%xmm10
-        paddd %%xmm10, %%xmm3
-        pmaddwd %%xmm13, %%xmm11
-        paddd %%xmm11, %%xmm7
-        leaq (%%rcx,%[stride],2), %%rcx
-        addq $8, %%rdx
-        decq %%r8
-        jnz 2b
-        pslld $16, %%xmm4
-        paddd %%xmm4, %%xmm0
-        psrad $22, %%xmm0
-        pslld $16, %%xmm5
-        paddd %%xmm5, %%xmm1
-        psrad $22, %%xmm1
-        pslld $16, %%xmm6
-        paddd %%xmm6, %%xmm2
-        psrad $22, %%xmm2
-        pslld $16, %%xmm7
-        paddd %%xmm7, %%xmm3
-        psrad $22, %%xmm3
-        packssdw %%xmm1, %%xmm0
-        packssdw %%xmm3, %%xmm2
-        packuswb %%xmm2, %%xmm0
-        movq %[target], %%r9
-        movdqu %%xmm0, (%%r9,%%rax)
-        addq $16, %%rax
-        cmpq %[bytes], %%rax
-        jl 1b
-    9:",
-        "", "r;r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;xmm10;xmm11;xmm12;xmm13;xmm14;xmm15;cc;memory", "volatile") {
-    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
-}
-
-VerticalAvx2 :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, bytes: s64, weights: *s32) #asm("x86_64+avx2", "movl $2097152, %%ecx
-        vmovd %%ecx, %%xmm14
-        vpbroadcastd %%xmm14, %%ymm14
-        vpxor %%xmm15, %%xmm15, %%xmm15
-        movq %[count], %%r11
-        addq $1, %%r11
-        shrq $1, %%r11
-        movq %[stride], %%r10
-        testq $1, %[count]
-        jz 0f
-        xorl %%r10d, %%r10d
-    0:
-        xorl %%eax, %%eax
-        cmpq %[bytes], %%rax
-        jge 9f
-    1:
-        vmovdqa %%ymm14, %%ymm0
-        vmovdqa %%ymm14, %%ymm1
-        vmovdqa %%ymm14, %%ymm2
-        vmovdqa %%ymm14, %%ymm3
-        vpxor %%xmm4, %%xmm4, %%xmm4
-        vpxor %%xmm5, %%xmm5, %%xmm5
-        vpxor %%xmm6, %%xmm6, %%xmm6
-        vpxor %%xmm7, %%xmm7, %%xmm7
-        movq %[rows], %%rcx
-        movq %[pairs], %%rdx
-        movq %%r11, %%r8
-    2:
-        movq %[stride], %%r9
-        cmpq $1, %%r8
-        cmove %%r10, %%r9
-        addq %%rcx, %%r9
-        vmovdqu (%%rcx,%%rax), %%ymm8
-        vmovdqu (%%r9,%%rax), %%ymm9
-        vpunpckhbw %%ymm9, %%ymm8, %%ymm10
-        vpunpcklbw %%ymm9, %%ymm8, %%ymm8
-        vpbroadcastd (%%rdx), %%ymm12
-        vpbroadcastd 4(%%rdx), %%ymm13
-        vpunpcklbw %%ymm15, %%ymm8, %%ymm9
-        vpmaddwd %%ymm12, %%ymm9, %%ymm11
-        vpaddd %%ymm11, %%ymm0, %%ymm0
-        vpmaddwd %%ymm13, %%ymm9, %%ymm9
-        vpaddd %%ymm9, %%ymm4, %%ymm4
-        vpunpckhbw %%ymm15, %%ymm8, %%ymm8
-        vpmaddwd %%ymm12, %%ymm8, %%ymm11
-        vpaddd %%ymm11, %%ymm1, %%ymm1
-        vpmaddwd %%ymm13, %%ymm8, %%ymm8
-        vpaddd %%ymm8, %%ymm5, %%ymm5
-        vpunpcklbw %%ymm15, %%ymm10, %%ymm9
-        vpmaddwd %%ymm12, %%ymm9, %%ymm11
-        vpaddd %%ymm11, %%ymm2, %%ymm2
-        vpmaddwd %%ymm13, %%ymm9, %%ymm9
-        vpaddd %%ymm9, %%ymm6, %%ymm6
-        vpunpckhbw %%ymm15, %%ymm10, %%ymm10
-        vpmaddwd %%ymm12, %%ymm10, %%ymm11
-        vpaddd %%ymm11, %%ymm3, %%ymm3
-        vpmaddwd %%ymm13, %%ymm10, %%ymm10
-        vpaddd %%ymm10, %%ymm7, %%ymm7
-        leaq (%%rcx,%[stride],2), %%rcx
-        addq $8, %%rdx
-        decq %%r8
-        jnz 2b
-        vpslld $16, %%ymm4, %%ymm4
-        vpaddd %%ymm4, %%ymm0, %%ymm0
-        vpsrad $22, %%ymm0, %%ymm0
-        vpslld $16, %%ymm5, %%ymm5
-        vpaddd %%ymm5, %%ymm1, %%ymm1
-        vpsrad $22, %%ymm1, %%ymm1
-        vpslld $16, %%ymm6, %%ymm6
-        vpaddd %%ymm6, %%ymm2, %%ymm2
-        vpsrad $22, %%ymm2, %%ymm2
-        vpslld $16, %%ymm7, %%ymm7
-        vpaddd %%ymm7, %%ymm3, %%ymm3
-        vpsrad $22, %%ymm3, %%ymm3
-        vpackssdw %%ymm1, %%ymm0, %%ymm0
-        vpackssdw %%ymm3, %%ymm2, %%ymm2
-        vpackuswb %%ymm2, %%ymm0, %%ymm0
-        movq %[target], %%r9
-        vmovdqu %%ymm0, (%%r9,%%rax)
-        addq $32, %%rax
-        cmpq %[bytes], %%rax
-        jl 1b
-    9:
-        vzeroupper",
-        "", "r;r;r;r;r;r;g", "rax;rcx;rdx;r8;r9;r10;r11;xmm0;xmm1;xmm2;xmm3;xmm4;xmm5;xmm6;xmm7;xmm8;xmm9;xmm10;xmm11;xmm12;xmm13;xmm14;xmm15;cc;memory", "volatile") {
-    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
 }
 
 VerticalNeon :: (rows: *u8, stride: s64, weights: *s32, count: s64, target: *u8, bytes: s64) #asm("aarch64", "mov w9, #0x200000
@@ -1084,9 +965,9 @@ ResampleRowHorizontal :: (axis: *ResampleAxis, source: *u8, target: *u8) {
     if axis.output <= 0 || source == null || target == null { return }
     level := Level()
     if axis.exact && level == RESAMPLE_AVX2 {
-        HorizontalAvx2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
+        HorizontalTypedWide(source, *axis.packed[0], cast(s64)axis.entry, cast(s64)axis.output, target)
     } else if axis.exact && level == RESAMPLE_SSE2 {
-        HorizontalSse2(source, *axis.packed[0], cast(s64)axis.entry * 4, cast(s64)axis.output, target, axis)
+        HorizontalTyped(source, *axis.packed[0], cast(s64)axis.entry, cast(s64)axis.output, target)
     } else if axis.exact && level == RESAMPLE_NEON && HasNeon() != 0 {
         HorizontalNeon(source, *axis.bounds[0], *axis.weights[0], cast(s64)axis.size, cast(s64)axis.output, target, axis)
     } else if axis.exact && level == RESAMPLE_NEON {
@@ -1112,14 +993,9 @@ ResampleRowVertical :: (axis: *ResampleAxis, row: s32, source: *u8, stride: s64,
     done: s64 = 0
     if axis.exact {
         level := Level()
-        if level == RESAMPLE_AVX2 {
-            done = bytes - bytes % 32
-            if done > 0 { VerticalAvx2(rows, stride, pairs, count, target, done, weights) }
-        }
-        if (level == RESAMPLE_AVX2 || level == RESAMPLE_SSE2) && bytes - done >= 16 {
-            chunk := (bytes - done) - (bytes - done) % 16
-            VerticalSse2(*rows[done], stride, pairs, count, *target[done], chunk, weights)
-            done += chunk
+        if level == RESAMPLE_AVX2 || level == RESAMPLE_SSE2 {
+            done = bytes - bytes % 16
+            if done > 0 { VerticalTyped(rows, stride, pairs, count, target, done, level == RESAMPLE_AVX2) }
         }
         if level == RESAMPLE_NEON {
             done = bytes - bytes % 16

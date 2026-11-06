@@ -58,11 +58,17 @@
 #define ZI_WASM 0
 #endif
 
-#if ZI_VEC && defined(__GNUC__) && !defined(__clang__)
+#if ZI_VEC && defined(__GNUC__)
 /* 256-bit vectors cross non-AVX procedure boundaries in memory; checking
  * keeps #target procedures, whose AVX2 clones would pass them in YMM
- * registers, from passing them by value at all. */
+ * registers, from passing them by value at all. GCC's one note per file
+ * about its 4.6 ABI change ignores this pragma; `ziran build` passes
+ * -Wno-psabi for it. */
+#if defined(__clang__)
+#pragma clang diagnostic ignored "-Wpsabi"
+#else
 #pragma GCC diagnostic ignored "-Wpsabi"
+#endif
 #endif
 
 /* ---- exact lane semantics ------------------------------------------ */

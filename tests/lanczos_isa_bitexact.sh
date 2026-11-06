@@ -3,7 +3,8 @@
 # SIMD128 row kernel makes the same bytes as the scalar reference, and the
 # scalar reference the same as std/image's Pillow resizes, for Lanczos,
 # bicubic and box over odd sizes, boxes, extreme pictures and split row
-# ranges. Runs natively at -O0 and -O2 and with ZIRAN_NO_ASM. With the
+# ranges. Runs natively at -O0 and -O2, in each #target copy of the x86-64
+# kernels (ZIRAN_SIMD_TIER 1 to 3) and with ZIRAN_NO_ASM. With the
 # Android NDK (ANDROID_NDK_HOME) it also builds AArch64 and ARMv7, running
 # each under the qemu-user named by QEMU_AARCH64 / QEMU_ARM, or ARMv7 on the
 # device ARMV7_ADB_SERIAL names. Static Bionic binaries need an NDK that
@@ -179,6 +180,14 @@ for optimization in 0 2; do
         fi
     fi
 done
+if test "$(uname -m)" = x86_64; then
+    for tier in 1 2 3; do
+        ZIRAN_SIMD_TIER=$tier "$work/native-O2" > "$work/tier$tier.out"
+        cmp -s "$work/tier$tier.out" "$work/native-O2.out" ||
+            { echo "ZIRAN_SIMD_TIER=$tier:"; cat "$work/tier$tier.out"; exit 1; }
+    done
+    echo "SSE2, SSSE3 and SSE4.1 copies agree"
+fi
 "$compiler" -std=c99 -O2 -DZIRAN_NO_ASM -I"$root/include" -I"$work/c" \
     "$work/c"/*.c -lz -lm -o "$work/portable"
 "$work/portable" > "$work/portable.out"

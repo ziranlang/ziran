@@ -12,6 +12,8 @@
   `--module-path std=DIR`, as package tests pass it.
 - SIMD loads, stores, widening and 256-bit halves compile to single
   instructions instead of copies through memory.
+- `std/resample`'s x86-64 kernels use `std/simd` instead of assembly. They
+  make the same bytes and run about 10% faster with AVX2.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its
   owner. `TextView(text)` borrows it, a `Text` passed where a `string` is
   expected lends the same view, and `TextCopy` copies a string into one.

@@ -2,6 +2,7 @@
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 #include "zir_simd.h"
+#include <math.h>
 #include "zir_stream.h"
 
 /* These reads and wrapping integer operations neither call nor fault. Keep
@@ -1491,6 +1492,15 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     case ZIR_EXPR_FLOAT: {
         copy_text(buffers->result,sizeof(buffers->result),expr->text);size_t n=strlen(buffers->result);
         if(n && (buffers->result[n-1]=='f' || buffers->result[n-1]=='F')) buffers->result[n-1]=0;
+        double literal = strtod(buffers->result, NULL);
+        if(e->target == ZIR_GO && literal == 0.0 && signbit(literal)) {
+            /* Go constants have no negative zero, so -0.0 is computed. */
+            const char *native = TargetType(type, ZIR_GO);
+            format(buffers->result, sizeof(buffers->result), "%s(negativeZero())",
+                   native != NULL && !strcmp(native, "float32") ? "float32" : "float64");
+            pure = 1;
+            break;
+        }
         /* A folded negative constant keeps its own parentheses, so a
          * negation in front cannot read as a decrement. */
         if(buffers->result[0] == '-') {
@@ -1814,6 +1824,16 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     case ZIR_EXPR_UNARY:
         if(!strcmp(expr->op,"-") && e->fn->exprs[expr->right].kind==ZIR_EXPR_INT) {
             literal(e,&e->fn->exprs[expr->right],type,1,buffers->result,sizeof(buffers->result));pure=1;break;
+        }
+        if(e->target == ZIR_GO && !strcmp(expr->op, "-") &&
+           e->fn->exprs[expr->right].kind == ZIR_EXPR_FLOAT &&
+           strtod(e->fn->exprs[expr->right].text, NULL) == 0.0) {
+            /* Go constants have no negative zero, so -0.0 is computed. */
+            const char *native = TargetType(type, ZIR_GO);
+            format(buffers->result, sizeof(buffers->result), "%s(negativeZero())",
+                   native != NULL && !strcmp(native, "float32") ? "float32" : "float64");
+            pure = 1;
+            break;
         }
         if(!strcmp(expr->op, "&"))
             emit_destination(e, expr->right, buffers->a, sizeof(buffers->a));

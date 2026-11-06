@@ -364,6 +364,16 @@ int c_compile_executable(const char *out, const char *name, int threads, int rel
      * asks for it. CFLAGS replaces both defaults, as in make. */
     if(count >= 0) count = words(getenv("CFLAGS") ? getenv("CFLAGS") : release ? "-O3 -flto=auto" : "-O3", base, count);
     if(count < 0 || count + 10 >= MAX_ARGS) goto done;
+    {
+        /* GCC notes every 256-bit std/simd vector passed by value in a
+         * non-AVX build, an ABI change that never crosses Ziran's own calls;
+         * only the command line silences it. */
+        const char *slash = strrchr(base[0], '/');
+        const char *compiler = slash ? slash + 1 : base[0];
+        if((strstr(compiler, "gcc") || strstr(compiler, "clang") || !strcmp(compiler, "cc")) &&
+           !strstr(compiler, "tcc"))
+            base[count++] = strdup("-Wno-psabi");
+    }
     int tail_count = words(getenv("LDFLAGS"), tail, 0);
     if(tail_count >= 0) tail_count = words(getenv("LDLIBS"), tail, tail_count);
     if(tail_count < 0) goto done;

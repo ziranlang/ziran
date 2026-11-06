@@ -1,9 +1,10 @@
 #!/bin/sh
 # std/simd: lane semantics with known answers, and one fingerprint of every
-# operation shape that each C build agrees on (native vectors, SSE4.1 and
-# AVX2 instructions, the lane-array fallback that TinyCC and older compilers
-# use, and sanitizers), from source and from saved IR. Checking rejects
-# mismatched vectors, out-of-range constants and operators on vectors.
+# operation shape that each build agrees on (GCC and Clang native vectors,
+# SSE4.1 and AVX2 instructions, the lane-array fallback that TinyCC and older
+# compilers use, sanitizers, and Go's lane loops), from source and from saved
+# IR. Checking rejects mismatched vectors, out-of-range constants and
+# operators on vectors.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -268,6 +269,10 @@ ZI
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 expected=
+clang=
+for candidate in clang clang-21 clang-20 clang-19 clang-18; do
+    if command -v "$candidate" >/dev/null 2>&1; then clang=$candidate; break; fi
+done
 for input in source saved; do
     if test "$input" = source; then
         module=$work/app.zi
@@ -286,26 +291,40 @@ for input in source saved; do
             grep -qw avx2 /proc/cpuinfo 2>/dev/null && set -- "$@" "-O2 -mavx2"
             ;;
     esac
-    for flags in "$@"; do
-        # shellcheck disable=SC2086
-        "${CC:-cc}" -std=c11 $flags -I"$output" "$output"/*.c -o "$output/app" -lm
-        result=$("$output/app")
-        case "$result" in "42 "*) ;; *) echo "C $input $flags: $result" >&2; exit 1 ;; esac
-        if test -z "$expected"; then expected=$result
-        elif test "$result" != "$expected"; then
-            echo "C $input $flags: $result, expected $expected" >&2
-            exit 1
-        fi
+    compilers=${CC:-cc}
+    test -n "$clang" && compilers="$compilers $clang"
+    for compiler in $compilers; do
+        for flags in "$@"; do
+            # shellcheck disable=SC2086
+            "$compiler" -std=c11 -Wno-psabi $flags -I"$output" "$output"/*.c -o "$output/app" -lm
+            result=$("$output/app")
+            case "$result" in "42 "*) ;; *) echo "$compiler $input $flags: $result" >&2; exit 1 ;; esac
+            if test -z "$expected"; then expected=$result
+            elif test "$result" != "$expected"; then
+                echo "$compiler $input $flags: $result, expected $expected" >&2
+                exit 1
+            fi
+        done
     done
     grep -q 'zi_add_sat_s16x8(' "$output/app.c"
     grep -q 'zi_simd_at(' "$output/app.c"
+    # Go runs the same lanes through its port of the reference semantics.
+    if command -v go >/dev/null 2>&1; then
+        "$ziran" build --target=go --pkg main --entry app:main --exe --root "$root" \
+            -o "$work/go-$input" "$module"
+        result=$(cd "$work/go-$input" && GO111MODULE=off go run ./*.go)
+        test "$result" = "$expected" || { echo "Go $input: $result, expected $expected" >&2; exit 1; }
+        if command -v gofmt >/dev/null 2>&1; then
+            test -z "$(gofmt -l "$work/go-$input/ziran_simd.go")"
+        fi
+    fi
 done
 
 if "${CC:-cc}" -fsanitize=address,undefined -x c -o "$work/probe" - <<'C' 2>/dev/null; then
 int main(void) { return 0; }
 C
     output=$work/c-source
-    "${CC:-cc}" -std=c11 -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined \
+    "${CC:-cc}" -std=c11 -Wno-psabi -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined \
         -I"$output" "$output"/*.c -o "$output/sanitized" -lm
     test "$(ASAN_OPTIONS=detect_leaks=0 "$output/sanitized")" = "$expected"
 fi
@@ -321,12 +340,21 @@ main :: () {
 ZI
 "$ziran" build --target=c --entry outside:main --root "$work" -o "$work/outside" "$work/outside.zi"
 printf '#include "outside.h"\nint main(void) { outside_main(); return 0; }\n' > "$work/outside/main.c"
-"${CC:-cc}" -std=c11 -O2 -I"$work/outside" "$work/outside"/*.c -o "$work/outside/app"
+"${CC:-cc}" -std=c11 -Wno-psabi -O2 -I"$work/outside" "$work/outside"/*.c -o "$work/outside/app"
 if "$work/outside/app" 2> "$work/outside.err"; then
     echo "an out-of-bounds SIMD load ran" >&2
     exit 1
 fi
 grep -q "out of bounds" "$work/outside.err"
+if command -v go >/dev/null 2>&1; then
+    "$ziran" build --target=go --pkg main --entry outside:main --exe --root "$work" \
+        -o "$work/outside-go" "$work/outside.zi"
+    if (cd "$work/outside-go" && GO111MODULE=off go run ./*.go) 2> "$work/outside-go.err"; then
+        echo "an out-of-bounds SIMD load ran on Go" >&2
+        exit 1
+    fi
+    grep -q "out of bounds" "$work/outside-go.err"
+fi
 
 reject() {
     printf 'Simd :: #import "simd"\nmain :: () {\n    a := Simd.Splat(s16x8, 3)\n    %s\n}\n' "$1" > "$work/bad.zi"
@@ -344,4 +372,4 @@ reject 'b := a == a' 'vectors use std/simd operations'
 reject 'b := Simd.Frob(a)' 'unresolved function: Simd.Frob'
 reject 'b := Simd.Shuffle(a, 0, 1, 2, 3, 4, 5, 6, 8)' 'constant lane indices'
 reject 'b := Simd.Narrow(u8x16, a)' 'Simd.Narrow takes'
-echo "simd: C lanes agree ($expected)"
+echo "simd: C and Go lanes agree ($expected)"

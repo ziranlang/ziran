@@ -83,6 +83,37 @@ c_address(Emitter *e, int memory_child, const char *index, int lanes,
                writable ? "(void *)" : "", base, capacity, index, lanes, bytes);
 }
 
+/* Go memory operands are slices: arrays are sliced in place, and pointers
+ * go to the unchecked _ptr helpers. */
+static void
+go_memory(Emitter *e, int child, int kind, char *out, size_t size)
+{
+    const ZirExpr *memory = &e->fn->exprs[child];
+    char text[ZIR_TEXT_MAX];
+    if(kind != SIMD_MEMORY_ARRAY) {
+        emit_expr(e, child, memory->type, out, size);
+        return;
+    }
+    if(memory->kind == ZIR_EXPR_IDENT || memory->kind == ZIR_EXPR_MEMBER ||
+       memory->kind == ZIR_EXPR_POINTER_MEMBER || memory->kind == ZIR_EXPR_INDEX)
+        emit_destination(e, child, text, sizeof(text));
+    else {
+        char temporary[ZIR_NAME_MAX];
+        emit_expr(e, child, memory->type, text, sizeof(text));
+        fresh(e, temporary);
+        declare(e, temporary, memory->type, text);
+        copy_text(text, sizeof(text), temporary);
+    }
+    format(out, size, "%s[:]", text);
+}
+
+/* A Go load, store or gather helper name: _ptr marks pointer access. */
+static void
+go_name(const SimdOp *op, int kind, const char *types, char *out, size_t size)
+{
+    format(out, size, "zi_%s%s_%s", op->snake, kind == SIMD_MEMORY_POINTER ? "_ptr" : "", types);
+}
+
 /* Gather checks every index of a slice or array table first. */
 static void
 c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
@@ -130,6 +161,50 @@ typedef struct SimdBuffers {
 } SimdBuffers;
 
 static int
+go_memory_call(Emitter *e, const SimdOp *op, const int *children, const char *result,
+               char *out, size_t size, SimdBuffers *buffers)
+{
+    const char *memory_type = e->fn->exprs[children[0]].type;
+    int kind = SimdMemory(memory_type, NULL, 0, NULL);
+    char *memory = buffers->address, *index = buffers->index;
+    go_memory(e, children[0], kind, memory, sizeof(buffers->address));
+    if(op->shape == SIMD_GATHER) {
+        const char *index_type = canonical(e->fn->exprs[children[1]].type);
+        emit_expr(e, children[1], index_type, index, sizeof(buffers->index));
+        format(buffers->piece, sizeof(buffers->piece), "%s_%s", index_type, result);
+        go_name(op, kind, buffers->piece, buffers->name, sizeof(buffers->name));
+        format(out, size, "%s(%s, %s)", buffers->name, memory, index);
+        e->pure = 0;
+        return 0;
+    }
+    emit_expr(e, children[1], e->fn->exprs[children[1]].type, index, sizeof(buffers->index));
+    if(op->shape == SIMD_STORE) {
+        const char *vector = canonical(e->fn->exprs[children[2]].type);
+        emit_expr(e, children[2], vector, buffers->text[0], sizeof(buffers->text[0]));
+        go_name(op, kind, vector, buffers->name, sizeof(buffers->name));
+        line(e, "%s(%s, int64(%s), %s)", buffers->name, memory, index, buffers->text[0]);
+        out[0] = '\0';
+        e->pure = 0;
+        return 1;
+    }
+    go_name(op, kind, result, buffers->name, sizeof(buffers->name));
+    format(out, size, "%s(%s, int64(%s))", buffers->name, memory, index);
+    e->pure = 0;
+    return 0;
+}
+
+/* A Go shift count: negative constants are written as their unsigned value,
+ * as Go rejects converting them. */
+static void
+go_count(const ZirExpr *operand, const char *text, char *out, size_t size)
+{
+    if(operand->kind == ZIR_EXPR_INT && text[0] == '-')
+        format(out, size, "uint64(%llu)", (unsigned long long)(uint64_t)strtoll(text, NULL, 0));
+    else
+        format(out, size, "uint64(%s)", text);
+}
+
+static int
 emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
                        SimdBuffers *buffers)
 {
@@ -139,8 +214,9 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
         child = e->fn->exprs[child].next_sibling)
         children[count++] = child;
     if(op == NULL) fatal(expr, "unknown SIMD operation");
-    if(e->target != ZIR_C)
+    if(e->target != ZIR_C && e->target != ZIR_GO)
         fatal(expr, "SIMD operations are not supported on this target yet");
+    int go = e->target == ZIR_GO;
 
     const char *result = canonical(expr->type);
     const char *first = count > 0 ? canonical(e->fn->exprs[children[0]].type) : "";
@@ -149,6 +225,8 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
     int pure = 1;
     buffers->arguments[0] = '\0';
 
+    if(go && (op->shape == SIMD_GATHER || op->shape == SIMD_LOAD || op->shape == SIMD_STORE))
+        return go_memory_call(e, op, children, result, out, size, buffers);
     if(op->shape == SIMD_GATHER) {
         c_gather(e, op, children, result, out, size);
         e->pure = 0;
@@ -207,10 +285,19 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
                 value = buffers->piece;
             }
         } else if(op->shape == SIMD_SHIFT && i == 1) {
-            format(buffers->piece, sizeof(buffers->piece), "(uint64_t)(%s)", value);
+            if(go) go_count(&e->fn->exprs[children[i]], value, buffers->piece, sizeof(buffers->piece));
+            else format(buffers->piece, sizeof(buffers->piece), "(uint64_t)(%s)", value);
             value = buffers->piece;
         } else if((op->shape == SIMD_LANE || op->shape == SIMD_WITH_LANE) && i == 1) {
-            format(buffers->piece, sizeof(buffers->piece), "(int)(%s)", value);
+            format(buffers->piece, sizeof(buffers->piece), go ? "int(%s)" : "(int)(%s)", value);
+            value = buffers->piece;
+        } else if(go && (op->shape == SIMD_MAKE || op->shape == SIMD_SPLAT ||
+                         (op->shape == SIMD_WITH_LANE && i == 2))) {
+            /* Go converts a narrower lane value explicitly; C converts it. */
+            ZirVector vector;
+            VectorType(op->shape == SIMD_WITH_LANE ? first : result, &vector);
+            format(buffers->piece, sizeof(buffers->piece), "%s(%s)",
+                   TargetType(vector.lane, ZIR_GO), value);
             value = buffers->piece;
         }
         size_t used = strlen(buffers->arguments);

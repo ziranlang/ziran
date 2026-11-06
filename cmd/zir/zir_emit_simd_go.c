@@ -1,0 +1,1104 @@
+/*
+ * std/simd helpers for Go. Generated code calls the same helper names as C
+ * (zi_add_s16x8, zi_narrow_s16x8_u8x16, zi_load_ptr_s32x4); this file writes
+ * the ones a package calls into ziran_simd.go, as typed wrappers around one
+ * port of zi_ref, so every operation keeps its exact lane semantics.
+ */
+#include "zir_emit_internal.h"
+#include "zir_simd.h"
+#define ZIRAN_SIMD_REF_ONLY 1
+#include "ziran_simd.h"
+
+#include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static const char go_reference[] =
+    "// std/simd lane semantics: a port of zi_ref in include/ziran_simd.h. Lanes\n"
+    "// hold bit patterns zero-extended to 64 bits.\n"
+    "\n"
+    "const (\n"
+    "	zi_k_u8 = iota\n"
+    "	zi_k_s8\n"
+    "	zi_k_u16\n"
+    "	zi_k_s16\n"
+    "	zi_k_u32\n"
+    "	zi_k_s32\n"
+    "	zi_k_u64\n"
+    "	zi_k_s64\n"
+    "	zi_k_f32\n"
+    "	zi_k_f64\n"
+    ")\n"
+    "\n"
+    "const (\n"
+    "	zi_op_add = 1 + iota\n"
+    "	zi_op_sub\n"
+    "	zi_op_mul\n"
+    "	zi_op_div\n"
+    "	zi_op_add_sat\n"
+    "	zi_op_sub_sat\n"
+    "	zi_op_min\n"
+    "	zi_op_max\n"
+    "	zi_op_avg\n"
+    "	zi_op_mul_high\n"
+    "	zi_op_mul_high_round\n"
+    "	zi_op_and\n"
+    "	zi_op_or\n"
+    "	zi_op_xor\n"
+    "	zi_op_and_not\n"
+    "	zi_op_not\n"
+    "	zi_op_abs\n"
+    "	zi_op_neg\n"
+    "	zi_op_eq\n"
+    "	zi_op_lt\n"
+    "	zi_op_gt\n"
+    "	zi_op_select\n"
+    "	zi_op_shl\n"
+    "	zi_op_shr\n"
+    "	zi_op_shr_round\n"
+    "	zi_op_shl_lanes\n"
+    "	zi_op_shr_lanes\n"
+    "	zi_op_shl_bytes\n"
+    "	zi_op_shr_bytes\n"
+    "	zi_op_align_bytes\n"
+    "	zi_op_make\n"
+    "	zi_op_splat\n"
+    "	zi_op_zero\n"
+    "	zi_op_lane\n"
+    "	zi_op_with_lane\n"
+    "	zi_op_load\n"
+    "	zi_op_load_low\n"
+    "	zi_op_store\n"
+    "	zi_op_store_low\n"
+    "	zi_op_gather\n"
+    "	zi_op_widen_low\n"
+    "	zi_op_widen_high\n"
+    "	zi_op_widen\n"
+    "	zi_op_narrow\n"
+    "	zi_op_mul_wide_low\n"
+    "	zi_op_mul_wide_high\n"
+    "	zi_op_madd\n"
+    "	zi_op_madd_sat\n"
+    "	zi_op_add_pairs\n"
+    "	zi_op_sad\n"
+    "	zi_op_reduce_add\n"
+    "	zi_op_reduce_min\n"
+    "	zi_op_reduce_max\n"
+    "	zi_op_reduce_max_index\n"
+    "	zi_op_all_zero\n"
+    "	zi_op_byte_shuffle\n"
+    "	zi_op_shuffle\n"
+    "	zi_op_reinterpret\n"
+    "	zi_op_convert\n"
+    "	zi_op_low\n"
+    "	zi_op_high\n"
+    "	zi_op_combine\n"
+    "	zi_op_interleave_low\n"
+    "	zi_op_interleave_high\n"
+    ")\n"
+    "\n"
+    "type zi_lanes = [32]uint64\n"
+    "\n"
+    "func zi_kbits(k int) int {\n"
+    "	if k == zi_k_f32 {\n"
+    "		return 32\n"
+    "	}\n"
+    "	if k == zi_k_f64 {\n"
+    "		return 64\n"
+    "	}\n"
+    "	return 8 << (k / 2)\n"
+    "}\n"
+    "\n"
+    "func zi_ksigned(k int) bool { return k <= zi_k_s64 && k&1 == 1 }\n"
+    "func zi_kfloat(k int) bool  { return k >= zi_k_f32 }\n"
+    "\n"
+    "func zi_kmask(k int) uint64 {\n"
+    "	if zi_kbits(k) == 64 {\n"
+    "		return ^uint64(0)\n"
+    "	}\n"
+    "	return uint64(1)<<zi_kbits(k) - 1\n"
+    "}\n"
+    "\n"
+    "func zi_sx(bits uint64, k int) int64 {\n"
+    "	width := zi_kbits(k)\n"
+    "	if width == 64 {\n"
+    "		return int64(bits)\n"
+    "	}\n"
+    "	bits &= zi_kmask(k)\n"
+    "	if bits&(uint64(1)<<(width-1)) != 0 {\n"
+    "		return int64(bits | ^zi_kmask(k))\n"
+    "	}\n"
+    "	return int64(bits)\n"
+    "}\n"
+    "\n"
+    "func zi_fget(bits uint64, k int) float64 {\n"
+    "	if k == zi_k_f32 {\n"
+    "		return float64(math.Float32frombits(uint32(bits)))\n"
+    "	}\n"
+    "	return math.Float64frombits(bits)\n"
+    "}\n"
+    "\n"
+    "func zi_fput(value float64, k int) uint64 {\n"
+    "	if k == zi_k_f32 {\n"
+    "		return uint64(math.Float32bits(float32(value)))\n"
+    "	}\n"
+    "	return math.Float64bits(value)\n"
+    "}\n"
+    "\n"
+    "func zi_kcmp(a, b uint64, k int) int {\n"
+    "	if zi_kfloat(k) {\n"
+    "		x, y := zi_fget(a, k), zi_fget(b, k)\n"
+    "		if x < y {\n"
+    "			return -1\n"
+    "		}\n"
+    "		if x > y {\n"
+    "			return 1\n"
+    "		}\n"
+    "		return 0\n"
+    "	}\n"
+    "	if zi_ksigned(k) {\n"
+    "		x, y := zi_sx(a, k), zi_sx(b, k)\n"
+    "		if x < y {\n"
+    "			return -1\n"
+    "		}\n"
+    "		if x > y {\n"
+    "			return 1\n"
+    "		}\n"
+    "		return 0\n"
+    "	}\n"
+    "	if a < b {\n"
+    "		return -1\n"
+    "	}\n"
+    "	if a > b {\n"
+    "		return 1\n"
+    "	}\n"
+    "	return 0\n"
+    "}\n"
+    "\n"
+    "func zi_shl1(v, n uint64, k int) uint64 {\n"
+    "	if n >= uint64(zi_kbits(k)) {\n"
+    "		return 0\n"
+    "	}\n"
+    "	return (v << n) & zi_kmask(k)\n"
+    "}\n"
+    "\n"
+    "func zi_shr1(v, n uint64, k int) uint64 {\n"
+    "	width := uint64(zi_kbits(k))\n"
+    "	v &= zi_kmask(k)\n"
+    "	if zi_ksigned(k) {\n"
+    "		s := zi_sx(v, k)\n"
+    "		if n >= width {\n"
+    "			if s < 0 {\n"
+    "				return zi_kmask(k)\n"
+    "			}\n"
+    "			return 0\n"
+    "		}\n"
+    "		return uint64(s>>n) & zi_kmask(k)\n"
+    "	}\n"
+    "	if n >= width {\n"
+    "		return 0\n"
+    "	}\n"
+    "	return v >> n\n"
+    "}\n"
+    "\n"
+    "func zi_clamp(value int64, k int) uint64 {\n"
+    "	if zi_ksigned(k) {\n"
+    "		high := int64(zi_kmask(k) >> 1)\n"
+    "		low := -high - 1\n"
+    "		if value < low {\n"
+    "			value = low\n"
+    "		} else if value > high {\n"
+    "			value = high\n"
+    "		}\n"
+    "		return uint64(value) & zi_kmask(k)\n"
+    "	}\n"
+    "	if value < 0 {\n"
+    "		return 0\n"
+    "	}\n"
+    "	if uint64(value) > zi_kmask(k) {\n"
+    "		return zi_kmask(k)\n"
+    "	}\n"
+    "	return uint64(value)\n"
+    "}\n"
+    "\n"
+    "func zi_clampu(value uint64, k int) uint64 {\n"
+    "	high := zi_kmask(k)\n"
+    "	if zi_ksigned(k) {\n"
+    "		high >>= 1\n"
+    "	}\n"
+    "	if value > high {\n"
+    "		return high\n"
+    "	}\n"
+    "	return value\n"
+    "}\n"
+    "\n"
+    "func zi_value(bits uint64, k int) int64 {\n"
+    "	if zi_ksigned(k) {\n"
+    "		return zi_sx(bits, k)\n"
+    "	}\n"
+    "	return int64(bits & zi_kmask(k))\n"
+    "}\n"
+    "\n"
+    "func zi_bytes(lanes *zi_lanes, k, count int, out *[32]byte) {\n"
+    "	size := zi_kbits(k) / 8\n"
+    "	for i := 0; i < count; i++ {\n"
+    "		for j := 0; j < size; j++ {\n"
+    "			out[i*size+j] = byte(lanes[i] >> (8 * j))\n"
+    "		}\n"
+    "	}\n"
+    "}\n"
+    "\n"
+    "func zi_unbytes(bytes *[32]byte, k, count int, out *zi_lanes) {\n"
+    "	size := zi_kbits(k) / 8\n"
+    "	for i := 0; i < count; i++ {\n"
+    "		value := uint64(0)\n"
+    "		for j := size - 1; j >= 0; j-- {\n"
+    "			value = value<<8 | uint64(bytes[i*size+j])\n"
+    "		}\n"
+    "		out[i] = value\n"
+    "	}\n"
+    "}\n"
+    "\n"
+    "func zi_float_to_int(bits uint64, from, to int) uint64 {\n"
+    "	value := zi_fget(bits, from)\n"
+    "	if value != value {\n"
+    "		return 0\n"
+    "	}\n"
+    "	if zi_ksigned(to) {\n"
+    "		limit := 2147483648.0\n"
+    "		if to == zi_k_s64 {\n"
+    "			limit = 9223372036854775808.0\n"
+    "		}\n"
+    "		if value >= limit {\n"
+    "			return zi_kmask(to) >> 1\n"
+    "		}\n"
+    "		if value <= -limit {\n"
+    "			return (zi_kmask(to)>>1 + 1) & zi_kmask(to)\n"
+    "		}\n"
+    "		return uint64(int64(value)) & zi_kmask(to)\n"
+    "	}\n"
+    "	limit := 4294967296.0\n"
+    "	if to == zi_k_u64 {\n"
+    "		limit = 18446744073709551616.0\n"
+    "	}\n"
+    "	if value <= -1.0 {\n"
+    "		return 0\n"
+    "	}\n"
+    "	if value >= limit {\n"
+    "		return zi_kmask(to)\n"
+    "	}\n"
+    "	if value <= 0.0 {\n"
+    "		return 0\n"
+    "	}\n"
+    "	return uint64(value)\n"
+    "}\n"
+    "\n"
+    "func zi_int_to_float(bits uint64, from, to int) uint64 {\n"
+    "	if zi_ksigned(from) {\n"
+    "		value := zi_sx(bits, from)\n"
+    "		if to == zi_k_f32 {\n"
+    "			return zi_fput(float64(float32(value)), to)\n"
+    "		}\n"
+    "		return zi_fput(float64(value), to)\n"
+    "	}\n"
+    "	value := bits & zi_kmask(from)\n"
+    "	if to == zi_k_f32 {\n"
+    "		return zi_fput(float64(float32(value)), to)\n"
+    "	}\n"
+    "	return zi_fput(float64(value), to)\n"
+    "}\n"
+    "\n"
+    "func zi_b2u(yes bool) uint64 {\n"
+    "	if yes {\n"
+    "		return 1\n"
+    "	}\n"
+    "	return 0\n"
+    "}\n"
+    "\n"
+    "// zi_simd_ref computes one operation, as zi_ref does: r/rn are the result\n"
+    "// lane kind and count, ak/an the first vector operand's; k holds constant\n"
+    "// operands, b[0] a scalar lane operand, and scalar results are out[0].\n"
+    "func zi_simd_ref(op, r, rn, ak, an int, a, b, c *zi_lanes, k *[32]int64, out *zi_lanes) {\n"
+    "	mask := zi_kmask(ak)\n"
+    "	bytes := an * zi_kbits(ak) / 8\n"
+    "	blocks := 1\n"
+    "	if bytes > 16 {\n"
+    "		blocks = 2\n"
+    "	}\n"
+    "	per, rper := an/blocks, rn/blocks\n"
+    "	switch op {\n"
+    "	case zi_op_add, zi_op_sub, zi_op_mul, zi_op_div:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if zi_kfloat(ak) {\n"
+    "				x, y := zi_fget(a[i], ak), zi_fget(b[i], ak)\n"
+    "				var z float64\n"
+    "				if ak == zi_k_f32 {\n"
+    "					fx, fy := float32(x), float32(y)\n"
+    "					switch op {\n"
+    "					case zi_op_add:\n"
+    "						z = float64(float32(fx + fy))\n"
+    "					case zi_op_sub:\n"
+    "						z = float64(float32(fx - fy))\n"
+    "					case zi_op_mul:\n"
+    "						z = float64(float32(fx * fy))\n"
+    "					default:\n"
+    "						z = float64(float32(fx / fy))\n"
+    "					}\n"
+    "				} else {\n"
+    "					switch op {\n"
+    "					case zi_op_add:\n"
+    "						z = float64(x + y)\n"
+    "					case zi_op_sub:\n"
+    "						z = float64(x - y)\n"
+    "					case zi_op_mul:\n"
+    "						z = float64(x * y)\n"
+    "					default:\n"
+    "						z = float64(x / y)\n"
+    "					}\n"
+    "				}\n"
+    "				out[i] = zi_fput(z, ak)\n"
+    "			} else {\n"
+    "				switch op {\n"
+    "				case zi_op_add:\n"
+    "					out[i] = (a[i] + b[i]) & mask\n"
+    "				case zi_op_sub:\n"
+    "					out[i] = (a[i] - b[i]) & mask\n"
+    "				default:\n"
+    "					out[i] = (a[i] * b[i]) & mask\n"
+    "				}\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_add_sat, zi_op_sub_sat:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			x, y := zi_value(a[i], ak), zi_value(b[i], ak)\n"
+    "			if op == zi_op_add_sat {\n"
+    "				out[i] = zi_clamp(x+y, ak)\n"
+    "			} else {\n"
+    "				out[i] = zi_clamp(x-y, ak)\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_min, zi_op_max:\n"
+    "		want := 1\n"
+    "		if op == zi_op_min {\n"
+    "			want = -1\n"
+    "		}\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if zi_kcmp(a[i], b[i], ak) == want {\n"
+    "				out[i] = a[i]\n"
+    "			} else {\n"
+    "				out[i] = b[i]\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_avg:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = ((a[i] & mask) + (b[i] & mask) + 1) >> 1\n"
+    "		}\n"
+    "	case zi_op_mul_high:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = uint64((zi_value(a[i], ak)*zi_value(b[i], ak))>>16) & mask\n"
+    "		}\n"
+    "	case zi_op_mul_high_round:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = uint64((zi_sx(a[i], ak)*zi_sx(b[i], ak)+0x4000)>>15) & mask\n"
+    "		}\n"
+    "	case zi_op_and:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i] & b[i]\n"
+    "		}\n"
+    "	case zi_op_or:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i] | b[i]\n"
+    "		}\n"
+    "	case zi_op_xor:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i] ^ b[i]\n"
+    "		}\n"
+    "	case zi_op_and_not:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i] &^ b[i] & mask\n"
+    "		}\n"
+    "	case zi_op_not:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = ^a[i] & mask\n"
+    "		}\n"
+    "	case zi_op_abs:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if zi_kfloat(ak) {\n"
+    "				out[i] = a[i] & (mask >> 1)\n"
+    "			} else if x := zi_sx(a[i], ak); x < 0 {\n"
+    "				out[i] = (0 - uint64(x)) & mask\n"
+    "			} else {\n"
+    "				out[i] = uint64(x) & mask\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_neg:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if zi_kfloat(ak) {\n"
+    "				out[i] = a[i] ^ (mask>>1 + 1)\n"
+    "			} else {\n"
+    "				out[i] = (0 - a[i]) & mask\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_eq, zi_op_lt, zi_op_gt:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			var yes bool\n"
+    "			if zi_kfloat(ak) {\n"
+    "				x, y := zi_fget(a[i], ak), zi_fget(b[i], ak)\n"
+    "				yes = (op == zi_op_eq && x == y) || (op == zi_op_lt && x < y) || (op == zi_op_gt && x > y)\n"
+    "			} else {\n"
+    "				order := zi_kcmp(a[i], b[i], ak)\n"
+    "				yes = (op == zi_op_eq && a[i]&mask == b[i]&mask) ||\n"
+    "					(op == zi_op_lt && order == -1) || (op == zi_op_gt && order == 1)\n"
+    "			}\n"
+    "			out[i] = 0\n"
+    "			if yes {\n"
+    "				out[i] = zi_kmask(r)\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_select:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = ((a[i] & b[i]) | (^a[i] & c[i])) & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_shl:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = zi_shl1(a[i], uint64(k[0]), ak)\n"
+    "		}\n"
+    "	case zi_op_shr:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = zi_shr1(a[i], uint64(k[0]), ak)\n"
+    "		}\n"
+    "	case zi_op_shr_round:\n"
+    "		n := uint64(k[0])\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if n == 0 {\n"
+    "				out[i] = a[i] & mask\n"
+    "			} else {\n"
+    "				out[i] = (zi_shr1(a[i], n, ak) + zi_shr1(a[i], n-1, ak)&1) & mask\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_shl_lanes:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = zi_shl1(a[i], b[i]&mask, ak)\n"
+    "		}\n"
+    "	case zi_op_shr_lanes:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = zi_shr1(a[i], b[i]&mask, ak)\n"
+    "		}\n"
+    "	case zi_op_shl_bytes, zi_op_shr_bytes, zi_op_align_bytes:\n"
+    "		var x, y, z [32]byte\n"
+    "		if op == zi_op_align_bytes {\n"
+    "			zi_bytes(b, ak, an, &x)\n"
+    "			zi_bytes(a, ak, an, &y)\n"
+    "		} else {\n"
+    "			zi_bytes(a, ak, an, &x)\n"
+    "		}\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < 16; i++ {\n"
+    "				from := int64(i) + k[0]\n"
+    "				if op == zi_op_shl_bytes {\n"
+    "					from = int64(i) - k[0]\n"
+    "				}\n"
+    "				var value byte\n"
+    "				if from >= 0 && from < 16 {\n"
+    "					value = x[block*16+int(from)]\n"
+    "				} else if op == zi_op_align_bytes && from >= 16 && from < 32 {\n"
+    "					value = y[block*16+int(from)-16]\n"
+    "				}\n"
+    "				z[block*16+i] = value\n"
+    "			}\n"
+    "		}\n"
+    "		zi_unbytes(&z, ak, an, out)\n"
+    "	case zi_op_make:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = a[i] & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_splat:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = b[0] & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_zero:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = 0\n"
+    "		}\n"
+    "	case zi_op_lane:\n"
+    "		out[0] = a[k[0]] & mask\n"
+    "	case zi_op_with_lane:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i]\n"
+    "			if int64(i) == k[0] {\n"
+    "				out[i] = b[0] & mask\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_widen_low, zi_op_widen_high:\n"
+    "		offset := 0\n"
+    "		if op == zi_op_widen_high {\n"
+    "			offset = per / 2\n"
+    "		}\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < rper; i++ {\n"
+    "				out[block*rper+i] = uint64(zi_value(a[block*per+i+offset], ak)) & zi_kmask(r)\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_widen:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = uint64(zi_value(a[i], ak)) & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_narrow:\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < per; i++ {\n"
+    "				for j, source := range [2]*zi_lanes{a, b} {\n"
+    "					lane := source[block*per+i]\n"
+    "					if zi_ksigned(ak) || zi_kbits(ak) < 64 {\n"
+    "						out[block*rper+j*per+i] = zi_clamp(zi_value(lane, ak), r)\n"
+    "					} else {\n"
+    "						out[block*rper+j*per+i] = zi_clampu(lane, r)\n"
+    "					}\n"
+    "				}\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_mul_wide_low, zi_op_mul_wide_high:\n"
+    "		offset := 0\n"
+    "		if op == zi_op_mul_wide_high {\n"
+    "			offset = per / 2\n"
+    "		}\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < rper; i++ {\n"
+    "				at := block*per + i + offset\n"
+    "				if zi_ksigned(ak) {\n"
+    "					out[block*rper+i] = uint64(zi_sx(a[at], ak)*zi_sx(b[at], ak)) & zi_kmask(r)\n"
+    "				} else {\n"
+    "					out[block*rper+i] = ((a[at] & mask) * (b[at] & mask)) & zi_kmask(r)\n"
+    "				}\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_madd:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = uint64(zi_sx(a[2*i], ak)*zi_sx(b[2*i], ak)+\n"
+    "				zi_sx(a[2*i+1], ak)*zi_sx(b[2*i+1], ak)) & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_madd_sat:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = zi_clamp(int64(a[2*i]&255)*zi_sx(b[2*i], zi_k_s8)+\n"
+    "				int64(a[2*i+1]&255)*zi_sx(b[2*i+1], zi_k_s8), r)\n"
+    "		}\n"
+    "	case zi_op_add_pairs:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = uint64(zi_value(a[2*i], ak)+zi_value(a[2*i+1], ak)) & zi_kmask(r)\n"
+    "		}\n"
+    "	case zi_op_sad:\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			sum := uint64(0)\n"
+    "			for j := 0; j < 8; j++ {\n"
+    "				x, y := a[8*i+j]&255, b[8*i+j]&255\n"
+    "				if x > y {\n"
+    "					sum += x - y\n"
+    "				} else {\n"
+    "					sum += y - x\n"
+    "				}\n"
+    "			}\n"
+    "			out[i] = sum\n"
+    "		}\n"
+    "	case zi_op_reduce_add:\n"
+    "		sum := uint64(0)\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			sum += a[i]\n"
+    "		}\n"
+    "		out[0] = sum & mask\n"
+    "	case zi_op_reduce_min, zi_op_reduce_max, zi_op_reduce_max_index:\n"
+    "		want := 1\n"
+    "		if op == zi_op_reduce_min {\n"
+    "			want = -1\n"
+    "		}\n"
+    "		best := 0\n"
+    "		for i := 1; i < an; i++ {\n"
+    "			if zi_kcmp(a[i], a[best], ak) == want {\n"
+    "				best = i\n"
+    "			}\n"
+    "		}\n"
+    "		if op == zi_op_reduce_max_index {\n"
+    "			out[0] = uint64(best)\n"
+    "		} else {\n"
+    "			out[0] = a[best] & mask\n"
+    "		}\n"
+    "	case zi_op_all_zero:\n"
+    "		seen := uint64(0)\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			seen |= a[i] & mask\n"
+    "		}\n"
+    "		out[0] = zi_b2u(seen == 0)\n"
+    "	case zi_op_byte_shuffle:\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < 16; i++ {\n"
+    "				index := b[block*16+i] & 255\n"
+    "				out[block*16+i] = 0\n"
+    "				if index < 16 {\n"
+    "					out[block*16+i] = a[block*16+int(index)] & 255\n"
+    "				}\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_shuffle:\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < per; i++ {\n"
+    "				out[block*per+i] = a[block*per+int(k[i])]\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_reinterpret:\n"
+    "		var x [32]byte\n"
+    "		zi_bytes(a, ak, an, &x)\n"
+    "		zi_unbytes(&x, r, rn, out)\n"
+    "	case zi_op_convert:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			if zi_kfloat(ak) {\n"
+    "				out[i] = zi_float_to_int(a[i], ak, r)\n"
+    "			} else {\n"
+    "				out[i] = zi_int_to_float(a[i], ak, r)\n"
+    "			}\n"
+    "		}\n"
+    "	case zi_op_low, zi_op_high:\n"
+    "		offset := 0\n"
+    "		if op == zi_op_high {\n"
+    "			offset = rn\n"
+    "		}\n"
+    "		for i := 0; i < rn; i++ {\n"
+    "			out[i] = a[i+offset]\n"
+    "		}\n"
+    "	case zi_op_combine:\n"
+    "		for i := 0; i < an; i++ {\n"
+    "			out[i] = a[i]\n"
+    "			out[an+i] = b[i]\n"
+    "		}\n"
+    "	case zi_op_interleave_low, zi_op_interleave_high:\n"
+    "		offset := 0\n"
+    "		if op == zi_op_interleave_high {\n"
+    "			offset = per / 2\n"
+    "		}\n"
+    "		for block := 0; block < blocks; block++ {\n"
+    "			for i := 0; i < per/2; i++ {\n"
+    "				at := block*per + i + offset\n"
+    "				out[block*per+2*i] = a[at]\n"
+    "				out[block*per+2*i+1] = b[at]\n"
+    "			}\n"
+    "		}\n"
+    "	}\n"
+    "}\n"
+    "\n"
+    "func zi_simd_check(length, index int64, count int) {\n"
+    "	if index < 0 || index > length-int64(count) {\n"
+    "		panic(\"ziran: SIMD access of \" + strconv.Itoa(count) + \" lanes at \" +\n"
+    "			strconv.FormatInt(index, 10) + \" out of bounds (length \" +\n"
+    "			strconv.FormatInt(length, 10) + \")\")\n"
+    "	}\n"
+    "}\n"
+    "\n"
+    "func zi_simd_gather_check(index, length int64) {\n"
+    "	if index < 0 || index >= length {\n"
+    "		panic(\"ziran: gather index \" + strconv.FormatInt(index, 10) +\n"
+    "			\" out of bounds (length \" + strconv.FormatInt(length, 10) + \")\")\n"
+    "	}\n"
+    "}\n";
+
+static char **go_helpers;
+static int go_helper_count, go_helper_capacity;
+
+void
+GoSimdBegin(void)
+{
+    for(int i = 0; i < go_helper_count; i++) free(go_helpers[i]);
+    free(go_helpers);
+    go_helpers = NULL;
+    go_helper_count = go_helper_capacity = 0;
+}
+
+static void
+remember(const char *start, size_t length)
+{
+    for(int i = 0; i < go_helper_count; i++)
+        if(strlen(go_helpers[i]) == length && !memcmp(go_helpers[i], start, length)) return;
+    if(go_helper_count == go_helper_capacity) {
+        go_helper_capacity = go_helper_capacity ? go_helper_capacity * 2 : 16;
+        char **grown = realloc(go_helpers, (size_t)go_helper_capacity * sizeof(*grown));
+        if(grown == NULL) { fputs("zi2go: out of memory\n", stderr); exit(1); }
+        go_helpers = grown;
+    }
+    char *name = AllocateOrExit(length + 1);
+    memcpy(name, start, length);
+    name[length] = '\0';
+    go_helpers[go_helper_count++] = name;
+}
+
+/* A helper name: the operation, then one or two vector types, with "_ptr"
+ * after the operation for unchecked pointer access. */
+typedef struct GoHelper {
+    const SimdOp *op;
+    ZirVector first, second;
+    int types, pointer;
+} GoHelper;
+
+static int
+vector_component(const char *start, size_t length, ZirVector *vector)
+{
+    char name[8];
+    if(length == 0 || length >= sizeof(name)) return 0;
+    memcpy(name, start, length);
+    name[length] = '\0';
+    return VectorType(name, vector);
+}
+
+static int
+parse_helper(const char *name, GoHelper *helper)
+{
+    memset(helper, 0, sizeof(*helper));
+    if(strncmp(name, "zi_", 3)) return 0;
+    const char *end = name + strlen(name);
+    for(int types = 0; types < 2; types++) {
+        const char *underscore = end;
+        while(underscore > name + 3 && underscore[-1] != '_') underscore--;
+        if(underscore <= name + 3) break;
+        ZirVector vector;
+        if(!vector_component(underscore, (size_t)(end - underscore), &vector)) break;
+        /* The last component is the second type, the one before it the first. */
+        if(types == 0) helper->second = vector;
+        else helper->first = vector;
+        helper->types = types + 1;
+        end = underscore - 1;
+    }
+    if(helper->types == 0) return 0;
+    if(helper->types == 1) helper->first = helper->second;
+    char snake[64];
+    size_t length = (size_t)(end - (name + 3));
+    if(length == 0 || length >= sizeof(snake) - 8) return 0;
+    memcpy(snake, name + 3, length);
+    snake[length] = '\0';
+    if(length > 4 && !strcmp(snake + length - 4, "_ptr")) {
+        helper->pointer = 1;
+        snake[length - 4] = '\0';
+    }
+    char checked[80];
+    format(checked, sizeof(checked), "zi_simd_%s", snake);
+    helper->op = SimdOpChecked(checked);
+    if(helper->op == NULL) return 0;
+    int two = helper->op->shape == SIMD_NARROW || helper->op->shape == SIMD_REINTERPRET ||
+              helper->op->shape == SIMD_CONVERT || helper->op->shape == SIMD_GATHER;
+    int memory = helper->op->shape == SIMD_LOAD || helper->op->shape == SIMD_STORE ||
+                 helper->op->shape == SIMD_GATHER;
+    if(two != (helper->types == 2) || (helper->pointer && !memory)) return 0;
+    if(!(helper->op->lanes & (1u << SimdLaneKind(&helper->first))) &&
+       helper->op->shape != SIMD_REINTERPRET && helper->op->shape != SIMD_CONVERT &&
+       helper->op->shape != SIMD_NARROW && helper->op->shape != SIMD_GATHER)
+        return 0;
+    return 1;
+}
+
+void
+GoSimdCollect(const char *text)
+{
+    for(const char *p = text; p != NULL && *p;) {
+        if(!(p[0] == 'z' && p[1] == 'i' && p[2] == '_') ||
+           (p > text && (isalnum((unsigned char)p[-1]) || p[-1] == '_'))) {
+            p++;
+            continue;
+        }
+        const char *start = p;
+        while(isalnum((unsigned char)*p) || *p == '_') p++;
+        size_t length = (size_t)(p - start);
+        char name[96];
+        GoHelper helper;
+        if(*p != '(' || length >= sizeof(name)) continue;
+        memcpy(name, start, length);
+        name[length] = '\0';
+        if(parse_helper(name, &helper)) remember(start, length);
+    }
+}
+
+/* Short lane names in helper names: f32 for float32. */
+static const char *
+lane_name(const ZirVector *vector)
+{
+    static const char *const names[] = {
+        "u8", "s8", "u16", "s16", "u32", "s32", "u64", "s64", "f32", "f64"
+    };
+    return names[SimdLaneKind(vector)];
+}
+
+static const char *
+go_type(const char *type)
+{
+    return TargetType(type, ZIR_GO);
+}
+
+/* Lane conversions to and from bit patterns, and vectors to and from the
+ * reference's lane arrays, for every type. */
+static void
+write_conversions(FILE *out)
+{
+    static const char *const vectors[] = {
+        "u8x16", "s8x16", "u16x8", "s16x8", "u32x4", "s32x4", "u64x2", "s64x2",
+        "f32x4", "f64x2", "u8x32", "s8x32", "u16x16", "s16x16", "u32x8", "s32x8",
+        "u64x4", "s64x4", "f32x8", "f64x4"
+    };
+    static const char *const lanes[][4] = {
+        {"u8", "uint8", "uint64(v)", "uint8(b)"},
+        {"s8", "int8", "uint64(uint8(v))", "int8(b)"},
+        {"u16", "uint16", "uint64(v)", "uint16(b)"},
+        {"s16", "int16", "uint64(uint16(v))", "int16(b)"},
+        {"u32", "uint32", "uint64(v)", "uint32(b)"},
+        {"s32", "int32", "uint64(uint32(v))", "int32(b)"},
+        {"u64", "uint64", "v", "b"},
+        {"s64", "int64", "uint64(v)", "int64(b)"},
+        {"f32", "float32", "uint64(math.Float32bits(v))", "math.Float32frombits(uint32(b))"},
+        {"f64", "float64", "math.Float64bits(v)", "math.Float64frombits(b)"},
+    };
+    for(size_t i = 0; i < sizeof(lanes) / sizeof(*lanes); i++)
+        fprintf(out, "\nfunc zi_simd_bits_%s(v %s) uint64 {\n\treturn %s\n}\n"
+                     "\nfunc zi_simd_lane_%s(b uint64) %s {\n\treturn %s\n}\n",
+                lanes[i][0], lanes[i][1], lanes[i][2], lanes[i][0], lanes[i][1], lanes[i][3]);
+    for(size_t i = 0; i < sizeof(vectors) / sizeof(*vectors); i++) {
+        ZirVector vector;
+        VectorType(vectors[i], &vector);
+        const char *lane = lane_name(&vector);
+        fprintf(out, "\nfunc zi_simd_in_%s(x *zi_lanes, v %s) {\n"
+                     "\tfor i := range v {\n\t\tx[i] = zi_simd_bits_%s(v[i])\n\t}\n}\n"
+                     "\nfunc zi_simd_out_%s(x *zi_lanes) (v %s) {\n"
+                     "\tfor i := range v {\n\t\tv[i] = zi_simd_lane_%s(x[i])\n\t}\n\treturn v\n}\n",
+                vectors[i], go_type(vectors[i]), lane, vectors[i], go_type(vectors[i]), lane);
+    }
+}
+
+/* The result type of a value operation, from the same signature the checker
+ * applies; constant operands are given as zero. */
+static const char *
+helper_result(const GoHelper *helper, const char *const *types, int count)
+{
+    SimdOperand operands[40];
+    const char *message = NULL;
+    for(int i = 0; i < count; i++)
+        operands[i] = (SimdOperand){.type = types[i], .is_constant = 1, .value = 0};
+    return SimdSignature(helper->op, helper->second.name, operands, count, &message);
+}
+
+static void
+write_memory(FILE *out, const char *name, const GoHelper *helper)
+{
+    const ZirVector *v = &helper->first;
+    const char *vt = go_type(v->name), *lt = go_type(v->lane);
+    int lanes = helper->op->id == ZI_OP_LOAD_LOW || helper->op->id == ZI_OP_STORE_LOW ?
+        64 / v->lane_bits : v->lanes;
+    char view[160];
+    if(helper->pointer)
+        format(view, sizeof(view), "unsafe.Slice((*%s)(unsafe.Add(unsafe.Pointer(p), i*%d)), %d)",
+               lt, v->lane_bits / 8, lanes);
+    else
+        format(view, sizeof(view), "m[i:i+%d]", lanes);
+    const char *memory = helper->pointer ? "p *" : "m []";
+    if(helper->op->shape == SIMD_STORE) {
+        fprintf(out, "\nfunc %s(%s%s, i int64, v %s) {\n", name, memory, lt, vt);
+        if(!helper->pointer) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
+        fprintf(out, "\tcopy(%s, v[:%d])\n}\n", view, lanes);
+        return;
+    }
+    fprintf(out, "\nfunc %s(%s%s, i int64) (v %s) {\n", name, memory, lt, vt);
+    if(!helper->pointer) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
+    fprintf(out, "\tcopy(v[:%d], %s)\n\treturn v\n}\n", lanes, view);
+}
+
+static void
+write_gather(FILE *out, const char *name, const GoHelper *helper)
+{
+    const ZirVector *index = &helper->first, *result = &helper->second;
+    const char *lt = go_type(result->lane);
+    const char *read = index->is_signed ? "int64(idx[l])" : "int64(uint32(idx[l]))";
+    if(helper->pointer) {
+        fprintf(out, "\nfunc %s(p *%s, idx %s) (v %s) {\n"
+                     "\tfor l := range v {\n"
+                     "\t\tv[l] = *(*%s)(unsafe.Add(unsafe.Pointer(p), %s*%d))\n"
+                     "\t}\n\treturn v\n}\n",
+                name, lt, go_type(index->name), go_type(result->name), lt, read,
+                result->lane_bits / 8);
+        return;
+    }
+    /* Every index is checked before any lane is read, as in C. */
+    fprintf(out, "\nfunc %s(t []%s, idx %s) (v %s) {\n"
+                 "\tfor l := range idx {\n\t\tzi_simd_gather_check(%s, int64(len(t)))\n\t}\n"
+                 "\tfor l := range v {\n\t\tv[l] = t[%s]\n\t}\n\treturn v\n}\n",
+            name, lt, go_type(index->name), go_type(result->name), read, read);
+}
+
+/* One value operation: operands go to the reference's x, y and z lanes in
+ * order, constants to k, a scalar lane operand to y[0] and Make's lanes to
+ * x, as zi_ref reads them. */
+static int
+write_value(FILE *out, const char *name, const GoHelper *helper)
+{
+    const SimdOp *op = helper->op;
+    const ZirVector *v = &helper->first;
+    const char *types[40];
+    char params[2048] = "", body[4096] = "";
+    int count = 0, vectors = 0;
+    size_t used;
+#define PARAM(...) (used = strlen(params), format(params + used, sizeof(params) - used, __VA_ARGS__))
+#define BODY(...) (used = strlen(body), format(body + used, sizeof(body) - used, __VA_ARGS__))
+#define VECTOR(param, type) do { \
+        PARAM("%s%s %s", count ? ", " : "", param, go_type(type)); \
+        BODY("\tzi_simd_in_%s(&%c, %s)\n", type, "xyz"[vectors++], param); \
+        types[count++] = type; \
+    } while(0)
+    char lane[8];
+    switch(op->shape) {
+    case SIMD_UNARY: case SIMD_WIDEN_HALF: case SIMD_WIDEN: case SIMD_ADD_PAIRS:
+    case SIMD_REDUCE: case SIMD_ALL_ZERO: case SIMD_HALF:
+    case SIMD_REINTERPRET: case SIMD_CONVERT:
+        VECTOR("a", v->name);
+        break;
+    case SIMD_BINARY: case SIMD_COMPARE: case SIMD_SHIFT_LANES: case SIMD_MUL_WIDE:
+    case SIMD_MADD: case SIMD_SAD: case SIMD_COMBINE: case SIMD_NARROW:
+        VECTOR("a", v->name);
+        VECTOR("b", v->name);
+        break;
+    case SIMD_MADD_SAT:
+        VECTOR("a", v->name);
+        VECTOR("b", VectorTypeName("s8", v->lanes));
+        break;
+    case SIMD_BYTE_SHUFFLE:
+        VECTOR("a", v->name);
+        VECTOR("b", VectorTypeName("u8", v->lanes));
+        break;
+    case SIMD_SELECT:
+        format(lane, sizeof(lane), "u%d", v->lane_bits);
+        VECTOR("m", VectorTypeName(lane, v->lanes));
+        VECTOR("a", v->name);
+        VECTOR("b", v->name);
+        break;
+    case SIMD_SHIFT:
+        VECTOR("a", v->name);
+        PARAM(", n uint64");
+        BODY("\tk[0] = int64(n)\n");
+        types[count++] = "u64";
+        break;
+    case SIMD_BYTE_SHIFT:
+        VECTOR("a", v->name);
+        PARAM(", n int");
+        BODY("\tk[0] = int64(n)\n");
+        types[count++] = "integer";
+        break;
+    case SIMD_ALIGN:
+        VECTOR("a", v->name);
+        VECTOR("b", v->name);
+        PARAM(", n int");
+        BODY("\tk[0] = int64(n)\n");
+        types[count++] = "integer";
+        break;
+    case SIMD_LANE:
+        VECTOR("a", v->name);
+        PARAM(", i int");
+        BODY("\tk[0] = int64(i)\n");
+        types[count++] = "integer";
+        break;
+    case SIMD_WITH_LANE:
+        VECTOR("a", v->name);
+        PARAM(", i int, l %s", go_type(v->lane));
+        BODY("\tk[0] = int64(i)\n\ty[0] = zi_simd_bits_%s(l)\n", lane_name(v));
+        types[count++] = "integer";
+        types[count++] = v->lane;
+        break;
+    case SIMD_SHUFFLE: {
+        VECTOR("a", v->name);
+        for(int i = 0; i < SimdBlockLanes(v); i++) {
+            PARAM(", k%d int", i);
+            BODY("\tk[%d] = int64(k%d)\n", i, i);
+            types[count++] = "integer";
+        }
+        break;
+    }
+    case SIMD_MAKE:
+        for(int i = 0; i < v->lanes; i++) {
+            PARAM("%sl%d %s", i ? ", " : "", i, go_type(v->lane));
+            BODY("\tx[%d] = zi_simd_bits_%s(l%d)\n", i, lane_name(v), i);
+            types[count++] = v->lane;
+        }
+        break;
+    case SIMD_SPLAT:
+        PARAM("l %s", go_type(v->lane));
+        BODY("\ty[0] = zi_simd_bits_%s(l)\n", lane_name(v));
+        types[count++] = v->lane;
+        break;
+    case SIMD_ZERO:
+        break;
+    default:
+        return 0;
+    }
+#undef VECTOR
+#undef PARAM
+#undef BODY
+    const char *result = helper_result(helper, types, count);
+    if(result == NULL) return 0;
+    ZirVector r;
+    int vector_result = VectorType(result, &r);
+    int r_kind = vector_result ? SimdLaneKind(&r) :
+        !strcmp(result, v->lane) ? SimdLaneKind(v) : ZI_K_S64;
+    int r_lanes = vector_result ? r.lanes : 1;
+    const char *a_type = op->shape == SIMD_MAKE || op->shape == SIMD_SPLAT ||
+                         op->shape == SIMD_ZERO ? result : v->name;
+    ZirVector a;
+    VectorType(a_type, &a);
+    fprintf(out, "\nfunc %s(%s) %s {\n\tvar x, y, z, o zi_lanes\n\tvar k [32]int64\n%s",
+            name, params, go_type(result), body);
+    fprintf(out, "\tzi_simd_ref(%d, %d, %d, %d, %d, &x, &y, &z, &k, &o)\n",
+            op->id, r_kind, r_lanes, SimdLaneKind(&a), a.lanes);
+    if(vector_result) fprintf(out, "\treturn zi_simd_out_%s(&o)\n}\n", result);
+    else if(!strcmp(result, "bool")) fputs("\treturn o[0] != 0\n}\n", out);
+    else if(!strcmp(result, v->lane)) fprintf(out, "\treturn zi_simd_lane_%s(o[0])\n}\n", lane_name(v));
+    else fputs("\treturn int64(o[0])\n}\n", out);
+    return 1;
+}
+
+static int
+compare_names(const void *a, const void *b)
+{
+    return strcmp(*(char *const *)a, *(char *const *)b);
+}
+
+int
+GoSimdWrite(const char *out_dir, const char *pkg)
+{
+    if(go_helper_count == 0) return 0;
+    qsort(go_helpers, (size_t)go_helper_count, sizeof(*go_helpers), compare_names);
+    int pointer = 0;
+    for(int i = 0; i < go_helper_count; i++) {
+        GoHelper helper;
+        if(parse_helper(go_helpers[i], &helper)) pointer |= helper.pointer;
+    }
+    char path[ZIR_PATH_MAX], temp[ZIR_PATH_MAX];
+    format(path, sizeof(path), "%s/ziran_simd.go", out_dir);
+    FILE *out = GeneratedOutputOpen(path, temp, sizeof(temp));
+    if(out == NULL) {
+        Diagnostic((ZirSourceSpan){0}, "zir_go.global", "cannot create Go output: %s", path);
+        return 1;
+    }
+    fprintf(out, "// Code generated by zi2go from std/simd. DO NOT EDIT.\npackage %s\n\n"
+                 "import (\n\t\"math\"\n\t\"strconv\"\n%s)\n\n",
+            pkg, pointer ? "\t\"unsafe\"\n" : "");
+    fputs(go_reference, out);
+    write_conversions(out);
+    int failed = 0;
+    for(int i = 0; i < go_helper_count && !failed; i++) {
+        GoHelper helper;
+        parse_helper(go_helpers[i], &helper);
+        if(helper.op->shape == SIMD_LOAD || helper.op->shape == SIMD_STORE)
+            write_memory(out, go_helpers[i], &helper);
+        else if(helper.op->shape == SIMD_GATHER)
+            write_gather(out, go_helpers[i], &helper);
+        else if(!write_value(out, go_helpers[i], &helper)) {
+            Diagnostic((ZirSourceSpan){0}, "compiler.internal", "no Go helper for %s", go_helpers[i]);
+            failed = 1;
+        }
+    }
+    failed |= ferror(out) != 0;
+    failed |= fclose(out) != 0;
+    if(failed || GeneratedOutputReplace(temp, path) != 0) {
+        if(!failed) Diagnostic((ZirSourceSpan){0}, "zir_go.global", "cannot finish Go output: %s", path);
+        remove(temp);
+        return 1;
+    }
+    return 0;
+}

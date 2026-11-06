@@ -34,6 +34,9 @@ static const struct {
     const char *definition;
 } go_number_helpers[] = {
     {"signedBits", "func signedBits(x int64) uint64 { return uint64(x) }\n"},
+    {"negativeZero",
+     "// negativeZero is -0.0, which Go constants cannot hold.\n"
+     "func negativeZero() float64 {\n\tzero := 0.0\n\treturn -zero\n}\n"},
     {"wrapAdd", "func wrapAdd(a, b uint64) uint64 { return a + b }\n"},
     {"wrapSub", "func wrapSub(a, b uint64) uint64 { return a - b }\n"},
     {"wrapMul", "func wrapMul(a, b uint64) uint64 { return a * b }\n"},
@@ -894,7 +897,7 @@ NativeGoType(const ZirModule *module, const char *type, char *dst, size_t dst_si
         n = strlen(t);
     }
     const char *scalar = ScalarType(t);
-    if(*scalar && TargetType(t, ZIR_GO)) {
+    if((*scalar || VectorType(t, NULL)) && TargetType(t, ZIR_GO)) {
         snprintf(dst, dst_size, "%s", TargetType(t, ZIR_GO));
         return 1;
     }

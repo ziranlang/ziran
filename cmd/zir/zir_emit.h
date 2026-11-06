@@ -127,6 +127,12 @@ int EmitNativeHelpers(FILE *out, const char *text);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */
 void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
+/* std/simd helpers for Go: GoSimdBegin before lowering a package,
+ * GoSimdCollect on each module's code, then GoSimdWrite puts the helpers
+ * the package calls into OUT_DIR/ziran_simd.go; 1 on failure. */
+void GoSimdBegin(void);
+void GoSimdCollect(const char *text);
+int GoSimdWrite(const char *out_dir, const char *pkg);
 /* A native program entry has a typed Ziran body plus a standard main adapter. */
 int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
 int CheckNativeEntry(const ZirFunction *fn, const char *target);

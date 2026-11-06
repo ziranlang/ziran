@@ -2138,6 +2138,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
     int assembly_present = 0;
     go_build_global_functions(progs, prog_count);
     if(!go_validate_exports(progs, prog_count)) return 1;
+    GoSimdBegin();
     for(int pi = 0; pi < prog_count; pi++) {
         const ZirProgram *prog = progs[pi];
         for(int mi = 0; mi < prog->module_count; mi++) {
@@ -2674,6 +2675,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 GoAssemblyClose(assembly); return 1;
             }
             EmitGoNumberHelpers(f, text, &number_helpers);
+            GoSimdCollect(text);
             if(TextStreamClose(&helper_stream) != 0) {
                 free(text);
                 Diagnostic(m->span, "zir_go.global",
@@ -2712,6 +2714,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             if(assembly_failed) return 1;
         }
     }
+    if(GoSimdWrite(out_dir, pkg)) return 1;
     if(assembly_present && prog_count && progs[0]->module_count &&
        GoAssemblyAvailability(out_dir, pkg, progs[0]->modules[0].span)) return 1;
     for(int pi = 0; pi < prog_count; pi++) {

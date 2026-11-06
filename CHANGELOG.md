@@ -111,6 +111,10 @@
   an `ifx` comparison gets one pair of parentheses, a local nothing reads is
   cast to void, and a procedure named like `ReadSignedBits` no longer pulls
   in an unused helper.
+- A range over a computed bound, such as `for i: 0..count`, tests the bound
+  once as it starts and then leaves only at its last value. Generated C has
+  one loop exit, which GCC can vectorize, and an AV1 decode runs about 2%
+  faster at `-O2`.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

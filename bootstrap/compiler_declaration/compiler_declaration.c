@@ -42,7 +42,7 @@ compiler_declaration_Find(String source, String needle)
         int64_t range_first_0 = 0LL;
         int64_t range_last_0 = (int64_t)(source).length;
         int64_t at = range_first_0;
-        while (at <= range_last_0) {
+        if (at <= range_last_0) for (;;) {
             if ((int64_t)(needle).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at) && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(needle).length)))), needle)) {
                 return at;
             }
@@ -122,7 +122,7 @@ compiler_declaration_Basename(String source)
         int64_t range_first_1 = 0LL;
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
         int64_t at = range_first_1;
-        while (at <= range_last_1) {
+        if (at <= range_last_1) for (;;) {
             if ((uint8_t)source.data[at] == 47) {
                 begin = (int64_t)((uint64_t)at + UINT64_C(1));
             }
@@ -1375,7 +1375,7 @@ compiler_declaration_ParseResults(String source, String template_parameters)
         int32_t range_first_21 = 0;
         int32_t range_last_21 = (int32_t)((uint32_t)(result.count) - 1u);
         int32_t index = range_first_21;
-        while (index <= range_last_21) {
+        if (index <= range_last_21) for (;;) {
             String part = ZIRAN_INDEX(result.types, 16, index);
             if (named) {
                 int64_t colon = compiler_declaration_Find(part, StringLiteral(":"));
@@ -1441,7 +1441,7 @@ compiler_declaration_ParseResults(String source, String template_parameters)
                     int32_t range_first_52 = 0;
                     int32_t range_last_52 = (int32_t)((uint32_t)(result.parameter_count) - 1u);
                     int32_t previous = range_first_52;
-                    while (previous <= range_last_52) {
+                    if (previous <= range_last_52) for (;;) {
                         if (StringEqual(ZIRAN_INDEX(result.parameters, 64, previous), parameter)) {
                             seen = true;
                         }
@@ -1479,7 +1479,7 @@ compiler_declaration_ResultsRecord(ResultDeclaration results, Slice output)
         int32_t range_first_2 = 0;
         int32_t range_last_2 = (int32_t)((uint32_t)(results.count) - 1u);
         int32_t index = range_first_2;
-        while (index <= range_last_2) {
+        if (index <= range_last_2) for (;;) {
             compiler_declaration_Put(output, &(used), StringLiteral("__"));
             {
                 String value_0 = ZIRAN_INDEX(results.types, 16, index);
@@ -1524,7 +1524,7 @@ compiler_declaration_ResultsParameters(ResultDeclaration results, Slice output)
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)(results.parameter_count) - 1u);
         int32_t index = range_first_1;
-        while (index <= range_last_1) {
+        if (index <= range_last_1) for (;;) {
             if (index > 0) {
                 compiler_declaration_Put(output, &(used), StringLiteral(","));
             }
@@ -1546,7 +1546,7 @@ compiler_declaration_ResultsBody(ResultDeclaration results, Slice output)
         int32_t range_first_1 = 0;
         int32_t range_last_1 = (int32_t)((uint32_t)(results.count) - 1u);
         int32_t index = range_first_1;
-        while (index <= range_last_1) {
+        if (index <= range_last_1) for (;;) {
             compiler_declaration_Put(output, &(used), StringLiteral("value_"));
             if (index >= 10) {
                 compiler_declaration_Put(output, &(used), StringLiteral("1"));
@@ -1835,7 +1835,7 @@ compiler_declaration_RewriteLocalNames(String source, Slice names, Slice output)
                 int64_t range_first_21 = 0LL;
                 int64_t range_last_21 = (int64_t)((uint64_t)((int64_t)(names).length) - UINT64_C(1));
                 int64_t index = range_last_21;
-                while (index >= range_first_21) {
+                if (index >= range_first_21) for (;;) {
                     if (!StringEqual((((NameReplacement *)names.data)[SliceIndex(names, (int64_t)index)]).source, spelling)) {
                         if (index == range_first_21) {
                             break;

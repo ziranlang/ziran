@@ -1358,7 +1358,7 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
         int64_t range_first_4 = 0LL;
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(first).length) - UINT64_C(1));
         int64_t index = range_first_4;
-        while (index <= range_last_4) {
+        if (index <= range_last_4) for (;;) {
             ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)first.data[index];
             if (index == range_last_4) {
                 break;
@@ -1371,7 +1371,7 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
         int64_t range_first_8 = 0LL;
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(second).length) - UINT64_C(1));
         int64_t index = range_first_8;
-        while (index <= range_last_8) {
+        if (index <= range_last_8) for (;;) {
             ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)index)))] = (uint8_t)second.data[index];
             if (index == range_last_8) {
                 break;
@@ -1525,7 +1525,7 @@ compiler_expression_Following(String source, SyntaxCursor* cursor, int32_t dista
         int32_t range_first_4 = 1;
         int32_t range_last_4 = distance;
         int32_t index = range_first_4;
-        while (index <= range_last_4) {
+        if (index <= range_last_4) for (;;) {
             following = compiler_scan_NextToken(cursor->source, at, 1, 1);
             at = following.end;
             if (index == range_last_4) {
@@ -1574,7 +1574,7 @@ compiler_expression_FindByte(String source, uint8_t wanted)
         int64_t range_first_0 = 0LL;
         int64_t range_last_0 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
         int64_t at = range_first_0;
-        while (at <= range_last_0) {
+        if (at <= range_last_0) for (;;) {
             if ((uint8_t)source.data[at] == wanted) {
                 return at;
             }
@@ -1594,7 +1594,7 @@ compiler_expression_FindPair(String source, String wanted)
         int64_t range_first_0 = 0LL;
         int64_t range_last_0 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(2));
         int64_t at = range_first_0;
-        while (at <= range_last_0) {
+        if (at <= range_last_0) for (;;) {
             if (StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + UINT64_C(2)))), wanted)) {
                 return at;
             }

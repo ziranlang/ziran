@@ -499,7 +499,7 @@ compiler_type_GoCall(String target, int64_t receiver_limit)
         int64_t range_first_8 = start;
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(target).length) - UINT64_C(1));
         int64_t at = range_first_8;
-        while (at <= range_last_8) {
+        if (at <= range_last_8) for (;;) {
             if ((uint8_t)target.data[at] == 47) {
                 slash = true;
             }

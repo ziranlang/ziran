@@ -2219,7 +2219,7 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
             int64_t range_first_15 = 0LL;
             int64_t range_last_15 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_15;
-            while (index <= range_last_15) {
+            if (index <= range_last_15) for (;;) {
                 ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)ZIRAN_INDEX(source.data, source.length, index);
                 if (index == range_last_15) {
                     break;

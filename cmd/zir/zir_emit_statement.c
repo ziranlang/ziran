@@ -1046,6 +1046,94 @@ counted_iterations(const ZirFunction *fn, int loop, int close, int64_t *count)
     return 1;
 }
 
+/* Whether the expression at index is the identifier name. */
+static int
+names_ident(const ZirFunction *fn, int index, const char *name)
+{
+    return index >= 0 && fn->exprs[index].kind == ZIR_EXPR_IDENT &&
+           !strcmp(fn->exprs[index].name, name);
+}
+
+/* Whether the expression at index compares the identifiers left and right
+ * with op. */
+static int
+compares_idents(const ZirFunction *fn, int index, const char *op,
+                const char *left, const char *right)
+{
+    const ZirExpr *expr = index >= 0 ? &fn->exprs[index] : NULL;
+    return expr != NULL && expr->kind == ZIR_EXPR_BINARY && expr->op != NULL &&
+           !strcmp(expr->op, op) && names_ident(fn, expr->left, left) &&
+           names_ident(fn, expr->right, right);
+}
+
+/* Whether the while at loop is a range loop over a computed bound,
+ * `while i <= last { ... if i == last { break } i += 1 }` (or counting
+ * down to first with >= and -=), whose test needs to run only as the loop
+ * starts: i and the bound are locals declared just before it, nothing takes
+ * their address, and every change of i is a step that stops at the bound
+ * first, so i never passes it. C then writes `if (test) for (;;)`, a loop
+ * with one exit, which GCC can vectorize and TinyCC runs without the test. */
+static int
+range_tests_once(const ZirFunction *fn, int loop, int close)
+{
+    const ZirStmt *st = &fn->stmts[loop];
+    if(loop < 3 || st->is_parallel || st->for_form || st->expr_root < 0)
+        return 0;
+    const ZirExpr *test = &fn->exprs[st->expr_root];
+    if(test->kind != ZIR_EXPR_BINARY || test->op == NULL ||
+       (strcmp(test->op, "<=") != 0 && strcmp(test->op, ">=") != 0) ||
+       test->left < 0 || test->right < 0 ||
+       fn->exprs[test->left].kind != ZIR_EXPR_IDENT ||
+       fn->exprs[test->right].kind != ZIR_EXPR_IDENT)
+        return 0;
+    const char *cursor = fn->exprs[test->left].name;
+    const char *bound = fn->exprs[test->right].name;
+    const char *step = test->op[0] == '<' ? "+=" : "-=";
+    if(!strcmp(cursor, bound) || fn->stmts[loop - 1].kind != ZIR_STMT_DECL ||
+       strcmp(fn->stmts[loop - 1].name, cursor) != 0)
+        return 0;
+    int declared = 0;
+    for(int s = loop - 3; s < loop - 1; s++)
+        if(fn->stmts[s].kind == ZIR_STMT_DECL && !strcmp(fn->stmts[s].name, bound))
+            declared = 1;
+    if(!declared)
+        return 0;
+    /* A pointer to either could change it out of sight. */
+    for(int x = 0; x < fn->expr_count; x++)
+        if(fn->exprs[x].kind == ZIR_EXPR_UNARY && fn->exprs[x].op != NULL &&
+           !strcmp(fn->exprs[x].op, "&") &&
+           (names_ident(fn, fn->exprs[x].right, cursor) ||
+            names_ident(fn, fn->exprs[x].right, bound)))
+            return 0;
+    int steps = 0;
+    for(int s = loop + 1; s < close; s++) {
+        const ZirStmt *body = &fn->stmts[s];
+        if(StatementHasAssembly(body) || body->kind == ZIR_STMT_FOR ||
+           (body->kind == ZIR_STMT_DECL &&
+            (!strcmp(body->name, cursor) || !strcmp(body->name, bound))))
+            return 0;
+        if(body->kind != ZIR_STMT_ASSIGN)
+            continue;
+        if(body->lhs_root < 0)
+            return 0;
+        if(names_ident(fn, body->lhs_root, bound))
+            return 0;
+        if(!names_ident(fn, body->lhs_root, cursor))
+            continue;
+        int64_t one;
+        if(strcmp(body->assignment_op, step) != 0 || body->expr_root < 0 ||
+           !literal_operand(fn, body->expr_root, &one) || one != 1 || s < loop + 4 ||
+           fn->stmts[s - 1].kind != ZIR_STMT_BLOCK_CLOSE ||
+           fn->stmts[s - 2].kind != ZIR_STMT_BREAK ||
+           fn->stmts[s - 3].kind != ZIR_STMT_IF ||
+           !compares_idents(fn, fn->stmts[s - 3].expr_root, "==", cursor, bound))
+            return 0;
+        steps++;
+    }
+    return steps > 0 && fn->stmts[close - 1].kind == ZIR_STMT_ASSIGN &&
+           names_ident(fn, fn->stmts[close - 1].lhs_root, cursor);
+}
+
 /* ---- Inlining small procedures (C) ----------------------------------- */
 
 enum {
@@ -1805,7 +1893,8 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     free(scratch_text);
                 }
                 if(header) {
-                    line(e,e->target==ZIR_GO?"for %s {":"while (%s) {",
+                    line(e,e->target==ZIR_GO?"for %s {":
+                         range_tests_once(e->fn,i,close)?"if (%s) for (;;) {":"while (%s) {",
                          bare(buffers->value,buffers->plain,sizeof(buffers->plain)));
                     e->indent++;
                 } else {

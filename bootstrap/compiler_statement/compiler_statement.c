@@ -737,7 +737,7 @@ compiler_statement_FindByte(String source, uint8_t wanted)
         int64_t range_first_0 = 0LL;
         int64_t range_last_0 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
         int64_t at = range_first_0;
-        while (at <= range_last_0) {
+        if (at <= range_last_0) for (;;) {
             if ((uint8_t)source.data[at] == wanted) {
                 return at;
             }

@@ -33,7 +33,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
         int64_t range_first_8 = 0LL;
         int64_t range_last_8 = (int64_t)(b).length;
         int64_t j = range_first_8;
-        while (j <= range_last_8) {
+        if (j <= range_last_8) for (;;) {
             previous[j] = (int32_t)(j);
             if (j == range_last_8) {
                 break;
@@ -75,7 +75,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
             int64_t range_first_36 = 0LL;
             int64_t range_last_36 = (int64_t)(b).length;
             int64_t j = range_first_36;
-            while (j <= range_last_36) {
+            if (j <= range_last_36) for (;;) {
                 previous[j] = (current)[j];
                 if (j == range_last_36) {
                     break;
@@ -262,7 +262,7 @@ compiler_text_GoFieldIdentifier(String source, Slice output)
         int64_t range_first_26 = 0LL;
         int64_t range_last_26 = (int64_t)((uint64_t)used - UINT64_C(1));
         int64_t index = range_first_26;
-        while (index <= range_last_26) {
+        if (index <= range_last_26) for (;;) {
             ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)ZIRAN_INDEX(replacement.data, replacement.length, index);
             if (index == range_last_26) {
                 break;
@@ -292,7 +292,7 @@ compiler_text_EscapeCString(String source, Slice output)
             int64_t range_first_10 = 0LL;
             int64_t range_last_10 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_10;
-            while (index <= range_last_10) {
+            if (index <= range_last_10) for (;;) {
                 if ((int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
                     ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
                     used = (int64_t)((uint64_t)used + UINT64_C(1));
@@ -423,7 +423,7 @@ compiler_text_DecodeString(String source, Slice output)
                 int64_t range_first_20 = 0LL;
                 int64_t range_last_20 = (int64_t)((uint64_t)((int64_t)(escapes).length) - UINT64_C(1));
                 int64_t index = range_first_20;
-                while (index <= range_last_20) {
+                if (index <= range_last_20) for (;;) {
                     if (value == (uint32_t)((uint8_t)escapes.data[index])) {
                         value = (uint32_t)(ZIRAN_INDEX(values, 10, index));
                         found = true;
@@ -451,7 +451,7 @@ compiler_text_DecodeString(String source, Slice output)
                     int32_t range_first_40 = 0;
                     int32_t range_last_40 = (int32_t)((uint32_t)digits - 1u);
                     int32_t index = range_first_40;
-                    while (index <= range_last_40) {
+                    if (index <= range_last_40) for (;;) {
                         at = (int64_t)((uint64_t)at + UINT64_C(1));
                         if ((int64_t)((uint64_t)at + UINT64_C(1)) >= (int64_t)(source).length) {
                             return (DecodedLiteral){.valid = false, .count = 0LL};
@@ -518,7 +518,7 @@ compiler_text_DecodeString(String source, Slice output)
             int32_t range_first_82 = 0;
             int32_t range_last_82 = (int32_t)((uint32_t)count - 1u);
             int32_t index = range_first_82;
-            while (index <= range_last_82) {
+            if (index <= range_last_82) for (;;) {
                 uint8_t byte = (bytes)[index];
                 if (remaining > 0) {
                     if (((uint8_t)((uint32_t)byte & 192u)) != 128) {
@@ -603,7 +603,7 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
             int64_t range_first_30 = 0LL;
             int64_t range_last_30 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_30;
-            while (index <= range_last_30) {
+            if (index <= range_last_30) for (;;) {
                 ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
                 used = (int64_t)((uint64_t)used + UINT64_C(1));
                 if (index == range_last_30) {

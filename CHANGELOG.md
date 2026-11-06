@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Generated C divides and shifts by a nonconstant operand through a checked
+  helper of its width, and shifts signed values right by a constant with one
+  arithmetic shift, keeping the zero-divisor and shift-count aborts.
 - Constant number and boolean arrays of any length (`TABLE :: s32.[...]`, also
   through `#run`) are read-only tables: `TABLE[i]` reads one shared copy on C,
   Go and the VM instead of copying the array at every read.

@@ -800,6 +800,36 @@ number_with_buffers(Emitter *e, const char *type, const char *a, const char *a_t
             return;
         }
     }
+    /* The remaining C divisions and shifts call a checked helper of their
+     * own width instead of the general IntegerOp switch. */
+    if(e->target == ZIR_C && native != NULL && op >= 4 && op <= 7) {
+        const char *bits = w == 64 ? "64" : "32";
+        if(left_literal) number_literal(e, type, left_bits, buffers->left, sizeof(buffers->left));
+        else if(same_number_type(a_type, type)) copy_text(buffers->left, sizeof(buffers->left), a);
+        else format(buffers->left, sizeof(buffers->left), "(%s)(%s)", native, a);
+        if(op >= 6)
+            format(buffers->right, sizeof(buffers->right), "(uint64_t)(%s)", b);
+        else if(right_literal)
+            number_literal(e, type, right_bits, buffers->right, sizeof(buffers->right));
+        else if(same_number_type(b_type, type))
+            copy_text(buffers->right, sizeof(buffers->right), b);
+        else
+            format(buffers->right, sizeof(buffers->right), "(%s)(%s)", native, b);
+        if(op == 4 && sign)
+            format(buffers->bits, sizeof(buffers->bits), "ZiDivS%s(%s, %s, INT%d_MIN)",
+                   bits, buffers->left, buffers->right, w);
+        else if(op <= 5)
+            format(buffers->bits, sizeof(buffers->bits), "Zi%s%s%s(%s, %s)",
+                   op == 4 ? "Div" : "Rem", sign ? "S" : "U", bits, buffers->left, buffers->right);
+        else
+            format(buffers->bits, sizeof(buffers->bits), "Zi%s%s(%s, %s, %d)",
+                   op == 6 ? "Shl" : sign ? "ShrS" : "ShrU", bits, buffers->left, buffers->right, w);
+        if(w >= 32 && !(op == 6 && sign))
+            format(out, size, "%s", buffers->bits);
+        else
+            format(out, size, "(%s)%s", native, buffers->bits);
+        return;
+    }
     if(e->target == ZIR_GO) {
         go_bits_operand(a, sign, buffers->left, sizeof(buffers->left));
         go_bits_operand(b, sign, buffers->right, sizeof(buffers->right));

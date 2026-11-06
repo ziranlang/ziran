@@ -1704,6 +1704,82 @@ static const struct {
      "    return ((uint64_t)ZiBswap32((uint32_t)x) << 32) | ZiBswap32((uint32_t)(x >> 32));\n"
      "#endif\n"
      "}\n"},
+    /* Checked division, remainder and shifts at one C width; narrower
+     * types use the 32-bit forms. Zero divisors and shift counts outside
+     * 0..w-1 abort; MIN / -1 wraps to MIN. The signed right shift is
+     * written so C defines it, and compilers emit one arithmetic shift. */
+    {"ZiDivS32",
+     "static inline int32_t ZiDivS32(int32_t a, int32_t b, int32_t min) {\n"
+     "    if(!b) abort();\n"
+     "    if(b == -1) return a == min ? a : -a;\n"
+     "    return a / b;\n"
+     "}\n"},
+    {"ZiRemS32",
+     "static inline int32_t ZiRemS32(int32_t a, int32_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return b == -1 ? 0 : a % b;\n"
+     "}\n"},
+    {"ZiDivU32",
+     "static inline uint32_t ZiDivU32(uint32_t a, uint32_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return a / b;\n"
+     "}\n"},
+    {"ZiRemU32",
+     "static inline uint32_t ZiRemU32(uint32_t a, uint32_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return a % b;\n"
+     "}\n"},
+    {"ZiShl32",
+     "static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return (uint32_t)(a << s);\n"
+     "}\n"},
+    {"ZiShrU32",
+     "static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return a >> s;\n"
+     "}\n"},
+    {"ZiShrS32",
+     "static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return a < 0 ? ~(~a >> s) : a >> s;\n"
+     "}\n"},
+    {"ZiDivS64",
+     "static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {\n"
+     "    if(!b) abort();\n"
+     "    if(b == -1) return a == min ? a : -a;\n"
+     "    return a / b;\n"
+     "}\n"},
+    {"ZiRemS64",
+     "static inline int64_t ZiRemS64(int64_t a, int64_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return b == -1 ? 0 : a % b;\n"
+     "}\n"},
+    {"ZiDivU64",
+     "static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return a / b;\n"
+     "}\n"},
+    {"ZiRemU64",
+     "static inline uint64_t ZiRemU64(uint64_t a, uint64_t b) {\n"
+     "    if(!b) abort();\n"
+     "    return a % b;\n"
+     "}\n"},
+    {"ZiShl64",
+     "static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return (uint64_t)(a << s);\n"
+     "}\n"},
+    {"ZiShrU64",
+     "static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return a >> s;\n"
+     "}\n"},
+    {"ZiShrS64",
+     "static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {\n"
+     "    if(s >= (uint64_t)w) abort();\n"
+     "    return a < 0 ? ~(~a >> s) : a >> s;\n"
+     "}\n"},
 };
 
 enum {

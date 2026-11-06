@@ -262,6 +262,12 @@ that procedure and exits with its integer result; the entry takes nothing or
 optimizes across modules. Each link then generates code for the whole program
 again, so one-file edits rebuild many times slower. `CFLAGS` still wins.
 
+Generated C keeps Ziran's integer rules: a zero divisor or a shift count
+outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
+to itself. Arithmetic compiles to C operators, a constant divisor or shift
+count needs no check, and other divisions and shifts call a small checked
+helper of their width. Run `sh tests/checked_integer_ops.sh build/bin/ziran`.
+
 `#parallel_gpu for` runs a loop on the fastest GPU in native C builds on Linux
 and Android, and on CPU threads otherwise. Programs need no graphics libraries
 to build or start. A region qualifies when it uses only `s32`, `u32`, `float32`,

@@ -4,47 +4,30 @@
 #define ZIRAN_COMPILER_ENUM_H_PRIVATE 1
 #include "compiler_enum.h"
 #undef ZIRAN_COMPILER_ENUM_H_PRIVATE
-/* SignedBits reads the low w bits of x as a signed number. */
-static inline int64_t SignedBits(uint64_t x, int w) {
-    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
-    x &= mask;
-    return x <= (mask >> 1) ? (int64_t)x : -1 - (int64_t)(mask - x);
+static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
+    if(!b) abort();
+    if(b == -1) return a == min ? a : -a;
+    return a / b;
 }
 
-/* IntegerOp applies op to the low w bits of a and b: 0 convert, 1 add,
- * 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left,
- * 7 shift right, 8 and, 9 or, 10 xor. Division by zero and
- * out-of-range shifts abort. */
-static inline uint64_t IntegerOp(uint64_t a, uint64_t b, int w, int sign, int op) {
-    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
-    uint64_t shift = b;
-    a &= mask;
-    b &= mask;
-    switch(op) {
-    case 0: return a;
-    case 1: return (a + b) & mask;
-    case 2: return (a - b) & mask;
-    case 3: return (a * b) & mask;
-    case 4: case 5:
-        if(!b) abort();
-        if(sign) {
-            int64_t x = SignedBits(a, w), y = SignedBits(b, w);
-            if(x == INT64_MIN && y == -1) return op == 4 ? a : 0;
-            return (uint64_t)(op == 4 ? x / y : x % y) & mask;
-        }
-        return op == 4 ? a / b : a % b;
-    case 6: case 7:
-        if(shift >= (uint64_t)w) abort();
-        if(op == 6) return (a << shift) & mask;
-        if(!shift) return a;
-        return (a >> shift) |
-            ((sign && (a & (UINT64_C(1) << (w - 1)))) ? mask ^ (mask >> shift) : 0);
-    case 8: return a & b;
-    case 9: return a | b;
-    case 10: return a ^ b;
-    default: abort();
-    }
-    return 0;
+static inline int64_t ZiRemS64(int64_t a, int64_t b) {
+    if(!b) abort();
+    return b == -1 ? 0 : a % b;
+}
+
+static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
+    if(!b) abort();
+    return a / b;
+}
+
+static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
+    if(s >= (uint64_t)w) abort();
+    return (uint64_t)(a << s);
+}
+
+static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
+    if(s >= (uint64_t)w) abort();
+    return a < 0 ? ~(~a >> s) : a >> s;
 }
 static void compiler_enum_Space(Cursor* cursor);
 static bool compiler_enum_IdentifierStart(uint8_t byte);
@@ -116,7 +99,7 @@ compiler_enum_Number(Cursor* cursor, bool negative)
         if (digit < 0LL || (uint64_t)(digit) >= base) {
             break;
         }
-        uint64_t value_7 = (uint64_t)(IntegerOp((uint64_t)(((uint64_t)((uint64_t)limit - (uint64_t)(digit)))), (uint64_t)(base), 64, 0, 4));
+        uint64_t value_7 = ZiDivU64(((uint64_t)((uint64_t)limit - (uint64_t)(digit))), base);
         if (magnitude > value_7) {
             cursor->valid = false;
             return 0LL;
@@ -212,14 +195,14 @@ compiler_enum_Product(Cursor* cursor, Slice entries)
         if (op == 42) {
             bool value_2 = value > 0LL && right > 0LL;
             if (value_2) {
-                int64_t value_3 = (int64_t)SignedBits(IntegerOp((uint64_t)(9223372036854775807LL), (uint64_t)(right), 64, 1, 4), 64);
+                int64_t value_3 = ZiDivS64(9223372036854775807LL, right, INT64_MIN);
                 value_2 = (value > value_3);
             }
             bool value_4 = value_2;
             if (!value_4) {
                 bool value_5 = value > 0LL && right < 0LL;
                 if (value_5) {
-                    int64_t value_6 = (int64_t)SignedBits(IntegerOp((uint64_t)((-INT64_C(9223372036854775807)-1)), (uint64_t)(value), 64, 1, 4), 64);
+                    int64_t value_6 = ZiDivS64((-INT64_C(9223372036854775807)-1), value, INT64_MIN);
                     value_5 = (right < value_6);
                 }
                 value_4 = value_5;
@@ -228,7 +211,7 @@ compiler_enum_Product(Cursor* cursor, Slice entries)
             if (!value_7) {
                 bool value_8 = value < 0LL && right > 0LL;
                 if (value_8) {
-                    int64_t value_9 = (int64_t)SignedBits(IntegerOp((uint64_t)((-INT64_C(9223372036854775807)-1)), (uint64_t)(right), 64, 1, 4), 64);
+                    int64_t value_9 = ZiDivS64((-INT64_C(9223372036854775807)-1), right, INT64_MIN);
                     value_8 = (value < value_9);
                 }
                 value_7 = value_8;
@@ -237,7 +220,7 @@ compiler_enum_Product(Cursor* cursor, Slice entries)
             if (!value_10) {
                 bool value_11 = value < 0LL && right < 0LL;
                 if (value_11) {
-                    int64_t value_12 = (int64_t)SignedBits(IntegerOp((uint64_t)(9223372036854775807LL), (uint64_t)(value), 64, 1, 4), 64);
+                    int64_t value_12 = ZiDivS64(9223372036854775807LL, value, INT64_MIN);
                     value_11 = (right < value_12);
                 }
                 value_10 = value_11;
@@ -253,9 +236,9 @@ compiler_enum_Product(Cursor* cursor, Slice entries)
                 return 0LL;
             }
             if (op == 47) {
-                value = (int64_t)SignedBits(IntegerOp((uint64_t)(value), (uint64_t)(right), 64, 1, 4), 64);
+                value = ZiDivS64(value, right, INT64_MIN);
             } else {
-                value = (int64_t)SignedBits(IntegerOp((uint64_t)(value), (uint64_t)(right), 64, 1, 5), 64);
+                value = ZiRemS64(value, right);
             }
         }
     }
@@ -317,14 +300,14 @@ compiler_enum_Expression(Cursor* cursor, Slice entries)
         int64_t amount = compiler_enum_Sum(cursor, entries);
         bool value_5 = !cursor->valid || amount < 0LL || amount >= 63LL || value < 0LL;
         if (!value_5) {
-            int64_t value_6 = (int64_t)SignedBits(IntegerOp((uint64_t)(9223372036854775807LL), (uint64_t)(amount), 64, 1, 7), 64);
+            int64_t value_6 = ZiShrS64(9223372036854775807LL, (uint64_t)(amount), 64);
             value_5 = (value > value_6);
         }
         if (value_5) {
             cursor->valid = false;
             return 0LL;
         }
-        value = (int64_t)SignedBits(IntegerOp((uint64_t)(value), (uint64_t)(amount), 64, 1, 6), 64);
+        value = (int64_t)ZiShl64(value, (uint64_t)(amount), 64);
     }
     compiler_enum_Space(cursor);
     int64_t value_7 = cursor->at;

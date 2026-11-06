@@ -4,47 +4,9 @@
 #define ZIRAN_COMPILER_DECLARATION_H_PRIVATE 1
 #include "compiler_declaration.h"
 #undef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
-/* SignedBits reads the low w bits of x as a signed number. */
-static inline int64_t SignedBits(uint64_t x, int w) {
-    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
-    x &= mask;
-    return x <= (mask >> 1) ? (int64_t)x : -1 - (int64_t)(mask - x);
-}
-
-/* IntegerOp applies op to the low w bits of a and b: 0 convert, 1 add,
- * 2 subtract, 3 multiply, 4 divide, 5 remainder, 6 shift left,
- * 7 shift right, 8 and, 9 or, 10 xor. Division by zero and
- * out-of-range shifts abort. */
-static inline uint64_t IntegerOp(uint64_t a, uint64_t b, int w, int sign, int op) {
-    uint64_t mask = w == 64 ? UINT64_MAX : (UINT64_C(1) << w) - 1;
-    uint64_t shift = b;
-    a &= mask;
-    b &= mask;
-    switch(op) {
-    case 0: return a;
-    case 1: return (a + b) & mask;
-    case 2: return (a - b) & mask;
-    case 3: return (a * b) & mask;
-    case 4: case 5:
-        if(!b) abort();
-        if(sign) {
-            int64_t x = SignedBits(a, w), y = SignedBits(b, w);
-            if(x == INT64_MIN && y == -1) return op == 4 ? a : 0;
-            return (uint64_t)(op == 4 ? x / y : x % y) & mask;
-        }
-        return op == 4 ? a / b : a % b;
-    case 6: case 7:
-        if(shift >= (uint64_t)w) abort();
-        if(op == 6) return (a << shift) & mask;
-        if(!shift) return a;
-        return (a >> shift) |
-            ((sign && (a & (UINT64_C(1) << (w - 1)))) ? mask ^ (mask >> shift) : 0);
-    case 8: return a & b;
-    case 9: return a | b;
-    case 10: return a ^ b;
-    default: abort();
-    }
-    return 0;
+static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
+    if(s >= (uint64_t)w) abort();
+    return (uint64_t)(a << s);
 }
 static int64_t compiler_declaration_Find(String source, String needle);
 static String compiler_declaration_Trim(String source);
@@ -611,7 +573,7 @@ compiler_declaration_RewriteParameters(String source, Slice output, bool strip_d
                 result.error = DeclarationError_UsingName;
                 return result;
             }
-            result.using_parameters = (uint64_t)((uint64_t)(result.using_parameters) | (uint64_t)(IntegerOp((uint64_t)(1ULL), (uint64_t)((uint64_t)(result.parameters)), 64, 0, 6)));
+            result.using_parameters = (uint64_t)((uint64_t)(result.using_parameters) | (uint64_t)((ZiShl64(1ULL, (uint64_t)((uint64_t)(result.parameters)), 64))));
         }
         if (result.parameters > 0) {
             compiler_declaration_Put(output, &(result.count), StringLiteral(", "));

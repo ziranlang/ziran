@@ -520,6 +520,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   targets; NaN comparisons and infinities retain floating semantics, while
   converting a nonfinite float to an integer remains an error. Compile-time
   casts and arithmetic fold the tested boundaries with the same width rules.
+  Generated C divides, takes remainders and shifts by a nonconstant operand
+  through a checked helper of the operand's width instead of the general
+  `IntegerOp` switch, so compilers emit one `idiv` or `sar` plus the checks;
+  `tests/checked_integer_ops.sh` covers every width on C, Go, native and
+  portable bundles from source and saved IR, and rejects `IntegerOp` in the C.
   `tests/numeric_semantics.sh` checks these cases from source and saved IR on
   C, Go, and `.zx`. Its stable conformance IDs are published by
   `ziran capabilities --json`, described by

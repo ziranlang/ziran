@@ -562,6 +562,11 @@
   targets; NaN comparisons and infinities retain floating semantics, while
   converting a nonfinite float to an integer remains an error. Compile-time
   casts and arithmetic fold the tested boundaries with the same width rules.
+  Generated C divides, takes remainders and shifts by a nonconstant operand
+  through a checked helper of the operand's width instead of the general
+  <code>IntegerOp</code> switch, so compilers emit one <code>idiv</code> or <code>sar</code> plus the checks;
+  <code>tests/checked_integer_ops.sh</code> covers every width on C, Go, native and
+  portable bundles from source and saved IR, and rejects <code>IntegerOp</code> in the C.
   <code>tests/numeric_semantics.sh</code> checks these cases from source and saved IR on
   C, Go, and <code>.zx</code>. Its stable conformance IDs are published by
   <code>ziran capabilities --json</code>, described by

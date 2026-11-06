@@ -6,43 +6,63 @@
 #undef ZIRAN_COMPILER_ENUM_H_PRIVATE
 #ifndef ZIRAN_HELPER_ZiDivS64
 #define ZIRAN_HELPER_ZiDivS64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiDivS64(a, b, min) __extension__ ({ int64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? (zi__a == (min) ? zi__a : -zi__a) : zi__a / zi__b; })
+#else
 static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
     if(!b) abort();
     if(b == -1) return a == min ? a : -a;
     return a / b;
 }
 #endif
+#endif
 
 #ifndef ZIRAN_HELPER_ZiRemS64
 #define ZIRAN_HELPER_ZiRemS64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiRemS64(a, b) __extension__ ({ int64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? 0 : zi__a % zi__b; })
+#else
 static inline int64_t ZiRemS64(int64_t a, int64_t b) {
     if(!b) abort();
     return b == -1 ? 0 : a % b;
 }
 #endif
+#endif
 
 #ifndef ZIRAN_HELPER_ZiDivU64
 #define ZIRAN_HELPER_ZiDivU64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiDivU64(a, b) __extension__ ({ uint64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__a / zi__b; })
+#else
 static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
     if(!b) abort();
     return a / b;
 }
 #endif
+#endif
 
 #ifndef ZIRAN_HELPER_ZiShl64
 #define ZIRAN_HELPER_ZiShl64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiShl64(a, s, w) __extension__ ({ uint64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); (uint64_t)(zi__a << zi__s); })
+#else
 static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return (uint64_t)(a << s);
 }
 #endif
+#endif
 
 #ifndef ZIRAN_HELPER_ZiShrS64
 #define ZIRAN_HELPER_ZiShrS64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiShrS64(a, s, w) __extension__ ({ int64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); zi__a < 0 ? ~(~zi__a >> zi__s) : zi__a >> zi__s; })
+#else
 static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return a < 0 ? ~(~a >> s) : a >> s;
 }
+#endif
 #endif
 static void compiler_enum_Space(Cursor* cursor);
 static bool compiler_enum_IdentifierStart(uint8_t byte);

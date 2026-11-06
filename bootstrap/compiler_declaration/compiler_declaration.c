@@ -6,10 +6,14 @@
 #undef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
 #ifndef ZIRAN_HELPER_ZiShl64
 #define ZIRAN_HELPER_ZiShl64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiShl64(a, s, w) __extension__ ({ uint64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); (uint64_t)(zi__a << zi__s); })
+#else
 static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return (uint64_t)(a << s);
 }
+#endif
 #endif
 static int64_t compiler_declaration_Find(String source, String needle);
 static String compiler_declaration_Trim(String source);

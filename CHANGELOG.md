@@ -84,6 +84,10 @@
 - `ziran run` spends its step budget more cheaply: each procedure finds its
   budget once instead of at every loop iteration, so an AV1 decode runs
   about 7% faster.
+- Code built by TinyCC (`ziran run`) or by GCC and Clang without
+  optimization checks indexes, shifts and divisions in place instead of
+  calling a helper, so an AV1 decode runs about 17% faster under `ziran run`
+  and 24% faster at `-O0`. Optimized builds are unchanged.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

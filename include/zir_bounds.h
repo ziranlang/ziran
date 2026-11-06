@@ -25,6 +25,16 @@ static inline size_t BoundsCheck(size_t length, uint64_t index,
 }
 #define ZIRAN_INDEX(base, length, index) \
     ((base)[BoundsCheck((size_t)(length), (uint64_t)(index), #base)])
+/* Compilers that never inline, such as TinyCC and unoptimized GCC, check in
+ * place rather than call. */
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#undef ZIRAN_INDEX
+#define ZIRAN_INDEX(base, length, index) \
+    ((base)[__extension__ ({ uint64_t zi__index = (uint64_t)(index); \
+        if(zi__index >= (uint64_t)(size_t)(length)) \
+            BoundsCheck((size_t)(length), zi__index, #base); \
+        (size_t)zi__index; })])
+#endif
 
 /* A zero-capacity array has no valid index in any build configuration. */
 static inline size_t EmptyArrayIndex(uint64_t index, const char *what)

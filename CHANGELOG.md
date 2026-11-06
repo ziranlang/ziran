@@ -62,6 +62,8 @@
   and for rows `stride` apart after a guard that `stride >= width`.
 - They also stay out for a row or column a flip picks with `ifx`, and after
   a guard written as `cast(s64)(height - 1) * stride + width`.
+- A long `||` guard with comparisons no index uses still proves the reads,
+  and so does a filter window that starts `radius` rows and columns back.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

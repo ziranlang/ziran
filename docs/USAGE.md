@@ -325,7 +325,11 @@ the read `samples[i * stride + j]` needs no check. A local chosen by `ifx`,
 such as `yy := ifx flip_rows then cast(s64)height - 1 - i else i`, is proven
 for both choices, so `samples[yy * stride + xx]` needs none either. The
 guard may also write `cast(s64)(height - 1) * stride`: inside the loop
-`height` is at least 1, so `height - 1` did not wrap in `s32`. Run
+`height` is at least 1, so `height - 1` did not wrap in `s32`. A long
+`||` guard works as well as a short one: comparisons about values no index
+reads, such as `gain > 255`, do not crowd out the ones it needs. A window
+offset such as `(iy + 2 - radius) * stride + 2 - radius + k * stride + j`
+is proven too after `if radius < 1 || radius > 2 { return }`. Run
 `sh tests/loop_guard_ranges.sh build/bin/ziran`.
 
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count

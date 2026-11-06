@@ -643,7 +643,10 @@
   counter an index shrinks with is replaced by its lower bound, and a guard
   comparison with a narrow step that might wrap, such as
   <code>cast(s64)(height - 1)</code> in <code>s32</code>, counts where the other facts show it did
-  not; <code>tests/loop_guard_ranges.sh</code> checks nine proven functions and seven
+  not. The search keeps only facts linked to the index's own values, so
+  extra guard comparisons never lose a proof, and a fact times a bounded
+  value covers products such as <code>radius * stride</code>;
+  <code>tests/loop_guard_ranges.sh</code> checks eleven proven functions and eight
   reads that keep their checks. A
   counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while

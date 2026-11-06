@@ -10,7 +10,12 @@
 # samples[i * stride + j] safe after samples.count < (height - 1) * stride +
 # width returns. A local chosen by ifx, such as the row a flip picks, is
 # proven for both choices, and a guard written as cast(s64)(height - 1)
-# counts where the loop shows height - 1 did not wrap in s32. A write that
+# counts where the loop shows height - 1 did not wrap in s32. A guard of
+# many || comparisons proves as much as the same comparisons split across
+# ifs, however many unrelated ones come first. A bound that holds a
+# value only a call gives, such as radius <= 2 for a box filter's radius,
+# also scales: (2 - radius) * stride is never negative while stride is not.
+# A write that
 # does reach the read, a branch past the last row and a guard whose s32 sum
 # may wrap keep their checks, and those reads still abort on C, Go, native
 # and the portable VM from source and saved IR.
@@ -120,6 +125,59 @@ Flip :: (samples: []u16, stride: s32, residual: []s32, width: s32, height: s32,
     }
     return total
 }
+// Fourteen comparisons, the first four about values no index reads.
+Box :: (input: []u16, stride: s32, width: s32, height: s32, output: []u16, output_stride: s32,
+        gain: s32, bias: s32) -> s64 {
+    if gain < 0 || gain > 255 || bias < -128 || bias > 127 ||
+        width < 1 || width > 64 || height < 1 || height > 8 || stride < width + 6 || stride > 72 ||
+        input.count < cast(s64)(height + 5) * stride + width + 6 || output_stride < width ||
+        output_stride > 4096 || output.count < cast(s64)height * output_stride {
+        return -1
+    }
+    total: s64
+    for y: 0..height - 1 {
+        for x: 0..width - 1 {
+            output[y * output_stride + x] = input[(y + 3) * stride + x + 3]
+            total += cast(s64)output[y * output_stride + x] * gain + bias
+        }
+    }
+    return total
+}
+Radius :: (set: s32) -> s32 { return set & 3 }
+// A box filter's window, 2 * radius + 1 rows of stride samples per row.
+Window :: (input: []u16, stride: s32, width: s32, height: s32, set: s32) -> s64 {
+    radius := Radius(set)
+    if radius < 1 || radius > 2 { return -1 }
+    if width < 1 || width > 64 || height < 1 || height > 8 || stride < width + 6 || stride > 72 { return -1 }
+    if input.count < cast(s64)(height + 5) * stride + width + 6 { return -1 }
+    total: s64
+    columns := width + 2 + 2 * radius
+    for iy: 0..height + 1 {
+        top := (cast(s32)iy + 2 - radius) * stride + 2 - radius
+        for k: 0..2 * radius {
+            line := top + cast(s32)k * stride
+            for j: 0..columns - 1 { total += cast(s64)input[line + cast(s32)j] }
+        }
+    }
+    return total
+}
+// Radius 3 starts one sample before the slice; radius 2 one row past it.
+Wider :: (input: []u16, stride: s32, width: s32, height: s32, set: s32) -> s64 {
+    radius := Radius(set)
+    if radius < 1 || radius > 3 { return -1 }
+    if width < 1 || width > 64 || height < 1 || height > 8 || stride < width + 6 || stride > 72 { return -1 }
+    if input.count < cast(s64)(height + 5) * stride + width + 6 { return -1 }
+    total: s64
+    columns := width + 2 + 2 * radius
+    for iy: 0..height + 1 {
+        top := (cast(s32)iy + 3 - radius) * stride + 2 - radius
+        for k: 0..2 * radius {
+            line := top + cast(s32)k * stride
+            for j: 0..columns - 1 { total += cast(s64)input[line + cast(s32)j] }
+        }
+    }
+    return total
+}
 // The flipped row starts one past the last.
 Mirror :: (samples: []u16, stride: s32, width: s32, height: s32, flip_rows: bool) -> s64 {
     if stride < width || samples.count < cast(s64)(height - 1) * stride + width { return -1 }
@@ -215,6 +273,14 @@ Answer :: () -> s64 {
     if Flip(s[0:24], 10, r[:], 4, 3, false, false) != 368 || Flip(s[0:24], 10, r[:], 4, 3, true, true) != 208 ||
         Flip(s[0:23], 10, r[:], 4, 3, true, false) != -1 { return 10 }
     if Mirror(s[0:24], 10, 4, 3, false) != 138 || Wrap(s[:], 5) != 5 { return 11 }
+    // Samples 27, 28, 35 and 36, doubled, plus one each.
+    b: [64]u16
+    for i: 0..63 { b[i] = cast(u16)i }
+    o: [4]u16
+    if Box(b[:], 8, 2, 2, o[:], 2, 2, 1) != 256 || o[3] != 36 ||
+        Box(b[0:63], 8, 2, 2, o[:], 2, 2, 1) != -1 { return 12 }
+    if Window(b[:], 8, 2, 2, 2) != 5040 || Window(b[:], 8, 2, 2, 3) != -1 ||
+        Wider(b[:], 8, 2, 2, 1) != 2844 { return 13 }
     t: [4]s64
     t[0] = 1; t[1] = 2; t[2] = 3; t[3] = 4
     if Bumped(t[:], 2) != 3 || Late(t[:], 3, 1) != 9 || Late(t[:], 4, 0) != 0 || Maybe(t[:], 2) != 3 { return 6 }
@@ -233,10 +299,12 @@ Fault :: (which: s64) -> s64 {
     s: [24]u16
     if which == 6 { return Mirror(s[:], 10, 4, 3, true) }
     if which == 7 { return Wrap(e[:], 2147483647) }
+    w: [64]u16
+    if which == 8 { return Wider(w[:], 8, 2, 2, 3) }
     return 0
 }
 ZI
-faults="Bumped Late Maybe Weak Flat Mirror Wrap"
+faults="Bumped Late Maybe Weak Flat Mirror Wrap Wider"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"
@@ -287,7 +355,7 @@ C
         fi
         which=$((which + 1))
     done
-    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column Flip; do
+    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column Flip Box Window; do
         sed -n "/^app_$name(/,/^}/p" "$output/app.c" > "$work/proven.c"
         test -s "$work/proven.c"
         if grep -q 'ZIRAN_INDEX\|SliceIndex' "$work/proven.c"; then

@@ -600,7 +600,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   counter an index shrinks with is replaced by its lower bound, and a guard
   comparison with a narrow step that might wrap, such as
   `cast(s64)(height - 1)` in `s32`, counts where the other facts show it did
-  not; `tests/loop_guard_ranges.sh` checks nine proven functions and seven
+  not. The search keeps only facts linked to the index's own values, so
+  extra guard comparisons never lose a proof, and a fact times a bounded
+  value covers products such as `radius * stride`;
+  `tests/loop_guard_ranges.sh` checks eleven proven functions and eight
   reads that keep their checks. A
   counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while

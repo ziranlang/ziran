@@ -18,7 +18,7 @@
 
 enum {
     RANGE_DEPTH = 8, RANGE_BUDGET = 4096, RANGE_CONTEXT = 32, RANGE_HOPS = 48,
-    POLY_TERMS = 12, POLY_DEGREE = 3, POLY_DEPTH = 24, GUARD_FACTS = 12, POLY_BUDGET = 16384
+    POLY_TERMS = 12, POLY_DEGREE = 3, POLY_DEPTH = 24, GUARD_FACTS = 32, POLY_BUDGET = 16384
 };
 
 typedef struct RangeFacts {
@@ -661,6 +661,19 @@ reads_binding(const RangeFacts *f, int index, int binding)
            !strcmp(canonical(expr->type), canonical(own));
 }
 
+/* Whether child continues condition's && or || chain, as each further
+ * comparison of a || b || c does; walking a chain costs no depth, so a long
+ * guard keeps every comparison. */
+static int
+same_chain(const RangeFacts *f, int condition, int child)
+{
+    const ZirExpr *a = &f->fn->exprs[condition], *b;
+    if(child < 0)
+        return 0;
+    b = &f->fn->exprs[child];
+    return b->kind == ZIR_EXPR_BINARY && a->op != NULL && b->op != NULL && !strcmp(a->op, b->op);
+}
+
 static void
 push_context(const RangeFacts *f, int condition, int truth, int statement)
 {
@@ -695,10 +708,12 @@ condition_interval(const RangeFacts *f, int condition, int truth, int binding,
         /* Both sides hold for a true && or a false ||; otherwise one does. */
         int both = (expr->op[0] == '&') == (truth != 0), has_left, has_right = 0;
         Range left, right;
-        has_left = condition_interval(f, expr->left, truth, binding, statement, depth + 1, &left);
+        has_left = condition_interval(f, expr->left, truth, binding, statement,
+                                      depth + !same_chain(f, condition, expr->left), &left);
         if(f->contexts < RANGE_CONTEXT) {
             push_context(f, expr->left, expr->op[0] == '&', statement);
-            has_right = condition_interval(f, expr->right, truth, binding, statement, depth + 1, &right);
+            has_right = condition_interval(f, expr->right, truth, binding, statement,
+                                           depth + !same_chain(f, condition, expr->right), &right);
             ((RangeFacts *)f)->contexts--;
         }
         if(both) {
@@ -1358,7 +1373,8 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
            fn->exprs[fn->stmts[binding].expr_root].kind != ZIR_EXPR_CONDITIONAL) {
             int value = fn->stmts[binding].expr_root;
             if(expr_range(f, value, 0, &a) && within(a, own) &&
-               reads_unchanged(f, value, binding, at) && to_poly(f, value, at, depth + 1, out))
+               reads_unchanged(f, value, binding, at) && to_poly(f, value, at, depth + 1, out) &&
+               (out->count > 0 || out->k.low == out->k.high))
                 return 1;
         }
         poly_atom(out, binding);
@@ -1492,9 +1508,11 @@ condition_facts(const RangeFacts *f, int condition, int truth, int statement, in
     if(!strcmp(expr->op, "&&") || !strcmp(expr->op, "||")) {
         if((expr->op[0] == '&') != (truth != 0) || f->contexts >= RANGE_CONTEXT)
             return;
-        condition_facts(f, expr->left, truth, statement, depth + 1, facts);
+        condition_facts(f, expr->left, truth, statement,
+                        depth + !same_chain(f, condition, expr->left), facts);
         push_context(f, expr->left, truth, statement);
-        condition_facts(f, expr->right, truth, statement, depth + 1, facts);
+        condition_facts(f, expr->right, truth, statement,
+                        depth + !same_chain(f, condition, expr->right), facts);
         ((RangeFacts *)f)->contexts--;
         return;
     }
@@ -1641,6 +1659,8 @@ gather_facts(const RangeFacts *f, int at, Poly *list, int max)
 }
 
 static int choice_branches(const RangeFacts *f, int atom, int at, Poly *then, Poly *other);
+static int fact_products(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count,
+                         int depth);
 
 /* Whether p >= 0 at statement at: from the ranges of what it names, or
  * after taking away up to depth facts that share a binding with it, each
@@ -1662,7 +1682,7 @@ poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, 
     }
     /* Each fact alone is tried before any pair, so a guard that matches
      * directly costs one look rather than a search under every other fact. */
-    for(int pass = depth > 1 ? 0 : 1; depth > 0 && pass < 2; pass++)
+    for(int pass = depth > 1 ? 0 : 1; depth > 0 && pass < 2; pass++) {
         for(int i = 0; i < count; i++) {
             Poly rest;
             int shares = 0;
@@ -1675,6 +1695,41 @@ poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, 
                poly_nonnegative(f, &rest, at, facts, count, pass ? depth - 1 : 0))
                 return 1;
         }
+        if(fact_products(f, p, at, facts, count, pass ? depth - 1 : 0))
+            return 1;
+    }
+    return 0;
+}
+
+/* Whether p >= 0 once a linear fact times a value never negative is taken
+ * away: a fact about a in a product a * b of p, times b. With 2 - radius >= 0
+ * and stride >= 0, (2 - radius) * stride + 2 - radius is never negative. */
+static int
+fact_products(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count, int depth)
+{
+    for(int t = 0; t < p->count; t++) {
+        if(p->term[t].degree != 2)
+            continue;
+        for(int side = 0; side < 2; side++) {
+            int a = p->term[t].atom[side], b = p->term[t].atom[1 - side];
+            Poly factor, product, rest;
+            poly_atom(&factor, b);
+            for(int i = 0; i < count; i++) {
+                int linear = facts[i].count > 0, names = 0;
+                for(int u = 0; u < facts[i].count; u++) {
+                    linear &= facts[i].term[u].degree == 1;
+                    names |= facts[i].term[u].atom[0] == a;
+                }
+                /* Taking the product away must cancel the term, not add to it. */
+                if(!linear || !names || !poly_multiply(&product, &facts[i], &factor) ||
+                   !poly_add(&rest, p, &product, 1) || rest.count > p->count + 1)
+                    continue;
+                if(poly_nonnegative(f, &factor, at, facts, count, 1) &&
+                   poly_nonnegative(f, &rest, at, facts, count, depth))
+                    return 1;
+            }
+        }
+    }
     return 0;
 }
 
@@ -1843,7 +1898,68 @@ substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *fa
     }
 }
 
-enum { INDEX_FACTS = 48 };
+enum { INDEX_FACTS = 48, GATHERED_FACTS = 4 * INDEX_FACTS };
+
+static void
+mark_atoms(const Poly *p, unsigned char *mark, int marks)
+{
+    for(int t = 0; t < p->count; t++)
+        for(int a = 0; a < p->term[t].degree; a++)
+            if(p->term[t].atom[a] >= 0 && p->term[t].atom[a] < marks)
+                mark[p->term[t].atom[a]] = 1;
+}
+
+static int
+marks_atom(const Poly *p, const unsigned char *mark, int marks)
+{
+    for(int t = 0; t < p->count; t++)
+        for(int a = 0; a < p->term[t].degree; a++)
+            if(p->term[t].atom[a] >= 0 && p->term[t].atom[a] < marks && mark[p->term[t].atom[a]])
+                return 1;
+    return 0;
+}
+
+/* Keep, in order and up to max, the facts linked to q or limit through
+ * shared bindings, including those an ifx local of q may hold. A fact about
+ * other values cannot help, and left in it would only lengthen the search
+ * or take a place a useful fact needs. */
+static int
+related_facts(const RangeFacts *f, const Poly *q, const Poly *limit, int at, Poly *facts, int count,
+              int max)
+{
+    int marks = 2 * f->bindings, kept = 0, grown = 1;
+    unsigned char *mark = calloc((size_t)marks + 1, 1), *keep = calloc((size_t)count + 1, 1);
+    if(mark == NULL || keep == NULL) {
+        free(mark);
+        free(keep);
+        return count < max ? count : max;
+    }
+    mark_atoms(q, mark, marks);
+    mark_atoms(limit, mark, marks);
+    for(int t = 0; t < q->count; t++)
+        for(int a = 0; a < q->term[t].degree; a++) {
+            Poly then, other;
+            if(choice_branches(f, q->term[t].atom[a], at, &then, &other)) {
+                mark_atoms(&then, mark, marks);
+                mark_atoms(&other, mark, marks);
+            }
+        }
+    while(grown) {
+        grown = 0;
+        for(int i = 0; i < count; i++)
+            if(!keep[i] && marks_atom(&facts[i], mark, marks)) {
+                keep[i] = 1;
+                mark_atoms(&facts[i], mark, marks);
+                grown = 1;
+            }
+    }
+    for(int i = 0; i < count && kept < max; i++)
+        if(keep[i])
+            facts[kept++] = facts[i];
+    free(mark);
+    free(keep);
+    return kept;
+}
 
 /* Whether the index expression lies in 0..limit-1 at its statement. */
 static int
@@ -1855,10 +1971,11 @@ poly_index_below(const RangeFacts *f, int index, const Poly *limit)
     /* The index must not wrap; its sign may still need the facts. */
     if(at < 0 || !expr_range(f, index, 0, &range) || !to_poly(f, index, at, 0, &q))
         return 0;
-    facts = malloc(INDEX_FACTS * sizeof(*facts));
+    facts = malloc(GATHERED_FACTS * sizeof(*facts));
     if(facts == NULL)
         return 0;
-    count = gather_facts(f, at, facts, INDEX_FACTS);
+    count = related_facts(f, &q, limit, at, facts, gather_facts(f, at, facts, GATHERED_FACTS),
+                          INDEX_FACTS);
     if(range.low < 0 && !terms_nonnegative(f, &q, at, facts, count)) {
         free(facts);
         return 0;

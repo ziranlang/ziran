@@ -22,6 +22,9 @@
 - A local such as `line := Render(...)` that is only read, compared,
   counted or passed to a procedure that only reads it is freed when its
   block closes too.
+- Such a result passed through an `ifx` arm, a local, a procedure that
+  returns it, or a record literal field such as `Props.{.text = Render()}`
+  whose callee only reads that field is freed the same way.
 - A `-1` or a global argument before such a result no longer keeps it,
   unless the producing call may change a global.
 - A local named like a C library function, such as `free`, no longer hides

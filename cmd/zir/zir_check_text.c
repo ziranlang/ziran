@@ -11,8 +11,11 @@
  * string parameter qualifies when the callee's checked body provably only
  * reads it during the call: it compares, counts, indexes or slices it, or
  * hands it to a parameter that does the same, to print, BuilderAppend or
- * TextCopy. Returning, storing, aliasing or passing it to a foreign or
- * unknown callee keeps the old detached string. The rewrite only moves the
+ * TextCopy. Reads also follow `ifx` arms, string locals that only read
+ * it, a callee that hands it back when its result is only read, and a
+ * record literal field passed to a callee whose by-value record parameter
+ * only reads that field. Returning, storing, aliasing or passing it to a
+ * foreign or unknown callee keeps the old detached string. The rewrite only moves the
  * call when nothing evaluated before it in the statement can observe the
  * move: literals, locals, and globals when the moved call provably writes
  * none. It never moves one out of a loop or else-if condition or an `&&`,
@@ -26,7 +29,12 @@
 #include <ctype.h>
 #include <stdio.h>
 
-enum { SCOPE_UNKNOWN, SCOPE_COMPUTING, SCOPE_READ_ONLY, SCOPE_RETAINED };
+enum { SCOPE_UNKNOWN, SCOPE_COMPUTING, SCOPE_READ_ONLY, SCOPE_RETAINED,
+       SCOPE_RETURNED };
+
+/* Where a string goes: kept past its use, only read, or only read and
+ * handed back as the enclosing procedure's result. */
+enum { FLOW_RETAINED, FLOW_READ, FLOW_RETURNED };
 
 typedef struct ScopeAnswer {
     const ZirFunction *fn;
@@ -36,10 +44,21 @@ typedef struct ScopeAnswer {
     unsigned char writes;
 } ScopeAnswer;
 
+/* Where record parameter PARAMETER's string field FIELD goes. */
+typedef struct FieldAnswer {
+    const ZirFunction *fn;
+    int parameter;
+    const char *field;
+    unsigned char state;
+} FieldAnswer;
+
 typedef struct TextScope {
     ScopeAnswer *answers;
     size_t capacity;
     size_t count;
+    FieldAnswer *fields;
+    size_t field_count;
+    size_t field_capacity;
     int failed;
 } TextScope;
 
@@ -102,31 +121,106 @@ comparison(const char *op)
         !strcmp(op, "<=") || !strcmp(op, ">") || !strcmp(op, ">=");
 }
 
-static int parameter_read_only(TextScope *scope, const ZirModule *module,
-                               const ZirFunction *fn, int parameter);
+static int parameter_flow(TextScope *scope, const ZirModule *module,
+                          const ZirFunction *fn, int parameter,
+                          const char *field);
+static int value_flow(TextScope *scope, const ZirModule *module,
+                      const ZirFunction *fn, const Parents *parents, int value);
+static int local_flow(TextScope *scope, const ZirModule *module,
+                      const ZirFunction *fn, const Parents *parents, int s);
 
-/* Whether argument ARGUMENT of call CALL is only read during the call. */
+static int pointer_type(const char *type);
+
 static int
-argument_read_only(TextScope *scope, const ZirModule *module,
-                   const ZirFunction *fn, int call, int argument)
+combine(int a, int b)
+{
+    if(a == FLOW_RETAINED || b == FLOW_RETAINED)
+        return FLOW_RETAINED;
+    return a == FLOW_RETURNED || b == FLOW_RETURNED ? FLOW_RETURNED : FLOW_READ;
+}
+
+/* Where argument ARGUMENT of call CALL goes, or with FIELD, that field of
+ * a record argument. A callee that hands the string back passes it on to
+ * wherever the call's result goes. */
+static int
+argument_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+              const Parents *parents, int call, int argument, const char *field)
 {
     const ZirExpr *e = &fn->exprs[call];
     if(e->left >= 0 || e->is_function_value || !e->name || !*e->name)
-        return 0;
-    if(!strcmp(e->name, "print") || !strcmp(e->name, "TextCopy"))
-        return 1;
-    if(!strcmp(e->name, "BuilderAppend"))
-        return e->first_child != argument;
+        return FLOW_RETAINED;
+    if(field == NULL && (!strcmp(e->name, "print") || !strcmp(e->name, "TextCopy")))
+        return FLOW_READ;
+    if(field == NULL && !strcmp(e->name, "BuilderAppend"))
+        return e->first_child != argument ? FLOW_READ : FLOW_RETAINED;
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
     if(ResolveFunction(module, e->name, &owner, &callee) != 1 ||
        callee == NULL || owner == NULL || callee->is_extern ||
        callee->is_template || callee->stmt_count == 0)
-        return 0;
+        return FLOW_RETAINED;
     int index = fn->exprs[argument].argument_index;
     if(index < 0 || index >= 64)
-        return 0;
-    return parameter_read_only(scope, owner, callee, index);
+        return FLOW_RETAINED;
+    int flow = parameter_flow(scope, owner, callee, index, field);
+    return flow == FLOW_RETURNED ? value_flow(scope, module, fn, parents, call) : flow;
+}
+
+/* Where the string VALUE goes from where it is used. */
+static int
+value_flow(TextScope *scope, const ZirModule *module,
+           const ZirFunction *fn, const Parents *parents, int value)
+{
+    int parent = parents->of[value];
+    if(parent < -1) {
+        int s = -2 - parent;
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->expr_root != value)
+            return FLOW_RETAINED;
+        if(st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED)
+            return FLOW_READ;
+        if(st->kind == ZIR_STMT_RETURN)
+            return FLOW_RETURNED;
+        /* A string local that only reads its value, as in
+         * `shown := ifx localize then Tr(text) else text`. */
+        if(st->kind == ZIR_STMT_DECL && !st->is_using && st->lhs_root < 0 &&
+           st->name != NULL && *st->name && st->type != NULL &&
+           !strcmp(st->type, "string"))
+            return local_flow(scope, module, fn, parents, s);
+        return FLOW_RETAINED;
+    }
+    if(parent < 0)
+        return FLOW_RETAINED;
+    const ZirExpr *e = &fn->exprs[parent];
+    switch(e->kind) {
+    case ZIR_EXPR_MEMBER:
+        return e->left == value && !strcmp(e->name, "count") ? FLOW_READ : FLOW_RETAINED;
+    case ZIR_EXPR_INDEX:
+        return e->left == value ? FLOW_READ : FLOW_RETAINED;
+    case ZIR_EXPR_SLICE:
+        return e->left == value ?
+            value_flow(scope, module, fn, parents, parent) : FLOW_RETAINED;
+    case ZIR_EXPR_BINARY:
+        return comparison(e->op) ? FLOW_READ : FLOW_RETAINED;
+    case ZIR_EXPR_CONDITIONAL:
+        return e->right == value || e->third == value ?
+            value_flow(scope, module, fn, parents, parent) : FLOW_RETAINED;
+    case ZIR_EXPR_CALL:
+        return argument_flow(scope, module, fn, parents, parent, value, NULL);
+    case ZIR_EXPR_FIELD_INIT: {
+        /* A field of a record literal handed straight to a call. */
+        int record = parents->of[parent];
+        if(e->right != value || record < 0 || !e->name || !*e->name ||
+           fn->exprs[record].kind != ZIR_EXPR_COMPOUND)
+            return FLOW_RETAINED;
+        int call = parents->of[record];
+        if(call < 0 || fn->exprs[call].kind != ZIR_EXPR_CALL)
+            return FLOW_RETAINED;
+        return argument_flow(scope, module, fn, parents, call, record, e->name);
+    }
+    default:
+        return FLOW_RETAINED;
+    }
 }
 
 /* Whether the string VALUE is only read where it is used. */
@@ -134,30 +228,7 @@ static int
 value_read_only(TextScope *scope, const ZirModule *module,
                 const ZirFunction *fn, const Parents *parents, int value)
 {
-    int parent = parents->of[value];
-    if(parent < -1) {
-        const ZirStmt *st = &fn->stmts[-2 - parent];
-        return (st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED) &&
-            st->expr_root == value;
-    }
-    if(parent < 0)
-        return 0;
-    const ZirExpr *e = &fn->exprs[parent];
-    switch(e->kind) {
-    case ZIR_EXPR_MEMBER:
-        return e->left == value && !strcmp(e->name, "count");
-    case ZIR_EXPR_INDEX:
-        return e->left == value;
-    case ZIR_EXPR_SLICE:
-        return e->left == value &&
-            value_read_only(scope, module, fn, parents, parent);
-    case ZIR_EXPR_BINARY:
-        return comparison(e->op);
-    case ZIR_EXPR_CALL:
-        return argument_read_only(scope, module, fn, parent, value);
-    default:
-        return 0;
-    }
+    return value_flow(scope, module, fn, parents, value) == FLOW_READ;
 }
 
 static ScopeAnswer *
@@ -191,49 +262,105 @@ answer_for(TextScope *scope, const ZirFunction *fn)
     return &scope->answers[slot];
 }
 
-/* Whether FN's string parameter PARAMETER is only read during the call.
- * A recursive query answers no. */
-static int
-parameter_read_only(TextScope *scope, const ZirModule *module,
-                    const ZirFunction *fn, int parameter)
+static FieldAnswer *
+field_answer(TextScope *scope, const ZirFunction *fn, int parameter,
+             const char *field)
 {
+    for(size_t i = 0; i < scope->field_count; i++)
+        if(scope->fields[i].fn == fn && scope->fields[i].parameter == parameter &&
+           !strcmp(scope->fields[i].field, field))
+            return &scope->fields[i];
+    if(scope->field_count == scope->field_capacity) {
+        size_t capacity = scope->field_capacity ? scope->field_capacity * 2 : 64;
+        FieldAnswer *grown = realloc(scope->fields, capacity * sizeof(*grown));
+        if(grown == NULL) {
+            scope->failed = 1;
+            return NULL;
+        }
+        scope->fields = grown;
+        scope->field_capacity = capacity;
+    }
+    FieldAnswer *answer = &scope->fields[scope->field_count++];
+    *answer = (FieldAnswer){fn, parameter, field, SCOPE_UNKNOWN};
+    return answer;
+}
+
+static unsigned char *
+flow_state(TextScope *scope, const ZirFunction *fn, int parameter,
+           const char *field)
+{
+    if(field != NULL) {
+        FieldAnswer *answer = field_answer(scope, fn, parameter, field);
+        return answer ? &answer->state : NULL;
+    }
     ScopeAnswer *answer = answer_for(scope, fn);
-    if(answer == NULL)
-        return 0;
-    if(answer->state[parameter] != SCOPE_UNKNOWN)
-        return answer->state[parameter] == SCOPE_READ_ONLY;
-    answer->state[parameter] = SCOPE_COMPUTING;
-    int result = 0;
+    return answer ? &answer->state[parameter] : NULL;
+}
+
+/* Where FN's string parameter PARAMETER goes during the call, or with
+ * FIELD, that string field of a record parameter passed by value. A
+ * recursive query answers retained. */
+static int
+parameter_flow(TextScope *scope, const ZirModule *module,
+               const ZirFunction *fn, int parameter, const char *field)
+{
+    unsigned char *state = flow_state(scope, fn, parameter, field);
+    if(state == NULL)
+        return FLOW_RETAINED;
+    switch(*state) {
+    case SCOPE_READ_ONLY: return FLOW_READ;
+    case SCOPE_RETURNED: return FLOW_RETURNED;
+    case SCOPE_UNKNOWN: break;
+    default: return FLOW_RETAINED;
+    }
+    *state = SCOPE_COMPUTING;
+    int result = FLOW_RETAINED;
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     const ZirParameter *item = parameter < parameters->count ?
         &parameters->items[parameter] : NULL;
     const char *name = item ? (item->binding_name ? item->binding_name : item->name) : NULL;
     const char *type = item ? (item->value_type ? item->value_type : item->type) : NULL;
-    if(name != NULL && type != NULL && !item->is_using &&
-       !strcmp(skip_ws(type), "string")) {
-        result = 1;
+    if(type != NULL)
+        type = skip_ws(type);
+    int typed = type != NULL && (field == NULL ? !strcmp(type, "string") :
+        *type && strcmp(type, "string") && !pointer_type(type));
+    if(name != NULL && typed && !item->is_using) {
+        result = FLOW_READ;
         for(int s = 0; result && s < fn->stmt_count; s++)
             if(fn->stmts[s].kind == ZIR_STMT_DECL && fn->stmts[s].name &&
                !strcmp(fn->stmts[s].name, name))
-                result = 0;
+                result = FLOW_RETAINED;
         Parents parents = {0};
         if(result && !parents_build(fn, &parents)) {
             scope->failed = 1;
-            result = 0;
+            result = FLOW_RETAINED;
         }
         for(int x = 0; result && x < fn->expr_count; x++) {
             const ZirExpr *e = &fn->exprs[x];
-            if(e->kind == ZIR_EXPR_IDENT && !e->is_this && e->name &&
-               !strcmp(e->name, name) && parents.of[x] != -1 &&
-               !value_read_only(scope, module, fn, &parents, x))
-                result = 0;
+            if(e->kind != ZIR_EXPR_IDENT || e->is_this || !e->name ||
+               strcmp(e->name, name) || parents.of[x] == -1)
+                continue;
+            int up = parents.of[x];
+            if(field == NULL)
+                result = combine(result, value_flow(scope, module, fn, &parents, x));
+            else if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_MEMBER &&
+                    fn->exprs[up].left == x)
+                /* Other fields are not this string. */
+                result = strcmp(fn->exprs[up].name, field) ? result :
+                    combine(result, value_flow(scope, module, fn, &parents, up));
+            else if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_CALL)
+                result = combine(result, argument_flow(scope, module, fn, &parents,
+                                                       up, x, field));
+            else
+                result = FLOW_RETAINED;
         }
         free(parents.of);
     }
-    /* The table may have grown during the walk. */
-    answer = answer_for(scope, fn);
-    if(answer != NULL)
-        answer->state[parameter] = result ? SCOPE_READ_ONLY : SCOPE_RETAINED;
+    /* The tables may have grown during the walk. */
+    state = flow_state(scope, fn, parameter, field);
+    if(state != NULL)
+        *state = result == FLOW_READ ? SCOPE_READ_ONLY :
+            result == FLOW_RETURNED ? SCOPE_RETURNED : SCOPE_RETAINED;
     return result;
 }
 
@@ -672,28 +799,37 @@ block_end(const ZirFunction *fn, int s)
  * after S inside its own block. Another binding of the name anywhere in
  * the function, or a defer that could run after the block, keeps it. */
 static int
-local_read_only(TextScope *scope, const ZirModule *module,
-                const ZirFunction *fn, const Parents *parents, int s)
+local_flow(TextScope *scope, const ZirModule *module,
+           const ZirFunction *fn, const Parents *parents, int s)
 {
     const char *name = fn->stmts[s].name;
     int end = block_end(fn, s);
     for(int t = 0; t < fn->stmt_count; t++) {
         const ZirStmt *st = &fn->stmts[t];
         if(t != s && st->kind == ZIR_STMT_DECL && st->name && !strcmp(st->name, name))
-            return 0;
+            return FLOW_RETAINED;
         if(t > s && t < end && st->kind == ZIR_STMT_DEFER)
-            return 0;
+            return FLOW_RETAINED;
     }
-    for(int x = 0; x < fn->expr_count; x++) {
+    int result = FLOW_READ;
+    for(int x = 0; result && x < fn->expr_count; x++) {
         const ZirExpr *e = &fn->exprs[x];
         if(e->kind != ZIR_EXPR_IDENT || e->is_this || e->is_function_value ||
            e->name == NULL || strcmp(e->name, name) || parents->of[x] == -1)
             continue;
         int at = statement_of(parents, x);
-        if(at <= s || at >= end || !value_read_only(scope, module, fn, parents, x))
-            return 0;
+        if(at <= s || at >= end)
+            return FLOW_RETAINED;
+        result = combine(result, value_flow(scope, module, fn, parents, x));
     }
-    return 1;
+    return result;
+}
+
+static int
+local_read_only(TextScope *scope, const ZirModule *module,
+                const ZirFunction *fn, const Parents *parents, int s)
+{
+    return local_flow(scope, module, fn, parents, s) == FLOW_READ;
 }
 
 /* Keeps the Text call CALL of string local statement S as that local's
@@ -833,6 +969,7 @@ ScopeTextArguments(ZirProgram **programs, int count)
             }
         }
     free(scope.answers);
+    free(scope.fields);
     if(!ok)
         fprintf(stderr, "ziran: out of memory scoping text arguments\n");
     return ok;

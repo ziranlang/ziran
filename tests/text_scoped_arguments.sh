@@ -2,7 +2,10 @@
 # A fresh Text result that is only read within its statement, such as an
 # argument to a procedure that only reads it, a comparison or a `.count`, is
 # freed when its block closes instead of kept as a string, and so is a local
-# such as `a := Make(...)` whose uses only read it. A callee or local that
+# such as `a := Make(...)` whose uses only read it. Reads follow `ifx` arms,
+# string locals, callees that hand the string back, and record literal fields
+# passed to a callee whose record parameter only reads that field, as in a
+# `Text(TextProps.{.text = shown})` widget. A callee or local that
 # stores, pushes, returns, aliases, defers or remembers the string in a global
 # keeps the old string. The result is never computed earlier than written: after
 # another call in the same expression, after a global its producer may write,
@@ -19,6 +22,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/scoped.zi" <<'ZI'
 #import "vec"
 Holder :: struct { s: string; names: Vec(string); }
+Props :: struct { n: s64; text: string; }
 calls: s64 = 0;
 last: string = "";
 width: s64 = 5;
@@ -42,6 +46,21 @@ Pure :: (a: string) -> Text {
     return BuilderFinish(out)
 }
 Pair :: (n: s64, s: string) -> s64 { return n + s.count }
+// Hands its argument back unless it has a translation.
+Tr :: (text: string) -> string {
+    if text == "abc" { return "ABC!" }
+    return text
+}
+Inner :: (p: Props) -> s64 { return p.n + Take(p.text) }
+Show :: (p: Props) -> s64 { return p.text.count + Inner(p) }
+Label :: (x: s64, text: string, localize: bool) -> s64 {
+    shown := ifx localize then Tr(text) else text
+    return Show(Props.{.n = x, .text = shown}) + Take(shown)
+}
+// Keep the field past the call.
+FieldKeep :: (h: *Holder, p: Props) { h.s = p.text }
+FieldCopy :: (h: *Holder, p: Props) { q := p; h.s = q.text }
+Field :: (p: Props) -> string { return p.text }
 
 // Only read during the call.
 Take :: (s: string) -> s64 { return s.count }
@@ -91,6 +110,21 @@ Locals :: (rounds: s64) -> s64 {
         h := BuilderFinish(built)
         if h.count != 2 { return -1 }
         total += 2
+        round += 1
+    }
+    return total
+}
+
+// Record fields and handed-back strings that are only read.
+#program_export
+Fields :: (rounds: s64) -> s64 {
+    total: s64 = 0
+    round: s64 = 0
+    while round < rounds {
+        total += Label(1, Make("ab", "c"), true)
+        total += Label(1, Make("x", "y"), false)
+        total += Show(Props.{.n = 0, .text = Make("re", "cord")})
+        if Field(.{.text = Make("f", "")}) != "f" { return -1 }
         round += 1
     }
     return total
@@ -146,6 +180,14 @@ Retained :: () -> s64 {
     if d.s != "defer" { return 5 }
     w: Holder
     if Shadowed(*w) != 3 || w.s != "two!" { return 6 }
+    k: Holder
+    FieldKeep(*k, Props.{.text = Make("fk", "")})
+    c: Holder
+    FieldCopy(*c, .{.text = Make("fc", "")})
+    r: Holder
+    r.s = Field(.{.text = Make("fr", "")})
+    last = Tr(Make("tr", ""))
+    if k.s != "fk" || c.s != "fc" || r.s != "fr" || last != "tr" { return 7 }
     return 0
 }
 
@@ -177,6 +219,7 @@ Order :: () -> s64 {
 Check :: () -> s32 {
     if Scoped(1) != 3 + 125 + 1 + 1 + 5 + 2 + 7 { return 1 }
     if Locals(1) != 3 + 3 + 1 + 1 + 2 { return 4 }
+    if Fields(1) != 13 + 7 + 12 { return 5 }
     if Retained() != 0 { return 2 }
     if Order() != 0 { return 3 }
     return 42
@@ -217,7 +260,8 @@ void *__wrap_realloc(void *p, size_t size) { void *r = __real_realloc(p, size); 
 void __wrap_free(void *p) { if (p) outstanding--; __real_free(p); }
 int main(void) {
     long before = outstanding;
-    if (Scoped(1000) != 144000 || Locals(1000) != 10000) return 1;
+    if (Scoped(1000) != 144000 || Locals(1000) != 10000 ||
+        Fields(1000) != 32000) return 1;
     long scoped = outstanding - before;
     printf("1000 rounds: %ld allocations left\n", scoped);
     if (Check() != 42) return 1;
@@ -234,7 +278,7 @@ C
         -o "$library" "$module"
     cat > "$work/plain.c" <<'C'
 #include "scoped.h"
-int main(void) { return Scoped(50) == 7200 && Locals(50) == 500 && Check() == 42 ? 0 : 1; }
+int main(void) { return Scoped(50) == 7200 && Locals(50) == 500 && Fields(50) == 1600 && Check() == 42 ? 0 : 1; }
 C
     "${CC:-cc}" -std=c11 -g -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -fno-omit-frame-pointer \

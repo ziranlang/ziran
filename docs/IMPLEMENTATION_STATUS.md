@@ -1403,6 +1403,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `.count`, indexing, slices passed on, `print`, `TextCopy`, the appended
   value of `BuilderAppend`, and `string` parameters whose checked callee
   only reads them, found transitively with a cycle counted as retained.
+  A read also passes through `ifx` arms, string locals, a callee that only
+  returns its parameter when the call's result is read, and a field of a
+  record literal passed to a callee whose by-value record parameter only
+  reads that field, through further calls that take the whole record.
   Foreign and template callees retain. The move is skipped after an earlier
   call or address in the statement, after a global read when the moved call
   may write any global (through an assignment, a pointer, an address, a

@@ -1068,9 +1068,12 @@ A result that is only read is freed when its block closes instead: an
 argument to a procedure whose body only reads that `string` parameter, a
 comparison, `.count`, or `BuilderFinish` passed the same way, as in
 `Count(Render(a))` or `Render(a) == Render(b)`, and a local such as
-`line := Render(...)` whose uses only do the same. A callee or local that
-stores, returns, aliases or defers the string, or a foreign callee, keeps
-it. The result is never computed earlier than written, so one after
+`line := Render(...)` whose uses only do the same. Reads follow `ifx` arms,
+locals, a procedure that returns its argument when that result is only
+read, and a record literal field, as in `Draw(Props.{.text = Render(a)})`,
+whose callee only reads that field of its record parameter. A callee or
+local that stores, returns, aliases or defers the string, or a foreign
+callee, keeps it. The result is never computed earlier than written, so one after
 another call in its expression, after a global its procedure may change, in
 a loop or `else if` condition, or in an `&&`, `||` or `ifx` arm keeps its
 bytes. Literals such as `-1` and other globals may come first. `tests/text_scoped_arguments.sh`

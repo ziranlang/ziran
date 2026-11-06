@@ -253,6 +253,7 @@ int validate_loop_targets(Checker *c, const ZirFunction *fn);
 int discarded_must_call(Checker *c, int index);
 const char *try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span);
 const char *slice_vec_place(Checker *c, int index, const char *vector);
+int ScopeTextArguments(ZirProgram **programs, int count);
 Binding *vec_place_root(Checker *c, int index);
 int rebuild_conversion_layout(ZirFunction *fn);
 void mark_expr_moves(Checker *c, int index);

@@ -143,9 +143,14 @@ install-user: all
 	cp -r std include templates $(USER_SHARE)/
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
 	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust
-	printf '%s\n' '#!/bin/sh' 'set -eu' \
-		'exec "$(USER_SHARE)/build/bin/ziran" "$$@"' > $(USER_BIN)/ziran
-	chmod 755 $(USER_BIN)/ziran
+	@# Another tool's launcher, such as a build queue wrapper, stays in place.
+	@launcher='exec "$(USER_SHARE)/build/bin/ziran" "$$@"'; \
+	if test -e $(USER_BIN)/ziran && ! grep -qxF "$$launcher" $(USER_BIN)/ziran; then \
+		echo "install-user: kept $(USER_BIN)/ziran, which launches something else"; \
+	else \
+		printf '%s\n' '#!/bin/sh' 'set -eu' "$$launcher" > $(USER_BIN)/ziran; \
+		chmod 755 $(USER_BIN)/ziran; \
+	fi
 
 # A reused build directory must not mix sanitized and ordinary objects.
 # Preserve the stamp's mtime unless the actual compiler configuration changes.
@@ -216,7 +221,7 @@ merge = $(CC) -r -nostdlib -o $@ $(filter %.o,$^) && $(OBJCOPY) --localize-hidde
 PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c \
     _condition.c _discover.c _source.c)
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
-    _function.c _link.c _program.c _simd.c)
+    _function.c _link.c _program.c _simd.c _text.c)
 EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _gpu.c _range.c _simd.c _simd_go.c)
 VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c _simd.c)
 

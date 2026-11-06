@@ -84,13 +84,22 @@ kept by an owner that takes it: a declared, assigned or returned `Text`, a
 `Text` parameter, element or field, or a discarded statement. The checker
 rewrites a `Text` call result anywhere else into `vec.TextDetach(result)`,
 which keeps the string semantics described above: the bytes stay allocated
-for the rest of the program. `tests/owned_text_results.sh` counts the
-difference: 1000 rounds of three `Text` results leave 3000 allocations when
-they are used as strings and none when they are kept as `Text`. The standard
-producers, such as `TextReplace`, `Float64Repr`, `JsonWrite` and `JoinPath`,
-return `Text` the same way; `tests/std_text_results.sh` measures 4000
-allocations kept in 1000 rounds of four producers used as strings, and none
-kept as `Text`.
+for the rest of the program. A detached result that is only read within its
+statement, by a comparison, `.count` or a `string` parameter whose callee's
+checked body only reads it, instead moves into a scoped `Text` local declared
+before the statement, which lends its view and frees it when the block
+closes; `BuilderFinish` in such a position becomes `TextFromBuilder` the same
+way. Results computed after another call in the same expression, in a loop
+or `else if` condition, or in an `&&`, `||` or `ifx` arm stay detached so
+nothing runs earlier than written. `tests/text_scoped_arguments.sh` shows no
+allocations left in 1000 rounds of such reads and keeps stored, pushed,
+returned, aliased and global arguments alive. `tests/owned_text_results.sh`
+counts 2000 allocations kept in 1000 rounds of three `Text` results used as
+strings, two named or read after a call, and none kept as `Text`. The
+standard producers, such as `TextReplace`, `Float64Repr`, `JsonWrite` and
+`JoinPath`, return `Text` the same way; `tests/std_text_results.sh` measures
+2000 allocations kept in 1000 rounds of four producers used as strings, and
+none kept as `Text`.
 
 Generic
 `Option` and `Result` are currently ordinary records with explicit status

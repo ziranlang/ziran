@@ -11,6 +11,11 @@
 - Standard text producers such as `TextReplace`, `Float64Repr`, `JsonWrite`
   and `JoinPath` return `Text`. Existing callers still get a `string`;
   `json: Text = JsonWrite(...)` frees the text when `json` goes away.
+- A `Text` result only read within its statement, as in
+  `Count(JsonWrite(...))`, `Render(a) == Render(b)` or `.count`, is freed
+  when its block closes instead of kept for the program.
+- `make install-user` keeps a `~/.local/bin/ziran` that launches another
+  tool, such as a build queue wrapper, and says so instead of failing.
 - `for h.items`, `for * h.parts`, `for it.tags` and `h.items[1:]` work on a
   Vec record field, and a record field holding Vecs moves out, as in
   `last := popped.value`. Pushing to or freeing a Vec while a loop over it

@@ -1414,6 +1414,18 @@
   stdio_linux and file_tree_linux return <code>Text</code>;
   <code>tests/std_text_results.sh</code> counts their allocations on C and checks the
   VM and Go.</li>
+<li>After checking, a detached <code>Text</code> result or string-position
+  <code>BuilderFinish</code> that is only read within its statement moves into a
+  scoped <code>Text</code> local declared before that statement and lends a
+  <code>TextView</code>, so it is freed when its block closes. Reads are comparisons,
+  <code>.count</code>, indexing, slices passed on, <code>print</code>, <code>TextCopy</code>, the appended
+  value of <code>BuilderAppend</code>, and <code>string</code> parameters whose checked callee
+  only reads them, found transitively with a cycle counted as retained.
+  Foreign and template callees retain. The move is skipped after an earlier
+  call or address in the statement, in loop and <code>else if</code> conditions, in
+  <code>&amp;&amp;</code>, <code>||</code> and <code>ifx</code> arms and in <code>for</code> steps. Saved IR holds the rewritten
+  form. <code>tests/text_scoped_arguments.sh</code> checks C allocation balance,
+  AddressSanitizer, Go and the VM from source and saved IR.</li>
 <li>A slice of a Vec place, <code>v[a:b]</code> with either bound optional, becomes
   <code>VecSlice(v, a, b)</code> in the checker, so <code>for</code> over a Vec record field,
   as in <code>for h.items</code> or <code>for it.tags</code> inside <code>for * h.parts</code>, needs no

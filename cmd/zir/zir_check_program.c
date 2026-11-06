@@ -671,7 +671,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     free(buffers->c.bindings);
     free(buffers->c.specializations);
                         free(buffers->c.enum_names);
-    if(buffers->c.failed || buffers->c.errors != 0 || !CheckSliceLifetimes(programs, count))
+    if(buffers->c.failed || buffers->c.errors != 0 || !CheckSliceLifetimes(programs, count) ||
+       !ScopeTextArguments(programs, count))
         return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)

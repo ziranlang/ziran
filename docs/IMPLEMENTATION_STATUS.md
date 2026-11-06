@@ -1369,6 +1369,18 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   stdio_linux and file_tree_linux return `Text`;
   `tests/std_text_results.sh` counts their allocations on C and checks the
   VM and Go.
+- After checking, a detached `Text` result or string-position
+  `BuilderFinish` that is only read within its statement moves into a
+  scoped `Text` local declared before that statement and lends a
+  `TextView`, so it is freed when its block closes. Reads are comparisons,
+  `.count`, indexing, slices passed on, `print`, `TextCopy`, the appended
+  value of `BuilderAppend`, and `string` parameters whose checked callee
+  only reads them, found transitively with a cycle counted as retained.
+  Foreign and template callees retain. The move is skipped after an earlier
+  call or address in the statement, in loop and `else if` conditions, in
+  `&&`, `||` and `ifx` arms and in `for` steps. Saved IR holds the rewritten
+  form. `tests/text_scoped_arguments.sh` checks C allocation balance,
+  AddressSanitizer, Go and the VM from source and saved IR.
 - A slice of a Vec place, `v[a:b]` with either bound optional, becomes
   `VecSlice(v, a, b)` in the checker, so `for` over a Vec record field,
   as in `for h.items` or `for it.tags` inside `for * h.parts`, needs no

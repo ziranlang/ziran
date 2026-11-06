@@ -104,6 +104,10 @@ typedef struct Emitter {
     /* Set by a consumer that evaluates nothing after this expression: a call
      * result may then go straight into it instead of a temporary. */
     int call_in_place;
+    /* C text of an array a statement wants the next array-valued call to
+     * write directly; the call sets array_destination_used when it does. */
+    const char *array_destination;
+    int array_destination_used;
     /* Set for a Go declaration whose value already has the declared type,
      * so it can read name := value. */
     int short_declaration;

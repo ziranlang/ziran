@@ -271,6 +271,13 @@ call it. Procedures that call file-scope code, or that use string
 literals, constant tables or function values, stay out of line. Run
 `sh tests/cross_module_inline.sh build/bin/ziran`.
 
+A call that returns an array writes its result straight into the array a
+declaration creates or a plain assignment names, such as `grid := Make(4)`,
+`row = Next(row)` or `holder.values = Make(10)`, with no temporary and copy in
+C. The callee stores its result only when it returns, so arguments and
+globals that name the destination still read the old value during the call.
+Run `sh tests/array_result_in_place.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

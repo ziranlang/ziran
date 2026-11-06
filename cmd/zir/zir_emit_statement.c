@@ -19,6 +19,29 @@ EmitRunGuardsEnabled(void)
 static void emit_sequence(Emitter *e,int begin,int end);
 static int emit_switch(Emitter *e, int declaration, int end);
 
+/* Whether a C array-valued call can write its result straight into the
+ * statement's destination: the whole right side is that call, of the same
+ * array type, and a new local's name does not appear in its arguments,
+ * which would otherwise read the new storage. */
+static int
+array_result_in_place(const Emitter *e, int root, const char *type, const char *declared)
+{
+    const ZirExpr *call = &e->fn->exprs[root];
+    if(e->target != ZIR_C || call->kind != ZIR_EXPR_CALL || type == NULL ||
+       !ArrayElementType(type, NULL, 0, NULL) || TypeHasZeroArray(e->module, type) ||
+       call->type == NULL || strcmp(canonical(call->type), canonical(type)))
+        return 0;
+    if(declared == NULL || call->first_child < 0)
+        return 1;
+    ZirExprWalk walk = {e->fn, malloc((size_t)e->fn->expr_count * sizeof(int)), 0};
+    if(walk.pending == NULL) return 0;
+    int mentioned = 0;
+    for(int i = ExprWalkFirst(&walk, call->first_child); i >= 0 && !mentioned; i = ExprWalkNext(&walk))
+        mentioned = e->fn->exprs[i].kind == ZIR_EXPR_IDENT && !strcmp(e->fn->exprs[i].name, declared);
+    free(walk.pending);
+    return !mentioned;
+}
+
 static int
 block_end(const ZirFunction *fn,int begin,int end)
 {
@@ -1099,6 +1122,22 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 break;
             }
         }
+            if(st->expr_root >= 0 && array_result_in_place(e, st->expr_root, st->type, st->name)) {
+                /* The new array is the call's result buffer. */
+                char binding[ZIR_NAME_MAX], element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+                TargetBindingName(e->fn, e->target, st->name, binding, sizeof(binding));
+                array_target_type(e, st->type, element, sizeof(element), bounds, sizeof(bounds));
+                line(e, "%s %s%s;", element, binding, bounds);
+                e->array_destination = binding;
+                e->array_destination_used = 0;
+                e->call_in_place = 1;
+                emit_expr(e, st->expr_root, st->type, buffers->value, sizeof(buffers->value));
+                e->array_destination = NULL;
+                if(!e->array_destination_used)
+                    assign_value(e, binding, st->type, buffers->value);
+                track_local(e, st->name, st->type);
+                break;
+            }
             if(st->expr_root>=0) {
                 e->call_in_place = 1;
                 e->braced_initializer = e->target != ZIR_GO &&
@@ -1166,7 +1205,17 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT ||
                     (!expression_calls(e->fn, st->lhs_root) &&
                      !call_can_change(e, st->lhs_root));
+                /* A stable destination also receives an array result in place. */
+                int in_place = e->call_in_place &&
+                    array_result_in_place(e, st->expr_root, e->fn->exprs[st->lhs_root].type, NULL);
+                if(in_place) {
+                    e->array_destination = buffers->lhs;
+                    e->array_destination_used = 0;
+                }
                 emit_expr(e,st->expr_root,e->fn->exprs[st->lhs_root].type,buffers->value,sizeof(buffers->value));
+                e->array_destination = NULL;
+                if(in_place && e->array_destination_used)
+                    break;
                 copy_text(buffers->result,sizeof(buffers->result),buffers->value);
             }
             assign_value(e, buffers->lhs, e->fn->exprs[st->lhs_root].type, buffers->result);

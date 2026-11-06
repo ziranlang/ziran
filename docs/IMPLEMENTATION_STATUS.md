@@ -527,6 +527,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   keep per-module object reuse. `tests/cross_module_inline.sh` checks C, Go,
   native and portable results, the inlined calls, C hosts taking addresses,
   C++ hosts and rebuilds after an inlined body changes.
+  A C call returning an array whose result initializes a local or is assigned
+  to a stable array lvalue passes that destination as the callee's result
+  buffer instead of a zero-filled temporary that is copied afterwards; a
+  declaration whose arguments name the new binding keeps the temporary.
+  `tests/array_result_in_place.sh` checks C, Go, native and portable results
+  and the generated calls.
   Generated C divides, takes remainders and shifts by a nonconstant operand
   through a checked helper of the operand's width instead of the general
   `IntegerOp` switch, so compilers emit one `idiv` or `sar` plus the checks;

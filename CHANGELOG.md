@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Generated C writes an array call result straight into the local or array
+  lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C
   without LTO: their header carries a `static inline` copy for other modules.
 - Generated C divides and shifts by a nonconstant operand through a checked

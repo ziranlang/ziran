@@ -1488,7 +1488,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = 1;
         break;
     }
-    case ZIR_EXPR_CALL:
+    case ZIR_EXPR_CALL: {
+        /* Only this call may take a statement's array destination, never a
+         * call among its arguments. */
+        const char *destination = e->array_destination;
+        e->array_destination = NULL;
         if(MapPrimitiveName(expr->name)) {
             emit_map_call(e, expr, out, size);
             return;
@@ -1591,8 +1595,15 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         }
         if(e->target == ZIR_C &&
            ArrayElementType(type, NULL, 0, NULL)) {
-            fresh(e, temp);
-            declare_array(e, temp, type, NULL);
+            /* A statement's own destination receives the result in place;
+             * the callee writes it once, at its return. */
+            if(destination != NULL) {
+                copy_text(temp, sizeof(temp), destination);
+                e->array_destination_used = 1;
+            } else {
+                fresh(e, temp);
+                declare_array(e, temp, type, NULL);
+            }
             emit_call(e, expr, temp, buffers->result, sizeof(buffers->result));
             line(e, "%s;", buffers->result);
             copy_text(out, size, temp);
@@ -1602,6 +1613,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         emit_call(e, expr, NULL, buffers->result, sizeof(buffers->result));
         if(!strcmp(type,"void")) {line(e,"%s%s",buffers->result,e->target==ZIR_GO?"":";");out[0]=0;e->pure=0;return;}
         break;
+    }
     case ZIR_EXPR_CONDITIONAL:
         emit_expr(e,expr->left,"bool",buffers->a,sizeof(buffers->a));fresh(e,temp);
         const ZirType *declared = FindType(e->module, type, NULL);

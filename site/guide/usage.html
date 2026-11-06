@@ -869,6 +869,8 @@ as <code>BuilderFinish</code> strings always have, so callers written for a <cod
 result keep working. Write <code>line: Text = Render(...)</code> to free it with <code>line</code>.
 <code>TextDetach(text)</code> detaches explicitly, and <code>TextFromBuilder(bytes)</code> takes a
 builder's bytes as a <code>Text</code>.</p>
+<p>The standard text producers return <code>Text</code>: <code>TextReplace</code>, <code>TextJoin</code>, <code>TextLower</code>, <code>TextHex</code>, <code>Float64Repr</code>, <code>JsonWrite</code>, <code>JsonString</code>, <code>JsonKey</code>, <code>JsonQuote</code>, <code>JsonNumberText</code>, <code>JoinPath</code>, <code>ResolvePath</code>, <code>WorkingDirectory</code>, <code>CreateTemporaryDirectory</code>, <code>CopyText</code>, <code>ReadStandardInput</code>, <code>DecodeReplace</code>, <code>Lower</code>, <code>CaseFold</code>, <code>Capitalize</code> and <code>Transform</code>. Existing callers keep
+getting a <code>string</code>; <code>json: Text = JsonWrite(...)</code> frees the text with <code>json</code>.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:
 <code>ParseFloat64(text: string) -&gt; (value: float64, ok: bool)</code> accepts a complete
 ASCII decimal with optional sign, point and exponent, or <code>inf</code>/<code>Infinity</code> and

@@ -86,7 +86,11 @@ rewrites a `Text` call result anywhere else into `vec.TextDetach(result)`,
 which keeps the string semantics described above: the bytes stay allocated
 for the rest of the program. `tests/owned_text_results.sh` counts the
 difference: 1000 rounds of three `Text` results leave 3000 allocations when
-they are used as strings and none when they are kept as `Text`.
+they are used as strings and none when they are kept as `Text`. The standard
+producers, such as `TextReplace`, `Float64Repr`, `JsonWrite` and `JoinPath`,
+return `Text` the same way; `tests/std_text_results.sh` measures 4000
+allocations kept in 1000 rounds of four producers used as strings, and none
+kept as `Text`.
 
 Generic
 `Option` and `Result` are currently ordinary records with explicit status

@@ -1392,7 +1392,11 @@
   and keeps the old string semantics. <code>BuilderFinish</code> in an owning position
   becomes <code>vec.TextFromBuilder</code>. <code>vec.Name</code> calls resolve from modules that
   reach std/vec only through other imports. <code>tests/owned_text_results.sh</code>
-  checks both kinds of caller and counts allocations.</li>
+  checks both kinds of caller and counts allocations. The std text
+  producers in text_tools, float_text, json_document, unicode, utf8,
+  stdio_linux and file_tree_linux return <code>Text</code>;
+  <code>tests/std_text_results.sh</code> counts their allocations on C and checks the
+  VM and Go.</li>
 <li>A slice of a Vec place, <code>v[a:b]</code> with either bound optional, becomes
   <code>VecSlice(v, a, b)</code> in the checker, so <code>for</code> over a Vec record field,
   as in <code>for h.items</code> or <code>for it.tags</code> inside <code>for * h.parts</code>, needs no

@@ -8,6 +8,9 @@
 - A procedure can return `Text` to callers written for a `string` result:
   they get a string as before, while `result: Text = Render(...)` frees it
   with `result`. `BuilderFinish` gives a `Text` where one is expected.
+- Standard text producers such as `TextReplace`, `Float64Repr`, `JsonWrite`
+  and `JoinPath` return `Text`. Existing callers still get a `string`;
+  `json: Text = JsonWrite(...)` frees the text when `json` goes away.
 - `for h.items`, `for * h.parts`, `for it.tags` and `h.items[1:]` work on a
   Vec record field, and a record field holding Vecs moves out, as in
   `last := popped.value`. Pushing to or freeing a Vec while a loop over it

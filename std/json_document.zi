@@ -452,10 +452,10 @@ JsonNext :: (document: *JsonDocument, node: s32) -> s32 {
 }
 
 // A member's name.
-JsonKey :: (document: *JsonDocument, node: s32) -> string {
-    if node < 0 || node >= document.nodes.count { return "" }
+JsonKey :: (document: *JsonDocument, node: s32) -> Text {
+    if node < 0 || node >= document.nodes.count { return .{} }
     bytes: Vec(u8)
-    if !CopyBytesInto(document, node, true, *bytes) { EraseBuffer(document, *bytes); return "" }
+    if !CopyBytesInto(document, node, true, *bytes) { EraseBuffer(document, *bytes); return .{} }
     return BuilderFinish(bytes)
 }
 
@@ -488,10 +488,10 @@ JsonElement :: (document: *JsonDocument, array: s32, index: s32) -> s32 {
 }
 
 // A string's value; "" for anything else.
-JsonString :: (document: *JsonDocument, node: s32) -> string {
-    if JsonKindOf(document, node) != .String { return "" }
+JsonString :: (document: *JsonDocument, node: s32) -> Text {
+    if JsonKindOf(document, node) != .String { return .{} }
     bytes: Vec(u8)
-    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return "" }
+    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return .{} }
     return BuilderFinish(bytes)
 }
 
@@ -506,10 +506,10 @@ JsonIs :: (document: *JsonDocument, node: s32, value: string) -> bool {
 }
 
 // A number's text as written; "" for anything else.
-JsonNumberText :: (document: *JsonDocument, node: s32) -> string {
-    if JsonKindOf(document, node) != .Number { return "" }
+JsonNumberText :: (document: *JsonDocument, node: s32) -> Text {
+    if JsonKindOf(document, node) != .Number { return .{} }
     bytes: Vec(u8)
-    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return "" }
+    if !CopyBytesInto(document, node, false, *bytes) { EraseBuffer(document, *bytes); return .{} }
     return BuilderFinish(bytes)
 }
 
@@ -772,9 +772,9 @@ JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) -> bool {
     return true
 }
 
-JsonQuote :: (value: string, ascii: bool = true) -> string {
+JsonQuote :: (value: string, ascii: bool = true) -> Text {
     output: Vec(u8)
-    if !JsonQuoteInto(*output, value, ascii) { return "" }
+    if !JsonQuoteInto(*output, value, ascii) { return .{} }
     return BuilderFinish(output)
 }
 
@@ -931,9 +931,9 @@ WriteNode :: (output: *Vec(u8), document: *JsonDocument, node: s32, style: JsonS
 
 #scope_export
 // NODE and everything in it as JSON text in STYLE, without a final newline.
-JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> string {
+JsonWrite :: (document: *JsonDocument, node: s32, style: JsonStyle) -> Text {
     output: Vec(u8)
-    if !JsonWriteInto(*output, document, node, style) { EraseBuffer(document, *output); return "" }
+    if !JsonWriteInto(*output, document, node, style) { EraseBuffer(document, *output); return .{} }
     return BuilderFinish(output)
 }
 

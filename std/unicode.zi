@@ -47,7 +47,7 @@ FollowedByCased :: (text: string, at: s64) -> bool {
     return false
 }
 
-Transform :: (text: string, mode: s32) -> string {
+Transform :: (text: string, mode: s32) -> Text {
     output: Vec(u8)
     at: s64 = 0
     preceded: bool
@@ -89,10 +89,10 @@ CheckedScalar :: (output: *Vec(u8), point: u32) -> bool {
 
 #scope_export
 // Full default (non-Turkic) case folding, including multi-scalar expansions.
-CaseFold :: (text: string) -> string { return Transform(text, 0) }
+CaseFold :: (text: string) -> Text { return Transform(text, 0) }
 
 // Full default lowercase, including the contextual Greek final sigma rule.
-Lower :: (text: string) -> string { return Transform(text, 1) }
+Lower :: (text: string) -> Text { return Transform(text, 1) }
 
 // Replace caller-owned output with full default lowercase, including final
 // sigma. Unlike Lower, reject malformed UTF-8. Input must not borrow output.
@@ -139,7 +139,7 @@ IsNumber :: (point: u32) -> bool { return (N.Properties(point) & 2) != 0 }
 IsWhiteSpace :: (point: u32) -> bool { return (N.Properties(point) & 4) != 0 }
 
 // Python str.capitalize: titlecase the first scalar, lowercase the remainder.
-Capitalize :: (text: string) -> string { return Transform(text, 2) }
+Capitalize :: (text: string) -> Text { return Transform(text, 2) }
 
 // Python Unicode regex \w: letters, numeric characters, and underscore.
 IsWord :: (codepoint: u32) -> bool {

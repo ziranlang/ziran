@@ -146,7 +146,7 @@ Copy :: (source: []u8, destination: []u8) -> CopyResult {
 // but truncated E2 82 is one replacement; forbidden ED A0 80 is three. The
 // result has independent immutable storage and is always valid UTF-8.
 // Decode and Copy retain their consume-one-malformed-lead contracts.
-DecodeReplace :: (source: []u8) -> string {
+DecodeReplace :: (source: []u8) -> Text {
     output: Vec(u8)
     at: s64 = 0
     while at < source.count {

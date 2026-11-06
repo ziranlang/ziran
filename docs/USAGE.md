@@ -1045,6 +1045,9 @@ result keep working. Write `line: Text = Render(...)` to free it with `line`.
 `TextDetach(text)` detaches explicitly, and `TextFromBuilder(bytes)` takes a
 builder's bytes as a `Text`.
 
+The standard text producers return `Text`: `TextReplace`, `TextJoin`, `TextLower`, `TextHex`, `Float64Repr`, `JsonWrite`, `JsonString`, `JsonKey`, `JsonQuote`, `JsonNumberText`, `JoinPath`, `ResolvePath`, `WorkingDirectory`, `CreateTemporaryDirectory`, `CopyText`, `ReadStandardInput`, `DecodeReplace`, `Lower`, `CaseFold`, `Capitalize` and `Transform`. Existing callers keep
+getting a `string`; `json: Text = JsonWrite(...)` frees the text with `json`.
+
 `std/float_text.zi` supplies portable binary64 decimal conversion:
 `ParseFloat64(text: string) -> (value: float64, ok: bool)` accepts a complete
 ASCII decimal with optional sign, point and exponent, or `inf`/`Infinity` and

@@ -13,9 +13,9 @@ examples.
    and AddressSanitizer coverage, and retain source/saved-IR tests across
    backends. Owned `Text` is freed with its owner, and a procedure returning
    `Text` still serves callers that use the result as a `string`, which keep
-   the bytes for the program's lifetime. The remaining steps are for the
-   standard text producers, such as `JsonWrite` and `Float64Repr`, to return
-   `Text`, for result records such as `ReadEntireFile`'s to carry it, and for
+   the bytes for the program's lifetime; the standard text producers, such
+   as `JsonWrite` and `Float64Repr`, return `Text`. The remaining steps are
+   for result records such as `ReadEntireFile`'s to carry it, and for
    programs to keep those results as `Text`. Moving an indexed or
    pointer-backed member, such as `x := groups[i].parts`, is still rejected
    instead of moving that element's storage.

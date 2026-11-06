@@ -106,10 +106,10 @@ TextLines :: (text: string) -> Vec(string) {
 }
 
 // TEXT with every OLD replaced by NEW, left to right.
-TextReplace :: (text: string, old: string, new: string) -> string {
-    if old.count == 0 { return text }
+TextReplace :: (text: string, old: string, new: string) -> Text {
+    if old.count == 0 { return TextCopy(text) }
     at := TextFind(text, old, 0)
-    if at < 0 { return text }
+    if at < 0 { return TextCopy(text) }
     result: Vec(u8)
     start: s64 = 0
     while at >= 0 {
@@ -122,7 +122,7 @@ TextReplace :: (text: string, old: string, new: string) -> string {
     return BuilderFinish(result)
 }
 
-TextJoin :: (parts: []string, separator: string) -> string {
+TextJoin :: (parts: []string, separator: string) -> Text {
     result: Vec(u8)
     index: s64 = 0
     while index < parts.count {
@@ -134,7 +134,7 @@ TextJoin :: (parts: []string, separator: string) -> string {
 }
 
 // TEXT with ASCII letters in lower case.
-TextLower :: (text: string) -> string {
+TextLower :: (text: string) -> Text {
     result: Vec(u8)
     for text {
         byte := it
@@ -222,7 +222,7 @@ TextHexDecodeInto :: (value: string, output: *Vec(u8), max_bytes: s64) -> bool {
 }
 
 // BYTES as lowercase hexadecimal.
-TextHex :: (bytes: []u8) -> string {
+TextHex :: (bytes: []u8) -> Text {
     digits := "0123456789abcdef"
     result: Vec(u8)
     for bytes {

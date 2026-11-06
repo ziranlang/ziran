@@ -138,8 +138,8 @@ SetPathMode :: (path: string, mode: s32) -> bool {
 }
 
 // DIRECTORY/NAME, or NAME alone when it is absolute or DIRECTORY is empty.
-JoinPath :: (directory: string, name: string) -> string {
-    if directory.count == 0 || (name.count > 0 && name[0] == #char "/") { return name }
+JoinPath :: (directory: string, name: string) -> Text {
+    if directory.count == 0 || (name.count > 0 && name[0] == #char "/") { return TextCopy(name) }
     result: Vec(u8)
     BuilderAppend(result, directory)
     if directory[directory.count - 1] != #char "/" { VecPush(result, #char "/") }
@@ -187,11 +187,11 @@ PathStem :: (path: string) -> string {
 
 // The absolute path with every link and dot resolved; empty when PATH does
 // not exist.
-ResolvePath :: (path: string) -> string {
+ResolvePath :: (path: string) -> Text {
     name: [4096]u8
     output: [4096]u8
-    if !CopyCString(path, name[:]) { return "" }
-    if RealPathRaw(*name[0], *output[0]) == null { return "" }
+    if !CopyCString(path, name[:]) { return .{} }
+    if RealPathRaw(*name[0], *output[0]) == null { return .{} }
     return CopyText(output[:])
 }
 
@@ -201,22 +201,22 @@ ResolvePath :: (path: string) -> string {
 // Returns the canonical absolute child path, or empty on failure. The caller
 // owns the returned allocation and directory cleanup with RemoveTree.
 // Permissions are 0700, restricted by umask.
-CreateTemporaryDirectory :: (parent: string, prefix: string = "ziran-") -> string {
-    for prefix { if it == #char "/" || it == 0 { return "" } }
+CreateTemporaryDirectory :: (parent: string, prefix: string = "ziran-") -> Text {
+    for prefix { if it == #char "/" || it == 0 { return .{} } }
     directory := ResolvePath(parent)
-    if directory.count == 0 { return "" }
+    if directory.count == 0 { return .{} }
     defer { ReleaseOwnedText(directory) }
     info := PathStatus(directory, false)
-    if info.kind != .Directory || info.owner_uid != EffectiveUserRaw() { return "" }
+    if info.kind != .Directory || info.owner_uid != EffectiveUserRaw() { return .{} }
     // Allocate the returned owner before creating anything. mkdtemp changes
     // only the final six bytes, copied back without a further allocation.
     output: Vec(u8)
     if !BuilderAppend(output,directory) ||
         (directory[directory.count-1] != #char "/" && !VecPush(output,#char "/")) ||
-        !BuilderAppend(output,prefix) || !BuilderAppend(output,"XXXXXX") { return "" }
+        !BuilderAppend(output,prefix) || !BuilderAppend(output,"XXXXXX") { return .{} }
     name: [4096]u8
-    if !CopyCString(TextView(VecSlice(output,0,output.count)),name[:]) { return "" }
-    if TemporaryDirectoryRaw(*name[0]) == null { return "" }
+    if !CopyCString(TextView(VecSlice(output,0,output.count)),name[:]) { return .{} }
+    if TemporaryDirectoryRaw(*name[0]) == null { return .{} }
     for at: 0..output.count-1 { output[at] = name[at] }
     return BuilderFinish(output)
 }
@@ -231,18 +231,18 @@ ReleaseOwnedText :: (text: string) {
 }
 
 #scope_export
-WorkingDirectory :: () -> string {
+WorkingDirectory :: () -> Text {
     output: [4096]u8
-    if WorkingDirectoryRaw(*output[0], 4096) == null { return "" }
+    if WorkingDirectoryRaw(*output[0], 4096) == null { return .{} }
     return CopyText(output[:])
 }
 
 #scope_file
-CopyText :: (bytes: []u8) -> string {
+CopyText :: (bytes: []u8) -> Text {
     result: Vec(u8)
     for bytes {
         if it == 0 { break }
-        if !VecPush(result, it) { return "" }
+        if !VecPush(result, it) { return .{} }
     }
     return BuilderFinish(result)
 }

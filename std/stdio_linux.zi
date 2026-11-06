@@ -37,7 +37,7 @@ WriteOutput :: (text: string) -> bool { return Send(1, text) }
 PrintError :: (text: string) -> bool { return Send(2, text) }
 
 // Everything on standard input until its end.
-ReadStandardInput :: () -> string {
+ReadStandardInput :: () -> Text {
     bytes: Vec(u8)
     chunk: [65536]u8
     while true {

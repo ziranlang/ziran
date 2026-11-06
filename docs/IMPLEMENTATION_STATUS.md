@@ -1347,7 +1347,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and keeps the old string semantics. `BuilderFinish` in an owning position
   becomes `vec.TextFromBuilder`. `vec.Name` calls resolve from modules that
   reach std/vec only through other imports. `tests/owned_text_results.sh`
-  checks both kinds of caller and counts allocations.
+  checks both kinds of caller and counts allocations. The std text
+  producers in text_tools, float_text, json_document, unicode, utf8,
+  stdio_linux and file_tree_linux return `Text`;
+  `tests/std_text_results.sh` counts their allocations on C and checks the
+  VM and Go.
 - A slice of a Vec place, `v[a:b]` with either bound optional, becomes
   `VecSlice(v, a, b)` in the checker, so `for` over a Vec record field,
   as in `for h.items` or `for it.tags` inside `for * h.parts`, needs no

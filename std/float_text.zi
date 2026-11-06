@@ -252,9 +252,9 @@ Shortest :: (value: float64, digits: []u8) -> (count: s32, order: s32) {
 // otherwise lowercase e, explicit exponent sign and at least two digits.
 // Finite integral values retain .0; signed zero, inf and nan are preserved.
 // The returned string owns its storage.
-Float64Repr :: (value: float64) -> string {
+Float64Repr :: (value: float64) -> Text {
     output: Vec(u8)
-    if !Float64ReprInto(value, *output) { return "" }
+    if !Float64ReprInto(value, *output) { return .{} }
     return BuilderFinish(output)
 }
 

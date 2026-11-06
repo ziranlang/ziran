@@ -11,6 +11,8 @@
 #include "zir_serial.h"
 #include "zir_expr.h"
 #include "zir_text.h"
+#include "zir_string.h"
+#include "compiler_type.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -1060,6 +1062,34 @@ mark_type(const ZirProgram *program, const ZirModule *scope,
            mark_type_pointer(program, owner, type, keep_types, changed);
 }
 
+/* Whether NAME, written in SCOPE, is a procedure type the Go target rejects,
+ * such as a #c_call callback, directly or behind pointers, slices or arrays. */
+static int
+go_rejects_type(const ZirModule *scope, const char *name)
+{
+    char element[ZIR_NAME_MAX];
+    while(*name == ' ' || *name == '*') name++;
+    if(SliceElementType(name, element, sizeof(element)) ||
+       ArrayElementType(name, element, sizeof(element), NULL))
+        return go_rejects_type(scope, element);
+    const ZirType *type = FindType(scope, name, NULL);
+    return type != NULL && type->is_procedure_type &&
+           !compiler_type_ProcedureTypeSupported(StringView("go", 2), type->is_c_call);
+}
+
+/* A Go package exposes every #program_export function it can express, so each
+ * is a root whether or not --entry reaches it. One whose signature needs a
+ * #c_call callback stays out; if --entry calls it, the target check says so. */
+static int
+go_export_root(const ZirModule *module, const ZirFunction *function)
+{
+    if(!function->exported || function->is_extern) return 0;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(function));
+    for(int p = 0; p < parameters->count; p++)
+        if(go_rejects_type(module, parameters->items[p].type)) return 0;
+    return !go_rejects_type(module, function->return_type);
+}
+
 static int
 mark_parameters(const ZirProgram *program, const ZirModule *module,
                 const ZirFunction *function, unsigned char **keep_types,
@@ -1603,10 +1633,8 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
     for(int m = 0; m < program->module_count; m++)
         for(int f = 0; f < program->modules[m].function_count; f++)
             if(program->modules[m].functions[f].retained_root ||
-               /* A Go package exposes every #program_export function, so
-                * each one is a root whether or not --entry reaches it. */
-               (native == 2 && program->modules[m].functions[f].exported &&
-                !program->modules[m].functions[f].is_extern))
+               (native == 2 && go_export_root(&program->modules[m],
+                                              &program->modules[m].functions[f])))
                 keep[m][f] = 1;
     /* Verification roots retain the code and enum domains named by their
      * obligations even when the executable entry does not call that code. */

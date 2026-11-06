@@ -12,7 +12,7 @@ DeclarationError :: enum s32 {
     ImportTarget; ImportPackage; ImportUsing;
     LibraryQuote; LibraryEnd; LibraryCharacter;
     UsingKind; UsingList; UsingEntry; UsingMap;
-    ForeignResults; ForeignField; ForeignDefer; ForeignVariadic;
+    ForeignResults; ForeignField; ForeignDefer; ForeignVariadic; ForeignReads;
     ForeignType; ForeignBody; ForeignLibrary; ForeignSymbol; ForeignEnd;
     ForeignHostRename; ForeignGoResults; ForeignGoField;
     ForeignGoDefer; ForeignGoVariadic;
@@ -61,6 +61,8 @@ ForeignDeclaration :: struct {
     go_field: bool
     go_defer: bool
     go_variadic: bool
+    // The procedure only reads its string and byte arguments during the call.
+    reads: bool
 }
 ForeignTarget :: struct { error: DeclarationError; count: s64 }
 ResultDeclaration :: struct {
@@ -169,6 +171,7 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ForeignField { return "#go_field requires one foreign field accessor without #go_results" }
     if error == .ForeignDefer { return "#go_defer requires one foreign procedure without result or field attributes" }
     if error == .ForeignVariadic { return "#go_variadic requires one foreign procedure with a final slice parameter" }
+    if error == .ForeignReads { return "#reads goes once before #foreign on a foreign procedure" }
     if error == .ForeignType { return "foreign type requires Name :: #type #foreign library;" }
     if error == .ForeignBody { return "#foreign procedure declarations cannot have a body" }
     if error == .ForeignLibrary { return "#foreign requires a named #system_library" }
@@ -542,8 +545,8 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     result.name = SymbolBeforeColons(source, name_limit)
     if result.name.count == 0 { return result }
     declaration := source[Text.SkipSpace(source, Find(source, "::") + 2, true):]
-    attributes: [4]s32
-    after_foreign: [4]bool
+    attributes: [5]s32
+    after_foreign: [5]bool
     directive: s64 = -1
     body := false
     at: s64 = 0
@@ -560,6 +563,7 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
             if spelling == "#go_field" { attribute = 1 }
             if spelling == "#go_defer" { attribute = 2 }
             if spelling == "#go_variadic" { attribute = 3 }
+            if spelling == "#reads" { attribute = 4 }
             if attribute >= 0 {
                 attributes[attribute] += 1
                 if directive >= 0 { after_foreign[attribute] = true }
@@ -574,6 +578,7 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     result.go_field = attributes[1] > 0
     result.go_defer = attributes[2] > 0
     result.go_variadic = attributes[3] > 0
+    result.reads = attributes[4] > 0
     if result.go_results && (result.is_type || attributes[0] > 1 || after_foreign[0]) {
         result.error = .ForeignResults
         return result
@@ -588,6 +593,10 @@ ParseForeign :: (source: string, name_limit: s64 = 128) -> ForeignDeclaration {
     }
     if result.go_variadic && (result.is_type || result.go_field || attributes[3] > 1 || after_foreign[3]) {
         result.error = .ForeignVariadic
+        return result
+    }
+    if result.reads && (result.is_type || attributes[4] > 1 || after_foreign[4]) {
+        result.error = .ForeignReads
         return result
     }
     if result.is_type && Text.SkipSpace(declaration, 5, true) != directive {

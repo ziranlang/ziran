@@ -193,7 +193,7 @@ static const Field import_fields[] = {
     INTEGER_FIELD(ZirImport, go_field),
     INTEGER_FIELD(ZirImport, go_defer),
     INTEGER_FIELD(ZirImport, go_variadic),
-    INTEGER_FIELD(ZirImport, reserved_0),
+    INTEGER_FIELD(ZirImport, reads_arguments),
     INTEGER_FIELD(ZirImport, reserved_1),
     INTEGER_FIELD(ZirImport, is_using),
     INTEGER_FIELD(ZirImport, required),
@@ -1092,7 +1092,10 @@ validate_program(const ZirProgram *program)
                (module->imports[i].go_field != 0 && module->imports[i].go_field != 1) ||
                (module->imports[i].go_defer != 0 && module->imports[i].go_defer != 1) ||
                (module->imports[i].go_variadic != 0 && module->imports[i].go_variadic != 1) ||
-               module->imports[i].reserved_0 != 0 || module->imports[i].reserved_1 != 0 ||
+               (module->imports[i].reads_arguments != 0 &&
+                (module->imports[i].reads_arguments != 1 ||
+                 module->imports[i].kind != ZIR_IMPORT_EXTERN)) ||
+               module->imports[i].reserved_1 != 0 ||
                (module->imports[i].go_defer &&
                 (module->imports[i].kind != ZIR_IMPORT_EXTERN ||
                  module->imports[i].extern_kind != ZIR_EXTERN_GO ||

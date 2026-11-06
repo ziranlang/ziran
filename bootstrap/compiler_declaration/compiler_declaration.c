@@ -235,6 +235,9 @@ compiler_declaration_ErrorText(DeclarationError error)
     if (error == DeclarationError_ForeignVariadic) {
         return StringLiteral("#go_variadic requires one foreign procedure with a final slice parameter");
     }
+    if (error == DeclarationError_ForeignReads) {
+        return StringLiteral("#reads goes once before #foreign on a foreign procedure");
+    }
     if (error == DeclarationError_ForeignType) {
         return StringLiteral("foreign type requires Name :: #type #foreign library;");
     }
@@ -953,8 +956,8 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     int64_t value_1 = (int64_t)((uint64_t)(compiler_declaration_Find(source, StringLiteral("::"))) + UINT64_C(2));
     int64_t value_2 = compiler_text_SkipSpace(source, value_1, true);
     String declaration = StringRange(value_0, (int64_t)value_2, (int64_t)value_0.length);
-    int32_t attributes[4] = {0};
-    bool after_foreign[4] = {0};
+    int32_t attributes[5] = {0};
+    bool after_foreign[5] = {0};
     int64_t directive = -1LL;
     bool body = false;
     int64_t at = 0LL;
@@ -987,6 +990,9 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
             if (StringEqual(spelling, StringLiteral("#go_variadic"))) {
                 attribute = 3LL;
             }
+            if (StringEqual(spelling, StringLiteral("#reads"))) {
+                attribute = 4LL;
+            }
             if (attribute >= 0LL) {
                 attributes[attribute] = (int32_t)((uint32_t)(attributes[attribute]) + 1u);
                 if (directive >= 0LL) {
@@ -1005,6 +1011,7 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     result.go_field = (attributes)[1] > 0;
     result.go_defer = (attributes)[2] > 0;
     result.go_variadic = (attributes)[3] > 0;
+    result.reads = (attributes)[4] > 0;
     if (result.go_results && (result.is_type || (attributes)[0] > 1 || (after_foreign)[0])) {
         result.error = DeclarationError_ForeignResults;
         return result;
@@ -1019,6 +1026,10 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     }
     if (result.go_variadic && (result.is_type || result.go_field || (attributes)[3] > 1 || (after_foreign)[3])) {
         result.error = DeclarationError_ForeignVariadic;
+        return result;
+    }
+    if (result.reads && (result.is_type || (attributes)[4] > 1 || (after_foreign)[4])) {
+        result.error = DeclarationError_ForeignReads;
         return result;
     }
     bool value_3 = result.is_type;

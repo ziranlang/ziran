@@ -1457,7 +1457,9 @@
   returns its parameter when the call's result is read, and a field of a
   record literal passed to a callee whose by-value record parameter only
   reads that field, through further calls that take the whole record.
-  Foreign and template callees retain. The move is skipped after an earlier
+  Foreign and template callees retain, except that a <code>#reads</code> foreign
+  procedure only reads its string and byte arguments; checked IR keeps the
+  marker in the import's former reserved slot, so format 61 is unchanged. The move is skipped after an earlier
   call or address in the statement, after a global read when the moved call
   may write any global (through an assignment, a pointer, an address, a
   global argument or a foreign, template or recursive callee, found

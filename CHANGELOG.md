@@ -32,6 +32,8 @@
 - Such a result passed through an `ifx` arm, a local, a procedure that
   returns it, or a record literal field such as `Props.{.text = Render()}`
   whose callee only reads that field is freed the same way.
+- `#reads` before `#foreign` marks a foreign procedure that only reads its
+  string and byte arguments, so Text passed to it is freed too.
 - A `-1` or a global argument before such a result no longer keeps it,
   unless the producing call may change a global.
 - A local named like a C library function, such as `free`, no longer hides

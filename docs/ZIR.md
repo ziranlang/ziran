@@ -51,6 +51,9 @@ The checked `go_field` flag describes typed foreign Go field getters and
 receiverless package-value getters. Package-value getters have no parameters
 and read the target variable or constant on each call. Native interface
 identity is preserved, and getters cannot return owned vector storage.
+`reads_arguments`, written `#reads`, records that a foreign procedure only
+reads its string and byte arguments during the call; it occupies a slot
+format 59 reserved as zero, so older saved modules read as unmarked.
 `go_defer` schedules a native void call at the calling Go function's exit,
 including panic unwinding. These flags require explicit Go foreign targets
 and cannot be combined. Deferred calls must be standalone statements with

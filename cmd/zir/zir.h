@@ -101,8 +101,10 @@ typedef struct ZirImport {
     int go_field; /* one Go receiver argument reads its declared native field */
     int go_defer; /* a standalone call schedules its Go foreign target at function exit */
     int go_variadic; /* expand the final slice parameter into native Go variadic arguments */
-    /* Format 59 slots, always zero; drop them at the next format bump. */
-    int reserved_0;
+    /* `#reads`: the foreign procedure only reads its string and byte
+     * arguments during the call. Format 59 reserved this slot as zero. */
+    int reads_arguments;
+    /* Format 59 slot, always zero; drop it at the next format bump. */
     int reserved_1;
     int required;
     int is_using; /* `using Alias :: #import` re-exports public names */

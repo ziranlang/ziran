@@ -897,11 +897,20 @@ locals, a procedure that returns its argument when that result is only
 read, and a record literal field, as in <code>Draw(Props.{.text = Render(a)})</code>,
 whose callee only reads that field of its record parameter. A callee or
 local that stores, returns, aliases or defers the string, or a foreign
-callee, keeps it. The result is never computed earlier than written, so one after
-another call in its expression, after a global its procedure may change, in
-a loop or <code>else if</code> condition, or in an <code>&amp;&amp;</code>, <code>||</code> or <code>ifx</code> arm keeps its
-bytes. Literals such as <code>-1</code> and other globals may come first. <code>tests/text_scoped_arguments.sh</code>
-checks both kinds.
+callee not marked <code>#reads</code>, keeps it. The result is never computed earlier
+than written, so one after another call in its expression, after a global
+its procedure may change, in a loop or <code>else if</code> condition, or in an <code>&amp;&amp;</code>,
+<code>||</code> or <code>ifx</code> arm keeps its bytes. Literals such as <code>-1</code> and other globals
+may come first. <code>tests/text_scoped_arguments.sh</code> checks both kinds.</p>
+<p>A foreign procedure that only reads its string and byte arguments during
+the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
+<pre><code>MeasureWidth :: (value: string, font: s32) -&gt; s32 #reads #foreign host_api;
+</code></pre>
+<p>Text passed to it is then freed like Text passed to a Ziran procedure that
+only reads it. Leave the marker off when the host may keep the pointer,
+such as a binding that stores it; <code>#reads</code> on a procedure with a Ziran body
+is an error, because that body already shows what it reads.
+<code>tests/foreign_reads.sh</code> checks both.
 <code>TextDetach(text)</code> detaches explicitly, and <code>TextFromBuilder(bytes)</code> takes a
 builder's bytes as a <code>Text</code>.</p>
 <p>The standard text producers return <code>Text</code>: <code>TextReplace</code>, <code>TextJoin</code>, <code>TextLower</code>, <code>TextHex</code>, <code>Float64Repr</code>, <code>JsonWrite</code>, <code>JsonString</code>, <code>JsonKey</code>, <code>JsonQuote</code>, <code>JsonNumberText</code>, <code>JoinPath</code>, <code>ResolvePath</code>, <code>WorkingDirectory</code>, <code>CreateTemporaryDirectory</code>, <code>CopyText</code>, <code>ReadStandardInput</code>, <code>DecodeReplace</code>, <code>Lower</code>, <code>CaseFold</code>, <code>Capitalize</code> and <code>Transform</code>. Existing callers keep

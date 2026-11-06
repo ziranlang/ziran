@@ -139,6 +139,17 @@ combine(int a, int b)
     return a == FLOW_RETURNED || b == FLOW_RETURNED ? FLOW_RETURNED : FLOW_READ;
 }
 
+static int
+reading_foreign(const ZirModule *module, const char *name)
+{
+    for(int i = 0; i < module->import_count; i++)
+        if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
+           module->imports[i].reads_arguments &&
+           !strcmp(module->imports[i].name, name))
+            return 1;
+    return 0;
+}
+
 /* Where argument ARGUMENT of call CALL goes, or with FIELD, that field of
  * a record argument. A callee that hands the string back passes it on to
  * wherever the call's result goes. */
@@ -155,9 +166,17 @@ argument_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
         return e->first_child != argument ? FLOW_READ : FLOW_RETAINED;
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
-    if(ResolveFunction(module, e->name, &owner, &callee) != 1 ||
-       callee == NULL || owner == NULL || callee->is_extern ||
-       callee->is_template || callee->stmt_count == 0)
+    int found = ResolveFunction(module, e->name, &owner, &callee);
+    if(found != 1 || callee == NULL || owner == NULL || callee->is_extern) {
+        /* A `#reads` foreign procedure only reads its strings and bytes
+         * during the call. */
+        if(field == NULL && found != -1 &&
+           reading_foreign(found == 1 && owner ? owner : module,
+                           found == 1 && callee ? callee->name : e->name))
+            return FLOW_READ;
+        return FLOW_RETAINED;
+    }
+    if(callee->is_template || callee->stmt_count == 0)
         return FLOW_RETAINED;
     int index = fn->exprs[argument].argument_index;
     if(index < 0 || index >= 64)

@@ -1073,11 +1073,24 @@ locals, a procedure that returns its argument when that result is only
 read, and a record literal field, as in `Draw(Props.{.text = Render(a)})`,
 whose callee only reads that field of its record parameter. A callee or
 local that stores, returns, aliases or defers the string, or a foreign
-callee, keeps it. The result is never computed earlier than written, so one after
-another call in its expression, after a global its procedure may change, in
-a loop or `else if` condition, or in an `&&`, `||` or `ifx` arm keeps its
-bytes. Literals such as `-1` and other globals may come first. `tests/text_scoped_arguments.sh`
-checks both kinds.
+callee not marked `#reads`, keeps it. The result is never computed earlier
+than written, so one after another call in its expression, after a global
+its procedure may change, in a loop or `else if` condition, or in an `&&`,
+`||` or `ifx` arm keeps its bytes. Literals such as `-1` and other globals
+may come first. `tests/text_scoped_arguments.sh` checks both kinds.
+
+A foreign procedure that only reads its string and byte arguments during
+the call says so with `#reads` before `#foreign`:
+
+```
+MeasureWidth :: (value: string, font: s32) -> s32 #reads #foreign host_api;
+```
+
+Text passed to it is then freed like Text passed to a Ziran procedure that
+only reads it. Leave the marker off when the host may keep the pointer,
+such as a binding that stores it; `#reads` on a procedure with a Ziran body
+is an error, because that body already shows what it reads.
+`tests/foreign_reads.sh` checks both.
 `TextDetach(text)` detaches explicitly, and `TextFromBuilder(bytes)` takes a
 builder's bytes as a `Text`.
 

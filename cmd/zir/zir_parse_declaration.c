@@ -633,6 +633,7 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
         imp->go_field = declaration.go_field;
         imp->go_defer = declaration.go_defer;
         imp->go_variadic = declaration.go_variadic;
+        imp->reads_arguments = declaration.reads;
         copy_text(imp->extern_symbol, sizeof(imp->extern_symbol), symbol);
         imp->is_varargs = compiler_declaration_ForeignVarargs(declaration_text(imp->args));
     }

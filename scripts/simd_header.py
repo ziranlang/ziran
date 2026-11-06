@@ -598,6 +598,39 @@ class Memory(Op):
             return [('void *', 'p'), (t.c, 'a')]
         return [('const void *', 'p')]
 
+    def special(self, t):
+        # Unaligned vector loads and stores: the 4-byte-aligned vector types
+        # make GCC copy a whole vector as two 64-bit halves.
+        if t.wide:
+            if self.low:
+                return []
+            if self.store:
+                return [(AVX2, '_mm256_storeu_si256((__m256i *)p, (__m256i)a);')]
+            return [(AVX2, 'return (%s)_mm256_loadu_si256((const __m256i *)p);' % t.c)]
+        if self.store and self.low:
+            return [(X86, '_mm_storel_epi64((__m128i *)p, (__m128i)a);'),
+                    (NEON, 'vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));'),
+                    (WASM, 'wasm_v128_store64_lane(p, (v128_t)a, 0);')]
+        if self.store:
+            return [(X86, '_mm_storeu_si128((__m128i *)p, (__m128i)a);'),
+                    (NEON, 'vst1q_u8((uint8_t *)p, (uint8x16_t)a);'),
+                    (WASM, 'wasm_v128_store(p, (v128_t)a);')]
+        if self.low:
+            # A 64-bit load into a zeroed vector.
+            return [(X86, 'return (%s)_mm_loadl_epi64((const __m128i *)p);' % t.c),
+                    (NEON, 'return (%s)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));' % t.c),
+                    (WASM, 'return (%s)wasm_v128_load64_zero(p);' % t.c)]
+        return [(X86, 'return (%s)_mm_loadu_si128((const __m128i *)p);' % t.c),
+                (NEON, 'return (%s)vld1q_u8((const uint8_t *)p);' % t.c),
+                (WASM, 'return (%s)wasm_v128_load(p);' % t.c)]
+
+    def generic(self, t):
+        if self.store or not self.low:
+            return None
+        return 'uint64_t w_;\n    memcpy(&w_, p, 8);\n    return (%s)(zi_u64x%d){w_};' % (t.c, t.bytes // 8)
+
+    splittable = False
+
     def portable(self, t):
         size = 8 if self.low else t.bytes
         if self.store:
@@ -631,20 +664,40 @@ class WidenHalf(Op):
     def params(self, t):
         return [(t.c, 'a')]
 
-    def generic(self, t):
+    def special(self, t):
+        # Unpacking with zeros or with the sign widens each 128-bit block.
         r = self.result(t)
-        h = t.half.bytes  # bytes of t's half
-        lines = ['typedef %s h_ __attribute__((vector_size(%d)));' % (t.ctype, h), 'h_ h_v;']
-        if t.wide:
-            off = 8 if self.high else 0
-            lines.append('memcpy(&h_v, (const char *)&a + %d, 8);' % off)
-            lines.append('memcpy((char *)&h_v + 8, (const char *)&a + %d, 8);' % (16 + off))
+        m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+        unpack = '%sunpack%s_epi%d' % (m, 'hi' if self.high else 'lo', t.bits)
+        if not t.signed:
+            body = 'return (%s)%s((%s)a, %ssetzero_si%d());' % (r.c, unpack, reg, m, t.bytes * 8)
+        elif t.bits < 32:
+            body = 'return (%s)%ssrai_epi%d(%s((%s)a, (%s)a), %d);' % (
+                r.c, m, t.bits * 2, unpack, reg, reg, t.bits)
         else:
-            lines.append('memcpy(&h_v, (const char *)&a + %d, %d);' % (h if self.high else 0, h))
-        lines.append('return (%s)__builtin_convertvector(h_v, %s);' % (r.c, r.c))
-        return '\n    '.join(lines)
+            body = 'return (%s)%s((%s)a, %ssrai_epi32((%s)a, 31));' % (r.c, unpack, reg, m, reg)
+        out = [(AVX2 if t.wide else X86, body)]
+        if t.wide:
+            return out
+        half = 'high' if self.high else 'low'
+        out.append((A64, 'return (%s)vmovl_%s%s((%s)a);' % (
+            r.c, 'high_' if self.high else '', t.nsuf, t.neon)) if self.high else
+            (NEON, 'return (%s)vmovl_%s(vget_low_%s((%s)a));' % (r.c, t.nsuf, t.nsuf, t.neon)))
+        if self.high:
+            out.append((NEON, 'return (%s)vmovl_%s(vget_high_%s((%s)a));' % (r.c, t.nsuf, t.nsuf, t.neon)))
+        letter = 'i' if t.signed else 'u'
+        out.append((WASM, 'return (%s)wasm_%s%dx%d_extend_%s_%s%dx%d((v128_t)a);' % (
+            r.c, letter, t.bits * 2, t.lanes // 2, half, letter, t.bits, t.lanes)))
+        return out
 
-    splittable = False
+    def generic(self, t):
+        # The half of each 128-bit block's lanes as one shuffle.
+        r = self.result(t)
+        per = t.block
+        start = per // 2 if self.high else 0
+        picks = [block * per + start + i for block in range(t.lanes // per) for i in range(per // 2)]
+        return 'return (%s)__builtin_convertvector(__builtin_shufflevector(a, a, %s), %s);' % (
+            r.c, ', '.join(str(i) for i in picks), r.c)
 
 
 class Widen(Op):
@@ -656,6 +709,15 @@ class Widen(Op):
 
     def params(self, t):
         return [(t.c, 'a')]
+
+    def special(self, t):
+        # One extension in AVX2; elsewhere the two halves' widenings.
+        r = self.result(t)
+        extend = '_mm256_cvt%s%d_epi%d' % ('epi' if t.signed else 'epu', t.bits, t.bits * 2)
+        halves = 'return ZI_N(combine_%s)(ZI_N(widen_low_%s)(a), ZI_N(widen_high_%s)(a));' % (
+            r.half.name, t.name, t.name)
+        return [(AVX2, 'return (%s)%s((__m128i)a);' % (r.c, extend)),
+                ('%s || %s || %s' % (X86, NEON, WASM), halves)]
 
     def generic(self, t):
         return 'return (%s)__builtin_convertvector(a, %s);' % (self.result(t).c, self.result(t).c)
@@ -975,6 +1037,11 @@ class Half(Op):
     def params(self, t):
         return [(t.c, 'a')]
 
+    def special(self, t):
+        if self.high:
+            return [(AVX2, 'return (%s)_mm256_extracti128_si256((__m256i)a, 1);' % t.half.c)]
+        return [(AVX2, 'return (%s)_mm256_castsi256_si128((__m256i)a);' % t.half.c)]
+
     def portable(self, t):
         return '%s r_;\n    memcpy(&r_, (const char *)&a + %d, 16);\n    return r_;' % (t.half.c, 16 if self.high else 0)
 
@@ -987,6 +1054,10 @@ class Combine(Op):
 
     def result(self, t):
         return t.double
+
+    def special(self, t):
+        return [(AVX2, 'return (%s)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);' %
+                 t.double.c)]
 
     def portable(self, t):
         return ('%s r_;\n    memcpy(&r_, &a, 16);\n    memcpy((char *)&r_ + 16, &b, 16);\n    return r_;' %

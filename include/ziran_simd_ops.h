@@ -8361,383 +8361,883 @@ ZI_FN zi_f64x4 ZI_N(with_lane_f64x4)(zi_f64x4 a, int i, double x)
 }
 ZI_FN zi_u8x16 ZI_N(load_u8x16)(const void * p)
 {
+#if ZI_X86
+    return (zi_u8x16)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u8x16)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_u8x16)wasm_v128_load(p);
+#else
     zi_u8x16 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s8x16 ZI_N(load_s8x16)(const void * p)
 {
+#if ZI_X86
+    return (zi_s8x16)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s8x16)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_s8x16)wasm_v128_load(p);
+#else
     zi_s8x16 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u16x8 ZI_N(load_u16x8)(const void * p)
 {
+#if ZI_X86
+    return (zi_u16x8)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u16x8)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_u16x8)wasm_v128_load(p);
+#else
     zi_u16x8 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s16x8 ZI_N(load_s16x8)(const void * p)
 {
+#if ZI_X86
+    return (zi_s16x8)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s16x8)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_s16x8)wasm_v128_load(p);
+#else
     zi_s16x8 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u32x4 ZI_N(load_u32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_u32x4)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u32x4)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_u32x4)wasm_v128_load(p);
+#else
     zi_u32x4 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s32x4 ZI_N(load_s32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_s32x4)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s32x4)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_s32x4)wasm_v128_load(p);
+#else
     zi_s32x4 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u64x2 ZI_N(load_u64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_u64x2)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u64x2)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_u64x2)wasm_v128_load(p);
+#else
     zi_u64x2 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s64x2 ZI_N(load_s64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_s64x2)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s64x2)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_s64x2)wasm_v128_load(p);
+#else
     zi_s64x2 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f32x4 ZI_N(load_f32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_f32x4)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_f32x4)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_f32x4)wasm_v128_load(p);
+#else
     zi_f32x4 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f64x2 ZI_N(load_f64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_f64x2)_mm_loadu_si128((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_f64x2)vld1q_u8((const uint8_t *)p);
+#elif ZI_WASM
+    return (zi_f64x2)wasm_v128_load(p);
+#else
     zi_f64x2 r_;
     memcpy(&r_, p, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u8x32 ZI_N(load_u8x32)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u8x32)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_u8x32 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_s8x32 ZI_N(load_s8x32)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s8x32)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_s8x32 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_u16x16 ZI_N(load_u16x16)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x16)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_u16x16 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_s16x16 ZI_N(load_s16x16)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_s16x16 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_u32x8 ZI_N(load_u32x8)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x8)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_u32x8 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_s32x8 ZI_N(load_s32x8)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_s32x8 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_u64x4 ZI_N(load_u64x4)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x4)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_u64x4 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_s64x4 ZI_N(load_s64x4)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x4)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_s64x4 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_f32x8 ZI_N(load_f32x8)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f32x8)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_f32x8 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_f64x4 ZI_N(load_f64x4)(const void * p)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f64x4)_mm256_loadu_si256((const __m256i *)p);
+#else
     zi_f64x4 r_;
     memcpy(&r_, p, 32);
     return r_;
+#endif
 }
 ZI_FN zi_u8x16 ZI_N(load_low_u8x16)(const void * p)
 {
+#if ZI_X86
+    return (zi_u8x16)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u8x16)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_u8x16)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u8x16)(zi_u64x2){w_};
+#else
     zi_u8x16 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s8x16 ZI_N(load_low_s8x16)(const void * p)
 {
+#if ZI_X86
+    return (zi_s8x16)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s8x16)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_s8x16)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s8x16)(zi_u64x2){w_};
+#else
     zi_s8x16 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u16x8 ZI_N(load_low_u16x8)(const void * p)
 {
+#if ZI_X86
+    return (zi_u16x8)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u16x8)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_u16x8)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u16x8)(zi_u64x2){w_};
+#else
     zi_u16x8 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s16x8 ZI_N(load_low_s16x8)(const void * p)
 {
+#if ZI_X86
+    return (zi_s16x8)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s16x8)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_s16x8)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s16x8)(zi_u64x2){w_};
+#else
     zi_s16x8 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u32x4 ZI_N(load_low_u32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_u32x4)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_u32x4)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u32x4)(zi_u64x2){w_};
+#else
     zi_u32x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s32x4 ZI_N(load_low_s32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_s32x4)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_s32x4)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s32x4)(zi_u64x2){w_};
+#else
     zi_s32x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u64x2 ZI_N(load_low_u64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_u64x2)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_u64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_u64x2)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u64x2)(zi_u64x2){w_};
+#else
     zi_u64x2 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s64x2 ZI_N(load_low_s64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_s64x2)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_s64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_s64x2)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s64x2)(zi_u64x2){w_};
+#else
     zi_s64x2 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_f32x4 ZI_N(load_low_f32x4)(const void * p)
 {
+#if ZI_X86
+    return (zi_f32x4)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_f32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_f32x4)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_f32x4)(zi_u64x2){w_};
+#else
     zi_f32x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_f64x2 ZI_N(load_low_f64x2)(const void * p)
 {
+#if ZI_X86
+    return (zi_f64x2)_mm_loadl_epi64((const __m128i *)p);
+#elif ZI_NEON
+    return (zi_f64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+#elif ZI_WASM
+    return (zi_f64x2)wasm_v128_load64_zero(p);
+#elif ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_f64x2)(zi_u64x2){w_};
+#else
     zi_f64x2 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u8x32 ZI_N(load_low_u8x32)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u8x32)(zi_u64x4){w_};
+#else
     zi_u8x32 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s8x32 ZI_N(load_low_s8x32)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s8x32)(zi_u64x4){w_};
+#else
     zi_s8x32 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u16x16 ZI_N(load_low_u16x16)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u16x16)(zi_u64x4){w_};
+#else
     zi_u16x16 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s16x16 ZI_N(load_low_s16x16)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s16x16)(zi_u64x4){w_};
+#else
     zi_s16x16 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u32x8 ZI_N(load_low_u32x8)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u32x8)(zi_u64x4){w_};
+#else
     zi_u32x8 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s32x8 ZI_N(load_low_s32x8)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s32x8)(zi_u64x4){w_};
+#else
     zi_s32x8 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_u64x4 ZI_N(load_low_u64x4)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_u64x4)(zi_u64x4){w_};
+#else
     zi_u64x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_s64x4 ZI_N(load_low_s64x4)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_s64x4)(zi_u64x4){w_};
+#else
     zi_s64x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_f32x8 ZI_N(load_low_f32x8)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_f32x8)(zi_u64x4){w_};
+#else
     zi_f32x8 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN zi_f64x4 ZI_N(load_low_f64x4)(const void * p)
 {
+#if ZI_VEC
+    uint64_t w_;
+    memcpy(&w_, p, 8);
+    return (zi_f64x4)(zi_u64x4){w_};
+#else
     zi_f64x4 r_;
     memset(&r_, 0, sizeof(r_));
     memcpy(&r_, p, 8);
     return r_;
+#endif
 }
 ZI_FN void ZI_N(store_u8x16)(void * p, zi_u8x16 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_s8x16)(void * p, zi_s8x16 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_u16x8)(void * p, zi_u16x8 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_s16x8)(void * p, zi_s16x8 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_u32x4)(void * p, zi_u32x4 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_s32x4)(void * p, zi_s32x4 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_u64x2)(void * p, zi_u64x2 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_s64x2)(void * p, zi_s64x2 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_f32x4)(void * p, zi_f32x4 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_f64x2)(void * p, zi_f64x2 a)
 {
+#if ZI_X86
+    _mm_storeu_si128((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1q_u8((uint8_t *)p, (uint8x16_t)a);
+#elif ZI_WASM
+    wasm_v128_store(p, (v128_t)a);
+#else
     memcpy(p, &a, 16);
+#endif
 }
 ZI_FN void ZI_N(store_u8x32)(void * p, zi_u8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_s8x32)(void * p, zi_s8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_u16x16)(void * p, zi_u16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_s16x16)(void * p, zi_s16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_u32x8)(void * p, zi_u32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_s32x8)(void * p, zi_s32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_u64x4)(void * p, zi_u64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_s64x4)(void * p, zi_s64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_f32x8)(void * p, zi_f32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_f64x4)(void * p, zi_f64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    _mm256_storeu_si256((__m256i *)p, (__m256i)a);
+#else
     memcpy(p, &a, 32);
+#endif
 }
 ZI_FN void ZI_N(store_low_u8x16)(void * p, zi_u8x16 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_s8x16)(void * p, zi_s8x16 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_u16x8)(void * p, zi_u16x8 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_s16x8)(void * p, zi_s16x8 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_u32x4)(void * p, zi_u32x4 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_s32x4)(void * p, zi_s32x4 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_u64x2)(void * p, zi_u64x2 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_s64x2)(void * p, zi_s64x2 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_f32x4)(void * p, zi_f32x4 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_f64x2)(void * p, zi_f64x2 a)
 {
+#if ZI_X86
+    _mm_storel_epi64((__m128i *)p, (__m128i)a);
+#elif ZI_NEON
+    vst1_u8((uint8_t *)p, vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    wasm_v128_store64_lane(p, (v128_t)a, 0);
+#else
     memcpy(p, &a, 8);
+#endif
 }
 ZI_FN void ZI_N(store_low_u8x32)(void * p, zi_u8x32 a)
 {
@@ -8917,11 +9417,14 @@ ZI_FN zi_f32x8 ZI_N(gather_s32x8_f32x8)(const void * p, zi_s32x8 a)
 }
 ZI_FN zi_u16x8 ZI_N(widen_low_u8x16)(zi_u8x16 a)
 {
-#if ZI_VEC
-    typedef uint8_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_u16x8)__builtin_convertvector(h_v, zi_u16x8);
+#if ZI_X86
+    return (zi_u16x8)_mm_unpacklo_epi8((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON
+    return (zi_u16x8)vmovl_u8(vget_low_u8((uint8x16_t)a));
+#elif ZI_WASM
+    return (zi_u16x8)wasm_u16x8_extend_low_u8x16((v128_t)a);
+#elif ZI_VEC
+    return (zi_u16x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7), zi_u16x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -8932,11 +9435,14 @@ ZI_FN zi_u16x8 ZI_N(widen_low_u8x16)(zi_u8x16 a)
 }
 ZI_FN zi_s16x8 ZI_N(widen_low_s8x16)(zi_s8x16 a)
 {
-#if ZI_VEC
-    typedef int8_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_s16x8)__builtin_convertvector(h_v, zi_s16x8);
+#if ZI_X86
+    return (zi_s16x8)_mm_srai_epi16(_mm_unpacklo_epi8((__m128i)a, (__m128i)a), 8);
+#elif ZI_NEON
+    return (zi_s16x8)vmovl_s8(vget_low_s8((int8x16_t)a));
+#elif ZI_WASM
+    return (zi_s16x8)wasm_i16x8_extend_low_i8x16((v128_t)a);
+#elif ZI_VEC
+    return (zi_s16x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7), zi_s16x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -8947,11 +9453,14 @@ ZI_FN zi_s16x8 ZI_N(widen_low_s8x16)(zi_s8x16 a)
 }
 ZI_FN zi_u32x4 ZI_N(widen_low_u16x8)(zi_u16x8 a)
 {
-#if ZI_VEC
-    typedef uint16_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_u32x4)__builtin_convertvector(h_v, zi_u32x4);
+#if ZI_X86
+    return (zi_u32x4)_mm_unpacklo_epi16((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON
+    return (zi_u32x4)vmovl_u16(vget_low_u16((uint16x8_t)a));
+#elif ZI_WASM
+    return (zi_u32x4)wasm_u32x4_extend_low_u16x8((v128_t)a);
+#elif ZI_VEC
+    return (zi_u32x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3), zi_u32x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -8962,11 +9471,14 @@ ZI_FN zi_u32x4 ZI_N(widen_low_u16x8)(zi_u16x8 a)
 }
 ZI_FN zi_s32x4 ZI_N(widen_low_s16x8)(zi_s16x8 a)
 {
-#if ZI_VEC
-    typedef int16_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_s32x4)__builtin_convertvector(h_v, zi_s32x4);
+#if ZI_X86
+    return (zi_s32x4)_mm_srai_epi32(_mm_unpacklo_epi16((__m128i)a, (__m128i)a), 16);
+#elif ZI_NEON
+    return (zi_s32x4)vmovl_s16(vget_low_s16((int16x8_t)a));
+#elif ZI_WASM
+    return (zi_s32x4)wasm_i32x4_extend_low_i16x8((v128_t)a);
+#elif ZI_VEC
+    return (zi_s32x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3), zi_s32x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -8977,11 +9489,14 @@ ZI_FN zi_s32x4 ZI_N(widen_low_s16x8)(zi_s16x8 a)
 }
 ZI_FN zi_u64x2 ZI_N(widen_low_u32x4)(zi_u32x4 a)
 {
-#if ZI_VEC
-    typedef uint32_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_u64x2)__builtin_convertvector(h_v, zi_u64x2);
+#if ZI_X86
+    return (zi_u64x2)_mm_unpacklo_epi32((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON
+    return (zi_u64x2)vmovl_u32(vget_low_u32((uint32x4_t)a));
+#elif ZI_WASM
+    return (zi_u64x2)wasm_u64x2_extend_low_u32x4((v128_t)a);
+#elif ZI_VEC
+    return (zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1), zi_u64x2);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -8992,11 +9507,14 @@ ZI_FN zi_u64x2 ZI_N(widen_low_u32x4)(zi_u32x4 a)
 }
 ZI_FN zi_s64x2 ZI_N(widen_low_s32x4)(zi_s32x4 a)
 {
-#if ZI_VEC
-    typedef int32_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    return (zi_s64x2)__builtin_convertvector(h_v, zi_s64x2);
+#if ZI_X86
+    return (zi_s64x2)_mm_unpacklo_epi32((__m128i)a, _mm_srai_epi32((__m128i)a, 31));
+#elif ZI_NEON
+    return (zi_s64x2)vmovl_s32(vget_low_s32((int32x4_t)a));
+#elif ZI_WASM
+    return (zi_s64x2)wasm_i64x2_extend_low_i32x4((v128_t)a);
+#elif ZI_VEC
+    return (zi_s64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1), zi_s64x2);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9007,12 +9525,12 @@ ZI_FN zi_s64x2 ZI_N(widen_low_s32x4)(zi_s32x4 a)
 }
 ZI_FN zi_u16x16 ZI_N(widen_low_u8x32)(zi_u8x32 a)
 {
-#if ZI_VEC
-    typedef uint8_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_u16x16)__builtin_convertvector(h_v, zi_u16x16);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x16)_mm256_unpacklo_epi8((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u16x8)(ZI_N(widen_low_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(widen_low_u8x16)(ZI_N(high_u8x32)(a)));
+#elif ZI_VEC
+    return (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23), zi_u16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9023,12 +9541,12 @@ ZI_FN zi_u16x16 ZI_N(widen_low_u8x32)(zi_u8x32 a)
 }
 ZI_FN zi_s16x16 ZI_N(widen_low_s8x32)(zi_s8x32 a)
 {
-#if ZI_VEC
-    typedef int8_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_s16x16)__builtin_convertvector(h_v, zi_s16x16);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_srai_epi16(_mm256_unpacklo_epi8((__m256i)a, (__m256i)a), 8);
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s16x8)(ZI_N(widen_low_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(widen_low_s8x16)(ZI_N(high_s8x32)(a)));
+#elif ZI_VEC
+    return (zi_s16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23), zi_s16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9039,12 +9557,12 @@ ZI_FN zi_s16x16 ZI_N(widen_low_s8x32)(zi_s8x32 a)
 }
 ZI_FN zi_u32x8 ZI_N(widen_low_u16x16)(zi_u16x16 a)
 {
-#if ZI_VEC
-    typedef uint16_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_u32x8)__builtin_convertvector(h_v, zi_u32x8);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x8)_mm256_unpacklo_epi16((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u32x4)(ZI_N(widen_low_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(widen_low_u16x8)(ZI_N(high_u16x16)(a)));
+#elif ZI_VEC
+    return (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 8, 9, 10, 11), zi_u32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9055,12 +9573,12 @@ ZI_FN zi_u32x8 ZI_N(widen_low_u16x16)(zi_u16x16 a)
 }
 ZI_FN zi_s32x8 ZI_N(widen_low_s16x16)(zi_s16x16 a)
 {
-#if ZI_VEC
-    typedef int16_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_s32x8)__builtin_convertvector(h_v, zi_s32x8);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_srai_epi32(_mm256_unpacklo_epi16((__m256i)a, (__m256i)a), 16);
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s32x4)(ZI_N(widen_low_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(widen_low_s16x8)(ZI_N(high_s16x16)(a)));
+#elif ZI_VEC
+    return (zi_s32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 8, 9, 10, 11), zi_s32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9071,12 +9589,12 @@ ZI_FN zi_s32x8 ZI_N(widen_low_s16x16)(zi_s16x16 a)
 }
 ZI_FN zi_u64x4 ZI_N(widen_low_u32x8)(zi_u32x8 a)
 {
-#if ZI_VEC
-    typedef uint32_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_u64x4)__builtin_convertvector(h_v, zi_u64x4);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x4)_mm256_unpacklo_epi32((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u64x2)(ZI_N(widen_low_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(widen_low_u32x4)(ZI_N(high_u32x8)(a)));
+#elif ZI_VEC
+    return (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 4, 5), zi_u64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9087,12 +9605,12 @@ ZI_FN zi_u64x4 ZI_N(widen_low_u32x8)(zi_u32x8 a)
 }
 ZI_FN zi_s64x4 ZI_N(widen_low_s32x8)(zi_s32x8 a)
 {
-#if ZI_VEC
-    typedef int32_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 0, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 16, 8);
-    return (zi_s64x4)__builtin_convertvector(h_v, zi_s64x4);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x4)_mm256_unpacklo_epi32((__m256i)a, _mm256_srai_epi32((__m256i)a, 31));
+#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s64x2)(ZI_N(widen_low_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(widen_low_s32x4)(ZI_N(high_s32x8)(a)));
+#elif ZI_VEC
+    return (zi_s64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 4, 5), zi_s64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9103,11 +9621,16 @@ ZI_FN zi_s64x4 ZI_N(widen_low_s32x8)(zi_s32x8 a)
 }
 ZI_FN zi_u16x8 ZI_N(widen_high_u8x16)(zi_u8x16 a)
 {
-#if ZI_VEC
-    typedef uint8_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_u16x8)__builtin_convertvector(h_v, zi_u16x8);
+#if ZI_X86
+    return (zi_u16x8)_mm_unpackhi_epi8((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON && ZI_A64
+    return (zi_u16x8)vmovl_high_u8((uint8x16_t)a);
+#elif ZI_NEON
+    return (zi_u16x8)vmovl_u8(vget_high_u8((uint8x16_t)a));
+#elif ZI_WASM
+    return (zi_u16x8)wasm_u16x8_extend_high_u8x16((v128_t)a);
+#elif ZI_VEC
+    return (zi_u16x8)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15), zi_u16x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9118,11 +9641,16 @@ ZI_FN zi_u16x8 ZI_N(widen_high_u8x16)(zi_u8x16 a)
 }
 ZI_FN zi_s16x8 ZI_N(widen_high_s8x16)(zi_s8x16 a)
 {
-#if ZI_VEC
-    typedef int8_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_s16x8)__builtin_convertvector(h_v, zi_s16x8);
+#if ZI_X86
+    return (zi_s16x8)_mm_srai_epi16(_mm_unpackhi_epi8((__m128i)a, (__m128i)a), 8);
+#elif ZI_NEON && ZI_A64
+    return (zi_s16x8)vmovl_high_s8((int8x16_t)a);
+#elif ZI_NEON
+    return (zi_s16x8)vmovl_s8(vget_high_s8((int8x16_t)a));
+#elif ZI_WASM
+    return (zi_s16x8)wasm_i16x8_extend_high_i8x16((v128_t)a);
+#elif ZI_VEC
+    return (zi_s16x8)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15), zi_s16x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9133,11 +9661,16 @@ ZI_FN zi_s16x8 ZI_N(widen_high_s8x16)(zi_s8x16 a)
 }
 ZI_FN zi_u32x4 ZI_N(widen_high_u16x8)(zi_u16x8 a)
 {
-#if ZI_VEC
-    typedef uint16_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_u32x4)__builtin_convertvector(h_v, zi_u32x4);
+#if ZI_X86
+    return (zi_u32x4)_mm_unpackhi_epi16((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON && ZI_A64
+    return (zi_u32x4)vmovl_high_u16((uint16x8_t)a);
+#elif ZI_NEON
+    return (zi_u32x4)vmovl_u16(vget_high_u16((uint16x8_t)a));
+#elif ZI_WASM
+    return (zi_u32x4)wasm_u32x4_extend_high_u16x8((v128_t)a);
+#elif ZI_VEC
+    return (zi_u32x4)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7), zi_u32x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9148,11 +9681,16 @@ ZI_FN zi_u32x4 ZI_N(widen_high_u16x8)(zi_u16x8 a)
 }
 ZI_FN zi_s32x4 ZI_N(widen_high_s16x8)(zi_s16x8 a)
 {
-#if ZI_VEC
-    typedef int16_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_s32x4)__builtin_convertvector(h_v, zi_s32x4);
+#if ZI_X86
+    return (zi_s32x4)_mm_srai_epi32(_mm_unpackhi_epi16((__m128i)a, (__m128i)a), 16);
+#elif ZI_NEON && ZI_A64
+    return (zi_s32x4)vmovl_high_s16((int16x8_t)a);
+#elif ZI_NEON
+    return (zi_s32x4)vmovl_s16(vget_high_s16((int16x8_t)a));
+#elif ZI_WASM
+    return (zi_s32x4)wasm_i32x4_extend_high_i16x8((v128_t)a);
+#elif ZI_VEC
+    return (zi_s32x4)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7), zi_s32x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9163,11 +9701,16 @@ ZI_FN zi_s32x4 ZI_N(widen_high_s16x8)(zi_s16x8 a)
 }
 ZI_FN zi_u64x2 ZI_N(widen_high_u32x4)(zi_u32x4 a)
 {
-#if ZI_VEC
-    typedef uint32_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_u64x2)__builtin_convertvector(h_v, zi_u64x2);
+#if ZI_X86
+    return (zi_u64x2)_mm_unpackhi_epi32((__m128i)a, _mm_setzero_si128());
+#elif ZI_NEON && ZI_A64
+    return (zi_u64x2)vmovl_high_u32((uint32x4_t)a);
+#elif ZI_NEON
+    return (zi_u64x2)vmovl_u32(vget_high_u32((uint32x4_t)a));
+#elif ZI_WASM
+    return (zi_u64x2)wasm_u64x2_extend_high_u32x4((v128_t)a);
+#elif ZI_VEC
+    return (zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3), zi_u64x2);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9178,11 +9721,16 @@ ZI_FN zi_u64x2 ZI_N(widen_high_u32x4)(zi_u32x4 a)
 }
 ZI_FN zi_s64x2 ZI_N(widen_high_s32x4)(zi_s32x4 a)
 {
-#if ZI_VEC
-    typedef int32_t h_ __attribute__((vector_size(8)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    return (zi_s64x2)__builtin_convertvector(h_v, zi_s64x2);
+#if ZI_X86
+    return (zi_s64x2)_mm_unpackhi_epi32((__m128i)a, _mm_srai_epi32((__m128i)a, 31));
+#elif ZI_NEON && ZI_A64
+    return (zi_s64x2)vmovl_high_s32((int32x4_t)a);
+#elif ZI_NEON
+    return (zi_s64x2)vmovl_s32(vget_high_s32((int32x4_t)a));
+#elif ZI_WASM
+    return (zi_s64x2)wasm_i64x2_extend_high_i32x4((v128_t)a);
+#elif ZI_VEC
+    return (zi_s64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3), zi_s64x2);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9193,12 +9741,12 @@ ZI_FN zi_s64x2 ZI_N(widen_high_s32x4)(zi_s32x4 a)
 }
 ZI_FN zi_u16x16 ZI_N(widen_high_u8x32)(zi_u8x32 a)
 {
-#if ZI_VEC
-    typedef uint8_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_u16x16)__builtin_convertvector(h_v, zi_u16x16);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x16)_mm256_unpackhi_epi8((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u16x8)(ZI_N(widen_high_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(widen_high_u8x16)(ZI_N(high_u8x32)(a)));
+#elif ZI_VEC
+    return (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31), zi_u16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9209,12 +9757,12 @@ ZI_FN zi_u16x16 ZI_N(widen_high_u8x32)(zi_u8x32 a)
 }
 ZI_FN zi_s16x16 ZI_N(widen_high_s8x32)(zi_s8x32 a)
 {
-#if ZI_VEC
-    typedef int8_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_s16x16)__builtin_convertvector(h_v, zi_s16x16);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_srai_epi16(_mm256_unpackhi_epi8((__m256i)a, (__m256i)a), 8);
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s16x8)(ZI_N(widen_high_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(widen_high_s8x16)(ZI_N(high_s8x32)(a)));
+#elif ZI_VEC
+    return (zi_s16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31), zi_s16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9225,12 +9773,12 @@ ZI_FN zi_s16x16 ZI_N(widen_high_s8x32)(zi_s8x32 a)
 }
 ZI_FN zi_u32x8 ZI_N(widen_high_u16x16)(zi_u16x16 a)
 {
-#if ZI_VEC
-    typedef uint16_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_u32x8)__builtin_convertvector(h_v, zi_u32x8);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x8)_mm256_unpackhi_epi16((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u32x4)(ZI_N(widen_high_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(widen_high_u16x8)(ZI_N(high_u16x16)(a)));
+#elif ZI_VEC
+    return (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7, 12, 13, 14, 15), zi_u32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9241,12 +9789,12 @@ ZI_FN zi_u32x8 ZI_N(widen_high_u16x16)(zi_u16x16 a)
 }
 ZI_FN zi_s32x8 ZI_N(widen_high_s16x16)(zi_s16x16 a)
 {
-#if ZI_VEC
-    typedef int16_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_s32x8)__builtin_convertvector(h_v, zi_s32x8);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_srai_epi32(_mm256_unpackhi_epi16((__m256i)a, (__m256i)a), 16);
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s32x4)(ZI_N(widen_high_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(widen_high_s16x8)(ZI_N(high_s16x16)(a)));
+#elif ZI_VEC
+    return (zi_s32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7, 12, 13, 14, 15), zi_s32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9257,12 +9805,12 @@ ZI_FN zi_s32x8 ZI_N(widen_high_s16x16)(zi_s16x16 a)
 }
 ZI_FN zi_u64x4 ZI_N(widen_high_u32x8)(zi_u32x8 a)
 {
-#if ZI_VEC
-    typedef uint32_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_u64x4)__builtin_convertvector(h_v, zi_u64x4);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x4)_mm256_unpackhi_epi32((__m256i)a, _mm256_setzero_si256());
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u64x2)(ZI_N(widen_high_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(widen_high_u32x4)(ZI_N(high_u32x8)(a)));
+#elif ZI_VEC
+    return (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3, 6, 7), zi_u64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9273,12 +9821,12 @@ ZI_FN zi_u64x4 ZI_N(widen_high_u32x8)(zi_u32x8 a)
 }
 ZI_FN zi_s64x4 ZI_N(widen_high_s32x8)(zi_s32x8 a)
 {
-#if ZI_VEC
-    typedef int32_t h_ __attribute__((vector_size(16)));
-    h_ h_v;
-    memcpy(&h_v, (const char *)&a + 8, 8);
-    memcpy((char *)&h_v + 8, (const char *)&a + 24, 8);
-    return (zi_s64x4)__builtin_convertvector(h_v, zi_s64x4);
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x4)_mm256_unpackhi_epi32((__m256i)a, _mm256_srai_epi32((__m256i)a, 31));
+#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_s64x2)(ZI_N(widen_high_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(widen_high_s32x4)(ZI_N(high_s32x8)(a)));
+#elif ZI_VEC
+    return (zi_s64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3, 6, 7), zi_s64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -9289,7 +9837,11 @@ ZI_FN zi_s64x4 ZI_N(widen_high_s32x8)(zi_s32x8 a)
 }
 ZI_FN zi_u16x16 ZI_N(widen_u8x16)(zi_u8x16 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x16)_mm256_cvtepu8_epi16((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_u16x8)(ZI_N(widen_low_u8x16)(a), ZI_N(widen_high_u8x16)(a));
+#elif ZI_VEC
     return (zi_u16x16)__builtin_convertvector(a, zi_u16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -9301,7 +9853,11 @@ ZI_FN zi_u16x16 ZI_N(widen_u8x16)(zi_u8x16 a)
 }
 ZI_FN zi_s16x16 ZI_N(widen_s8x16)(zi_s8x16 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_cvtepi8_epi16((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_s16x8)(ZI_N(widen_low_s8x16)(a), ZI_N(widen_high_s8x16)(a));
+#elif ZI_VEC
     return (zi_s16x16)__builtin_convertvector(a, zi_s16x16);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -9313,7 +9869,11 @@ ZI_FN zi_s16x16 ZI_N(widen_s8x16)(zi_s8x16 a)
 }
 ZI_FN zi_u32x8 ZI_N(widen_u16x8)(zi_u16x8 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x8)_mm256_cvtepu16_epi32((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_u32x4)(ZI_N(widen_low_u16x8)(a), ZI_N(widen_high_u16x8)(a));
+#elif ZI_VEC
     return (zi_u32x8)__builtin_convertvector(a, zi_u32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -9325,7 +9885,11 @@ ZI_FN zi_u32x8 ZI_N(widen_u16x8)(zi_u16x8 a)
 }
 ZI_FN zi_s32x8 ZI_N(widen_s16x8)(zi_s16x8 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_cvtepi16_epi32((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_s32x4)(ZI_N(widen_low_s16x8)(a), ZI_N(widen_high_s16x8)(a));
+#elif ZI_VEC
     return (zi_s32x8)__builtin_convertvector(a, zi_s32x8);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -9337,7 +9901,11 @@ ZI_FN zi_s32x8 ZI_N(widen_s16x8)(zi_s16x8 a)
 }
 ZI_FN zi_u64x4 ZI_N(widen_u32x4)(zi_u32x4 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x4)_mm256_cvtepu32_epi64((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_u64x2)(ZI_N(widen_low_u32x4)(a), ZI_N(widen_high_u32x4)(a));
+#elif ZI_VEC
     return (zi_u64x4)__builtin_convertvector(a, zi_u64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -9349,7 +9917,11 @@ ZI_FN zi_u64x4 ZI_N(widen_u32x4)(zi_u32x4 a)
 }
 ZI_FN zi_s64x4 ZI_N(widen_s32x4)(zi_s32x4 a)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x4)_mm256_cvtepi32_epi64((__m128i)a);
+#elif ZI_X86 || ZI_NEON || ZI_WASM
+    return ZI_N(combine_s64x2)(ZI_N(widen_low_s32x4)(a), ZI_N(widen_high_s32x4)(a));
+#elif ZI_VEC
     return (zi_s64x4)__builtin_convertvector(a, zi_s64x4);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -13333,193 +13905,313 @@ ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4)(zi_f64x4 a)
 }
 ZI_FN zi_u8x16 ZI_N(low_u8x32)(zi_u8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u8x16)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_u8x16 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s8x16 ZI_N(low_s8x32)(zi_s8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s8x16)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_s8x16 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u16x8 ZI_N(low_u16x16)(zi_u16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x8)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_u16x8 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s16x8 ZI_N(low_s16x16)(zi_s16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x8)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_s16x8 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u32x4 ZI_N(low_u32x8)(zi_u32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x4)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_u32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s32x4 ZI_N(low_s32x8)(zi_s32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x4)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_s32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u64x2 ZI_N(low_u64x4)(zi_u64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x2)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_u64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s64x2 ZI_N(low_s64x4)(zi_s64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x2)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_s64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f32x4 ZI_N(low_f32x8)(zi_f32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f32x4)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_f32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f64x2 ZI_N(low_f64x4)(zi_f64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f64x2)_mm256_castsi256_si128((__m256i)a);
+#else
     zi_f64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u8x16 ZI_N(high_u8x32)(zi_u8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u8x16)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_u8x16 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s8x16 ZI_N(high_s8x32)(zi_s8x32 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s8x16)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_s8x16 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u16x8 ZI_N(high_u16x16)(zi_u16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x8)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_u16x8 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s16x8 ZI_N(high_s16x16)(zi_s16x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x8)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_s16x8 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u32x4 ZI_N(high_u32x8)(zi_u32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_u32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s32x4 ZI_N(high_s32x8)(zi_s32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_s32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u64x2 ZI_N(high_u64x4)(zi_u64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_u64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s64x2 ZI_N(high_s64x4)(zi_s64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_s64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f32x4 ZI_N(high_f32x8)(zi_f32x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_f32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f64x2 ZI_N(high_f64x4)(zi_f64x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#else
     zi_f64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u8x32 ZI_N(combine_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u8x32)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_u8x32 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s8x32 ZI_N(combine_s8x16)(zi_s8x16 a, zi_s8x16 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s8x32)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_s8x32 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u16x16 ZI_N(combine_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u16x16)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_u16x16 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s16x16 ZI_N(combine_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_s16x16 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u32x8 ZI_N(combine_u32x4)(zi_u32x4 a, zi_u32x4 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_u32x8 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s32x8 ZI_N(combine_s32x4)(zi_s32x4 a, zi_s32x4 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_s32x8 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u64x4 ZI_N(combine_u64x2)(zi_u64x2 a, zi_u64x2 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_u64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_u64x4 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_s64x4 ZI_N(combine_s64x2)(zi_s64x2 a, zi_s64x2 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_s64x4 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f32x8 ZI_N(combine_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_f32x8 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_f64x4 ZI_N(combine_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_f64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#else
     zi_f64x4 r_;
     memcpy(&r_, &a, 16);
     memcpy((char *)&r_ + 16, &b, 16);
     return r_;
+#endif
 }
 ZI_FN zi_u8x16 ZI_N(interleave_low_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {

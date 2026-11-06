@@ -1364,6 +1364,9 @@ The worker calls that notification once after publishing completion, allowing
 an event loop or pipe waiter to wake immediately. The notification must not
 join or restart its own thread. Keep the thread and argument storage alive
 until `ThreadFinished` or `ThreadWait` joins it before consuming results.
+macOS has no `pthread_tryjoin_np`, so there `ThreadFinished` reports the end
+once the notification has returned and then joins, which can wait for the
+thread's thread-local destructors.
 `std/thread_windows.zi` provides the same worker interface for native Win64
 without winpthreads. It starts through the C runtime, polls the native thread
 handle with a zero timeout, and closes that handle only after the thread and

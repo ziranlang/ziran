@@ -1,4 +1,4 @@
-// Background work for native Linux and Android programs. A thread runs one
+// Background work for native Linux, Android and macOS programs. A thread runs one
 // procedure while the thread that started it keeps going, and that thread
 // can ask whether the work has finished without waiting, so a frame loop
 // keeps drawing while a request is in flight.
@@ -26,8 +26,20 @@ PosixThreadJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread
         if PosixThreadId(thread) != 0 { return 1 }
         return PosixThreadJoin(thread, result)
     }
+    ThreadJoinable :: (thread: *Thread) -> bool { return thread.finished }
 } else {
-    PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_tryjoin_np";
+    #if #defined(__APPLE__) {
+        // macOS has no pthread_tryjoin_np. ThreadFinished joins only once
+        // ThreadRun has returned from the notification, so this waits for
+        // nothing but the thread's own exit and thread-local destructors.
+        PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 {
+            return PosixThreadJoin(thread, result)
+        }
+        ThreadJoinable :: (thread: *Thread) -> bool { return thread.returned }
+    } else {
+        PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_tryjoin_np";
+        ThreadJoinable :: (thread: *Thread) -> bool { return thread.finished }
+    }
 }
 PosixMutexInit :: (mutex: *void, attributes: *void) -> s32 #foreign libc "pthread_mutex_init";
 PosixMutexDestroy :: (mutex: *void) -> s32 #foreign libc "pthread_mutex_destroy";
@@ -47,6 +59,8 @@ Thread :: struct {
     notification: ThreadNotification
     running: bool
     finished: bool
+    // Set after the notification has returned.
+    returned: bool
 }
 
 ThreadLock :: (thread: *Thread) -> *void {
@@ -62,6 +76,9 @@ ThreadRun :: (argument: *void) -> *void {
     // Publish completion before waking a waiter. The owner still joins
     // through ThreadFinished/ThreadWait before using or releasing results.
     if thread.notification.procedure != null { thread.notification.procedure(thread.notification.argument) }
+    unused PosixMutexLock(ThreadLock(thread))
+    thread.returned = true
+    unused PosixMutexUnlock(ThreadLock(thread))
     return null
 }
 
@@ -79,6 +96,7 @@ ThreadStart :: (thread: *Thread, procedure: ThreadProcedure,
     thread.argument = argument
     thread.notification = notification
     thread.finished = false
+    thread.returned = false
     thread.running = true
     entry: PosixThreadEntry = ThreadRun
     if PosixThreadCreate(*thread.handle, null, entry, cast(*void)thread) != 0 {
@@ -102,7 +120,7 @@ ThreadRunning :: (thread: *Thread) -> bool {
 ThreadFinished :: (thread: *Thread) -> bool {
     if thread == null || !thread.running { return false }
     if PosixMutexTryLock(ThreadLock(thread)) != 0 { return false }
-    finished := thread.finished
+    finished := ThreadJoinable(thread)
     unused PosixMutexUnlock(ThreadLock(thread))
     if !finished { return false }
     if PosixThreadTryJoin(thread.handle, null) != 0 { return false }

@@ -86,3 +86,30 @@ for expression in 'cast(char)65' 'size_of(char)'; do
     fi
     grep -Fq 'non-Jai primitive type spelling: char' "$work/old_type.err"
 done
+
+# Lines that continue a string keep their bytes: the old spellings and Jai's
+# aliases are only rewritten in code, such as an assembly template's vmov.i32.
+cat > "$work/text.zi" <<'ZI'
+Same :: (left: string, right: string) -> bool {
+    return left == right
+}
+
+#program_export
+Answer :: () -> s64 {
+    text := "int
+float vmov.i32 f64 double i8
+operator + :: x"
+    if !Same(text, "int\nfloat vmov.i32 f64 double i8\noperator + :: x") { return 0 }
+    value: int = 40
+    scale: float = 2.0
+    return value + cast(s64)scale
+}
+ZI
+"$ziran" bundle --root "$work" --entry text:Answer -o "$work/text.zx" "$work/text.zi"
+test "$("$ziran" run "$work/text.zx")" = 42
+"$ziran" build --target=c --root "$work" -o "$work/text-c" "$work/text.zi"
+printf '#include "text.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' \
+    > "$work/text-main.c"
+"${CC:-cc}" -std=c11 -I"$repo/include" -I"$work/text-c" \
+    "$work/text-c/text.c" "$work/text-main.c" -o "$work/text-c/app"
+"$work/text-c/app"

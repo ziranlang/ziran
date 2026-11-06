@@ -83,6 +83,9 @@
 - Saved IR (format 59) writes each string once and refers back to it, stores numbers in as few bytes as they need, and stores source positions relative to the previous one, so `.zir` files and `.zx` bundles carry about a third of their former code size at the same open cost. Rebuild format 58 IR and bundles from source.
 
 ### Fixed
+- The later lines of a string that spans several lines keep their text: `int`
+  and `float` there became `s64` and `float32`, and assembly such as
+  `vmov.i32` was rejected as an old type spelling.
 - The standard vector reference includes capacity operations, and their portable
   regression test links correctly with an instrumented compiler library.
 - Portable record globals correctly initialize fields from open-import constants,

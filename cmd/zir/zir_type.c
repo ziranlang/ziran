@@ -262,6 +262,11 @@ int UnionScalarFields(const ZirModule *module, const ZirType *record)
     return status == 0;
 }
 
+int ArrayTypeAlias(const char *value)
+{
+    return value != NULL && value[0] == '[' && strstr(value, ".[") == NULL;
+}
+
 int ArrayElementType(const char *type, char *element, size_t element_size, int *capacity)
 {
     /* Only "[N]T" is an array; the VM asks this of every type it meets. */

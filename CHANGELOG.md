@@ -59,6 +59,9 @@
   helper, and copies a constant table straight from its shared `var`.
 - A file-scope variable can start from a constant table of any length,
   such as `table: [4096]u8 = BIG`, instead of failing past 4 KiB.
+- Constant tables can be nested, as in
+  `GRID :: [3]s32.[s32.[1, 2, 3], s32.[4, 5, 6]]` or a `#run` procedure
+  that fills `g[a][b]`, and `GRID[i][j]` reads the table without a copy.
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.

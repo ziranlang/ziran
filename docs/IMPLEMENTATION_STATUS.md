@@ -704,7 +704,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and that the read copies nothing. A function may read one table in any
   number of loops, beside widening casts and `.count`: binding a table grows
   the expression graph when checking has used the room reserved for it.
-  Nested-array constants remain unsupported.
+  Nested arrays are tables too: rows are written `[3]s32.[s32.[...], ...]`,
+  `#run` evaluates `g[a][b] = v` into one, and `GRID[i][j]` indexes the
+  table in place in C, Go and the portable VM, with no copied row;
+  `tests/nested_constant_tables.sh` checks them on every target from source
+  and saved IR.
 - `clz`, `ctz`, `popcount` and `bswap` take one `u8`/`u16`/`u32`/`u64` and
   return that type, with the width as the count for zero. C emits
   `__builtin_*` helpers (with a portable fallback), Go `math/bits`, and the

@@ -408,6 +408,9 @@ int SliceElementType(const char *type, char *element, size_t element_size);
 int ArrayValueType(const char *type);
 int ArrayElementType(const char *type, char *element, size_t element_size,
                         int *capacity);
+/* Whether a constant's value names an array type, as in `Row :: [3]s32`,
+ * rather than writing an array, as in `GRID :: [3]s32.[...]`. */
+int ArrayTypeAlias(const char *value);
 struct ZirModule;
 /* Recognize the checked, specialized standard Vec storage shape. */
 int VecElementType(const struct ZirModule *module, const char *type,

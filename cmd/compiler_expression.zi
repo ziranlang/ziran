@@ -361,7 +361,8 @@ ParsePrefix :: (hooks: *PrefixHooks) -> s32 {
     } else if token() == "&" { error(.AddressOf) }
     else if Take(cursor, "(") {
         typed := is_type(token()) || token() == "["
-        if typed && token() != "." && Following(cursor.source, cursor, 1) != "." { error(.Cast) }
+        if typed && token() != "." && Following(cursor.source, cursor, 1) != "." &&
+            !ArrayLiteralAhead(cursor) { error(.Cast) }
         result = parse(1)
         Expect(cursor, ")")
         if !typed && token() == "{" { error(.Literal) }
@@ -378,6 +379,27 @@ ParsePrefix :: (hooks: *PrefixHooks) -> s32 {
             advance()
             if <<cursor.failed == 0 { result = node(start, .Identifier, name, "", -1, -1, -1, 0) }
         }
+    } else if token() == "[" {
+        // Rows of a nested array name their own type: `[3]s32.[s32.[1, 2, 3], ...]`.
+        type_start := begin()
+        while token() == "[" && <<cursor.failed == 0 {
+            advance()
+            if token() == "]" { <<cursor.failed = 1 }
+            advance()
+            Expect(cursor, "]")
+        }
+        if kind() != Scan.TokenKind.Ident { <<cursor.failed = 1 }
+        advance()
+        if token() == "." && kind() != Scan.TokenKind.Eof && Following(cursor.source, cursor, 1) != "[" {
+            advance()
+            if kind() != Scan.TokenKind.Ident { <<cursor.failed = 1 }
+            advance()
+        }
+        type := TypeRange(cursor.source, cursor, type_start, hooks.name_limit)
+        if <<cursor.failed == 0 && token() == "." && Following(cursor.source, cursor, 1) == "[" && is_array(type) {
+            advance()
+            result = array(start, type)
+        } else { <<cursor.failed = 1 }
     } else {
         primary := PrefixKind.Identifier
         if original_kind == Scan.TokenKind.Int { primary = .Integer }
@@ -583,6 +605,27 @@ BorrowToken :: (source: string, cursor: *SyntaxCursor) -> string {
         return ""
     }
     return source[at:at + count]
+}
+// Whether the current `[` starts an array literal named by its element
+// type, such as `[3]s32.[` or `[2][4]Lib.Point.[`.
+ArrayLiteralAhead :: (cursor: *SyntaxCursor) -> bool {
+    token := cursor.token
+    at: s32 = 0
+    while at < 64 && (at == 0 && token() == "[" || at > 0 && Following(cursor.source, cursor, at) == "[") {
+        if Following(cursor.source, cursor, at + 1) == "]" || Following(cursor.source, cursor, at + 2) != "]" { return false }
+        at += 3
+    }
+    if at == 0 || !NameStart(Following(cursor.source, cursor, at)) { return false }
+    if Following(cursor.source, cursor, at + 1) == "." && Following(cursor.source, cursor, at + 2) != "[" {
+        if !NameStart(Following(cursor.source, cursor, at + 2)) { return false }
+        at += 2
+    }
+    return Following(cursor.source, cursor, at + 1) == "." && Following(cursor.source, cursor, at + 2) == "["
+}
+NameStart :: (text: string) -> bool {
+    if text.count == 0 { return false }
+    first := text[0]
+    return first == 95 || (first >= 65 && first <= 90) || (first >= 97 && first <= 122)
 }
 Following :: (source: string, cursor: *SyntaxCursor, distance: s32) -> string {
     begin := cursor.begin

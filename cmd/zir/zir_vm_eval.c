@@ -1235,6 +1235,43 @@ constant_table(Frame *frame, int index, int depth)
     return &vm->constant_tables[slot].value;
 }
 
+/* A row of a nested constant table, `TABLE[i]` or `TABLE[i][j]`, read in
+ * place into OUT. Returns 0 with nothing evaluated when INDEX is not one,
+ * and 1 with the VM failed when an index is out of range. */
+static int
+constant_table_row(Frame *frame, int index, int depth, Value *out)
+{
+    const ZirExpr *expression = &frame->function->exprs[index];
+    if(depth > 32)
+        return 0;
+    if(expression->kind == ZIR_EXPR_COMPOUND) {
+        Value *table = constant_table(frame, index, depth);
+        if(table == NULL)
+            return frame->vm->failed;
+        *out = *table;
+        return 1;
+    }
+    if(expression->kind != ZIR_EXPR_INDEX ||
+       !ArrayElementType(expression->type, NULL, 0, NULL) ||
+       !constant_table_row(frame, expression->left, depth + 1, out))
+        return 0;
+    if(frame->vm->failed)
+        return 1;
+    Value at = eval(frame, expression->right, depth + 1);
+    Value element = (Value){0};
+    if(!frame->vm->failed && at.kind == VALUE_INT &&
+       (at.unsigned64 || at.integer >= 0))
+        element = indexed_element(frame->vm, *out, integer_bits(at));
+    if(frame->vm->failed || !place_valid(element)) {
+        frame->vm->failed = 1;
+        return 1;
+    }
+    *out = place_read(frame->vm, element);
+    if(out->kind != VALUE_ARRAY)
+        frame->vm->failed = 1;
+    return 1;
+}
+
 /* Leaves can allocate literal or coercion storage, but cannot execute a
  * function or trigger VM collection. Their caller stores the returned value
  * before evaluating another operand. Keep the full temporary root chain for
@@ -2873,8 +2910,16 @@ eval_expression(Frame *frame, int index, int depth)
          * entire array for each read would exhaust the VM allocation budget
          * in an ordinary loop. The result is coerced below as a value. */
         Value *stored = constant_table(frame, expression->left, depth);
+        Value row;
         if(stored == NULL && frame->vm->failed)
             break;
+        if(stored == NULL &&
+           frame->function->exprs[expression->left].kind == ZIR_EXPR_INDEX &&
+           constant_table_row(frame, expression->left, depth + 1, &row)) {
+            if(frame->vm->failed)
+                break;
+            stored = &row;
+        }
         if(stored == NULL)
             stored = assignment_slot(frame, expression->left, depth + 1);
         left = stored != NULL &&

@@ -767,6 +767,18 @@ render_compound_at_use(const ZirFunction *expression, int index,
         return 1;
     }
     int array = node->name[0] == '[';
+    /* A row of numbers keeps its type, `s32.[...]`, since a row written
+     * `.[...]` has no type to take. */
+    char element[ZIR_NAME_MAX], inner[ZIR_NAME_MAX];
+    if(depth > 0 && array &&
+       ArrayElementType(node->name, element, sizeof(element), NULL)) {
+        char next[ZIR_NAME_MAX];
+        copy_text(inner, sizeof(inner), element);
+        while(ArrayElementType(inner, next, sizeof(next), NULL))
+            copy_text(inner, sizeof(inner), next);
+        if(ScalarByteWidth(inner) > 0)
+            append_compound_text(out, element);
+    }
     append_compound_text(out, array ? ".[" : ".{");
     int ordinal = 0;
     for(int child = node->first_child; child >= 0;

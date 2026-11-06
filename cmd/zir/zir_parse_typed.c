@@ -772,6 +772,9 @@ typed_local_index(TypedBody *body, const char *name)
         if(!strcmp(body->names.items[i].name, name)) return i;
     return -1;
 }
+static int typed_store_element(TypedBody *body, const char *type,
+                               const char *literal, char **indexes, int count,
+                               const char *source, char *out, size_t size);
 /* Zero literal for a local `name: [N]integer`, e.g. `s32.[0, 0, 0]`. */
 static int
 zero_array_literal(const char *type, char *out, size_t size)
@@ -839,6 +842,71 @@ store_array_element(const char *literal, int64_t index, const char *replacement,
         cursor++;
         ordinal++;
     }
+}
+
+/* Text of element `index` of a canonical array literal `T.[a, b, c]`. */
+static int
+array_element_text(const char *literal, int64_t index, char *out, size_t size)
+{
+    const char *cursor = strstr(literal, ".[");
+    int64_t ordinal = 0;
+    if(cursor == NULL || index < 0) return 0;
+    cursor += 2;
+    for(;;) {
+        int depth = 0;
+        cursor = skip_ws(cursor);
+        const char *start = cursor;
+        while(*cursor && !(depth == 0 && (*cursor == ',' || *cursor == ']'))) {
+            if(*cursor == '[' || *cursor == '{' || *cursor == '(') depth++;
+            if(*cursor == ']' || *cursor == '}' || *cursor == ')') depth--;
+            cursor++;
+        }
+        if(*cursor == '\0') return 0;
+        if(ordinal == index) {
+            size_t length = (size_t)(cursor - start);
+            while(length && isspace((unsigned char)start[length - 1])) length--;
+            if(length >= size) return 0;
+            memcpy(out, start, length);
+            out[length] = '\0';
+            return 1;
+        }
+        if(*cursor == ']') return 0;
+        cursor++;
+        ordinal++;
+    }
+}
+
+/* Writes `literal`, an array of `type`, to `out` with the element at
+ * `indexes` (one per level of nesting) set to the value of `source`. */
+static int
+typed_store_element(TypedBody *body, const char *type, const char *literal,
+                    char **indexes, int count, const char *source,
+                    char *out, size_t size)
+{
+    char element_type[ZIR_NAME_MAX];
+    int capacity = 0;
+    CompileValue at, element;
+    compile_value_clear(&at);
+    compile_value_clear(&element);
+    if(count < 1 ||
+       !ArrayElementType(type, element_type, sizeof(element_type), &capacity) ||
+       !typed_body_expression(body, indexes[0], &at) ||
+       at.kind != COMPILE_INTEGER || at.integer < 0 || at.integer >= capacity)
+        return 0;
+    if(count == 1)
+        return typed_body_expression(body, source, &element) &&
+               compile_type_value(element_type, &element) &&
+               store_array_element(literal, at.integer, element.literal,
+                                   out, size);
+    char *row = AllocateOrExit(ZIR_TEXT_MAX);
+    char *stored = AllocateOrExit(ZIR_TEXT_MAX);
+    int ok = array_element_text(literal, at.integer, row, ZIR_TEXT_MAX) &&
+             typed_store_element(body, element_type, row, indexes + 1,
+                                 count - 1, source, stored, ZIR_TEXT_MAX) &&
+             store_array_element(literal, at.integer, stored, out, size);
+    free(row);
+    free(stored);
+    return ok;
 }
 
 /* Records the evaluator can hold as a literal: plain named records. */
@@ -1209,29 +1277,29 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             {
                 char *bracket = strchr(buffers->text, '[');
                 if(bracket != NULL && !op) {
-                    /* `name[index] = value` on an array local. */
-                    char *close = strrchr(bracket, ']');
-                    CompileValue at, element;
-                    compile_value_clear(&at);
-                    compile_value_clear(&element);
-                    char element_type[ZIR_NAME_MAX];
-                    int capacity = 0, target;
-                    if(close == NULL || close[1] != '\0') goto failed;
-                    *bracket++ = '\0';
-                    *close = '\0';
+                    /* `name[i] = value`, or `name[i][j] = value` on an
+                     * array of arrays, on an array local. */
+                    char *indexes[8];
+                    int count = 0, target;
+                    for(char *cursor = bracket; *cursor; ) {
+                        int depth = 0;
+                        char *open = cursor;
+                        if(*open != '[' || count == 8) goto failed;
+                        for(; *cursor; cursor++) {
+                            if(*cursor == '[') depth++;
+                            else if(*cursor == ']' && --depth == 0) break;
+                        }
+                        if(*cursor != ']') goto failed;
+                        *open = '\0';
+                        *cursor++ = '\0';
+                        indexes[count++] = open + 1;
+                    }
                     trim_in_place(buffers->text);
                     target = typed_local_index(body, buffers->text);
                     if(target < 0 ||
-                       !ArrayElementType(body->names.items[target].type,
-                                         element_type, sizeof(element_type),
-                                         &capacity) ||
-                       !typed_body_expression(body, bracket, &at) ||
-                       at.kind != COMPILE_INTEGER || at.integer < 0 ||
-                       at.integer >= capacity ||
-                       !typed_body_expression(body, equals, &element) ||
-                       !compile_type_value(element_type, &element) ||
-                       !store_array_element(body->names.items[target].expr,
-                                            at.integer, element.literal,
+                       !typed_store_element(body, body->names.items[target].type,
+                                            body->names.items[target].expr,
+                                            indexes, count, equals,
                                             buffers->combined,
                                             sizeof(buffers->combined)))
                         goto failed;

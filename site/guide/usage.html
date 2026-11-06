@@ -1252,8 +1252,14 @@ portable VM) instead of copying the array; copying it into a variable, as in
 straight from the shared <code>var</code>, as it does when passing the table by
 value. Indexes are
 bounds-checked as for any array. A function may read a table, and its
-<code>.count</code>, in as many loops as it needs. Nested arrays are not constant tables
-yet. Run <code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>
+<code>.count</code>, in as many loops as it needs. Run
+<code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>
+<p>A table of rows is a constant table too. Each row names its type, as in
+<code>GRID :: [3]s32.[s32.[1, 2, 3], s32.[4, 5, 6]]</code>, and <code>#run</code> can build one
+in a procedure that sets <code>g[a][b][c]</code> and returns it. <code>GRID[i][j]</code> reads the
+shared table in place without copying the row, and <code>grid: [2][3]s32 = GRID</code>
+starts a variable from it. Run
+<code>sh tests/nested_constant_tables.sh build/bin/ziran</code>.</p>
 <p>A file-scope variable may start from a table of any length, named as in
 <code>table: [4096]u8 = Lib.BIG</code> or written out. Each target defines the variable
 with its values, so nothing fills it when the program starts, and writing it

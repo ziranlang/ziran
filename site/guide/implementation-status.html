@@ -747,7 +747,11 @@
   and that the read copies nothing. A function may read one table in any
   number of loops, beside widening casts and <code>.count</code>: binding a table grows
   the expression graph when checking has used the room reserved for it.
-  Nested-array constants remain unsupported.</li>
+  Nested arrays are tables too: rows are written <code>[3]s32.[s32.[...], ...]</code>,
+  <code>#run</code> evaluates <code>g[a][b] = v</code> into one, and <code>GRID[i][j]</code> indexes the
+  table in place in C, Go and the portable VM, with no copied row;
+  <code>tests/nested_constant_tables.sh</code> checks them on every target from source
+  and saved IR.</li>
 <li><code>clz</code>, <code>ctz</code>, <code>popcount</code> and <code>bswap</code> take one <code>u8</code>/<code>u16</code>/<code>u32</code>/<code>u64</code> and
   return that type, with the width as the count for zero. C emits
   <code>__builtin_*</code> helpers (with a portable fallback), Go <code>math/bits</code>, and the

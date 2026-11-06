@@ -521,7 +521,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 int root;
                 int valid;
                 /* Array type aliases name a storage shape, not a value. */
-                if(value[0] == '[')
+                if(ArrayTypeAlias(value))
                     continue;
                 root = ParseExprNoDefaults(&buffers->expression, module,
                                            definition->value,

@@ -2527,7 +2527,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 const char *value = skip_ws(m->defines[i].value);
                 TargetDefineName(m, ZIR_GO, m->defines[i].name,
                                  cname, sizeof(cname));
-                if(value[0] == '[') {
+                if(ArrayTypeAlias(value)) {
                     char aliased[ZIR_GO_NAME_MAX];
                     require_go_type(value, aliased, sizeof(aliased),
                                     m->defines[i].span);

@@ -901,6 +901,40 @@ constant_table_base(Emitter *e, int index, char *out, size_t size)
     return 1;
 }
 
+/* A row of a nested constant table, `TABLE[i]` or `TABLE[i][j]`, written
+ * in place so a read such as `GRID[i][j]` copies no row. Emits nothing and
+ * returns 0 when INDEX is not such a row. */
+static int
+constant_table_row(Emitter *e, int index, char *out, size_t size, int *pure)
+{
+    const ZirExpr *expr = &e->fn->exprs[index];
+    int capacity = 0;
+    if(expr->kind == ZIR_EXPR_COMPOUND) {
+        *pure = 1;
+        return constant_table_base(e, index, out, size);
+    }
+    if(expr->kind != ZIR_EXPR_INDEX ||
+       !ArrayElementType(expr->type, NULL, 0, NULL) ||
+       !ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, &capacity) ||
+       capacity < 1)
+        return 0;
+    char *base = AllocateOrExit(size), *at = AllocateOrExit(size);
+    int found = constant_table_row(e, expr->left, base, size, pure);
+    if(found) {
+        emit_expr(e, expr->right, "s32", at, size);
+        *pure = *pure && e->pure;
+        if(e->target == ZIR_C && IndexInRange(e, expr->right, capacity))
+            format(out, size, "(%s)[%s]", base, at);
+        else if(e->target == ZIR_C)
+            format(out, size, "ZIRAN_INDEX(%s, %d, %s)", base, capacity, at);
+        else
+            format(out, size, "%s[%s]", base, at);
+    }
+    free(base);
+    free(at);
+    return found;
+}
+
 /* The one member of a plain enum holding value, by the target's own
  * constant name: Shape_CIRCLE in C, ShapeCIRCLE in Go. Flags and values
  * two members share keep the number. */
@@ -1383,6 +1417,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         int capacity = 0;
         int base_pure = 1;
         if(constant_table_base(e, expr->left, buffers->a, sizeof(buffers->a)))
+            ;
+        else if(e->fn->exprs[expr->left].kind == ZIR_EXPR_INDEX &&
+                constant_table_row(e, expr->left, buffers->a,
+                                   sizeof(buffers->a), &base_pure))
             ;
         else if(member_path(e->fn, expr->left)) {
             emit_destination(e, expr->left, buffers->a, sizeof(buffers->a));

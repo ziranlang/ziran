@@ -237,6 +237,9 @@ import_loaded(const LoadContext *context, ZirImport *import, const char *path)
     free(canonical);
 }
 
+static void standard_module_name(const LoadContext *context, const char *path,
+                                 char *name, size_t size);
+
 static int
 add_program_named(LoadContext *context, const char *path, const char *root,
                   const char *identity)
@@ -382,6 +385,9 @@ add_program_named(LoadContext *context, const char *path, const char *root,
             }
         }
     }
+    if(program->module_count == 1)
+        standard_module_name(context, canonical, program->modules[0].standard_name,
+                             sizeof(program->modules[0].standard_name));
     for(int m = 0; m < program->module_count; m++)
         if(module_named(set, program->modules[m].name)) {
             Diagnostic(program->modules[m].span, "module.duplicate",
@@ -474,6 +480,28 @@ standard_source(const LoadContext *context, const char *path)
            path_within(path, context->module_paths[i]))
             return 1;
     return standard != NULL && path_within(path, standard);
+}
+
+/* NAME, into NAME, when canonical PATH is the standard library's std/NAME:
+ * a file of a standard search path or the compiler's own std, or of a
+ * project's std package. Empty otherwise. */
+static void
+standard_module_name(const LoadContext *context, const char *path, char *name,
+                     size_t size)
+{
+    const char *owner = context->packages == NULL ? NULL :
+                        PackageOwner(context->packages, path);
+    const char *leaf = strrchr(path, '/');
+    size_t length;
+    name[0] = '\0';
+    if(!standard_source(context, path) && (owner == NULL || strcmp(owner, "std") != 0))
+        return;
+    leaf = leaf == NULL ? path : leaf + 1;
+    length = strlen(leaf);
+    if(length > 3 && strcmp(leaf + length - 3, ".zi") == 0) length -= 3;
+    else if(length > 4 && strcmp(leaf + length - 4, ".zir") == 0) length -= 4;
+    else return;
+    if(length < size) snprintf(name, size, "%.*s", (int)length, leaf);
 }
 
 /* The file try_module would load for TARGET in DIRECTORY, into PATH. */
@@ -936,6 +964,20 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         result = try_module(context, context->module_paths[i],
                             context->module_paths[i],
                             target, prefer_ir);
+        if(result != 0)
+            return result > 0;
+    }
+    /* Then a standard library named by --module-path std=DIR, so the short
+     * spelling `#import "vec"` loads what std/vec does, as the same module. */
+    for(int i = 0; i < context->module_path_count; i++) {
+        if(context->module_path_names[i] == NULL ||
+           strcmp(context->module_path_names[i], "std") != 0) continue;
+        result = try_module(context, context->module_paths[i],
+                            context->module_paths[i], target, prefer_ir);
+        if(result > 0 &&
+           module_candidate(context->module_paths[i], target, buffers->candidate,
+                            sizeof(buffers->candidate)))
+            import_loaded(context, import, buffers->candidate);
         if(result != 0)
             return result > 0;
     }

@@ -1278,11 +1278,12 @@ Run <code>sh tests/bit_builtins.sh build/bin/ziran</code>.</p>
 <code>u16x8</code>, <code>s16x8</code>, <code>u32x4</code>, <code>s32x4</code>, <code>u64x2</code>, <code>s64x2</code>, <code>f32x4</code> and <code>f64x2</code>,
 and 256-bit forms such as <code>s16x16</code>) with operations such as <code>Simd.Add</code>,
 <code>Simd.Load(s16x8, row, at)</code> and <code>Simd.ByteShuffle</code>; <code>std/simd.zi</code> lists
-them all. Vectors are values, used through these operations rather than <code>+</code>
-or <code>==</code>. Every operation gives the same bits on every target. Native C uses
-SSE2 on x86-64, or SSSE3, SSE4.1 and AVX2 when the build enables them, NEON
-on AArch64 and ARMv7, and WebAssembly SIMD128 when a wasm32 build passes
-<code>-msimd128</code>. Go, bundles, the portable VM and TinyCC compute lane by lane.</p>
+them all. <code>#import "std/simd"</code> works the same, under any alias. Vectors are
+values, used through these operations rather than <code>+</code> or <code>==</code>. Every
+operation gives the same bits on every target. Native C uses SSE2 on x86-64,
+or SSSE3, SSE4.1 and AVX2 when the build enables them, NEON on AArch64 and
+ARMv7, and WebAssembly SIMD128 when a wasm32 build passes <code>-msimd128</code>. Go,
+bundles, the portable VM and TinyCC compute lane by lane.</p>
 <p>Mark a procedure <code>#target</code> to let native x86-64 C pick its SIMD instructions
 when the program runs:</p>
 <pre><code class="language-jai">Blend :: (row: []u8, out: []u8) #target {

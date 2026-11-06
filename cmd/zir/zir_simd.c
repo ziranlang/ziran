@@ -115,10 +115,12 @@ SimdOpChecked(const char *name)
     return NULL;
 }
 
+/* std/simd however it was imported: as "std/simd" or "simd", under any
+ * alias, and whatever identity a project or --module-path std=DIR gave it. */
 int
 SimdModule(const ZirModule *module)
 {
-    return module != NULL && !strcmp(module->name, "simd");
+    return module != NULL && !strcmp(module->standard_name, "simd");
 }
 
 int

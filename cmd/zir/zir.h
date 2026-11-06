@@ -428,6 +428,9 @@ typedef struct ZirModule {
     const struct ZirDocument *document; /* raw source identity; never serialized */
     char source_root[ZIR_PATH_MAX]; /* source-only path for call-site defaults */
     char lookup_path[ZIR_PATH_MAX]; /* checker context; never serialized */
+    /* NAME when this module is the standard library's std/NAME, under any
+     * identity (NAME, std_NAME or a scoped package's); never serialized. */
+    char standard_name[ZIR_NAME_MAX];
     ZirSourceSpan span;
     ZirGlobal *globals;
     int global_count;

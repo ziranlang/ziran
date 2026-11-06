@@ -7,6 +7,9 @@
   AVX2, NEON and WebAssembly SIMD128), Go, bundles and the portable VM.
 - A `#target` procedure runs the best x86-64 SIMD instructions the CPU has,
   chosen once when the program runs. `ZIRAN_SIMD_TIER` lowers the choice.
+- `std/simd` works however it is imported or aliased, and short standard
+  imports such as `#import "simd"` also resolve through
+  `--module-path std=DIR`, as package tests pass it.
 - SIMD loads, stores, widening and 256-bit halves compile to single
   instructions instead of copies through memory.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its

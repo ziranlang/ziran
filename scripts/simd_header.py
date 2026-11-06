@@ -279,6 +279,11 @@ def minmax_specials(less):
                 else: out.append((AVX2, x86(t, name.replace('_mm_', '_mm256_'), 'a', 'b')))
             else:
                 out.append((tier, x86(t, name, 'a', 'b')))
+        if t.lane == 'u16' and not t.wide:
+            # SSE2: a - (a -sat b) is the smaller, (a -sat b) + b the larger.
+            out.append((X86, '__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n    return (%s)%s;' % (
+                t.c, '_mm_sub_epi16(x_, _mm_subs_epu16(x_, y_))' if less else
+                '_mm_add_epi16(_mm_subs_epu16(x_, y_), y_)')))
         if t.wide:
             return out
         if not t.float and t.bits < 64:
@@ -336,10 +341,10 @@ def mulhrs_specials(t):
         (NEON, 'int16x8_t x_ = (int16x8_t)a, y_ = (int16x8_t)b;\n'
                '    return (%s)vcombine_s16(vrshrn_n_s32(vmull_s16(vget_low_s16(x_), vget_low_s16(y_)), 15),\n'
                '        vrshrn_n_s32(vmull_s16(vget_high_s16(x_), vget_high_s16(y_)), 15));' % t.c),
-        (WASM, 'v128_t r_ = wasm_i32x4_splat(0x4000);\n'
-               '    v128_t lo_ = wasm_i32x4_shr(wasm_i32x4_add(wasm_i32x4_extmul_low_i16x8((v128_t)a, (v128_t)b), r_), 15);\n'
-               '    v128_t hi_ = wasm_i32x4_shr(wasm_i32x4_add(wasm_i32x4_extmul_high_i16x8((v128_t)a, (v128_t)b), r_), 15);\n'
-               '    return (%s)wasm_i16x8_shuffle(lo_, hi_, 0, 2, 4, 6, 8, 10, 12, 14);' % t.c),
+        # q15mulr_sat saturates MIN * MIN to MAX where pmulhrsw wraps to MIN.
+        (WASM, 'v128_t x_ = (v128_t)a, y_ = (v128_t)b, min_ = wasm_i16x8_splat(-32768);\n'
+               '    return (%s)wasm_v128_xor(wasm_i16x8_q15mulr_sat(x_, y_),\n'
+               '        wasm_v128_and(wasm_i16x8_eq(x_, min_), wasm_i16x8_eq(y_, min_)));' % t.c),
     ]
 
 
@@ -384,6 +389,13 @@ def abs_specials(t):
         if t.wide:
             return [(AVX2, x86(t, '_mm256_abs_epi%d' % t.bits, 'a'))]
         out.append((SSSE3, x86(t, '_mm_abs_epi%d' % t.bits, 'a')))
+        # SSE2: the larger of a and -a, unsigned for bytes; -MIN stays MIN.
+        if t.bits == 8:
+            out.append((X86, '__m128i x_ = (__m128i)a;\n'
+                        '    return (%s)_mm_min_epu8(x_, _mm_sub_epi8(_mm_setzero_si128(), x_));' % t.c))
+        elif t.bits == 16:
+            out.append((X86, '__m128i x_ = (__m128i)a;\n'
+                        '    return (%s)_mm_max_epi16(x_, _mm_sub_epi16(_mm_setzero_si128(), x_));' % t.c))
     if t.wide:
         return out
     out.append((NEON if t.bits < 64 else A64, neon(t, 'vabsq_%s' % t.nsuf, 'a')))
@@ -397,10 +409,70 @@ def neg_generic(t):
     return 'return (%s)((%s){0} - (%s)a);' % (t.c, t.u.c, t.u.c)
 
 
+def sign_generic(t):
+    # a negated where b < 0 ((a ^ -1) + 1), then zeroed where b == 0.
+    u = t.u.c
+    return ('%s n_ = (%s)(b >> %d), z_ = (%s)(b != 0);\n    return (%s)((((%s)a ^ n_) - n_) & z_);' %
+            (u, u, t.bits - 1, u, t.c, u))
+
+
+def sign_specials(t):
+    if t.bits == 64:
+        return []
+    if t.wide:
+        return [(AVX2, x86(t, '_mm256_sign_epi%d' % t.bits, 'a', 'b'))]
+    return [(SSSE3, x86(t, '_mm_sign_epi%d' % t.bits, 'a', 'b'))]
+
+
+class AbsDiff(Op):
+    """|a - b| in the unsigned lanes of a's width."""
+
+    def __init__(self):
+        super().__init__('ZI_OP_ABS_DIFF', 'abs_diff', INT, 'binary')
+
+    def result(self, t):
+        return t.u
+
+    def special(self, t):
+        r = t.u
+        m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+        out = []
+        if t.bits <= 16 and not t.signed:
+            # Saturating differences both ways: one of them is 0.
+            out.append((AVX2 if t.wide else X86, '%s x_ = (%s)a, y_ = (%s)b;\n'
+                        '    return (%s)%sor_si%d(%ssubs_%s(x_, y_), %ssubs_%s(y_, x_));' %
+                        (reg, reg, reg, r.c, m, t.bytes * 8, m, t.epi, m, t.epi)))
+        elif t.bits <= 32:
+            tier = AVX2 if t.wide else (X86 if t.lane == 's16' else SSE41)
+            out.append((tier, '%s x_ = (%s)a, y_ = (%s)b;\n'
+                        '    return (%s)%ssub_epi%d(%smax_%s(x_, y_), %smin_%s(x_, y_));' %
+                        (reg, reg, reg, r.c, m, t.bits, m, t.epi, m, t.epi)))
+        if t.wide:
+            return out
+        if t.bits < 64:
+            out.append((NEON, 'return (%s)vabdq_%s((%s)a, (%s)b);' % (r.c, t.nsuf, t.neon, t.neon)))
+            if t.bits <= 16 and not t.signed:
+                out.append((WASM, 'v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n'
+                            '    return (%s)wasm_v128_or(wasm_%s_sub_sat(x_, y_), wasm_%s_sub_sat(y_, x_));' %
+                            (r.c, t.wsuf, t.wsuf)))
+            else:
+                out.append((WASM, 'v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n'
+                            '    return (%s)wasm_%s_sub(wasm_%s_max(x_, y_), wasm_%s_min(x_, y_));' %
+                            (r.c, t.wisuf, t.wsuf, t.wsuf)))
+        return out
+
+    def generic(self, t):
+        # a - b, negated where a < b.
+        u = t.u.c
+        return ('%s l_ = (%s)(a < b);\n    return (((%s)a - (%s)b) ^ l_) - l_;' % (u, u, u, u))
+
+
 class Compare(Op):
     def __init__(self, enum, snake, c_op):
         super().__init__(enum, snake, TYPES, 'compare')
         self.c_op = c_op
+
+    clang_whole = True  # Clang compares 256-bit vectors well without halves
 
     def result(self, t):
         return t.u if t.float else t
@@ -432,6 +504,8 @@ class Shift(Op):
     def __init__(self, enum, snake, kind):
         super().__init__(enum, snake, INT, 'shift')
         self.kind = kind
+        # Clang rounds 256-bit vectors better from the 256-bit steps.
+        self.clang_whole = kind == 'shr_round'
 
     def params(self, t):
         return [(t.c, 'a'), ('uint64_t', 'n')]
@@ -483,6 +557,23 @@ class ShiftLanes(Op):
         self.left = left
 
     def special(self, t):
+        if t.bits == 16:
+            # AVX2 shifts 32-bit lanes: the even 16-bit lanes in place, the
+            # odd ones in the upper halves, then one blend.
+            m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+            lines = ['%s x_ = (%s)a, c_ = (%s)b, lo_ = %sset1_epi32(0xffff);' % (reg, reg, reg, m),
+                     '%s ce_ = %sand_si%d(c_, lo_), co_ = %ssrli_epi32(c_, 16);' % (reg, m, t.bytes * 8, m)]
+            if self.left:
+                lines.append('%s e_ = %ssllv_epi32(x_, ce_), o_ = %ssllv_epi32(%sandnot_si%d(lo_, x_), co_);' %
+                             (reg, m, m, m, t.bytes * 8))
+            elif not t.signed:
+                lines.append('%s e_ = %ssrlv_epi32(%sand_si%d(x_, lo_), ce_), o_ = %ssrlv_epi32(x_, co_);' %
+                             (reg, m, m, t.bytes * 8, m))
+            else:
+                lines.append('%s e_ = %ssrav_epi32(%sslli_epi32(x_, 16), %sadd_epi32(ce_, %sset1_epi32(16))),'
+                             ' o_ = %ssrav_epi32(x_, co_);' % (reg, m, m, m, m, m))
+            lines.append('return (%s)%sblend_epi16(e_, o_, 0xaa);' % (t.c, m))
+            return [(AVX2, '\n    '.join(lines))]
         if t.bits < 32:
             return []
         if self.left:
@@ -575,6 +666,8 @@ class Lane(Op):
 
 
 class WithLane(Op):
+    splittable = False  # the lane index spans both halves
+
     def __init__(self):
         super().__init__('ZI_OP_WITH_LANE', 'with_lane', TYPES, 'with_lane')
 
@@ -741,31 +834,79 @@ class Narrow(Op):
         super().__init__('ZI_OP_NARROW', 'narrow', None, 'narrow')
 
     def special_pair(self, t, r):
+        hi = (1 << (r.bits - 1)) - 1 if r.signed else (1 << r.bits) - 1
+        pair = (t.lane, r.lane)
         out = []
-        packs = {('s16', 's8'): '_mm_packs_epi16', ('s16', 'u8'): '_mm_packus_epi16',
-                 ('s32', 's16'): '_mm_packs_epi32'}
-        name = packs.get((t.lane, r.lane))
-        tier = X86
-        if (t.lane, r.lane) == ('s32', 'u16'):
-            name, tier = '_mm_packus_epi32', SSE41
-        if name:
+        # x86: packs/packus read signed lanes, so unsigned sources are first
+        # clamped below the result's maximum.
+        packs = {('s16', 's8'): ('_mm_packs_epi16', X86), ('s16', 'u8'): ('_mm_packus_epi16', X86),
+                 ('s32', 's16'): ('_mm_packs_epi32', X86), ('s32', 'u16'): ('_mm_packus_epi32', SSE41),
+                 ('u16', 'u8'): ('_mm_packus_epi16', None), ('u16', 's8'): ('_mm_packs_epi16', None),
+                 ('u32', 'u16'): ('_mm_packus_epi32', None), ('u32', 's16'): ('_mm_packs_epi32', None)}
+        if pair in packs:
+            name, tier = packs[pair]
+            m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+            name = name.replace('_mm_', m)
+            if t.signed:
+                body = 'return (%s)%s((%s)a, (%s)b);' % (r.c, name, reg, reg)
+            else:
+                lim = '%sset1_epi%d(%d)' % (m, t.bits, hi)
+                body = ('%s m_ = %s;\n    return (%s)%s(%smin_epu%d((%s)a, m_), %smin_epu%d((%s)b, m_));' %
+                        (reg, lim, r.c, name, m, t.bits, reg, m, t.bits, reg))
             if t.wide:
-                return [(AVX2, 'return (%s)%s((__m256i)a, (__m256i)b);' % (r.c, name.replace('_mm_', '_mm256_')))]
-            out.append((tier, 'return (%s)%s((__m128i)a, (__m128i)b);' % (r.c, name)))
+                out.append((AVX2, body))
+            elif t.signed:
+                out.append((tier, body))
+            else:
+                out.append((SSE41, body))
+            if not t.wide and t.bits == 16 and not t.signed:
+                # SSE2: x - (x -sat max) is min(x, max).
+                out.append((X86, '__m128i m_ = _mm_set1_epi16(%d), x_ = (__m128i)a, y_ = (__m128i)b;\n'
+                            '    return (%s)%s(_mm_sub_epi16(x_, _mm_subs_epu16(x_, m_)), _mm_sub_epi16(y_, _mm_subs_epu16(y_, m_)));' %
+                            (hi, r.c, name)))
+            if not t.wide and t.bits == 32 and r.lane in ('u16', 's16') and (t.signed, r.signed) != (True, True):
+                # SSE2 into 16 bits: bring lanes into [0, 2^31) (u32: >= 2^31
+                # becomes 2^31 - 1; s32: < 0 becomes 0), then packs. For u16
+                # results packs works on lanes offset by -32768.
+                if t.signed:
+                    fix = '_mm_andnot_si128(_mm_srai_epi32(%s, 31), %s)'
+                else:
+                    fix = '_mm_and_si128(_mm_or_si128(%s, _mm_srai_epi32(%s, 31)), _mm_set1_epi32(0x7fffffff))'
+                fx = fix % ('x_', 'x_')
+                fy = fix % ('y_', 'y_')
+                if r.signed:
+                    body = ('__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n'
+                            '    return (%s)_mm_packs_epi32(%s, %s);' % (r.c, fx, fy))
+                else:
+                    body = ('__m128i x_ = (__m128i)a, y_ = (__m128i)b, o_ = _mm_set1_epi32(32768);\n'
+                            '    __m128i p_ = _mm_packs_epi32(_mm_sub_epi32(%s, o_), _mm_sub_epi32(%s, o_));\n'
+                            '    return (%s)_mm_xor_si128(p_, _mm_set1_epi16((short)0x8000));' % (fx, fy, r.c))
+                out.append((X86, body))
         if t.wide:
             return out
-        if t.signed or r.lane[0] == 'u':
-            fn = 'vqmovn' if t.signed == (r.lane[0] == 's') else 'vqmovun'
-            if t.signed or fn == 'vqmovn':
-                rs = r.half.neon.replace('x%d_t' % r.lanes, 'x%d_t' % (r.lanes // 2))
-                rh = '%s%d' % ('s' if r.signed else 'u', r.bits)
-                out.append((NEON, 'return (%s)vcombine_%s(%s_%s((%s)a), %s_%s((%s)b));' %
-                            (r.c, rh, fn, t.nsuf, t.neon, fn, t.nsuf, t.neon)))
+        # NEON: saturating narrows; unsigned into signed takes vqmovn then min.
+        rh = '%s%d' % ('s' if r.signed else 'u', r.bits)
+        if t.signed:
+            fn = 'vqmovn' if r.signed else 'vqmovun'
+            out.append((NEON, 'return (%s)vcombine_%s(%s_%s((%s)a), %s_%s((%s)b));' %
+                        (r.c, rh, fn, t.nsuf, t.neon, fn, t.nsuf, t.neon)))
+        else:
+            ru = 'u%d' % r.bits
+            body = 'vcombine_%s(vqmovn_%s((%s)a), vqmovn_%s((%s)b))' % (ru, t.nsuf, t.neon, t.nsuf, t.neon)
+            if r.signed:
+                body = 'vminq_%s(%s, vdupq_n_%s(%d))' % (ru, body, ru, hi)
+            out.append((NEON, 'return (%s)%s;' % (r.c, body)))
         wasm_names = {('s16', 's8'): 'wasm_i8x16_narrow_i16x8', ('s16', 'u8'): 'wasm_u8x16_narrow_i16x8',
-                      ('s32', 's16'): 'wasm_i16x8_narrow_i32x4', ('s32', 'u16'): 'wasm_u16x8_narrow_i32x4'}
-        name = wasm_names.get((t.lane, r.lane))
-        if name:
+                      ('s32', 's16'): 'wasm_i16x8_narrow_i32x4', ('s32', 'u16'): 'wasm_u16x8_narrow_i32x4',
+                      ('u16', 'u8'): 'wasm_u8x16_narrow_i16x8', ('u16', 's8'): 'wasm_i8x16_narrow_i16x8',
+                      ('u32', 'u16'): 'wasm_u16x8_narrow_i32x4', ('u32', 's16'): 'wasm_i16x8_narrow_i32x4'}
+        name = wasm_names.get(pair)
+        if name and t.signed:
             out.append((WASM, 'return (%s)%s((v128_t)a, (v128_t)b);' % (r.c, name)))
+        elif name:
+            out.append((WASM, 'v128_t m_ = wasm_%s_splat(%d);\n'
+                        '    return (%s)%s(wasm_%s_min((v128_t)a, m_), wasm_%s_min((v128_t)b, m_));' %
+                        (t.wisuf, hi, r.c, name, t.wsuf, t.wsuf)))
         return out
 
     def generic_pair(self, t, r):
@@ -799,13 +940,31 @@ class MulWide(Op):
     def result(self, t):
         return t.wider()
 
+    def special(self, t):
+        r = self.result(t)
+        m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+        half = 'hi' if self.high else 'lo'
+        tier = AVX2 if t.wide else X86
+        if t.bits == 16:
+            # Low and high product halves, interleaved.
+            return [(tier, '%s x_ = (%s)a, y_ = (%s)b;\n'
+                     '    return (%s)%sunpack%s_epi16(%smullo_epi16(x_, y_), %smulhi_%s(x_, y_));' %
+                     (reg, reg, reg, r.c, m, half, m, m, t.epi))]
+        if t.bits == 32:
+            # pmuludq/pmuldq multiply lanes 0 and 2; duplicate the half's lanes there.
+            mul = '%smul_%s' % (m, 'epi32' if t.signed else 'epu32')
+            if t.signed and not t.wide:
+                tier = SSE41
+            return [(tier, '%s x_ = (%s)a, y_ = (%s)b;\n'
+                     '    return (%s)%s(%sunpack%s_epi32(x_, x_), %sunpack%s_epi32(y_, y_));' %
+                     (reg, reg, reg, r.c, mul, m, half, m, half))]
+        return []
+
     def generic(self, t):
         r = self.result(t)
         widen = 'widen_%s_%s' % ('high' if self.high else 'low', t.name)
         return ('%s x_ = ZI_N(%s)(a), y_ = ZI_N(%s)(b);\n    return (%s)((%s)x_ * (%s)y_);' %
                 (r.c, widen, widen, r.c, r.u.c, r.u.c))
-
-    splittable = False
 
 
 def even_odd(t, v):
@@ -868,13 +1027,17 @@ class MaddSat(Op):
                     '    int16x8_t hi_ = vmulq_s16(vreinterpretq_s16_u16(vmovl_u8(vget_high_u8(x_))), vmovl_s8(vget_high_s8(y_)));\n')
         return [
             (SSSE3, 'return (%s)_mm_maddubs_epi16((__m128i)a, (__m128i)b);' % r.c),
+            (X86, '__m128i x_ = (__m128i)a, y_ = (__m128i)b;\n'
+                  '    __m128i p_ = _mm_mullo_epi16(_mm_and_si128(x_, _mm_set1_epi16(0xff)), _mm_srai_epi16(_mm_slli_epi16(y_, 8), 8));\n'
+                  '    __m128i q_ = _mm_mullo_epi16(_mm_srli_epi16(x_, 8), _mm_srai_epi16(y_, 8));\n'
+                  '    return (%s)_mm_adds_epi16(p_, q_);' % r.c),
             (A64, products + '    return (%s)vqaddq_s16(vuzp1q_s16(lo_, hi_), vuzp2q_s16(lo_, hi_));' % r.c),
             (NEON, products + '    int16x8x2_t u_ = vuzpq_s16(lo_, hi_);\n'
                               '    return (%s)vqaddq_s16(u_.val[0], u_.val[1]);' % r.c),
-            (WASM, 'v128_t lo_ = wasm_i16x8_mul(wasm_u16x8_extend_low_u8x16((v128_t)a), wasm_i16x8_extend_low_i8x16((v128_t)b));\n'
-                   '    v128_t hi_ = wasm_i16x8_mul(wasm_u16x8_extend_high_u8x16((v128_t)a), wasm_i16x8_extend_high_i8x16((v128_t)b));\n'
-                   '    return (%s)wasm_i16x8_add_sat(wasm_i16x8_shuffle(lo_, hi_, 0, 2, 4, 6, 8, 10, 12, 14),\n'
-                   '        wasm_i16x8_shuffle(lo_, hi_, 1, 3, 5, 7, 9, 11, 13, 15));' % r.c),
+            (WASM, 'v128_t x_ = (v128_t)a, y_ = (v128_t)b;\n'
+                   '    v128_t p_ = wasm_i16x8_mul(wasm_v128_and(x_, wasm_i16x8_splat(0xff)), wasm_i16x8_shr(wasm_i16x8_shl(y_, 8), 8));\n'
+                   '    v128_t q_ = wasm_i16x8_mul(wasm_u16x8_shr(x_, 8), wasm_i16x8_shr(y_, 8));\n'
+                   '    return (%s)wasm_i16x8_add_sat(p_, q_);' % r.c),
         ]
 
 
@@ -905,12 +1068,43 @@ class AddPairs(Op):
                 body = body.replace('_mm_', '_mm256_').replace('__m128i', '__m256i')
                 return [(AVX2, 'return (%s)%s;' % (r.c, body))]
             out.append((tier, 'return (%s)%s;' % (r.c, body)))
+        m, reg = ('_mm256_', '__m256i') if t.wide else ('_mm_', '__m128i')
+        tier = AVX2 if t.wide else X86
+        # Even lanes masked or sign-extended in place, plus odd lanes shifted down.
+        if t.bits == 8 and not t.wide:
+            even = ('_mm_and_si128(x_, _mm_set1_epi16(0xff))' if not t.signed else
+                    '_mm_srai_epi16(_mm_slli_epi16(x_, 8), 8)')
+            odd = '_mm_sr%si_epi16(x_, 8)' % ('a' if t.signed else 'l')
+            out.append((X86, '__m128i x_ = (__m128i)a;\n    return (%s)_mm_add_epi16(%s, %s);' % (r.c, even, odd)))
+        if t.lane == 'u16':
+            out.append((tier, '%s x_ = (%s)a;\n    return (%s)%sadd_epi32(%sand_si%d(x_, %sset1_epi32(0xffff)), %ssrli_epi32(x_, 16));' %
+                        (reg, reg, r.c, m, m, t.bytes * 8, m, m)))
+        if t.lane == 'u32':
+            out.append((tier, '%s x_ = (%s)a;\n    return (%s)%sadd_epi64(%sand_si%d(x_, %sset1_epi64x(0xffffffff)), %ssrli_epi64(x_, 32));' %
+                        (reg, reg, r.c, m, m, t.bytes * 8, m, m)))
+        if t.lane == 's32':
+            # pmuldq by 1 sign-extends lanes 0 and 2.
+            one = '%sset1_epi32(1)' % m
+            out.append((AVX2 if t.wide else SSE41,
+                        '%s x_ = (%s)a, one_ = %s;\n    return (%s)%sadd_epi64(%smul_epi32(x_, one_), %smul_epi32(%ssrli_epi64(x_, 32), one_));' %
+                        (reg, reg, one, r.c, m, m, m, m)))
+            if not t.wide:
+                out.append((X86, '__m128i x_ = (__m128i)a, s_ = _mm_srai_epi32(x_, 31), lo_ = _mm_set1_epi64x(0xffffffff);\n'
+                            '    __m128i e_ = _mm_or_si128(_mm_and_si128(x_, lo_), _mm_slli_epi64(s_, 32));\n'
+                            '    __m128i o_ = _mm_or_si128(_mm_srli_epi64(x_, 32), _mm_andnot_si128(lo_, s_));\n'
+                            '    return (%s)_mm_add_epi64(e_, o_);' % r.c))
         if t.wide:
             return out
         out.append((NEON, 'return (%s)vpaddlq_%s((%s)a);' % (r.c, t.nsuf, t.neon)))
         if t.bits < 32:
             out.append((WASM, 'return (%s)wasm_%s_extadd_pairwise_%s((v128_t)a);' %
                         (r.c, r.wsuf, t.wsuf)))
+        elif t.signed:
+            out.append((WASM, 'v128_t x_ = (v128_t)a;\n'
+                        '    return (%s)wasm_i64x2_add(wasm_i64x2_shr(wasm_i64x2_shl(x_, 32), 32), wasm_i64x2_shr(x_, 32));' % r.c))
+        else:
+            out.append((WASM, 'v128_t x_ = (v128_t)a;\n'
+                        '    return (%s)wasm_i64x2_add(wasm_v128_and(x_, wasm_i64x2_splat(0xffffffff)), wasm_u64x2_shr(x_, 32));' % r.c))
         return out
 
     def generic(self, t):
@@ -940,6 +1134,62 @@ class Sad(Op):
         ]
 
 
+def first_lane(isa, t, e):
+    """The index of the first all-ones lane of 128-bit mask e (one is set)."""
+    if isa == X86:
+        return '__builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(%s))) / %d' % (e, t.bits // 8)
+    if isa == WASM:
+        return '__builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(%s))) / %d' % (e, t.bits // 8)
+    # NEON: a nibble per byte.
+    return ('__builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(%s), 4)), 0)) / %d' %
+            (e, t.bits // 2))
+
+
+def tree(t, op, v, isa=None):
+    """Lines folding v with ZI_N(op) until every lane holds the result."""
+    lines = []
+    step = t.lanes // 2
+    while step:
+        if isa == X86:
+            # Whole-lane swaps: GCC scalarizes byte shuffles without SSSE3.
+            x = '(__m128i)%s' % v
+            swap = {8: '_mm_shuffle_epi32(%s, 0x4e)' % x, 4: '_mm_shuffle_epi32(%s, 0xb1)' % x,
+                    2: '_mm_shufflehi_epi16(_mm_shufflelo_epi16(%s, 0xb1), 0xb1)' % x,
+                    1: '_mm_or_si128(_mm_slli_epi16(%s, 8), _mm_srli_epi16(%s, 8))' % (x, x)}
+            other = '(%s)%s' % (t.c, swap[step * t.bits // 8])
+        else:
+            perm = ', '.join(str(i ^ step) for i in range(t.lanes))
+            other = '__builtin_shufflevector(%s, %s, %s)' % (v, v, perm)
+        lines.append('%s = ZI_N(%s_%s)(%s, %s);' % (v, op, t.name, v, other))
+        step //= 2
+    return lines
+
+
+def x86_tree_reduce(t, kind):
+    """(cond, body) folds of 128-bit t for x86; signed bytes fold in
+    unsigned order below SSE4.1, which has no pmaxsb or pminsb. 32-bit
+    lanes need SSE4.1's pmaxsd and pmaxud, and 64-bit lanes stay scalar
+    (no x86 below AVX-512 has a 64-bit max)."""
+    word = 'min' if kind == 'min' else 'max'
+    out = []
+    if t.bits == 64:
+        return out
+    forms = [(SSE41 if t.bits == 32 else X86, t, 'a', None)]
+    if t.bits == 8 and t.signed:
+        u = t.u
+        flipped = 'ZI_N(xor_%s)((%s)a, ZI_N(splat_%s)(0x80))' % (u.name, u.c, u.name)
+        forms = [(SSE41, t, 'a', None), (X86, u, flipped, '0x80')]
+    for cond, tt, x, flip in forms:
+        lines = ['%s x_ = %s, m_ = x_;' % (tt.c, x)] + tree(tt, word, 'm_', X86)
+        if kind == 'max_index':
+            lines.append('return %s;' % first_lane(X86, tt, 'ZI_N(eq_%s)(x_, m_)' % tt.name))
+        else:
+            at = 'ZI_AT(m_, 0)' if flip is None else '(ZI_AT(m_, 0) ^ %s)' % flip
+            lines.append('return (%s)%s;' % (t.ctype, at))
+        out.append((cond, '\n    '.join(lines)))
+    return out
+
+
 class Reduce(Op):
     def __init__(self, enum, snake, kind):
         super().__init__(enum, snake, INT, 'reduce')
@@ -950,6 +1200,105 @@ class Reduce(Op):
 
     def params(self, t):
         return [(t.c, 'a')]
+
+    wide_specials = True
+
+    def special(self, t):
+        if t.wide:
+            if self.kind != 'max_index':
+                return []
+            h = t.half
+            m = 'ZI_N(splat_%s)(ZI_N(reduce_max_%s)(a))' % (h.name, t.name)
+            halves = '%s lo_ = ZI_N(low_%s)(a), hi_ = ZI_N(high_%s)(a), m_ = %s;\n    ' % (h.c, t.name, t.name, m)
+            elo, ehi = 'ZI_N(eq_%s)(lo_, m_)' % h.name, 'ZI_N(eq_%s)(hi_, m_)' % h.name
+            # Below AVX2, 32-bit maxima need SSE4.1 and 64-bit ones stay scalar.
+            x86_halves = [(X86 if t.bits < 32 else SSE41,
+                           halves + 'unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)%s) |\n'
+                           '        (unsigned)_mm_movemask_epi8((__m128i)%s) << 16;\n'
+                           '    return __builtin_ctz(k_) / %d;' % (elo, ehi, t.bits // 8))] if t.bits < 64 else []
+            return [
+                (AVX2, '%s m_ = ZI_N(splat_%s)(ZI_N(reduce_max_%s)(a));\n'
+                       '    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_%s)(a, m_))) / %d;' %
+                       (t.c, t.name, t.name, t.name, t.bits // 8)),
+            ] + x86_halves + [
+                (WASM, halves + 'unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)%s) |\n'
+                       '        (unsigned)wasm_i8x16_bitmask((v128_t)%s) << 16;\n'
+                       '    return __builtin_ctz(k_) / %d;' % (elo, ehi, t.bits // 8)),
+                (NEON, halves + 'uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)%s, 4), vshrn_n_u16((uint16x8_t)%s, 4));\n'
+                       '    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);\n'
+                       '    return l_ ? __builtin_ctzll(l_) / %d : %d + __builtin_ctzll(h_) / %d;' %
+                       (elo, ehi, t.bits // 2, t.lanes // 2, t.bits // 2)),
+            ]
+        out = []
+        word = {'min': 'min', 'max': 'max', 'max_index': 'max'}.get(self.kind)
+        if t.bits == 16 and self.kind != 'add':
+            # phminposuw finds the smallest u16 and its first index; xor maps
+            # the wanted order onto it.
+            flip = {('min', False): None, ('min', True): '0x8000',
+                    ('max', False): '0xffff', ('max', True): '0x7fff'}[(word, t.signed)]
+            x = '(__m128i)a' if flip is None else '_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)%s))' % flip
+            if self.kind == 'max_index':
+                out.append((SSE41, 'return _mm_extract_epi16(_mm_minpos_epu16(%s), 1);' % x))
+            else:
+                v = '_mm_cvtsi128_si32(_mm_minpos_epu16(%s))' % x
+                if flip is not None:
+                    v = '(%s ^ %s)' % (v, flip)
+                out.append((SSE41, 'return (%s)%s;' % (t.ctype, v)))
+        if self.kind != 'add':
+            out += x86_tree_reduce(t, self.kind)
+            if self.kind == 'max_index' and t.bits >= 32:
+                # Straight-line scalar compares beat emulated maxima.
+                out.append((X86, self.portable(t)))
+        if self.kind == 'add' and t.bits == 8:
+            out.append((X86, '__m128i s_ = _mm_sad_epu8((__m128i)a, _mm_setzero_si128());\n'
+                        '    return (%s)(_mm_cvtsi128_si32(s_) + _mm_extract_epi16(s_, 4));' % t.ctype))
+        # AArch64 reduces across lanes in one instruction.
+        if self.kind == 'add':
+            out.append((A64, 'return (%s)vaddvq_%s((%s)a);' % (t.ctype, t.nsuf, t.neon)))
+        elif t.bits < 64 and self.kind != 'max_index':
+            out.append((A64, 'return (%s)v%svq_%s((%s)a);' % (t.ctype, word, t.nsuf, t.neon)))
+        elif t.bits < 64:
+            out.append((A64, '%s m_ = ZI_N(splat_%s)(ZI_N(reduce_max_%s)(a));\n    return %s;' %
+                        (t.c, t.name, t.name, first_lane(NEON, t, 'ZI_N(eq_%s)(a, m_)' % t.name))))
+        # 32-bit ARM: pairwise steps on the two halves.
+        if t.bits < 64 and self.kind in ('min', 'max'):
+            d = t.neon.replace('x%d_t' % t.lanes, 'x%d_t' % (t.lanes // 2))
+            lines = ['%s x_ = (%s)a;' % (t.neon, t.neon),
+                     '%s d_ = vp%s_%s(vget_low_%s(x_), vget_high_%s(x_));' % (d, word, t.nsuf, t.nsuf, t.nsuf)]
+            for _ in range({8: 3, 16: 2, 32: 1}[t.bits]):
+                lines.append('d_ = vp%s_%s(d_, d_);' % (word, t.nsuf))
+            lines.append('return (%s)vget_lane_%s(d_, 0);' % (t.ctype, t.nsuf))
+            out.append((NEON, '\n    '.join(lines)))
+        if self.kind == 'add' and t.bits < 64:
+            u = t.u
+            v = '(%s)a' % u.neon
+            bits = t.bits
+            while bits < 64:
+                v = 'vpaddlq_u%d(%s)' % (bits, v)
+                bits *= 2
+            out.append((NEON, 'uint64x2_t s_ = %s;\n'
+                        '    return (%s)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));' % (v, t.ctype)))
+        if self.kind == 'max_index':
+            lines = ['%s m_ = a;' % t.c] + tree(t, 'max', 'm_')
+            for isa in (NEON, WASM):
+                out.append((isa, '\n    '.join(lines + ['return %s;' % first_lane(isa, t, 'ZI_N(eq_%s)(a, m_)' % t.name)])))
+        return out
+
+    def generic(self, t):
+        op = {'add': 'add', 'min': 'min', 'max': 'max'}.get(self.kind)
+        if t.wide:
+            h = t.half
+            if op:
+                return 'return ZI_N(reduce_%s_%s)(ZI_N(%s_%s)(ZI_N(low_%s)(a), ZI_N(high_%s)(a)));' % (
+                    self.kind, h.name, op, h.name, t.name, t.name)
+            return None
+        lines = ['%s m_ = a;' % t.c] + tree(t, op or 'max', 'm_')
+        if op:
+            return '\n    '.join(lines + ['return (%s)ZI_AT(m_, 0);' % t.ctype])
+        lines.append('%s e_ = ZI_N(eq_%s)(a, m_);' % (t.c, t.name))
+        lines.append('for(int i_ = 0; i_ < %d; i_++) if(ZI_AT(e_, i_)) return i_;' % t.lanes)
+        lines.append('return 0;')
+        return '\n    '.join(lines)
 
     def portable(self, t):
         if self.kind == 'add':
@@ -995,6 +1344,9 @@ class ByteShuffle(Op):
     def __init__(self):
         super().__init__('ZI_OP_BYTE_SHUFFLE', 'byte_shuffle', lanes_of('u8', 's8'), 'byte_shuffle')
 
+    # Halves where they shuffle in one instruction; SSE2 loops over all 32.
+    split_cond = 'ZI_VEC && !(ZI_X86 && ZI_TIER < 2)'
+
     def params(self, t):
         return [(t.c, 'a'), (t.u.c, 'b')]
 
@@ -1038,14 +1390,21 @@ class Half(Op):
         return [(t.c, 'a')]
 
     def special(self, t):
+        # Below AVX2 a 16-byte aligned union keeps GCC's halves in registers;
+        # memcpy would move them through the stack in 8-byte pieces, and an
+        # under-aligned union makes GCC 14 fold misaligned memory operands
+        # into SSE instructions (an internal compiler error).
+        u = ('union { %s w; __m128i h[2]; } u_;\n    u_.w = a;\n    return (%s)u_.h[%d];' %
+             (t.c, t.half.c, 1 if self.high else 0))
         if self.high:
-            return [(AVX2, 'return (%s)_mm256_extracti128_si256((__m256i)a, 1);' % t.half.c)]
-        return [(AVX2, 'return (%s)_mm256_castsi256_si128((__m256i)a);' % t.half.c)]
+            return [(AVX2, 'return (%s)_mm256_extracti128_si256((__m256i)a, 1);' % t.half.c), (X86, u)]
+        return [(AVX2, 'return (%s)_mm256_castsi256_si128((__m256i)a);' % t.half.c), (X86, u)]
 
     def portable(self, t):
         return '%s r_;\n    memcpy(&r_, (const char *)&a + %d, 16);\n    return r_;' % (t.half.c, 16 if self.high else 0)
 
     splittable = False
+    wide_specials = True
 
 
 class Combine(Op):
@@ -1058,6 +1417,10 @@ class Combine(Op):
     def special(self, t):
         return [(AVX2, 'return (%s)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);' %
                  t.double.c)]
+
+    def generic(self, t):
+        return 'union { %s w; %s h[2]; } u_;\n    u_.h[0] = a;\n    u_.h[1] = b;\n    return u_.w;' % (
+            t.double.c, t.c)
 
     def portable(self, t):
         return ('%s r_;\n    memcpy(&r_, &a, 16);\n    memcpy((char *)&r_ + 16, &b, 16);\n    return r_;' %
@@ -1114,6 +1477,9 @@ def ops():
         Unary('ZI_OP_ABS', 'abs', lanes_of('s8', 's16', 's32', 's64', 'f32', 'f64'), abs_generic,
               abs_specials),
         Unary('ZI_OP_NEG', 'neg', TYPES, neg_generic),
+        Lanewise('ZI_OP_SIGN', 'sign', lanes_of('s8', 's16', 's32', 's64'), generic=sign_generic,
+                 specials=sign_specials),
+        AbsDiff(),
         Compare('ZI_OP_EQ', 'eq', '=='),
         Compare('ZI_OP_LT', 'lt', '<'),
         Compare('ZI_OP_GT', 'gt', '>'),
@@ -1153,11 +1519,74 @@ def ops():
 
 # ---------------------------------------------------------------- output
 
+def wide_params(params):
+    return any(c.startswith('zi_') and BY_NAME[c[3:]].wide for c, _ in params)
+
+
+def pointer_params(params):
+    """Parameters of the below-AVX2 form: 256-bit vectors by const pointer."""
+    return ', '.join(('const %s *%s_p_' % (c, n)) if c.startswith('zi_') and BY_NAME[c[3:]].wide
+                     else '%s %s' % (c, n) for c, n in params)
+
+
+# x86-64 code without AVX passes 256-bit vectors differently from AVX code,
+# and GCC notes that ABI change for every such parameter in a non-AVX
+# function, inlined or not, whatever the pragmas say. Below AVX2 a helper
+# taking one is a macro that keeps its operands in locals and calls the
+# helper's pointer form, so no 256-bit vector is ever a parameter there.
+SPLIT_ABI = 'ZI_VEC && ZI_X86 && ZI_TIER < 4'
+GCC_SPLIT = SPLIT_ABI + ' && !defined(__clang__)'
+
+
+def prototype(out, ret, name, params):
+    ret_c = ret.c if isinstance(ret, T) else ret
+    plist = ', '.join('%s %s' % p for p in params) or 'void'
+    if wide_params(params):
+        out.append('#if %s' % SPLIT_ABI)
+        out.append('ZI_FN %s ZI_N(%s_p_)(%s);' % (ret_c, name, pointer_params(params)))
+        out.append('#else')
+        out.append('ZI_FN %s ZI_N(%s)(%s);' % (ret_c, name, plist))
+        out.append('#endif')
+    else:
+        out.append('ZI_FN %s ZI_N(%s)(%s);' % (ret_c, name, plist))
+
+
+def split_macros(out, items):
+    """The below-AVX2 macros, one set per x86-64 helper prefix."""
+    wide = [(name, params) for _op, _t, _ret, name, params, _b in items if wide_params(params)]
+    out.append('#if %s' % SPLIT_ABI)
+    for i, prefix in enumerate(('zi_', 'zi_ssse3_', 'zi_sse41_')):
+        out.append('#%s ZI_NS == %d' % ('if' if i == 0 else 'elif', i + 1))
+        for name, params in wide:
+            names = [n for _c, n in params]
+            locals_ = ['zi_%s_ = (%s)' % (n, n) for c, n in params if c.startswith('zi_') and BY_NAME[c[3:]].wide]
+            decls = []
+            for c, n in params:
+                if c.startswith('zi_') and BY_NAME[c[3:]].wide:
+                    decls.append('%s zi_%s_ = (%s);' % (c, n, n))
+            args = ', '.join(('&zi_%s_' % n) if c.startswith('zi_') and BY_NAME[c[3:]].wide else '(%s)' % n
+                             for c, n in params)
+            out.append('#define %s%s(%s) __extension__ ({ %s %s%s_p_(%s); })' %
+                       (prefix, name, ', '.join(names), ' '.join(decls), prefix, name, args))
+    out.append('#endif')
+    out.append('#endif')
+
+
 def function(out, ret, name, params, bodies):
     """bodies: [(condition or None, lines)] in order; None is the final #else."""
     ret_c = ret.c if isinstance(ret, T) else ret
     plist = ', '.join('%s %s' % p for p in params) or 'void'
-    out.append('ZI_FN %s ZI_N(%s)(%s)\n{' % (ret_c, name, plist))
+    if wide_params(params):
+        out.append('#if %s' % SPLIT_ABI)
+        out.append('ZI_FN %s ZI_N(%s_p_)(%s)\n{' % (ret_c, name, pointer_params(params)))
+        for c, n in params:
+            if c.startswith('zi_') and BY_NAME[c[3:]].wide:
+                out.append('    %s %s = *%s_p_;' % (c, n, n))
+        out.append('#else')
+        out.append('ZI_FN %s ZI_N(%s)(%s)\n{' % (ret_c, name, plist))
+        out.append('#endif')
+    else:
+        out.append('ZI_FN %s ZI_N(%s)(%s)\n{' % (ret_c, name, plist))
     if len(bodies) == 1 and bodies[0][0] is None:
         out.append('    ' + bodies[0][1])
     else:
@@ -1171,16 +1600,24 @@ def function(out, ret, name, params, bodies):
     out.append('}')
 
 
+FLOAT_ARITHMETIC = ('ZI_OP_ADD', 'ZI_OP_SUB', 'ZI_OP_MUL', 'ZI_OP_DIV', 'ZI_OP_MIN', 'ZI_OP_MAX',
+                    'ZI_OP_EQ', 'ZI_OP_LT', 'ZI_OP_GT')
+
+
 def plan(op, t):
     """The function bodies for (op, t)."""
     bodies = []
     specials = op.special(t)
+    generic = op.generic(t)
+    armv7_float = t.float and op.enum in FLOAT_ARITHMETIC
     if t.wide:
-        bodies += [(c, b) for c, b in specials if 'ZI_TIER >= 4' in c]
-        half_specials = op.special(t.half) if op.splittable else []
-        if half_specials:
-            conds = sorted(set('(%s)' % c for c, _ in half_specials))
-            r = op.result(t)
+        if getattr(op, 'wide_specials', False):
+            bodies += specials
+        else:
+            bodies += [(c, b) for c, b in specials if 'ZI_TIER >= 4' in c]
+        r = op.result(t)
+        split = op.splittable and isinstance(r, T) and r.wide and wide_params(op.params(t))
+        if split:
             hn = op.name(t.half)
             lo = ', '.join('ZI_N(low_%s)(%s)' % (c[3:], n) if c.startswith('zi_') else n
                            for c, n in op.params(t))
@@ -1188,10 +1625,30 @@ def plan(op, t):
                            for c, n in op.params(t))
             body = 'return ZI_N(combine_%s)(ZI_N(%s)(%s), ZI_N(%s)(%s));' % (
                 r.half.name, hn, lo, hn, hi)
-            bodies.append(('ZI_VEC && (%s)' % ' || '.join(conds), body))
+            # Halves wherever they have their own instructions, and on x86
+            # below AVX2, whose native width they are: GCC would run some
+            # generic 256-bit operations lane by lane. Elsewhere the
+            # compilers lower the vector forms well themselves (GCC's AVX2
+            # would not join the halves again). Every target takes halves
+            # over a lane-by-lane loop, and ARMv7 floats the halves' exact
+            # versions.
+            portable = op.portable(t)
+            if getattr(op, 'split_cond', None):
+                cond = op.split_cond
+            elif generic is None and (portable is None or 'for(' in portable):
+                cond = 'ZI_VEC'
+            else:
+                parts = [GCC_SPLIT if getattr(op, 'clang_whole', False) else SPLIT_ABI]
+                parts += sorted(set(c for c, _ in op.special(t.half)))
+                if armv7_float:
+                    parts.append('ZI_NEON && !ZI_A64')
+                cond = 'ZI_VEC && (%s)' % ' || '.join('(%s)' % c for c in parts)
+            bodies.append((cond, body))
     else:
         bodies += specials
-    generic = op.generic(t)
+        if armv7_float:
+            # ARMv7 NEON flushes subnormal floats to zero.
+            bodies.append(('ZI_NEON && !ZI_A64', '\n    '.join(ref_body(op, t))))
     if generic is not None:
         bodies.append(('ZI_VEC', generic))
     portable = op.portable(t)
@@ -1210,6 +1667,15 @@ def entries():
             for t, r in narrow_pairs():
                 specials = op.special_pair(t, r)
                 bodies = list(specials)
+                if t.wide:
+                    # Block by block, two 128-bit narrows. x86 and SIMD128
+                    # have no 64-bit saturating packs, so there 64-bit
+                    # sources narrow whole.
+                    h = 'narrow_%s_%s' % (t.half.name, r.half.name)
+                    bodies.append(('ZI_VEC' if t.bits < 64 else NEON,
+                                   'return ZI_N(combine_%s)(ZI_N(%s)(ZI_N(low_%s)(a), ZI_N(low_%s)(b)),\n'
+                                   '        ZI_N(%s)(ZI_N(high_%s)(a), ZI_N(high_%s)(b)));' %
+                                   (r.half.name, h, t.name, t.name, h, t.name, t.name)))
                 bodies.append(('ZI_VEC', op.generic_pair(t, r)))
                 ref = ['uint64_t x_[32], y_[32], o_[32];', 'zi_unpack_%s(a, x_);' % t.name,
                        'zi_unpack_%s(b, y_);' % t.name,
@@ -1351,12 +1817,26 @@ def common(out):
         else:
             out.append('ZI_INLINE uint64_t zi_bits_%s(%s x) { return (uint%d_t)x; }' % (lane, ctype, bits))
             out.append('ZI_INLINE %s zi_from_bits_%s(uint64_t b) { return (%s)(uint%d_t)b; }' % (ctype, lane, ctype, bits))
+    # Native-vector builds move vectors through pointers here, so no 256-bit
+    # vector is a parameter or crosses into code of another x86-64 tier.
     for t in TYPES:
-        out.append('ZI_INLINE void zi_unpack_%s(%s x, uint64_t *o)\n{\n'
-                   '    for(int i = 0; i < %d; i++) o[i] = zi_bits_%s(ZI_AT(x, i));\n}' % (t.name, t.c, t.lanes, t.lane))
-        out.append('ZI_INLINE %s zi_pack_%s(const uint64_t *o)\n{\n    %s x;\n'
-                   '    for(int i = 0; i < %d; i++) ZI_AT(x, i) = zi_from_bits_%s(o[i]);\n    return x;\n}' %
-                   (t.c, t.name, t.c, t.lanes, t.lane))
+        out.append('ZI_INLINE void zi_unpack_p_%s(const %s *x, uint64_t *o)\n{\n'
+                   '    for(int i = 0; i < %d; i++) o[i] = zi_bits_%s(ZI_AT(*x, i));\n}' % (t.name, t.c, t.lanes, t.lane))
+        out.append('ZI_INLINE void zi_pack_p_%s(%s *x, const uint64_t *o)\n{\n'
+                   '    for(int i = 0; i < %d; i++) ZI_AT(*x, i) = zi_from_bits_%s(o[i]);\n}' %
+                   (t.name, t.c, t.lanes, t.lane))
+    out.append('#if ZI_VEC')
+    for t in TYPES:
+        out.append('#define zi_unpack_%s(x, o) __extension__ ({ %s zi_x_ = (x); zi_unpack_p_%s(&zi_x_, (o)); })' %
+                   (t.name, t.c, t.name))
+        out.append('#define zi_pack_%s(o) __extension__ ({ %s zi_x_; zi_pack_p_%s(&zi_x_, (o)); zi_x_; })' %
+                   (t.name, t.c, t.name))
+    out.append('#else')
+    for t in TYPES:
+        out.append('ZI_INLINE void zi_unpack_%s(%s x, uint64_t *o) { zi_unpack_p_%s(&x, o); }' % (t.name, t.c, t.name))
+        out.append('ZI_INLINE %s zi_pack_%s(const uint64_t *o) { %s x; zi_pack_p_%s(&x, o); return x; }' %
+                   (t.c, t.name, t.c, t.name))
+    out.append('#endif')
     out.append('')
     out.append('/* Lane arrays run the constant-operand macros through zi_ref. */')
     out.append('#if !ZI_VEC')
@@ -1387,9 +1867,9 @@ def header():
     items = entries()
     out.append('/* ---- operations for ZI_TIER ---- */')
     for op, t, ret, name, params, bodies in items:
-        ret_c = ret.c if isinstance(ret, T) else ret
-        plist = ', '.join('%s %s' % p for p in params) or 'void'
-        out.append('ZI_FN %s ZI_N(%s)(%s);' % (ret_c, name, plist))
+        prototype(out, ret, name, params)
+    out.append('')
+    split_macros(out, items)
     out.append('')
     for op, t, ret, name, params, bodies in items:
         function(out, ret, name, params, bodies)

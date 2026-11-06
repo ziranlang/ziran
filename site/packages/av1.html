@@ -12,7 +12,7 @@ on 275 of the 279 KEY temporal units in libaom's pinned test vectors. That is
 not a full AV1 conformance claim. The scalar decoder is still several times
 slower than libaom and dav1d; <code>tests/av1_benchmark.sh</code> measures it. See
 <a href="https://github.com/ziranlang/av1/blob/HEAD/docs/AV1.md">docs/AV1.md</a> for the module layout, contracts and tests.</p>
-<pre><code class="language-sh">build-queue -- sh tests/av1_critical_path.sh
+<pre><code class="language-sh">sh tests/av1_critical_path.sh
 </code></pre>
 <p>libaom and dav1d are pinned test oracles only; no product module calls a native
 codec. <code>tests/common.sh</code> and <code>tests/av1_headers.sh</code> build them under ignored

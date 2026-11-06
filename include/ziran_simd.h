@@ -94,7 +94,7 @@ enum {
     ZI_OP_REDUCE_MAX, ZI_OP_REDUCE_MAX_INDEX, ZI_OP_ALL_ZERO,
     ZI_OP_BYTE_SHUFFLE, ZI_OP_SHUFFLE, ZI_OP_REINTERPRET, ZI_OP_CONVERT,
     ZI_OP_LOW, ZI_OP_HIGH, ZI_OP_COMBINE, ZI_OP_INTERLEAVE_LOW,
-    ZI_OP_INTERLEAVE_HIGH, ZI_OP_COUNT
+    ZI_OP_INTERLEAVE_HIGH, ZI_OP_SIGN, ZI_OP_ABS_DIFF, ZI_OP_COUNT
 };
 
 static inline int zi_kbits(int kind) { return 8 << (kind == ZI_K_F32 ? 2 : kind == ZI_K_F64 ? 3 : kind / 2); }
@@ -219,8 +219,12 @@ static inline uint64_t zi_int_to_float(uint64_t bits, int from, int to)
  * zero-extended to 64 bits. k holds the constant operands: a lane index,
  * byte count or shuffle indices; k[0] is also a scalar shift count. A scalar
  * lane operand (Splat, WithLane) is b[0]; Make reads its lanes from a.
- * Scalar results are out[0].
+ * Scalar results are out[0]. Programs whose every helper has a vector
+ * body never call it.
  */
+#if defined(__GNUC__)
+__attribute__((unused))
+#endif
 static void
 zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
        const uint64_t *b, const uint64_t *c, const int64_t *k, uint64_t *out)
@@ -287,6 +291,16 @@ zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
         for(i = 0; i < an; i++)
             out[i] = zi_kfloat(ak) ? a[i] ^ ((mask >> 1) + 1) : (0 - a[i]) & mask;
         return;
+    case ZI_OP_SIGN: /* a negated where b < 0, zero where b == 0 */
+        for(i = 0; i < an; i++) {
+            int64_t s = zi_sx(b[i], ak);
+            out[i] = s < 0 ? (0 - a[i]) & mask : s == 0 ? 0 : a[i] & mask;
+        }
+        return;
+    case ZI_OP_ABS_DIFF: /* |a - b| in the unsigned lanes of the same width */
+        for(i = 0; i < an; i++)
+            out[i] = (zi_kcmp(a[i], b[i], ak) < 0 ? b[i] - a[i] : a[i] - b[i]) & mask;
+        return;
     case ZI_OP_EQ: case ZI_OP_LT: case ZI_OP_GT:
         for(i = 0; i < an; i++) {
             int yes;
@@ -321,15 +335,17 @@ zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
         unsigned char x[32], y[32], z[32];
         zi_bytes(op == ZI_OP_ALIGN_BYTES ? b : a, ak, an, x);
         if(op == ZI_OP_ALIGN_BYTES) zi_bytes(a, ak, an, y);
-        for(block = 0; block < blocks; block++)
-            for(i = 0; i < 16; i++) {
-                int64_t from = op == ZI_OP_SHL_BYTES ? i - k[0] : i + k[0];
-                unsigned char byte = 0;
-                if(from >= 0 && from < 16) byte = x[block * 16 + from];
-                else if(op == ZI_OP_ALIGN_BYTES && from >= 16 && from < 32)
-                    byte = y[block * 16 + from - 16];
-                z[block * 16 + i] = byte;
-            }
+        /* One flat loop: NDK Clang 19 for ARMv7 drops the second block of
+         * the nested form when op and an are constants. */
+        for(j = 0; j < bytes; j++) {
+            int base = j & ~15;
+            int64_t from = (j & 15) + (op == ZI_OP_SHL_BYTES ? -k[0] : k[0]);
+            unsigned char byte = 0;
+            if(from >= 0 && from < 16) byte = x[base + from];
+            else if(op == ZI_OP_ALIGN_BYTES && from >= 16 && from < 32)
+                byte = y[base + from - 16];
+            z[j] = byte;
+        }
         zi_unbytes(z, ak, an, out);
         return;
     }
@@ -474,10 +490,12 @@ zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
 #define ZI_TIER ZI_BASE_TIER
 #define ZI_FN ZI_INLINE
 #define ZI_N(name) zi_##name
+#define ZI_NS 1 /* which prefix ZI_N adds: zi_, zi_ssse3_, zi_sse41_, zi_avx2_ */
 #include "ziran_simd_ops.h"
 #undef ZI_TIER
 #undef ZI_FN
 #undef ZI_N
+#undef ZI_NS
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -522,24 +540,30 @@ zi_simd_gather_check(const void *indices, int lanes, int is_signed, int64_t leng
 #define ZI_TIER 2
 #define ZI_FN ZI_INLINE __attribute__((target("ssse3")))
 #define ZI_N(name) zi_ssse3_##name
+#define ZI_NS 2
 #include "ziran_simd_ops.h"
 #undef ZI_TIER
 #undef ZI_FN
 #undef ZI_N
+#undef ZI_NS
 #define ZI_TIER 3
 #define ZI_FN ZI_INLINE __attribute__((target("sse4.1")))
 #define ZI_N(name) zi_sse41_##name
+#define ZI_NS 3
 #include "ziran_simd_ops.h"
 #undef ZI_TIER
 #undef ZI_FN
 #undef ZI_N
+#undef ZI_NS
 #define ZI_TIER 4
 #define ZI_FN ZI_INLINE __attribute__((target("avx2")))
 #define ZI_N(name) zi_avx2_##name
+#define ZI_NS 4
 #include "ziran_simd_ops.h"
 #undef ZI_TIER
 #undef ZI_FN
 #undef ZI_N
+#undef ZI_NS
 #if ZI_BASE_TIER < 4
 /* #target procedures dispatch between clones when the build's own tier is
  * below AVX2; generated C tests this. */

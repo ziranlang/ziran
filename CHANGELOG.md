@@ -12,6 +12,11 @@
   `--module-path std=DIR`, as package tests pass it.
 - SIMD loads, stores, widening and 256-bit halves compile to single
   instructions instead of copies through memory.
+- `Simd.Sign` and `Simd.AbsDiff`. 256-bit vectors run as two 128-bit halves
+  without AVX2, and reductions, `MulWide`, `Narrow` and `AddPairs` use
+  fewer instructions.
+- On 32-bit ARM, `f32` vector arithmetic keeps tiny values instead of
+  flushing them to zero, and byte shifts of 256-bit vectors are correct.
 - `std/resample`'s x86-64 kernels use `std/simd` instead of assembly. They
   make the same bytes and run about 10% faster with AVX2.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its

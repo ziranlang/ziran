@@ -84,6 +84,13 @@ Answer :: () -> s64 {
     if Simd.Lane(got, 0) != 30 || Simd.Lane(got, 3) != 5 { return 28 }
     halves := Simd.Combine(Simd.Low(Simd.Widen(b)), Simd.High(Simd.Widen(b)))
     if Simd.Lane(halves, 7) != -1 || Simd.Lane(halves, 4) != 5000 { return 29 }
+    signs := Simd.Sign(a, b)
+    if Simd.Lane(signs, 2) != -3 || Simd.Lane(signs, 5) != 30000 || Simd.Lane(signs, 7) != -32768 ||
+        Simd.Lane(Simd.Sign(a, Simd.Zero(s16x8)), 0) != 0 { return 30 }
+    gaps := Simd.AbsDiff(a, b)
+    if Simd.Lane(gaps, 1) != 10 || Simd.Lane(gaps, 4) != 25000 || Simd.Lane(gaps, 7) != 32767 ||
+        Simd.Lane(Simd.AbsDiff(Simd.Splat(s16x8, 32767), Simd.Splat(s16x8, -32768)), 0) != 65535 ||
+        Simd.Lane(Simd.AbsDiff(table, Simd.Splat(u8x16, 110)), 0) != 10 { return 31 }
     return 42
 }
 
@@ -137,6 +144,10 @@ Arithmetic :: () -> u64 {
     w := Simd.Make(s32x8, 1, 2, 3, 4, -5, -6, 2147483647, -2147483648)
     h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Add(w, w)))
     h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Max(w, Simd.Zero(s32x8))))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Sign(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.AbsDiff(a, b)))
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Sign(w, Simd.Neg(w))))
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.AbsDiff(w, Simd.Neg(w))))
     return h
 }
 

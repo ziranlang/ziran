@@ -37,6 +37,8 @@ static const SimdOp ops[] = {
     OP(NOT, "Not", "not", SIMD_UNARY, INT, 0),
     OP(ABS, "Abs", "abs", SIMD_UNARY, S8 | S16 | S32 | S64 | FLOAT, 0),
     OP(NEG, "Neg", "neg", SIMD_UNARY, ANY, 0),
+    OP(SIGN, "Sign", "sign", SIMD_BINARY, S8 | S16 | S32 | S64, 0),
+    OP(ABS_DIFF, "AbsDiff", "abs_diff", SIMD_BINARY, INT, 0),
     OP(EQ, "Equal", "eq", SIMD_COMPARE, ANY, 0),
     OP(LT, "Less", "lt", SIMD_COMPARE, ANY, 0),
     OP(GT, "Greater", "gt", SIMD_COMPARE, ANY, 0),
@@ -218,8 +220,11 @@ SimdSignature(const SimdOp *op, const char *result, const SimdOperand *operands,
         if(!vector_of(op, &operands[0], &a)) return fail(message, unsupported);
         if(strcmp(operands[0].type, operands[1].type))
             return fail(message, "takes two vectors of one type");
-        if(op->shape == SIMD_COMPARE && a.is_float)
-            return VectorTypeName(a.lane_bits == 32 ? "u32" : "u64", a.lanes);
+        if((op->shape == SIMD_COMPARE && a.is_float) || op->id == ZI_OP_ABS_DIFF) {
+            char lane[8];
+            snprintf(lane, sizeof(lane), "u%d", a.lane_bits);
+            return VectorTypeName(lane, a.lanes);
+        }
         return a.name;
     case SIMD_UNARY:
         if(count != 1) return fail(message, "takes one vector");

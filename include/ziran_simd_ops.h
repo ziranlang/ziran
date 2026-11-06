@@ -83,206 +83,249 @@ ZI_INLINE uint64_t zi_bits_f32(float x) { uint32_t w; memcpy(&w, &x, sizeof(w));
 ZI_INLINE float zi_from_bits_f32(uint64_t b) { uint32_t w = (uint32_t)b; float x; memcpy(&x, &w, sizeof(x)); return x; }
 ZI_INLINE uint64_t zi_bits_f64(double x) { uint64_t w; memcpy(&w, &x, sizeof(w)); return w; }
 ZI_INLINE double zi_from_bits_f64(uint64_t b) { uint64_t w = (uint64_t)b; double x; memcpy(&x, &w, sizeof(x)); return x; }
-ZI_INLINE void zi_unpack_u8x16(zi_u8x16 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u8x16(const zi_u8x16 *x, uint64_t *o)
 {
-    for(int i = 0; i < 16; i++) o[i] = zi_bits_u8(ZI_AT(x, i));
+    for(int i = 0; i < 16; i++) o[i] = zi_bits_u8(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u8x16 zi_pack_u8x16(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u8x16(zi_u8x16 *x, const uint64_t *o)
 {
-    zi_u8x16 x;
-    for(int i = 0; i < 16; i++) ZI_AT(x, i) = zi_from_bits_u8(o[i]);
-    return x;
+    for(int i = 0; i < 16; i++) ZI_AT(*x, i) = zi_from_bits_u8(o[i]);
 }
-ZI_INLINE void zi_unpack_s8x16(zi_s8x16 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s8x16(const zi_s8x16 *x, uint64_t *o)
 {
-    for(int i = 0; i < 16; i++) o[i] = zi_bits_s8(ZI_AT(x, i));
+    for(int i = 0; i < 16; i++) o[i] = zi_bits_s8(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s8x16 zi_pack_s8x16(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s8x16(zi_s8x16 *x, const uint64_t *o)
 {
-    zi_s8x16 x;
-    for(int i = 0; i < 16; i++) ZI_AT(x, i) = zi_from_bits_s8(o[i]);
-    return x;
+    for(int i = 0; i < 16; i++) ZI_AT(*x, i) = zi_from_bits_s8(o[i]);
 }
-ZI_INLINE void zi_unpack_u16x8(zi_u16x8 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u16x8(const zi_u16x8 *x, uint64_t *o)
 {
-    for(int i = 0; i < 8; i++) o[i] = zi_bits_u16(ZI_AT(x, i));
+    for(int i = 0; i < 8; i++) o[i] = zi_bits_u16(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u16x8 zi_pack_u16x8(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u16x8(zi_u16x8 *x, const uint64_t *o)
 {
-    zi_u16x8 x;
-    for(int i = 0; i < 8; i++) ZI_AT(x, i) = zi_from_bits_u16(o[i]);
-    return x;
+    for(int i = 0; i < 8; i++) ZI_AT(*x, i) = zi_from_bits_u16(o[i]);
 }
-ZI_INLINE void zi_unpack_s16x8(zi_s16x8 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s16x8(const zi_s16x8 *x, uint64_t *o)
 {
-    for(int i = 0; i < 8; i++) o[i] = zi_bits_s16(ZI_AT(x, i));
+    for(int i = 0; i < 8; i++) o[i] = zi_bits_s16(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s16x8 zi_pack_s16x8(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s16x8(zi_s16x8 *x, const uint64_t *o)
 {
-    zi_s16x8 x;
-    for(int i = 0; i < 8; i++) ZI_AT(x, i) = zi_from_bits_s16(o[i]);
-    return x;
+    for(int i = 0; i < 8; i++) ZI_AT(*x, i) = zi_from_bits_s16(o[i]);
 }
-ZI_INLINE void zi_unpack_u32x4(zi_u32x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u32x4(const zi_u32x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_u32(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_u32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u32x4 zi_pack_u32x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u32x4(zi_u32x4 *x, const uint64_t *o)
 {
-    zi_u32x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_u32(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_u32(o[i]);
 }
-ZI_INLINE void zi_unpack_s32x4(zi_s32x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s32x4(const zi_s32x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_s32(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_s32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s32x4 zi_pack_s32x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s32x4(zi_s32x4 *x, const uint64_t *o)
 {
-    zi_s32x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_s32(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_s32(o[i]);
 }
-ZI_INLINE void zi_unpack_u64x2(zi_u64x2 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u64x2(const zi_u64x2 *x, uint64_t *o)
 {
-    for(int i = 0; i < 2; i++) o[i] = zi_bits_u64(ZI_AT(x, i));
+    for(int i = 0; i < 2; i++) o[i] = zi_bits_u64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u64x2 zi_pack_u64x2(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u64x2(zi_u64x2 *x, const uint64_t *o)
 {
-    zi_u64x2 x;
-    for(int i = 0; i < 2; i++) ZI_AT(x, i) = zi_from_bits_u64(o[i]);
-    return x;
+    for(int i = 0; i < 2; i++) ZI_AT(*x, i) = zi_from_bits_u64(o[i]);
 }
-ZI_INLINE void zi_unpack_s64x2(zi_s64x2 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s64x2(const zi_s64x2 *x, uint64_t *o)
 {
-    for(int i = 0; i < 2; i++) o[i] = zi_bits_s64(ZI_AT(x, i));
+    for(int i = 0; i < 2; i++) o[i] = zi_bits_s64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s64x2 zi_pack_s64x2(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s64x2(zi_s64x2 *x, const uint64_t *o)
 {
-    zi_s64x2 x;
-    for(int i = 0; i < 2; i++) ZI_AT(x, i) = zi_from_bits_s64(o[i]);
-    return x;
+    for(int i = 0; i < 2; i++) ZI_AT(*x, i) = zi_from_bits_s64(o[i]);
 }
-ZI_INLINE void zi_unpack_f32x4(zi_f32x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_f32x4(const zi_f32x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_f32(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_f32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_f32x4 zi_pack_f32x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_f32x4(zi_f32x4 *x, const uint64_t *o)
 {
-    zi_f32x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_f32(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_f32(o[i]);
 }
-ZI_INLINE void zi_unpack_f64x2(zi_f64x2 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_f64x2(const zi_f64x2 *x, uint64_t *o)
 {
-    for(int i = 0; i < 2; i++) o[i] = zi_bits_f64(ZI_AT(x, i));
+    for(int i = 0; i < 2; i++) o[i] = zi_bits_f64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_f64x2 zi_pack_f64x2(const uint64_t *o)
+ZI_INLINE void zi_pack_p_f64x2(zi_f64x2 *x, const uint64_t *o)
 {
-    zi_f64x2 x;
-    for(int i = 0; i < 2; i++) ZI_AT(x, i) = zi_from_bits_f64(o[i]);
-    return x;
+    for(int i = 0; i < 2; i++) ZI_AT(*x, i) = zi_from_bits_f64(o[i]);
 }
-ZI_INLINE void zi_unpack_u8x32(zi_u8x32 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u8x32(const zi_u8x32 *x, uint64_t *o)
 {
-    for(int i = 0; i < 32; i++) o[i] = zi_bits_u8(ZI_AT(x, i));
+    for(int i = 0; i < 32; i++) o[i] = zi_bits_u8(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u8x32 zi_pack_u8x32(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u8x32(zi_u8x32 *x, const uint64_t *o)
 {
-    zi_u8x32 x;
-    for(int i = 0; i < 32; i++) ZI_AT(x, i) = zi_from_bits_u8(o[i]);
-    return x;
+    for(int i = 0; i < 32; i++) ZI_AT(*x, i) = zi_from_bits_u8(o[i]);
 }
-ZI_INLINE void zi_unpack_s8x32(zi_s8x32 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s8x32(const zi_s8x32 *x, uint64_t *o)
 {
-    for(int i = 0; i < 32; i++) o[i] = zi_bits_s8(ZI_AT(x, i));
+    for(int i = 0; i < 32; i++) o[i] = zi_bits_s8(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s8x32 zi_pack_s8x32(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s8x32(zi_s8x32 *x, const uint64_t *o)
 {
-    zi_s8x32 x;
-    for(int i = 0; i < 32; i++) ZI_AT(x, i) = zi_from_bits_s8(o[i]);
-    return x;
+    for(int i = 0; i < 32; i++) ZI_AT(*x, i) = zi_from_bits_s8(o[i]);
 }
-ZI_INLINE void zi_unpack_u16x16(zi_u16x16 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u16x16(const zi_u16x16 *x, uint64_t *o)
 {
-    for(int i = 0; i < 16; i++) o[i] = zi_bits_u16(ZI_AT(x, i));
+    for(int i = 0; i < 16; i++) o[i] = zi_bits_u16(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u16x16 zi_pack_u16x16(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u16x16(zi_u16x16 *x, const uint64_t *o)
 {
-    zi_u16x16 x;
-    for(int i = 0; i < 16; i++) ZI_AT(x, i) = zi_from_bits_u16(o[i]);
-    return x;
+    for(int i = 0; i < 16; i++) ZI_AT(*x, i) = zi_from_bits_u16(o[i]);
 }
-ZI_INLINE void zi_unpack_s16x16(zi_s16x16 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s16x16(const zi_s16x16 *x, uint64_t *o)
 {
-    for(int i = 0; i < 16; i++) o[i] = zi_bits_s16(ZI_AT(x, i));
+    for(int i = 0; i < 16; i++) o[i] = zi_bits_s16(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s16x16 zi_pack_s16x16(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s16x16(zi_s16x16 *x, const uint64_t *o)
 {
-    zi_s16x16 x;
-    for(int i = 0; i < 16; i++) ZI_AT(x, i) = zi_from_bits_s16(o[i]);
-    return x;
+    for(int i = 0; i < 16; i++) ZI_AT(*x, i) = zi_from_bits_s16(o[i]);
 }
-ZI_INLINE void zi_unpack_u32x8(zi_u32x8 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u32x8(const zi_u32x8 *x, uint64_t *o)
 {
-    for(int i = 0; i < 8; i++) o[i] = zi_bits_u32(ZI_AT(x, i));
+    for(int i = 0; i < 8; i++) o[i] = zi_bits_u32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u32x8 zi_pack_u32x8(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u32x8(zi_u32x8 *x, const uint64_t *o)
 {
-    zi_u32x8 x;
-    for(int i = 0; i < 8; i++) ZI_AT(x, i) = zi_from_bits_u32(o[i]);
-    return x;
+    for(int i = 0; i < 8; i++) ZI_AT(*x, i) = zi_from_bits_u32(o[i]);
 }
-ZI_INLINE void zi_unpack_s32x8(zi_s32x8 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s32x8(const zi_s32x8 *x, uint64_t *o)
 {
-    for(int i = 0; i < 8; i++) o[i] = zi_bits_s32(ZI_AT(x, i));
+    for(int i = 0; i < 8; i++) o[i] = zi_bits_s32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s32x8 zi_pack_s32x8(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s32x8(zi_s32x8 *x, const uint64_t *o)
 {
-    zi_s32x8 x;
-    for(int i = 0; i < 8; i++) ZI_AT(x, i) = zi_from_bits_s32(o[i]);
-    return x;
+    for(int i = 0; i < 8; i++) ZI_AT(*x, i) = zi_from_bits_s32(o[i]);
 }
-ZI_INLINE void zi_unpack_u64x4(zi_u64x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_u64x4(const zi_u64x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_u64(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_u64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_u64x4 zi_pack_u64x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_u64x4(zi_u64x4 *x, const uint64_t *o)
 {
-    zi_u64x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_u64(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_u64(o[i]);
 }
-ZI_INLINE void zi_unpack_s64x4(zi_s64x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_s64x4(const zi_s64x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_s64(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_s64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_s64x4 zi_pack_s64x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_s64x4(zi_s64x4 *x, const uint64_t *o)
 {
-    zi_s64x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_s64(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_s64(o[i]);
 }
-ZI_INLINE void zi_unpack_f32x8(zi_f32x8 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_f32x8(const zi_f32x8 *x, uint64_t *o)
 {
-    for(int i = 0; i < 8; i++) o[i] = zi_bits_f32(ZI_AT(x, i));
+    for(int i = 0; i < 8; i++) o[i] = zi_bits_f32(ZI_AT(*x, i));
 }
-ZI_INLINE zi_f32x8 zi_pack_f32x8(const uint64_t *o)
+ZI_INLINE void zi_pack_p_f32x8(zi_f32x8 *x, const uint64_t *o)
 {
-    zi_f32x8 x;
-    for(int i = 0; i < 8; i++) ZI_AT(x, i) = zi_from_bits_f32(o[i]);
-    return x;
+    for(int i = 0; i < 8; i++) ZI_AT(*x, i) = zi_from_bits_f32(o[i]);
 }
-ZI_INLINE void zi_unpack_f64x4(zi_f64x4 x, uint64_t *o)
+ZI_INLINE void zi_unpack_p_f64x4(const zi_f64x4 *x, uint64_t *o)
 {
-    for(int i = 0; i < 4; i++) o[i] = zi_bits_f64(ZI_AT(x, i));
+    for(int i = 0; i < 4; i++) o[i] = zi_bits_f64(ZI_AT(*x, i));
 }
-ZI_INLINE zi_f64x4 zi_pack_f64x4(const uint64_t *o)
+ZI_INLINE void zi_pack_p_f64x4(zi_f64x4 *x, const uint64_t *o)
 {
-    zi_f64x4 x;
-    for(int i = 0; i < 4; i++) ZI_AT(x, i) = zi_from_bits_f64(o[i]);
-    return x;
+    for(int i = 0; i < 4; i++) ZI_AT(*x, i) = zi_from_bits_f64(o[i]);
 }
+#if ZI_VEC
+#define zi_unpack_u8x16(x, o) __extension__ ({ zi_u8x16 zi_x_ = (x); zi_unpack_p_u8x16(&zi_x_, (o)); })
+#define zi_pack_u8x16(o) __extension__ ({ zi_u8x16 zi_x_; zi_pack_p_u8x16(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s8x16(x, o) __extension__ ({ zi_s8x16 zi_x_ = (x); zi_unpack_p_s8x16(&zi_x_, (o)); })
+#define zi_pack_s8x16(o) __extension__ ({ zi_s8x16 zi_x_; zi_pack_p_s8x16(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u16x8(x, o) __extension__ ({ zi_u16x8 zi_x_ = (x); zi_unpack_p_u16x8(&zi_x_, (o)); })
+#define zi_pack_u16x8(o) __extension__ ({ zi_u16x8 zi_x_; zi_pack_p_u16x8(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s16x8(x, o) __extension__ ({ zi_s16x8 zi_x_ = (x); zi_unpack_p_s16x8(&zi_x_, (o)); })
+#define zi_pack_s16x8(o) __extension__ ({ zi_s16x8 zi_x_; zi_pack_p_s16x8(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u32x4(x, o) __extension__ ({ zi_u32x4 zi_x_ = (x); zi_unpack_p_u32x4(&zi_x_, (o)); })
+#define zi_pack_u32x4(o) __extension__ ({ zi_u32x4 zi_x_; zi_pack_p_u32x4(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s32x4(x, o) __extension__ ({ zi_s32x4 zi_x_ = (x); zi_unpack_p_s32x4(&zi_x_, (o)); })
+#define zi_pack_s32x4(o) __extension__ ({ zi_s32x4 zi_x_; zi_pack_p_s32x4(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u64x2(x, o) __extension__ ({ zi_u64x2 zi_x_ = (x); zi_unpack_p_u64x2(&zi_x_, (o)); })
+#define zi_pack_u64x2(o) __extension__ ({ zi_u64x2 zi_x_; zi_pack_p_u64x2(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s64x2(x, o) __extension__ ({ zi_s64x2 zi_x_ = (x); zi_unpack_p_s64x2(&zi_x_, (o)); })
+#define zi_pack_s64x2(o) __extension__ ({ zi_s64x2 zi_x_; zi_pack_p_s64x2(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_f32x4(x, o) __extension__ ({ zi_f32x4 zi_x_ = (x); zi_unpack_p_f32x4(&zi_x_, (o)); })
+#define zi_pack_f32x4(o) __extension__ ({ zi_f32x4 zi_x_; zi_pack_p_f32x4(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_f64x2(x, o) __extension__ ({ zi_f64x2 zi_x_ = (x); zi_unpack_p_f64x2(&zi_x_, (o)); })
+#define zi_pack_f64x2(o) __extension__ ({ zi_f64x2 zi_x_; zi_pack_p_f64x2(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u8x32(x, o) __extension__ ({ zi_u8x32 zi_x_ = (x); zi_unpack_p_u8x32(&zi_x_, (o)); })
+#define zi_pack_u8x32(o) __extension__ ({ zi_u8x32 zi_x_; zi_pack_p_u8x32(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s8x32(x, o) __extension__ ({ zi_s8x32 zi_x_ = (x); zi_unpack_p_s8x32(&zi_x_, (o)); })
+#define zi_pack_s8x32(o) __extension__ ({ zi_s8x32 zi_x_; zi_pack_p_s8x32(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u16x16(x, o) __extension__ ({ zi_u16x16 zi_x_ = (x); zi_unpack_p_u16x16(&zi_x_, (o)); })
+#define zi_pack_u16x16(o) __extension__ ({ zi_u16x16 zi_x_; zi_pack_p_u16x16(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s16x16(x, o) __extension__ ({ zi_s16x16 zi_x_ = (x); zi_unpack_p_s16x16(&zi_x_, (o)); })
+#define zi_pack_s16x16(o) __extension__ ({ zi_s16x16 zi_x_; zi_pack_p_s16x16(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u32x8(x, o) __extension__ ({ zi_u32x8 zi_x_ = (x); zi_unpack_p_u32x8(&zi_x_, (o)); })
+#define zi_pack_u32x8(o) __extension__ ({ zi_u32x8 zi_x_; zi_pack_p_u32x8(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s32x8(x, o) __extension__ ({ zi_s32x8 zi_x_ = (x); zi_unpack_p_s32x8(&zi_x_, (o)); })
+#define zi_pack_s32x8(o) __extension__ ({ zi_s32x8 zi_x_; zi_pack_p_s32x8(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_u64x4(x, o) __extension__ ({ zi_u64x4 zi_x_ = (x); zi_unpack_p_u64x4(&zi_x_, (o)); })
+#define zi_pack_u64x4(o) __extension__ ({ zi_u64x4 zi_x_; zi_pack_p_u64x4(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_s64x4(x, o) __extension__ ({ zi_s64x4 zi_x_ = (x); zi_unpack_p_s64x4(&zi_x_, (o)); })
+#define zi_pack_s64x4(o) __extension__ ({ zi_s64x4 zi_x_; zi_pack_p_s64x4(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_f32x8(x, o) __extension__ ({ zi_f32x8 zi_x_ = (x); zi_unpack_p_f32x8(&zi_x_, (o)); })
+#define zi_pack_f32x8(o) __extension__ ({ zi_f32x8 zi_x_; zi_pack_p_f32x8(&zi_x_, (o)); zi_x_; })
+#define zi_unpack_f64x4(x, o) __extension__ ({ zi_f64x4 zi_x_ = (x); zi_unpack_p_f64x4(&zi_x_, (o)); })
+#define zi_pack_f64x4(o) __extension__ ({ zi_f64x4 zi_x_; zi_pack_p_f64x4(&zi_x_, (o)); zi_x_; })
+#else
+ZI_INLINE void zi_unpack_u8x16(zi_u8x16 x, uint64_t *o) { zi_unpack_p_u8x16(&x, o); }
+ZI_INLINE zi_u8x16 zi_pack_u8x16(const uint64_t *o) { zi_u8x16 x; zi_pack_p_u8x16(&x, o); return x; }
+ZI_INLINE void zi_unpack_s8x16(zi_s8x16 x, uint64_t *o) { zi_unpack_p_s8x16(&x, o); }
+ZI_INLINE zi_s8x16 zi_pack_s8x16(const uint64_t *o) { zi_s8x16 x; zi_pack_p_s8x16(&x, o); return x; }
+ZI_INLINE void zi_unpack_u16x8(zi_u16x8 x, uint64_t *o) { zi_unpack_p_u16x8(&x, o); }
+ZI_INLINE zi_u16x8 zi_pack_u16x8(const uint64_t *o) { zi_u16x8 x; zi_pack_p_u16x8(&x, o); return x; }
+ZI_INLINE void zi_unpack_s16x8(zi_s16x8 x, uint64_t *o) { zi_unpack_p_s16x8(&x, o); }
+ZI_INLINE zi_s16x8 zi_pack_s16x8(const uint64_t *o) { zi_s16x8 x; zi_pack_p_s16x8(&x, o); return x; }
+ZI_INLINE void zi_unpack_u32x4(zi_u32x4 x, uint64_t *o) { zi_unpack_p_u32x4(&x, o); }
+ZI_INLINE zi_u32x4 zi_pack_u32x4(const uint64_t *o) { zi_u32x4 x; zi_pack_p_u32x4(&x, o); return x; }
+ZI_INLINE void zi_unpack_s32x4(zi_s32x4 x, uint64_t *o) { zi_unpack_p_s32x4(&x, o); }
+ZI_INLINE zi_s32x4 zi_pack_s32x4(const uint64_t *o) { zi_s32x4 x; zi_pack_p_s32x4(&x, o); return x; }
+ZI_INLINE void zi_unpack_u64x2(zi_u64x2 x, uint64_t *o) { zi_unpack_p_u64x2(&x, o); }
+ZI_INLINE zi_u64x2 zi_pack_u64x2(const uint64_t *o) { zi_u64x2 x; zi_pack_p_u64x2(&x, o); return x; }
+ZI_INLINE void zi_unpack_s64x2(zi_s64x2 x, uint64_t *o) { zi_unpack_p_s64x2(&x, o); }
+ZI_INLINE zi_s64x2 zi_pack_s64x2(const uint64_t *o) { zi_s64x2 x; zi_pack_p_s64x2(&x, o); return x; }
+ZI_INLINE void zi_unpack_f32x4(zi_f32x4 x, uint64_t *o) { zi_unpack_p_f32x4(&x, o); }
+ZI_INLINE zi_f32x4 zi_pack_f32x4(const uint64_t *o) { zi_f32x4 x; zi_pack_p_f32x4(&x, o); return x; }
+ZI_INLINE void zi_unpack_f64x2(zi_f64x2 x, uint64_t *o) { zi_unpack_p_f64x2(&x, o); }
+ZI_INLINE zi_f64x2 zi_pack_f64x2(const uint64_t *o) { zi_f64x2 x; zi_pack_p_f64x2(&x, o); return x; }
+ZI_INLINE void zi_unpack_u8x32(zi_u8x32 x, uint64_t *o) { zi_unpack_p_u8x32(&x, o); }
+ZI_INLINE zi_u8x32 zi_pack_u8x32(const uint64_t *o) { zi_u8x32 x; zi_pack_p_u8x32(&x, o); return x; }
+ZI_INLINE void zi_unpack_s8x32(zi_s8x32 x, uint64_t *o) { zi_unpack_p_s8x32(&x, o); }
+ZI_INLINE zi_s8x32 zi_pack_s8x32(const uint64_t *o) { zi_s8x32 x; zi_pack_p_s8x32(&x, o); return x; }
+ZI_INLINE void zi_unpack_u16x16(zi_u16x16 x, uint64_t *o) { zi_unpack_p_u16x16(&x, o); }
+ZI_INLINE zi_u16x16 zi_pack_u16x16(const uint64_t *o) { zi_u16x16 x; zi_pack_p_u16x16(&x, o); return x; }
+ZI_INLINE void zi_unpack_s16x16(zi_s16x16 x, uint64_t *o) { zi_unpack_p_s16x16(&x, o); }
+ZI_INLINE zi_s16x16 zi_pack_s16x16(const uint64_t *o) { zi_s16x16 x; zi_pack_p_s16x16(&x, o); return x; }
+ZI_INLINE void zi_unpack_u32x8(zi_u32x8 x, uint64_t *o) { zi_unpack_p_u32x8(&x, o); }
+ZI_INLINE zi_u32x8 zi_pack_u32x8(const uint64_t *o) { zi_u32x8 x; zi_pack_p_u32x8(&x, o); return x; }
+ZI_INLINE void zi_unpack_s32x8(zi_s32x8 x, uint64_t *o) { zi_unpack_p_s32x8(&x, o); }
+ZI_INLINE zi_s32x8 zi_pack_s32x8(const uint64_t *o) { zi_s32x8 x; zi_pack_p_s32x8(&x, o); return x; }
+ZI_INLINE void zi_unpack_u64x4(zi_u64x4 x, uint64_t *o) { zi_unpack_p_u64x4(&x, o); }
+ZI_INLINE zi_u64x4 zi_pack_u64x4(const uint64_t *o) { zi_u64x4 x; zi_pack_p_u64x4(&x, o); return x; }
+ZI_INLINE void zi_unpack_s64x4(zi_s64x4 x, uint64_t *o) { zi_unpack_p_s64x4(&x, o); }
+ZI_INLINE zi_s64x4 zi_pack_s64x4(const uint64_t *o) { zi_s64x4 x; zi_pack_p_s64x4(&x, o); return x; }
+ZI_INLINE void zi_unpack_f32x8(zi_f32x8 x, uint64_t *o) { zi_unpack_p_f32x8(&x, o); }
+ZI_INLINE zi_f32x8 zi_pack_f32x8(const uint64_t *o) { zi_f32x8 x; zi_pack_p_f32x8(&x, o); return x; }
+ZI_INLINE void zi_unpack_f64x4(zi_f64x4 x, uint64_t *o) { zi_unpack_p_f64x4(&x, o); }
+ZI_INLINE zi_f64x4 zi_pack_f64x4(const uint64_t *o) { zi_f64x4 x; zi_pack_p_f64x4(&x, o); return x; }
+#endif
 
 /* Lane arrays run the constant-operand macros through zi_ref. */
 #if !ZI_VEC
@@ -848,16 +891,56 @@ ZI_FN zi_u64x2 ZI_N(add_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(add_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(add_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(add_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(add_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(add_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(add_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(add_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(add_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(add_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(add_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(add_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(add_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(add_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(add_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(add_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(add_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(add_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(add_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(add_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(add_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(add_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(sub_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(sub_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(sub_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -868,16 +951,56 @@ ZI_FN zi_u64x2 ZI_N(sub_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(sub_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(sub_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(sub_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(sub_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(sub_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sub_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(sub_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(sub_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(sub_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sub_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(sub_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(sub_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(sub_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(sub_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(sub_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(sub_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(sub_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(sub_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(sub_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(sub_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(sub_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(sub_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(sub_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(mul_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(mul_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(mul_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -888,36 +1011,116 @@ ZI_FN zi_u64x2 ZI_N(mul_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(mul_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(mul_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(mul_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(mul_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(mul_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(mul_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(mul_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(mul_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(mul_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(mul_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(mul_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(mul_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(mul_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(mul_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(mul_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(mul_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(mul_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_f32x4 ZI_N(div_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(div_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(div_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(div_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(div_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(div_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(add_sat_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(add_sat_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(add_sat_u16x8)(zi_u16x8 a, zi_u16x8 b);
 ZI_FN zi_s16x8 ZI_N(add_sat_s16x8)(zi_s16x8 a, zi_s16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(add_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(add_sat_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(add_sat_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(add_sat_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_sat_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(add_sat_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_sat_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(add_sat_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(sub_sat_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(sub_sat_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(sub_sat_u16x8)(zi_u16x8 a, zi_u16x8 b);
 ZI_FN zi_s16x8 ZI_N(sub_sat_s16x8)(zi_s16x8 a, zi_s16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(sub_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(sub_sat_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sub_sat_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(sub_sat_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(sub_sat_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(sub_sat_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sub_sat_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(sub_sat_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(min_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(min_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(min_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -928,16 +1131,56 @@ ZI_FN zi_u64x2 ZI_N(min_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(min_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(min_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(min_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(min_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(min_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(min_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(min_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(min_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(min_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(min_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(min_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(min_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(min_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(min_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(min_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(min_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(min_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(min_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(min_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(min_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(min_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(min_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(min_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(max_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(max_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(max_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -948,26 +1191,86 @@ ZI_FN zi_u64x2 ZI_N(max_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(max_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(max_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(max_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(max_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(max_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(max_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(max_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(max_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(max_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(max_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(max_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(max_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(max_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(max_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(max_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(max_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(max_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(max_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(max_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(max_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(max_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(max_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(max_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(avg_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_u16x8 ZI_N(avg_u16x8)(zi_u16x8 a, zi_u16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(avg_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(avg_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(avg_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(avg_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
 ZI_FN zi_u16x8 ZI_N(mul_high_u16x8)(zi_u16x8 a, zi_u16x8 b);
 ZI_FN zi_s16x8 ZI_N(mul_high_s16x8)(zi_s16x8 a, zi_s16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(mul_high_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(mul_high_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
 ZI_FN zi_s16x8 ZI_N(mul_high_round_s16x8)(zi_s16x8 a, zi_s16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_high_round_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(mul_high_round_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(and_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(and_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(and_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -976,14 +1279,46 @@ ZI_FN zi_u32x4 ZI_N(and_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(and_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(and_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(and_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(and_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(and_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(and_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(and_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(and_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(and_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(and_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(and_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(and_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(and_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(and_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(and_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(and_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(and_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(and_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(and_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(or_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(or_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(or_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -992,14 +1327,46 @@ ZI_FN zi_u32x4 ZI_N(or_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(or_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(or_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(or_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(or_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(or_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(or_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(or_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(or_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(or_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(or_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(or_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(or_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(or_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(or_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(or_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(or_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(or_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(or_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(or_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(xor_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(xor_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(xor_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1008,14 +1375,46 @@ ZI_FN zi_u32x4 ZI_N(xor_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(xor_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(xor_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(xor_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(xor_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(xor_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(xor_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(xor_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(xor_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(xor_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(xor_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(xor_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(xor_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(xor_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(xor_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(xor_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(xor_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(xor_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(xor_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(xor_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(and_not_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(and_not_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(and_not_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1024,14 +1423,46 @@ ZI_FN zi_u32x4 ZI_N(and_not_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(and_not_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(and_not_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(and_not_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(and_not_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(and_not_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(and_not_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(and_not_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(and_not_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(and_not_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(and_not_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(and_not_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(and_not_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(and_not_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(and_not_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(and_not_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(and_not_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(and_not_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(and_not_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(and_not_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(not_u8x16)(zi_u8x16 a);
 ZI_FN zi_s8x16 ZI_N(not_s8x16)(zi_s8x16 a);
 ZI_FN zi_u16x8 ZI_N(not_u16x8)(zi_u16x8 a);
@@ -1040,26 +1471,82 @@ ZI_FN zi_u32x4 ZI_N(not_u32x4)(zi_u32x4 a);
 ZI_FN zi_s32x4 ZI_N(not_s32x4)(zi_s32x4 a);
 ZI_FN zi_u64x2 ZI_N(not_u64x2)(zi_u64x2 a);
 ZI_FN zi_s64x2 ZI_N(not_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(not_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(not_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(not_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(not_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(not_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(not_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(not_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(not_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(not_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(not_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(not_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(not_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(not_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(not_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(not_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(not_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN zi_s8x16 ZI_N(abs_s8x16)(zi_s8x16 a);
 ZI_FN zi_s16x8 ZI_N(abs_s16x8)(zi_s16x8 a);
 ZI_FN zi_s32x4 ZI_N(abs_s32x4)(zi_s32x4 a);
 ZI_FN zi_s64x2 ZI_N(abs_s64x2)(zi_s64x2 a);
 ZI_FN zi_f32x4 ZI_N(abs_f32x4)(zi_f32x4 a);
 ZI_FN zi_f64x2 ZI_N(abs_f64x2)(zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(abs_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(abs_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(abs_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(abs_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(abs_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(abs_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(abs_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(abs_s64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(abs_f32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(abs_f32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(abs_f64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(abs_f64x4)(zi_f64x4 a);
+#endif
 ZI_FN zi_u8x16 ZI_N(neg_u8x16)(zi_u8x16 a);
 ZI_FN zi_s8x16 ZI_N(neg_s8x16)(zi_s8x16 a);
 ZI_FN zi_u16x8 ZI_N(neg_u16x8)(zi_u16x8 a);
@@ -1070,16 +1557,128 @@ ZI_FN zi_u64x2 ZI_N(neg_u64x2)(zi_u64x2 a);
 ZI_FN zi_s64x2 ZI_N(neg_s64x2)(zi_s64x2 a);
 ZI_FN zi_f32x4 ZI_N(neg_f32x4)(zi_f32x4 a);
 ZI_FN zi_f64x2 ZI_N(neg_f64x2)(zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(neg_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(neg_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(neg_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(neg_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(neg_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(neg_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(neg_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(neg_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(neg_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(neg_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(neg_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(neg_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(neg_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(neg_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(neg_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(neg_s64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(neg_f32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(neg_f32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(neg_f64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(neg_f64x4)(zi_f64x4 a);
+#endif
+ZI_FN zi_s8x16 ZI_N(sign_s8x16)(zi_s8x16 a, zi_s8x16 b);
+ZI_FN zi_s16x8 ZI_N(sign_s16x8)(zi_s16x8 a, zi_s16x8 b);
+ZI_FN zi_s32x4 ZI_N(sign_s32x4)(zi_s32x4 a, zi_s32x4 b);
+ZI_FN zi_s64x2 ZI_N(sign_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sign_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
+ZI_FN zi_s8x32 ZI_N(sign_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sign_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
+ZI_FN zi_s16x16 ZI_N(sign_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(sign_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
+ZI_FN zi_s32x8 ZI_N(sign_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(sign_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
+ZI_FN zi_s64x4 ZI_N(sign_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+ZI_FN zi_u8x16 ZI_N(abs_diff_u8x16)(zi_u8x16 a, zi_u8x16 b);
+ZI_FN zi_u8x16 ZI_N(abs_diff_s8x16)(zi_s8x16 a, zi_s8x16 b);
+ZI_FN zi_u16x8 ZI_N(abs_diff_u16x8)(zi_u16x8 a, zi_u16x8 b);
+ZI_FN zi_u16x8 ZI_N(abs_diff_s16x8)(zi_s16x8 a, zi_s16x8 b);
+ZI_FN zi_u32x4 ZI_N(abs_diff_u32x4)(zi_u32x4 a, zi_u32x4 b);
+ZI_FN zi_u32x4 ZI_N(abs_diff_s32x4)(zi_s32x4 a, zi_s32x4 b);
+ZI_FN zi_u64x2 ZI_N(abs_diff_u64x2)(zi_u64x2 a, zi_u64x2 b);
+ZI_FN zi_u64x2 ZI_N(abs_diff_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(abs_diff_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
+ZI_FN zi_u8x32 ZI_N(abs_diff_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(abs_diff_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
+ZI_FN zi_u8x32 ZI_N(abs_diff_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(abs_diff_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
+ZI_FN zi_u16x16 ZI_N(abs_diff_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(abs_diff_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
+ZI_FN zi_u16x16 ZI_N(abs_diff_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(abs_diff_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
+ZI_FN zi_u32x8 ZI_N(abs_diff_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(abs_diff_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
+ZI_FN zi_u32x8 ZI_N(abs_diff_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(abs_diff_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
+ZI_FN zi_u64x4 ZI_N(abs_diff_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(abs_diff_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
+ZI_FN zi_u64x4 ZI_N(abs_diff_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(eq_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(eq_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(eq_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1090,16 +1689,56 @@ ZI_FN zi_u64x2 ZI_N(eq_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(eq_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_u32x4 ZI_N(eq_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_u64x2 ZI_N(eq_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(eq_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(eq_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(eq_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(eq_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(eq_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(eq_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(eq_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(eq_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(eq_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(eq_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(eq_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(eq_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(eq_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(eq_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(eq_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(eq_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(eq_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(eq_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(eq_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(eq_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(lt_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(lt_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(lt_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1110,16 +1749,56 @@ ZI_FN zi_u64x2 ZI_N(lt_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(lt_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_u32x4 ZI_N(lt_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_u64x2 ZI_N(lt_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(lt_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(lt_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(lt_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(lt_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(lt_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(lt_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(lt_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(lt_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(lt_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(lt_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(lt_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(lt_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(lt_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(lt_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(lt_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(lt_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(lt_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(lt_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(lt_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(lt_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(gt_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(gt_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(gt_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1130,16 +1809,56 @@ ZI_FN zi_u64x2 ZI_N(gt_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(gt_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_u32x4 ZI_N(gt_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_u64x2 ZI_N(gt_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(gt_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(gt_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(gt_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(gt_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(gt_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(gt_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(gt_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(gt_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gt_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(gt_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gt_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(gt_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(gt_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(gt_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(gt_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(gt_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gt_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(gt_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(gt_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(gt_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(select_u8x16)(zi_u8x16 m, zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(select_s8x16)(zi_u8x16 m, zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(select_u16x8)(zi_u16x8 m, zi_u16x8 a, zi_u16x8 b);
@@ -1150,16 +1869,56 @@ ZI_FN zi_u64x2 ZI_N(select_u64x2)(zi_u64x2 m, zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(select_s64x2)(zi_u64x2 m, zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(select_f32x4)(zi_u32x4 m, zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(select_f64x2)(zi_u64x2 m, zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(select_u8x32_p_)(const zi_u8x32 *m_p_, const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(select_u8x32)(zi_u8x32 m, zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(select_s8x32_p_)(const zi_u8x32 *m_p_, const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(select_s8x32)(zi_u8x32 m, zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(select_u16x16_p_)(const zi_u16x16 *m_p_, const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(select_u16x16)(zi_u16x16 m, zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(select_s16x16_p_)(const zi_u16x16 *m_p_, const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(select_s16x16)(zi_u16x16 m, zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(select_u32x8_p_)(const zi_u32x8 *m_p_, const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(select_u32x8)(zi_u32x8 m, zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(select_s32x8_p_)(const zi_u32x8 *m_p_, const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(select_s32x8)(zi_u32x8 m, zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(select_u64x4_p_)(const zi_u64x4 *m_p_, const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(select_u64x4)(zi_u64x4 m, zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(select_s64x4_p_)(const zi_u64x4 *m_p_, const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(select_s64x4)(zi_u64x4 m, zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(select_f32x8_p_)(const zi_u32x8 *m_p_, const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(select_f32x8)(zi_u32x8 m, zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(select_f64x4_p_)(const zi_u64x4 *m_p_, const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(select_f64x4)(zi_u64x4 m, zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(shl_u8x16)(zi_u8x16 a, uint64_t n);
 ZI_FN zi_s8x16 ZI_N(shl_s8x16)(zi_s8x16 a, uint64_t n);
 ZI_FN zi_u16x8 ZI_N(shl_u16x8)(zi_u16x8 a, uint64_t n);
@@ -1168,14 +1927,46 @@ ZI_FN zi_u32x4 ZI_N(shl_u32x4)(zi_u32x4 a, uint64_t n);
 ZI_FN zi_s32x4 ZI_N(shl_s32x4)(zi_s32x4 a, uint64_t n);
 ZI_FN zi_u64x2 ZI_N(shl_u64x2)(zi_u64x2 a, uint64_t n);
 ZI_FN zi_s64x2 ZI_N(shl_s64x2)(zi_s64x2 a, uint64_t n);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shl_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u8x32 ZI_N(shl_u8x32)(zi_u8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shl_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s8x32 ZI_N(shl_s8x32)(zi_s8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shl_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u16x16 ZI_N(shl_u16x16)(zi_u16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shl_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s16x16 ZI_N(shl_s16x16)(zi_s16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shl_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u32x8 ZI_N(shl_u32x8)(zi_u32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shl_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s32x8 ZI_N(shl_s32x8)(zi_s32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shl_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u64x4 ZI_N(shl_u64x4)(zi_u64x4 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shl_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s64x4 ZI_N(shl_s64x4)(zi_s64x4 a, uint64_t n);
+#endif
 ZI_FN zi_u8x16 ZI_N(shr_u8x16)(zi_u8x16 a, uint64_t n);
 ZI_FN zi_s8x16 ZI_N(shr_s8x16)(zi_s8x16 a, uint64_t n);
 ZI_FN zi_u16x8 ZI_N(shr_u16x8)(zi_u16x8 a, uint64_t n);
@@ -1184,14 +1975,46 @@ ZI_FN zi_u32x4 ZI_N(shr_u32x4)(zi_u32x4 a, uint64_t n);
 ZI_FN zi_s32x4 ZI_N(shr_s32x4)(zi_s32x4 a, uint64_t n);
 ZI_FN zi_u64x2 ZI_N(shr_u64x2)(zi_u64x2 a, uint64_t n);
 ZI_FN zi_s64x2 ZI_N(shr_s64x2)(zi_s64x2 a, uint64_t n);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u8x32 ZI_N(shr_u8x32)(zi_u8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s8x32 ZI_N(shr_s8x32)(zi_s8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u16x16 ZI_N(shr_u16x16)(zi_u16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s16x16 ZI_N(shr_s16x16)(zi_s16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u32x8 ZI_N(shr_u32x8)(zi_u32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s32x8 ZI_N(shr_s32x8)(zi_s32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u64x4 ZI_N(shr_u64x4)(zi_u64x4 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s64x4 ZI_N(shr_s64x4)(zi_s64x4 a, uint64_t n);
+#endif
 ZI_FN zi_u8x16 ZI_N(shr_round_u8x16)(zi_u8x16 a, uint64_t n);
 ZI_FN zi_s8x16 ZI_N(shr_round_s8x16)(zi_s8x16 a, uint64_t n);
 ZI_FN zi_u16x8 ZI_N(shr_round_u16x8)(zi_u16x8 a, uint64_t n);
@@ -1200,14 +2023,46 @@ ZI_FN zi_u32x4 ZI_N(shr_round_u32x4)(zi_u32x4 a, uint64_t n);
 ZI_FN zi_s32x4 ZI_N(shr_round_s32x4)(zi_s32x4 a, uint64_t n);
 ZI_FN zi_u64x2 ZI_N(shr_round_u64x2)(zi_u64x2 a, uint64_t n);
 ZI_FN zi_s64x2 ZI_N(shr_round_s64x2)(zi_s64x2 a, uint64_t n);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_round_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u8x32 ZI_N(shr_round_u8x32)(zi_u8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_round_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s8x32 ZI_N(shr_round_s8x32)(zi_s8x32 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_round_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u16x16 ZI_N(shr_round_u16x16)(zi_u16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_round_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s16x16 ZI_N(shr_round_s16x16)(zi_s16x16 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_round_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u32x8 ZI_N(shr_round_u32x8)(zi_u32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_round_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s32x8 ZI_N(shr_round_s32x8)(zi_s32x8 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_round_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_u64x4 ZI_N(shr_round_u64x4)(zi_u64x4 a, uint64_t n);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_round_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n);
+#else
 ZI_FN zi_s64x4 ZI_N(shr_round_s64x4)(zi_s64x4 a, uint64_t n);
+#endif
 ZI_FN zi_u8x16 ZI_N(shl_lanes_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(shl_lanes_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(shl_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1216,14 +2071,46 @@ ZI_FN zi_u32x4 ZI_N(shl_lanes_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(shl_lanes_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(shl_lanes_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(shl_lanes_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shl_lanes_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(shl_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shl_lanes_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(shl_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shl_lanes_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(shl_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shl_lanes_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(shl_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shl_lanes_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(shl_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shl_lanes_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(shl_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shl_lanes_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(shl_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shl_lanes_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(shl_lanes_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(shr_lanes_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(shr_lanes_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(shr_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1232,14 +2119,46 @@ ZI_FN zi_u32x4 ZI_N(shr_lanes_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s32x4 ZI_N(shr_lanes_s32x4)(zi_s32x4 a, zi_s32x4 b);
 ZI_FN zi_u64x2 ZI_N(shr_lanes_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(shr_lanes_s64x2)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_lanes_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(shr_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_lanes_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(shr_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_lanes_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(shr_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_lanes_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(shr_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_lanes_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(shr_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_lanes_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(shr_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_lanes_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(shr_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_lanes_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(shr_lanes_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(make_u8x16)(uint8_t l0, uint8_t l1, uint8_t l2, uint8_t l3, uint8_t l4, uint8_t l5, uint8_t l6, uint8_t l7, uint8_t l8, uint8_t l9, uint8_t l10, uint8_t l11, uint8_t l12, uint8_t l13, uint8_t l14, uint8_t l15);
 ZI_FN zi_s8x16 ZI_N(make_s8x16)(int8_t l0, int8_t l1, int8_t l2, int8_t l3, int8_t l4, int8_t l5, int8_t l6, int8_t l7, int8_t l8, int8_t l9, int8_t l10, int8_t l11, int8_t l12, int8_t l13, int8_t l14, int8_t l15);
 ZI_FN zi_u16x8 ZI_N(make_u16x8)(uint16_t l0, uint16_t l1, uint16_t l2, uint16_t l3, uint16_t l4, uint16_t l5, uint16_t l6, uint16_t l7);
@@ -1310,16 +2229,56 @@ ZI_FN uint64_t ZI_N(lane_u64x2)(zi_u64x2 a, int i);
 ZI_FN int64_t ZI_N(lane_s64x2)(zi_s64x2 a, int i);
 ZI_FN float ZI_N(lane_f32x4)(zi_f32x4 a, int i);
 ZI_FN double ZI_N(lane_f64x2)(zi_f64x2 a, int i);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(lane_u8x32_p_)(const zi_u8x32 *a_p_, int i);
+#else
 ZI_FN uint8_t ZI_N(lane_u8x32)(zi_u8x32 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(lane_s8x32_p_)(const zi_s8x32 *a_p_, int i);
+#else
 ZI_FN int8_t ZI_N(lane_s8x32)(zi_s8x32 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(lane_u16x16_p_)(const zi_u16x16 *a_p_, int i);
+#else
 ZI_FN uint16_t ZI_N(lane_u16x16)(zi_u16x16 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(lane_s16x16_p_)(const zi_s16x16 *a_p_, int i);
+#else
 ZI_FN int16_t ZI_N(lane_s16x16)(zi_s16x16 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(lane_u32x8_p_)(const zi_u32x8 *a_p_, int i);
+#else
 ZI_FN uint32_t ZI_N(lane_u32x8)(zi_u32x8 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(lane_s32x8_p_)(const zi_s32x8 *a_p_, int i);
+#else
 ZI_FN int32_t ZI_N(lane_s32x8)(zi_s32x8 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(lane_u64x4_p_)(const zi_u64x4 *a_p_, int i);
+#else
 ZI_FN uint64_t ZI_N(lane_u64x4)(zi_u64x4 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(lane_s64x4_p_)(const zi_s64x4 *a_p_, int i);
+#else
 ZI_FN int64_t ZI_N(lane_s64x4)(zi_s64x4 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN float ZI_N(lane_f32x8_p_)(const zi_f32x8 *a_p_, int i);
+#else
 ZI_FN float ZI_N(lane_f32x8)(zi_f32x8 a, int i);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN double ZI_N(lane_f64x4_p_)(const zi_f64x4 *a_p_, int i);
+#else
 ZI_FN double ZI_N(lane_f64x4)(zi_f64x4 a, int i);
+#endif
 ZI_FN zi_u8x16 ZI_N(with_lane_u8x16)(zi_u8x16 a, int i, uint8_t x);
 ZI_FN zi_s8x16 ZI_N(with_lane_s8x16)(zi_s8x16 a, int i, int8_t x);
 ZI_FN zi_u16x8 ZI_N(with_lane_u16x8)(zi_u16x8 a, int i, uint16_t x);
@@ -1330,16 +2289,56 @@ ZI_FN zi_u64x2 ZI_N(with_lane_u64x2)(zi_u64x2 a, int i, uint64_t x);
 ZI_FN zi_s64x2 ZI_N(with_lane_s64x2)(zi_s64x2 a, int i, int64_t x);
 ZI_FN zi_f32x4 ZI_N(with_lane_f32x4)(zi_f32x4 a, int i, float x);
 ZI_FN zi_f64x2 ZI_N(with_lane_f64x2)(zi_f64x2 a, int i, double x);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(with_lane_u8x32_p_)(const zi_u8x32 *a_p_, int i, uint8_t x);
+#else
 ZI_FN zi_u8x32 ZI_N(with_lane_u8x32)(zi_u8x32 a, int i, uint8_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(with_lane_s8x32_p_)(const zi_s8x32 *a_p_, int i, int8_t x);
+#else
 ZI_FN zi_s8x32 ZI_N(with_lane_s8x32)(zi_s8x32 a, int i, int8_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(with_lane_u16x16_p_)(const zi_u16x16 *a_p_, int i, uint16_t x);
+#else
 ZI_FN zi_u16x16 ZI_N(with_lane_u16x16)(zi_u16x16 a, int i, uint16_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(with_lane_s16x16_p_)(const zi_s16x16 *a_p_, int i, int16_t x);
+#else
 ZI_FN zi_s16x16 ZI_N(with_lane_s16x16)(zi_s16x16 a, int i, int16_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(with_lane_u32x8_p_)(const zi_u32x8 *a_p_, int i, uint32_t x);
+#else
 ZI_FN zi_u32x8 ZI_N(with_lane_u32x8)(zi_u32x8 a, int i, uint32_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(with_lane_s32x8_p_)(const zi_s32x8 *a_p_, int i, int32_t x);
+#else
 ZI_FN zi_s32x8 ZI_N(with_lane_s32x8)(zi_s32x8 a, int i, int32_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(with_lane_u64x4_p_)(const zi_u64x4 *a_p_, int i, uint64_t x);
+#else
 ZI_FN zi_u64x4 ZI_N(with_lane_u64x4)(zi_u64x4 a, int i, uint64_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(with_lane_s64x4_p_)(const zi_s64x4 *a_p_, int i, int64_t x);
+#else
 ZI_FN zi_s64x4 ZI_N(with_lane_s64x4)(zi_s64x4 a, int i, int64_t x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(with_lane_f32x8_p_)(const zi_f32x8 *a_p_, int i, float x);
+#else
 ZI_FN zi_f32x8 ZI_N(with_lane_f32x8)(zi_f32x8 a, int i, float x);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(with_lane_f64x4_p_)(const zi_f64x4 *a_p_, int i, double x);
+#else
 ZI_FN zi_f64x4 ZI_N(with_lane_f64x4)(zi_f64x4 a, int i, double x);
+#endif
 ZI_FN zi_u8x16 ZI_N(load_u8x16)(const void * p);
 ZI_FN zi_s8x16 ZI_N(load_s8x16)(const void * p);
 ZI_FN zi_u16x8 ZI_N(load_u16x8)(const void * p);
@@ -1390,16 +2389,56 @@ ZI_FN void ZI_N(store_u64x2)(void * p, zi_u64x2 a);
 ZI_FN void ZI_N(store_s64x2)(void * p, zi_s64x2 a);
 ZI_FN void ZI_N(store_f32x4)(void * p, zi_f32x4 a);
 ZI_FN void ZI_N(store_f64x2)(void * p, zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u8x32_p_)(void * p, const zi_u8x32 *a_p_);
+#else
 ZI_FN void ZI_N(store_u8x32)(void * p, zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s8x32_p_)(void * p, const zi_s8x32 *a_p_);
+#else
 ZI_FN void ZI_N(store_s8x32)(void * p, zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u16x16_p_)(void * p, const zi_u16x16 *a_p_);
+#else
 ZI_FN void ZI_N(store_u16x16)(void * p, zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s16x16_p_)(void * p, const zi_s16x16 *a_p_);
+#else
 ZI_FN void ZI_N(store_s16x16)(void * p, zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u32x8_p_)(void * p, const zi_u32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_u32x8)(void * p, zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s32x8_p_)(void * p, const zi_s32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_s32x8)(void * p, zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u64x4_p_)(void * p, const zi_u64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_u64x4)(void * p, zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s64x4_p_)(void * p, const zi_s64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_s64x4)(void * p, zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_f32x8_p_)(void * p, const zi_f32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_f32x8)(void * p, zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_f64x4_p_)(void * p, const zi_f64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_f64x4)(void * p, zi_f64x4 a);
+#endif
 ZI_FN void ZI_N(store_low_u8x16)(void * p, zi_u8x16 a);
 ZI_FN void ZI_N(store_low_s8x16)(void * p, zi_s8x16 a);
 ZI_FN void ZI_N(store_low_u16x8)(void * p, zi_u16x8 a);
@@ -1410,52 +2449,164 @@ ZI_FN void ZI_N(store_low_u64x2)(void * p, zi_u64x2 a);
 ZI_FN void ZI_N(store_low_s64x2)(void * p, zi_s64x2 a);
 ZI_FN void ZI_N(store_low_f32x4)(void * p, zi_f32x4 a);
 ZI_FN void ZI_N(store_low_f64x2)(void * p, zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u8x32_p_)(void * p, const zi_u8x32 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_u8x32)(void * p, zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s8x32_p_)(void * p, const zi_s8x32 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_s8x32)(void * p, zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u16x16_p_)(void * p, const zi_u16x16 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_u16x16)(void * p, zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s16x16_p_)(void * p, const zi_s16x16 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_s16x16)(void * p, zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u32x8_p_)(void * p, const zi_u32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_u32x8)(void * p, zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s32x8_p_)(void * p, const zi_s32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_s32x8)(void * p, zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u64x4_p_)(void * p, const zi_u64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_u64x4)(void * p, zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s64x4_p_)(void * p, const zi_s64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_s64x4)(void * p, zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_f32x8_p_)(void * p, const zi_f32x8 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_f32x8)(void * p, zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_f64x4_p_)(void * p, const zi_f64x4 *a_p_);
+#else
 ZI_FN void ZI_N(store_low_f64x4)(void * p, zi_f64x4 a);
+#endif
 ZI_FN zi_u32x4 ZI_N(gather_u32x4_u32x4)(const void * p, zi_u32x4 a);
 ZI_FN zi_s32x4 ZI_N(gather_u32x4_s32x4)(const void * p, zi_u32x4 a);
 ZI_FN zi_f32x4 ZI_N(gather_u32x4_f32x4)(const void * p, zi_u32x4 a);
 ZI_FN zi_u32x4 ZI_N(gather_s32x4_u32x4)(const void * p, zi_s32x4 a);
 ZI_FN zi_s32x4 ZI_N(gather_s32x4_s32x4)(const void * p, zi_s32x4 a);
 ZI_FN zi_f32x4 ZI_N(gather_s32x4_f32x4)(const void * p, zi_s32x4 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gather_u32x8_u32x8_p_)(const void * p, const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(gather_u32x8_u32x8)(const void * p, zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gather_u32x8_s32x8_p_)(const void * p, const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(gather_u32x8_s32x8)(const void * p, zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(gather_u32x8_f32x8_p_)(const void * p, const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(gather_u32x8_f32x8)(const void * p, zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gather_s32x8_u32x8_p_)(const void * p, const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(gather_s32x8_u32x8)(const void * p, zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gather_s32x8_s32x8_p_)(const void * p, const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(gather_s32x8_s32x8)(const void * p, zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(gather_s32x8_f32x8_p_)(const void * p, const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(gather_s32x8_f32x8)(const void * p, zi_s32x8 a);
+#endif
 ZI_FN zi_u16x8 ZI_N(widen_low_u8x16)(zi_u8x16 a);
 ZI_FN zi_s16x8 ZI_N(widen_low_s8x16)(zi_s8x16 a);
 ZI_FN zi_u32x4 ZI_N(widen_low_u16x8)(zi_u16x8 a);
 ZI_FN zi_s32x4 ZI_N(widen_low_s16x8)(zi_s16x8 a);
 ZI_FN zi_u64x2 ZI_N(widen_low_u32x4)(zi_u32x4 a);
 ZI_FN zi_s64x2 ZI_N(widen_low_s32x4)(zi_s32x4 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(widen_low_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(widen_low_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(widen_low_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(widen_low_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(widen_low_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(widen_low_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(widen_low_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(widen_low_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(widen_low_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(widen_low_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(widen_low_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(widen_low_s32x8)(zi_s32x8 a);
+#endif
 ZI_FN zi_u16x8 ZI_N(widen_high_u8x16)(zi_u8x16 a);
 ZI_FN zi_s16x8 ZI_N(widen_high_s8x16)(zi_s8x16 a);
 ZI_FN zi_u32x4 ZI_N(widen_high_u16x8)(zi_u16x8 a);
 ZI_FN zi_s32x4 ZI_N(widen_high_s16x8)(zi_s16x8 a);
 ZI_FN zi_u64x2 ZI_N(widen_high_u32x4)(zi_u32x4 a);
 ZI_FN zi_s64x2 ZI_N(widen_high_s32x4)(zi_s32x4 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(widen_high_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(widen_high_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(widen_high_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(widen_high_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(widen_high_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(widen_high_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(widen_high_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(widen_high_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(widen_high_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(widen_high_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(widen_high_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(widen_high_s32x8)(zi_s32x8 a);
+#endif
 ZI_FN zi_u16x16 ZI_N(widen_u8x16)(zi_u8x16 a);
 ZI_FN zi_s16x16 ZI_N(widen_s8x16)(zi_s8x16 a);
 ZI_FN zi_u32x8 ZI_N(widen_u16x8)(zi_u16x8 a);
@@ -1474,60 +2625,192 @@ ZI_FN zi_u32x4 ZI_N(narrow_u64x2_u32x4)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s32x4 ZI_N(narrow_u64x2_s32x4)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_u32x4 ZI_N(narrow_s64x2_u32x4)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_s32x4 ZI_N(narrow_s64x2_s32x4)(zi_s64x2 a, zi_s64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(narrow_u16x16_u8x32_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(narrow_u16x16_u8x32)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(narrow_u16x16_s8x32_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(narrow_u16x16_s8x32)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(narrow_s16x16_u8x32_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(narrow_s16x16_u8x32)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(narrow_s16x16_s8x32_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(narrow_s16x16_s8x32)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(narrow_u32x8_u16x16_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(narrow_u32x8_u16x16)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(narrow_u32x8_s16x16_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(narrow_u32x8_s16x16)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(narrow_s32x8_u16x16_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(narrow_s32x8_u16x16)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(narrow_s32x8_s16x16_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(narrow_s32x8_s16x16)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(narrow_u64x4_u32x8_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(narrow_u64x4_u32x8)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(narrow_u64x4_s32x8_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(narrow_u64x4_s32x8)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(narrow_s64x4_u32x8_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(narrow_s64x4_u32x8)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(narrow_s64x4_s32x8_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(narrow_s64x4_s32x8)(zi_s64x4 a, zi_s64x4 b);
+#endif
 ZI_FN zi_u16x8 ZI_N(mul_wide_low_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s16x8 ZI_N(mul_wide_low_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u32x4 ZI_N(mul_wide_low_u16x8)(zi_u16x8 a, zi_u16x8 b);
 ZI_FN zi_s32x4 ZI_N(mul_wide_low_s16x8)(zi_s16x8 a, zi_s16x8 b);
 ZI_FN zi_u64x2 ZI_N(mul_wide_low_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s64x2 ZI_N(mul_wide_low_s32x4)(zi_s32x4 a, zi_s32x4 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_wide_low_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(mul_wide_low_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_wide_low_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(mul_wide_low_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_wide_low_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(mul_wide_low_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_wide_low_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(mul_wide_low_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_wide_low_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(mul_wide_low_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_wide_low_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(mul_wide_low_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
 ZI_FN zi_u16x8 ZI_N(mul_wide_high_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s16x8 ZI_N(mul_wide_high_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u32x4 ZI_N(mul_wide_high_u16x8)(zi_u16x8 a, zi_u16x8 b);
 ZI_FN zi_s32x4 ZI_N(mul_wide_high_s16x8)(zi_s16x8 a, zi_s16x8 b);
 ZI_FN zi_u64x2 ZI_N(mul_wide_high_u32x4)(zi_u32x4 a, zi_u32x4 b);
 ZI_FN zi_s64x2 ZI_N(mul_wide_high_s32x4)(zi_s32x4 a, zi_s32x4 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_wide_high_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(mul_wide_high_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_wide_high_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(mul_wide_high_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_wide_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(mul_wide_high_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_wide_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(mul_wide_high_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_wide_high_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(mul_wide_high_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_wide_high_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(mul_wide_high_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
 ZI_FN zi_s32x4 ZI_N(madd_s16x8)(zi_s16x8 a, zi_s16x8 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(madd_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(madd_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
 ZI_FN zi_s16x8 ZI_N(madd_sat_u8x16)(zi_u8x16 a, zi_s8x16 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(madd_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(madd_sat_u8x32)(zi_u8x32 a, zi_s8x32 b);
+#endif
 ZI_FN zi_u16x8 ZI_N(add_pairs_u8x16)(zi_u8x16 a);
 ZI_FN zi_s16x8 ZI_N(add_pairs_s8x16)(zi_s8x16 a);
 ZI_FN zi_u32x4 ZI_N(add_pairs_u16x8)(zi_u16x8 a);
 ZI_FN zi_s32x4 ZI_N(add_pairs_s16x8)(zi_s16x8 a);
 ZI_FN zi_u64x2 ZI_N(add_pairs_u32x4)(zi_u32x4 a);
 ZI_FN zi_s64x2 ZI_N(add_pairs_s32x4)(zi_s32x4 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_pairs_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(add_pairs_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_pairs_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(add_pairs_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(add_pairs_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(add_pairs_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(add_pairs_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(add_pairs_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(add_pairs_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(add_pairs_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(add_pairs_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(add_pairs_s32x8)(zi_s32x8 a);
+#endif
 ZI_FN zi_u64x2 ZI_N(sad_u8x16)(zi_u8x16 a, zi_u8x16 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(sad_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(sad_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
 ZI_FN uint8_t ZI_N(reduce_add_u8x16)(zi_u8x16 a);
 ZI_FN int8_t ZI_N(reduce_add_s8x16)(zi_s8x16 a);
 ZI_FN uint16_t ZI_N(reduce_add_u16x8)(zi_u16x8 a);
@@ -1536,14 +2819,46 @@ ZI_FN uint32_t ZI_N(reduce_add_u32x4)(zi_u32x4 a);
 ZI_FN int32_t ZI_N(reduce_add_s32x4)(zi_s32x4 a);
 ZI_FN uint64_t ZI_N(reduce_add_u64x2)(zi_u64x2 a);
 ZI_FN int64_t ZI_N(reduce_add_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_add_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN uint8_t ZI_N(reduce_add_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_add_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN int8_t ZI_N(reduce_add_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_add_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN uint16_t ZI_N(reduce_add_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_add_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN int16_t ZI_N(reduce_add_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_add_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN uint32_t ZI_N(reduce_add_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_add_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN int32_t ZI_N(reduce_add_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_add_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN uint64_t ZI_N(reduce_add_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_add_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_add_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN uint8_t ZI_N(reduce_min_u8x16)(zi_u8x16 a);
 ZI_FN int8_t ZI_N(reduce_min_s8x16)(zi_s8x16 a);
 ZI_FN uint16_t ZI_N(reduce_min_u16x8)(zi_u16x8 a);
@@ -1552,14 +2867,46 @@ ZI_FN uint32_t ZI_N(reduce_min_u32x4)(zi_u32x4 a);
 ZI_FN int32_t ZI_N(reduce_min_s32x4)(zi_s32x4 a);
 ZI_FN uint64_t ZI_N(reduce_min_u64x2)(zi_u64x2 a);
 ZI_FN int64_t ZI_N(reduce_min_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_min_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN uint8_t ZI_N(reduce_min_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_min_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN int8_t ZI_N(reduce_min_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_min_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN uint16_t ZI_N(reduce_min_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_min_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN int16_t ZI_N(reduce_min_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_min_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN uint32_t ZI_N(reduce_min_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_min_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN int32_t ZI_N(reduce_min_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_min_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN uint64_t ZI_N(reduce_min_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_min_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_min_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN uint8_t ZI_N(reduce_max_u8x16)(zi_u8x16 a);
 ZI_FN int8_t ZI_N(reduce_max_s8x16)(zi_s8x16 a);
 ZI_FN uint16_t ZI_N(reduce_max_u16x8)(zi_u16x8 a);
@@ -1568,14 +2915,46 @@ ZI_FN uint32_t ZI_N(reduce_max_u32x4)(zi_u32x4 a);
 ZI_FN int32_t ZI_N(reduce_max_s32x4)(zi_s32x4 a);
 ZI_FN uint64_t ZI_N(reduce_max_u64x2)(zi_u64x2 a);
 ZI_FN int64_t ZI_N(reduce_max_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_max_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN uint8_t ZI_N(reduce_max_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_max_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN int8_t ZI_N(reduce_max_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_max_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN uint16_t ZI_N(reduce_max_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_max_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN int16_t ZI_N(reduce_max_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_max_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN uint32_t ZI_N(reduce_max_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_max_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN int32_t ZI_N(reduce_max_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_max_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN uint64_t ZI_N(reduce_max_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN int64_t ZI_N(reduce_max_index_u8x16)(zi_u8x16 a);
 ZI_FN int64_t ZI_N(reduce_max_index_s8x16)(zi_s8x16 a);
 ZI_FN int64_t ZI_N(reduce_max_index_u16x8)(zi_u16x8 a);
@@ -1584,14 +2963,46 @@ ZI_FN int64_t ZI_N(reduce_max_index_u32x4)(zi_u32x4 a);
 ZI_FN int64_t ZI_N(reduce_max_index_s32x4)(zi_s32x4 a);
 ZI_FN int64_t ZI_N(reduce_max_index_u64x2)(zi_u64x2 a);
 ZI_FN int64_t ZI_N(reduce_max_index_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN int ZI_N(all_zero_u8x16)(zi_u8x16 a);
 ZI_FN int ZI_N(all_zero_s8x16)(zi_s8x16 a);
 ZI_FN int ZI_N(all_zero_u16x8)(zi_u16x8 a);
@@ -1600,18 +3011,58 @@ ZI_FN int ZI_N(all_zero_u32x4)(zi_u32x4 a);
 ZI_FN int ZI_N(all_zero_s32x4)(zi_s32x4 a);
 ZI_FN int ZI_N(all_zero_u64x2)(zi_u64x2 a);
 ZI_FN int ZI_N(all_zero_s64x2)(zi_s64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN int ZI_N(all_zero_s64x4)(zi_s64x4 a);
+#endif
 ZI_FN zi_u8x16 ZI_N(byte_shuffle_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(byte_shuffle_s8x16)(zi_s8x16 a, zi_u8x16 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(byte_shuffle_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(byte_shuffle_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(byte_shuffle_s8x32_p_)(const zi_s8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(byte_shuffle_s8x32)(zi_s8x32 a, zi_u8x32 b);
+#endif
 ZI_FN zi_s8x16 ZI_N(reinterpret_u8x16_s8x16)(zi_u8x16 a);
 ZI_FN zi_u16x8 ZI_N(reinterpret_u8x16_u16x8)(zi_u8x16 a);
 ZI_FN zi_s16x8 ZI_N(reinterpret_u8x16_s16x8)(zi_u8x16 a);
@@ -1702,96 +3153,456 @@ ZI_FN zi_s32x4 ZI_N(reinterpret_f64x2_s32x4)(zi_f64x2 a);
 ZI_FN zi_u64x2 ZI_N(reinterpret_f64x2_u64x2)(zi_f64x2 a);
 ZI_FN zi_s64x2 ZI_N(reinterpret_f64x2_s64x2)(zi_f64x2 a);
 ZI_FN zi_f32x4 ZI_N(reinterpret_f64x2_f32x4)(zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u8x32_s8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u8x32_s8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u8x32_u16x16_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u8x32_u16x16)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u8x32_s16x16_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u8x32_s16x16)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u8x32_u32x8_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u8x32_u32x8)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u8x32_s32x8_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u8x32_s32x8)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u8x32_u64x4_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u8x32_u64x4)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u8x32_s64x4_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u8x32_s64x4)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u8x32_f32x8_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u8x32_f32x8)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u8x32_f64x4_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u8x32_f64x4)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s8x32_u8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s8x32_u8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s8x32_u16x16_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s8x32_u16x16)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s8x32_s16x16_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s8x32_s16x16)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s8x32_u32x8_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s8x32_u32x8)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s8x32_s32x8_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s8x32_s32x8)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s8x32_u64x4_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s8x32_u64x4)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s8x32_s64x4_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s8x32_s64x4)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s8x32_f32x8_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s8x32_f32x8)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s8x32_f64x4_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s8x32_f64x4)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u16x16_u8x32_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u16x16_u8x32)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u16x16_s8x32_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u16x16_s8x32)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u16x16_s16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u16x16_s16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u16x16_u32x8_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u16x16_u32x8)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u16x16_s32x8_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u16x16_s32x8)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u16x16_u64x4_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u16x16_u64x4)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u16x16_s64x4_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u16x16_s64x4)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u16x16_f32x8_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u16x16_f32x8)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u16x16_f64x4_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u16x16_f64x4)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s16x16_u8x32_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s16x16_u8x32)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s16x16_s8x32_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s16x16_s8x32)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s16x16_u16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s16x16_u16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s16x16_u32x8_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s16x16_u32x8)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s16x16_s32x8_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s16x16_s32x8)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s16x16_u64x4_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s16x16_u64x4)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s16x16_s64x4_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s16x16_s64x4)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s16x16_f32x8_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s16x16_f32x8)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s16x16_f64x4_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s16x16_f64x4)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u32x8_u8x32_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u32x8_u8x32)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u32x8_s8x32_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u32x8_s8x32)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u32x8_u16x16_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u32x8_u16x16)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u32x8_s16x16_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u32x8_s16x16)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u32x8_s32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u32x8_s32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u32x8_u64x4_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u32x8_u64x4)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u32x8_s64x4_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u32x8_s64x4)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u32x8_f32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u32x8_f32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u32x8_f64x4_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u32x8_f64x4)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s32x8_u8x32_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s32x8_u8x32)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s32x8_s8x32_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s32x8_s8x32)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s32x8_u16x16_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s32x8_u16x16)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s32x8_s16x16_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s32x8_s16x16)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s32x8_u32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s32x8_u32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s32x8_u64x4_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s32x8_u64x4)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s32x8_s64x4_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s32x8_s64x4)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s32x8_f32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s32x8_f32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s32x8_f64x4_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s32x8_f64x4)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u64x4_u8x32_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u64x4_u8x32)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u64x4_s8x32_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u64x4_s8x32)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u64x4_u16x16_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u64x4_u16x16)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u64x4_s16x16_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u64x4_s16x16)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u64x4_u32x8_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u64x4_u32x8)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u64x4_s32x8_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u64x4_s32x8)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u64x4_s64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u64x4_s64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u64x4_f32x8_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u64x4_f32x8)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u64x4_f64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u64x4_f64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s64x4_u8x32_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s64x4_u8x32)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s64x4_s8x32_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s64x4_s8x32)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s64x4_u16x16_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s64x4_u16x16)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s64x4_s16x16_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s64x4_s16x16)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s64x4_u32x8_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s64x4_u32x8)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s64x4_s32x8_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s64x4_s32x8)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s64x4_u64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s64x4_u64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s64x4_f32x8_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s64x4_f32x8)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s64x4_f64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s64x4_f64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_f32x8_u8x32_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_f32x8_u8x32)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_f32x8_s8x32_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_f32x8_s8x32)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_f32x8_u16x16_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_f32x8_u16x16)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_f32x8_s16x16_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_f32x8_s16x16)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_f32x8_u32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_f32x8_u32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_f32x8_s32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_f32x8_s32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_f32x8_u64x4_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_f32x8_u64x4)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_f32x8_s64x4_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_f32x8_s64x4)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_f32x8_f64x4_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_f32x8_f64x4)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_f64x4_u8x32_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_f64x4_u8x32)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_f64x4_s8x32_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_f64x4_s8x32)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_f64x4_u16x16_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_f64x4_u16x16)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_f64x4_s16x16_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_f64x4_s16x16)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_f64x4_u32x8_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_f64x4_u32x8)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_f64x4_s32x8_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_f64x4_s32x8)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_f64x4_u64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_f64x4_u64x4)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_f64x4_s64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_f64x4_s64x4)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_f64x4_f32x8_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_f64x4_f32x8)(zi_f64x4 a);
+#endif
 ZI_FN zi_f32x4 ZI_N(convert_u32x4_f32x4)(zi_u32x4 a);
 ZI_FN zi_f32x4 ZI_N(convert_s32x4_f32x4)(zi_s32x4 a);
 ZI_FN zi_f64x2 ZI_N(convert_u64x2_f64x2)(zi_u64x2 a);
@@ -1800,34 +3611,146 @@ ZI_FN zi_u32x4 ZI_N(convert_f32x4_u32x4)(zi_f32x4 a);
 ZI_FN zi_s32x4 ZI_N(convert_f32x4_s32x4)(zi_f32x4 a);
 ZI_FN zi_u64x2 ZI_N(convert_f64x2_u64x2)(zi_f64x2 a);
 ZI_FN zi_s64x2 ZI_N(convert_f64x2_s64x2)(zi_f64x2 a);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(convert_u32x8_f32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(convert_u32x8_f32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(convert_s32x8_f32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(convert_s32x8_f32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(convert_u64x4_f64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(convert_u64x4_f64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(convert_s64x4_f64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(convert_s64x4_f64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(convert_f32x8_u32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(convert_f32x8_u32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(convert_f32x8_s32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(convert_f32x8_s32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(convert_f64x4_u64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(convert_f64x4_u64x4)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x16 ZI_N(low_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u8x16 ZI_N(low_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x16 ZI_N(low_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s8x16 ZI_N(low_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x8 ZI_N(low_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u16x8 ZI_N(low_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x8 ZI_N(low_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s16x8 ZI_N(low_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x4 ZI_N(low_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u32x4 ZI_N(low_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x4 ZI_N(low_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x4 ZI_N(low_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x2 ZI_N(low_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u64x2 ZI_N(low_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x2 ZI_N(low_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s64x2 ZI_N(low_s64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x4 ZI_N(low_f32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_f32x4 ZI_N(low_f32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x2 ZI_N(low_f64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_f64x2 ZI_N(low_f64x4)(zi_f64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x16 ZI_N(high_u8x32_p_)(const zi_u8x32 *a_p_);
+#else
 ZI_FN zi_u8x16 ZI_N(high_u8x32)(zi_u8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x16 ZI_N(high_s8x32_p_)(const zi_s8x32 *a_p_);
+#else
 ZI_FN zi_s8x16 ZI_N(high_s8x32)(zi_s8x32 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x8 ZI_N(high_u16x16_p_)(const zi_u16x16 *a_p_);
+#else
 ZI_FN zi_u16x8 ZI_N(high_u16x16)(zi_u16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x8 ZI_N(high_s16x16_p_)(const zi_s16x16 *a_p_);
+#else
 ZI_FN zi_s16x8 ZI_N(high_s16x16)(zi_s16x16 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x4 ZI_N(high_u32x8_p_)(const zi_u32x8 *a_p_);
+#else
 ZI_FN zi_u32x4 ZI_N(high_u32x8)(zi_u32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x4 ZI_N(high_s32x8_p_)(const zi_s32x8 *a_p_);
+#else
 ZI_FN zi_s32x4 ZI_N(high_s32x8)(zi_s32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x2 ZI_N(high_u64x4_p_)(const zi_u64x4 *a_p_);
+#else
 ZI_FN zi_u64x2 ZI_N(high_u64x4)(zi_u64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x2 ZI_N(high_s64x4_p_)(const zi_s64x4 *a_p_);
+#else
 ZI_FN zi_s64x2 ZI_N(high_s64x4)(zi_s64x4 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x4 ZI_N(high_f32x8_p_)(const zi_f32x8 *a_p_);
+#else
 ZI_FN zi_f32x4 ZI_N(high_f32x8)(zi_f32x8 a);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x2 ZI_N(high_f64x4_p_)(const zi_f64x4 *a_p_);
+#else
 ZI_FN zi_f64x2 ZI_N(high_f64x4)(zi_f64x4 a);
+#endif
 ZI_FN zi_u8x32 ZI_N(combine_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x32 ZI_N(combine_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x16 ZI_N(combine_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1848,16 +3771,56 @@ ZI_FN zi_u64x2 ZI_N(interleave_low_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(interleave_low_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(interleave_low_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(interleave_low_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(interleave_low_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(interleave_low_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(interleave_low_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(interleave_low_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(interleave_low_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(interleave_low_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(interleave_low_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(interleave_low_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(interleave_low_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(interleave_low_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(interleave_low_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(interleave_low_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(interleave_low_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(interleave_low_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(interleave_low_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(interleave_low_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(interleave_low_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(interleave_low_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(interleave_low_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(interleave_low_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
 ZI_FN zi_u8x16 ZI_N(interleave_high_u8x16)(zi_u8x16 a, zi_u8x16 b);
 ZI_FN zi_s8x16 ZI_N(interleave_high_s8x16)(zi_s8x16 a, zi_s8x16 b);
 ZI_FN zi_u16x8 ZI_N(interleave_high_u16x8)(zi_u16x8 a, zi_u16x8 b);
@@ -1868,16 +3831,1515 @@ ZI_FN zi_u64x2 ZI_N(interleave_high_u64x2)(zi_u64x2 a, zi_u64x2 b);
 ZI_FN zi_s64x2 ZI_N(interleave_high_s64x2)(zi_s64x2 a, zi_s64x2 b);
 ZI_FN zi_f32x4 ZI_N(interleave_high_f32x4)(zi_f32x4 a, zi_f32x4 b);
 ZI_FN zi_f64x2 ZI_N(interleave_high_f64x2)(zi_f64x2 a, zi_f64x2 b);
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(interleave_high_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_);
+#else
 ZI_FN zi_u8x32 ZI_N(interleave_high_u8x32)(zi_u8x32 a, zi_u8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(interleave_high_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_);
+#else
 ZI_FN zi_s8x32 ZI_N(interleave_high_s8x32)(zi_s8x32 a, zi_s8x32 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(interleave_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_);
+#else
 ZI_FN zi_u16x16 ZI_N(interleave_high_u16x16)(zi_u16x16 a, zi_u16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(interleave_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_);
+#else
 ZI_FN zi_s16x16 ZI_N(interleave_high_s16x16)(zi_s16x16 a, zi_s16x16 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(interleave_high_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_);
+#else
 ZI_FN zi_u32x8 ZI_N(interleave_high_u32x8)(zi_u32x8 a, zi_u32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(interleave_high_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_);
+#else
 ZI_FN zi_s32x8 ZI_N(interleave_high_s32x8)(zi_s32x8 a, zi_s32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(interleave_high_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_);
+#else
 ZI_FN zi_u64x4 ZI_N(interleave_high_u64x4)(zi_u64x4 a, zi_u64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(interleave_high_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_);
+#else
 ZI_FN zi_s64x4 ZI_N(interleave_high_s64x4)(zi_s64x4 a, zi_s64x4 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(interleave_high_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_);
+#else
 ZI_FN zi_f32x8 ZI_N(interleave_high_f32x8)(zi_f32x8 a, zi_f32x8 b);
+#endif
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(interleave_high_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_);
+#else
 ZI_FN zi_f64x4 ZI_N(interleave_high_f64x4)(zi_f64x4 a, zi_f64x4 b);
+#endif
+
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+#if ZI_NS == 1
+#define zi_add_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_add_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_add_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_add_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_add_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_add_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_add_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_add_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_add_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_add_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_add_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_add_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_add_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_add_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_add_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_add_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_add_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_add_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_add_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_add_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sub_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sub_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sub_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sub_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sub_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sub_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sub_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sub_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sub_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sub_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sub_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sub_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sub_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sub_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sub_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sub_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sub_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sub_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sub_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sub_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_mul_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_mul_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_mul_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_mul_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_mul_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_mul_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_mul_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_mul_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_mul_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_mul_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_mul_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_mul_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_mul_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_div_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_div_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_div_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_div_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_add_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_add_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_add_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_add_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_add_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_add_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_add_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_add_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sub_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sub_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sub_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sub_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sub_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sub_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sub_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sub_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_min_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_min_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_min_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_min_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_min_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_min_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_min_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_min_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_min_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_min_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_min_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_min_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_min_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_min_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_min_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_min_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_min_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_min_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_min_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_min_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_max_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_max_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_max_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_max_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_max_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_max_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_max_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_max_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_max_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_max_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_max_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_max_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_max_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_max_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_max_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_max_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_max_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_max_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_max_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_max_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_avg_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_avg_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_avg_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_avg_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_mul_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_mul_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_high_round_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_mul_high_round_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_and_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_and_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_and_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_and_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_and_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_and_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_and_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_and_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_and_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_and_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_and_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_and_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_and_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_and_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_and_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_and_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_or_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_or_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_or_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_or_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_or_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_or_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_or_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_or_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_or_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_or_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_or_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_or_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_or_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_or_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_or_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_or_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_xor_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_xor_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_xor_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_xor_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_xor_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_xor_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_xor_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_xor_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_xor_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_xor_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_xor_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_xor_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_xor_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_xor_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_xor_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_xor_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_and_not_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_and_not_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_and_not_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_and_not_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_and_not_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_and_not_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_and_not_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_and_not_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_and_not_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_not_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_not_u8x32_p_(&zi_a_); })
+#define zi_not_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_not_s8x32_p_(&zi_a_); })
+#define zi_not_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_not_u16x16_p_(&zi_a_); })
+#define zi_not_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_not_s16x16_p_(&zi_a_); })
+#define zi_not_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_not_u32x8_p_(&zi_a_); })
+#define zi_not_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_not_s32x8_p_(&zi_a_); })
+#define zi_not_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_not_u64x4_p_(&zi_a_); })
+#define zi_not_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_not_s64x4_p_(&zi_a_); })
+#define zi_abs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_abs_s8x32_p_(&zi_a_); })
+#define zi_abs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_abs_s16x16_p_(&zi_a_); })
+#define zi_abs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_abs_s32x8_p_(&zi_a_); })
+#define zi_abs_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_abs_s64x4_p_(&zi_a_); })
+#define zi_abs_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_abs_f32x8_p_(&zi_a_); })
+#define zi_abs_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_abs_f64x4_p_(&zi_a_); })
+#define zi_neg_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_neg_u8x32_p_(&zi_a_); })
+#define zi_neg_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_neg_s8x32_p_(&zi_a_); })
+#define zi_neg_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_neg_u16x16_p_(&zi_a_); })
+#define zi_neg_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_neg_s16x16_p_(&zi_a_); })
+#define zi_neg_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_neg_u32x8_p_(&zi_a_); })
+#define zi_neg_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_neg_s32x8_p_(&zi_a_); })
+#define zi_neg_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_neg_u64x4_p_(&zi_a_); })
+#define zi_neg_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_neg_s64x4_p_(&zi_a_); })
+#define zi_neg_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_neg_f32x8_p_(&zi_a_); })
+#define zi_neg_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_neg_f64x4_p_(&zi_a_); })
+#define zi_sign_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sign_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sign_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sign_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sign_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sign_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sign_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sign_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_abs_diff_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_abs_diff_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_abs_diff_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_abs_diff_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_abs_diff_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_abs_diff_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_abs_diff_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_abs_diff_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_abs_diff_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_eq_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_eq_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_eq_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_eq_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_eq_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_eq_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_eq_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_eq_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_eq_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_eq_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_eq_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_eq_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_eq_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_eq_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_eq_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_eq_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_eq_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_eq_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_eq_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_eq_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_lt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_lt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_lt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_lt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_lt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_lt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_lt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_lt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_lt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_lt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_lt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_lt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_lt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_lt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_lt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_lt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_lt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_lt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_lt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_lt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_gt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_gt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_gt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_gt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_gt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_gt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_gt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_gt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_gt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_gt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_gt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_gt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_gt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_gt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_gt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_gt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_gt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_gt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_gt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_gt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_select_u8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_select_u8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_s8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_select_s8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_u16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_select_u16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_s16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_select_s16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_u32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_select_u32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_s32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_select_s32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_u64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_select_u64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_s64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_select_s64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_f32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_select_f32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_select_f64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_select_f64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_shl_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_shl_u8x32_p_(&zi_a_, (n)); })
+#define zi_shl_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_shl_s8x32_p_(&zi_a_, (n)); })
+#define zi_shl_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_shl_u16x16_p_(&zi_a_, (n)); })
+#define zi_shl_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_shl_s16x16_p_(&zi_a_, (n)); })
+#define zi_shl_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_shl_u32x8_p_(&zi_a_, (n)); })
+#define zi_shl_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_shl_s32x8_p_(&zi_a_, (n)); })
+#define zi_shl_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_shl_u64x4_p_(&zi_a_, (n)); })
+#define zi_shl_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_shl_s64x4_p_(&zi_a_, (n)); })
+#define zi_shr_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_shr_u8x32_p_(&zi_a_, (n)); })
+#define zi_shr_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_shr_s8x32_p_(&zi_a_, (n)); })
+#define zi_shr_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_shr_u16x16_p_(&zi_a_, (n)); })
+#define zi_shr_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_shr_s16x16_p_(&zi_a_, (n)); })
+#define zi_shr_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_shr_u32x8_p_(&zi_a_, (n)); })
+#define zi_shr_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_shr_s32x8_p_(&zi_a_, (n)); })
+#define zi_shr_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_shr_u64x4_p_(&zi_a_, (n)); })
+#define zi_shr_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_shr_s64x4_p_(&zi_a_, (n)); })
+#define zi_shr_round_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_shr_round_u8x32_p_(&zi_a_, (n)); })
+#define zi_shr_round_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_shr_round_s8x32_p_(&zi_a_, (n)); })
+#define zi_shr_round_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_shr_round_u16x16_p_(&zi_a_, (n)); })
+#define zi_shr_round_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_shr_round_s16x16_p_(&zi_a_, (n)); })
+#define zi_shr_round_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_shr_round_u32x8_p_(&zi_a_, (n)); })
+#define zi_shr_round_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_shr_round_s32x8_p_(&zi_a_, (n)); })
+#define zi_shr_round_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_shr_round_u64x4_p_(&zi_a_, (n)); })
+#define zi_shr_round_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_shr_round_s64x4_p_(&zi_a_, (n)); })
+#define zi_shl_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_shl_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_shl_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_shl_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_shl_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_shl_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_shl_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_shl_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_shl_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_shl_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_shr_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_shr_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_shr_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_shr_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_shr_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_shr_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_shr_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_shr_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_shr_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_lane_u8x32(a, i) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_lane_u8x32_p_(&zi_a_, (i)); })
+#define zi_lane_s8x32(a, i) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_lane_s8x32_p_(&zi_a_, (i)); })
+#define zi_lane_u16x16(a, i) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_lane_u16x16_p_(&zi_a_, (i)); })
+#define zi_lane_s16x16(a, i) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_lane_s16x16_p_(&zi_a_, (i)); })
+#define zi_lane_u32x8(a, i) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_lane_u32x8_p_(&zi_a_, (i)); })
+#define zi_lane_s32x8(a, i) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_lane_s32x8_p_(&zi_a_, (i)); })
+#define zi_lane_u64x4(a, i) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_lane_u64x4_p_(&zi_a_, (i)); })
+#define zi_lane_s64x4(a, i) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_lane_s64x4_p_(&zi_a_, (i)); })
+#define zi_lane_f32x8(a, i) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_lane_f32x8_p_(&zi_a_, (i)); })
+#define zi_lane_f64x4(a, i) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_lane_f64x4_p_(&zi_a_, (i)); })
+#define zi_with_lane_u8x32(a, i, x) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_with_lane_u8x32_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_s8x32(a, i, x) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_with_lane_s8x32_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_u16x16(a, i, x) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_with_lane_u16x16_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_s16x16(a, i, x) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_with_lane_s16x16_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_u32x8(a, i, x) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_with_lane_u32x8_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_s32x8(a, i, x) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_with_lane_s32x8_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_u64x4(a, i, x) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_with_lane_u64x4_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_s64x4(a, i, x) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_with_lane_s64x4_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_f32x8(a, i, x) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_with_lane_f32x8_p_(&zi_a_, (i), (x)); })
+#define zi_with_lane_f64x4(a, i, x) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_with_lane_f64x4_p_(&zi_a_, (i), (x)); })
+#define zi_store_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_store_u8x32_p_((p), &zi_a_); })
+#define zi_store_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_store_s8x32_p_((p), &zi_a_); })
+#define zi_store_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_store_u16x16_p_((p), &zi_a_); })
+#define zi_store_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_store_s16x16_p_((p), &zi_a_); })
+#define zi_store_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_store_u32x8_p_((p), &zi_a_); })
+#define zi_store_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_store_s32x8_p_((p), &zi_a_); })
+#define zi_store_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_store_u64x4_p_((p), &zi_a_); })
+#define zi_store_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_store_s64x4_p_((p), &zi_a_); })
+#define zi_store_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_store_f32x8_p_((p), &zi_a_); })
+#define zi_store_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_store_f64x4_p_((p), &zi_a_); })
+#define zi_store_low_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_store_low_u8x32_p_((p), &zi_a_); })
+#define zi_store_low_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_store_low_s8x32_p_((p), &zi_a_); })
+#define zi_store_low_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_store_low_u16x16_p_((p), &zi_a_); })
+#define zi_store_low_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_store_low_s16x16_p_((p), &zi_a_); })
+#define zi_store_low_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_store_low_u32x8_p_((p), &zi_a_); })
+#define zi_store_low_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_store_low_s32x8_p_((p), &zi_a_); })
+#define zi_store_low_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_store_low_u64x4_p_((p), &zi_a_); })
+#define zi_store_low_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_store_low_s64x4_p_((p), &zi_a_); })
+#define zi_store_low_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_store_low_f32x8_p_((p), &zi_a_); })
+#define zi_store_low_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_store_low_f64x4_p_((p), &zi_a_); })
+#define zi_gather_u32x8_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_gather_u32x8_u32x8_p_((p), &zi_a_); })
+#define zi_gather_u32x8_s32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_gather_u32x8_s32x8_p_((p), &zi_a_); })
+#define zi_gather_u32x8_f32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_gather_u32x8_f32x8_p_((p), &zi_a_); })
+#define zi_gather_s32x8_u32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_gather_s32x8_u32x8_p_((p), &zi_a_); })
+#define zi_gather_s32x8_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_gather_s32x8_s32x8_p_((p), &zi_a_); })
+#define zi_gather_s32x8_f32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_gather_s32x8_f32x8_p_((p), &zi_a_); })
+#define zi_widen_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_widen_low_u8x32_p_(&zi_a_); })
+#define zi_widen_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_widen_low_s8x32_p_(&zi_a_); })
+#define zi_widen_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_widen_low_u16x16_p_(&zi_a_); })
+#define zi_widen_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_widen_low_s16x16_p_(&zi_a_); })
+#define zi_widen_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_widen_low_u32x8_p_(&zi_a_); })
+#define zi_widen_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_widen_low_s32x8_p_(&zi_a_); })
+#define zi_widen_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_widen_high_u8x32_p_(&zi_a_); })
+#define zi_widen_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_widen_high_s8x32_p_(&zi_a_); })
+#define zi_widen_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_widen_high_u16x16_p_(&zi_a_); })
+#define zi_widen_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_widen_high_s16x16_p_(&zi_a_); })
+#define zi_widen_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_widen_high_u32x8_p_(&zi_a_); })
+#define zi_widen_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_widen_high_s32x8_p_(&zi_a_); })
+#define zi_narrow_u16x16_u8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_narrow_u16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_u16x16_s8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_narrow_u16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s16x16_u8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_narrow_s16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s16x16_s8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_narrow_s16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_u32x8_u16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_narrow_u32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_u32x8_s16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_narrow_u32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s32x8_u16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_narrow_s32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s32x8_s16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_narrow_s32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_u64x4_u32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_narrow_u64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_u64x4_s32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_narrow_u64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s64x4_u32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_narrow_s64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_narrow_s64x4_s32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_narrow_s64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_mul_wide_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_mul_wide_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_mul_wide_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_mul_wide_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_mul_wide_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_mul_wide_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_mul_wide_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_mul_wide_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_mul_wide_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_mul_wide_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_mul_wide_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_mul_wide_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_mul_wide_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_madd_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_madd_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_madd_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_madd_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_add_pairs_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_add_pairs_u8x32_p_(&zi_a_); })
+#define zi_add_pairs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_add_pairs_s8x32_p_(&zi_a_); })
+#define zi_add_pairs_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_add_pairs_u16x16_p_(&zi_a_); })
+#define zi_add_pairs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_add_pairs_s16x16_p_(&zi_a_); })
+#define zi_add_pairs_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_add_pairs_u32x8_p_(&zi_a_); })
+#define zi_add_pairs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_add_pairs_s32x8_p_(&zi_a_); })
+#define zi_sad_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sad_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_reduce_add_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reduce_add_u8x32_p_(&zi_a_); })
+#define zi_reduce_add_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reduce_add_s8x32_p_(&zi_a_); })
+#define zi_reduce_add_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reduce_add_u16x16_p_(&zi_a_); })
+#define zi_reduce_add_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reduce_add_s16x16_p_(&zi_a_); })
+#define zi_reduce_add_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reduce_add_u32x8_p_(&zi_a_); })
+#define zi_reduce_add_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reduce_add_s32x8_p_(&zi_a_); })
+#define zi_reduce_add_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reduce_add_u64x4_p_(&zi_a_); })
+#define zi_reduce_add_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reduce_add_s64x4_p_(&zi_a_); })
+#define zi_reduce_min_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reduce_min_u8x32_p_(&zi_a_); })
+#define zi_reduce_min_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reduce_min_s8x32_p_(&zi_a_); })
+#define zi_reduce_min_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reduce_min_u16x16_p_(&zi_a_); })
+#define zi_reduce_min_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reduce_min_s16x16_p_(&zi_a_); })
+#define zi_reduce_min_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reduce_min_u32x8_p_(&zi_a_); })
+#define zi_reduce_min_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reduce_min_s32x8_p_(&zi_a_); })
+#define zi_reduce_min_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reduce_min_u64x4_p_(&zi_a_); })
+#define zi_reduce_min_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reduce_min_s64x4_p_(&zi_a_); })
+#define zi_reduce_max_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reduce_max_u8x32_p_(&zi_a_); })
+#define zi_reduce_max_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reduce_max_s8x32_p_(&zi_a_); })
+#define zi_reduce_max_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reduce_max_u16x16_p_(&zi_a_); })
+#define zi_reduce_max_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reduce_max_s16x16_p_(&zi_a_); })
+#define zi_reduce_max_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reduce_max_u32x8_p_(&zi_a_); })
+#define zi_reduce_max_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reduce_max_s32x8_p_(&zi_a_); })
+#define zi_reduce_max_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reduce_max_u64x4_p_(&zi_a_); })
+#define zi_reduce_max_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reduce_max_s64x4_p_(&zi_a_); })
+#define zi_reduce_max_index_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reduce_max_index_u8x32_p_(&zi_a_); })
+#define zi_reduce_max_index_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reduce_max_index_s8x32_p_(&zi_a_); })
+#define zi_reduce_max_index_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reduce_max_index_u16x16_p_(&zi_a_); })
+#define zi_reduce_max_index_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reduce_max_index_s16x16_p_(&zi_a_); })
+#define zi_reduce_max_index_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reduce_max_index_u32x8_p_(&zi_a_); })
+#define zi_reduce_max_index_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reduce_max_index_s32x8_p_(&zi_a_); })
+#define zi_reduce_max_index_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reduce_max_index_u64x4_p_(&zi_a_); })
+#define zi_reduce_max_index_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reduce_max_index_s64x4_p_(&zi_a_); })
+#define zi_all_zero_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_all_zero_u8x32_p_(&zi_a_); })
+#define zi_all_zero_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_all_zero_s8x32_p_(&zi_a_); })
+#define zi_all_zero_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_all_zero_u16x16_p_(&zi_a_); })
+#define zi_all_zero_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_all_zero_s16x16_p_(&zi_a_); })
+#define zi_all_zero_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_all_zero_u32x8_p_(&zi_a_); })
+#define zi_all_zero_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_all_zero_s32x8_p_(&zi_a_); })
+#define zi_all_zero_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_all_zero_u64x4_p_(&zi_a_); })
+#define zi_all_zero_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_all_zero_s64x4_p_(&zi_a_); })
+#define zi_byte_shuffle_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_byte_shuffle_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_byte_shuffle_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_byte_shuffle_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_reinterpret_u8x32_s8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_u16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_s16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_u32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_s32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_u64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_s64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_f32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_u8x32_f64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_reinterpret_u8x32_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_u8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_u16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_s16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_u32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_s32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_u64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_s64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_f32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_s8x32_f64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_reinterpret_s8x32_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_u8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_s8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_s16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_u32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_s32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_u64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_s64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_f32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_u16x16_f64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_reinterpret_u16x16_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_u8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_s8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_u16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_u32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_s32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_u64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_s64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_f32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_s16x16_f64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_reinterpret_s16x16_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_u8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_s8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_u16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_s16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_s32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_u64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_s64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_u32x8_f64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_reinterpret_u32x8_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_u8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_s8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_u16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_s16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_u32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_u64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_s64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_s32x8_f64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_reinterpret_s32x8_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_u8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_s8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_u16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_s16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_u32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_s32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_s64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_f32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_reinterpret_u64x4_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_u8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_s8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_u16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_s16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_u32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_s32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_u64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_f32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_f32x8_p_(&zi_a_); })
+#define zi_reinterpret_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_reinterpret_s64x4_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_u8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_s8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_u16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_s16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_u64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_s64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_f32x8_f64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_reinterpret_f32x8_f64x4_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_u8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_u8x32_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_s8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_s8x32_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_u16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_u16x16_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_s16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_s16x16_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_u32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_u32x8_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_s32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_s32x8_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_u64x4_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_s64x4_p_(&zi_a_); })
+#define zi_reinterpret_f64x4_f32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_reinterpret_f64x4_f32x8_p_(&zi_a_); })
+#define zi_convert_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_convert_u32x8_f32x8_p_(&zi_a_); })
+#define zi_convert_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_convert_s32x8_f32x8_p_(&zi_a_); })
+#define zi_convert_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_convert_u64x4_f64x4_p_(&zi_a_); })
+#define zi_convert_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_convert_s64x4_f64x4_p_(&zi_a_); })
+#define zi_convert_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_convert_f32x8_u32x8_p_(&zi_a_); })
+#define zi_convert_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_convert_f32x8_s32x8_p_(&zi_a_); })
+#define zi_convert_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_convert_f64x4_u64x4_p_(&zi_a_); })
+#define zi_convert_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_convert_f64x4_s64x4_p_(&zi_a_); })
+#define zi_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_low_u8x32_p_(&zi_a_); })
+#define zi_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_low_s8x32_p_(&zi_a_); })
+#define zi_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_low_u16x16_p_(&zi_a_); })
+#define zi_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_low_s16x16_p_(&zi_a_); })
+#define zi_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_low_u32x8_p_(&zi_a_); })
+#define zi_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_low_s32x8_p_(&zi_a_); })
+#define zi_low_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_low_u64x4_p_(&zi_a_); })
+#define zi_low_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_low_s64x4_p_(&zi_a_); })
+#define zi_low_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_low_f32x8_p_(&zi_a_); })
+#define zi_low_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_low_f64x4_p_(&zi_a_); })
+#define zi_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_high_u8x32_p_(&zi_a_); })
+#define zi_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_high_s8x32_p_(&zi_a_); })
+#define zi_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_high_u16x16_p_(&zi_a_); })
+#define zi_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_high_s16x16_p_(&zi_a_); })
+#define zi_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_high_u32x8_p_(&zi_a_); })
+#define zi_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_high_s32x8_p_(&zi_a_); })
+#define zi_high_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_high_u64x4_p_(&zi_a_); })
+#define zi_high_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_high_s64x4_p_(&zi_a_); })
+#define zi_high_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_high_f32x8_p_(&zi_a_); })
+#define zi_high_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_high_f64x4_p_(&zi_a_); })
+#define zi_interleave_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_interleave_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_interleave_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_interleave_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_interleave_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_interleave_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_interleave_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_interleave_low_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_interleave_low_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_interleave_low_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_low_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_interleave_low_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_interleave_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_interleave_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_interleave_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_interleave_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_interleave_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_interleave_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_interleave_high_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_interleave_high_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_interleave_high_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_interleave_high_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_interleave_high_f64x4_p_(&zi_a_, &zi_b_); })
+#elif ZI_NS == 2
+#define zi_ssse3_add_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_add_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_add_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_add_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_add_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_add_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_add_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_add_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_add_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_add_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_add_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_sub_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_sub_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_sub_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_sub_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_sub_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_sub_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_sub_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_sub_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_sub_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_sub_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_mul_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_mul_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_mul_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_mul_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_mul_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_mul_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_mul_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_mul_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_mul_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_mul_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_div_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_div_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_div_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_div_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_add_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_add_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_add_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_add_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_sub_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_sub_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_sub_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sub_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_sub_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_min_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_min_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_min_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_min_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_min_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_min_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_min_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_min_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_min_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_min_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_min_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_max_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_max_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_max_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_max_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_max_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_max_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_max_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_max_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_max_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_max_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_max_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_avg_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_avg_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_avg_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_avg_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_mul_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_mul_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_high_round_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_mul_high_round_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_and_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_and_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_and_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_and_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_and_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_and_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_and_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_and_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_or_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_or_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_or_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_or_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_or_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_or_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_or_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_or_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_or_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_xor_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_xor_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_xor_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_xor_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_xor_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_xor_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_xor_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_xor_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_xor_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_and_not_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_and_not_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_and_not_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_and_not_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_and_not_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_and_not_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_and_not_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_and_not_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_and_not_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_not_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_not_u8x32_p_(&zi_a_); })
+#define zi_ssse3_not_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_not_s8x32_p_(&zi_a_); })
+#define zi_ssse3_not_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_not_u16x16_p_(&zi_a_); })
+#define zi_ssse3_not_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_not_s16x16_p_(&zi_a_); })
+#define zi_ssse3_not_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_not_u32x8_p_(&zi_a_); })
+#define zi_ssse3_not_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_not_s32x8_p_(&zi_a_); })
+#define zi_ssse3_not_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_not_u64x4_p_(&zi_a_); })
+#define zi_ssse3_not_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_not_s64x4_p_(&zi_a_); })
+#define zi_ssse3_abs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_abs_s8x32_p_(&zi_a_); })
+#define zi_ssse3_abs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_abs_s16x16_p_(&zi_a_); })
+#define zi_ssse3_abs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_abs_s32x8_p_(&zi_a_); })
+#define zi_ssse3_abs_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_abs_s64x4_p_(&zi_a_); })
+#define zi_ssse3_abs_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_abs_f32x8_p_(&zi_a_); })
+#define zi_ssse3_abs_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_abs_f64x4_p_(&zi_a_); })
+#define zi_ssse3_neg_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_neg_u8x32_p_(&zi_a_); })
+#define zi_ssse3_neg_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_neg_s8x32_p_(&zi_a_); })
+#define zi_ssse3_neg_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_neg_u16x16_p_(&zi_a_); })
+#define zi_ssse3_neg_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_neg_s16x16_p_(&zi_a_); })
+#define zi_ssse3_neg_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_neg_u32x8_p_(&zi_a_); })
+#define zi_ssse3_neg_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_neg_s32x8_p_(&zi_a_); })
+#define zi_ssse3_neg_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_neg_u64x4_p_(&zi_a_); })
+#define zi_ssse3_neg_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_neg_s64x4_p_(&zi_a_); })
+#define zi_ssse3_neg_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_neg_f32x8_p_(&zi_a_); })
+#define zi_ssse3_neg_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_neg_f64x4_p_(&zi_a_); })
+#define zi_ssse3_sign_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_sign_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sign_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_sign_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sign_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_sign_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_sign_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_sign_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_abs_diff_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_abs_diff_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_abs_diff_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_abs_diff_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_abs_diff_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_abs_diff_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_abs_diff_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_abs_diff_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_abs_diff_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_eq_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_eq_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_eq_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_eq_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_eq_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_eq_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_eq_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_eq_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_eq_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_eq_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_eq_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_lt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_lt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_lt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_lt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_lt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_lt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_lt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_lt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_lt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_lt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_gt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_gt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_gt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_gt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_gt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_gt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_gt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_gt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_gt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_gt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_gt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_select_u8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_select_u8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_s8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_select_s8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_u16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_select_u16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_s16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_select_s16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_u32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_select_u32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_s32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_select_s32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_u64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_select_u64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_s64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_select_s64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_f32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_select_f32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_select_f64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_select_f64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_ssse3_shl_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_shl_u8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_shl_s8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_shl_u16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_shl_s16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_shl_u32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_shl_s32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_shl_u64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_shl_s64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_shr_u8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_shr_s8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_shr_u16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_shr_s16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_shr_u32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_shr_s32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_shr_u64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_shr_s64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_shr_round_u8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_shr_round_s8x32_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_shr_round_u16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_shr_round_s16x16_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_shr_round_u32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_shr_round_s32x8_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_shr_round_u64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shr_round_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_shr_round_s64x4_p_(&zi_a_, (n)); })
+#define zi_ssse3_shl_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_shl_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_shl_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_shl_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_shl_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_shl_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_shl_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_shl_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shl_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_shl_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_shr_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_shr_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_shr_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_shr_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_shr_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_shr_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_shr_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_shr_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_shr_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_lane_u8x32(a, i) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_lane_u8x32_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_s8x32(a, i) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_lane_s8x32_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_u16x16(a, i) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_lane_u16x16_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_s16x16(a, i) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_lane_s16x16_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_u32x8(a, i) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_lane_u32x8_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_s32x8(a, i) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_lane_s32x8_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_u64x4(a, i) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_lane_u64x4_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_s64x4(a, i) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_lane_s64x4_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_f32x8(a, i) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_lane_f32x8_p_(&zi_a_, (i)); })
+#define zi_ssse3_lane_f64x4(a, i) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_lane_f64x4_p_(&zi_a_, (i)); })
+#define zi_ssse3_with_lane_u8x32(a, i, x) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_with_lane_u8x32_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_s8x32(a, i, x) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_with_lane_s8x32_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_u16x16(a, i, x) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_with_lane_u16x16_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_s16x16(a, i, x) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_with_lane_s16x16_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_u32x8(a, i, x) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_with_lane_u32x8_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_s32x8(a, i, x) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_with_lane_s32x8_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_u64x4(a, i, x) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_with_lane_u64x4_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_s64x4(a, i, x) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_with_lane_s64x4_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_f32x8(a, i, x) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_with_lane_f32x8_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_with_lane_f64x4(a, i, x) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_with_lane_f64x4_p_(&zi_a_, (i), (x)); })
+#define zi_ssse3_store_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_store_u8x32_p_((p), &zi_a_); })
+#define zi_ssse3_store_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_store_s8x32_p_((p), &zi_a_); })
+#define zi_ssse3_store_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_store_u16x16_p_((p), &zi_a_); })
+#define zi_ssse3_store_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_store_s16x16_p_((p), &zi_a_); })
+#define zi_ssse3_store_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_store_u32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_store_s32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_store_u64x4_p_((p), &zi_a_); })
+#define zi_ssse3_store_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_store_s64x4_p_((p), &zi_a_); })
+#define zi_ssse3_store_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_store_f32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_store_f64x4_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_store_low_u8x32_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_store_low_s8x32_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_store_low_u16x16_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_store_low_s16x16_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_store_low_u32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_store_low_s32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_store_low_u64x4_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_store_low_s64x4_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_store_low_f32x8_p_((p), &zi_a_); })
+#define zi_ssse3_store_low_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_store_low_f64x4_p_((p), &zi_a_); })
+#define zi_ssse3_gather_u32x8_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_gather_u32x8_u32x8_p_((p), &zi_a_); })
+#define zi_ssse3_gather_u32x8_s32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_gather_u32x8_s32x8_p_((p), &zi_a_); })
+#define zi_ssse3_gather_u32x8_f32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_gather_u32x8_f32x8_p_((p), &zi_a_); })
+#define zi_ssse3_gather_s32x8_u32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_gather_s32x8_u32x8_p_((p), &zi_a_); })
+#define zi_ssse3_gather_s32x8_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_gather_s32x8_s32x8_p_((p), &zi_a_); })
+#define zi_ssse3_gather_s32x8_f32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_gather_s32x8_f32x8_p_((p), &zi_a_); })
+#define zi_ssse3_widen_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_widen_low_u8x32_p_(&zi_a_); })
+#define zi_ssse3_widen_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_widen_low_s8x32_p_(&zi_a_); })
+#define zi_ssse3_widen_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_widen_low_u16x16_p_(&zi_a_); })
+#define zi_ssse3_widen_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_widen_low_s16x16_p_(&zi_a_); })
+#define zi_ssse3_widen_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_widen_low_u32x8_p_(&zi_a_); })
+#define zi_ssse3_widen_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_widen_low_s32x8_p_(&zi_a_); })
+#define zi_ssse3_widen_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_widen_high_u8x32_p_(&zi_a_); })
+#define zi_ssse3_widen_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_widen_high_s8x32_p_(&zi_a_); })
+#define zi_ssse3_widen_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_widen_high_u16x16_p_(&zi_a_); })
+#define zi_ssse3_widen_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_widen_high_s16x16_p_(&zi_a_); })
+#define zi_ssse3_widen_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_widen_high_u32x8_p_(&zi_a_); })
+#define zi_ssse3_widen_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_widen_high_s32x8_p_(&zi_a_); })
+#define zi_ssse3_narrow_u16x16_u8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_narrow_u16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_u16x16_s8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_narrow_u16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s16x16_u8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_narrow_s16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s16x16_s8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_narrow_s16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_u32x8_u16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_narrow_u32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_u32x8_s16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_narrow_u32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s32x8_u16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_narrow_s32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s32x8_s16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_narrow_s32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_u64x4_u32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_narrow_u64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_u64x4_s32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_narrow_u64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s64x4_u32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_narrow_s64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_narrow_s64x4_s32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_narrow_s64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_mul_wide_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_mul_wide_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_mul_wide_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_mul_wide_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_mul_wide_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_mul_wide_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_mul_wide_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_mul_wide_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_mul_wide_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_mul_wide_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_mul_wide_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_mul_wide_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_mul_wide_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_madd_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_madd_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_madd_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_madd_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_add_pairs_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_add_pairs_u8x32_p_(&zi_a_); })
+#define zi_ssse3_add_pairs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_add_pairs_s8x32_p_(&zi_a_); })
+#define zi_ssse3_add_pairs_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_add_pairs_u16x16_p_(&zi_a_); })
+#define zi_ssse3_add_pairs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_add_pairs_s16x16_p_(&zi_a_); })
+#define zi_ssse3_add_pairs_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_add_pairs_u32x8_p_(&zi_a_); })
+#define zi_ssse3_add_pairs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_add_pairs_s32x8_p_(&zi_a_); })
+#define zi_ssse3_sad_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_sad_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_reduce_add_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reduce_add_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reduce_add_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reduce_add_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reduce_add_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reduce_add_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reduce_add_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reduce_add_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_add_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reduce_add_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reduce_min_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reduce_min_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reduce_min_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reduce_min_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reduce_min_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reduce_min_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reduce_min_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_min_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reduce_min_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reduce_max_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reduce_max_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reduce_max_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reduce_max_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reduce_max_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reduce_max_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reduce_max_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reduce_max_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reduce_max_index_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reduce_max_index_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reduce_max_index_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reduce_max_index_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reduce_max_index_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reduce_max_index_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reduce_max_index_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reduce_max_index_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reduce_max_index_s64x4_p_(&zi_a_); })
+#define zi_ssse3_all_zero_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_all_zero_u8x32_p_(&zi_a_); })
+#define zi_ssse3_all_zero_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_all_zero_s8x32_p_(&zi_a_); })
+#define zi_ssse3_all_zero_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_all_zero_u16x16_p_(&zi_a_); })
+#define zi_ssse3_all_zero_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_all_zero_s16x16_p_(&zi_a_); })
+#define zi_ssse3_all_zero_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_all_zero_u32x8_p_(&zi_a_); })
+#define zi_ssse3_all_zero_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_all_zero_s32x8_p_(&zi_a_); })
+#define zi_ssse3_all_zero_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_all_zero_u64x4_p_(&zi_a_); })
+#define zi_ssse3_all_zero_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_all_zero_s64x4_p_(&zi_a_); })
+#define zi_ssse3_byte_shuffle_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_byte_shuffle_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_byte_shuffle_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_byte_shuffle_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_reinterpret_u8x32_s8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_u16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_s16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_u32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_s32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_u64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_s64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_f32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u8x32_f64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_reinterpret_u8x32_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_u8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_u16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_s16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_u32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_s32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_u64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_s64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_f32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s8x32_f64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_reinterpret_s8x32_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_u8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_s8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_s16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_u32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_s32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_u64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_s64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_f32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u16x16_f64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_reinterpret_u16x16_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_u8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_s8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_u16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_u32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_s32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_u64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_s64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_f32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s16x16_f64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_reinterpret_s16x16_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_u8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_s8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_u16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_s16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_s32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_u64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_s64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u32x8_f64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_reinterpret_u32x8_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_u8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_s8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_u16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_s16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_u32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_u64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_s64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s32x8_f64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_reinterpret_s32x8_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_u8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_s8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_u16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_s16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_u32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_s32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_s64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_f32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_reinterpret_u64x4_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_u8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_s8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_u16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_s16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_u32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_s32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_u64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_f32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_f32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_reinterpret_s64x4_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_u8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_s8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_u16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_s16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_u64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_s64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f32x8_f64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_reinterpret_f32x8_f64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_u8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_u8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_s8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_s8x32_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_u16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_u16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_s16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_s16x16_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_u32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_u32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_s32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_s32x8_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_u64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_s64x4_p_(&zi_a_); })
+#define zi_ssse3_reinterpret_f64x4_f32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_reinterpret_f64x4_f32x8_p_(&zi_a_); })
+#define zi_ssse3_convert_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_convert_u32x8_f32x8_p_(&zi_a_); })
+#define zi_ssse3_convert_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_convert_s32x8_f32x8_p_(&zi_a_); })
+#define zi_ssse3_convert_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_convert_u64x4_f64x4_p_(&zi_a_); })
+#define zi_ssse3_convert_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_convert_s64x4_f64x4_p_(&zi_a_); })
+#define zi_ssse3_convert_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_convert_f32x8_u32x8_p_(&zi_a_); })
+#define zi_ssse3_convert_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_convert_f32x8_s32x8_p_(&zi_a_); })
+#define zi_ssse3_convert_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_convert_f64x4_u64x4_p_(&zi_a_); })
+#define zi_ssse3_convert_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_convert_f64x4_s64x4_p_(&zi_a_); })
+#define zi_ssse3_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_low_u8x32_p_(&zi_a_); })
+#define zi_ssse3_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_low_s8x32_p_(&zi_a_); })
+#define zi_ssse3_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_low_u16x16_p_(&zi_a_); })
+#define zi_ssse3_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_low_s16x16_p_(&zi_a_); })
+#define zi_ssse3_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_low_u32x8_p_(&zi_a_); })
+#define zi_ssse3_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_low_s32x8_p_(&zi_a_); })
+#define zi_ssse3_low_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_low_u64x4_p_(&zi_a_); })
+#define zi_ssse3_low_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_low_s64x4_p_(&zi_a_); })
+#define zi_ssse3_low_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_low_f32x8_p_(&zi_a_); })
+#define zi_ssse3_low_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_low_f64x4_p_(&zi_a_); })
+#define zi_ssse3_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_ssse3_high_u8x32_p_(&zi_a_); })
+#define zi_ssse3_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_ssse3_high_s8x32_p_(&zi_a_); })
+#define zi_ssse3_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_ssse3_high_u16x16_p_(&zi_a_); })
+#define zi_ssse3_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_ssse3_high_s16x16_p_(&zi_a_); })
+#define zi_ssse3_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_ssse3_high_u32x8_p_(&zi_a_); })
+#define zi_ssse3_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_ssse3_high_s32x8_p_(&zi_a_); })
+#define zi_ssse3_high_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_ssse3_high_u64x4_p_(&zi_a_); })
+#define zi_ssse3_high_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_ssse3_high_s64x4_p_(&zi_a_); })
+#define zi_ssse3_high_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_ssse3_high_f32x8_p_(&zi_a_); })
+#define zi_ssse3_high_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_ssse3_high_f64x4_p_(&zi_a_); })
+#define zi_ssse3_interleave_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_interleave_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_interleave_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_interleave_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_interleave_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_interleave_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_interleave_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_interleave_low_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_interleave_low_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_interleave_low_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_low_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_interleave_low_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_ssse3_interleave_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_ssse3_interleave_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_ssse3_interleave_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_ssse3_interleave_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_ssse3_interleave_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_ssse3_interleave_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_ssse3_interleave_high_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_ssse3_interleave_high_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_ssse3_interleave_high_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_ssse3_interleave_high_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_ssse3_interleave_high_f64x4_p_(&zi_a_, &zi_b_); })
+#elif ZI_NS == 3
+#define zi_sse41_add_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_add_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_add_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_add_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_add_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_add_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_add_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_add_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_add_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_add_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_add_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_sub_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_sub_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_sub_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_sub_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_sub_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_sub_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_sub_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_sub_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_sub_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_sub_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_mul_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_mul_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_mul_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_mul_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_mul_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_mul_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_mul_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_mul_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_mul_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_mul_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_div_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_div_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_div_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_div_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_add_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_add_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_add_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_add_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_sub_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_sat_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_sub_sat_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_sat_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_sub_sat_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sub_sat_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_sub_sat_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_min_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_min_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_min_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_min_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_min_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_min_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_min_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_min_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_min_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_min_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_min_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_max_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_max_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_max_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_max_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_max_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_max_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_max_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_max_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_max_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_max_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_max_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_avg_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_avg_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_avg_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_avg_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_mul_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_mul_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_high_round_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_mul_high_round_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_and_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_and_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_and_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_and_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_and_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_and_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_and_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_and_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_or_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_or_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_or_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_or_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_or_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_or_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_or_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_or_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_or_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_xor_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_xor_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_xor_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_xor_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_xor_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_xor_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_xor_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_xor_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_xor_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_and_not_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_and_not_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_and_not_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_and_not_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_and_not_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_and_not_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_and_not_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_and_not_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_and_not_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_not_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_not_u8x32_p_(&zi_a_); })
+#define zi_sse41_not_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_not_s8x32_p_(&zi_a_); })
+#define zi_sse41_not_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_not_u16x16_p_(&zi_a_); })
+#define zi_sse41_not_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_not_s16x16_p_(&zi_a_); })
+#define zi_sse41_not_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_not_u32x8_p_(&zi_a_); })
+#define zi_sse41_not_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_not_s32x8_p_(&zi_a_); })
+#define zi_sse41_not_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_not_u64x4_p_(&zi_a_); })
+#define zi_sse41_not_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_not_s64x4_p_(&zi_a_); })
+#define zi_sse41_abs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_abs_s8x32_p_(&zi_a_); })
+#define zi_sse41_abs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_abs_s16x16_p_(&zi_a_); })
+#define zi_sse41_abs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_abs_s32x8_p_(&zi_a_); })
+#define zi_sse41_abs_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_abs_s64x4_p_(&zi_a_); })
+#define zi_sse41_abs_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_abs_f32x8_p_(&zi_a_); })
+#define zi_sse41_abs_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_abs_f64x4_p_(&zi_a_); })
+#define zi_sse41_neg_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_neg_u8x32_p_(&zi_a_); })
+#define zi_sse41_neg_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_neg_s8x32_p_(&zi_a_); })
+#define zi_sse41_neg_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_neg_u16x16_p_(&zi_a_); })
+#define zi_sse41_neg_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_neg_s16x16_p_(&zi_a_); })
+#define zi_sse41_neg_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_neg_u32x8_p_(&zi_a_); })
+#define zi_sse41_neg_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_neg_s32x8_p_(&zi_a_); })
+#define zi_sse41_neg_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_neg_u64x4_p_(&zi_a_); })
+#define zi_sse41_neg_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_neg_s64x4_p_(&zi_a_); })
+#define zi_sse41_neg_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_neg_f32x8_p_(&zi_a_); })
+#define zi_sse41_neg_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_neg_f64x4_p_(&zi_a_); })
+#define zi_sse41_sign_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_sign_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sign_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_sign_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sign_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_sign_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_sign_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_sign_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_abs_diff_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_abs_diff_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_abs_diff_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_abs_diff_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_abs_diff_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_abs_diff_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_abs_diff_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_abs_diff_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_abs_diff_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_eq_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_eq_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_eq_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_eq_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_eq_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_eq_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_eq_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_eq_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_eq_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_eq_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_eq_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_lt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_lt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_lt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_lt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_lt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_lt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_lt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_lt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_lt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_lt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_gt_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_gt_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_gt_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_gt_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_gt_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_gt_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_gt_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_gt_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_gt_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_gt_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_gt_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_select_u8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_select_u8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_s8x32(m, a, b) __extension__ ({ zi_u8x32 zi_m_ = (m); zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_select_s8x32_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_u16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_select_u16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_s16x16(m, a, b) __extension__ ({ zi_u16x16 zi_m_ = (m); zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_select_s16x16_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_u32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_select_u32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_s32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_select_s32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_u64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_select_u64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_s64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_select_s64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_f32x8(m, a, b) __extension__ ({ zi_u32x8 zi_m_ = (m); zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_select_f32x8_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_select_f64x4(m, a, b) __extension__ ({ zi_u64x4 zi_m_ = (m); zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_select_f64x4_p_(&zi_m_, &zi_a_, &zi_b_); })
+#define zi_sse41_shl_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_shl_u8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_shl_s8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_shl_u16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_shl_s16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_shl_u32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_shl_s32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_shl_u64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_shl_s64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_shr_u8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_shr_s8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_shr_u16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_shr_s16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_shr_u32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_shr_s32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_shr_u64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_shr_s64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_u8x32(a, n) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_shr_round_u8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_s8x32(a, n) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_shr_round_s8x32_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_u16x16(a, n) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_shr_round_u16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_s16x16(a, n) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_shr_round_s16x16_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_u32x8(a, n) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_shr_round_u32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_s32x8(a, n) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_shr_round_s32x8_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_u64x4(a, n) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_shr_round_u64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shr_round_s64x4(a, n) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_shr_round_s64x4_p_(&zi_a_, (n)); })
+#define zi_sse41_shl_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_shl_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_shl_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_shl_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_shl_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_shl_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_shl_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_shl_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shl_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_shl_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_shr_lanes_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_shr_lanes_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_shr_lanes_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_shr_lanes_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_shr_lanes_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_shr_lanes_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_shr_lanes_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_shr_lanes_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_shr_lanes_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_lane_u8x32(a, i) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_lane_u8x32_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_s8x32(a, i) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_lane_s8x32_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_u16x16(a, i) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_lane_u16x16_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_s16x16(a, i) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_lane_s16x16_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_u32x8(a, i) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_lane_u32x8_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_s32x8(a, i) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_lane_s32x8_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_u64x4(a, i) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_lane_u64x4_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_s64x4(a, i) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_lane_s64x4_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_f32x8(a, i) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_lane_f32x8_p_(&zi_a_, (i)); })
+#define zi_sse41_lane_f64x4(a, i) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_lane_f64x4_p_(&zi_a_, (i)); })
+#define zi_sse41_with_lane_u8x32(a, i, x) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_with_lane_u8x32_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_s8x32(a, i, x) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_with_lane_s8x32_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_u16x16(a, i, x) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_with_lane_u16x16_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_s16x16(a, i, x) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_with_lane_s16x16_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_u32x8(a, i, x) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_with_lane_u32x8_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_s32x8(a, i, x) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_with_lane_s32x8_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_u64x4(a, i, x) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_with_lane_u64x4_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_s64x4(a, i, x) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_with_lane_s64x4_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_f32x8(a, i, x) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_with_lane_f32x8_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_with_lane_f64x4(a, i, x) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_with_lane_f64x4_p_(&zi_a_, (i), (x)); })
+#define zi_sse41_store_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_store_u8x32_p_((p), &zi_a_); })
+#define zi_sse41_store_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_store_s8x32_p_((p), &zi_a_); })
+#define zi_sse41_store_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_store_u16x16_p_((p), &zi_a_); })
+#define zi_sse41_store_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_store_s16x16_p_((p), &zi_a_); })
+#define zi_sse41_store_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_store_u32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_store_s32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_store_u64x4_p_((p), &zi_a_); })
+#define zi_sse41_store_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_store_s64x4_p_((p), &zi_a_); })
+#define zi_sse41_store_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_store_f32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_store_f64x4_p_((p), &zi_a_); })
+#define zi_sse41_store_low_u8x32(p, a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_store_low_u8x32_p_((p), &zi_a_); })
+#define zi_sse41_store_low_s8x32(p, a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_store_low_s8x32_p_((p), &zi_a_); })
+#define zi_sse41_store_low_u16x16(p, a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_store_low_u16x16_p_((p), &zi_a_); })
+#define zi_sse41_store_low_s16x16(p, a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_store_low_s16x16_p_((p), &zi_a_); })
+#define zi_sse41_store_low_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_store_low_u32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_low_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_store_low_s32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_low_u64x4(p, a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_store_low_u64x4_p_((p), &zi_a_); })
+#define zi_sse41_store_low_s64x4(p, a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_store_low_s64x4_p_((p), &zi_a_); })
+#define zi_sse41_store_low_f32x8(p, a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_store_low_f32x8_p_((p), &zi_a_); })
+#define zi_sse41_store_low_f64x4(p, a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_store_low_f64x4_p_((p), &zi_a_); })
+#define zi_sse41_gather_u32x8_u32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_gather_u32x8_u32x8_p_((p), &zi_a_); })
+#define zi_sse41_gather_u32x8_s32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_gather_u32x8_s32x8_p_((p), &zi_a_); })
+#define zi_sse41_gather_u32x8_f32x8(p, a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_gather_u32x8_f32x8_p_((p), &zi_a_); })
+#define zi_sse41_gather_s32x8_u32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_gather_s32x8_u32x8_p_((p), &zi_a_); })
+#define zi_sse41_gather_s32x8_s32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_gather_s32x8_s32x8_p_((p), &zi_a_); })
+#define zi_sse41_gather_s32x8_f32x8(p, a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_gather_s32x8_f32x8_p_((p), &zi_a_); })
+#define zi_sse41_widen_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_widen_low_u8x32_p_(&zi_a_); })
+#define zi_sse41_widen_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_widen_low_s8x32_p_(&zi_a_); })
+#define zi_sse41_widen_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_widen_low_u16x16_p_(&zi_a_); })
+#define zi_sse41_widen_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_widen_low_s16x16_p_(&zi_a_); })
+#define zi_sse41_widen_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_widen_low_u32x8_p_(&zi_a_); })
+#define zi_sse41_widen_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_widen_low_s32x8_p_(&zi_a_); })
+#define zi_sse41_widen_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_widen_high_u8x32_p_(&zi_a_); })
+#define zi_sse41_widen_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_widen_high_s8x32_p_(&zi_a_); })
+#define zi_sse41_widen_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_widen_high_u16x16_p_(&zi_a_); })
+#define zi_sse41_widen_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_widen_high_s16x16_p_(&zi_a_); })
+#define zi_sse41_widen_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_widen_high_u32x8_p_(&zi_a_); })
+#define zi_sse41_widen_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_widen_high_s32x8_p_(&zi_a_); })
+#define zi_sse41_narrow_u16x16_u8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_narrow_u16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_u16x16_s8x32(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_narrow_u16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s16x16_u8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_narrow_s16x16_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s16x16_s8x32(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_narrow_s16x16_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_u32x8_u16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_narrow_u32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_u32x8_s16x16(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_narrow_u32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s32x8_u16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_narrow_s32x8_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s32x8_s16x16(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_narrow_s32x8_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_u64x4_u32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_narrow_u64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_u64x4_s32x8(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_narrow_u64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s64x4_u32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_narrow_s64x4_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_narrow_s64x4_s32x8(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_narrow_s64x4_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_mul_wide_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_mul_wide_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_mul_wide_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_mul_wide_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_mul_wide_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_mul_wide_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_mul_wide_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_mul_wide_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_mul_wide_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_mul_wide_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_mul_wide_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_mul_wide_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_mul_wide_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_madd_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_madd_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_madd_sat_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_madd_sat_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_add_pairs_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_add_pairs_u8x32_p_(&zi_a_); })
+#define zi_sse41_add_pairs_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_add_pairs_s8x32_p_(&zi_a_); })
+#define zi_sse41_add_pairs_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_add_pairs_u16x16_p_(&zi_a_); })
+#define zi_sse41_add_pairs_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_add_pairs_s16x16_p_(&zi_a_); })
+#define zi_sse41_add_pairs_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_add_pairs_u32x8_p_(&zi_a_); })
+#define zi_sse41_add_pairs_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_add_pairs_s32x8_p_(&zi_a_); })
+#define zi_sse41_sad_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_sad_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_reduce_add_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reduce_add_u8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_add_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reduce_add_s8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_add_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reduce_add_u16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_add_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reduce_add_s16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_add_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reduce_add_u32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_add_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reduce_add_s32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_add_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reduce_add_u64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_add_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reduce_add_s64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_min_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reduce_min_u8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_min_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reduce_min_s8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_min_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reduce_min_u16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_min_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reduce_min_s16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_min_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reduce_min_u32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_min_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reduce_min_s32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_min_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reduce_min_u64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_min_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reduce_min_s64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_max_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reduce_max_u8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_max_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reduce_max_s8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_max_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reduce_max_u16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_max_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reduce_max_s16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_max_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reduce_max_u32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_max_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reduce_max_s32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_max_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reduce_max_u64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_max_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reduce_max_s64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reduce_max_index_u8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reduce_max_index_s8x32_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reduce_max_index_u16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reduce_max_index_s16x16_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reduce_max_index_u32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reduce_max_index_s32x8_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reduce_max_index_u64x4_p_(&zi_a_); })
+#define zi_sse41_reduce_max_index_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reduce_max_index_s64x4_p_(&zi_a_); })
+#define zi_sse41_all_zero_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_all_zero_u8x32_p_(&zi_a_); })
+#define zi_sse41_all_zero_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_all_zero_s8x32_p_(&zi_a_); })
+#define zi_sse41_all_zero_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_all_zero_u16x16_p_(&zi_a_); })
+#define zi_sse41_all_zero_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_all_zero_s16x16_p_(&zi_a_); })
+#define zi_sse41_all_zero_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_all_zero_u32x8_p_(&zi_a_); })
+#define zi_sse41_all_zero_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_all_zero_s32x8_p_(&zi_a_); })
+#define zi_sse41_all_zero_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_all_zero_u64x4_p_(&zi_a_); })
+#define zi_sse41_all_zero_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_all_zero_s64x4_p_(&zi_a_); })
+#define zi_sse41_byte_shuffle_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_byte_shuffle_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_byte_shuffle_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_byte_shuffle_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_reinterpret_u8x32_s8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_u16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_s16x16(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_u32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_s32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_u64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_s64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_f32x8(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u8x32_f64x4(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_reinterpret_u8x32_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_u8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_u16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_s16x16(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_u32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_s32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_u64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_s64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_f32x8(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s8x32_f64x4(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_reinterpret_s8x32_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_u8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_s8x32(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_s16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_u32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_s32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_u64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_s64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_f32x8(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u16x16_f64x4(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_reinterpret_u16x16_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_u8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_s8x32(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_u16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_u32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_s32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_u64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_s64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_f32x8(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s16x16_f64x4(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_reinterpret_s16x16_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_u8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_s8x32(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_u16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_s16x16(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_s32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_u64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_s64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u32x8_f64x4(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_reinterpret_u32x8_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_u8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_s8x32(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_u16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_s16x16(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_u32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_u64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_s64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s32x8_f64x4(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_reinterpret_s32x8_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_u8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_s8x32(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_u16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_s16x16(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_u32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_s32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_s64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_f32x8(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_reinterpret_u64x4_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_u8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_s8x32(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_u16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_s16x16(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_u32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_s32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_u64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_f32x8(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_f32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_reinterpret_s64x4_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_u8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_s8x32(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_u16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_s16x16(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_u64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_s64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f32x8_f64x4(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_reinterpret_f32x8_f64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_u8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_u8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_s8x32(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_s8x32_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_u16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_u16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_s16x16(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_s16x16_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_u32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_u32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_s32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_s32x8_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_u64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_s64x4_p_(&zi_a_); })
+#define zi_sse41_reinterpret_f64x4_f32x8(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_reinterpret_f64x4_f32x8_p_(&zi_a_); })
+#define zi_sse41_convert_u32x8_f32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_convert_u32x8_f32x8_p_(&zi_a_); })
+#define zi_sse41_convert_s32x8_f32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_convert_s32x8_f32x8_p_(&zi_a_); })
+#define zi_sse41_convert_u64x4_f64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_convert_u64x4_f64x4_p_(&zi_a_); })
+#define zi_sse41_convert_s64x4_f64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_convert_s64x4_f64x4_p_(&zi_a_); })
+#define zi_sse41_convert_f32x8_u32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_convert_f32x8_u32x8_p_(&zi_a_); })
+#define zi_sse41_convert_f32x8_s32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_convert_f32x8_s32x8_p_(&zi_a_); })
+#define zi_sse41_convert_f64x4_u64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_convert_f64x4_u64x4_p_(&zi_a_); })
+#define zi_sse41_convert_f64x4_s64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_convert_f64x4_s64x4_p_(&zi_a_); })
+#define zi_sse41_low_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_low_u8x32_p_(&zi_a_); })
+#define zi_sse41_low_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_low_s8x32_p_(&zi_a_); })
+#define zi_sse41_low_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_low_u16x16_p_(&zi_a_); })
+#define zi_sse41_low_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_low_s16x16_p_(&zi_a_); })
+#define zi_sse41_low_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_low_u32x8_p_(&zi_a_); })
+#define zi_sse41_low_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_low_s32x8_p_(&zi_a_); })
+#define zi_sse41_low_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_low_u64x4_p_(&zi_a_); })
+#define zi_sse41_low_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_low_s64x4_p_(&zi_a_); })
+#define zi_sse41_low_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_low_f32x8_p_(&zi_a_); })
+#define zi_sse41_low_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_low_f64x4_p_(&zi_a_); })
+#define zi_sse41_high_u8x32(a) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_sse41_high_u8x32_p_(&zi_a_); })
+#define zi_sse41_high_s8x32(a) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_sse41_high_s8x32_p_(&zi_a_); })
+#define zi_sse41_high_u16x16(a) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_sse41_high_u16x16_p_(&zi_a_); })
+#define zi_sse41_high_s16x16(a) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_sse41_high_s16x16_p_(&zi_a_); })
+#define zi_sse41_high_u32x8(a) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_sse41_high_u32x8_p_(&zi_a_); })
+#define zi_sse41_high_s32x8(a) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_sse41_high_s32x8_p_(&zi_a_); })
+#define zi_sse41_high_u64x4(a) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_sse41_high_u64x4_p_(&zi_a_); })
+#define zi_sse41_high_s64x4(a) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_sse41_high_s64x4_p_(&zi_a_); })
+#define zi_sse41_high_f32x8(a) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_sse41_high_f32x8_p_(&zi_a_); })
+#define zi_sse41_high_f64x4(a) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_sse41_high_f64x4_p_(&zi_a_); })
+#define zi_sse41_interleave_low_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_interleave_low_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_interleave_low_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_interleave_low_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_interleave_low_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_interleave_low_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_interleave_low_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_interleave_low_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_interleave_low_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_interleave_low_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_low_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_interleave_low_f64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_u8x32(a, b) __extension__ ({ zi_u8x32 zi_a_ = (a); zi_u8x32 zi_b_ = (b); zi_sse41_interleave_high_u8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_s8x32(a, b) __extension__ ({ zi_s8x32 zi_a_ = (a); zi_s8x32 zi_b_ = (b); zi_sse41_interleave_high_s8x32_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_u16x16(a, b) __extension__ ({ zi_u16x16 zi_a_ = (a); zi_u16x16 zi_b_ = (b); zi_sse41_interleave_high_u16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_s16x16(a, b) __extension__ ({ zi_s16x16 zi_a_ = (a); zi_s16x16 zi_b_ = (b); zi_sse41_interleave_high_s16x16_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_u32x8(a, b) __extension__ ({ zi_u32x8 zi_a_ = (a); zi_u32x8 zi_b_ = (b); zi_sse41_interleave_high_u32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_s32x8(a, b) __extension__ ({ zi_s32x8 zi_a_ = (a); zi_s32x8 zi_b_ = (b); zi_sse41_interleave_high_s32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_u64x4(a, b) __extension__ ({ zi_u64x4 zi_a_ = (a); zi_u64x4 zi_b_ = (b); zi_sse41_interleave_high_u64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_s64x4(a, b) __extension__ ({ zi_s64x4 zi_a_ = (a); zi_s64x4 zi_b_ = (b); zi_sse41_interleave_high_s64x4_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_f32x8(a, b) __extension__ ({ zi_f32x8 zi_a_ = (a); zi_f32x8 zi_b_ = (b); zi_sse41_interleave_high_f32x8_p_(&zi_a_, &zi_b_); })
+#define zi_sse41_interleave_high_f64x4(a, b) __extension__ ({ zi_f64x4 zi_a_ = (a); zi_f64x4 zi_b_ = (b); zi_sse41_interleave_high_f64x4_p_(&zi_a_, &zi_b_); })
+#endif
+#endif
 
 ZI_FN zi_u8x16 ZI_N(add_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {
@@ -1985,7 +5447,14 @@ ZI_FN zi_s64x2 ZI_N(add_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_f32x4 ZI_N(add_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_ADD, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
+#elif ZI_VEC
     return a + b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -1998,7 +5467,14 @@ ZI_FN zi_f32x4 ZI_N(add_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_f64x2 ZI_N(add_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_ADD, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
+#elif ZI_VEC
     return a + b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2009,9 +5485,18 @@ ZI_FN zi_f64x2 ZI_N(add_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(add_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(add_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(add_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(add_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)((zi_u8x32)a + (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2022,9 +5507,18 @@ ZI_FN zi_u8x32 ZI_N(add_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(add_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(add_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(add_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(add_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)((zi_u8x32)a + (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2035,9 +5529,18 @@ ZI_FN zi_s8x32 ZI_N(add_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(add_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(add_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(add_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)((zi_u16x16)a + (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2048,9 +5551,18 @@ ZI_FN zi_u16x16 ZI_N(add_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(add_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(add_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(add_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)((zi_u16x16)a + (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2061,9 +5573,18 @@ ZI_FN zi_s16x16 ZI_N(add_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(add_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(add_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(add_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(add_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)((zi_u32x8)a + (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2074,9 +5595,18 @@ ZI_FN zi_u32x8 ZI_N(add_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(add_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(add_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(add_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(add_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)((zi_u32x8)a + (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2087,9 +5617,18 @@ ZI_FN zi_s32x8 ZI_N(add_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(add_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(add_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(add_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(add_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)((zi_u64x4)a + (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2100,9 +5639,18 @@ ZI_FN zi_u64x4 ZI_N(add_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(add_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(add_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(add_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(add_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)((zi_u64x4)a + (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2113,9 +5661,18 @@ ZI_FN zi_s64x4 ZI_N(add_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(add_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(add_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f32x4)(ZI_N(add_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(add_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return a + b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2126,9 +5683,18 @@ ZI_FN zi_f32x8 ZI_N(add_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(add_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(add_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f64x2)(ZI_N(add_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(add_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return a + b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2245,7 +5811,14 @@ ZI_FN zi_s64x2 ZI_N(sub_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_f32x4 ZI_N(sub_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_SUB, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
+#elif ZI_VEC
     return a - b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2258,7 +5831,14 @@ ZI_FN zi_f32x4 ZI_N(sub_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_f64x2 ZI_N(sub_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_SUB, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
+#elif ZI_VEC
     return a - b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2269,9 +5849,18 @@ ZI_FN zi_f64x2 ZI_N(sub_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(sub_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(sub_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(sub_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(sub_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)((zi_u8x32)a - (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2282,9 +5871,18 @@ ZI_FN zi_u8x32 ZI_N(sub_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sub_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(sub_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(sub_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(sub_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)((zi_u8x32)a - (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2295,9 +5893,18 @@ ZI_FN zi_s8x32 ZI_N(sub_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(sub_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(sub_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(sub_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(sub_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)((zi_u16x16)a - (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2308,9 +5915,18 @@ ZI_FN zi_u16x16 ZI_N(sub_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sub_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(sub_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(sub_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(sub_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)((zi_u16x16)a - (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2321,9 +5937,18 @@ ZI_FN zi_s16x16 ZI_N(sub_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(sub_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(sub_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(sub_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(sub_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)((zi_u32x8)a - (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2334,9 +5959,18 @@ ZI_FN zi_u32x8 ZI_N(sub_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(sub_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(sub_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(sub_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(sub_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)((zi_u32x8)a - (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2347,9 +5981,18 @@ ZI_FN zi_s32x8 ZI_N(sub_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(sub_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(sub_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(sub_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(sub_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)((zi_u64x4)a - (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2360,9 +6003,18 @@ ZI_FN zi_u64x4 ZI_N(sub_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(sub_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(sub_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(sub_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(sub_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)((zi_u64x4)a - (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2373,9 +6025,18 @@ ZI_FN zi_s64x4 ZI_N(sub_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(sub_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(sub_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f32x4)(ZI_N(sub_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(sub_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return a - b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2386,9 +6047,18 @@ ZI_FN zi_f32x8 ZI_N(sub_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(sub_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(sub_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f64x2)(ZI_N(sub_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(sub_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return a - b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2505,7 +6175,14 @@ ZI_FN zi_s64x2 ZI_N(mul_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_f32x4 ZI_N(mul_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_MUL, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
+#elif ZI_VEC
     return a * b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2518,7 +6195,14 @@ ZI_FN zi_f32x4 ZI_N(mul_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_f64x2 ZI_N(mul_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_MUL, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
+#elif ZI_VEC
     return a * b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2529,9 +6213,18 @@ ZI_FN zi_f64x2 ZI_N(mul_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(mul_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(mul_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(mul_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(mul_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)((zi_u8x32)a * (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2542,9 +6235,18 @@ ZI_FN zi_u8x32 ZI_N(mul_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(mul_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(mul_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(mul_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(mul_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)((zi_u8x32)a * (zi_u8x32)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2555,9 +6257,18 @@ ZI_FN zi_s8x32 ZI_N(mul_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(mul_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(mul_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(mul_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)((zi_u16x16)a * (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2568,9 +6279,18 @@ ZI_FN zi_u16x16 ZI_N(mul_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(mul_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(mul_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(mul_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)((zi_u16x16)a * (zi_u16x16)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2581,9 +6301,18 @@ ZI_FN zi_s16x16 ZI_N(mul_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(mul_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(mul_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(mul_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)((zi_u32x8)a * (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2594,9 +6323,18 @@ ZI_FN zi_u32x8 ZI_N(mul_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(mul_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(mul_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(mul_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)((zi_u32x8)a * (zi_u32x8)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2607,9 +6345,18 @@ ZI_FN zi_s32x8 ZI_N(mul_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(mul_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(mul_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(mul_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)((zi_u64x4)a * (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2620,9 +6367,18 @@ ZI_FN zi_u64x4 ZI_N(mul_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(mul_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(mul_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(mul_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)((zi_u64x4)a * (zi_u64x4)b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2633,9 +6389,18 @@ ZI_FN zi_s64x4 ZI_N(mul_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(mul_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(mul_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f32x4)(ZI_N(mul_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(mul_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return a * b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2646,9 +6411,18 @@ ZI_FN zi_f32x8 ZI_N(mul_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(mul_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(mul_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f64x2)(ZI_N(mul_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(mul_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return a * b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2661,7 +6435,14 @@ ZI_FN zi_f64x4 ZI_N(mul_f64x4)(zi_f64x4 a, zi_f64x4 b)
 }
 ZI_FN zi_f32x4 ZI_N(div_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_DIV, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
+#elif ZI_VEC
     return a / b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2674,7 +6455,14 @@ ZI_FN zi_f32x4 ZI_N(div_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_f64x2 ZI_N(div_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_DIV, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
+#elif ZI_VEC
     return a / b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2685,9 +6473,18 @@ ZI_FN zi_f64x2 ZI_N(div_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(div_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(div_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f32x4)(ZI_N(div_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(div_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return a / b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2698,9 +6495,18 @@ ZI_FN zi_f32x8 ZI_N(div_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(div_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(div_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_f64x2)(ZI_N(div_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(div_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return a / b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2779,11 +6585,18 @@ ZI_FN zi_s16x8 ZI_N(add_sat_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return zi_pack_s16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(add_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(add_sat_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_adds_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_u8x16)(ZI_N(add_sat_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(add_sat_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2794,11 +6607,18 @@ ZI_FN zi_u8x32 ZI_N(add_sat_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(add_sat_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(add_sat_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_adds_epi8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_s8x16)(ZI_N(add_sat_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(add_sat_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2809,11 +6629,18 @@ ZI_FN zi_s8x32 ZI_N(add_sat_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_sat_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(add_sat_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_adds_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_u16x8)(ZI_N(add_sat_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(add_sat_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2824,11 +6651,18 @@ ZI_FN zi_u16x16 ZI_N(add_sat_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_sat_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(add_sat_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_adds_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_s16x8)(ZI_N(add_sat_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(add_sat_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2907,11 +6741,18 @@ ZI_FN zi_s16x8 ZI_N(sub_sat_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return zi_pack_s16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(sub_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(sub_sat_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_subs_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_u8x16)(ZI_N(sub_sat_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(sub_sat_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2922,11 +6763,18 @@ ZI_FN zi_u8x32 ZI_N(sub_sat_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sub_sat_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(sub_sat_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_subs_epi8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_s8x16)(ZI_N(sub_sat_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(sub_sat_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2937,11 +6785,18 @@ ZI_FN zi_s8x32 ZI_N(sub_sat_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(sub_sat_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(sub_sat_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_subs_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_u16x8)(ZI_N(sub_sat_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(sub_sat_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -2952,11 +6807,18 @@ ZI_FN zi_u16x16 ZI_N(sub_sat_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sub_sat_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(sub_sat_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_subs_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_s16x8)(ZI_N(sub_sat_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(sub_sat_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -3011,6 +6873,9 @@ ZI_FN zi_u16x8 ZI_N(min_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
 #if ZI_X86 && ZI_TIER >= 3
     return (zi_u16x8)_mm_min_epu16((__m128i)a, (__m128i)b);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u16x8)_mm_sub_epi16(x_, _mm_subs_epu16(x_, y_));
 #elif ZI_NEON
     return (zi_u16x8)vminq_u16((uint16x8_t)a, (uint16x8_t)b);
 #elif ZI_WASM
@@ -3121,6 +6986,13 @@ ZI_FN zi_f32x4 ZI_N(min_f32x4)(zi_f32x4 a, zi_f32x4 b)
     return (zi_f32x4)_mm_min_ps((__m128)a, (__m128)b);
 #elif ZI_WASM
     return (zi_f32x4)wasm_f32x4_pmin((v128_t)b, (v128_t)a);
+#elif ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_MIN, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
 #elif ZI_VEC
     zi_u32x4 m_ = (zi_u32x4)(a < b);
     return (zi_f32x4)(((zi_u32x4)a & m_) | ((zi_u32x4)b & ~m_));
@@ -3139,6 +7011,13 @@ ZI_FN zi_f64x2 ZI_N(min_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return (zi_f64x2)_mm_min_pd((__m128d)a, (__m128d)b);
 #elif ZI_WASM
     return (zi_f64x2)wasm_f64x2_pmin((v128_t)b, (v128_t)a);
+#elif ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_MIN, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
 #elif ZI_VEC
     zi_u64x2 m_ = (zi_u64x2)(a < b);
     return (zi_f64x2)(((zi_u64x2)a & m_) | ((zi_u64x2)b & ~m_));
@@ -3151,11 +7030,18 @@ ZI_FN zi_f64x2 ZI_N(min_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(min_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(min_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_min_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u8x16)(ZI_N(min_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(min_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #elif ZI_VEC
     zi_u8x32 m_ = (zi_u8x32)(a < b);
@@ -3169,11 +7055,18 @@ ZI_FN zi_u8x32 ZI_N(min_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(min_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(min_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_min_epi8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_s8x16)(ZI_N(min_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(min_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
 #elif ZI_VEC
     zi_u8x32 m_ = (zi_u8x32)(a < b);
@@ -3187,11 +7080,18 @@ ZI_FN zi_s8x32 ZI_N(min_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(min_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(min_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_min_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_u16x8)(ZI_N(min_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(min_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #elif ZI_VEC
     zi_u16x16 m_ = (zi_u16x16)(a < b);
@@ -3205,11 +7105,18 @@ ZI_FN zi_u16x16 ZI_N(min_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(min_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(min_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_min_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(min_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(min_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     zi_u16x16 m_ = (zi_u16x16)(a < b);
@@ -3223,11 +7130,18 @@ ZI_FN zi_s16x16 ZI_N(min_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(min_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(min_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_min_epu32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_u32x4)(ZI_N(min_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(min_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a < b);
@@ -3241,11 +7155,18 @@ ZI_FN zi_u32x8 ZI_N(min_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(min_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(min_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_min_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_s32x4)(ZI_N(min_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(min_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a < b);
@@ -3259,9 +7180,18 @@ ZI_FN zi_s32x8 ZI_N(min_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(min_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(min_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(min_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(min_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a < b);
     return (zi_u64x4)(((zi_u64x4)a & m_) | ((zi_u64x4)b & ~m_));
 #else
@@ -3273,9 +7203,18 @@ ZI_FN zi_u64x4 ZI_N(min_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(min_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(min_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(min_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(min_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a < b);
     return (zi_s64x4)(((zi_u64x4)a & m_) | ((zi_u64x4)b & ~m_));
 #else
@@ -3287,11 +7226,18 @@ ZI_FN zi_s64x4 ZI_N(min_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(min_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(min_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f32x8)_mm256_min_ps((__m256)a, (__m256)b);
-#elif ZI_VEC && ((ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_WASM) || (ZI_X86) || (ZI_NEON && !ZI_A64))
     return ZI_N(combine_f32x4)(ZI_N(min_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(min_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a < b);
@@ -3305,11 +7251,18 @@ ZI_FN zi_f32x8 ZI_N(min_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(min_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(min_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f64x4)_mm256_min_pd((__m256d)a, (__m256d)b);
-#elif ZI_VEC && ((ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_WASM) || (ZI_X86) || (ZI_NEON && !ZI_A64))
     return ZI_N(combine_f64x2)(ZI_N(min_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(min_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
 #elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a < b);
@@ -3367,6 +7320,9 @@ ZI_FN zi_u16x8 ZI_N(max_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
 #if ZI_X86 && ZI_TIER >= 3
     return (zi_u16x8)_mm_max_epu16((__m128i)a, (__m128i)b);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u16x8)_mm_add_epi16(_mm_subs_epu16(x_, y_), y_);
 #elif ZI_NEON
     return (zi_u16x8)vmaxq_u16((uint16x8_t)a, (uint16x8_t)b);
 #elif ZI_WASM
@@ -3477,6 +7433,13 @@ ZI_FN zi_f32x4 ZI_N(max_f32x4)(zi_f32x4 a, zi_f32x4 b)
     return (zi_f32x4)_mm_max_ps((__m128)a, (__m128)b);
 #elif ZI_WASM
     return (zi_f32x4)wasm_f32x4_pmax((v128_t)b, (v128_t)a);
+#elif ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_MAX, ZI_K_F32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_f32x4(o_);
 #elif ZI_VEC
     zi_u32x4 m_ = (zi_u32x4)(a > b);
     return (zi_f32x4)(((zi_u32x4)a & m_) | ((zi_u32x4)b & ~m_));
@@ -3495,6 +7458,13 @@ ZI_FN zi_f64x2 ZI_N(max_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return (zi_f64x2)_mm_max_pd((__m128d)a, (__m128d)b);
 #elif ZI_WASM
     return (zi_f64x2)wasm_f64x2_pmax((v128_t)b, (v128_t)a);
+#elif ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_MAX, ZI_K_F64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_f64x2(o_);
 #elif ZI_VEC
     zi_u64x2 m_ = (zi_u64x2)(a > b);
     return (zi_f64x2)(((zi_u64x2)a & m_) | ((zi_u64x2)b & ~m_));
@@ -3507,11 +7477,18 @@ ZI_FN zi_f64x2 ZI_N(max_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(max_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(max_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_max_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u8x16)(ZI_N(max_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(max_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #elif ZI_VEC
     zi_u8x32 m_ = (zi_u8x32)(a > b);
@@ -3525,11 +7502,18 @@ ZI_FN zi_u8x32 ZI_N(max_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(max_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(max_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_max_epi8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_s8x16)(ZI_N(max_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(max_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
 #elif ZI_VEC
     zi_u8x32 m_ = (zi_u8x32)(a > b);
@@ -3543,11 +7527,18 @@ ZI_FN zi_s8x32 ZI_N(max_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(max_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(max_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_max_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_u16x8)(ZI_N(max_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(max_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #elif ZI_VEC
     zi_u16x16 m_ = (zi_u16x16)(a > b);
@@ -3561,11 +7552,18 @@ ZI_FN zi_u16x16 ZI_N(max_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(max_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(max_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_max_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(max_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(max_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     zi_u16x16 m_ = (zi_u16x16)(a > b);
@@ -3579,11 +7577,18 @@ ZI_FN zi_s16x16 ZI_N(max_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(max_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(max_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_max_epu32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_u32x4)(ZI_N(max_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(max_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a > b);
@@ -3597,11 +7602,18 @@ ZI_FN zi_u32x8 ZI_N(max_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(max_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(max_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_max_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_s32x4)(ZI_N(max_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(max_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a > b);
@@ -3615,9 +7627,18 @@ ZI_FN zi_s32x8 ZI_N(max_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(max_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(max_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(max_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(max_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a > b);
     return (zi_u64x4)(((zi_u64x4)a & m_) | ((zi_u64x4)b & ~m_));
 #else
@@ -3629,9 +7650,18 @@ ZI_FN zi_u64x4 ZI_N(max_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(max_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(max_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(max_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(max_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a > b);
     return (zi_s64x4)(((zi_u64x4)a & m_) | ((zi_u64x4)b & ~m_));
 #else
@@ -3643,11 +7673,18 @@ ZI_FN zi_s64x4 ZI_N(max_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(max_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(max_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f32x8)_mm256_max_ps((__m256)a, (__m256)b);
-#elif ZI_VEC && ((ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_WASM) || (ZI_X86) || (ZI_NEON && !ZI_A64))
     return ZI_N(combine_f32x4)(ZI_N(max_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(max_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a > b);
@@ -3661,11 +7698,18 @@ ZI_FN zi_f32x8 ZI_N(max_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(max_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(max_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f64x4)_mm256_max_pd((__m256d)a, (__m256d)b);
-#elif ZI_VEC && ((ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_WASM) || (ZI_X86) || (ZI_NEON && !ZI_A64))
     return ZI_N(combine_f64x2)(ZI_N(max_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(max_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
 #elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a > b);
@@ -3717,11 +7761,18 @@ ZI_FN zi_u16x8 ZI_N(avg_u16x8)(zi_u16x8 a, zi_u16x8 b)
     return zi_pack_u16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(avg_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(avg_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_avg_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u8x16)(ZI_N(avg_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(avg_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #elif ZI_VEC
     return (a | b) - ((a ^ b) >> 1);
@@ -3734,11 +7785,18 @@ ZI_FN zi_u8x32 ZI_N(avg_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(avg_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(avg_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_avg_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(avg_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(avg_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #elif ZI_VEC
     return (a | b) - ((a ^ b) >> 1);
@@ -3803,11 +7861,18 @@ ZI_FN zi_s16x8 ZI_N(mul_high_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return zi_pack_s16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(mul_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_mulhi_epu16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(mul_high_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(mul_high_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #elif ZI_VEC
     typedef uint32_t w_ __attribute__((vector_size(64)));
@@ -3823,11 +7888,18 @@ ZI_FN zi_u16x16 ZI_N(mul_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(mul_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_mulhi_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(mul_high_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(mul_high_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     typedef int32_t w_ __attribute__((vector_size(64)));
@@ -3857,10 +7929,9 @@ ZI_FN zi_s16x8 ZI_N(mul_high_round_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return (zi_s16x8)vcombine_s16(vrshrn_n_s32(vmull_s16(vget_low_s16(x_), vget_low_s16(y_)), 15),
         vrshrn_n_s32(vmull_s16(vget_high_s16(x_), vget_high_s16(y_)), 15));
 #elif ZI_WASM
-    v128_t r_ = wasm_i32x4_splat(0x4000);
-    v128_t lo_ = wasm_i32x4_shr(wasm_i32x4_add(wasm_i32x4_extmul_low_i16x8((v128_t)a, (v128_t)b), r_), 15);
-    v128_t hi_ = wasm_i32x4_shr(wasm_i32x4_add(wasm_i32x4_extmul_high_i16x8((v128_t)a, (v128_t)b), r_), 15);
-    return (zi_s16x8)wasm_i16x8_shuffle(lo_, hi_, 0, 2, 4, 6, 8, 10, 12, 14);
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b, min_ = wasm_i16x8_splat(-32768);
+    return (zi_s16x8)wasm_v128_xor(wasm_i16x8_q15mulr_sat(x_, y_),
+        wasm_v128_and(wasm_i16x8_eq(x_, min_), wasm_i16x8_eq(y_, min_)));
 #elif ZI_VEC
     typedef int32_t w_ __attribute__((vector_size(32)));
     typedef uint32_t wu_ __attribute__((vector_size(32)));
@@ -3875,11 +7946,18 @@ ZI_FN zi_s16x8 ZI_N(mul_high_round_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return zi_pack_s16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_high_round_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(mul_high_round_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_mulhrs_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_s16x8)(ZI_N(mul_high_round_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(mul_high_round_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     typedef int32_t w_ __attribute__((vector_size(64)));
@@ -3999,9 +8077,18 @@ ZI_FN zi_s64x2 ZI_N(and_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(and_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(and_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(and_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(and_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4012,9 +8099,18 @@ ZI_FN zi_u8x32 ZI_N(and_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(and_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(and_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(and_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(and_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4025,9 +8121,18 @@ ZI_FN zi_s8x32 ZI_N(and_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(and_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(and_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(and_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(and_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4038,9 +8143,18 @@ ZI_FN zi_u16x16 ZI_N(and_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(and_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(and_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(and_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(and_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4051,9 +8165,18 @@ ZI_FN zi_s16x16 ZI_N(and_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(and_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(and_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(and_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(and_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4064,9 +8187,18 @@ ZI_FN zi_u32x8 ZI_N(and_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(and_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(and_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(and_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(and_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4077,9 +8209,18 @@ ZI_FN zi_s32x8 ZI_N(and_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(and_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(and_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(and_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(and_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4090,9 +8231,18 @@ ZI_FN zi_u64x4 ZI_N(and_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(and_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(and_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(and_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(and_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return a & b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4207,9 +8357,18 @@ ZI_FN zi_s64x2 ZI_N(or_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(or_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(or_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(or_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(or_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4220,9 +8379,18 @@ ZI_FN zi_u8x32 ZI_N(or_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(or_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(or_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(or_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(or_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4233,9 +8401,18 @@ ZI_FN zi_s8x32 ZI_N(or_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(or_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(or_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(or_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(or_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4246,9 +8423,18 @@ ZI_FN zi_u16x16 ZI_N(or_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(or_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(or_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(or_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(or_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4259,9 +8445,18 @@ ZI_FN zi_s16x16 ZI_N(or_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(or_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(or_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(or_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(or_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4272,9 +8467,18 @@ ZI_FN zi_u32x8 ZI_N(or_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(or_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(or_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(or_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(or_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4285,9 +8489,18 @@ ZI_FN zi_s32x8 ZI_N(or_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(or_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(or_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(or_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(or_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4298,9 +8511,18 @@ ZI_FN zi_u64x4 ZI_N(or_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(or_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(or_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(or_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(or_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return a | b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4415,9 +8637,18 @@ ZI_FN zi_s64x2 ZI_N(xor_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(xor_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(xor_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(xor_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(xor_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4428,9 +8659,18 @@ ZI_FN zi_u8x32 ZI_N(xor_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(xor_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(xor_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(xor_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(xor_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4441,9 +8681,18 @@ ZI_FN zi_s8x32 ZI_N(xor_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(xor_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(xor_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(xor_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(xor_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4454,9 +8703,18 @@ ZI_FN zi_u16x16 ZI_N(xor_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(xor_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(xor_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(xor_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(xor_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4467,9 +8725,18 @@ ZI_FN zi_s16x16 ZI_N(xor_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(xor_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(xor_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(xor_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(xor_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4480,9 +8747,18 @@ ZI_FN zi_u32x8 ZI_N(xor_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(xor_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(xor_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(xor_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(xor_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4493,9 +8769,18 @@ ZI_FN zi_s32x8 ZI_N(xor_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(xor_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(xor_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(xor_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(xor_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4506,9 +8791,18 @@ ZI_FN zi_u64x4 ZI_N(xor_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(xor_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(xor_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(xor_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(xor_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return a ^ b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4623,9 +8917,18 @@ ZI_FN zi_s64x2 ZI_N(and_not_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(and_not_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(and_not_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(and_not_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(and_not_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4636,9 +8939,18 @@ ZI_FN zi_u8x32 ZI_N(and_not_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(and_not_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(and_not_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(and_not_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(and_not_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4649,9 +8961,18 @@ ZI_FN zi_s8x32 ZI_N(and_not_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(and_not_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(and_not_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(and_not_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(and_not_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4662,9 +8983,18 @@ ZI_FN zi_u16x16 ZI_N(and_not_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(and_not_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(and_not_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(and_not_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(and_not_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4675,9 +9005,18 @@ ZI_FN zi_s16x16 ZI_N(and_not_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(and_not_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(and_not_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(and_not_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(and_not_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4688,9 +9027,18 @@ ZI_FN zi_u32x8 ZI_N(and_not_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(and_not_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(and_not_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(and_not_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(and_not_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4701,9 +9049,18 @@ ZI_FN zi_s32x8 ZI_N(and_not_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(and_not_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(and_not_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(and_not_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(and_not_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4714,9 +9071,18 @@ ZI_FN zi_u64x4 ZI_N(and_not_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(and_not_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(and_not_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(and_not_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(and_not_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return a & ~b;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4823,9 +9189,17 @@ ZI_FN zi_s64x2 ZI_N(not_s64x2)(zi_s64x2 a)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(not_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(not_u8x32)(zi_u8x32 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(not_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(not_u8x16)(ZI_N(high_u8x32)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4835,9 +9209,17 @@ ZI_FN zi_u8x32 ZI_N(not_u8x32)(zi_u8x32 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(not_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(not_s8x32)(zi_s8x32 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(not_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(not_s8x16)(ZI_N(high_s8x32)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4847,9 +9229,17 @@ ZI_FN zi_s8x32 ZI_N(not_s8x32)(zi_s8x32 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(not_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(not_u16x16)(zi_u16x16 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(not_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(not_u16x8)(ZI_N(high_u16x16)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4859,9 +9249,17 @@ ZI_FN zi_u16x16 ZI_N(not_u16x16)(zi_u16x16 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(not_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(not_s16x16)(zi_s16x16 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(not_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(not_s16x8)(ZI_N(high_s16x16)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4871,9 +9269,17 @@ ZI_FN zi_s16x16 ZI_N(not_s16x16)(zi_s16x16 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(not_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(not_u32x8)(zi_u32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(not_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(not_u32x4)(ZI_N(high_u32x8)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4883,9 +9289,17 @@ ZI_FN zi_u32x8 ZI_N(not_u32x8)(zi_u32x8 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(not_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(not_s32x8)(zi_s32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(not_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(not_s32x4)(ZI_N(high_s32x8)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4895,9 +9309,17 @@ ZI_FN zi_s32x8 ZI_N(not_s32x8)(zi_s32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(not_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(not_u64x4)(zi_u64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(not_u64x2)(ZI_N(low_u64x4)(a)), ZI_N(not_u64x2)(ZI_N(high_u64x4)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4907,9 +9329,17 @@ ZI_FN zi_u64x4 ZI_N(not_u64x4)(zi_u64x4 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(not_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(not_s64x4)(zi_s64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(not_s64x2)(ZI_N(low_s64x4)(a)), ZI_N(not_s64x2)(ZI_N(high_s64x4)(a)));
+#elif ZI_VEC
     return ~a;
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -4923,6 +9353,9 @@ ZI_FN zi_s8x16 ZI_N(abs_s8x16)(zi_s8x16 a)
 {
 #if ZI_X86 && ZI_TIER >= 2
     return (zi_s8x16)_mm_abs_epi8((__m128i)a);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_s8x16)_mm_min_epu8(x_, _mm_sub_epi8(_mm_setzero_si128(), x_));
 #elif ZI_NEON
     return (zi_s8x16)vabsq_s8((int8x16_t)a);
 #elif ZI_WASM
@@ -4942,6 +9375,9 @@ ZI_FN zi_s16x8 ZI_N(abs_s16x8)(zi_s16x8 a)
 {
 #if ZI_X86 && ZI_TIER >= 2
     return (zi_s16x8)_mm_abs_epi16((__m128i)a);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_s16x8)_mm_max_epi16(x_, _mm_sub_epi16(_mm_setzero_si128(), x_));
 #elif ZI_NEON
     return (zi_s16x8)vabsq_s16((int16x8_t)a);
 #elif ZI_WASM
@@ -5017,11 +9453,17 @@ ZI_FN zi_f64x2 ZI_N(abs_f64x2)(zi_f64x2 a)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(abs_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(abs_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_abs_epi8((__m256i)a);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_s8x16)(ZI_N(abs_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(abs_s8x16)(ZI_N(high_s8x32)(a)));
 #elif ZI_VEC
     zi_u8x32 m_ = (zi_u8x32)(a >> 7);
@@ -5034,11 +9476,17 @@ ZI_FN zi_s8x32 ZI_N(abs_s8x32)(zi_s8x32 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(abs_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(abs_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_abs_epi16((__m256i)a);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_s16x8)(ZI_N(abs_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(abs_s16x8)(ZI_N(high_s16x16)(a)));
 #elif ZI_VEC
     zi_u16x16 m_ = (zi_u16x16)(a >> 15);
@@ -5051,11 +9499,17 @@ ZI_FN zi_s16x16 ZI_N(abs_s16x16)(zi_s16x16 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(abs_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(abs_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_abs_epi32((__m256i)a);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_s32x4)(ZI_N(abs_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(abs_s32x4)(ZI_N(high_s32x8)(a)));
 #elif ZI_VEC
     zi_u32x8 m_ = (zi_u32x8)(a >> 31);
@@ -5068,9 +9522,15 @@ ZI_FN zi_s32x8 ZI_N(abs_s32x8)(zi_s32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(abs_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(abs_s64x4)(zi_s64x4 a)
 {
-#if ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON && ZI_A64) || (ZI_WASM))
     return ZI_N(combine_s64x2)(ZI_N(abs_s64x2)(ZI_N(low_s64x4)(a)), ZI_N(abs_s64x2)(ZI_N(high_s64x4)(a)));
 #elif ZI_VEC
     zi_u64x4 m_ = (zi_u64x4)(a >> 63);
@@ -5083,9 +9543,17 @@ ZI_FN zi_s64x4 ZI_N(abs_s64x4)(zi_s64x4 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(abs_f32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(abs_f32x8)(zi_f32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f32x4)(ZI_N(abs_f32x4)(ZI_N(low_f32x8)(a)), ZI_N(abs_f32x4)(ZI_N(high_f32x8)(a)));
+#elif ZI_VEC
     return (zi_f32x8)((zi_u32x8)a & ~((zi_u32x8){0} + ((uint32_t)1 << 31)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5095,9 +9563,17 @@ ZI_FN zi_f32x8 ZI_N(abs_f32x8)(zi_f32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(abs_f64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(abs_f64x4)(zi_f64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f64x2)(ZI_N(abs_f64x2)(ZI_N(low_f64x4)(a)), ZI_N(abs_f64x2)(ZI_N(high_f64x4)(a)));
+#elif ZI_VEC
     return (zi_f64x4)((zi_u64x4)a & ~((zi_u64x4){0} + ((uint64_t)1 << 63)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5227,9 +9703,17 @@ ZI_FN zi_f64x2 ZI_N(neg_f64x2)(zi_f64x2 a)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(neg_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(neg_u8x32)(zi_u8x32 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(neg_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(neg_u8x16)(ZI_N(high_u8x32)(a)));
+#elif ZI_VEC
     return (zi_u8x32)((zi_u8x32){0} - (zi_u8x32)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5239,9 +9723,17 @@ ZI_FN zi_u8x32 ZI_N(neg_u8x32)(zi_u8x32 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(neg_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(neg_s8x32)(zi_s8x32 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(neg_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(neg_s8x16)(ZI_N(high_s8x32)(a)));
+#elif ZI_VEC
     return (zi_s8x32)((zi_u8x32){0} - (zi_u8x32)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5251,9 +9743,17 @@ ZI_FN zi_s8x32 ZI_N(neg_s8x32)(zi_s8x32 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(neg_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(neg_u16x16)(zi_u16x16 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(neg_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(neg_u16x8)(ZI_N(high_u16x16)(a)));
+#elif ZI_VEC
     return (zi_u16x16)((zi_u16x16){0} - (zi_u16x16)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5263,9 +9763,17 @@ ZI_FN zi_u16x16 ZI_N(neg_u16x16)(zi_u16x16 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(neg_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(neg_s16x16)(zi_s16x16 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(neg_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(neg_s16x8)(ZI_N(high_s16x16)(a)));
+#elif ZI_VEC
     return (zi_s16x16)((zi_u16x16){0} - (zi_u16x16)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5275,9 +9783,17 @@ ZI_FN zi_s16x16 ZI_N(neg_s16x16)(zi_s16x16 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(neg_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(neg_u32x8)(zi_u32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(neg_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(neg_u32x4)(ZI_N(high_u32x8)(a)));
+#elif ZI_VEC
     return (zi_u32x8)((zi_u32x8){0} - (zi_u32x8)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5287,9 +9803,17 @@ ZI_FN zi_u32x8 ZI_N(neg_u32x8)(zi_u32x8 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(neg_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(neg_s32x8)(zi_s32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(neg_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(neg_s32x4)(ZI_N(high_s32x8)(a)));
+#elif ZI_VEC
     return (zi_s32x8)((zi_u32x8){0} - (zi_u32x8)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5299,9 +9823,17 @@ ZI_FN zi_s32x8 ZI_N(neg_s32x8)(zi_s32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(neg_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(neg_u64x4)(zi_u64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(neg_u64x2)(ZI_N(low_u64x4)(a)), ZI_N(neg_u64x2)(ZI_N(high_u64x4)(a)));
+#elif ZI_VEC
     return (zi_u64x4)((zi_u64x4){0} - (zi_u64x4)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5311,9 +9843,17 @@ ZI_FN zi_u64x4 ZI_N(neg_u64x4)(zi_u64x4 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(neg_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(neg_s64x4)(zi_s64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(neg_s64x2)(ZI_N(low_s64x4)(a)), ZI_N(neg_s64x2)(ZI_N(high_s64x4)(a)));
+#elif ZI_VEC
     return (zi_s64x4)((zi_u64x4){0} - (zi_u64x4)a);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5323,9 +9863,17 @@ ZI_FN zi_s64x4 ZI_N(neg_s64x4)(zi_s64x4 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(neg_f32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(neg_f32x8)(zi_f32x8 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f32x4)(ZI_N(neg_f32x4)(ZI_N(low_f32x8)(a)), ZI_N(neg_f32x4)(ZI_N(high_f32x8)(a)));
+#elif ZI_VEC
     return (zi_f32x8)((zi_u32x8)a ^ ((zi_u32x8){0} + ((uint32_t)1 << 31)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5335,9 +9883,17 @@ ZI_FN zi_f32x8 ZI_N(neg_f32x8)(zi_f32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(neg_f64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(neg_f64x4)(zi_f64x4 a)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f64x2)(ZI_N(neg_f64x2)(ZI_N(low_f64x4)(a)), ZI_N(neg_f64x2)(ZI_N(high_f64x4)(a)));
+#elif ZI_VEC
     return (zi_f64x4)((zi_u64x4)a ^ ((zi_u64x4){0} + ((uint64_t)1 << 63)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5345,6 +9901,528 @@ ZI_FN zi_f64x4 ZI_N(neg_f64x4)(zi_f64x4 a)
     zi_unpack_f64x4(a, x_);
     zi_ref(ZI_OP_NEG, ZI_K_F64, 4, ZI_K_F64, 4, x_, y_, z_, k_, o_);
     return zi_pack_f64x4(o_);
+#endif
+}
+ZI_FN zi_s8x16 ZI_N(sign_s8x16)(zi_s8x16 a, zi_s8x16 b)
+{
+#if ZI_X86 && ZI_TIER >= 2
+    return (zi_s8x16)_mm_sign_epi8((__m128i)a, (__m128i)b);
+#elif ZI_VEC
+    zi_u8x16 n_ = (zi_u8x16)(b >> 7), z_ = (zi_u8x16)(b != 0);
+    return (zi_s8x16)((((zi_u8x16)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s8x16(a, x_);
+    zi_unpack_s8x16(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S8, 16, ZI_K_S8, 16, x_, y_, z_, k_, o_);
+    return zi_pack_s8x16(o_);
+#endif
+}
+ZI_FN zi_s16x8 ZI_N(sign_s16x8)(zi_s16x8 a, zi_s16x8 b)
+{
+#if ZI_X86 && ZI_TIER >= 2
+    return (zi_s16x8)_mm_sign_epi16((__m128i)a, (__m128i)b);
+#elif ZI_VEC
+    zi_u16x8 n_ = (zi_u16x8)(b >> 15), z_ = (zi_u16x8)(b != 0);
+    return (zi_s16x8)((((zi_u16x8)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s16x8(a, x_);
+    zi_unpack_s16x8(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S16, 8, ZI_K_S16, 8, x_, y_, z_, k_, o_);
+    return zi_pack_s16x8(o_);
+#endif
+}
+ZI_FN zi_s32x4 ZI_N(sign_s32x4)(zi_s32x4 a, zi_s32x4 b)
+{
+#if ZI_X86 && ZI_TIER >= 2
+    return (zi_s32x4)_mm_sign_epi32((__m128i)a, (__m128i)b);
+#elif ZI_VEC
+    zi_u32x4 n_ = (zi_u32x4)(b >> 31), z_ = (zi_u32x4)(b != 0);
+    return (zi_s32x4)((((zi_u32x4)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s32x4(a, x_);
+    zi_unpack_s32x4(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S32, 4, ZI_K_S32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_s32x4(o_);
+#endif
+}
+ZI_FN zi_s64x2 ZI_N(sign_s64x2)(zi_s64x2 a, zi_s64x2 b)
+{
+#if ZI_VEC
+    zi_u64x2 n_ = (zi_u64x2)(b >> 63), z_ = (zi_u64x2)(b != 0);
+    return (zi_s64x2)((((zi_u64x2)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s64x2(a, x_);
+    zi_unpack_s64x2(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S64, 2, ZI_K_S64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_s64x2(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(sign_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
+ZI_FN zi_s8x32 ZI_N(sign_s8x32)(zi_s8x32 a, zi_s8x32 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s8x32)_mm256_sign_epi8((__m256i)a, (__m256i)b);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 2))
+    return ZI_N(combine_s8x16)(ZI_N(sign_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(sign_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
+    zi_u8x32 n_ = (zi_u8x32)(b >> 7), z_ = (zi_u8x32)(b != 0);
+    return (zi_s8x32)((((zi_u8x32)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s8x32(a, x_);
+    zi_unpack_s8x32(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S8, 32, ZI_K_S8, 32, x_, y_, z_, k_, o_);
+    return zi_pack_s8x32(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(sign_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
+ZI_FN zi_s16x16 ZI_N(sign_s16x16)(zi_s16x16 a, zi_s16x16 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s16x16)_mm256_sign_epi16((__m256i)a, (__m256i)b);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 2))
+    return ZI_N(combine_s16x8)(ZI_N(sign_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(sign_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
+    zi_u16x16 n_ = (zi_u16x16)(b >> 15), z_ = (zi_u16x16)(b != 0);
+    return (zi_s16x16)((((zi_u16x16)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s16x16(a, x_);
+    zi_unpack_s16x16(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S16, 16, ZI_K_S16, 16, x_, y_, z_, k_, o_);
+    return zi_pack_s16x16(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(sign_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
+ZI_FN zi_s32x8 ZI_N(sign_s32x8)(zi_s32x8 a, zi_s32x8 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    return (zi_s32x8)_mm256_sign_epi32((__m256i)a, (__m256i)b);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 2))
+    return ZI_N(combine_s32x4)(ZI_N(sign_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(sign_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
+    zi_u32x8 n_ = (zi_u32x8)(b >> 31), z_ = (zi_u32x8)(b != 0);
+    return (zi_s32x8)((((zi_u32x8)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s32x8(a, x_);
+    zi_unpack_s32x8(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S32, 8, ZI_K_S32, 8, x_, y_, z_, k_, o_);
+    return zi_pack_s32x8(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(sign_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
+ZI_FN zi_s64x4 ZI_N(sign_s64x4)(zi_s64x4 a, zi_s64x4 b)
+{
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(sign_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(sign_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
+    zi_u64x4 n_ = (zi_u64x4)(b >> 63), z_ = (zi_u64x4)(b != 0);
+    return (zi_s64x4)((((zi_u64x4)a ^ n_) - n_) & z_);
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s64x4(a, x_);
+    zi_unpack_s64x4(b, y_);
+    zi_ref(ZI_OP_SIGN, ZI_K_S64, 4, ZI_K_S64, 4, x_, y_, z_, k_, o_);
+    return zi_pack_s64x4(o_);
+#endif
+}
+ZI_FN zi_u8x16 ZI_N(abs_diff_u8x16)(zi_u8x16 a, zi_u8x16 b)
+{
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u8x16)_mm_or_si128(_mm_subs_epu8(x_, y_), _mm_subs_epu8(y_, x_));
+#elif ZI_NEON
+    return (zi_u8x16)vabdq_u8((uint8x16_t)a, (uint8x16_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u8x16)wasm_v128_or(wasm_u8x16_sub_sat(x_, y_), wasm_u8x16_sub_sat(y_, x_));
+#elif ZI_VEC
+    zi_u8x16 l_ = (zi_u8x16)(a < b);
+    return (((zi_u8x16)a - (zi_u8x16)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u8x16(a, x_);
+    zi_unpack_u8x16(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U8, 16, ZI_K_U8, 16, x_, y_, z_, k_, o_);
+    return zi_pack_u8x16(o_);
+#endif
+}
+ZI_FN zi_u8x16 ZI_N(abs_diff_s8x16)(zi_s8x16 a, zi_s8x16 b)
+{
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u8x16)_mm_sub_epi8(_mm_max_epi8(x_, y_), _mm_min_epi8(x_, y_));
+#elif ZI_NEON
+    return (zi_u8x16)vabdq_s8((int8x16_t)a, (int8x16_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u8x16)wasm_i8x16_sub(wasm_i8x16_max(x_, y_), wasm_i8x16_min(x_, y_));
+#elif ZI_VEC
+    zi_u8x16 l_ = (zi_u8x16)(a < b);
+    return (((zi_u8x16)a - (zi_u8x16)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s8x16(a, x_);
+    zi_unpack_s8x16(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U8, 16, ZI_K_S8, 16, x_, y_, z_, k_, o_);
+    return zi_pack_u8x16(o_);
+#endif
+}
+ZI_FN zi_u16x8 ZI_N(abs_diff_u16x8)(zi_u16x8 a, zi_u16x8 b)
+{
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u16x8)_mm_or_si128(_mm_subs_epu16(x_, y_), _mm_subs_epu16(y_, x_));
+#elif ZI_NEON
+    return (zi_u16x8)vabdq_u16((uint16x8_t)a, (uint16x8_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u16x8)wasm_v128_or(wasm_u16x8_sub_sat(x_, y_), wasm_u16x8_sub_sat(y_, x_));
+#elif ZI_VEC
+    zi_u16x8 l_ = (zi_u16x8)(a < b);
+    return (((zi_u16x8)a - (zi_u16x8)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u16x8(a, x_);
+    zi_unpack_u16x8(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U16, 8, ZI_K_U16, 8, x_, y_, z_, k_, o_);
+    return zi_pack_u16x8(o_);
+#endif
+}
+ZI_FN zi_u16x8 ZI_N(abs_diff_s16x8)(zi_s16x8 a, zi_s16x8 b)
+{
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u16x8)_mm_sub_epi16(_mm_max_epi16(x_, y_), _mm_min_epi16(x_, y_));
+#elif ZI_NEON
+    return (zi_u16x8)vabdq_s16((int16x8_t)a, (int16x8_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u16x8)wasm_i16x8_sub(wasm_i16x8_max(x_, y_), wasm_i16x8_min(x_, y_));
+#elif ZI_VEC
+    zi_u16x8 l_ = (zi_u16x8)(a < b);
+    return (((zi_u16x8)a - (zi_u16x8)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s16x8(a, x_);
+    zi_unpack_s16x8(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U16, 8, ZI_K_S16, 8, x_, y_, z_, k_, o_);
+    return zi_pack_u16x8(o_);
+#endif
+}
+ZI_FN zi_u32x4 ZI_N(abs_diff_u32x4)(zi_u32x4 a, zi_u32x4 b)
+{
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u32x4)_mm_sub_epi32(_mm_max_epu32(x_, y_), _mm_min_epu32(x_, y_));
+#elif ZI_NEON
+    return (zi_u32x4)vabdq_u32((uint32x4_t)a, (uint32x4_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u32x4)wasm_i32x4_sub(wasm_u32x4_max(x_, y_), wasm_u32x4_min(x_, y_));
+#elif ZI_VEC
+    zi_u32x4 l_ = (zi_u32x4)(a < b);
+    return (((zi_u32x4)a - (zi_u32x4)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u32x4(a, x_);
+    zi_unpack_u32x4(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U32, 4, ZI_K_U32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u32x4(o_);
+#endif
+}
+ZI_FN zi_u32x4 ZI_N(abs_diff_s32x4)(zi_s32x4 a, zi_s32x4 b)
+{
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u32x4)_mm_sub_epi32(_mm_max_epi32(x_, y_), _mm_min_epi32(x_, y_));
+#elif ZI_NEON
+    return (zi_u32x4)vabdq_s32((int32x4_t)a, (int32x4_t)b);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    return (zi_u32x4)wasm_i32x4_sub(wasm_i32x4_max(x_, y_), wasm_i32x4_min(x_, y_));
+#elif ZI_VEC
+    zi_u32x4 l_ = (zi_u32x4)(a < b);
+    return (((zi_u32x4)a - (zi_u32x4)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s32x4(a, x_);
+    zi_unpack_s32x4(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U32, 4, ZI_K_S32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u32x4(o_);
+#endif
+}
+ZI_FN zi_u64x2 ZI_N(abs_diff_u64x2)(zi_u64x2 a, zi_u64x2 b)
+{
+#if ZI_VEC
+    zi_u64x2 l_ = (zi_u64x2)(a < b);
+    return (((zi_u64x2)a - (zi_u64x2)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u64x2(a, x_);
+    zi_unpack_u64x2(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U64, 2, ZI_K_U64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_u64x2(o_);
+#endif
+}
+ZI_FN zi_u64x2 ZI_N(abs_diff_s64x2)(zi_s64x2 a, zi_s64x2 b)
+{
+#if ZI_VEC
+    zi_u64x2 l_ = (zi_u64x2)(a < b);
+    return (((zi_u64x2)a - (zi_u64x2)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s64x2(a, x_);
+    zi_unpack_s64x2(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U64, 2, ZI_K_S64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_u64x2(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(abs_diff_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
+ZI_FN zi_u8x32 ZI_N(abs_diff_u8x32)(zi_u8x32 a, zi_u8x32 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u8x32)_mm256_or_si256(_mm256_subs_epu8(x_, y_), _mm256_subs_epu8(y_, x_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u8x16)(ZI_N(abs_diff_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(abs_diff_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
+    zi_u8x32 l_ = (zi_u8x32)(a < b);
+    return (((zi_u8x32)a - (zi_u8x32)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u8x32(a, x_);
+    zi_unpack_u8x32(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U8, 32, ZI_K_U8, 32, x_, y_, z_, k_, o_);
+    return zi_pack_u8x32(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(abs_diff_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
+ZI_FN zi_u8x32 ZI_N(abs_diff_s8x32)(zi_s8x32 a, zi_s8x32 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u8x32)_mm256_sub_epi8(_mm256_max_epi8(x_, y_), _mm256_min_epi8(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+    return ZI_N(combine_u8x16)(ZI_N(abs_diff_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(abs_diff_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
+    zi_u8x32 l_ = (zi_u8x32)(a < b);
+    return (((zi_u8x32)a - (zi_u8x32)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s8x32(a, x_);
+    zi_unpack_s8x32(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U8, 32, ZI_K_S8, 32, x_, y_, z_, k_, o_);
+    return zi_pack_u8x32(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(abs_diff_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
+ZI_FN zi_u16x16 ZI_N(abs_diff_u16x16)(zi_u16x16 a, zi_u16x16 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u16x16)_mm256_or_si256(_mm256_subs_epu16(x_, y_), _mm256_subs_epu16(y_, x_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u16x8)(ZI_N(abs_diff_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(abs_diff_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
+    zi_u16x16 l_ = (zi_u16x16)(a < b);
+    return (((zi_u16x16)a - (zi_u16x16)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u16x16(a, x_);
+    zi_unpack_u16x16(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U16, 16, ZI_K_U16, 16, x_, y_, z_, k_, o_);
+    return zi_pack_u16x16(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(abs_diff_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
+ZI_FN zi_u16x16 ZI_N(abs_diff_s16x16)(zi_s16x16 a, zi_s16x16 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u16x16)_mm256_sub_epi16(_mm256_max_epi16(x_, y_), _mm256_min_epi16(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+    return ZI_N(combine_u16x8)(ZI_N(abs_diff_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(abs_diff_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
+    zi_u16x16 l_ = (zi_u16x16)(a < b);
+    return (((zi_u16x16)a - (zi_u16x16)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s16x16(a, x_);
+    zi_unpack_s16x16(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U16, 16, ZI_K_S16, 16, x_, y_, z_, k_, o_);
+    return zi_pack_u16x16(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(abs_diff_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
+ZI_FN zi_u32x8 ZI_N(abs_diff_u32x8)(zi_u32x8 a, zi_u32x8 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u32x8)_mm256_sub_epi32(_mm256_max_epu32(x_, y_), _mm256_min_epu32(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+    return ZI_N(combine_u32x4)(ZI_N(abs_diff_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(abs_diff_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
+    zi_u32x8 l_ = (zi_u32x8)(a < b);
+    return (((zi_u32x8)a - (zi_u32x8)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u32x8(a, x_);
+    zi_unpack_u32x8(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U32, 8, ZI_K_U32, 8, x_, y_, z_, k_, o_);
+    return zi_pack_u32x8(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(abs_diff_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
+ZI_FN zi_u32x8 ZI_N(abs_diff_s32x8)(zi_s32x8 a, zi_s32x8 b)
+{
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u32x8)_mm256_sub_epi32(_mm256_max_epi32(x_, y_), _mm256_min_epi32(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 3))
+    return ZI_N(combine_u32x4)(ZI_N(abs_diff_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(abs_diff_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
+    zi_u32x8 l_ = (zi_u32x8)(a < b);
+    return (((zi_u32x8)a - (zi_u32x8)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s32x8(a, x_);
+    zi_unpack_s32x8(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U32, 8, ZI_K_S32, 8, x_, y_, z_, k_, o_);
+    return zi_pack_u32x8(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(abs_diff_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
+ZI_FN zi_u64x4 ZI_N(abs_diff_u64x4)(zi_u64x4 a, zi_u64x4 b)
+{
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(abs_diff_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(abs_diff_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
+    zi_u64x4 l_ = (zi_u64x4)(a < b);
+    return (((zi_u64x4)a - (zi_u64x4)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_u64x4(a, x_);
+    zi_unpack_u64x4(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U64, 4, ZI_K_U64, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u64x4(o_);
+#endif
+}
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(abs_diff_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
+ZI_FN zi_u64x4 ZI_N(abs_diff_s64x4)(zi_s64x4 a, zi_s64x4 b)
+{
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(abs_diff_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(abs_diff_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
+    zi_u64x4 l_ = (zi_u64x4)(a < b);
+    return (((zi_u64x4)a - (zi_u64x4)b) ^ l_) - l_;
+#else
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_s64x4(a, x_);
+    zi_unpack_s64x4(b, y_);
+    zi_ref(ZI_OP_ABS_DIFF, ZI_K_U64, 4, ZI_K_S64, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u64x4(o_);
 #endif
 }
 ZI_FN zi_u8x16 ZI_N(eq_u8x16)(zi_u8x16 a, zi_u8x16 b)
@@ -5453,7 +10531,14 @@ ZI_FN zi_s64x2 ZI_N(eq_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_u32x4 ZI_N(eq_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_EQ, ZI_K_U32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u32x4(o_);
+#elif ZI_VEC
     return (zi_u32x4)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5466,7 +10551,14 @@ ZI_FN zi_u32x4 ZI_N(eq_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_u64x2 ZI_N(eq_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_EQ, ZI_K_U64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_u64x2(o_);
+#elif ZI_VEC
     return (zi_u64x2)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5477,9 +10569,18 @@ ZI_FN zi_u64x2 ZI_N(eq_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_u64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(eq_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(eq_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u8x16)(ZI_N(eq_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(eq_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5490,9 +10591,18 @@ ZI_FN zi_u8x32 ZI_N(eq_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(eq_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(eq_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s8x16)(ZI_N(eq_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(eq_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5503,9 +10613,18 @@ ZI_FN zi_s8x32 ZI_N(eq_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(eq_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(eq_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u16x8)(ZI_N(eq_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(eq_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5516,9 +10635,18 @@ ZI_FN zi_u16x16 ZI_N(eq_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(eq_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(eq_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s16x8)(ZI_N(eq_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(eq_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5529,9 +10657,18 @@ ZI_FN zi_s16x16 ZI_N(eq_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(eq_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(eq_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u32x4)(ZI_N(eq_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(eq_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5542,9 +10679,18 @@ ZI_FN zi_u32x8 ZI_N(eq_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(eq_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(eq_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s32x4)(ZI_N(eq_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(eq_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5555,9 +10701,18 @@ ZI_FN zi_s32x8 ZI_N(eq_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(eq_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(eq_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u64x2)(ZI_N(eq_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(eq_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5568,9 +10723,18 @@ ZI_FN zi_u64x4 ZI_N(eq_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(eq_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(eq_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s64x2)(ZI_N(eq_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(eq_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5581,9 +10745,18 @@ ZI_FN zi_s64x4 ZI_N(eq_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(eq_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(eq_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u32x4)(ZI_N(eq_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(eq_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5594,9 +10767,18 @@ ZI_FN zi_u32x8 ZI_N(eq_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(eq_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(eq_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u64x2)(ZI_N(eq_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(eq_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a == b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5713,7 +10895,14 @@ ZI_FN zi_s64x2 ZI_N(lt_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_u32x4 ZI_N(lt_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_LT, ZI_K_U32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u32x4(o_);
+#elif ZI_VEC
     return (zi_u32x4)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5726,7 +10915,14 @@ ZI_FN zi_u32x4 ZI_N(lt_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_u64x2 ZI_N(lt_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_LT, ZI_K_U64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_u64x2(o_);
+#elif ZI_VEC
     return (zi_u64x2)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5737,9 +10933,18 @@ ZI_FN zi_u64x2 ZI_N(lt_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_u64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(lt_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(lt_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u8x16)(ZI_N(lt_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(lt_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5750,9 +10955,18 @@ ZI_FN zi_u8x32 ZI_N(lt_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(lt_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(lt_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s8x16)(ZI_N(lt_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(lt_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5763,9 +10977,18 @@ ZI_FN zi_s8x32 ZI_N(lt_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(lt_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(lt_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u16x8)(ZI_N(lt_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(lt_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5776,9 +10999,18 @@ ZI_FN zi_u16x16 ZI_N(lt_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(lt_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(lt_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s16x8)(ZI_N(lt_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(lt_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5789,9 +11021,18 @@ ZI_FN zi_s16x16 ZI_N(lt_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(lt_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(lt_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u32x4)(ZI_N(lt_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(lt_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5802,9 +11043,18 @@ ZI_FN zi_u32x8 ZI_N(lt_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(lt_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(lt_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s32x4)(ZI_N(lt_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(lt_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5815,9 +11065,18 @@ ZI_FN zi_s32x8 ZI_N(lt_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(lt_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(lt_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u64x2)(ZI_N(lt_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(lt_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5828,9 +11087,18 @@ ZI_FN zi_u64x4 ZI_N(lt_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(lt_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(lt_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s64x2)(ZI_N(lt_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(lt_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5841,9 +11109,18 @@ ZI_FN zi_s64x4 ZI_N(lt_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(lt_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(lt_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u32x4)(ZI_N(lt_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(lt_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5854,9 +11131,18 @@ ZI_FN zi_u32x8 ZI_N(lt_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(lt_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(lt_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u64x2)(ZI_N(lt_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(lt_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a < b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5973,7 +11259,14 @@ ZI_FN zi_s64x2 ZI_N(gt_s64x2)(zi_s64x2 a, zi_s64x2 b)
 }
 ZI_FN zi_u32x4 ZI_N(gt_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f32x4(a, x_);
+    zi_unpack_f32x4(b, y_);
+    zi_ref(ZI_OP_GT, ZI_K_U32, 4, ZI_K_F32, 4, x_, y_, z_, k_, o_);
+    return zi_pack_u32x4(o_);
+#elif ZI_VEC
     return (zi_u32x4)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5986,7 +11279,14 @@ ZI_FN zi_u32x4 ZI_N(gt_f32x4)(zi_f32x4 a, zi_f32x4 b)
 }
 ZI_FN zi_u64x2 ZI_N(gt_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON && !ZI_A64
+    uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
+    int64_t k_[32] = {0};
+    zi_unpack_f64x2(a, x_);
+    zi_unpack_f64x2(b, y_);
+    zi_ref(ZI_OP_GT, ZI_K_U64, 2, ZI_K_F64, 2, x_, y_, z_, k_, o_);
+    return zi_pack_u64x2(o_);
+#elif ZI_VEC
     return (zi_u64x2)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -5997,9 +11297,18 @@ ZI_FN zi_u64x2 ZI_N(gt_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_u64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(gt_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(gt_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u8x16)(ZI_N(gt_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(gt_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6010,9 +11319,18 @@ ZI_FN zi_u8x32 ZI_N(gt_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(gt_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(gt_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s8x16)(ZI_N(gt_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(gt_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6023,9 +11341,18 @@ ZI_FN zi_s8x32 ZI_N(gt_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(gt_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(gt_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u16x8)(ZI_N(gt_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(gt_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6036,9 +11363,18 @@ ZI_FN zi_u16x16 ZI_N(gt_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(gt_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(gt_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s16x8)(ZI_N(gt_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(gt_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6049,9 +11385,18 @@ ZI_FN zi_s16x16 ZI_N(gt_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gt_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(gt_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u32x4)(ZI_N(gt_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(gt_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6062,9 +11407,18 @@ ZI_FN zi_u32x8 ZI_N(gt_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gt_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(gt_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s32x4)(ZI_N(gt_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(gt_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6075,9 +11429,18 @@ ZI_FN zi_s32x8 ZI_N(gt_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(gt_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(gt_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u64x2)(ZI_N(gt_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(gt_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6088,9 +11451,18 @@ ZI_FN zi_u64x4 ZI_N(gt_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(gt_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(gt_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s64x2)(ZI_N(gt_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(gt_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6101,9 +11473,18 @@ ZI_FN zi_s64x4 ZI_N(gt_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gt_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(gt_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u32x4)(ZI_N(gt_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(gt_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6114,9 +11495,18 @@ ZI_FN zi_u32x8 ZI_N(gt_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(gt_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(gt_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)) || (ZI_NEON && !ZI_A64))
+    return ZI_N(combine_u64x2)(ZI_N(gt_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(gt_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)(a > b);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6307,9 +11697,17 @@ ZI_FN zi_f64x2 ZI_N(select_f64x2)(zi_u64x2 m, zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(select_u8x32_p_)(const zi_u8x32 *m_p_, const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 m = *m_p_;
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(select_u8x32)(zi_u8x32 m, zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_u8x16)(ZI_N(select_u8x16)(ZI_N(low_u8x32)(m), ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(select_u8x16)(ZI_N(high_u8x32)(m), ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #elif ZI_VEC
     return (zi_u8x32)(((zi_u8x32)a & m) | ((zi_u8x32)b & ~m));
@@ -6323,9 +11721,17 @@ ZI_FN zi_u8x32 ZI_N(select_u8x32)(zi_u8x32 m, zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(select_s8x32_p_)(const zi_u8x32 *m_p_, const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_u8x32 m = *m_p_;
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(select_s8x32)(zi_u8x32 m, zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_s8x16)(ZI_N(select_s8x16)(ZI_N(low_u8x32)(m), ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(select_s8x16)(ZI_N(high_u8x32)(m), ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
 #elif ZI_VEC
     return (zi_s8x32)(((zi_u8x32)a & m) | ((zi_u8x32)b & ~m));
@@ -6339,9 +11745,17 @@ ZI_FN zi_s8x32 ZI_N(select_s8x32)(zi_u8x32 m, zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(select_u16x16_p_)(const zi_u16x16 *m_p_, const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 m = *m_p_;
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(select_u16x16)(zi_u16x16 m, zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_u16x8)(ZI_N(select_u16x8)(ZI_N(low_u16x16)(m), ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(select_u16x8)(ZI_N(high_u16x16)(m), ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
 #elif ZI_VEC
     return (zi_u16x16)(((zi_u16x16)a & m) | ((zi_u16x16)b & ~m));
@@ -6355,9 +11769,17 @@ ZI_FN zi_u16x16 ZI_N(select_u16x16)(zi_u16x16 m, zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(select_s16x16_p_)(const zi_u16x16 *m_p_, const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_u16x16 m = *m_p_;
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(select_s16x16)(zi_u16x16 m, zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_s16x8)(ZI_N(select_s16x8)(ZI_N(low_u16x16)(m), ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(select_s16x8)(ZI_N(high_u16x16)(m), ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     return (zi_s16x16)(((zi_u16x16)a & m) | ((zi_u16x16)b & ~m));
@@ -6371,9 +11793,17 @@ ZI_FN zi_s16x16 ZI_N(select_s16x16)(zi_u16x16 m, zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(select_u32x8_p_)(const zi_u32x8 *m_p_, const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 m = *m_p_;
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(select_u32x8)(zi_u32x8 m, zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_u32x4)(ZI_N(select_u32x4)(ZI_N(low_u32x8)(m), ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(select_u32x4)(ZI_N(high_u32x8)(m), ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
 #elif ZI_VEC
     return (zi_u32x8)(((zi_u32x8)a & m) | ((zi_u32x8)b & ~m));
@@ -6387,9 +11817,17 @@ ZI_FN zi_u32x8 ZI_N(select_u32x8)(zi_u32x8 m, zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(select_s32x8_p_)(const zi_u32x8 *m_p_, const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_u32x8 m = *m_p_;
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(select_s32x8)(zi_u32x8 m, zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_s32x4)(ZI_N(select_s32x4)(ZI_N(low_u32x8)(m), ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(select_s32x4)(ZI_N(high_u32x8)(m), ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     return (zi_s32x8)(((zi_u32x8)a & m) | ((zi_u32x8)b & ~m));
@@ -6403,9 +11841,17 @@ ZI_FN zi_s32x8 ZI_N(select_s32x8)(zi_u32x8 m, zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(select_u64x4_p_)(const zi_u64x4 *m_p_, const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 m = *m_p_;
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(select_u64x4)(zi_u64x4 m, zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_u64x2)(ZI_N(select_u64x2)(ZI_N(low_u64x4)(m), ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(select_u64x2)(ZI_N(high_u64x4)(m), ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
 #elif ZI_VEC
     return (zi_u64x4)(((zi_u64x4)a & m) | ((zi_u64x4)b & ~m));
@@ -6419,9 +11865,17 @@ ZI_FN zi_u64x4 ZI_N(select_u64x4)(zi_u64x4 m, zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(select_s64x4_p_)(const zi_u64x4 *m_p_, const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_u64x4 m = *m_p_;
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(select_s64x4)(zi_u64x4 m, zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_s64x2)(ZI_N(select_s64x2)(ZI_N(low_u64x4)(m), ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(select_s64x2)(ZI_N(high_u64x4)(m), ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
 #elif ZI_VEC
     return (zi_s64x4)(((zi_u64x4)a & m) | ((zi_u64x4)b & ~m));
@@ -6435,9 +11889,17 @@ ZI_FN zi_s64x4 ZI_N(select_s64x4)(zi_u64x4 m, zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(select_f32x8_p_)(const zi_u32x8 *m_p_, const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_u32x8 m = *m_p_;
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(select_f32x8)(zi_u32x8 m, zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_f32x4)(ZI_N(select_f32x4)(ZI_N(low_u32x8)(m), ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(select_f32x4)(ZI_N(high_u32x8)(m), ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
 #elif ZI_VEC
     return (zi_f32x8)(((zi_u32x8)a & m) | ((zi_u32x8)b & ~m));
@@ -6451,9 +11913,17 @@ ZI_FN zi_f32x8 ZI_N(select_f32x8)(zi_u32x8 m, zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(select_f64x4_p_)(const zi_u64x4 *m_p_, const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_u64x4 m = *m_p_;
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(select_f64x4)(zi_u64x4 m, zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM))
     return ZI_N(combine_f64x2)(ZI_N(select_f64x2)(ZI_N(low_u64x4)(m), ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(select_f64x2)(ZI_N(high_u64x4)(m), ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
 #elif ZI_VEC
     return (zi_f64x4)(((zi_u64x4)a & m) | ((zi_u64x4)b & ~m));
@@ -6591,9 +12061,17 @@ ZI_FN zi_s64x2 ZI_N(shl_s64x2)(zi_s64x2 a, uint64_t n)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shl_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(shl_u8x32)(zi_u8x32 a, uint64_t n)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(shl_u8x16)(ZI_N(low_u8x32)(a), n), ZI_N(shl_u8x16)(ZI_N(high_u8x32)(a), n));
+#elif ZI_VEC
     if(n >= 8) return (zi_u8x32){0};
     return (zi_u8x32)((zi_u8x32)a << (int)n);
 #else
@@ -6605,9 +12083,17 @@ ZI_FN zi_u8x32 ZI_N(shl_u8x32)(zi_u8x32 a, uint64_t n)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shl_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(shl_s8x32)(zi_s8x32 a, uint64_t n)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(shl_s8x16)(ZI_N(low_s8x32)(a), n), ZI_N(shl_s8x16)(ZI_N(high_s8x32)(a), n));
+#elif ZI_VEC
     if(n >= 8) return (zi_s8x32){0};
     return (zi_s8x32)((zi_u8x32)a << (int)n);
 #else
@@ -6619,11 +12105,17 @@ ZI_FN zi_s8x32 ZI_N(shl_s8x32)(zi_s8x32 a, uint64_t n)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shl_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(shl_u16x16)(zi_u16x16 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_sll_epi16((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(shl_u16x8)(ZI_N(low_u16x16)(a), n), ZI_N(shl_u16x8)(ZI_N(high_u16x16)(a), n));
 #elif ZI_VEC
     if(n >= 16) return (zi_u16x16){0};
@@ -6637,11 +12129,17 @@ ZI_FN zi_u16x16 ZI_N(shl_u16x16)(zi_u16x16 a, uint64_t n)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shl_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(shl_s16x16)(zi_s16x16 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_sll_epi16((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(shl_s16x8)(ZI_N(low_s16x16)(a), n), ZI_N(shl_s16x8)(ZI_N(high_s16x16)(a), n));
 #elif ZI_VEC
     if(n >= 16) return (zi_s16x16){0};
@@ -6655,11 +12153,17 @@ ZI_FN zi_s16x16 ZI_N(shl_s16x16)(zi_s16x16 a, uint64_t n)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shl_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(shl_u32x8)(zi_u32x8 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_sll_epi32((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u32x4)(ZI_N(shl_u32x4)(ZI_N(low_u32x8)(a), n), ZI_N(shl_u32x4)(ZI_N(high_u32x8)(a), n));
 #elif ZI_VEC
     if(n >= 32) return (zi_u32x8){0};
@@ -6673,11 +12177,17 @@ ZI_FN zi_u32x8 ZI_N(shl_u32x8)(zi_u32x8 a, uint64_t n)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shl_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(shl_s32x8)(zi_s32x8 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_sll_epi32((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(shl_s32x4)(ZI_N(low_s32x8)(a), n), ZI_N(shl_s32x4)(ZI_N(high_s32x8)(a), n));
 #elif ZI_VEC
     if(n >= 32) return (zi_s32x8){0};
@@ -6691,11 +12201,17 @@ ZI_FN zi_s32x8 ZI_N(shl_s32x8)(zi_s32x8 a, uint64_t n)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shl_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(shl_u64x4)(zi_u64x4 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_sll_epi64((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u64x2)(ZI_N(shl_u64x2)(ZI_N(low_u64x4)(a), n), ZI_N(shl_u64x2)(ZI_N(high_u64x4)(a), n));
 #elif ZI_VEC
     if(n >= 64) return (zi_u64x4){0};
@@ -6709,11 +12225,17 @@ ZI_FN zi_u64x4 ZI_N(shl_u64x4)(zi_u64x4 a, uint64_t n)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shl_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(shl_s64x4)(zi_s64x4 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x4)_mm256_sll_epi64((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_s64x2)(ZI_N(shl_s64x2)(ZI_N(low_s64x4)(a), n), ZI_N(shl_s64x2)(ZI_N(high_s64x4)(a), n));
 #elif ZI_VEC
     if(n >= 64) return (zi_s64x4){0};
@@ -6845,9 +12367,17 @@ ZI_FN zi_s64x2 ZI_N(shr_s64x2)(zi_s64x2 a, uint64_t n)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(shr_u8x32)(zi_u8x32 a, uint64_t n)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(shr_u8x16)(ZI_N(low_u8x32)(a), n), ZI_N(shr_u8x16)(ZI_N(high_u8x32)(a), n));
+#elif ZI_VEC
     if(n >= 8) return (zi_u8x32){0};
     return a >> (int)n;
 #else
@@ -6859,9 +12389,17 @@ ZI_FN zi_u8x32 ZI_N(shr_u8x32)(zi_u8x32 a, uint64_t n)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(shr_s8x32)(zi_s8x32 a, uint64_t n)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(shr_s8x16)(ZI_N(low_s8x32)(a), n), ZI_N(shr_s8x16)(ZI_N(high_s8x32)(a), n));
+#elif ZI_VEC
     return a >> (int)(n >= 8 ? 7 : n);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -6872,11 +12410,17 @@ ZI_FN zi_s8x32 ZI_N(shr_s8x32)(zi_s8x32 a, uint64_t n)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(shr_u16x16)(zi_u16x16 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_srl_epi16((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(shr_u16x8)(ZI_N(low_u16x16)(a), n), ZI_N(shr_u16x8)(ZI_N(high_u16x16)(a), n));
 #elif ZI_VEC
     if(n >= 16) return (zi_u16x16){0};
@@ -6890,11 +12434,17 @@ ZI_FN zi_u16x16 ZI_N(shr_u16x16)(zi_u16x16 a, uint64_t n)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(shr_s16x16)(zi_s16x16 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_sra_epi16((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(shr_s16x8)(ZI_N(low_s16x16)(a), n), ZI_N(shr_s16x8)(ZI_N(high_s16x16)(a), n));
 #elif ZI_VEC
     return a >> (int)(n >= 16 ? 15 : n);
@@ -6907,11 +12457,17 @@ ZI_FN zi_s16x16 ZI_N(shr_s16x16)(zi_s16x16 a, uint64_t n)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(shr_u32x8)(zi_u32x8 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_srl_epi32((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u32x4)(ZI_N(shr_u32x4)(ZI_N(low_u32x8)(a), n), ZI_N(shr_u32x4)(ZI_N(high_u32x8)(a), n));
 #elif ZI_VEC
     if(n >= 32) return (zi_u32x8){0};
@@ -6925,11 +12481,17 @@ ZI_FN zi_u32x8 ZI_N(shr_u32x8)(zi_u32x8 a, uint64_t n)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(shr_s32x8)(zi_s32x8 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_sra_epi32((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(shr_s32x4)(ZI_N(low_s32x8)(a), n), ZI_N(shr_s32x4)(ZI_N(high_s32x8)(a), n));
 #elif ZI_VEC
     return a >> (int)(n >= 32 ? 31 : n);
@@ -6942,11 +12504,17 @@ ZI_FN zi_s32x8 ZI_N(shr_s32x8)(zi_s32x8 a, uint64_t n)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(shr_u64x4)(zi_u64x4 a, uint64_t n)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_srl_epi64((__m256i)a, _mm_set_epi64x(0, (long long)n));
-#elif ZI_VEC && ((ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
     return ZI_N(combine_u64x2)(ZI_N(shr_u64x2)(ZI_N(low_u64x4)(a), n), ZI_N(shr_u64x2)(ZI_N(high_u64x4)(a), n));
 #elif ZI_VEC
     if(n >= 64) return (zi_u64x4){0};
@@ -6960,9 +12528,17 @@ ZI_FN zi_u64x4 ZI_N(shr_u64x4)(zi_u64x4 a, uint64_t n)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(shr_s64x4)(zi_s64x4 a, uint64_t n)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(shr_s64x2)(ZI_N(low_s64x4)(a), n), ZI_N(shr_s64x2)(ZI_N(high_s64x4)(a), n));
+#elif ZI_VEC
     return a >> (int)(n >= 64 ? 63 : n);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -7037,69 +12613,149 @@ ZI_FN zi_s64x2 ZI_N(shr_round_s64x2)(zi_s64x2 a, uint64_t n)
         return ZI_N(add_s64x2)(s_, ZI_N(and_s64x2)(t_, ZI_N(splat_s64x2)(1)));
     }
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_round_u8x32_p_)(const zi_u8x32 *a_p_, uint64_t n)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(shr_round_u8x32)(zi_u8x32 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u8x16)(ZI_N(shr_round_u8x16)(ZI_N(low_u8x32)(a), n), ZI_N(shr_round_u8x16)(ZI_N(high_u8x32)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_u8x32 s_ = ZI_N(shr_u8x32)(a, n), t_ = ZI_N(shr_u8x32)(a, n - 1);
         return ZI_N(add_u8x32)(s_, ZI_N(and_u8x32)(t_, ZI_N(splat_u8x32)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_round_s8x32_p_)(const zi_s8x32 *a_p_, uint64_t n)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(shr_round_s8x32)(zi_s8x32 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s8x16)(ZI_N(shr_round_s8x16)(ZI_N(low_s8x32)(a), n), ZI_N(shr_round_s8x16)(ZI_N(high_s8x32)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_s8x32 s_ = ZI_N(shr_s8x32)(a, n), t_ = ZI_N(shr_s8x32)(a, n - 1);
         return ZI_N(add_s8x32)(s_, ZI_N(and_s8x32)(t_, ZI_N(splat_s8x32)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_round_u16x16_p_)(const zi_u16x16 *a_p_, uint64_t n)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(shr_round_u16x16)(zi_u16x16 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u16x8)(ZI_N(shr_round_u16x8)(ZI_N(low_u16x16)(a), n), ZI_N(shr_round_u16x8)(ZI_N(high_u16x16)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_u16x16 s_ = ZI_N(shr_u16x16)(a, n), t_ = ZI_N(shr_u16x16)(a, n - 1);
         return ZI_N(add_u16x16)(s_, ZI_N(and_u16x16)(t_, ZI_N(splat_u16x16)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_round_s16x16_p_)(const zi_s16x16 *a_p_, uint64_t n)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(shr_round_s16x16)(zi_s16x16 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s16x8)(ZI_N(shr_round_s16x8)(ZI_N(low_s16x16)(a), n), ZI_N(shr_round_s16x8)(ZI_N(high_s16x16)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_s16x16 s_ = ZI_N(shr_s16x16)(a, n), t_ = ZI_N(shr_s16x16)(a, n - 1);
         return ZI_N(add_s16x16)(s_, ZI_N(and_s16x16)(t_, ZI_N(splat_s16x16)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_round_u32x8_p_)(const zi_u32x8 *a_p_, uint64_t n)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(shr_round_u32x8)(zi_u32x8 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u32x4)(ZI_N(shr_round_u32x4)(ZI_N(low_u32x8)(a), n), ZI_N(shr_round_u32x4)(ZI_N(high_u32x8)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_u32x8 s_ = ZI_N(shr_u32x8)(a, n), t_ = ZI_N(shr_u32x8)(a, n - 1);
         return ZI_N(add_u32x8)(s_, ZI_N(and_u32x8)(t_, ZI_N(splat_u32x8)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_round_s32x8_p_)(const zi_s32x8 *a_p_, uint64_t n)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(shr_round_s32x8)(zi_s32x8 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s32x4)(ZI_N(shr_round_s32x4)(ZI_N(low_s32x8)(a), n), ZI_N(shr_round_s32x4)(ZI_N(high_s32x8)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_s32x8 s_ = ZI_N(shr_s32x8)(a, n), t_ = ZI_N(shr_s32x8)(a, n - 1);
         return ZI_N(add_s32x8)(s_, ZI_N(and_s32x8)(t_, ZI_N(splat_s32x8)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_round_u64x4_p_)(const zi_u64x4 *a_p_, uint64_t n)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(shr_round_u64x4)(zi_u64x4 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_u64x2)(ZI_N(shr_round_u64x2)(ZI_N(low_u64x4)(a), n), ZI_N(shr_round_u64x2)(ZI_N(high_u64x4)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_u64x4 s_ = ZI_N(shr_u64x4)(a, n), t_ = ZI_N(shr_u64x4)(a, n - 1);
         return ZI_N(add_u64x4)(s_, ZI_N(and_u64x4)(t_, ZI_N(splat_u64x4)(1)));
     }
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_round_s64x4_p_)(const zi_s64x4 *a_p_, uint64_t n)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(shr_round_s64x4)(zi_s64x4 a, uint64_t n)
 {
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4 && !defined(__clang__)))
+    return ZI_N(combine_s64x2)(ZI_N(shr_round_s64x2)(ZI_N(low_s64x4)(a), n), ZI_N(shr_round_s64x2)(ZI_N(high_s64x4)(a), n));
+#else
     if(n == 0) return a;
     {
         zi_s64x4 s_ = ZI_N(shr_s64x4)(a, n), t_ = ZI_N(shr_s64x4)(a, n - 1);
         return ZI_N(add_s64x4)(s_, ZI_N(and_s64x4)(t_, ZI_N(splat_s64x4)(1)));
     }
+#endif
 }
 ZI_FN zi_u8x16 ZI_N(shl_lanes_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {
@@ -7131,7 +12787,12 @@ ZI_FN zi_s8x16 ZI_N(shl_lanes_s8x16)(zi_s8x16 a, zi_s8x16 b)
 }
 ZI_FN zi_u16x8 ZI_N(shl_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    __m128i x_ = (__m128i)a, c_ = (__m128i)b, lo_ = _mm_set1_epi32(0xffff);
+    __m128i ce_ = _mm_and_si128(c_, lo_), co_ = _mm_srli_epi32(c_, 16);
+    __m128i e_ = _mm_sllv_epi32(x_, ce_), o_ = _mm_sllv_epi32(_mm_andnot_si128(lo_, x_), co_);
+    return (zi_u16x8)_mm_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC
     zi_u16x8 c_ = (zi_u16x8)b, ok_ = (zi_u16x8)(c_ < 16);
     return (zi_u16x8)(((zi_u16x8)a << (c_ & 15)) & ok_);
 #else
@@ -7145,7 +12806,12 @@ ZI_FN zi_u16x8 ZI_N(shl_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b)
 }
 ZI_FN zi_s16x8 ZI_N(shl_lanes_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    __m128i x_ = (__m128i)a, c_ = (__m128i)b, lo_ = _mm_set1_epi32(0xffff);
+    __m128i ce_ = _mm_and_si128(c_, lo_), co_ = _mm_srli_epi32(c_, 16);
+    __m128i e_ = _mm_sllv_epi32(x_, ce_), o_ = _mm_sllv_epi32(_mm_andnot_si128(lo_, x_), co_);
+    return (zi_s16x8)_mm_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC
     zi_u16x8 c_ = (zi_u16x8)b, ok_ = (zi_u16x8)(c_ < 16);
     return (zi_s16x8)(((zi_u16x8)a << (c_ & 15)) & ok_);
 #else
@@ -7221,9 +12887,18 @@ ZI_FN zi_s64x2 ZI_N(shl_lanes_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shl_lanes_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(shl_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(shl_lanes_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(shl_lanes_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     zi_u8x32 c_ = (zi_u8x32)b, ok_ = (zi_u8x32)(c_ < 8);
     return (zi_u8x32)(((zi_u8x32)a << (c_ & 7)) & ok_);
 #else
@@ -7235,9 +12910,18 @@ ZI_FN zi_u8x32 ZI_N(shl_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shl_lanes_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(shl_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(shl_lanes_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(shl_lanes_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     zi_u8x32 c_ = (zi_u8x32)b, ok_ = (zi_u8x32)(c_ < 8);
     return (zi_s8x32)(((zi_u8x32)a << (c_ & 7)) & ok_);
 #else
@@ -7249,9 +12933,23 @@ ZI_FN zi_s8x32 ZI_N(shl_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shl_lanes_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(shl_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, c_ = (__m256i)b, lo_ = _mm256_set1_epi32(0xffff);
+    __m256i ce_ = _mm256_and_si256(c_, lo_), co_ = _mm256_srli_epi32(c_, 16);
+    __m256i e_ = _mm256_sllv_epi32(x_, ce_), o_ = _mm256_sllv_epi32(_mm256_andnot_si256(lo_, x_), co_);
+    return (zi_u16x16)_mm256_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
+    return ZI_N(combine_u16x8)(ZI_N(shl_lanes_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(shl_lanes_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 c_ = (zi_u16x16)b, ok_ = (zi_u16x16)(c_ < 16);
     return (zi_u16x16)(((zi_u16x16)a << (c_ & 15)) & ok_);
 #else
@@ -7263,9 +12961,23 @@ ZI_FN zi_u16x16 ZI_N(shl_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shl_lanes_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(shl_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, c_ = (__m256i)b, lo_ = _mm256_set1_epi32(0xffff);
+    __m256i ce_ = _mm256_and_si256(c_, lo_), co_ = _mm256_srli_epi32(c_, 16);
+    __m256i e_ = _mm256_sllv_epi32(x_, ce_), o_ = _mm256_sllv_epi32(_mm256_andnot_si256(lo_, x_), co_);
+    return (zi_s16x16)_mm256_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
+    return ZI_N(combine_s16x8)(ZI_N(shl_lanes_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(shl_lanes_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 c_ = (zi_u16x16)b, ok_ = (zi_u16x16)(c_ < 16);
     return (zi_s16x16)(((zi_u16x16)a << (c_ & 15)) & ok_);
 #else
@@ -7277,11 +12989,18 @@ ZI_FN zi_s16x16 ZI_N(shl_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shl_lanes_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(shl_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_sllv_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_u32x4)(ZI_N(shl_lanes_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(shl_lanes_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 c_ = (zi_u32x8)b, ok_ = (zi_u32x8)(c_ < 32);
@@ -7295,11 +13014,18 @@ ZI_FN zi_u32x8 ZI_N(shl_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shl_lanes_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(shl_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_sllv_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_s32x4)(ZI_N(shl_lanes_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(shl_lanes_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 c_ = (zi_u32x8)b, ok_ = (zi_u32x8)(c_ < 32);
@@ -7313,11 +13039,18 @@ ZI_FN zi_s32x8 ZI_N(shl_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shl_lanes_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(shl_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_sllv_epi64((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_u64x2)(ZI_N(shl_lanes_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(shl_lanes_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
 #elif ZI_VEC
     zi_u64x4 c_ = (zi_u64x4)b, ok_ = (zi_u64x4)(c_ < 64);
@@ -7331,11 +13064,18 @@ ZI_FN zi_u64x4 ZI_N(shl_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shl_lanes_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(shl_lanes_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x4)_mm256_sllv_epi64((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_s64x2)(ZI_N(shl_lanes_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(shl_lanes_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
 #elif ZI_VEC
     zi_u64x4 c_ = (zi_u64x4)b, ok_ = (zi_u64x4)(c_ < 64);
@@ -7380,7 +13120,12 @@ ZI_FN zi_s8x16 ZI_N(shr_lanes_s8x16)(zi_s8x16 a, zi_s8x16 b)
 }
 ZI_FN zi_u16x8 ZI_N(shr_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    __m128i x_ = (__m128i)a, c_ = (__m128i)b, lo_ = _mm_set1_epi32(0xffff);
+    __m128i ce_ = _mm_and_si128(c_, lo_), co_ = _mm_srli_epi32(c_, 16);
+    __m128i e_ = _mm_srlv_epi32(_mm_and_si128(x_, lo_), ce_), o_ = _mm_srlv_epi32(x_, co_);
+    return (zi_u16x8)_mm_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC
     zi_u16x8 c_ = (zi_u16x8)b, ok_ = (zi_u16x8)(c_ < 16);
     return (zi_u16x8)(((zi_u16x8)a >> (c_ & 15)) & ok_);
 #else
@@ -7394,7 +13139,12 @@ ZI_FN zi_u16x8 ZI_N(shr_lanes_u16x8)(zi_u16x8 a, zi_u16x8 b)
 }
 ZI_FN zi_s16x8 ZI_N(shr_lanes_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 4
+    __m128i x_ = (__m128i)a, c_ = (__m128i)b, lo_ = _mm_set1_epi32(0xffff);
+    __m128i ce_ = _mm_and_si128(c_, lo_), co_ = _mm_srli_epi32(c_, 16);
+    __m128i e_ = _mm_srav_epi32(_mm_slli_epi32(x_, 16), _mm_add_epi32(ce_, _mm_set1_epi32(16))), o_ = _mm_srav_epi32(x_, co_);
+    return (zi_s16x8)_mm_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC
     zi_u16x8 c_ = (zi_u16x8)b, top_ = (zi_u16x8){0} + 15, m_ = (zi_u16x8)(c_ < top_);
     c_ = (c_ & m_) | (top_ & ~m_);
     return a >> (zi_s16x8)c_;
@@ -7471,9 +13221,18 @@ ZI_FN zi_s64x2 ZI_N(shr_lanes_s64x2)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(shr_lanes_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(shr_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(shr_lanes_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(shr_lanes_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     zi_u8x32 c_ = (zi_u8x32)b, ok_ = (zi_u8x32)(c_ < 8);
     return (zi_u8x32)(((zi_u8x32)a >> (c_ & 7)) & ok_);
 #else
@@ -7485,9 +13244,18 @@ ZI_FN zi_u8x32 ZI_N(shr_lanes_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(shr_lanes_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(shr_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(shr_lanes_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(shr_lanes_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     zi_u8x32 c_ = (zi_u8x32)b, top_ = (zi_u8x32){0} + 7, m_ = (zi_u8x32)(c_ < top_);
     c_ = (c_ & m_) | (top_ & ~m_);
     return a >> (zi_s8x32)c_;
@@ -7500,9 +13268,23 @@ ZI_FN zi_s8x32 ZI_N(shr_lanes_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(shr_lanes_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(shr_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, c_ = (__m256i)b, lo_ = _mm256_set1_epi32(0xffff);
+    __m256i ce_ = _mm256_and_si256(c_, lo_), co_ = _mm256_srli_epi32(c_, 16);
+    __m256i e_ = _mm256_srlv_epi32(_mm256_and_si256(x_, lo_), ce_), o_ = _mm256_srlv_epi32(x_, co_);
+    return (zi_u16x16)_mm256_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
+    return ZI_N(combine_u16x8)(ZI_N(shr_lanes_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(shr_lanes_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 c_ = (zi_u16x16)b, ok_ = (zi_u16x16)(c_ < 16);
     return (zi_u16x16)(((zi_u16x16)a >> (c_ & 15)) & ok_);
 #else
@@ -7514,9 +13296,23 @@ ZI_FN zi_u16x16 ZI_N(shr_lanes_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(shr_lanes_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(shr_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, c_ = (__m256i)b, lo_ = _mm256_set1_epi32(0xffff);
+    __m256i ce_ = _mm256_and_si256(c_, lo_), co_ = _mm256_srli_epi32(c_, 16);
+    __m256i e_ = _mm256_srav_epi32(_mm256_slli_epi32(x_, 16), _mm256_add_epi32(ce_, _mm256_set1_epi32(16))), o_ = _mm256_srav_epi32(x_, co_);
+    return (zi_s16x16)_mm256_blend_epi16(e_, o_, 0xaa);
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
+    return ZI_N(combine_s16x8)(ZI_N(shr_lanes_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(shr_lanes_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 c_ = (zi_u16x16)b, top_ = (zi_u16x16){0} + 15, m_ = (zi_u16x16)(c_ < top_);
     c_ = (c_ & m_) | (top_ & ~m_);
     return a >> (zi_s16x16)c_;
@@ -7529,11 +13325,18 @@ ZI_FN zi_s16x16 ZI_N(shr_lanes_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(shr_lanes_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(shr_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_srlv_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_u32x4)(ZI_N(shr_lanes_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(shr_lanes_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 c_ = (zi_u32x8)b, ok_ = (zi_u32x8)(c_ < 32);
@@ -7547,11 +13350,18 @@ ZI_FN zi_u32x8 ZI_N(shr_lanes_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(shr_lanes_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(shr_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_srav_epi32((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_s32x4)(ZI_N(shr_lanes_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(shr_lanes_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_u32x8 c_ = (zi_u32x8)b, top_ = (zi_u32x8){0} + 31, m_ = (zi_u32x8)(c_ < top_);
@@ -7566,11 +13376,18 @@ ZI_FN zi_s32x8 ZI_N(shr_lanes_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(shr_lanes_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(shr_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_srlv_epi64((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_X86 && ZI_TIER >= 4))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 4))
     return ZI_N(combine_u64x2)(ZI_N(shr_lanes_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(shr_lanes_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
 #elif ZI_VEC
     zi_u64x4 c_ = (zi_u64x4)b, ok_ = (zi_u64x4)(c_ < 64);
@@ -7584,9 +13401,18 @@ ZI_FN zi_u64x4 ZI_N(shr_lanes_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(shr_lanes_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(shr_lanes_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(shr_lanes_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(shr_lanes_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 c_ = (zi_u64x4)b, top_ = (zi_u64x4){0} + 63, m_ = (zi_u64x4)(c_ < top_);
     c_ = (c_ & m_) | (top_ & ~m_);
     return a >> (zi_s64x4)c_;
@@ -8219,44 +14045,104 @@ ZI_FN double ZI_N(lane_f64x2)(zi_f64x2 a, int i)
 {
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(lane_u8x32_p_)(const zi_u8x32 *a_p_, int i)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN uint8_t ZI_N(lane_u8x32)(zi_u8x32 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(lane_s8x32_p_)(const zi_s8x32 *a_p_, int i)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int8_t ZI_N(lane_s8x32)(zi_s8x32 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(lane_u16x16_p_)(const zi_u16x16 *a_p_, int i)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN uint16_t ZI_N(lane_u16x16)(zi_u16x16 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(lane_s16x16_p_)(const zi_s16x16 *a_p_, int i)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int16_t ZI_N(lane_s16x16)(zi_s16x16 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(lane_u32x8_p_)(const zi_u32x8 *a_p_, int i)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN uint32_t ZI_N(lane_u32x8)(zi_u32x8 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(lane_s32x8_p_)(const zi_s32x8 *a_p_, int i)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int32_t ZI_N(lane_s32x8)(zi_s32x8 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(lane_u64x4_p_)(const zi_u64x4 *a_p_, int i)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN uint64_t ZI_N(lane_u64x4)(zi_u64x4 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(lane_s64x4_p_)(const zi_s64x4 *a_p_, int i)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(lane_s64x4)(zi_s64x4 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN float ZI_N(lane_f32x8_p_)(const zi_f32x8 *a_p_, int i)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN float ZI_N(lane_f32x8)(zi_f32x8 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN double ZI_N(lane_f64x4_p_)(const zi_f64x4 *a_p_, int i)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN double ZI_N(lane_f64x4)(zi_f64x4 a, int i)
 {
+#endif
     return ZI_AT(a, i);
 }
 ZI_FN zi_u8x16 ZI_N(with_lane_u8x16)(zi_u8x16 a, int i, uint8_t x)
@@ -8309,53 +14195,113 @@ ZI_FN zi_f64x2 ZI_N(with_lane_f64x2)(zi_f64x2 a, int i, double x)
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(with_lane_u8x32_p_)(const zi_u8x32 *a_p_, int i, uint8_t x)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(with_lane_u8x32)(zi_u8x32 a, int i, uint8_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(with_lane_s8x32_p_)(const zi_s8x32 *a_p_, int i, int8_t x)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(with_lane_s8x32)(zi_s8x32 a, int i, int8_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(with_lane_u16x16_p_)(const zi_u16x16 *a_p_, int i, uint16_t x)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(with_lane_u16x16)(zi_u16x16 a, int i, uint16_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(with_lane_s16x16_p_)(const zi_s16x16 *a_p_, int i, int16_t x)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(with_lane_s16x16)(zi_s16x16 a, int i, int16_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(with_lane_u32x8_p_)(const zi_u32x8 *a_p_, int i, uint32_t x)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(with_lane_u32x8)(zi_u32x8 a, int i, uint32_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(with_lane_s32x8_p_)(const zi_s32x8 *a_p_, int i, int32_t x)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(with_lane_s32x8)(zi_s32x8 a, int i, int32_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(with_lane_u64x4_p_)(const zi_u64x4 *a_p_, int i, uint64_t x)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(with_lane_u64x4)(zi_u64x4 a, int i, uint64_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(with_lane_s64x4_p_)(const zi_s64x4 *a_p_, int i, int64_t x)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(with_lane_s64x4)(zi_s64x4 a, int i, int64_t x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(with_lane_f32x8_p_)(const zi_f32x8 *a_p_, int i, float x)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(with_lane_f32x8)(zi_f32x8 a, int i, float x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(with_lane_f64x4_p_)(const zi_f64x4 *a_p_, int i, double x)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(with_lane_f64x4)(zi_f64x4 a, int i, double x)
 {
+#endif
     ZI_AT(a, i) = x;
     return a;
 }
@@ -9039,80 +14985,140 @@ ZI_FN void ZI_N(store_f64x2)(void * p, zi_f64x2 a)
     memcpy(p, &a, 16);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u8x32_p_)(void * p, const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_u8x32)(void * p, zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s8x32_p_)(void * p, const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_s8x32)(void * p, zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u16x16_p_)(void * p, const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_u16x16)(void * p, zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s16x16_p_)(void * p, const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_s16x16)(void * p, zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u32x8_p_)(void * p, const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_u32x8)(void * p, zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s32x8_p_)(void * p, const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_s32x8)(void * p, zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_u64x4_p_)(void * p, const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_u64x4)(void * p, zi_u64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_s64x4_p_)(void * p, const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_s64x4)(void * p, zi_s64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_f32x8_p_)(void * p, const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_f32x8)(void * p, zi_f32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
     memcpy(p, &a, 32);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_f64x4_p_)(void * p, const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_f64x4)(void * p, zi_f64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     _mm256_storeu_si256((__m256i *)p, (__m256i)a);
 #else
@@ -9239,44 +15245,104 @@ ZI_FN void ZI_N(store_low_f64x2)(void * p, zi_f64x2 a)
     memcpy(p, &a, 8);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u8x32_p_)(void * p, const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_u8x32)(void * p, zi_u8x32 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s8x32_p_)(void * p, const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_s8x32)(void * p, zi_s8x32 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u16x16_p_)(void * p, const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_u16x16)(void * p, zi_u16x16 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s16x16_p_)(void * p, const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_s16x16)(void * p, zi_s16x16 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u32x8_p_)(void * p, const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_u32x8)(void * p, zi_u32x8 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s32x8_p_)(void * p, const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_s32x8)(void * p, zi_s32x8 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_u64x4_p_)(void * p, const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_u64x4)(void * p, zi_u64x4 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_s64x4_p_)(void * p, const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_s64x4)(void * p, zi_s64x4 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_f32x8_p_)(void * p, const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_f32x8)(void * p, zi_f32x8 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN void ZI_N(store_low_f64x4_p_)(void * p, const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN void ZI_N(store_low_f64x4)(void * p, zi_f64x4 a)
 {
+#endif
     memcpy(p, &a, 8);
 }
 ZI_FN zi_u32x4 ZI_N(gather_u32x4_u32x4)(const void * p, zi_u32x4 a)
@@ -9347,8 +15413,14 @@ ZI_FN zi_f32x4 ZI_N(gather_s32x4_f32x4)(const void * p, zi_s32x4 a)
     }
     return r_;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gather_u32x8_u32x8_p_)(const void * p, const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(gather_u32x8_u32x8)(const void * p, zi_u32x8 a)
 {
+#endif
     zi_u32x8 r_;
     for(int i_ = 0; i_ < 8; i_++) {
         uint32_t v_;
@@ -9357,8 +15429,14 @@ ZI_FN zi_u32x8 ZI_N(gather_u32x8_u32x8)(const void * p, zi_u32x8 a)
     }
     return r_;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gather_u32x8_s32x8_p_)(const void * p, const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(gather_u32x8_s32x8)(const void * p, zi_u32x8 a)
 {
+#endif
     zi_s32x8 r_;
     for(int i_ = 0; i_ < 8; i_++) {
         int32_t v_;
@@ -9367,8 +15445,14 @@ ZI_FN zi_s32x8 ZI_N(gather_u32x8_s32x8)(const void * p, zi_u32x8 a)
     }
     return r_;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(gather_u32x8_f32x8_p_)(const void * p, const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(gather_u32x8_f32x8)(const void * p, zi_u32x8 a)
 {
+#endif
     zi_f32x8 r_;
     for(int i_ = 0; i_ < 8; i_++) {
         float v_;
@@ -9377,8 +15461,14 @@ ZI_FN zi_f32x8 ZI_N(gather_u32x8_f32x8)(const void * p, zi_u32x8 a)
     }
     return r_;
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(gather_s32x8_u32x8_p_)(const void * p, const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(gather_s32x8_u32x8)(const void * p, zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_i32gather_epi32((const int *)p, (__m256i)a, 4);
 #else
@@ -9391,8 +15481,14 @@ ZI_FN zi_u32x8 ZI_N(gather_s32x8_u32x8)(const void * p, zi_s32x8 a)
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(gather_s32x8_s32x8_p_)(const void * p, const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(gather_s32x8_s32x8)(const void * p, zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_i32gather_epi32((const int *)p, (__m256i)a, 4);
 #else
@@ -9405,8 +15501,14 @@ ZI_FN zi_s32x8 ZI_N(gather_s32x8_s32x8)(const void * p, zi_s32x8 a)
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(gather_s32x8_f32x8_p_)(const void * p, const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(gather_s32x8_f32x8)(const void * p, zi_s32x8 a)
 {
+#endif
     zi_f32x8 r_;
     for(int i_ = 0; i_ < 8; i_++) {
         float v_;
@@ -9523,11 +15625,17 @@ ZI_FN zi_s64x2 ZI_N(widen_low_s32x4)(zi_s32x4 a)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(widen_low_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(widen_low_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_unpacklo_epi8((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(widen_low_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(widen_low_u8x16)(ZI_N(high_u8x32)(a)));
 #elif ZI_VEC
     return (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23), zi_u16x16);
@@ -9539,11 +15647,17 @@ ZI_FN zi_u16x16 ZI_N(widen_low_u8x32)(zi_u8x32 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(widen_low_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(widen_low_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_srai_epi16(_mm256_unpacklo_epi8((__m256i)a, (__m256i)a), 8);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(widen_low_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(widen_low_s8x16)(ZI_N(high_s8x32)(a)));
 #elif ZI_VEC
     return (zi_s16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23), zi_s16x16);
@@ -9555,11 +15669,17 @@ ZI_FN zi_s16x16 ZI_N(widen_low_s8x32)(zi_s8x32 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(widen_low_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(widen_low_u16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_unpacklo_epi16((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u32x4)(ZI_N(widen_low_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(widen_low_u16x8)(ZI_N(high_u16x16)(a)));
 #elif ZI_VEC
     return (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 8, 9, 10, 11), zi_u32x8);
@@ -9571,11 +15691,17 @@ ZI_FN zi_u32x8 ZI_N(widen_low_u16x16)(zi_u16x16 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(widen_low_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(widen_low_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_srai_epi32(_mm256_unpacklo_epi16((__m256i)a, (__m256i)a), 16);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(widen_low_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(widen_low_s16x8)(ZI_N(high_s16x16)(a)));
 #elif ZI_VEC
     return (zi_s32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 2, 3, 8, 9, 10, 11), zi_s32x8);
@@ -9587,11 +15713,17 @@ ZI_FN zi_s32x8 ZI_N(widen_low_s16x16)(zi_s16x16 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(widen_low_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(widen_low_u32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_unpacklo_epi32((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u64x2)(ZI_N(widen_low_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(widen_low_u32x4)(ZI_N(high_u32x8)(a)));
 #elif ZI_VEC
     return (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 4, 5), zi_u64x4);
@@ -9603,11 +15735,17 @@ ZI_FN zi_u64x4 ZI_N(widen_low_u32x8)(zi_u32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(widen_low_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(widen_low_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x4)_mm256_unpacklo_epi32((__m256i)a, _mm256_srai_epi32((__m256i)a, 31));
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s64x2)(ZI_N(widen_low_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(widen_low_s32x4)(ZI_N(high_s32x8)(a)));
 #elif ZI_VEC
     return (zi_s64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 1, 4, 5), zi_s64x4);
@@ -9739,11 +15877,17 @@ ZI_FN zi_s64x2 ZI_N(widen_high_s32x4)(zi_s32x4 a)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(widen_high_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(widen_high_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_unpackhi_epi8((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u16x8)(ZI_N(widen_high_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(widen_high_u8x16)(ZI_N(high_u8x32)(a)));
 #elif ZI_VEC
     return (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31), zi_u16x16);
@@ -9755,11 +15899,17 @@ ZI_FN zi_u16x16 ZI_N(widen_high_u8x32)(zi_u8x32 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(widen_high_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(widen_high_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_srai_epi16(_mm256_unpackhi_epi8((__m256i)a, (__m256i)a), 8);
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s16x8)(ZI_N(widen_high_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(widen_high_s8x16)(ZI_N(high_s8x32)(a)));
 #elif ZI_VEC
     return (zi_s16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31), zi_s16x16);
@@ -9771,11 +15921,17 @@ ZI_FN zi_s16x16 ZI_N(widen_high_s8x32)(zi_s8x32 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(widen_high_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(widen_high_u16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_unpackhi_epi16((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u32x4)(ZI_N(widen_high_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(widen_high_u16x8)(ZI_N(high_u16x16)(a)));
 #elif ZI_VEC
     return (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7, 12, 13, 14, 15), zi_u32x8);
@@ -9787,11 +15943,17 @@ ZI_FN zi_u32x8 ZI_N(widen_high_u16x16)(zi_u16x16 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(widen_high_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(widen_high_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_srai_epi32(_mm256_unpackhi_epi16((__m256i)a, (__m256i)a), 16);
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(widen_high_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(widen_high_s16x8)(ZI_N(high_s16x16)(a)));
 #elif ZI_VEC
     return (zi_s32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 4, 5, 6, 7, 12, 13, 14, 15), zi_s32x8);
@@ -9803,11 +15965,17 @@ ZI_FN zi_s32x8 ZI_N(widen_high_s16x16)(zi_s16x16 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(widen_high_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(widen_high_u32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_unpackhi_epi32((__m256i)a, _mm256_setzero_si256());
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u64x2)(ZI_N(widen_high_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(widen_high_u32x4)(ZI_N(high_u32x8)(a)));
 #elif ZI_VEC
     return (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3, 6, 7), zi_u64x4);
@@ -9819,11 +15987,17 @@ ZI_FN zi_u64x4 ZI_N(widen_high_u32x8)(zi_u32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(widen_high_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(widen_high_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x4)_mm256_unpackhi_epi32((__m256i)a, _mm256_srai_epi32((__m256i)a, 31));
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s64x2)(ZI_N(widen_high_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(widen_high_s32x4)(ZI_N(high_s32x8)(a)));
 #elif ZI_VEC
     return (zi_s64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 2, 3, 6, 7), zi_s64x4);
@@ -9933,8 +16107,17 @@ ZI_FN zi_s64x4 ZI_N(widen_s32x4)(zi_s32x4 a)
 }
 ZI_FN zi_u8x16 ZI_N(narrow_u16x8_u8x16)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_NEON
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i m_ = _mm_set1_epi16(255);
+    return (zi_u8x16)_mm_packus_epi16(_mm_min_epu16((__m128i)a, m_), _mm_min_epu16((__m128i)b, m_));
+#elif ZI_X86
+    __m128i m_ = _mm_set1_epi16(255), x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u8x16)_mm_packus_epi16(_mm_sub_epi16(x_, _mm_subs_epu16(x_, m_)), _mm_sub_epi16(y_, _mm_subs_epu16(y_, m_)));
+#elif ZI_NEON
     return (zi_u8x16)vcombine_u8(vqmovn_u16((uint16x8_t)a), vqmovn_u16((uint16x8_t)b));
+#elif ZI_WASM
+    v128_t m_ = wasm_i16x8_splat(255);
+    return (zi_u8x16)wasm_u8x16_narrow_i16x8(wasm_u16x8_min((v128_t)a, m_), wasm_u16x8_min((v128_t)b, m_));
 #elif ZI_VEC
     zi_u16x8 x_ = a, y_ = b, hi_ = (zi_u16x8){0} + (uint16_t)255LL;
     x_ = (zi_u16x8)(((zi_u16x8)hi_ & (zi_u16x8)(x_ > hi_)) | ((zi_u16x8)x_ & ~(zi_u16x8)(x_ > hi_)));
@@ -9950,7 +16133,18 @@ ZI_FN zi_u8x16 ZI_N(narrow_u16x8_u8x16)(zi_u16x8 a, zi_u16x8 b)
 }
 ZI_FN zi_s8x16 ZI_N(narrow_u16x8_s8x16)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i m_ = _mm_set1_epi16(127);
+    return (zi_s8x16)_mm_packs_epi16(_mm_min_epu16((__m128i)a, m_), _mm_min_epu16((__m128i)b, m_));
+#elif ZI_X86
+    __m128i m_ = _mm_set1_epi16(127), x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s8x16)_mm_packs_epi16(_mm_sub_epi16(x_, _mm_subs_epu16(x_, m_)), _mm_sub_epi16(y_, _mm_subs_epu16(y_, m_)));
+#elif ZI_NEON
+    return (zi_s8x16)vminq_u8(vcombine_u8(vqmovn_u16((uint16x8_t)a), vqmovn_u16((uint16x8_t)b)), vdupq_n_u8(127));
+#elif ZI_WASM
+    v128_t m_ = wasm_i16x8_splat(127);
+    return (zi_s8x16)wasm_i8x16_narrow_i16x8(wasm_u16x8_min((v128_t)a, m_), wasm_u16x8_min((v128_t)b, m_));
+#elif ZI_VEC
     zi_u16x8 x_ = a, y_ = b, hi_ = (zi_u16x8){0} + (uint16_t)127LL;
     x_ = (zi_u16x8)(((zi_u16x8)hi_ & (zi_u16x8)(x_ > hi_)) | ((zi_u16x8)x_ & ~(zi_u16x8)(x_ > hi_)));
     y_ = (zi_u16x8)(((zi_u16x8)hi_ & (zi_u16x8)(y_ > hi_)) | ((zi_u16x8)y_ & ~(zi_u16x8)(y_ > hi_)));
@@ -10013,8 +16207,18 @@ ZI_FN zi_s8x16 ZI_N(narrow_s16x8_s8x16)(zi_s16x8 a, zi_s16x8 b)
 }
 ZI_FN zi_u16x8 ZI_N(narrow_u32x4_u16x8)(zi_u32x4 a, zi_u32x4 b)
 {
-#if ZI_NEON
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i m_ = _mm_set1_epi32(65535);
+    return (zi_u16x8)_mm_packus_epi32(_mm_min_epu32((__m128i)a, m_), _mm_min_epu32((__m128i)b, m_));
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b, o_ = _mm_set1_epi32(32768);
+    __m128i p_ = _mm_packs_epi32(_mm_sub_epi32(_mm_and_si128(_mm_or_si128(x_, _mm_srai_epi32(x_, 31)), _mm_set1_epi32(0x7fffffff)), o_), _mm_sub_epi32(_mm_and_si128(_mm_or_si128(y_, _mm_srai_epi32(y_, 31)), _mm_set1_epi32(0x7fffffff)), o_));
+    return (zi_u16x8)_mm_xor_si128(p_, _mm_set1_epi16((short)0x8000));
+#elif ZI_NEON
     return (zi_u16x8)vcombine_u16(vqmovn_u32((uint32x4_t)a), vqmovn_u32((uint32x4_t)b));
+#elif ZI_WASM
+    v128_t m_ = wasm_i32x4_splat(65535);
+    return (zi_u16x8)wasm_u16x8_narrow_i32x4(wasm_u32x4_min((v128_t)a, m_), wasm_u32x4_min((v128_t)b, m_));
 #elif ZI_VEC
     zi_u32x4 x_ = a, y_ = b, hi_ = (zi_u32x4){0} + (uint32_t)65535LL;
     x_ = (zi_u32x4)(((zi_u32x4)hi_ & (zi_u32x4)(x_ > hi_)) | ((zi_u32x4)x_ & ~(zi_u32x4)(x_ > hi_)));
@@ -10030,7 +16234,18 @@ ZI_FN zi_u16x8 ZI_N(narrow_u32x4_u16x8)(zi_u32x4 a, zi_u32x4 b)
 }
 ZI_FN zi_s16x8 ZI_N(narrow_u32x4_s16x8)(zi_u32x4 a, zi_u32x4 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i m_ = _mm_set1_epi32(32767);
+    return (zi_s16x8)_mm_packs_epi32(_mm_min_epu32((__m128i)a, m_), _mm_min_epu32((__m128i)b, m_));
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s16x8)_mm_packs_epi32(_mm_and_si128(_mm_or_si128(x_, _mm_srai_epi32(x_, 31)), _mm_set1_epi32(0x7fffffff)), _mm_and_si128(_mm_or_si128(y_, _mm_srai_epi32(y_, 31)), _mm_set1_epi32(0x7fffffff)));
+#elif ZI_NEON
+    return (zi_s16x8)vminq_u16(vcombine_u16(vqmovn_u32((uint32x4_t)a), vqmovn_u32((uint32x4_t)b)), vdupq_n_u16(32767));
+#elif ZI_WASM
+    v128_t m_ = wasm_i32x4_splat(32767);
+    return (zi_s16x8)wasm_i16x8_narrow_i32x4(wasm_u32x4_min((v128_t)a, m_), wasm_u32x4_min((v128_t)b, m_));
+#elif ZI_VEC
     zi_u32x4 x_ = a, y_ = b, hi_ = (zi_u32x4){0} + (uint32_t)32767LL;
     x_ = (zi_u32x4)(((zi_u32x4)hi_ & (zi_u32x4)(x_ > hi_)) | ((zi_u32x4)x_ & ~(zi_u32x4)(x_ > hi_)));
     y_ = (zi_u32x4)(((zi_u32x4)hi_ & (zi_u32x4)(y_ > hi_)) | ((zi_u32x4)y_ & ~(zi_u32x4)(y_ > hi_)));
@@ -10047,6 +16262,10 @@ ZI_FN zi_u16x8 ZI_N(narrow_s32x4_u16x8)(zi_s32x4 a, zi_s32x4 b)
 {
 #if ZI_X86 && ZI_TIER >= 3
     return (zi_u16x8)_mm_packus_epi32((__m128i)a, (__m128i)b);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b, o_ = _mm_set1_epi32(32768);
+    __m128i p_ = _mm_packs_epi32(_mm_sub_epi32(_mm_andnot_si128(_mm_srai_epi32(x_, 31), x_), o_), _mm_sub_epi32(_mm_andnot_si128(_mm_srai_epi32(y_, 31), y_), o_));
+    return (zi_u16x8)_mm_xor_si128(p_, _mm_set1_epi16((short)0x8000));
 #elif ZI_NEON
     return (zi_u16x8)vcombine_u16(vqmovun_s32((int32x4_t)a), vqmovun_s32((int32x4_t)b));
 #elif ZI_WASM
@@ -10110,7 +16329,9 @@ ZI_FN zi_u32x4 ZI_N(narrow_u64x2_u32x4)(zi_u64x2 a, zi_u64x2 b)
 }
 ZI_FN zi_s32x4 ZI_N(narrow_u64x2_s32x4)(zi_u64x2 a, zi_u64x2 b)
 {
-#if ZI_VEC
+#if ZI_NEON
+    return (zi_s32x4)vminq_u32(vcombine_u32(vqmovn_u64((uint64x2_t)a), vqmovn_u64((uint64x2_t)b)), vdupq_n_u32(2147483647));
+#elif ZI_VEC
     zi_u64x2 x_ = a, y_ = b, hi_ = (zi_u64x2){0} + (uint64_t)2147483647LL;
     x_ = (zi_u64x2)(((zi_u64x2)hi_ & (zi_u64x2)(x_ > hi_)) | ((zi_u64x2)x_ & ~(zi_u64x2)(x_ > hi_)));
     y_ = (zi_u64x2)(((zi_u64x2)hi_ & (zi_u64x2)(y_ > hi_)) | ((zi_u64x2)y_ & ~(zi_u64x2)(y_ > hi_)));
@@ -10163,9 +16384,22 @@ ZI_FN zi_s32x4 ZI_N(narrow_s64x2_s32x4)(zi_s64x2 a, zi_s64x2 b)
     return zi_pack_s32x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(narrow_u16x16_u8x32_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(narrow_u16x16_u8x32)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i m_ = _mm256_set1_epi16(255);
+    return (zi_u8x32)_mm256_packus_epi16(_mm256_min_epu16((__m256i)a, m_), _mm256_min_epu16((__m256i)b, m_));
+#elif ZI_VEC
+    return ZI_N(combine_u8x16)(ZI_N(narrow_u16x8_u8x16)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)),
+        ZI_N(narrow_u16x8_u8x16)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 x_ = a, y_ = b, hi_ = (zi_u16x16){0} + (uint16_t)255LL;
     x_ = (zi_u16x16)(((zi_u16x16)hi_ & (zi_u16x16)(x_ > hi_)) | ((zi_u16x16)x_ & ~(zi_u16x16)(x_ > hi_)));
     y_ = (zi_u16x16)(((zi_u16x16)hi_ & (zi_u16x16)(y_ > hi_)) | ((zi_u16x16)y_ & ~(zi_u16x16)(y_ > hi_)));
@@ -10178,9 +16412,22 @@ ZI_FN zi_u8x32 ZI_N(narrow_u16x16_u8x32)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(narrow_u16x16_s8x32_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(narrow_u16x16_s8x32)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i m_ = _mm256_set1_epi16(127);
+    return (zi_s8x32)_mm256_packs_epi16(_mm256_min_epu16((__m256i)a, m_), _mm256_min_epu16((__m256i)b, m_));
+#elif ZI_VEC
+    return ZI_N(combine_s8x16)(ZI_N(narrow_u16x8_s8x16)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)),
+        ZI_N(narrow_u16x8_s8x16)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u16x16 x_ = a, y_ = b, hi_ = (zi_u16x16){0} + (uint16_t)127LL;
     x_ = (zi_u16x16)(((zi_u16x16)hi_ & (zi_u16x16)(x_ > hi_)) | ((zi_u16x16)x_ & ~(zi_u16x16)(x_ > hi_)));
     y_ = (zi_u16x16)(((zi_u16x16)hi_ & (zi_u16x16)(y_ > hi_)) | ((zi_u16x16)y_ & ~(zi_u16x16)(y_ > hi_)));
@@ -10193,10 +16440,20 @@ ZI_FN zi_s8x32 ZI_N(narrow_u16x16_s8x32)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(narrow_s16x16_u8x32_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(narrow_s16x16_u8x32)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_packus_epi16((__m256i)a, (__m256i)b);
+#elif ZI_VEC
+    return ZI_N(combine_u8x16)(ZI_N(narrow_s16x8_u8x16)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)),
+        ZI_N(narrow_s16x8_u8x16)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     zi_s16x16 x_ = a, y_ = b, hi_ = (zi_s16x16){0} + (int16_t)255LL;
     zi_s16x16 lo_ = (zi_s16x16){0} + (int16_t)(0LL);
@@ -10213,10 +16470,20 @@ ZI_FN zi_u8x32 ZI_N(narrow_s16x16_u8x32)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(narrow_s16x16_s8x32_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(narrow_s16x16_s8x32)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_packs_epi16((__m256i)a, (__m256i)b);
+#elif ZI_VEC
+    return ZI_N(combine_s8x16)(ZI_N(narrow_s16x8_s8x16)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)),
+        ZI_N(narrow_s16x8_s8x16)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     zi_s16x16 x_ = a, y_ = b, hi_ = (zi_s16x16){0} + (int16_t)127LL;
     zi_s16x16 lo_ = (zi_s16x16){0} + (int16_t)(-128LL);
@@ -10233,9 +16500,22 @@ ZI_FN zi_s8x32 ZI_N(narrow_s16x16_s8x32)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(narrow_u32x8_u16x16_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(narrow_u32x8_u16x16)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i m_ = _mm256_set1_epi32(65535);
+    return (zi_u16x16)_mm256_packus_epi32(_mm256_min_epu32((__m256i)a, m_), _mm256_min_epu32((__m256i)b, m_));
+#elif ZI_VEC
+    return ZI_N(combine_u16x8)(ZI_N(narrow_u32x4_u16x8)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)),
+        ZI_N(narrow_u32x4_u16x8)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     zi_u32x8 x_ = a, y_ = b, hi_ = (zi_u32x8){0} + (uint32_t)65535LL;
     x_ = (zi_u32x8)(((zi_u32x8)hi_ & (zi_u32x8)(x_ > hi_)) | ((zi_u32x8)x_ & ~(zi_u32x8)(x_ > hi_)));
     y_ = (zi_u32x8)(((zi_u32x8)hi_ & (zi_u32x8)(y_ > hi_)) | ((zi_u32x8)y_ & ~(zi_u32x8)(y_ > hi_)));
@@ -10248,9 +16528,22 @@ ZI_FN zi_u16x16 ZI_N(narrow_u32x8_u16x16)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(narrow_u32x8_s16x16_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(narrow_u32x8_s16x16)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i m_ = _mm256_set1_epi32(32767);
+    return (zi_s16x16)_mm256_packs_epi32(_mm256_min_epu32((__m256i)a, m_), _mm256_min_epu32((__m256i)b, m_));
+#elif ZI_VEC
+    return ZI_N(combine_s16x8)(ZI_N(narrow_u32x4_s16x8)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)),
+        ZI_N(narrow_u32x4_s16x8)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     zi_u32x8 x_ = a, y_ = b, hi_ = (zi_u32x8){0} + (uint32_t)32767LL;
     x_ = (zi_u32x8)(((zi_u32x8)hi_ & (zi_u32x8)(x_ > hi_)) | ((zi_u32x8)x_ & ~(zi_u32x8)(x_ > hi_)));
     y_ = (zi_u32x8)(((zi_u32x8)hi_ & (zi_u32x8)(y_ > hi_)) | ((zi_u32x8)y_ & ~(zi_u32x8)(y_ > hi_)));
@@ -10263,10 +16556,20 @@ ZI_FN zi_s16x16 ZI_N(narrow_u32x8_s16x16)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(narrow_s32x8_u16x16_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(narrow_s32x8_u16x16)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_packus_epi32((__m256i)a, (__m256i)b);
+#elif ZI_VEC
+    return ZI_N(combine_u16x8)(ZI_N(narrow_s32x4_u16x8)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)),
+        ZI_N(narrow_s32x4_u16x8)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_s32x8 x_ = a, y_ = b, hi_ = (zi_s32x8){0} + (int32_t)65535LL;
     zi_s32x8 lo_ = (zi_s32x8){0} + (int32_t)(0LL);
@@ -10283,10 +16586,20 @@ ZI_FN zi_u16x16 ZI_N(narrow_s32x8_u16x16)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(narrow_s32x8_s16x16_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(narrow_s32x8_s16x16)(zi_s32x8 a, zi_s32x8 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_packs_epi32((__m256i)a, (__m256i)b);
+#elif ZI_VEC
+    return ZI_N(combine_s16x8)(ZI_N(narrow_s32x4_s16x8)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)),
+        ZI_N(narrow_s32x4_s16x8)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
 #elif ZI_VEC
     zi_s32x8 x_ = a, y_ = b, hi_ = (zi_s32x8){0} + (int32_t)32767LL;
     zi_s32x8 lo_ = (zi_s32x8){0} + (int32_t)(-32768LL);
@@ -10303,9 +16616,19 @@ ZI_FN zi_s16x16 ZI_N(narrow_s32x8_s16x16)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(narrow_u64x4_u32x8_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(narrow_u64x4_u32x8)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_NEON
+    return ZI_N(combine_u32x4)(ZI_N(narrow_u64x2_u32x4)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)),
+        ZI_N(narrow_u64x2_u32x4)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 x_ = a, y_ = b, hi_ = (zi_u64x4){0} + (uint64_t)4294967295LL;
     x_ = (zi_u64x4)(((zi_u64x4)hi_ & (zi_u64x4)(x_ > hi_)) | ((zi_u64x4)x_ & ~(zi_u64x4)(x_ > hi_)));
     y_ = (zi_u64x4)(((zi_u64x4)hi_ & (zi_u64x4)(y_ > hi_)) | ((zi_u64x4)y_ & ~(zi_u64x4)(y_ > hi_)));
@@ -10318,9 +16641,19 @@ ZI_FN zi_u32x8 ZI_N(narrow_u64x4_u32x8)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(narrow_u64x4_s32x8_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(narrow_u64x4_s32x8)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_NEON
+    return ZI_N(combine_s32x4)(ZI_N(narrow_u64x2_s32x4)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)),
+        ZI_N(narrow_u64x2_s32x4)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     zi_u64x4 x_ = a, y_ = b, hi_ = (zi_u64x4){0} + (uint64_t)2147483647LL;
     x_ = (zi_u64x4)(((zi_u64x4)hi_ & (zi_u64x4)(x_ > hi_)) | ((zi_u64x4)x_ & ~(zi_u64x4)(x_ > hi_)));
     y_ = (zi_u64x4)(((zi_u64x4)hi_ & (zi_u64x4)(y_ > hi_)) | ((zi_u64x4)y_ & ~(zi_u64x4)(y_ > hi_)));
@@ -10333,9 +16666,19 @@ ZI_FN zi_s32x8 ZI_N(narrow_u64x4_s32x8)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(narrow_s64x4_u32x8_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(narrow_s64x4_u32x8)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_NEON
+    return ZI_N(combine_u32x4)(ZI_N(narrow_s64x2_u32x4)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)),
+        ZI_N(narrow_s64x2_u32x4)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     zi_s64x4 x_ = a, y_ = b, hi_ = (zi_s64x4){0} + (int64_t)4294967295LL;
     zi_s64x4 lo_ = (zi_s64x4){0} + (int64_t)(0LL);
     x_ = (zi_s64x4)(((zi_u64x4)hi_ & (zi_u64x4)(x_ > hi_)) | ((zi_u64x4)x_ & ~(zi_u64x4)(x_ > hi_)));
@@ -10351,9 +16694,19 @@ ZI_FN zi_u32x8 ZI_N(narrow_s64x4_u32x8)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(narrow_s64x4_s32x8_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(narrow_s64x4_s32x8)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_NEON
+    return ZI_N(combine_s32x4)(ZI_N(narrow_s64x2_s32x4)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)),
+        ZI_N(narrow_s64x2_s32x4)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     zi_s64x4 x_ = a, y_ = b, hi_ = (zi_s64x4){0} + (int64_t)2147483647LL;
     zi_s64x4 lo_ = (zi_s64x4){0} + (int64_t)(-2147483648LL);
     x_ = (zi_s64x4)(((zi_u64x4)hi_ & (zi_u64x4)(x_ > hi_)) | ((zi_u64x4)x_ & ~(zi_u64x4)(x_ > hi_)));
@@ -10399,7 +16752,10 @@ ZI_FN zi_s16x8 ZI_N(mul_wide_low_s8x16)(zi_s8x16 a, zi_s8x16 b)
 }
 ZI_FN zi_u32x4 ZI_N(mul_wide_low_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u32x4)_mm_unpacklo_epi16(_mm_mullo_epi16(x_, y_), _mm_mulhi_epu16(x_, y_));
+#elif ZI_VEC
     zi_u32x4 x_ = ZI_N(widen_low_u16x8)(a), y_ = ZI_N(widen_low_u16x8)(b);
     return (zi_u32x4)((zi_u32x4)x_ * (zi_u32x4)y_);
 #else
@@ -10413,7 +16769,10 @@ ZI_FN zi_u32x4 ZI_N(mul_wide_low_u16x8)(zi_u16x8 a, zi_u16x8 b)
 }
 ZI_FN zi_s32x4 ZI_N(mul_wide_low_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s32x4)_mm_unpacklo_epi16(_mm_mullo_epi16(x_, y_), _mm_mulhi_epi16(x_, y_));
+#elif ZI_VEC
     zi_s32x4 x_ = ZI_N(widen_low_s16x8)(a), y_ = ZI_N(widen_low_s16x8)(b);
     return (zi_s32x4)((zi_u32x4)x_ * (zi_u32x4)y_);
 #else
@@ -10427,7 +16786,10 @@ ZI_FN zi_s32x4 ZI_N(mul_wide_low_s16x8)(zi_s16x8 a, zi_s16x8 b)
 }
 ZI_FN zi_u64x2 ZI_N(mul_wide_low_u32x4)(zi_u32x4 a, zi_u32x4 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u64x2)_mm_mul_epu32(_mm_unpacklo_epi32(x_, x_), _mm_unpacklo_epi32(y_, y_));
+#elif ZI_VEC
     zi_u64x2 x_ = ZI_N(widen_low_u32x4)(a), y_ = ZI_N(widen_low_u32x4)(b);
     return (zi_u64x2)((zi_u64x2)x_ * (zi_u64x2)y_);
 #else
@@ -10441,7 +16803,10 @@ ZI_FN zi_u64x2 ZI_N(mul_wide_low_u32x4)(zi_u32x4 a, zi_u32x4 b)
 }
 ZI_FN zi_s64x2 ZI_N(mul_wide_low_s32x4)(zi_s32x4 a, zi_s32x4 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s64x2)_mm_mul_epi32(_mm_unpacklo_epi32(x_, x_), _mm_unpacklo_epi32(y_, y_));
+#elif ZI_VEC
     zi_s64x2 x_ = ZI_N(widen_low_s32x4)(a), y_ = ZI_N(widen_low_s32x4)(b);
     return (zi_s64x2)((zi_u64x2)x_ * (zi_u64x2)y_);
 #else
@@ -10453,9 +16818,18 @@ ZI_FN zi_s64x2 ZI_N(mul_wide_low_s32x4)(zi_s32x4 a, zi_s32x4 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_wide_low_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(mul_wide_low_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(mul_wide_low_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(mul_wide_low_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     zi_u16x16 x_ = ZI_N(widen_low_u8x32)(a), y_ = ZI_N(widen_low_u8x32)(b);
     return (zi_u16x16)((zi_u16x16)x_ * (zi_u16x16)y_);
 #else
@@ -10467,9 +16841,18 @@ ZI_FN zi_u16x16 ZI_N(mul_wide_low_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_wide_low_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(mul_wide_low_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(mul_wide_low_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(mul_wide_low_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     zi_s16x16 x_ = ZI_N(widen_low_s8x32)(a), y_ = ZI_N(widen_low_s8x32)(b);
     return (zi_s16x16)((zi_u16x16)x_ * (zi_u16x16)y_);
 #else
@@ -10481,9 +16864,21 @@ ZI_FN zi_s16x16 ZI_N(mul_wide_low_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_wide_low_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(mul_wide_low_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u32x8)_mm256_unpacklo_epi16(_mm256_mullo_epi16(x_, y_), _mm256_mulhi_epu16(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_u32x4)(ZI_N(mul_wide_low_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(mul_wide_low_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u32x8 x_ = ZI_N(widen_low_u16x16)(a), y_ = ZI_N(widen_low_u16x16)(b);
     return (zi_u32x8)((zi_u32x8)x_ * (zi_u32x8)y_);
 #else
@@ -10495,9 +16890,21 @@ ZI_FN zi_u32x8 ZI_N(mul_wide_low_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_wide_low_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(mul_wide_low_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_s32x8)_mm256_unpacklo_epi16(_mm256_mullo_epi16(x_, y_), _mm256_mulhi_epi16(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_s32x4)(ZI_N(mul_wide_low_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(mul_wide_low_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     zi_s32x8 x_ = ZI_N(widen_low_s16x16)(a), y_ = ZI_N(widen_low_s16x16)(b);
     return (zi_s32x8)((zi_u32x8)x_ * (zi_u32x8)y_);
 #else
@@ -10509,9 +16916,21 @@ ZI_FN zi_s32x8 ZI_N(mul_wide_low_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_wide_low_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(mul_wide_low_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u64x4)_mm256_mul_epu32(_mm256_unpacklo_epi32(x_, x_), _mm256_unpacklo_epi32(y_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_u64x2)(ZI_N(mul_wide_low_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(mul_wide_low_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     zi_u64x4 x_ = ZI_N(widen_low_u32x8)(a), y_ = ZI_N(widen_low_u32x8)(b);
     return (zi_u64x4)((zi_u64x4)x_ * (zi_u64x4)y_);
 #else
@@ -10523,9 +16942,21 @@ ZI_FN zi_u64x4 ZI_N(mul_wide_low_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_wide_low_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(mul_wide_low_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_s64x4)_mm256_mul_epi32(_mm256_unpacklo_epi32(x_, x_), _mm256_unpacklo_epi32(y_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 3))
+    return ZI_N(combine_s64x2)(ZI_N(mul_wide_low_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(mul_wide_low_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     zi_s64x4 x_ = ZI_N(widen_low_s32x8)(a), y_ = ZI_N(widen_low_s32x8)(b);
     return (zi_s64x4)((zi_u64x4)x_ * (zi_u64x4)y_);
 #else
@@ -10567,7 +16998,10 @@ ZI_FN zi_s16x8 ZI_N(mul_wide_high_s8x16)(zi_s8x16 a, zi_s8x16 b)
 }
 ZI_FN zi_u32x4 ZI_N(mul_wide_high_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u32x4)_mm_unpackhi_epi16(_mm_mullo_epi16(x_, y_), _mm_mulhi_epu16(x_, y_));
+#elif ZI_VEC
     zi_u32x4 x_ = ZI_N(widen_high_u16x8)(a), y_ = ZI_N(widen_high_u16x8)(b);
     return (zi_u32x4)((zi_u32x4)x_ * (zi_u32x4)y_);
 #else
@@ -10581,7 +17015,10 @@ ZI_FN zi_u32x4 ZI_N(mul_wide_high_u16x8)(zi_u16x8 a, zi_u16x8 b)
 }
 ZI_FN zi_s32x4 ZI_N(mul_wide_high_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s32x4)_mm_unpackhi_epi16(_mm_mullo_epi16(x_, y_), _mm_mulhi_epi16(x_, y_));
+#elif ZI_VEC
     zi_s32x4 x_ = ZI_N(widen_high_s16x8)(a), y_ = ZI_N(widen_high_s16x8)(b);
     return (zi_s32x4)((zi_u32x4)x_ * (zi_u32x4)y_);
 #else
@@ -10595,7 +17032,10 @@ ZI_FN zi_s32x4 ZI_N(mul_wide_high_s16x8)(zi_s16x8 a, zi_s16x8 b)
 }
 ZI_FN zi_u64x2 ZI_N(mul_wide_high_u32x4)(zi_u32x4 a, zi_u32x4 b)
 {
-#if ZI_VEC
+#if ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_u64x2)_mm_mul_epu32(_mm_unpackhi_epi32(x_, x_), _mm_unpackhi_epi32(y_, y_));
+#elif ZI_VEC
     zi_u64x2 x_ = ZI_N(widen_high_u32x4)(a), y_ = ZI_N(widen_high_u32x4)(b);
     return (zi_u64x2)((zi_u64x2)x_ * (zi_u64x2)y_);
 #else
@@ -10609,7 +17049,10 @@ ZI_FN zi_u64x2 ZI_N(mul_wide_high_u32x4)(zi_u32x4 a, zi_u32x4 b)
 }
 ZI_FN zi_s64x2 ZI_N(mul_wide_high_s32x4)(zi_s32x4 a, zi_s32x4 b)
 {
-#if ZI_VEC
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    return (zi_s64x2)_mm_mul_epi32(_mm_unpackhi_epi32(x_, x_), _mm_unpackhi_epi32(y_, y_));
+#elif ZI_VEC
     zi_s64x2 x_ = ZI_N(widen_high_s32x4)(a), y_ = ZI_N(widen_high_s32x4)(b);
     return (zi_s64x2)((zi_u64x2)x_ * (zi_u64x2)y_);
 #else
@@ -10621,9 +17064,18 @@ ZI_FN zi_s64x2 ZI_N(mul_wide_high_s32x4)(zi_s32x4 a, zi_s32x4 b)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(mul_wide_high_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(mul_wide_high_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(mul_wide_high_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(mul_wide_high_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     zi_u16x16 x_ = ZI_N(widen_high_u8x32)(a), y_ = ZI_N(widen_high_u8x32)(b);
     return (zi_u16x16)((zi_u16x16)x_ * (zi_u16x16)y_);
 #else
@@ -10635,9 +17087,18 @@ ZI_FN zi_u16x16 ZI_N(mul_wide_high_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(mul_wide_high_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(mul_wide_high_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(mul_wide_high_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(mul_wide_high_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     zi_s16x16 x_ = ZI_N(widen_high_s8x32)(a), y_ = ZI_N(widen_high_s8x32)(b);
     return (zi_s16x16)((zi_u16x16)x_ * (zi_u16x16)y_);
 #else
@@ -10649,9 +17110,21 @@ ZI_FN zi_s16x16 ZI_N(mul_wide_high_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(mul_wide_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(mul_wide_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u32x8)_mm256_unpackhi_epi16(_mm256_mullo_epi16(x_, y_), _mm256_mulhi_epu16(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_u32x4)(ZI_N(mul_wide_high_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(mul_wide_high_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     zi_u32x8 x_ = ZI_N(widen_high_u16x16)(a), y_ = ZI_N(widen_high_u16x16)(b);
     return (zi_u32x8)((zi_u32x8)x_ * (zi_u32x8)y_);
 #else
@@ -10663,9 +17136,21 @@ ZI_FN zi_u32x8 ZI_N(mul_wide_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(mul_wide_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(mul_wide_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_s32x8)_mm256_unpackhi_epi16(_mm256_mullo_epi16(x_, y_), _mm256_mulhi_epi16(x_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_s32x4)(ZI_N(mul_wide_high_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(mul_wide_high_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     zi_s32x8 x_ = ZI_N(widen_high_s16x16)(a), y_ = ZI_N(widen_high_s16x16)(b);
     return (zi_s32x8)((zi_u32x8)x_ * (zi_u32x8)y_);
 #else
@@ -10677,9 +17162,21 @@ ZI_FN zi_s32x8 ZI_N(mul_wide_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(mul_wide_high_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(mul_wide_high_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_u64x4)_mm256_mul_epu32(_mm256_unpackhi_epi32(x_, x_), _mm256_unpackhi_epi32(y_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86))
+    return ZI_N(combine_u64x2)(ZI_N(mul_wide_high_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(mul_wide_high_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     zi_u64x4 x_ = ZI_N(widen_high_u32x8)(a), y_ = ZI_N(widen_high_u32x8)(b);
     return (zi_u64x4)((zi_u64x4)x_ * (zi_u64x4)y_);
 #else
@@ -10691,9 +17188,21 @@ ZI_FN zi_u64x4 ZI_N(mul_wide_high_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(mul_wide_high_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(mul_wide_high_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, y_ = (__m256i)b;
+    return (zi_s64x4)_mm256_mul_epi32(_mm256_unpackhi_epi32(x_, x_), _mm256_unpackhi_epi32(y_, y_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_X86 && ZI_TIER >= 3))
+    return ZI_N(combine_s64x2)(ZI_N(mul_wide_high_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(mul_wide_high_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     zi_s64x4 x_ = ZI_N(widen_high_s32x8)(a), y_ = ZI_N(widen_high_s32x8)(b);
     return (zi_s64x4)((zi_u64x4)x_ * (zi_u64x4)y_);
 #else
@@ -10734,11 +17243,18 @@ ZI_FN zi_s32x4 ZI_N(madd_s16x8)(zi_s16x8 a, zi_s16x8 b)
     return zi_pack_s32x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(madd_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(madd_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_madd_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_NEON && ZI_A64) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(madd_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(madd_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
 #elif ZI_VEC
     zi_u32x8 p_ = (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14), zi_s32x8) * (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(b, b, 0, 2, 4, 6, 8, 10, 12, 14), zi_s32x8);
@@ -10757,6 +17273,11 @@ ZI_FN zi_s16x8 ZI_N(madd_sat_u8x16)(zi_u8x16 a, zi_s8x16 b)
 {
 #if ZI_X86 && ZI_TIER >= 2
     return (zi_s16x8)_mm_maddubs_epi16((__m128i)a, (__m128i)b);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, y_ = (__m128i)b;
+    __m128i p_ = _mm_mullo_epi16(_mm_and_si128(x_, _mm_set1_epi16(0xff)), _mm_srai_epi16(_mm_slli_epi16(y_, 8), 8));
+    __m128i q_ = _mm_mullo_epi16(_mm_srli_epi16(x_, 8), _mm_srai_epi16(y_, 8));
+    return (zi_s16x8)_mm_adds_epi16(p_, q_);
 #elif ZI_NEON && ZI_A64
     uint8x16_t x_ = (uint8x16_t)a;
     int8x16_t y_ = (int8x16_t)b;
@@ -10771,10 +17292,10 @@ ZI_FN zi_s16x8 ZI_N(madd_sat_u8x16)(zi_u8x16 a, zi_s8x16 b)
     int16x8x2_t u_ = vuzpq_s16(lo_, hi_);
     return (zi_s16x8)vqaddq_s16(u_.val[0], u_.val[1]);
 #elif ZI_WASM
-    v128_t lo_ = wasm_i16x8_mul(wasm_u16x8_extend_low_u8x16((v128_t)a), wasm_i16x8_extend_low_i8x16((v128_t)b));
-    v128_t hi_ = wasm_i16x8_mul(wasm_u16x8_extend_high_u8x16((v128_t)a), wasm_i16x8_extend_high_i8x16((v128_t)b));
-    return (zi_s16x8)wasm_i16x8_add_sat(wasm_i16x8_shuffle(lo_, hi_, 0, 2, 4, 6, 8, 10, 12, 14),
-        wasm_i16x8_shuffle(lo_, hi_, 1, 3, 5, 7, 9, 11, 13, 15));
+    v128_t x_ = (v128_t)a, y_ = (v128_t)b;
+    v128_t p_ = wasm_i16x8_mul(wasm_v128_and(x_, wasm_i16x8_splat(0xff)), wasm_i16x8_shr(wasm_i16x8_shl(y_, 8), 8));
+    v128_t q_ = wasm_i16x8_mul(wasm_u16x8_shr(x_, 8), wasm_i16x8_shr(y_, 8));
+    return (zi_s16x8)wasm_i16x8_add_sat(p_, q_);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
     int64_t k_[32] = {0};
@@ -10784,11 +17305,18 @@ ZI_FN zi_s16x8 ZI_N(madd_sat_u8x16)(zi_u8x16 a, zi_s8x16 b)
     return zi_pack_s16x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(madd_sat_u8x32_p_)(const zi_u8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(madd_sat_u8x32)(zi_u8x32 a, zi_s8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_maddubs_epi16((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC
     return ZI_N(combine_s16x8)(ZI_N(madd_sat_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(madd_sat_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_s8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -10803,6 +17331,9 @@ ZI_FN zi_u16x8 ZI_N(add_pairs_u8x16)(zi_u8x16 a)
 {
 #if ZI_X86 && ZI_TIER >= 2
     return (zi_u16x8)_mm_maddubs_epi16((__m128i)a, _mm_set1_epi8(1));
+#elif ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_u16x8)_mm_add_epi16(_mm_and_si128(x_, _mm_set1_epi16(0xff)), _mm_srli_epi16(x_, 8));
 #elif ZI_NEON
     return (zi_u16x8)vpaddlq_u8((uint8x16_t)a);
 #elif ZI_WASM
@@ -10821,6 +17352,9 @@ ZI_FN zi_s16x8 ZI_N(add_pairs_s8x16)(zi_s8x16 a)
 {
 #if ZI_X86 && ZI_TIER >= 2
     return (zi_s16x8)_mm_maddubs_epi16(_mm_set1_epi8(1), (__m128i)a);
+#elif ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_s16x8)_mm_add_epi16(_mm_srai_epi16(_mm_slli_epi16(x_, 8), 8), _mm_srai_epi16(x_, 8));
 #elif ZI_NEON
     return (zi_s16x8)vpaddlq_s8((int8x16_t)a);
 #elif ZI_WASM
@@ -10837,7 +17371,10 @@ ZI_FN zi_s16x8 ZI_N(add_pairs_s8x16)(zi_s8x16 a)
 }
 ZI_FN zi_u32x4 ZI_N(add_pairs_u16x8)(zi_u16x8 a)
 {
-#if ZI_NEON
+#if ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_u32x4)_mm_add_epi32(_mm_and_si128(x_, _mm_set1_epi32(0xffff)), _mm_srli_epi32(x_, 16));
+#elif ZI_NEON
     return (zi_u32x4)vpaddlq_u16((uint16x8_t)a);
 #elif ZI_WASM
     return (zi_u32x4)wasm_u32x4_extadd_pairwise_u16x8((v128_t)a);
@@ -10871,8 +17408,14 @@ ZI_FN zi_s32x4 ZI_N(add_pairs_s16x8)(zi_s16x8 a)
 }
 ZI_FN zi_u64x2 ZI_N(add_pairs_u32x4)(zi_u32x4 a)
 {
-#if ZI_NEON
+#if ZI_X86
+    __m128i x_ = (__m128i)a;
+    return (zi_u64x2)_mm_add_epi64(_mm_and_si128(x_, _mm_set1_epi64x(0xffffffff)), _mm_srli_epi64(x_, 32));
+#elif ZI_NEON
     return (zi_u64x2)vpaddlq_u32((uint32x4_t)a);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a;
+    return (zi_u64x2)wasm_i64x2_add(wasm_v128_and(x_, wasm_i64x2_splat(0xffffffff)), wasm_u64x2_shr(x_, 32));
 #elif ZI_VEC
     return (zi_u64x2)((zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2), zi_u64x2) + (zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3), zi_u64x2));
 #else
@@ -10885,8 +17428,19 @@ ZI_FN zi_u64x2 ZI_N(add_pairs_u32x4)(zi_u32x4 a)
 }
 ZI_FN zi_s64x2 ZI_N(add_pairs_s32x4)(zi_s32x4 a)
 {
-#if ZI_NEON
+#if ZI_X86 && ZI_TIER >= 3
+    __m128i x_ = (__m128i)a, one_ = _mm_set1_epi32(1);
+    return (zi_s64x2)_mm_add_epi64(_mm_mul_epi32(x_, one_), _mm_mul_epi32(_mm_srli_epi64(x_, 32), one_));
+#elif ZI_X86
+    __m128i x_ = (__m128i)a, s_ = _mm_srai_epi32(x_, 31), lo_ = _mm_set1_epi64x(0xffffffff);
+    __m128i e_ = _mm_or_si128(_mm_and_si128(x_, lo_), _mm_slli_epi64(s_, 32));
+    __m128i o_ = _mm_or_si128(_mm_srli_epi64(x_, 32), _mm_andnot_si128(lo_, s_));
+    return (zi_s64x2)_mm_add_epi64(e_, o_);
+#elif ZI_NEON
     return (zi_s64x2)vpaddlq_s32((int32x4_t)a);
+#elif ZI_WASM
+    v128_t x_ = (v128_t)a;
+    return (zi_s64x2)wasm_i64x2_add(wasm_i64x2_shr(wasm_i64x2_shl(x_, 32), 32), wasm_i64x2_shr(x_, 32));
 #elif ZI_VEC
     return (zi_s64x2)((zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2), zi_s64x2) + (zi_u64x2)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3), zi_s64x2));
 #else
@@ -10897,11 +17451,17 @@ ZI_FN zi_s64x2 ZI_N(add_pairs_s32x4)(zi_s32x4 a)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(add_pairs_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(add_pairs_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_maddubs_epi16((__m256i)a, _mm256_set1_epi8(1));
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_u16x8)(ZI_N(add_pairs_u8x16)(ZI_N(low_u8x32)(a)), ZI_N(add_pairs_u8x16)(ZI_N(high_u8x32)(a)));
 #elif ZI_VEC
     return (zi_u16x16)((zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), zi_u16x16) + (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), zi_u16x16));
@@ -10913,11 +17473,17 @@ ZI_FN zi_u16x16 ZI_N(add_pairs_u8x32)(zi_u8x32 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(add_pairs_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(add_pairs_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_maddubs_epi16(_mm256_set1_epi8(1), (__m256i)a);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 2))
     return ZI_N(combine_s16x8)(ZI_N(add_pairs_s8x16)(ZI_N(low_s8x32)(a)), ZI_N(add_pairs_s8x16)(ZI_N(high_s8x32)(a)));
 #elif ZI_VEC
     return (zi_s16x16)((zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24, 26, 28, 30), zi_s16x16) + (zi_u16x16)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15, 17, 19, 21, 23, 25, 27, 29, 31), zi_s16x16));
@@ -10929,9 +17495,18 @@ ZI_FN zi_s16x16 ZI_N(add_pairs_s8x32)(zi_s8x32 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(add_pairs_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(add_pairs_u16x16)(zi_u16x16 a)
 {
-#if ZI_VEC && ((ZI_NEON) || (ZI_WASM))
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a;
+    return (zi_u32x8)_mm256_add_epi32(_mm256_and_si256(x_, _mm256_set1_epi32(0xffff)), _mm256_srli_epi32(x_, 16));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u32x4)(ZI_N(add_pairs_u16x8)(ZI_N(low_u16x16)(a)), ZI_N(add_pairs_u16x8)(ZI_N(high_u16x16)(a)));
 #elif ZI_VEC
     return (zi_u32x8)((zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14), zi_u32x8) + (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15), zi_u32x8));
@@ -10943,11 +17518,17 @@ ZI_FN zi_u32x8 ZI_N(add_pairs_u16x16)(zi_u16x16 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(add_pairs_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(add_pairs_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_madd_epi16((__m256i)a, _mm256_set1_epi16(1));
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_s32x4)(ZI_N(add_pairs_s16x8)(ZI_N(low_s16x16)(a)), ZI_N(add_pairs_s16x8)(ZI_N(high_s16x16)(a)));
 #elif ZI_VEC
     return (zi_s32x8)((zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6, 8, 10, 12, 14), zi_s32x8) + (zi_u32x8)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7, 9, 11, 13, 15), zi_s32x8));
@@ -10959,9 +17540,18 @@ ZI_FN zi_s32x8 ZI_N(add_pairs_s16x16)(zi_s16x16 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(add_pairs_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(add_pairs_u32x8)(zi_u32x8 a)
 {
-#if ZI_VEC && ((ZI_NEON))
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a;
+    return (zi_u64x4)_mm256_add_epi64(_mm256_and_si256(x_, _mm256_set1_epi64x(0xffffffff)), _mm256_srli_epi64(x_, 32));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86))
     return ZI_N(combine_u64x2)(ZI_N(add_pairs_u32x4)(ZI_N(low_u32x8)(a)), ZI_N(add_pairs_u32x4)(ZI_N(high_u32x8)(a)));
 #elif ZI_VEC
     return (zi_u64x4)((zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6), zi_u64x4) + (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7), zi_u64x4));
@@ -10973,9 +17563,18 @@ ZI_FN zi_u64x4 ZI_N(add_pairs_u32x8)(zi_u32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(add_pairs_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(add_pairs_s32x8)(zi_s32x8 a)
 {
-#if ZI_VEC && ((ZI_NEON))
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    __m256i x_ = (__m256i)a, one_ = _mm256_set1_epi32(1);
+    return (zi_s64x4)_mm256_add_epi64(_mm256_mul_epi32(x_, one_), _mm256_mul_epi32(_mm256_srli_epi64(x_, 32), one_));
+#elif ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4) || (ZI_NEON) || (ZI_WASM) || (ZI_X86) || (ZI_X86 && ZI_TIER >= 3))
     return ZI_N(combine_s64x2)(ZI_N(add_pairs_s32x4)(ZI_N(low_s32x8)(a)), ZI_N(add_pairs_s32x4)(ZI_N(high_s32x8)(a)));
 #elif ZI_VEC
     return (zi_s64x4)((zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 0, 2, 4, 6), zi_s64x4) + (zi_u64x4)__builtin_convertvector(__builtin_shufflevector(a, a, 1, 3, 5, 7), zi_s64x4));
@@ -11006,11 +17605,18 @@ ZI_FN zi_u64x2 ZI_N(sad_u8x16)(zi_u8x16 a, zi_u8x16 b)
     return zi_pack_u64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(sad_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(sad_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_sad_epu8((__m256i)a, (__m256i)b);
-#elif ZI_VEC && ((ZI_NEON) || (ZI_WASM) || (ZI_X86))
+#elif ZI_VEC
     return ZI_N(combine_u64x2)(ZI_N(sad_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(sad_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -11023,387 +17629,1480 @@ ZI_FN zi_u64x4 ZI_N(sad_u8x32)(zi_u8x32 a, zi_u8x32 b)
 }
 ZI_FN uint8_t ZI_N(reduce_add_u8x16)(zi_u8x16 a)
 {
+#if ZI_X86
+    __m128i s_ = _mm_sad_epu8((__m128i)a, _mm_setzero_si128());
+    return (uint8_t)(_mm_cvtsi128_si32(s_) + _mm_extract_epi16(s_, 4));
+#elif ZI_NEON && ZI_A64
+    return (uint8_t)vaddvq_u8((uint8x16_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8((uint8x16_t)a)));
+    return (uint8_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(add_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(add_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(add_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(add_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (uint8_t)ZI_AT(m_, 0);
+#else
     uint8_t s_ = 0;
     for(int i_ = 0; i_ < 16; i_++) s_ = (uint8_t)(s_ + (uint8_t)ZI_AT(a, i_));
     return (uint8_t)s_;
+#endif
 }
 ZI_FN int8_t ZI_N(reduce_add_s8x16)(zi_s8x16 a)
 {
+#if ZI_X86
+    __m128i s_ = _mm_sad_epu8((__m128i)a, _mm_setzero_si128());
+    return (int8_t)(_mm_cvtsi128_si32(s_) + _mm_extract_epi16(s_, 4));
+#elif ZI_NEON && ZI_A64
+    return (int8_t)vaddvq_s8((int8x16_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32(vpaddlq_u16(vpaddlq_u8((uint8x16_t)a)));
+    return (int8_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(add_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(add_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(add_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(add_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (int8_t)ZI_AT(m_, 0);
+#else
     uint8_t s_ = 0;
     for(int i_ = 0; i_ < 16; i_++) s_ = (uint8_t)(s_ + (uint8_t)ZI_AT(a, i_));
     return (int8_t)s_;
+#endif
 }
 ZI_FN uint16_t ZI_N(reduce_add_u16x8)(zi_u16x8 a)
 {
+#if ZI_NEON && ZI_A64
+    return (uint16_t)vaddvq_u16((uint16x8_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32(vpaddlq_u16((uint16x8_t)a));
+    return (uint16_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(add_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(add_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(add_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (uint16_t)ZI_AT(m_, 0);
+#else
     uint16_t s_ = 0;
     for(int i_ = 0; i_ < 8; i_++) s_ = (uint16_t)(s_ + (uint16_t)ZI_AT(a, i_));
     return (uint16_t)s_;
+#endif
 }
 ZI_FN int16_t ZI_N(reduce_add_s16x8)(zi_s16x8 a)
 {
+#if ZI_NEON && ZI_A64
+    return (int16_t)vaddvq_s16((int16x8_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32(vpaddlq_u16((uint16x8_t)a));
+    return (int16_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(add_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(add_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(add_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (int16_t)ZI_AT(m_, 0);
+#else
     uint16_t s_ = 0;
     for(int i_ = 0; i_ < 8; i_++) s_ = (uint16_t)(s_ + (uint16_t)ZI_AT(a, i_));
     return (int16_t)s_;
+#endif
 }
 ZI_FN uint32_t ZI_N(reduce_add_u32x4)(zi_u32x4 a)
 {
+#if ZI_NEON && ZI_A64
+    return (uint32_t)vaddvq_u32((uint32x4_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32((uint32x4_t)a);
+    return (uint32_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(add_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(add_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (uint32_t)ZI_AT(m_, 0);
+#else
     uint32_t s_ = 0;
     for(int i_ = 0; i_ < 4; i_++) s_ = (uint32_t)(s_ + (uint32_t)ZI_AT(a, i_));
     return (uint32_t)s_;
+#endif
 }
 ZI_FN int32_t ZI_N(reduce_add_s32x4)(zi_s32x4 a)
 {
+#if ZI_NEON && ZI_A64
+    return (int32_t)vaddvq_s32((int32x4_t)a);
+#elif ZI_NEON
+    uint64x2_t s_ = vpaddlq_u32((uint32x4_t)a);
+    return (int32_t)(vgetq_lane_u64(s_, 0) + vgetq_lane_u64(s_, 1));
+#elif ZI_VEC
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(add_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(add_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (int32_t)ZI_AT(m_, 0);
+#else
     uint32_t s_ = 0;
     for(int i_ = 0; i_ < 4; i_++) s_ = (uint32_t)(s_ + (uint32_t)ZI_AT(a, i_));
     return (int32_t)s_;
+#endif
 }
 ZI_FN uint64_t ZI_N(reduce_add_u64x2)(zi_u64x2 a)
 {
+#if ZI_NEON && ZI_A64
+    return (uint64_t)vaddvq_u64((uint64x2_t)a);
+#elif ZI_VEC
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(add_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (uint64_t)ZI_AT(m_, 0);
+#else
     uint64_t s_ = 0;
     for(int i_ = 0; i_ < 2; i_++) s_ = (uint64_t)(s_ + (uint64_t)ZI_AT(a, i_));
     return (uint64_t)s_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_add_s64x2)(zi_s64x2 a)
 {
+#if ZI_NEON && ZI_A64
+    return (int64_t)vaddvq_s64((int64x2_t)a);
+#elif ZI_VEC
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(add_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (int64_t)ZI_AT(m_, 0);
+#else
     uint64_t s_ = 0;
     for(int i_ = 0; i_ < 2; i_++) s_ = (uint64_t)(s_ + (uint64_t)ZI_AT(a, i_));
     return (int64_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_add_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN uint8_t ZI_N(reduce_add_u8x32)(zi_u8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_u8x16)(ZI_N(add_u8x16)(ZI_N(low_u8x32)(a), ZI_N(high_u8x32)(a)));
+#else
     uint8_t s_ = 0;
     for(int i_ = 0; i_ < 32; i_++) s_ = (uint8_t)(s_ + (uint8_t)ZI_AT(a, i_));
     return (uint8_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_add_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int8_t ZI_N(reduce_add_s8x32)(zi_s8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_s8x16)(ZI_N(add_s8x16)(ZI_N(low_s8x32)(a), ZI_N(high_s8x32)(a)));
+#else
     uint8_t s_ = 0;
     for(int i_ = 0; i_ < 32; i_++) s_ = (uint8_t)(s_ + (uint8_t)ZI_AT(a, i_));
     return (int8_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_add_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN uint16_t ZI_N(reduce_add_u16x16)(zi_u16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_u16x8)(ZI_N(add_u16x8)(ZI_N(low_u16x16)(a), ZI_N(high_u16x16)(a)));
+#else
     uint16_t s_ = 0;
     for(int i_ = 0; i_ < 16; i_++) s_ = (uint16_t)(s_ + (uint16_t)ZI_AT(a, i_));
     return (uint16_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_add_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int16_t ZI_N(reduce_add_s16x16)(zi_s16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_s16x8)(ZI_N(add_s16x8)(ZI_N(low_s16x16)(a), ZI_N(high_s16x16)(a)));
+#else
     uint16_t s_ = 0;
     for(int i_ = 0; i_ < 16; i_++) s_ = (uint16_t)(s_ + (uint16_t)ZI_AT(a, i_));
     return (int16_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_add_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN uint32_t ZI_N(reduce_add_u32x8)(zi_u32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_u32x4)(ZI_N(add_u32x4)(ZI_N(low_u32x8)(a), ZI_N(high_u32x8)(a)));
+#else
     uint32_t s_ = 0;
     for(int i_ = 0; i_ < 8; i_++) s_ = (uint32_t)(s_ + (uint32_t)ZI_AT(a, i_));
     return (uint32_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_add_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int32_t ZI_N(reduce_add_s32x8)(zi_s32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_s32x4)(ZI_N(add_s32x4)(ZI_N(low_s32x8)(a), ZI_N(high_s32x8)(a)));
+#else
     uint32_t s_ = 0;
     for(int i_ = 0; i_ < 8; i_++) s_ = (uint32_t)(s_ + (uint32_t)ZI_AT(a, i_));
     return (int32_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_add_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN uint64_t ZI_N(reduce_add_u64x4)(zi_u64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_u64x2)(ZI_N(add_u64x2)(ZI_N(low_u64x4)(a), ZI_N(high_u64x4)(a)));
+#else
     uint64_t s_ = 0;
     for(int i_ = 0; i_ < 4; i_++) s_ = (uint64_t)(s_ + (uint64_t)ZI_AT(a, i_));
     return (uint64_t)s_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_add_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_add_s64x4)(zi_s64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_add_s64x2)(ZI_N(add_s64x2)(ZI_N(low_s64x4)(a), ZI_N(high_s64x4)(a)));
+#else
     uint64_t s_ = 0;
     for(int i_ = 0; i_ < 4; i_++) s_ = (uint64_t)(s_ + (uint64_t)ZI_AT(a, i_));
     return (int64_t)s_;
+#endif
 }
 ZI_FN uint8_t ZI_N(reduce_min_u8x16)(zi_u8x16 a)
 {
+#if ZI_X86
+    zi_u8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (uint8_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint8_t)vminvq_u8((uint8x16_t)a);
+#elif ZI_NEON
+    uint8x16_t x_ = (uint8x16_t)a;
+    uint8x8_t d_ = vpmin_u8(vget_low_u8(x_), vget_high_u8(x_));
+    d_ = vpmin_u8(d_, d_);
+    d_ = vpmin_u8(d_, d_);
+    d_ = vpmin_u8(d_, d_);
+    return (uint8_t)vget_lane_u8(d_, 0);
+#elif ZI_VEC
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(min_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(min_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(min_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(min_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (uint8_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int8_t ZI_N(reduce_min_s8x16)(zi_s8x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(min_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(min_s8x16)(m_, (zi_s8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(min_s8x16)(m_, (zi_s8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (int8_t)ZI_AT(m_, 0);
+#elif ZI_X86
+    zi_u8x16 x_ = ZI_N(xor_u8x16)((zi_u8x16)a, ZI_N(splat_u8x16)(0x80)), m_ = x_;
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(min_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (int8_t)(ZI_AT(m_, 0) ^ 0x80);
+#elif ZI_NEON && ZI_A64
+    return (int8_t)vminvq_s8((int8x16_t)a);
+#elif ZI_NEON
+    int8x16_t x_ = (int8x16_t)a;
+    int8x8_t d_ = vpmin_s8(vget_low_s8(x_), vget_high_s8(x_));
+    d_ = vpmin_s8(d_, d_);
+    d_ = vpmin_s8(d_, d_);
+    d_ = vpmin_s8(d_, d_);
+    return (int8_t)vget_lane_s8(d_, 0);
+#elif ZI_VEC
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(min_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(min_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(min_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(min_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (int8_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint16_t ZI_N(reduce_min_u16x8)(zi_u16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return (uint16_t)_mm_cvtsi128_si32(_mm_minpos_epu16((__m128i)a));
+#elif ZI_X86
+    zi_u16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(min_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(min_u16x8)(m_, (zi_u16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return (uint16_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint16_t)vminvq_u16((uint16x8_t)a);
+#elif ZI_NEON
+    uint16x8_t x_ = (uint16x8_t)a;
+    uint16x4_t d_ = vpmin_u16(vget_low_u16(x_), vget_high_u16(x_));
+    d_ = vpmin_u16(d_, d_);
+    d_ = vpmin_u16(d_, d_);
+    return (uint16_t)vget_lane_u16(d_, 0);
+#elif ZI_VEC
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(min_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(min_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(min_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (uint16_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int16_t ZI_N(reduce_min_s16x8)(zi_s16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return (int16_t)(_mm_cvtsi128_si32(_mm_minpos_epu16(_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)0x8000)))) ^ 0x8000);
+#elif ZI_X86
+    zi_s16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(min_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(min_s16x8)(m_, (zi_s16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return (int16_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (int16_t)vminvq_s16((int16x8_t)a);
+#elif ZI_NEON
+    int16x8_t x_ = (int16x8_t)a;
+    int16x4_t d_ = vpmin_s16(vget_low_s16(x_), vget_high_s16(x_));
+    d_ = vpmin_s16(d_, d_);
+    d_ = vpmin_s16(d_, d_);
+    return (int16_t)vget_lane_s16(d_, 0);
+#elif ZI_VEC
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(min_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(min_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(min_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (int16_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint32_t ZI_N(reduce_min_u32x4)(zi_u32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_u32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(min_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return (uint32_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint32_t)vminvq_u32((uint32x4_t)a);
+#elif ZI_NEON
+    uint32x4_t x_ = (uint32x4_t)a;
+    uint32x2_t d_ = vpmin_u32(vget_low_u32(x_), vget_high_u32(x_));
+    d_ = vpmin_u32(d_, d_);
+    return (uint32_t)vget_lane_u32(d_, 0);
+#elif ZI_VEC
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(min_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(min_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (uint32_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int32_t ZI_N(reduce_min_s32x4)(zi_s32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(min_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(min_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return (int32_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (int32_t)vminvq_s32((int32x4_t)a);
+#elif ZI_NEON
+    int32x4_t x_ = (int32x4_t)a;
+    int32x2_t d_ = vpmin_s32(vget_low_s32(x_), vget_high_s32(x_));
+    d_ = vpmin_s32(d_, d_);
+    return (int32_t)vget_lane_s32(d_, 0);
+#elif ZI_VEC
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(min_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(min_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (int32_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint64_t ZI_N(reduce_min_u64x2)(zi_u64x2 a)
 {
+#if ZI_VEC
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(min_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (uint64_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_min_s64x2)(zi_s64x2 a)
 {
+#if ZI_VEC
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(min_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (int64_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_min_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN uint8_t ZI_N(reduce_min_u8x32)(zi_u8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_u8x16)(ZI_N(min_u8x16)(ZI_N(low_u8x32)(a), ZI_N(high_u8x32)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_min_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int8_t ZI_N(reduce_min_s8x32)(zi_s8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_s8x16)(ZI_N(min_s8x16)(ZI_N(low_s8x32)(a), ZI_N(high_s8x32)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_min_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN uint16_t ZI_N(reduce_min_u16x16)(zi_u16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_u16x8)(ZI_N(min_u16x8)(ZI_N(low_u16x16)(a), ZI_N(high_u16x16)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_min_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int16_t ZI_N(reduce_min_s16x16)(zi_s16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_s16x8)(ZI_N(min_s16x8)(ZI_N(low_s16x16)(a), ZI_N(high_s16x16)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_min_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN uint32_t ZI_N(reduce_min_u32x8)(zi_u32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_u32x4)(ZI_N(min_u32x4)(ZI_N(low_u32x8)(a), ZI_N(high_u32x8)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_min_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int32_t ZI_N(reduce_min_s32x8)(zi_s32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_s32x4)(ZI_N(min_s32x4)(ZI_N(low_s32x8)(a), ZI_N(high_s32x8)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_min_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN uint64_t ZI_N(reduce_min_u64x4)(zi_u64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_u64x2)(ZI_N(min_u64x2)(ZI_N(low_u64x4)(a), ZI_N(high_u64x4)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_min_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_min_s64x4)(zi_s64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_min_s64x2)(ZI_N(min_s64x2)(ZI_N(low_s64x4)(a), ZI_N(high_s64x4)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) < ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint8_t ZI_N(reduce_max_u8x16)(zi_u8x16 a)
 {
+#if ZI_X86
+    zi_u8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (uint8_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint8_t)vmaxvq_u8((uint8x16_t)a);
+#elif ZI_NEON
+    uint8x16_t x_ = (uint8x16_t)a;
+    uint8x8_t d_ = vpmax_u8(vget_low_u8(x_), vget_high_u8(x_));
+    d_ = vpmax_u8(d_, d_);
+    d_ = vpmax_u8(d_, d_);
+    d_ = vpmax_u8(d_, d_);
+    return (uint8_t)vget_lane_u8(d_, 0);
+#elif ZI_VEC
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (uint8_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int8_t ZI_N(reduce_max_s8x16)(zi_s8x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (int8_t)ZI_AT(m_, 0);
+#elif ZI_X86
+    zi_u8x16 x_ = ZI_N(xor_u8x16)((zi_u8x16)a, ZI_N(splat_u8x16)(0x80)), m_ = x_;
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return (int8_t)(ZI_AT(m_, 0) ^ 0x80);
+#elif ZI_NEON && ZI_A64
+    return (int8_t)vmaxvq_s8((int8x16_t)a);
+#elif ZI_NEON
+    int8x16_t x_ = (int8x16_t)a;
+    int8x8_t d_ = vpmax_s8(vget_low_s8(x_), vget_high_s8(x_));
+    d_ = vpmax_s8(d_, d_);
+    d_ = vpmax_s8(d_, d_);
+    d_ = vpmax_s8(d_, d_);
+    return (int8_t)vget_lane_s8(d_, 0);
+#elif ZI_VEC
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return (int8_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint16_t ZI_N(reduce_max_u16x8)(zi_u16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return (uint16_t)(_mm_cvtsi128_si32(_mm_minpos_epu16(_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)0xffff)))) ^ 0xffff);
+#elif ZI_X86
+    zi_u16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return (uint16_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint16_t)vmaxvq_u16((uint16x8_t)a);
+#elif ZI_NEON
+    uint16x8_t x_ = (uint16x8_t)a;
+    uint16x4_t d_ = vpmax_u16(vget_low_u16(x_), vget_high_u16(x_));
+    d_ = vpmax_u16(d_, d_);
+    d_ = vpmax_u16(d_, d_);
+    return (uint16_t)vget_lane_u16(d_, 0);
+#elif ZI_VEC
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (uint16_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int16_t ZI_N(reduce_max_s16x8)(zi_s16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return (int16_t)(_mm_cvtsi128_si32(_mm_minpos_epu16(_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)0x7fff)))) ^ 0x7fff);
+#elif ZI_X86
+    zi_s16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return (int16_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (int16_t)vmaxvq_s16((int16x8_t)a);
+#elif ZI_NEON
+    int16x8_t x_ = (int16x8_t)a;
+    int16x4_t d_ = vpmax_s16(vget_low_s16(x_), vget_high_s16(x_));
+    d_ = vpmax_s16(d_, d_);
+    d_ = vpmax_s16(d_, d_);
+    return (int16_t)vget_lane_s16(d_, 0);
+#elif ZI_VEC
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return (int16_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint32_t ZI_N(reduce_max_u32x4)(zi_u32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_u32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return (uint32_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (uint32_t)vmaxvq_u32((uint32x4_t)a);
+#elif ZI_NEON
+    uint32x4_t x_ = (uint32x4_t)a;
+    uint32x2_t d_ = vpmax_u32(vget_low_u32(x_), vget_high_u32(x_));
+    d_ = vpmax_u32(d_, d_);
+    return (uint32_t)vget_lane_u32(d_, 0);
+#elif ZI_VEC
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (uint32_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int32_t ZI_N(reduce_max_s32x4)(zi_s32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return (int32_t)ZI_AT(m_, 0);
+#elif ZI_NEON && ZI_A64
+    return (int32_t)vmaxvq_s32((int32x4_t)a);
+#elif ZI_NEON
+    int32x4_t x_ = (int32x4_t)a;
+    int32x2_t d_ = vpmax_s32(vget_low_s32(x_), vget_high_s32(x_));
+    d_ = vpmax_s32(d_, d_);
+    return (int32_t)vget_lane_s32(d_, 0);
+#elif ZI_VEC
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return (int32_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN uint64_t ZI_N(reduce_max_u64x2)(zi_u64x2 a)
 {
+#if ZI_VEC
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(max_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (uint64_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_s64x2)(zi_s64x2 a)
 {
+#if ZI_VEC
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(max_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return (int64_t)ZI_AT(m_, 0);
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint8_t ZI_N(reduce_max_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN uint8_t ZI_N(reduce_max_u8x32)(zi_u8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_u8x16)(ZI_N(max_u8x16)(ZI_N(low_u8x32)(a), ZI_N(high_u8x32)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int8_t ZI_N(reduce_max_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int8_t ZI_N(reduce_max_s8x32)(zi_s8x32 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_s8x16)(ZI_N(max_s8x16)(ZI_N(low_s8x32)(a), ZI_N(high_s8x32)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint16_t ZI_N(reduce_max_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN uint16_t ZI_N(reduce_max_u16x16)(zi_u16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_u16x8)(ZI_N(max_u16x8)(ZI_N(low_u16x16)(a), ZI_N(high_u16x16)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int16_t ZI_N(reduce_max_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int16_t ZI_N(reduce_max_s16x16)(zi_s16x16 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_s16x8)(ZI_N(max_s16x8)(ZI_N(low_s16x16)(a), ZI_N(high_s16x16)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint32_t ZI_N(reduce_max_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN uint32_t ZI_N(reduce_max_u32x8)(zi_u32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_u32x4)(ZI_N(max_u32x4)(ZI_N(low_u32x8)(a), ZI_N(high_u32x8)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int32_t ZI_N(reduce_max_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int32_t ZI_N(reduce_max_s32x8)(zi_s32x8 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_s32x4)(ZI_N(max_s32x4)(ZI_N(low_s32x8)(a), ZI_N(high_s32x8)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN uint64_t ZI_N(reduce_max_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN uint64_t ZI_N(reduce_max_u64x4)(zi_u64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_u64x2)(ZI_N(max_u64x2)(ZI_N(low_u64x4)(a), ZI_N(high_u64x4)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_s64x4)(zi_s64x4 a)
 {
+#endif
+#if ZI_VEC
+    return ZI_N(reduce_max_s64x2)(ZI_N(max_s64x2)(ZI_N(low_s64x4)(a), ZI_N(high_s64x4)(a)));
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return ZI_AT(a, best_);
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_u8x16)(zi_u8x16 a)
 {
+#if ZI_X86
+    zi_u8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_u8x16)(x_, m_)))) / 1;
+#elif ZI_NEON && ZI_A64
+    zi_u8x16 m_ = ZI_N(splat_u8x16)(ZI_N(reduce_max_u8x16)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u8x16)(a, m_)), 4)), 0)) / 4;
+#elif ZI_NEON
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u8x16)(a, m_)), 4)), 0)) / 4;
+#elif ZI_WASM
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_u8x16)(a, m_)))) / 1;
+#elif ZI_VEC
+    zi_u8x16 m_ = a;
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_u8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    zi_u8x16 e_ = ZI_N(eq_u8x16)(a, m_);
+    for(int i_ = 0; i_ < 16; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_s8x16)(zi_s8x16 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s8x16 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_s8x16)(m_, (zi_s8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_s8x16)(x_, m_)))) / 1;
+#elif ZI_X86
+    zi_u8x16 x_ = ZI_N(xor_u8x16)((zi_u8x16)a, ZI_N(splat_u8x16)(0x80)), m_ = x_;
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    m_ = ZI_N(max_u8x16)(m_, (zi_u8x16)_mm_or_si128(_mm_slli_epi16((__m128i)m_, 8), _mm_srli_epi16((__m128i)m_, 8)));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_u8x16)(x_, m_)))) / 1;
+#elif ZI_NEON && ZI_A64
+    zi_s8x16 m_ = ZI_N(splat_s8x16)(ZI_N(reduce_max_s8x16)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s8x16)(a, m_)), 4)), 0)) / 4;
+#elif ZI_NEON
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s8x16)(a, m_)), 4)), 0)) / 4;
+#elif ZI_WASM
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_s8x16)(a, m_)))) / 1;
+#elif ZI_VEC
+    zi_s8x16 m_ = a;
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 8, 9, 10, 11, 12, 13, 14, 15, 0, 1, 2, 3, 4, 5, 6, 7));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3, 12, 13, 14, 15, 8, 9, 10, 11));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5, 10, 11, 8, 9, 14, 15, 12, 13));
+    m_ = ZI_N(max_s8x16)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6, 9, 8, 11, 10, 13, 12, 15, 14));
+    zi_s8x16 e_ = ZI_N(eq_s8x16)(a, m_);
+    for(int i_ = 0; i_ < 16; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_u16x8)(zi_u16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return _mm_extract_epi16(_mm_minpos_epu16(_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)0xffff))), 1);
+#elif ZI_X86
+    zi_u16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_u16x8)(m_, (zi_u16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_u16x8)(x_, m_)))) / 2;
+#elif ZI_NEON && ZI_A64
+    zi_u16x8 m_ = ZI_N(splat_u16x8)(ZI_N(reduce_max_u16x8)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u16x8)(a, m_)), 4)), 0)) / 8;
+#elif ZI_NEON
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u16x8)(a, m_)), 4)), 0)) / 8;
+#elif ZI_WASM
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_u16x8)(a, m_)))) / 2;
+#elif ZI_VEC
+    zi_u16x8 m_ = a;
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_u16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    zi_u16x8 e_ = ZI_N(eq_u16x8)(a, m_);
+    for(int i_ = 0; i_ < 8; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_s16x8)(zi_s16x8 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    return _mm_extract_epi16(_mm_minpos_epu16(_mm_xor_si128((__m128i)a, _mm_set1_epi16((short)0x7fff))), 1);
+#elif ZI_X86
+    zi_s16x8 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    m_ = ZI_N(max_s16x8)(m_, (zi_s16x8)_mm_shufflehi_epi16(_mm_shufflelo_epi16((__m128i)m_, 0xb1), 0xb1));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_s16x8)(x_, m_)))) / 2;
+#elif ZI_NEON && ZI_A64
+    zi_s16x8 m_ = ZI_N(splat_s16x8)(ZI_N(reduce_max_s16x8)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s16x8)(a, m_)), 4)), 0)) / 8;
+#elif ZI_NEON
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s16x8)(a, m_)), 4)), 0)) / 8;
+#elif ZI_WASM
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_s16x8)(a, m_)))) / 2;
+#elif ZI_VEC
+    zi_s16x8 m_ = a;
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 4, 5, 6, 7, 0, 1, 2, 3));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1, 6, 7, 4, 5));
+    m_ = ZI_N(max_s16x8)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2, 5, 4, 7, 6));
+    zi_s16x8 e_ = ZI_N(eq_s16x8)(a, m_);
+    for(int i_ = 0; i_ < 8; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_u32x4)(zi_u32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_u32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(max_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_u32x4)(m_, (zi_u32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_u32x4)(x_, m_)))) / 4;
+#elif ZI_X86
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#elif ZI_NEON && ZI_A64
+    zi_u32x4 m_ = ZI_N(splat_u32x4)(ZI_N(reduce_max_u32x4)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u32x4)(a, m_)), 4)), 0)) / 16;
+#elif ZI_NEON
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u32x4)(a, m_)), 4)), 0)) / 16;
+#elif ZI_WASM
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_u32x4)(a, m_)))) / 4;
+#elif ZI_VEC
+    zi_u32x4 m_ = a;
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_u32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    zi_u32x4 e_ = ZI_N(eq_u32x4)(a, m_);
+    for(int i_ = 0; i_ < 4; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
+    int best_ = 0;
+    for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
+    return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_s32x4)(zi_s32x4 a)
 {
+#if ZI_X86 && ZI_TIER >= 3
+    zi_s32x4 x_ = a, m_ = x_;
+    m_ = ZI_N(max_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0x4e));
+    m_ = ZI_N(max_s32x4)(m_, (zi_s32x4)_mm_shuffle_epi32((__m128i)m_, 0xb1));
+    return __builtin_ctz((unsigned)_mm_movemask_epi8((__m128i)(ZI_N(eq_s32x4)(x_, m_)))) / 4;
+#elif ZI_X86
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#elif ZI_NEON && ZI_A64
+    zi_s32x4 m_ = ZI_N(splat_s32x4)(ZI_N(reduce_max_s32x4)(a));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s32x4)(a, m_)), 4)), 0)) / 16;
+#elif ZI_NEON
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s32x4)(a, m_)), 4)), 0)) / 16;
+#elif ZI_WASM
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_s32x4)(a, m_)))) / 4;
+#elif ZI_VEC
+    zi_s32x4 m_ = a;
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 2, 3, 0, 1));
+    m_ = ZI_N(max_s32x4)(m_, __builtin_shufflevector(m_, m_, 1, 0, 3, 2));
+    zi_s32x4 e_ = ZI_N(eq_s32x4)(a, m_);
+    for(int i_ = 0; i_ < 4; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
+    int best_ = 0;
+    for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
+    return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_u64x2)(zi_u64x2 a)
 {
+#if ZI_X86
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#elif ZI_NEON
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(max_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_u64x2)(a, m_)), 4)), 0)) / 32;
+#elif ZI_WASM
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(max_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_u64x2)(a, m_)))) / 8;
+#elif ZI_VEC
+    zi_u64x2 m_ = a;
+    m_ = ZI_N(max_u64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    zi_u64x2 e_ = ZI_N(eq_u64x2)(a, m_);
+    for(int i_ = 0; i_ < 2; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
+    int best_ = 0;
+    for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
+    return best_;
+#endif
 }
 ZI_FN int64_t ZI_N(reduce_max_index_s64x2)(zi_s64x2 a)
 {
+#if ZI_X86
     int best_ = 0;
     for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#elif ZI_NEON
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(max_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return __builtin_ctzll(vget_lane_u64(vreinterpret_u64_u8(vshrn_n_u16((uint16x8_t)(ZI_N(eq_s64x2)(a, m_)), 4)), 0)) / 32;
+#elif ZI_WASM
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(max_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    return __builtin_ctz((unsigned)wasm_i8x16_bitmask((v128_t)(ZI_N(eq_s64x2)(a, m_)))) / 8;
+#elif ZI_VEC
+    zi_s64x2 m_ = a;
+    m_ = ZI_N(max_s64x2)(m_, __builtin_shufflevector(m_, m_, 1, 0));
+    zi_s64x2 e_ = ZI_N(eq_s64x2)(a, m_);
+    for(int i_ = 0; i_ < 2; i_++) if(ZI_AT(e_, i_)) return i_;
+    return 0;
+#else
+    int best_ = 0;
+    for(int i_ = 1; i_ < 2; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
+    return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u8x32)(zi_u8x32 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_u8x32 m_ = ZI_N(splat_u8x32)(ZI_N(reduce_max_u8x32)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_u8x32)(a, m_))) / 1;
+#elif ZI_X86
+    zi_u8x16 lo_ = ZI_N(low_u8x32)(a), hi_ = ZI_N(high_u8x32)(a), m_ = ZI_N(splat_u8x16)(ZI_N(reduce_max_u8x32)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u8x16)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u8x16)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 1;
+#elif ZI_WASM
+    zi_u8x16 lo_ = ZI_N(low_u8x32)(a), hi_ = ZI_N(high_u8x32)(a), m_ = ZI_N(splat_u8x16)(ZI_N(reduce_max_u8x32)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u8x16)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u8x16)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 1;
+#elif ZI_NEON
+    zi_u8x16 lo_ = ZI_N(low_u8x32)(a), hi_ = ZI_N(high_u8x32)(a), m_ = ZI_N(splat_u8x16)(ZI_N(reduce_max_u8x32)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_u8x16)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_u8x16)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 4 : 16 + __builtin_ctzll(h_) / 4;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s8x32)(zi_s8x32 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_s8x32 m_ = ZI_N(splat_s8x32)(ZI_N(reduce_max_s8x32)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_s8x32)(a, m_))) / 1;
+#elif ZI_X86
+    zi_s8x16 lo_ = ZI_N(low_s8x32)(a), hi_ = ZI_N(high_s8x32)(a), m_ = ZI_N(splat_s8x16)(ZI_N(reduce_max_s8x32)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s8x16)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s8x16)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 1;
+#elif ZI_WASM
+    zi_s8x16 lo_ = ZI_N(low_s8x32)(a), hi_ = ZI_N(high_s8x32)(a), m_ = ZI_N(splat_s8x16)(ZI_N(reduce_max_s8x32)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s8x16)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s8x16)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 1;
+#elif ZI_NEON
+    zi_s8x16 lo_ = ZI_N(low_s8x32)(a), hi_ = ZI_N(high_s8x32)(a), m_ = ZI_N(splat_s8x16)(ZI_N(reduce_max_s8x32)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_s8x16)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_s8x16)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 4 : 16 + __builtin_ctzll(h_) / 4;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 32; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u16x16)(zi_u16x16 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_u16x16 m_ = ZI_N(splat_u16x16)(ZI_N(reduce_max_u16x16)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_u16x16)(a, m_))) / 2;
+#elif ZI_X86
+    zi_u16x8 lo_ = ZI_N(low_u16x16)(a), hi_ = ZI_N(high_u16x16)(a), m_ = ZI_N(splat_u16x8)(ZI_N(reduce_max_u16x16)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u16x8)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u16x8)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 2;
+#elif ZI_WASM
+    zi_u16x8 lo_ = ZI_N(low_u16x16)(a), hi_ = ZI_N(high_u16x16)(a), m_ = ZI_N(splat_u16x8)(ZI_N(reduce_max_u16x16)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u16x8)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u16x8)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 2;
+#elif ZI_NEON
+    zi_u16x8 lo_ = ZI_N(low_u16x16)(a), hi_ = ZI_N(high_u16x16)(a), m_ = ZI_N(splat_u16x8)(ZI_N(reduce_max_u16x16)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_u16x8)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_u16x8)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 8 : 8 + __builtin_ctzll(h_) / 8;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s16x16)(zi_s16x16 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_s16x16 m_ = ZI_N(splat_s16x16)(ZI_N(reduce_max_s16x16)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_s16x16)(a, m_))) / 2;
+#elif ZI_X86
+    zi_s16x8 lo_ = ZI_N(low_s16x16)(a), hi_ = ZI_N(high_s16x16)(a), m_ = ZI_N(splat_s16x8)(ZI_N(reduce_max_s16x16)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s16x8)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s16x8)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 2;
+#elif ZI_WASM
+    zi_s16x8 lo_ = ZI_N(low_s16x16)(a), hi_ = ZI_N(high_s16x16)(a), m_ = ZI_N(splat_s16x8)(ZI_N(reduce_max_s16x16)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s16x8)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s16x8)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 2;
+#elif ZI_NEON
+    zi_s16x8 lo_ = ZI_N(low_s16x16)(a), hi_ = ZI_N(high_s16x16)(a), m_ = ZI_N(splat_s16x8)(ZI_N(reduce_max_s16x16)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_s16x8)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_s16x8)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 8 : 8 + __builtin_ctzll(h_) / 8;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 16; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u32x8)(zi_u32x8 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_u32x8 m_ = ZI_N(splat_u32x8)(ZI_N(reduce_max_u32x8)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_u32x8)(a, m_))) / 4;
+#elif ZI_X86 && ZI_TIER >= 3
+    zi_u32x4 lo_ = ZI_N(low_u32x8)(a), hi_ = ZI_N(high_u32x8)(a), m_ = ZI_N(splat_u32x4)(ZI_N(reduce_max_u32x8)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u32x4)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_u32x4)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 4;
+#elif ZI_WASM
+    zi_u32x4 lo_ = ZI_N(low_u32x8)(a), hi_ = ZI_N(high_u32x8)(a), m_ = ZI_N(splat_u32x4)(ZI_N(reduce_max_u32x8)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u32x4)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u32x4)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 4;
+#elif ZI_NEON
+    zi_u32x4 lo_ = ZI_N(low_u32x8)(a), hi_ = ZI_N(high_u32x8)(a), m_ = ZI_N(splat_u32x4)(ZI_N(reduce_max_u32x8)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_u32x4)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_u32x4)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 16 : 4 + __builtin_ctzll(h_) / 16;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s32x8)(zi_s32x8 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_s32x8 m_ = ZI_N(splat_s32x8)(ZI_N(reduce_max_s32x8)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_s32x8)(a, m_))) / 4;
+#elif ZI_X86 && ZI_TIER >= 3
+    zi_s32x4 lo_ = ZI_N(low_s32x8)(a), hi_ = ZI_N(high_s32x8)(a), m_ = ZI_N(splat_s32x4)(ZI_N(reduce_max_s32x8)(a));
+    unsigned k_ = (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s32x4)(lo_, m_)) |
+        (unsigned)_mm_movemask_epi8((__m128i)ZI_N(eq_s32x4)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 4;
+#elif ZI_WASM
+    zi_s32x4 lo_ = ZI_N(low_s32x8)(a), hi_ = ZI_N(high_s32x8)(a), m_ = ZI_N(splat_s32x4)(ZI_N(reduce_max_s32x8)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s32x4)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s32x4)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 4;
+#elif ZI_NEON
+    zi_s32x4 lo_ = ZI_N(low_s32x8)(a), hi_ = ZI_N(high_s32x8)(a), m_ = ZI_N(splat_s32x4)(ZI_N(reduce_max_s32x8)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_s32x4)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_s32x4)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 16 : 4 + __builtin_ctzll(h_) / 16;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 8; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_u64x4)(zi_u64x4 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_u64x4 m_ = ZI_N(splat_u64x4)(ZI_N(reduce_max_u64x4)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_u64x4)(a, m_))) / 8;
+#elif ZI_WASM
+    zi_u64x2 lo_ = ZI_N(low_u64x4)(a), hi_ = ZI_N(high_u64x4)(a), m_ = ZI_N(splat_u64x2)(ZI_N(reduce_max_u64x4)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u64x2)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_u64x2)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 8;
+#elif ZI_NEON
+    zi_u64x2 lo_ = ZI_N(low_u64x4)(a), hi_ = ZI_N(high_u64x4)(a), m_ = ZI_N(splat_u64x2)(ZI_N(reduce_max_u64x4)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_u64x2)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_u64x2)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 32 : 2 + __builtin_ctzll(h_) / 32;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int64_t ZI_N(reduce_max_index_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int64_t ZI_N(reduce_max_index_s64x4)(zi_s64x4 a)
 {
+#endif
+#if ZI_X86 && ZI_TIER >= 4
+    zi_s64x4 m_ = ZI_N(splat_s64x4)(ZI_N(reduce_max_s64x4)(a));
+    return __builtin_ctz((unsigned)_mm256_movemask_epi8((__m256i)ZI_N(eq_s64x4)(a, m_))) / 8;
+#elif ZI_WASM
+    zi_s64x2 lo_ = ZI_N(low_s64x4)(a), hi_ = ZI_N(high_s64x4)(a), m_ = ZI_N(splat_s64x2)(ZI_N(reduce_max_s64x4)(a));
+    unsigned k_ = (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s64x2)(lo_, m_)) |
+        (unsigned)wasm_i8x16_bitmask((v128_t)ZI_N(eq_s64x2)(hi_, m_)) << 16;
+    return __builtin_ctz(k_) / 8;
+#elif ZI_NEON
+    zi_s64x2 lo_ = ZI_N(low_s64x4)(a), hi_ = ZI_N(high_s64x4)(a), m_ = ZI_N(splat_s64x2)(ZI_N(reduce_max_s64x4)(a));
+    uint8x16_t k_ = vcombine_u8(vshrn_n_u16((uint16x8_t)ZI_N(eq_s64x2)(lo_, m_), 4), vshrn_n_u16((uint16x8_t)ZI_N(eq_s64x2)(hi_, m_), 4));
+    uint64_t l_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 0), h_ = vgetq_lane_u64(vreinterpretq_u64_u8(k_), 1);
+    return l_ ? __builtin_ctzll(l_) / 32 : 2 + __builtin_ctzll(h_) / 32;
+#else
     int best_ = 0;
     for(int i_ = 1; i_ < 4; i_++) if(ZI_AT(a, i_) > ZI_AT(a, best_)) best_ = i_;
     return best_;
+#endif
 }
 ZI_FN int ZI_N(all_zero_u8x16)(zi_u8x16 a)
 {
@@ -11557,8 +19256,14 @@ ZI_FN int ZI_N(all_zero_s64x2)(zi_s64x2 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11567,8 +19272,14 @@ ZI_FN int ZI_N(all_zero_u8x32)(zi_u8x32 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11577,8 +19288,14 @@ ZI_FN int ZI_N(all_zero_s8x32)(zi_s8x32 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_u16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11587,8 +19304,14 @@ ZI_FN int ZI_N(all_zero_u16x16)(zi_u16x16 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11597,8 +19320,14 @@ ZI_FN int ZI_N(all_zero_s16x16)(zi_s16x16 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_u32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11607,8 +19336,14 @@ ZI_FN int ZI_N(all_zero_u32x8)(zi_u32x8 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11617,8 +19352,14 @@ ZI_FN int ZI_N(all_zero_s32x8)(zi_s32x8 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_u64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11627,8 +19368,14 @@ ZI_FN int ZI_N(all_zero_u64x4)(zi_u64x4 a)
     return any_ == 0;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN int ZI_N(all_zero_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN int ZI_N(all_zero_s64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return _mm256_testz_si256((__m256i)a, (__m256i)a);
 #else
@@ -11677,11 +19424,18 @@ ZI_FN zi_s8x16 ZI_N(byte_shuffle_s8x16)(zi_s8x16 a, zi_u8x16 b)
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(byte_shuffle_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(byte_shuffle_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_shuffle_epi8((__m256i)a, _mm256_adds_epu8((__m256i)b, _mm256_set1_epi8(0x70)));
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && !(ZI_X86 && ZI_TIER < 2)
     return ZI_N(combine_u8x16)(ZI_N(byte_shuffle_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(byte_shuffle_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
 #else
     zi_u8x32 r_;
@@ -11692,11 +19446,18 @@ ZI_FN zi_u8x32 ZI_N(byte_shuffle_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(byte_shuffle_s8x32_p_)(const zi_s8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(byte_shuffle_s8x32)(zi_s8x32 a, zi_u8x32 b)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_shuffle_epi8((__m256i)a, _mm256_adds_epu8((__m256i)b, _mm256_set1_epi8(0x70)));
-#elif ZI_VEC && ((ZI_NEON && ZI_A64) || (ZI_NEON) || (ZI_WASM) || (ZI_X86 && ZI_TIER >= 2))
+#elif ZI_VEC && !(ZI_X86 && ZI_TIER < 2)
     return ZI_N(combine_s8x16)(ZI_N(byte_shuffle_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(byte_shuffle_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_u8x32)(b)));
 #else
     zi_s8x32 r_;
@@ -12697,8 +20458,14 @@ ZI_FN zi_f32x4 ZI_N(reinterpret_f64x2_f32x4)(zi_f64x2 a)
     return zi_pack_f32x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u8x32_s8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u8x32_s8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -12708,8 +20475,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_u8x32_s8x32)(zi_u8x32 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u8x32_u16x16_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u8x32_u16x16)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -12719,8 +20492,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_u8x32_u16x16)(zi_u8x32 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u8x32_s16x16_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u8x32_s16x16)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -12730,8 +20509,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_u8x32_s16x16)(zi_u8x32 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u8x32_u32x8_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u8x32_u32x8)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -12741,8 +20526,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_u8x32_u32x8)(zi_u8x32 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u8x32_s32x8_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u8x32_s32x8)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -12752,8 +20543,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_u8x32_s32x8)(zi_u8x32 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u8x32_u64x4_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u8x32_u64x4)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -12763,8 +20560,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_u8x32_u64x4)(zi_u8x32 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u8x32_s64x4_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u8x32_s64x4)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -12774,8 +20577,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_u8x32_s64x4)(zi_u8x32 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u8x32_f32x8_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u8x32_f32x8)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -12785,8 +20594,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_u8x32_f32x8)(zi_u8x32 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u8x32_f64x4_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u8x32_f64x4)(zi_u8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -12796,8 +20611,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_u8x32_f64x4)(zi_u8x32 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s8x32_u8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s8x32_u8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -12807,8 +20628,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_s8x32_u8x32)(zi_s8x32 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s8x32_u16x16_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s8x32_u16x16)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -12818,8 +20645,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_s8x32_u16x16)(zi_s8x32 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s8x32_s16x16_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s8x32_s16x16)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -12829,8 +20662,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_s8x32_s16x16)(zi_s8x32 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s8x32_u32x8_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s8x32_u32x8)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -12840,8 +20679,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_s8x32_u32x8)(zi_s8x32 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s8x32_s32x8_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s8x32_s32x8)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -12851,8 +20696,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_s8x32_s32x8)(zi_s8x32 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s8x32_u64x4_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s8x32_u64x4)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -12862,8 +20713,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_s8x32_u64x4)(zi_s8x32 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s8x32_s64x4_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s8x32_s64x4)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -12873,8 +20730,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_s8x32_s64x4)(zi_s8x32 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s8x32_f32x8_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s8x32_f32x8)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -12884,8 +20747,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_s8x32_f32x8)(zi_s8x32 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s8x32_f64x4_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s8x32_f64x4)(zi_s8x32 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -12895,8 +20764,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_s8x32_f64x4)(zi_s8x32 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u16x16_u8x32_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u16x16_u8x32)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -12906,8 +20781,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_u16x16_u8x32)(zi_u16x16 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u16x16_s8x32_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u16x16_s8x32)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -12917,8 +20798,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_u16x16_s8x32)(zi_u16x16 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u16x16_s16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u16x16_s16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -12928,8 +20815,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_u16x16_s16x16)(zi_u16x16 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u16x16_u32x8_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u16x16_u32x8)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -12939,8 +20832,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_u16x16_u32x8)(zi_u16x16 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u16x16_s32x8_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u16x16_s32x8)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -12950,8 +20849,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_u16x16_s32x8)(zi_u16x16 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u16x16_u64x4_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u16x16_u64x4)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -12961,8 +20866,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_u16x16_u64x4)(zi_u16x16 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u16x16_s64x4_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u16x16_s64x4)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -12972,8 +20883,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_u16x16_s64x4)(zi_u16x16 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u16x16_f32x8_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u16x16_f32x8)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -12983,8 +20900,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_u16x16_f32x8)(zi_u16x16 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u16x16_f64x4_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u16x16_f64x4)(zi_u16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -12994,8 +20917,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_u16x16_f64x4)(zi_u16x16 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s16x16_u8x32_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s16x16_u8x32)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13005,8 +20934,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_s16x16_u8x32)(zi_s16x16 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s16x16_s8x32_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s16x16_s8x32)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13016,8 +20951,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_s16x16_s8x32)(zi_s16x16 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s16x16_u16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s16x16_u16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13027,8 +20968,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_s16x16_u16x16)(zi_s16x16 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s16x16_u32x8_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s16x16_u32x8)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13038,8 +20985,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_s16x16_u32x8)(zi_s16x16 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s16x16_s32x8_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s16x16_s32x8)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13049,8 +21002,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_s16x16_s32x8)(zi_s16x16 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s16x16_u64x4_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s16x16_u64x4)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13060,8 +21019,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_s16x16_u64x4)(zi_s16x16 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s16x16_s64x4_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s16x16_s64x4)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13071,8 +21036,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_s16x16_s64x4)(zi_s16x16 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s16x16_f32x8_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s16x16_f32x8)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13082,8 +21053,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_s16x16_f32x8)(zi_s16x16 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s16x16_f64x4_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s16x16_f64x4)(zi_s16x16 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13093,8 +21070,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_s16x16_f64x4)(zi_s16x16 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u32x8_u8x32_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u32x8_u8x32)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13104,8 +21087,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_u32x8_u8x32)(zi_u32x8 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u32x8_s8x32_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u32x8_s8x32)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13115,8 +21104,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_u32x8_s8x32)(zi_u32x8 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u32x8_u16x16_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u32x8_u16x16)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13126,8 +21121,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_u32x8_u16x16)(zi_u32x8 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u32x8_s16x16_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u32x8_s16x16)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13137,8 +21138,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_u32x8_s16x16)(zi_u32x8 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u32x8_s32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u32x8_s32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13148,8 +21155,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_u32x8_s32x8)(zi_u32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_u32x8_u64x4_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_u32x8_u64x4)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13159,8 +21172,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_u32x8_u64x4)(zi_u32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u32x8_s64x4_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u32x8_s64x4)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13170,8 +21189,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_u32x8_s64x4)(zi_u32x8 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u32x8_f32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u32x8_f32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13181,8 +21206,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_u32x8_f32x8)(zi_u32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u32x8_f64x4_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u32x8_f64x4)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13192,8 +21223,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_u32x8_f64x4)(zi_u32x8 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s32x8_u8x32_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s32x8_u8x32)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13203,8 +21240,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_s32x8_u8x32)(zi_s32x8 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s32x8_s8x32_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s32x8_s8x32)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13214,8 +21257,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_s32x8_s8x32)(zi_s32x8 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s32x8_u16x16_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s32x8_u16x16)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13225,8 +21274,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_s32x8_u16x16)(zi_s32x8 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s32x8_s16x16_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s32x8_s16x16)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13236,8 +21291,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_s32x8_s16x16)(zi_s32x8 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s32x8_u32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s32x8_u32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13247,8 +21308,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_s32x8_u32x8)(zi_s32x8 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s32x8_u64x4_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s32x8_u64x4)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13258,8 +21325,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_s32x8_u64x4)(zi_s32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_s32x8_s64x4_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_s32x8_s64x4)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13269,8 +21342,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_s32x8_s64x4)(zi_s32x8 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s32x8_f32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s32x8_f32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13280,8 +21359,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_s32x8_f32x8)(zi_s32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s32x8_f64x4_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s32x8_f64x4)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13291,8 +21376,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_s32x8_f64x4)(zi_s32x8 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_u64x4_u8x32_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_u64x4_u8x32)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13302,8 +21393,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_u64x4_u8x32)(zi_u64x4 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_u64x4_s8x32_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_u64x4_s8x32)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13313,8 +21410,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_u64x4_s8x32)(zi_u64x4 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_u64x4_u16x16_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_u64x4_u16x16)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13324,8 +21427,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_u64x4_u16x16)(zi_u64x4 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_u64x4_s16x16_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_u64x4_s16x16)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13335,8 +21444,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_u64x4_s16x16)(zi_u64x4 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_u64x4_u32x8_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_u64x4_u32x8)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13346,8 +21461,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_u64x4_u32x8)(zi_u64x4 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_u64x4_s32x8_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_u64x4_s32x8)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13357,8 +21478,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_u64x4_s32x8)(zi_u64x4 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_u64x4_s64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_u64x4_s64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13368,8 +21495,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_u64x4_s64x4)(zi_u64x4 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_u64x4_f32x8_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_u64x4_f32x8)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13379,8 +21512,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_u64x4_f32x8)(zi_u64x4 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_u64x4_f64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_u64x4_f64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13390,8 +21529,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_u64x4_f64x4)(zi_u64x4 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_s64x4_u8x32_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_s64x4_u8x32)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13401,8 +21546,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_s64x4_u8x32)(zi_s64x4 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_s64x4_s8x32_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_s64x4_s8x32)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13412,8 +21563,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_s64x4_s8x32)(zi_s64x4 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_s64x4_u16x16_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_s64x4_u16x16)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13423,8 +21580,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_s64x4_u16x16)(zi_s64x4 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_s64x4_s16x16_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_s64x4_s16x16)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13434,8 +21597,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_s64x4_s16x16)(zi_s64x4 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_s64x4_u32x8_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_s64x4_u32x8)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13445,8 +21614,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_s64x4_u32x8)(zi_s64x4 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_s64x4_s32x8_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_s64x4_s32x8)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13456,8 +21631,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_s64x4_s32x8)(zi_s64x4 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_s64x4_u64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_s64x4_u64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13467,8 +21648,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_s64x4_u64x4)(zi_s64x4 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_s64x4_f32x8_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_s64x4_f32x8)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13478,8 +21665,14 @@ ZI_FN zi_f32x8 ZI_N(reinterpret_s64x4_f32x8)(zi_s64x4 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_s64x4_f64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_s64x4_f64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13489,8 +21682,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_s64x4_f64x4)(zi_s64x4 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_f32x8_u8x32_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_f32x8_u8x32)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13500,8 +21699,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_f32x8_u8x32)(zi_f32x8 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_f32x8_s8x32_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_f32x8_s8x32)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13511,8 +21716,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_f32x8_s8x32)(zi_f32x8 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_f32x8_u16x16_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_f32x8_u16x16)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13522,8 +21733,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_f32x8_u16x16)(zi_f32x8 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_f32x8_s16x16_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_f32x8_s16x16)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13533,8 +21750,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_f32x8_s16x16)(zi_f32x8 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_f32x8_u32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_f32x8_u32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13544,8 +21767,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_f32x8_u32x8)(zi_f32x8 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_f32x8_s32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_f32x8_s32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13555,8 +21784,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_f32x8_s32x8)(zi_f32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_f32x8_u64x4_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_f32x8_u64x4)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13566,8 +21801,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_f32x8_u64x4)(zi_f32x8 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_f32x8_s64x4_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_f32x8_s64x4)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13577,8 +21818,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_f32x8_s64x4)(zi_f32x8 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(reinterpret_f32x8_f64x4_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(reinterpret_f32x8_f64x4)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f64x4)a;
 #else
@@ -13588,8 +21835,14 @@ ZI_FN zi_f64x4 ZI_N(reinterpret_f32x8_f64x4)(zi_f32x8 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(reinterpret_f64x4_u8x32_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(reinterpret_f64x4_u8x32)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u8x32)a;
 #else
@@ -13599,8 +21852,14 @@ ZI_FN zi_u8x32 ZI_N(reinterpret_f64x4_u8x32)(zi_f64x4 a)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(reinterpret_f64x4_s8x32_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(reinterpret_f64x4_s8x32)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s8x32)a;
 #else
@@ -13610,8 +21869,14 @@ ZI_FN zi_s8x32 ZI_N(reinterpret_f64x4_s8x32)(zi_f64x4 a)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(reinterpret_f64x4_u16x16_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(reinterpret_f64x4_u16x16)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u16x16)a;
 #else
@@ -13621,8 +21886,14 @@ ZI_FN zi_u16x16 ZI_N(reinterpret_f64x4_u16x16)(zi_f64x4 a)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(reinterpret_f64x4_s16x16_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(reinterpret_f64x4_s16x16)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s16x16)a;
 #else
@@ -13632,8 +21903,14 @@ ZI_FN zi_s16x16 ZI_N(reinterpret_f64x4_s16x16)(zi_f64x4 a)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(reinterpret_f64x4_u32x8_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(reinterpret_f64x4_u32x8)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u32x8)a;
 #else
@@ -13643,8 +21920,14 @@ ZI_FN zi_u32x8 ZI_N(reinterpret_f64x4_u32x8)(zi_f64x4 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(reinterpret_f64x4_s32x8_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(reinterpret_f64x4_s32x8)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s32x8)a;
 #else
@@ -13654,8 +21937,14 @@ ZI_FN zi_s32x8 ZI_N(reinterpret_f64x4_s32x8)(zi_f64x4 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(reinterpret_f64x4_u64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(reinterpret_f64x4_u64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_u64x4)a;
 #else
@@ -13665,8 +21954,14 @@ ZI_FN zi_u64x4 ZI_N(reinterpret_f64x4_u64x4)(zi_f64x4 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(reinterpret_f64x4_s64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(reinterpret_f64x4_s64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_s64x4)a;
 #else
@@ -13676,8 +21971,14 @@ ZI_FN zi_s64x4 ZI_N(reinterpret_f64x4_s64x4)(zi_f64x4 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(reinterpret_f64x4_f32x8_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(reinterpret_f64x4_f32x8)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     return (zi_f32x8)a;
 #else
@@ -13795,8 +22096,14 @@ ZI_FN zi_s64x2 ZI_N(convert_f64x2_s64x2)(zi_f64x2 a)
     return zi_pack_s64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(convert_u32x8_f32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(convert_u32x8_f32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_VEC
     return __builtin_convertvector(a, zi_f32x8);
 #else
@@ -13806,8 +22113,14 @@ ZI_FN zi_f32x8 ZI_N(convert_u32x8_f32x8)(zi_u32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(convert_s32x8_f32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(convert_s32x8_f32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_VEC
     return __builtin_convertvector(a, zi_f32x8);
 #else
@@ -13817,8 +22130,14 @@ ZI_FN zi_f32x8 ZI_N(convert_s32x8_f32x8)(zi_s32x8 a)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(convert_u64x4_f64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(convert_u64x4_f64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_VEC
     return __builtin_convertvector(a, zi_f64x4);
 #else
@@ -13828,8 +22147,14 @@ ZI_FN zi_f64x4 ZI_N(convert_u64x4_f64x4)(zi_u64x4 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(convert_s64x4_f64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(convert_s64x4_f64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_VEC
     return __builtin_convertvector(a, zi_f64x4);
 #else
@@ -13839,8 +22164,14 @@ ZI_FN zi_f64x4 ZI_N(convert_s64x4_f64x4)(zi_s64x4 a)
     return zi_pack_f64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(convert_f32x8_u32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(convert_f32x8_u32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     zi_u32x8 big_ = (zi_u32x8)(a >= (zi_f32x8){0} + (float)4294967296.0), small_ = (zi_u32x8)(a <= (zi_f32x8){0} + (float)-1.0), nan_ = (zi_u32x8)(a != a);
     zi_f32x8 safe_ = (zi_f32x8)((zi_u32x8)a & ~(big_ | small_ | nan_));
@@ -13855,8 +22186,14 @@ ZI_FN zi_u32x8 ZI_N(convert_f32x8_u32x8)(zi_f32x8 a)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(convert_f32x8_s32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(convert_f32x8_s32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_VEC
     zi_u32x8 big_ = (zi_u32x8)(a >= (zi_f32x8){0} + (float)2147483648.0), small_ = (zi_u32x8)(a <= (zi_f32x8){0} + (float)-2147483648.0), nan_ = (zi_u32x8)(a != a);
     zi_f32x8 safe_ = (zi_f32x8)((zi_u32x8)a & ~(big_ | small_ | nan_));
@@ -13871,8 +22208,14 @@ ZI_FN zi_s32x8 ZI_N(convert_f32x8_s32x8)(zi_f32x8 a)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(convert_f64x4_u64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(convert_f64x4_u64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     zi_u64x4 big_ = (zi_u64x4)(a >= (zi_f64x4){0} + (double)18446744073709551616.0), small_ = (zi_u64x4)(a <= (zi_f64x4){0} + (double)-1.0), nan_ = (zi_u64x4)(a != a);
     zi_f64x4 safe_ = (zi_f64x4)((zi_u64x4)a & ~(big_ | small_ | nan_));
@@ -13887,8 +22230,14 @@ ZI_FN zi_u64x4 ZI_N(convert_f64x4_u64x4)(zi_f64x4 a)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_VEC
     zi_u64x4 big_ = (zi_u64x4)(a >= (zi_f64x4){0} + (double)9223372036854775808.0), small_ = (zi_u64x4)(a <= (zi_f64x4){0} + (double)-9223372036854775808.0), nan_ = (zi_u64x4)(a != a);
     zi_f64x4 safe_ = (zi_f64x4)((zi_u64x4)a & ~(big_ | small_ | nan_));
@@ -13903,200 +22252,400 @@ ZI_FN zi_s64x4 ZI_N(convert_f64x4_s64x4)(zi_f64x4 a)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x16 ZI_N(low_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x16 ZI_N(low_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x16)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_u8x32 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u8x16)u_.h[0];
 #else
     zi_u8x16 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x16 ZI_N(low_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x16 ZI_N(low_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x16)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_s8x32 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s8x16)u_.h[0];
 #else
     zi_s8x16 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x8 ZI_N(low_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x8 ZI_N(low_u16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x8)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_u16x16 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u16x8)u_.h[0];
 #else
     zi_u16x8 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x8 ZI_N(low_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x8 ZI_N(low_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x8)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_s16x16 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s16x8)u_.h[0];
 #else
     zi_s16x8 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x4 ZI_N(low_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x4 ZI_N(low_u32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x4)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_u32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u32x4)u_.h[0];
 #else
     zi_u32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x4 ZI_N(low_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x4 ZI_N(low_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x4)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_s32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s32x4)u_.h[0];
 #else
     zi_s32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x2 ZI_N(low_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x2 ZI_N(low_u64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x2)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_u64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u64x2)u_.h[0];
 #else
     zi_u64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x2 ZI_N(low_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x2 ZI_N(low_s64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x2)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_s64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s64x2)u_.h[0];
 #else
     zi_s64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x4 ZI_N(low_f32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x4 ZI_N(low_f32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f32x4)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_f32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_f32x4)u_.h[0];
 #else
     zi_f32x4 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x2 ZI_N(low_f64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x2 ZI_N(low_f64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f64x2)_mm256_castsi256_si128((__m256i)a);
+#elif ZI_X86
+    union { zi_f64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_f64x2)u_.h[0];
 #else
     zi_f64x2 r_;
     memcpy(&r_, (const char *)&a + 0, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x16 ZI_N(high_u8x32_p_)(const zi_u8x32 *a_p_)
+{
+    zi_u8x32 a = *a_p_;
+#else
 ZI_FN zi_u8x16 ZI_N(high_u8x32)(zi_u8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x16)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_u8x32 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u8x16)u_.h[1];
 #else
     zi_u8x16 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x16 ZI_N(high_s8x32_p_)(const zi_s8x32 *a_p_)
+{
+    zi_s8x32 a = *a_p_;
+#else
 ZI_FN zi_s8x16 ZI_N(high_s8x32)(zi_s8x32 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x16)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_s8x32 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s8x16)u_.h[1];
 #else
     zi_s8x16 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x8 ZI_N(high_u16x16_p_)(const zi_u16x16 *a_p_)
+{
+    zi_u16x16 a = *a_p_;
+#else
 ZI_FN zi_u16x8 ZI_N(high_u16x16)(zi_u16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x8)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_u16x16 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u16x8)u_.h[1];
 #else
     zi_u16x8 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x8 ZI_N(high_s16x16_p_)(const zi_s16x16 *a_p_)
+{
+    zi_s16x16 a = *a_p_;
+#else
 ZI_FN zi_s16x8 ZI_N(high_s16x16)(zi_s16x16 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x8)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_s16x16 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s16x8)u_.h[1];
 #else
     zi_s16x8 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x4 ZI_N(high_u32x8_p_)(const zi_u32x8 *a_p_)
+{
+    zi_u32x8 a = *a_p_;
+#else
 ZI_FN zi_u32x4 ZI_N(high_u32x8)(zi_u32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_u32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u32x4)u_.h[1];
 #else
     zi_u32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x4 ZI_N(high_s32x8_p_)(const zi_s32x8 *a_p_)
+{
+    zi_s32x8 a = *a_p_;
+#else
 ZI_FN zi_s32x4 ZI_N(high_s32x8)(zi_s32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_s32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s32x4)u_.h[1];
 #else
     zi_s32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x2 ZI_N(high_u64x4_p_)(const zi_u64x4 *a_p_)
+{
+    zi_u64x4 a = *a_p_;
+#else
 ZI_FN zi_u64x2 ZI_N(high_u64x4)(zi_u64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_u64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_u64x2)u_.h[1];
 #else
     zi_u64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x2 ZI_N(high_s64x4_p_)(const zi_s64x4 *a_p_)
+{
+    zi_s64x4 a = *a_p_;
+#else
 ZI_FN zi_s64x2 ZI_N(high_s64x4)(zi_s64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_s64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_s64x2)u_.h[1];
 #else
     zi_s64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x4 ZI_N(high_f32x8_p_)(const zi_f32x8 *a_p_)
+{
+    zi_f32x8 a = *a_p_;
+#else
 ZI_FN zi_f32x4 ZI_N(high_f32x8)(zi_f32x8 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f32x4)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_f32x8 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_f32x4)u_.h[1];
 #else
     zi_f32x4 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
     return r_;
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x2 ZI_N(high_f64x4_p_)(const zi_f64x4 *a_p_)
+{
+    zi_f64x4 a = *a_p_;
+#else
 ZI_FN zi_f64x2 ZI_N(high_f64x4)(zi_f64x4 a)
 {
+#endif
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f64x2)_mm256_extracti128_si256((__m256i)a, 1);
+#elif ZI_X86
+    union { zi_f64x4 w; __m128i h[2]; } u_;
+    u_.w = a;
+    return (zi_f64x2)u_.h[1];
 #else
     zi_f64x2 r_;
     memcpy(&r_, (const char *)&a + 16, 16);
@@ -14107,6 +22656,11 @@ ZI_FN zi_u8x32 ZI_N(combine_u8x16)(zi_u8x16 a, zi_u8x16 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u8x32)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_u8x32 w; zi_u8x16 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_u8x32 r_;
     memcpy(&r_, &a, 16);
@@ -14118,6 +22672,11 @@ ZI_FN zi_s8x32 ZI_N(combine_s8x16)(zi_s8x16 a, zi_s8x16 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s8x32)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_s8x32 w; zi_s8x16 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_s8x32 r_;
     memcpy(&r_, &a, 16);
@@ -14129,6 +22688,11 @@ ZI_FN zi_u16x16 ZI_N(combine_u16x8)(zi_u16x8 a, zi_u16x8 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u16x16)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_u16x16 w; zi_u16x8 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_u16x16 r_;
     memcpy(&r_, &a, 16);
@@ -14140,6 +22704,11 @@ ZI_FN zi_s16x16 ZI_N(combine_s16x8)(zi_s16x8 a, zi_s16x8 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s16x16)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_s16x16 w; zi_s16x8 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_s16x16 r_;
     memcpy(&r_, &a, 16);
@@ -14151,6 +22720,11 @@ ZI_FN zi_u32x8 ZI_N(combine_u32x4)(zi_u32x4 a, zi_u32x4 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_u32x8 w; zi_u32x4 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_u32x8 r_;
     memcpy(&r_, &a, 16);
@@ -14162,6 +22736,11 @@ ZI_FN zi_s32x8 ZI_N(combine_s32x4)(zi_s32x4 a, zi_s32x4 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_s32x8 w; zi_s32x4 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_s32x8 r_;
     memcpy(&r_, &a, 16);
@@ -14173,6 +22752,11 @@ ZI_FN zi_u64x4 ZI_N(combine_u64x2)(zi_u64x2 a, zi_u64x2 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_u64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_u64x4 w; zi_u64x2 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_u64x4 r_;
     memcpy(&r_, &a, 16);
@@ -14184,6 +22768,11 @@ ZI_FN zi_s64x4 ZI_N(combine_s64x2)(zi_s64x2 a, zi_s64x2 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_s64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_s64x4 w; zi_s64x2 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_s64x4 r_;
     memcpy(&r_, &a, 16);
@@ -14195,6 +22784,11 @@ ZI_FN zi_f32x8 ZI_N(combine_f32x4)(zi_f32x4 a, zi_f32x4 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f32x8)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_f32x8 w; zi_f32x4 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_f32x8 r_;
     memcpy(&r_, &a, 16);
@@ -14206,6 +22800,11 @@ ZI_FN zi_f64x4 ZI_N(combine_f64x2)(zi_f64x2 a, zi_f64x2 b)
 {
 #if ZI_X86 && ZI_TIER >= 4
     return (zi_f64x4)_mm256_inserti128_si256(_mm256_castsi128_si256((__m128i)a), (__m128i)b, 1);
+#elif ZI_VEC
+    union { zi_f64x4 w; zi_f64x2 h[2]; } u_;
+    u_.h[0] = a;
+    u_.h[1] = b;
+    return u_.w;
 #else
     zi_f64x4 r_;
     memcpy(&r_, &a, 16);
@@ -14343,9 +22942,18 @@ ZI_FN zi_f64x2 ZI_N(interleave_low_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(interleave_low_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(interleave_low_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(interleave_low_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(interleave_low_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)__builtin_shufflevector(a, b, 0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14356,9 +22964,18 @@ ZI_FN zi_u8x32 ZI_N(interleave_low_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(interleave_low_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(interleave_low_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(interleave_low_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(interleave_low_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)__builtin_shufflevector(a, b, 0, 32, 1, 33, 2, 34, 3, 35, 4, 36, 5, 37, 6, 38, 7, 39, 16, 48, 17, 49, 18, 50, 19, 51, 20, 52, 21, 53, 22, 54, 23, 55);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14369,9 +22986,18 @@ ZI_FN zi_s8x32 ZI_N(interleave_low_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(interleave_low_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(interleave_low_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(interleave_low_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(interleave_low_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)__builtin_shufflevector(a, b, 0, 16, 1, 17, 2, 18, 3, 19, 8, 24, 9, 25, 10, 26, 11, 27);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14382,9 +23008,18 @@ ZI_FN zi_u16x16 ZI_N(interleave_low_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(interleave_low_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(interleave_low_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(interleave_low_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(interleave_low_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)__builtin_shufflevector(a, b, 0, 16, 1, 17, 2, 18, 3, 19, 8, 24, 9, 25, 10, 26, 11, 27);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14395,9 +23030,18 @@ ZI_FN zi_s16x16 ZI_N(interleave_low_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(interleave_low_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(interleave_low_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(interleave_low_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(interleave_low_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)__builtin_shufflevector(a, b, 0, 8, 1, 9, 4, 12, 5, 13);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14408,9 +23052,18 @@ ZI_FN zi_u32x8 ZI_N(interleave_low_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(interleave_low_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(interleave_low_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(interleave_low_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(interleave_low_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)__builtin_shufflevector(a, b, 0, 8, 1, 9, 4, 12, 5, 13);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14421,9 +23074,18 @@ ZI_FN zi_s32x8 ZI_N(interleave_low_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(interleave_low_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(interleave_low_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(interleave_low_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(interleave_low_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)__builtin_shufflevector(a, b, 0, 4, 2, 6);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14434,9 +23096,18 @@ ZI_FN zi_u64x4 ZI_N(interleave_low_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(interleave_low_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(interleave_low_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(interleave_low_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(interleave_low_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)__builtin_shufflevector(a, b, 0, 4, 2, 6);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14447,9 +23118,18 @@ ZI_FN zi_s64x4 ZI_N(interleave_low_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(interleave_low_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(interleave_low_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f32x4)(ZI_N(interleave_low_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(interleave_low_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return (zi_f32x8)__builtin_shufflevector(a, b, 0, 8, 1, 9, 4, 12, 5, 13);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14460,9 +23140,18 @@ ZI_FN zi_f32x8 ZI_N(interleave_low_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(interleave_low_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(interleave_low_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f64x2)(ZI_N(interleave_low_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(interleave_low_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return (zi_f64x4)__builtin_shufflevector(a, b, 0, 4, 2, 6);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14603,9 +23292,18 @@ ZI_FN zi_f64x2 ZI_N(interleave_high_f64x2)(zi_f64x2 a, zi_f64x2 b)
     return zi_pack_f64x2(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u8x32 ZI_N(interleave_high_u8x32_p_)(const zi_u8x32 *a_p_, const zi_u8x32 *b_p_)
+{
+    zi_u8x32 a = *a_p_;
+    zi_u8x32 b = *b_p_;
+#else
 ZI_FN zi_u8x32 ZI_N(interleave_high_u8x32)(zi_u8x32 a, zi_u8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u8x16)(ZI_N(interleave_high_u8x16)(ZI_N(low_u8x32)(a), ZI_N(low_u8x32)(b)), ZI_N(interleave_high_u8x16)(ZI_N(high_u8x32)(a), ZI_N(high_u8x32)(b)));
+#elif ZI_VEC
     return (zi_u8x32)__builtin_shufflevector(a, b, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14616,9 +23314,18 @@ ZI_FN zi_u8x32 ZI_N(interleave_high_u8x32)(zi_u8x32 a, zi_u8x32 b)
     return zi_pack_u8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s8x32 ZI_N(interleave_high_s8x32_p_)(const zi_s8x32 *a_p_, const zi_s8x32 *b_p_)
+{
+    zi_s8x32 a = *a_p_;
+    zi_s8x32 b = *b_p_;
+#else
 ZI_FN zi_s8x32 ZI_N(interleave_high_s8x32)(zi_s8x32 a, zi_s8x32 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s8x16)(ZI_N(interleave_high_s8x16)(ZI_N(low_s8x32)(a), ZI_N(low_s8x32)(b)), ZI_N(interleave_high_s8x16)(ZI_N(high_s8x32)(a), ZI_N(high_s8x32)(b)));
+#elif ZI_VEC
     return (zi_s8x32)__builtin_shufflevector(a, b, 8, 40, 9, 41, 10, 42, 11, 43, 12, 44, 13, 45, 14, 46, 15, 47, 24, 56, 25, 57, 26, 58, 27, 59, 28, 60, 29, 61, 30, 62, 31, 63);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14629,9 +23336,18 @@ ZI_FN zi_s8x32 ZI_N(interleave_high_s8x32)(zi_s8x32 a, zi_s8x32 b)
     return zi_pack_s8x32(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u16x16 ZI_N(interleave_high_u16x16_p_)(const zi_u16x16 *a_p_, const zi_u16x16 *b_p_)
+{
+    zi_u16x16 a = *a_p_;
+    zi_u16x16 b = *b_p_;
+#else
 ZI_FN zi_u16x16 ZI_N(interleave_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u16x8)(ZI_N(interleave_high_u16x8)(ZI_N(low_u16x16)(a), ZI_N(low_u16x16)(b)), ZI_N(interleave_high_u16x8)(ZI_N(high_u16x16)(a), ZI_N(high_u16x16)(b)));
+#elif ZI_VEC
     return (zi_u16x16)__builtin_shufflevector(a, b, 4, 20, 5, 21, 6, 22, 7, 23, 12, 28, 13, 29, 14, 30, 15, 31);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14642,9 +23358,18 @@ ZI_FN zi_u16x16 ZI_N(interleave_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
     return zi_pack_u16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s16x16 ZI_N(interleave_high_s16x16_p_)(const zi_s16x16 *a_p_, const zi_s16x16 *b_p_)
+{
+    zi_s16x16 a = *a_p_;
+    zi_s16x16 b = *b_p_;
+#else
 ZI_FN zi_s16x16 ZI_N(interleave_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s16x8)(ZI_N(interleave_high_s16x8)(ZI_N(low_s16x16)(a), ZI_N(low_s16x16)(b)), ZI_N(interleave_high_s16x8)(ZI_N(high_s16x16)(a), ZI_N(high_s16x16)(b)));
+#elif ZI_VEC
     return (zi_s16x16)__builtin_shufflevector(a, b, 4, 20, 5, 21, 6, 22, 7, 23, 12, 28, 13, 29, 14, 30, 15, 31);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14655,9 +23380,18 @@ ZI_FN zi_s16x16 ZI_N(interleave_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
     return zi_pack_s16x16(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u32x8 ZI_N(interleave_high_u32x8_p_)(const zi_u32x8 *a_p_, const zi_u32x8 *b_p_)
+{
+    zi_u32x8 a = *a_p_;
+    zi_u32x8 b = *b_p_;
+#else
 ZI_FN zi_u32x8 ZI_N(interleave_high_u32x8)(zi_u32x8 a, zi_u32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u32x4)(ZI_N(interleave_high_u32x4)(ZI_N(low_u32x8)(a), ZI_N(low_u32x8)(b)), ZI_N(interleave_high_u32x4)(ZI_N(high_u32x8)(a), ZI_N(high_u32x8)(b)));
+#elif ZI_VEC
     return (zi_u32x8)__builtin_shufflevector(a, b, 2, 10, 3, 11, 6, 14, 7, 15);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14668,9 +23402,18 @@ ZI_FN zi_u32x8 ZI_N(interleave_high_u32x8)(zi_u32x8 a, zi_u32x8 b)
     return zi_pack_u32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s32x8 ZI_N(interleave_high_s32x8_p_)(const zi_s32x8 *a_p_, const zi_s32x8 *b_p_)
+{
+    zi_s32x8 a = *a_p_;
+    zi_s32x8 b = *b_p_;
+#else
 ZI_FN zi_s32x8 ZI_N(interleave_high_s32x8)(zi_s32x8 a, zi_s32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s32x4)(ZI_N(interleave_high_s32x4)(ZI_N(low_s32x8)(a), ZI_N(low_s32x8)(b)), ZI_N(interleave_high_s32x4)(ZI_N(high_s32x8)(a), ZI_N(high_s32x8)(b)));
+#elif ZI_VEC
     return (zi_s32x8)__builtin_shufflevector(a, b, 2, 10, 3, 11, 6, 14, 7, 15);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14681,9 +23424,18 @@ ZI_FN zi_s32x8 ZI_N(interleave_high_s32x8)(zi_s32x8 a, zi_s32x8 b)
     return zi_pack_s32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_u64x4 ZI_N(interleave_high_u64x4_p_)(const zi_u64x4 *a_p_, const zi_u64x4 *b_p_)
+{
+    zi_u64x4 a = *a_p_;
+    zi_u64x4 b = *b_p_;
+#else
 ZI_FN zi_u64x4 ZI_N(interleave_high_u64x4)(zi_u64x4 a, zi_u64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_u64x2)(ZI_N(interleave_high_u64x2)(ZI_N(low_u64x4)(a), ZI_N(low_u64x4)(b)), ZI_N(interleave_high_u64x2)(ZI_N(high_u64x4)(a), ZI_N(high_u64x4)(b)));
+#elif ZI_VEC
     return (zi_u64x4)__builtin_shufflevector(a, b, 1, 5, 3, 7);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14694,9 +23446,18 @@ ZI_FN zi_u64x4 ZI_N(interleave_high_u64x4)(zi_u64x4 a, zi_u64x4 b)
     return zi_pack_u64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_s64x4 ZI_N(interleave_high_s64x4_p_)(const zi_s64x4 *a_p_, const zi_s64x4 *b_p_)
+{
+    zi_s64x4 a = *a_p_;
+    zi_s64x4 b = *b_p_;
+#else
 ZI_FN zi_s64x4 ZI_N(interleave_high_s64x4)(zi_s64x4 a, zi_s64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_s64x2)(ZI_N(interleave_high_s64x2)(ZI_N(low_s64x4)(a), ZI_N(low_s64x4)(b)), ZI_N(interleave_high_s64x2)(ZI_N(high_s64x4)(a), ZI_N(high_s64x4)(b)));
+#elif ZI_VEC
     return (zi_s64x4)__builtin_shufflevector(a, b, 1, 5, 3, 7);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14707,9 +23468,18 @@ ZI_FN zi_s64x4 ZI_N(interleave_high_s64x4)(zi_s64x4 a, zi_s64x4 b)
     return zi_pack_s64x4(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f32x8 ZI_N(interleave_high_f32x8_p_)(const zi_f32x8 *a_p_, const zi_f32x8 *b_p_)
+{
+    zi_f32x8 a = *a_p_;
+    zi_f32x8 b = *b_p_;
+#else
 ZI_FN zi_f32x8 ZI_N(interleave_high_f32x8)(zi_f32x8 a, zi_f32x8 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f32x4)(ZI_N(interleave_high_f32x4)(ZI_N(low_f32x8)(a), ZI_N(low_f32x8)(b)), ZI_N(interleave_high_f32x4)(ZI_N(high_f32x8)(a), ZI_N(high_f32x8)(b)));
+#elif ZI_VEC
     return (zi_f32x8)__builtin_shufflevector(a, b, 2, 10, 3, 11, 6, 14, 7, 15);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];
@@ -14720,9 +23490,18 @@ ZI_FN zi_f32x8 ZI_N(interleave_high_f32x8)(zi_f32x8 a, zi_f32x8 b)
     return zi_pack_f32x8(o_);
 #endif
 }
+#if ZI_VEC && ZI_X86 && ZI_TIER < 4
+ZI_FN zi_f64x4 ZI_N(interleave_high_f64x4_p_)(const zi_f64x4 *a_p_, const zi_f64x4 *b_p_)
+{
+    zi_f64x4 a = *a_p_;
+    zi_f64x4 b = *b_p_;
+#else
 ZI_FN zi_f64x4 ZI_N(interleave_high_f64x4)(zi_f64x4 a, zi_f64x4 b)
 {
-#if ZI_VEC
+#endif
+#if ZI_VEC && ((ZI_VEC && ZI_X86 && ZI_TIER < 4))
+    return ZI_N(combine_f64x2)(ZI_N(interleave_high_f64x2)(ZI_N(low_f64x4)(a), ZI_N(low_f64x4)(b)), ZI_N(interleave_high_f64x2)(ZI_N(high_f64x4)(a), ZI_N(high_f64x4)(b)));
+#elif ZI_VEC
     return (zi_f64x4)__builtin_shufflevector(a, b, 1, 5, 3, 7);
 #else
     uint64_t x_[32] = {0}, y_[32] = {0}, z_[32] = {0}, o_[32];

@@ -14,7 +14,9 @@
 //
 // Lane-wise arithmetic: Add, Sub, Mul, Div (float), AddSat, SubSat (8 and
 // 16-bit lanes), Min, Max, Average (u8, u16, rounding up), MulHigh (16-bit),
-// MulHighRound (s16, Q15 rounding), Abs, Neg.
+// MulHighRound (s16, Q15 rounding), Abs, Neg, Sign(a, b) (signed lanes: a
+// negated where b < 0 and 0 where b is 0), AbsDiff(a, b) (|a - b| in the
+// unsigned lanes of the same width).
 // Bits: And, Or, Xor, AndNot(a, b) = a & ~b, Not.
 // Compare: Equal, Less, Greater give all-ones lanes where true; float
 // lanes give the unsigned vector of the same width. Select(mask, a, b)

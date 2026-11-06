@@ -12,7 +12,7 @@ JSONResult :: struct {
 #scope_file
 MarshalRaw :: (value: Any) -> JSONResult #go_results #foreign go_json "Marshal";
 UnmarshalRaw :: (data: []u8, value: Any) -> Error #foreign go_json "Unmarshal";
-ValidRaw :: (data: []u8) -> bool #foreign go_json "Valid";
+ValidRaw :: (data: []u8) -> bool #reads #foreign go_json "Valid";
 NewEncoderRaw :: (writer: io.Writer) -> *Encoder #foreign go_json "NewEncoder";
 EncodeRaw :: (encoder: *Encoder, value: Any) -> Error #foreign go_json "(*Encoder).Encode";
 NewDecoderRaw :: (reader: io.Reader) -> *Decoder #foreign go_json "NewDecoder";

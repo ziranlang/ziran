@@ -1,7 +1,7 @@
 #import "vec"
 
 sha256 :: #system_library "go:crypto/sha256";
-Sum256 :: (value: []u8) -> [32]u8 #foreign sha256 "Sum256";
+Sum256 :: (value: []u8) -> [32]u8 #reads #foreign sha256 "Sum256";
 
 DigestResult :: struct {
     value: string

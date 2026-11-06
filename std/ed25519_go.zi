@@ -15,9 +15,9 @@ KeyPairResult :: struct {
 RandomSource :: #type #foreign go_io "Reader";
 ReaderRaw :: () -> RandomSource #go_field #foreign go_random "Reader";
 GenerateRaw :: (source: RandomSource) -> KeyPairResult #go_results #foreign go_ed25519 "GenerateKey";
-FromSeedRaw :: (seed: []u8) -> PrivateKey #foreign go_ed25519 "NewKeyFromSeed";
-SignRaw :: (key: PrivateKey, message: []u8) -> []u8 #foreign go_ed25519 "Sign";
-VerifyRaw :: (key: PublicKey, message: []u8, signature: []u8) -> bool #foreign go_ed25519 "Verify";
+FromSeedRaw :: (seed: []u8) -> PrivateKey #reads #foreign go_ed25519 "NewKeyFromSeed";
+SignRaw :: (key: PrivateKey, message: []u8) -> []u8 #reads #foreign go_ed25519 "Sign";
+VerifyRaw :: (key: PublicKey, message: []u8, signature: []u8) -> bool #reads #foreign go_ed25519 "Verify";
 EqualRaw :: (key: PublicKey, other: PublicKey) -> bool #foreign go_ed25519 "PublicKey.Equal";
 
 #scope_export

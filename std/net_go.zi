@@ -12,7 +12,7 @@ HostPort :: struct {
 
 #scope_file
 SplitRaw :: (address: string) -> HostPort #go_results #foreign go_net "SplitHostPort";
-ParseRaw :: (address: string) -> IP #foreign go_net "ParseIP";
+ParseRaw :: (address: string) -> IP #reads #foreign go_net "ParseIP";
 CountRaw :: (value: IP) -> isize #foreign builtin "len";
 StringRaw :: (value: IP) -> string #foreign go_net "IP.String";
 LoopbackRaw :: (value: IP) -> bool #foreign go_net "IP.IsLoopback";

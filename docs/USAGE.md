@@ -1370,8 +1370,9 @@ as many lines as it needs. Reading `COS[i]` reads one table the module shares
 (a file-scope `static const` in C, a package `var` in Go, built once in the
 portable VM) instead of copying the array; copying it into a variable, as in
 `local: [3]s32 = COS`, still makes an independent copy. Indexes are
-bounds-checked as for any array. Nested arrays are not constant tables yet.
-Run `sh tests/constant_tables.sh build/bin/ziran`.
+bounds-checked as for any array. A function may read a table, and its
+`.count`, in as many loops as it needs. Nested arrays are not constant tables
+yet. Run `sh tests/constant_tables.sh build/bin/ziran`.
 
 ### Bit counts and byte swaps
 

@@ -1681,10 +1681,25 @@ inline_compound_constant(Checker *c, int index,
     ZirFunction probe = {0};
     int root = ParseExpr(&probe, compound->owner, compound->literal,
                          c->fn->exprs[index].span);
-    if(root < 0 || probe.exprs[root].kind != ZIR_EXPR_COMPOUND ||
-       c->fn->expr_count + probe.expr_count - 1 > c->fn->expr_cap) {
+    if(root < 0 || probe.exprs[root].kind != ZIR_EXPR_COMPOUND) {
         free(probe.exprs);
         return 0;
+    }
+    /* Checking appends expressions, such as widening casts, beyond what
+     * reserve_compound_constants counted, so a later use may need more
+     * room. Callers refetch their expressions after checking an operand. */
+    size_t needed = (size_t)c->fn->expr_count + (size_t)probe.expr_count - 1;
+    if(needed > (size_t)c->fn->expr_cap) {
+        size_t grown = needed + needed / 2;
+        ZirExpr *expanded = grown <= INT_MAX &&
+            grown <= SIZE_MAX / sizeof(*expanded) ?
+            realloc(c->fn->exprs, grown * sizeof(*expanded)) : NULL;
+        if(expanded == NULL) {
+            free(probe.exprs);
+            return 0;
+        }
+        c->fn->exprs = expanded;
+        c->fn->expr_cap = (int)grown;
     }
     for(int i = 0; i < probe.expr_count; i++) {
         ZirExpr *node = &probe.exprs[i];

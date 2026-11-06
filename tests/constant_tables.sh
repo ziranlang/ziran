@@ -2,6 +2,8 @@
 # An index read of a constant array, such as TABLE :: #run s64.[...], reads
 # one shared read-only table: a module-level static const in C, a package
 # var in Go and a value the VM builds once. Copies keep value semantics.
+# A function may read one table in many loops, beside widening casts and
+# .count, without running out of room to bind it.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -27,6 +29,42 @@ BigSum :: (rounds: s64) -> s64 {
     for i: 0..rounds { total += cast(s64) Lib.BIG[i & 4095] }
     return total
 }
+// Each loop's s32 + s64 index widens before the next read binds TABLE.
+Twice :: () -> s32 {
+    sum: s32
+    b: s32 = 1
+    for j: 0..cast(s64)3 { sum += TABLE[b + j] }
+    for j: 0..cast(s64)3 { sum += TABLE[b + j] }
+    return sum
+}
+Grid :: (width: s32, height: s32) -> s32 {
+    x_base := width - 4
+    y_base := height - 4
+    total: s32 = 0
+    for i: 0..cast(s64)height - 1 {
+        wy := TABLE[y_base + i]
+        for j: 0..cast(s64)width - 1 {
+            wx := TABLE[x_base + j]
+            total += wx * wy
+        }
+    }
+    return total
+}
+Taps :: (b: s32) -> s32 {
+    s: s32 = 0
+    for i: 0..cast(s64)1 {
+        for j: 0..cast(s64)1 {
+            for k: 0..cast(s64)1 { s += TABLE[b + i + j + k] }
+        }
+    }
+    for i: 0..cast(s64)1 { s += TABLE[b + i] }
+    return s
+}
+Counted :: () -> s32 {
+    sum: s32 = 0
+    for i: 0..TABLE.count - 1 { sum += TABLE[i] }
+    return sum + TABLE[TABLE.count - 1] + cast(s32) TABLE.count
+}
 #program_export
 Answer :: () -> s64 {
     local: [8]s32 = TABLE
@@ -43,6 +81,10 @@ Answer :: () -> s64 {
     expected: s64 = 0
     for i: 0..4095 { expected += (i * 7) % 13 }
     if BigSum(1048575) != expected * 256 { return 5 }
+    if Twice() != 22 { return 6 }
+    if Grid(4, 4) != 81 { return 7 }
+    if Taps(1) != 26 { return 8 }
+    if Counted() != 45 { return 9 }
     return Lib.NUMBERS[2] + cast(s64) (Pick(0) - 3)
 }
 #program_export

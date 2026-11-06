@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- A constant table read in several loops of one function, or through
+  `.count`, no longer fails with "cannot bind aggregate constant".
 - Integer literals such as `1_000`, `0xDEAD_BEEF`, `0b1010_0101` and `u64`
   values above the `s64` maximum work in globals, `::` constants, constant
   tables, array sizes and range bounds, and pass the portable VM's checks.

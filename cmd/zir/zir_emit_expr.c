@@ -1384,6 +1384,41 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             e->pure = 0;
             return;
         }
+        if(BitBuiltin(expr->name) != ZIR_BIT_NONE) {
+            int op = BitBuiltin(expr->name);
+            size_t width = ScalarByteWidth(type) * 8;
+            const char *native = TargetType(type, e->target);
+            if(expr->first_child < 0 || native == NULL ||
+               (width != 8 && width != 16 && width != 32 && width != 64))
+                fatal(expr, "bit builtin requires one unsigned integer");
+            emit_expr(e, expr->first_child, type, buffers->a, sizeof(buffers->a));
+            pure = e->pure;
+            if(e->target == ZIR_GO) {
+                static const char *const go_names[] = {
+                    "", "LeadingZeros", "TrailingZeros", "OnesCount", "ReverseBytes"
+                };
+                if(op == ZIR_BIT_BSWAP && width == 8)
+                    copy_text(buffers->result, sizeof(buffers->result), buffers->a);
+                else
+                    format(buffers->result, sizeof(buffers->result),
+                           "%s(zibits.%s%zu(%s))", native, go_names[op],
+                           width, buffers->a);
+            } else if(op == ZIR_BIT_BSWAP) {
+                if(width == 8)
+                    copy_text(buffers->result, sizeof(buffers->result), buffers->a);
+                else
+                    format(buffers->result, sizeof(buffers->result),
+                           "ZiBswap%zu(%s)", width, buffers->a);
+            } else {
+                static const char *const c_names[] = {
+                    "", "ZiClz", "ZiCtz", "ZiPopcount", ""
+                };
+                format(buffers->result, sizeof(buffers->result),
+                       "((%s)%s((uint64_t)(%s), %zu))", native, c_names[op],
+                       buffers->a, width);
+            }
+            break;
+        }
         if(!strcmp(expr->name, "TextView")) {
             if(expr->first_child < 0 ||
                e->fn->exprs[expr->first_child].next_sibling >= 0)

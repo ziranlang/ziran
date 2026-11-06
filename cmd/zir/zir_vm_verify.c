@@ -695,6 +695,16 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                    verify_expression(module, function, bindings,
                                      binding_count, first, depth + 1);
         }
+        if(BitBuiltin(expression->name) != ZIR_BIT_NONE) {
+            int first = expression->first_child;
+            const char *type = ScalarType(expression->type);
+            return first >= 0 && function->exprs[first].next_sibling < 0 &&
+                   (!strcmp(type, "u8") || !strcmp(type, "u16") ||
+                    !strcmp(type, "u32") || !strcmp(type, "u64")) &&
+                   strcmp(ScalarType(function->exprs[first].type), type) == 0 &&
+                   verify_expression(module, function, bindings,
+                                     binding_count, first, depth + 1);
+        }
         if(!strcmp(expression->name, "zi_new")) {
             /* New(T) of a type the runner can hold. */
             const char *target = expression->type[0] == '*' ?

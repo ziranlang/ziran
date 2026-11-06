@@ -595,6 +595,11 @@ int UnionScalarFields(const ZirModule *module, const ZirType *record);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);
 int MapPrimitiveName(const char *name);
+/* The bit builtins clz, ctz, popcount and bswap. Source spells the short
+ * name; the checker rewrites it to the reserved zi_ name the backends read. */
+enum { ZIR_BIT_NONE, ZIR_BIT_CLZ, ZIR_BIT_CTZ, ZIR_BIT_POPCOUNT, ZIR_BIT_BSWAP };
+int BitBuiltin(const char *checked_name);
+const char *BitBuiltinName(const char *source_name);
 int SameMapType(const ZirModule *a_owner, const ZirType *a,
                 const ZirModule *b_owner, const ZirType *b);
 int MapKeyComparable(const ZirModule *module, const char *type, int depth);

@@ -282,6 +282,27 @@ int MapPrimitiveName(const char *name)
     return compiler_type_MapPrimitive(type_text(name));
 }
 
+static const char *const bit_builtins[] = {
+    NULL, "zi_clz", "zi_ctz", "zi_popcount", "zi_bswap"
+};
+
+int BitBuiltin(const char *checked_name)
+{
+    if(checked_name == NULL || strncmp(checked_name, "zi_", 3))
+        return ZIR_BIT_NONE;
+    for(int i = ZIR_BIT_CLZ; i <= ZIR_BIT_BSWAP; i++)
+        if(!strcmp(checked_name, bit_builtins[i])) return i;
+    return ZIR_BIT_NONE;
+}
+
+const char *BitBuiltinName(const char *source_name)
+{
+    for(int i = ZIR_BIT_CLZ; i <= ZIR_BIT_BSWAP; i++)
+        if(source_name != NULL && !strcmp(source_name, bit_builtins[i] + 3))
+            return bit_builtins[i];
+    return NULL;
+}
+
 int GoForeignCallParts(const char *target, char *package, size_t package_size,
                       char *receiver, size_t receiver_size, char *symbol, size_t symbol_size)
 {

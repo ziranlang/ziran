@@ -634,6 +634,11 @@
   on Linux, Android, the web, and Windows. It adds <code>ReadEntireFile</code> and
   <code>WriteEntireFile</code>. <code>tests/file_portable.sh</code> runs it on C from source and
   saved IR.</li>
+<li><code>clz</code>, <code>ctz</code>, <code>popcount</code> and <code>bswap</code> take one <code>u8</code>/<code>u16</code>/<code>u32</code>/<code>u64</code> and
+  return that type, with the width as the count for zero. C emits
+  <code>__builtin_*</code> helpers (with a portable fallback), Go <code>math/bits</code>, and the
+  portable runner computes them directly; <code>tests/bit_builtins.sh</code> compares
+  them from source and saved IR.</li>
 <li><code>New(T)</code> allocates a zeroed <code>T</code> and returns <code>*T</code>; <code>free(p)</code> releases it and
   ignores null. C uses <code>calloc</code>/<code>free</code>, Go uses <code>new</code> and its
   collector, and the portable runner keeps the storage alive while a pointer

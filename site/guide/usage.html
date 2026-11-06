@@ -1113,6 +1113,14 @@ and NaN, so native targets and portable bundles agree without reinterpreting
 memory. Run <code>sh tests/std_binary.sh build/bin/ziran</code>, which also compares the
 decoding with the C compiler's over a million random patterns.
 <code>std/binary_linux.zi</code> keeps 64-bit fields for native Linux programs.</p>
+<h3 id="bit-counts-and-byte-swaps">Bit counts and byte swaps</h3>
+<p><code>clz(x)</code>, <code>ctz(x)</code> and <code>popcount(x)</code> count leading zero bits, trailing zero
+bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,
+<code>u32</code> or <code>u64</code> and returns that type, and the counts give the width for zero
+(<code>clz(cast(u32) 0) == 32</code>). Native C uses the compiler's <code>__builtin_*</code> with a
+portable fallback, Go uses <code>math/bits</code>, and the portable VM computes the same
+results. A procedure of your own with one of these names is called instead.
+Run <code>sh tests/bit_builtins.sh build/bin/ziran</code>.</p>
 <h3 id="http-and-process-capabilities">HTTP and process capabilities</h3>
 <p><code>std/net_http.zi</code> defines an explicit request/response host capability. A
 platform adapter supplies transport and TLS; checked Ziran code owns request

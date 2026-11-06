@@ -756,7 +756,7 @@ builtin_call(const char *name)
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
            !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish") ||
            !strcmp(name, "print") || !strcmp(name, "zi_new") ||
-           !strcmp(name, "zi_free");
+           !strcmp(name, "zi_free") || BitBuiltin(name) != ZIR_BIT_NONE;
 }
 
 static const char *

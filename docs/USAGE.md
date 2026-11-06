@@ -1315,6 +1315,16 @@ memory. Run `sh tests/std_binary.sh build/bin/ziran`, which also compares the
 decoding with the C compiler's over a million random patterns.
 `std/binary_linux.zi` keeps 64-bit fields for native Linux programs.
 
+### Bit counts and byte swaps
+
+`clz(x)`, `ctz(x)` and `popcount(x)` count leading zero bits, trailing zero
+bits and set bits; `bswap(x)` reverses the bytes. Each takes one `u8`, `u16`,
+`u32` or `u64` and returns that type, and the counts give the width for zero
+(`clz(cast(u32) 0) == 32`). Native C uses the compiler's `__builtin_*` with a
+portable fallback, Go uses `math/bits`, and the portable VM computes the same
+results. A procedure of your own with one of these names is called instead.
+Run `sh tests/bit_builtins.sh build/bin/ziran`.
+
 ### HTTP and process capabilities
 
 `std/net_http.zi` defines an explicit request/response host capability. A

@@ -1649,6 +1649,61 @@ static const struct {
      "    if(!(x >= (sign ? -bound : 0) && x < bound)) abort();\n"
      "    return sign ? (uint64_t)(int64_t)x : (uint64_t)x;\n"
      "}\n"},
+    /* Bit builtins: the counts give the width w for 0, which the
+     * compiler builtins leave undefined. */
+    {"ZiClz",
+     "static inline uint64_t ZiClz(uint64_t x, int w) {\n"
+     "    if(!x) return (uint64_t)w;\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "    return (uint64_t)__builtin_clzll(x) - (uint64_t)(64 - w);\n"
+     "#else\n"
+     "    uint64_t n = 0;\n"
+     "    while(!(x & (UINT64_C(1) << (w - 1)))) { x <<= 1; n++; }\n"
+     "    return n;\n"
+     "#endif\n"
+     "}\n"},
+    {"ZiCtz",
+     "static inline uint64_t ZiCtz(uint64_t x, int w) {\n"
+     "    if(!x) return (uint64_t)w;\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "    return (uint64_t)__builtin_ctzll(x);\n"
+     "#else\n"
+     "    uint64_t n = 0;\n"
+     "    while(!(x & 1)) { x >>= 1; n++; }\n"
+     "    return n;\n"
+     "#endif\n"
+     "}\n"},
+    {"ZiPopcount",
+     "static inline uint64_t ZiPopcount(uint64_t x, int w) {\n"
+     "    (void)w;\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "    return (uint64_t)__builtin_popcountll(x);\n"
+     "#else\n"
+     "    uint64_t n = 0;\n"
+     "    for(; x; x &= x - 1) n++;\n"
+     "    return n;\n"
+     "#endif\n"
+     "}\n"},
+    {"ZiBswap16",
+     "static inline uint16_t ZiBswap16(uint16_t x) {\n"
+     "    return (uint16_t)((x >> 8) | (x << 8));\n"
+     "}\n"},
+    {"ZiBswap32",
+     "static inline uint32_t ZiBswap32(uint32_t x) {\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "    return __builtin_bswap32(x);\n"
+     "#else\n"
+     "    return (x >> 24) | ((x >> 8) & 0xff00u) | ((x << 8) & 0xff0000u) | (x << 24);\n"
+     "#endif\n"
+     "}\n"},
+    {"ZiBswap64",
+     "static inline uint64_t ZiBswap64(uint64_t x) {\n"
+     "#if (defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__)\n"
+     "    return __builtin_bswap64(x);\n"
+     "#else\n"
+     "    return ((uint64_t)ZiBswap32((uint32_t)x) << 32) | ZiBswap32((uint32_t)(x >> 32));\n"
+     "#endif\n"
+     "}\n"},
 };
 
 enum {
@@ -1711,6 +1766,7 @@ EmitNativeHelpers(FILE *file, const char *text)
         needed[i] = strstr(text, call) != NULL;
     }
     needed[0] |= needed[1];
+    needed[7] |= needed[8];
     for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         any |= needed[i];
     unsigned includes = native_runtime_includes(text);

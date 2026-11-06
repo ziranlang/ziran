@@ -2210,15 +2210,29 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                         prints = 1;
                         break;
                     }
+            /* Bit builtins call math/bits; bswap of a u8 is the value itself. */
+            int bit_calls = 0;
+            for(int fi = 0; fi < m->function_count && !bit_calls; fi++)
+                for(int ei = 0; ei < m->functions[fi].expr_count; ei++) {
+                    const ZirExpr *expr = &m->functions[fi].exprs[ei];
+                    int op = expr->kind == ZIR_EXPR_CALL ? BitBuiltin(expr->name) : ZIR_BIT_NONE;
+                    if(op != ZIR_BIT_NONE &&
+                       (op != ZIR_BIT_BSWAP || ScalarByteWidth(expr->type) != 1)) {
+                        bit_calls = 1;
+                        break;
+                    }
+                }
             int float_helper = pi == 0 && mi == 0 && go_prints_floats(progs, prog_count);
             /* Imports are written as one gofmt block, standard packages first. */
             int import_count = 0;
             if(prints)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"fmt\"");
-            if(float_helper) {
+            if(float_helper)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"math\"");
+            if(bit_calls)
+                snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "zibits \"math/bits\"");
+            if(float_helper)
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"strconv\"");
-            }
             if(pointer_index || g_union_unsafe || (go_has_c_foreigns() && !header_module))
                 snprintf(buffers->imports[import_count++], sizeof(buffers->imports[0]), "\"unsafe\"");
             for(int i = 0; i < g_extern_count && import_count < 64; i++) {

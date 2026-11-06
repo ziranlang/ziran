@@ -882,7 +882,7 @@ typedef enum Builtin {
     BuiltinNamed, BuiltinTextView, BuiltinPrint, BuiltinNew, BuiltinFree,
     BuiltinVecPush, BuiltinVecReserve, BuiltinVecResize, BuiltinVecResizeBounded, BuiltinVecClear, BuiltinVecFree, BuiltinVecSwap,
     BuiltinVecPop, BuiltinVecGet, BuiltinVecClone, BuiltinVecSlice,
-    BuiltinBuilderAppend, BuiltinBuilderFinish
+    BuiltinBuilderAppend, BuiltinBuilderFinish, BuiltinBit
 } Builtin;
 
 /* Most calls name ordinary functions. Exclude them by their first byte
@@ -900,6 +900,7 @@ builtin_call(const char *name)
     case 'z':
         if(!strcmp(name, "zi_new")) return BuiltinNew;
         if(!strcmp(name, "zi_free")) return BuiltinFree;
+        if(BitBuiltin(name) != ZIR_BIT_NONE) return BuiltinBit;
         break;
     case 'B':
         if(!strcmp(name, "BuilderAppend")) return BuiltinBuilderAppend;
@@ -2853,6 +2854,37 @@ eval_expression(Frame *frame, int index, int depth)
             item->data[bytes.length] = 0;
             item->length = bytes.length;
             value = keep_string(frame->vm, item, NULL, sizeof(*item) + bytes.length + 1);
+            break;
+        }
+        if(builtin == BuiltinBit) {
+            Value operand = eval(frame, expression->first_child, depth + 1);
+            size_t width = ScalarByteWidth(expression->type) * 8;
+            if(frame->vm->failed || operand.kind != VALUE_INT ||
+               (width != 8 && width != 16 && width != 32 && width != 64)) {
+                frame->vm->failed = 1;
+                break;
+            }
+            uint64_t mask = width == 64 ? UINT64_MAX : (UINT64_C(1) << width) - 1;
+            uint64_t x = integer_bits(operand) & mask, result = 0;
+            switch(BitBuiltin(expression->name)) {
+            case ZIR_BIT_CLZ:
+                result = width;
+                for(uint64_t probe = x; probe; probe >>= 1) result--;
+                break;
+            case ZIR_BIT_CTZ:
+                if(!x) result = width;
+                else for(uint64_t probe = x; !(probe & 1); probe >>= 1) result++;
+                break;
+            case ZIR_BIT_POPCOUNT:
+                for(uint64_t probe = x; probe; probe &= probe - 1) result++;
+                break;
+            default:
+                for(size_t shift = 0; shift < width; shift += 8)
+                    result |= ((x >> shift) & 0xff) << (width - 8 - shift);
+                break;
+            }
+            value = coerce(frame->vm, frame->module, uint_value(result),
+                           expression->type);
             break;
         }
         if(builtin == BuiltinPrint) {

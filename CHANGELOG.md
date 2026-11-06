@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `clz`, `ctz`, `popcount` and `bswap` builtins for `u8`, `u16`, `u32` and
+  `u64`, with the width as the count for zero, on C, Go and the VM.
 - A Vec can hold Vecs and records that own Vecs: `VecPush` moves the element
   in, `groups[i].parts[j]` reads and writes in place, and dropping frees the
   inner Vecs. A discarded owned record result, such as `VecPop`'s, is freed.

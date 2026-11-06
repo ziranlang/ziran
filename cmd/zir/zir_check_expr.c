@@ -1776,6 +1776,31 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
         }
+        /* clz/ctz/popcount/bswap take one u8/u16/u32/u64 and return that
+         * type; the count builtins give the width for 0. A program's own
+         * procedure of the same name wins, as with New. */
+        {
+            int saved = BitBuiltin(e->name) != ZIR_BIT_NONE;
+            const char *bit = saved ? e->name : BitBuiltinName(e->name);
+            if(bit != NULL && (saved || !program_callable(c, e->name))) {
+                int first = e->first_child;
+                const char *operand = first >= 0 ? expression_type(c, first) : "";
+                const char *scalar = ScalarType(operand);
+                e = &c->fn->exprs[index];
+                if(first < 0 || c->fn->exprs[first].next_sibling >= 0 ||
+                   c->fn->exprs[first].argument_name[0] ||
+                   (strcmp(scalar, "u8") && strcmp(scalar, "u16") &&
+                    strcmp(scalar, "u32") && strcmp(scalar, "u64"))) {
+                    error(c, e->span, "takes one u8, u16, u32 or u64 value",
+                          display_name);
+                    break;
+                }
+                e->name = KeepName(bit);
+                e->type = KeepName(scalar);
+                type = e->type;
+                break;
+            }
+        }
         if(!strcmp(e->name, "TextView")) {
             int first = e->first_child;
             if(first < 0 || c->fn->exprs[first].next_sibling >= 0 ||

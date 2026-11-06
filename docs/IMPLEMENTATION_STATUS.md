@@ -592,6 +592,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   on Linux, Android, the web, and Windows. It adds `ReadEntireFile` and
   `WriteEntireFile`. `tests/file_portable.sh` runs it on C from source and
   saved IR.
+- `clz`, `ctz`, `popcount` and `bswap` take one `u8`/`u16`/`u32`/`u64` and
+  return that type, with the width as the count for zero. C emits
+  `__builtin_*` helpers (with a portable fallback), Go `math/bits`, and the
+  portable runner computes them directly; `tests/bit_builtins.sh` compares
+  them from source and saved IR.
 - `New(T)` allocates a zeroed `T` and returns `*T`; `free(p)` releases it and
   ignores null. C uses `calloc`/`free`, Go uses `new` and its
   collector, and the portable runner keeps the storage alive while a pointer

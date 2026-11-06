@@ -846,7 +846,7 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
     const char *name = expression->name;
     if(!strcmp(name, "print") || !strcmp(name, "assert") ||
        !strcmp(name, "TextView") || !strcmp(name, "VecSlice") ||
-       !strcmp(name, "VecGet")) return;
+       !strcmp(name, "VecGet") || BitBuiltin(name) != ZIR_BIT_NONE) return;
     if(!strcmp(name, "VecPush") || !strcmp(name, "VecReserve") || (!strcmp(name, "VecResize") || !strcmp(name, "VecResizeBounded")) || !strcmp(name, "VecPop") ||
        !strcmp(name, "VecClear") || !strcmp(name, "VecFree") ||
        !strcmp(name, "VecSwap") || !strcmp(name, "VecClone") ||

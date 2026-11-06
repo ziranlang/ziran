@@ -48,6 +48,7 @@ static const char guard_header[] =
     "(long long *)(((unsigned long)&zx_here & ~zx_native_stack_mask) + zx_native_budget_slot) : "
     "&zx_native_budget\n"
     "#define ZIR_STEP() do { if(--*zx_budget < 0) ZxNativeOverrun(); } while(0)\n"
+    "#define ZIR_STEPS(n) do { if((*zx_budget -= (n)) < 0) ZxNativeOverrun(); } while(0)\n"
     "#define ZIR_ENTER() ZIR_BUDGET(); do { if(&zx_here < zx_native_floor || ((unsigned long)&zx_here & zx_native_stack_mask) < zx_native_stack_margin) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"
     "#define ZIR_UNREACHABLE(place) ZxNativeUnreachable(place)\n"
     "#endif\n";
@@ -73,6 +74,7 @@ static const char linked_guard_header[] =
     "#define ZIR_GLOBAL __attribute__((section(\"%s\")))\n"
     "#define ZIR_BUDGET() (void)0\n"
     "#define ZIR_STEP() do { if(--zx_native_budget < 0) ZxNativeOverrun(); } while(0)\n"
+    "#define ZIR_STEPS(n) do { if((zx_native_budget -= (n)) < 0) ZxNativeOverrun(); } while(0)\n"
     "#ifdef __EMSCRIPTEN__\n"
     "unsigned long emscripten_stack_get_current(void);\n"
     "#define ZIR_ENTER() do { if((char *)emscripten_stack_get_current() < zx_native_floor) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"

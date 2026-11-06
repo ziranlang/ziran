@@ -88,6 +88,8 @@
   optimization checks indexes, shifts and divisions in place instead of
   calling a helper, so an AV1 decode runs about 17% faster under `ziran run`
   and 24% faster at `-O0`. Optimized builds are unchanged.
+- `ziran run` charges a loop over literal bounds, such as `for i: 0..7`, its
+  whole step count once as it starts rather than at every iteration.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

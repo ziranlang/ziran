@@ -217,8 +217,10 @@ A bundle that cannot be compiled fails with `zx.native`; there is no
 fallback. Runtime failures stop the run as in the VM: bounds, unreachable
 code, a host breaking the value contract, the step limit and nested calls
 filling the stack. Native code counts the step limit in function calls and
-loop iterations rather than statements, and does not check pointer lifetimes
-at run time: it trusts bundle code as a native build of the program would.
+loop iterations rather than statements; a loop over literal bounds that
+nothing else leaves or steps is charged all its iterations as it starts. It
+does not check pointer lifetimes at run time: it trusts bundle code as a
+native build of the program would.
 
 `#parallel for` regions run on worker threads each instance starts at its
 first region, one per processor up to 16; `ZIRAN_PAR_THREADS` in the host's

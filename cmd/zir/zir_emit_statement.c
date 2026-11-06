@@ -871,6 +871,123 @@ loop_body_reads(const Emitter *e, int begin, int end, int loop, const char *name
     }
     return 0;
 }
+/* Whether statements begin..end can leave loop (a while at loop, or a loop
+ * holding it) early: a return, or a break or named continue that does not
+ * stop at a loop nested inside. */
+static int
+loop_leaves_early(const ZirFunction *fn, int loop, int begin, int end)
+{
+    int ends[64], ids[64], depth = 0;
+    for(int s = begin; s < end; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        while(depth > 0 && s > ends[depth - 1])
+            depth--;
+        if(st->kind == ZIR_STMT_RETURN)
+            return 1;
+        if(st->kind == ZIR_STMT_WHILE) {
+            if(depth == 64)
+                return 1;
+            ends[depth] = block_end(fn, s, end);
+            ids[depth++] = st->loop_id;
+            continue;
+        }
+        if(st->kind != ZIR_STMT_BREAK && st->kind != ZIR_STMT_CONTINUE)
+            continue;
+        int inner = 0;
+        if(st->target_id == 0)
+            inner = depth > 0;
+        else
+            for(int d = 0; d < depth && !inner; d++)
+                inner = ids[d] == st->target_id;
+        if(inner)
+            continue;
+        if(st->kind == ZIR_STMT_BREAK ||
+           (st->target_id != 0 && st->target_id != fn->stmts[loop].loop_id))
+            return 1;
+    }
+    return 0;
+}
+
+/* A literal integer operand: n or -n. */
+static int
+literal_operand(const ZirFunction *fn, int index, int64_t *value)
+{
+    const ZirExpr *expr = &fn->exprs[index];
+    unsigned long long bits;
+    int negative = 0;
+    if(expr->kind == ZIR_EXPR_UNARY && expr->op != NULL && !strcmp(expr->op, "-")) {
+        negative = 1;
+        expr = &fn->exprs[expr->right];
+    }
+    if(expr->kind != ZIR_EXPR_INT || !ZirIntegerLiteral(expr->text, &bits) ||
+       bits > (UINT64_C(1) << 40))
+        return 0;
+    *value = negative ? -(int64_t)bits : (int64_t)bits;
+    return 1;
+}
+
+/* The iterations of the counting loop at while (its counter declared just
+ * before it) when its bounds are literals and nothing but its step changes
+ * the counter or leaves it early, so the native tier can charge them all
+ * as it starts. */
+static int
+counted_iterations(const ZirFunction *fn, int loop, int close, int64_t *count)
+{
+    const ZirStmt *st = &fn->stmts[loop], *counter = &fn->stmts[loop - 1];
+    int64_t first, last;
+    if(loop < 1 || counter->kind != ZIR_STMT_DECL || counter->expr_root < 0 ||
+       st->expr_root < 0 || strcmp(canonical(counter->type), "s64") != 0 ||
+       !literal_operand(fn, counter->expr_root, &first))
+        return 0;
+    const ZirExpr *condition = &fn->exprs[st->expr_root];
+    if(condition->kind != ZIR_EXPR_BINARY || condition->op == NULL ||
+       fn->exprs[condition->left].kind != ZIR_EXPR_IDENT ||
+       strcmp(fn->exprs[condition->left].name, counter->name) != 0 ||
+       !literal_operand(fn, condition->right, &last))
+        return 0;
+    /* A pointer to the counter could change it out of sight. */
+    for(int x = 0; x < fn->expr_count; x++)
+        if(fn->exprs[x].kind == ZIR_EXPR_UNARY && fn->exprs[x].op != NULL &&
+           !strcmp(fn->exprs[x].op, "&") && fn->exprs[fn->exprs[x].right].kind == ZIR_EXPR_IDENT &&
+           !strcmp(fn->exprs[fn->exprs[x].right].name, counter->name))
+            return 0;
+    int down = 0, steps = 0;
+    for(int s = loop + 1; s < close; s++) {
+        const ZirStmt *body = &fn->stmts[s];
+        if(body->kind == ZIR_STMT_DECL && !strcmp(body->name, counter->name))
+            return 0;
+        if(body->kind != ZIR_STMT_ASSIGN || body->lhs_root < 0 ||
+           fn->exprs[body->lhs_root].kind != ZIR_EXPR_IDENT ||
+           strcmp(fn->exprs[body->lhs_root].name, counter->name) != 0)
+            continue;
+        int64_t one;
+        if(body->for_step != st->loop_id || body->expr_root < 0 ||
+           !literal_operand(fn, body->expr_root, &one) || one != 1)
+            return 0;
+        if(!strcmp(body->assignment_op, "-="))
+            down = 1;
+        else if(strcmp(body->assignment_op, "+=") != 0)
+            return 0;
+        steps++;
+    }
+    if(steps != 1 || loop_leaves_early(fn, loop, loop + 1, close))
+        return 0;
+    const char *op = condition->op;
+    if(!down && !strcmp(op, "<="))
+        *count = last - first + 1;
+    else if(!down && !strcmp(op, "<"))
+        *count = last - first;
+    else if(down && !strcmp(op, ">="))
+        *count = first - last + 1;
+    else if(down && !strcmp(op, ">"))
+        *count = first - last;
+    else
+        return 0;
+    if(*count < 0)
+        *count = 0;
+    return 1;
+}
+
 /* Buffers native_for keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct NativeForBuffers {
@@ -1353,7 +1470,12 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 line(e,"zir_loop_%d:",st->loop_id);
             int native = st->for_form && e->loop_header[0];
             int binds = native ? e->loop_header_binds : 0;
+            int64_t iterations = 0;
+            int charged = native && run_guards && e->target == ZIR_C &&
+                          counted_iterations(e->fn, i, close, &iterations);
             if(native) {
+                if(charged)
+                    line(e, "ZIR_STEPS(%lld);", (long long)iterations);
                 line(e, "%s {", e->loop_header);
                 e->loop_header[0] = '\0';
                 e->indent++;
@@ -1387,7 +1509,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     line(e,e->target==ZIR_GO?"if !%s { break }":"if (!%s) { break; }",buffers->value);
                 }
             }
-            if(run_guards && e->target == ZIR_C)
+            if(run_guards && e->target == ZIR_C && !charged)
                 line(e, "ZIR_STEP();");
             if(labeled && e->target!=ZIR_GO) {
                 line(e,"{");e->indent++;

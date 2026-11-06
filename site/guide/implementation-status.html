@@ -1393,6 +1393,16 @@
   becomes <code>vec.TextFromBuilder</code>. <code>vec.Name</code> calls resolve from modules that
   reach std/vec only through other imports. <code>tests/owned_text_results.sh</code>
   checks both kinds of caller and counts allocations.</li>
+<li>A slice of a Vec place, <code>v[a:b]</code> with either bound optional, becomes
+  <code>VecSlice(v, a, b)</code> in the checker, so <code>for</code> over a Vec record field,
+  as in <code>for h.items</code> or <code>for it.tags</code> inside <code>for * h.parts</code>, needs no
+  backend support. The view borrows its root binding against moves, and the
+  borrow check rejects writes that replace the viewed Vec or an enclosing
+  place, such as <code>VecPush</code>, <code>VecFree</code>, assignment, or a call whose mutation
+  summary reaches it. Element writes and sibling fields stay free. A member
+  holding Vecs moves like a Vec member, as in <code>last := popped.value</code>, on C,
+  Go and the VM. <code>tests/vec_field_loops.sh</code> covers loops, slices, moves,
+  rejections, allocation balance, AddressSanitizer and source/saved IR.</li>
 <li>Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every <code>BundleRun</code>: integer and boolean literals, compile-time constant

@@ -1642,7 +1642,117 @@ select_first_result(Checker *c, int index)
     return member->type;
 }
 
-/* A local Vec passed where a slice of its elements is expected lends a
+/* Whether index names Vec storage in place: a binding and its field
+ * selections, with nothing to evaluate twice. */
+static int
+vec_place_path(const ZirFunction *fn, int index)
+{
+    while(index >= 0 && (fn->exprs[index].kind == ZIR_EXPR_MEMBER ||
+                         fn->exprs[index].kind == ZIR_EXPR_POINTER_MEMBER))
+        index = fn->exprs[index].left;
+    return index >= 0 && fn->exprs[index].kind == ZIR_EXPR_IDENT;
+}
+
+/* Copies a place path as new nodes so a rewrite can name the same storage
+ * twice. Returns the copy's index, or -1. */
+static int
+clone_place(Checker *c, int index)
+{
+    ZirFunction *fn = c->fn;
+    int left = -1;
+    if(fn->exprs[index].kind != ZIR_EXPR_IDENT &&
+       (left = clone_place(c, fn->exprs[index].left)) < 0)
+        return -1;
+    ZirExpr saved = fn->exprs[index];
+    ZirExpr *added = FunctionAddExpr(fn, saved.kind, saved.name, saved.span);
+    if(added == NULL) {
+        c->failed = 1;
+        return -1;
+    }
+    *added = saved;
+    added->left = left;
+    added->next_sibling = -1;
+    added->argument_index = -1;
+    added->argument_name = "";
+    return (int)(added - fn->exprs);
+}
+
+/* Rewrites expression index into VecSlice(place, low, high) and checks
+ * that call. A missing low bound is 0 and a missing high bound is
+ * place.count. */
+static const char *
+vec_slice_call(Checker *c, int index, int place, int low, int high)
+{
+    ZirFunction *fn = c->fn;
+    ZirSourceSpan span = fn->exprs[index].span;
+    if(low < 0) {
+        ZirExpr *zero = FunctionAddExpr(fn, ZIR_EXPR_INT, "0", span);
+        if(zero == NULL) {
+            c->failed = 1;
+            return "";
+        }
+        zero->name = "";
+        zero->type = KeepName("s64");
+        low = (int)(zero - fn->exprs);
+    }
+    if(high < 0) {
+        int again = clone_place(c, place);
+        ZirExpr *count = again < 0 ? NULL :
+            FunctionAddExpr(fn, ZIR_EXPR_MEMBER, "count", span);
+        if(count == NULL) {
+            c->failed = 1;
+            return "";
+        }
+        count->name = KeepName("count");
+        copy_text(count->op, sizeof(count->op), ".");
+        count->type = KeepName("s64");
+        count->left = again;
+        high = (int)(count - fn->exprs);
+    }
+    ZirExpr saved = fn->exprs[index];
+    int bounds[3] = {place, low, high};
+    for(int i = 0; i < 3; i++) {
+        fn->exprs[bounds[i]].next_sibling = i < 2 ? bounds[i + 1] : -1;
+        fn->exprs[bounds[i]].argument_index = -1;
+        fn->exprs[bounds[i]].argument_name = "";
+    }
+    ZirExpr *call = &fn->exprs[index];
+    ExprReset(call);
+    call->kind = ZIR_EXPR_CALL;
+    call->text = saved.text;
+    call->name = KeepName("VecSlice");
+    call->argument_name = saved.argument_name;
+    call->argument_index = saved.argument_index;
+    call->first_child = place;
+    call->left = call->right = call->third = -1;
+    call->next_sibling = saved.next_sibling;
+    call->span = span;
+    c->conversions_applied = 1;
+    return expression_type(c, index);
+}
+
+/* A slice of a Vec, as in `h.items[:]` or `v[1:]`, is a VecSlice view of
+ * that storage in place. Returns the slice type. */
+const char *
+slice_vec_place(Checker *c, int index, const char *vector)
+{
+    ZirFunction *fn = c->fn;
+    char element[ZIR_NAME_MAX], slice[ZIR_NAME_MAX];
+    if(!VecElementType(c->module, vector, element, sizeof(element)) ||
+       snprintf(slice, sizeof(slice), "[]%s", element) >= (int)sizeof(slice))
+        return "";
+    if(!vec_place_path(fn, fn->exprs[index].left)) {
+        error(c, fn->exprs[index].span,
+              "a Vec slice views a named Vec place", fn->exprs[index].text);
+        return "";
+    }
+    if(c->inference_only)
+        return KeepName(slice);
+    const ZirExpr *e = &fn->exprs[index];
+    return vec_slice_call(c, index, e->left, e->right, e->third);
+}
+
+/* A Vec place passed where a slice of its elements is expected lends a
  * view, as Jai passes [..]T to []T: rewrite `v` into VecSlice(v, 0, v.count)
  * and check that call. Returns the slice type, or NULL when not a local
  * Vec of that element type. */
@@ -1650,7 +1760,7 @@ static const char *
 lend_vec_as_slice(Checker *c, int index, const char *to)
 {
     ZirFunction *fn = c->fn;
-    char element[ZIR_NAME_MAX], wanted[ZIR_NAME_MAX], name[ZIR_NAME_MAX];
+    char element[ZIR_NAME_MAX], wanted[ZIR_NAME_MAX];
     if(fn->exprs[index].kind != ZIR_EXPR_IDENT ||
        !VecElementType(c->module, fn->exprs[index].type, element, sizeof(element)) ||
        !SliceElementType(to, wanted, sizeof(wanted)) ||
@@ -1659,53 +1769,10 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
         return NULL;
     if(c->inference_only)
         return to;
-    copy_text(name, sizeof(name), fn->exprs[index].name);
-    ZirSourceSpan span = fn->exprs[index].span;
-    ZirExpr saved = fn->exprs[index];
-    int nodes[4];
-    for(int i = 0; i < 4; i++) {
-        ZirExpr *added = FunctionAddExpr(fn, ZIR_EXPR_IDENT, name, span);
-        if(added == NULL) {
-            c->failed = 1;
-            return NULL;
-        }
-        nodes[i] = (int)(added - fn->exprs);
-    }
-    /* nodes: the Vec, the zero low bound, the Vec again, its count. */
-    fn->exprs[nodes[0]] = saved;
-    fn->exprs[nodes[0]].next_sibling = nodes[1];
-    fn->exprs[nodes[0]].argument_index = -1;
-    fn->exprs[nodes[0]].argument_name = "";
-    ZirExpr *zero = &fn->exprs[nodes[1]];
-    zero->kind = ZIR_EXPR_INT;
-    zero->name = "";
-    zero->text = KeepText("0");
-    zero->type = KeepName("s64");
-    zero->next_sibling = nodes[3];
-    fn->exprs[nodes[2]] = saved;
-    fn->exprs[nodes[2]].next_sibling = -1;
-    fn->exprs[nodes[2]].argument_index = -1;
-    fn->exprs[nodes[2]].argument_name = "";
-    ZirExpr *count = &fn->exprs[nodes[3]];
-    count->kind = ZIR_EXPR_MEMBER;
-    count->name = KeepName("count");
-    copy_text(count->op, sizeof(count->op), ".");
-    count->type = KeepName("s64");
-    count->left = nodes[2];
-    count->next_sibling = -1;
-    ZirExpr *call = &fn->exprs[index];
-    ExprReset(call);
-    call->kind = ZIR_EXPR_CALL;
-    call->text = saved.text;
-    call->name = KeepName("VecSlice");
-    call->argument_name = saved.argument_name;
-    call->argument_index = saved.argument_index;
-    call->first_child = nodes[0];
-    call->left = call->right = call->third = -1;
-    call->next_sibling = saved.next_sibling;
-    call->span = span;
-    c->conversions_applied = 1;
-    return expression_type(c, index);
+    int place = clone_place(c, index);
+    if(place < 0)
+        return NULL;
+    return vec_slice_call(c, index, place, -1, -1);
 }
 
 /* An owned Text place passed or stored where a string is expected lends a

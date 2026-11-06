@@ -16,7 +16,9 @@ examples.
    the bytes for the program's lifetime. The remaining steps are for the
    standard text producers, such as `JsonWrite` and `Float64Repr`, to return
    `Text`, for result records such as `ReadEntireFile`'s to carry it, and for
-   programs to keep those results as `Text`.
+   programs to keep those results as `Text`. Moving an indexed or
+   pointer-backed member, such as `x := groups[i].parts`, is still rejected
+   instead of moving that element's storage.
 2. **Borrowed views.** Choose one observable rule for `TextView` of mutable
    bytes, then make native and portable execution agree. Complete lifetime
    tracking for unknown heap aliases and host-backed views, rejecting aliases

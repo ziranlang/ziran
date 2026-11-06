@@ -1348,6 +1348,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   becomes `vec.TextFromBuilder`. `vec.Name` calls resolve from modules that
   reach std/vec only through other imports. `tests/owned_text_results.sh`
   checks both kinds of caller and counts allocations.
+- A slice of a Vec place, `v[a:b]` with either bound optional, becomes
+  `VecSlice(v, a, b)` in the checker, so `for` over a Vec record field,
+  as in `for h.items` or `for it.tags` inside `for * h.parts`, needs no
+  backend support. The view borrows its root binding against moves, and the
+  borrow check rejects writes that replace the viewed Vec or an enclosing
+  place, such as `VecPush`, `VecFree`, assignment, or a call whose mutation
+  summary reaches it. Element writes and sibling fields stay free. A member
+  holding Vecs moves like a Vec member, as in `last := popped.value`, on C,
+  Go and the VM. `tests/vec_field_loops.sh` covers loops, slices, moves,
+  rejections, allocation balance, AddressSanitizer and source/saved IR.
 - Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every `BundleRun`: integer and boolean literals, compile-time constant

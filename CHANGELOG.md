@@ -8,6 +8,11 @@
 - A procedure can return `Text` to callers written for a `string` result:
   they get a string as before, while `result: Text = Render(...)` frees it
   with `result`. `BuilderFinish` gives a `Text` where one is expected.
+- `for h.items`, `for * h.parts`, `for it.tags` and `h.items[1:]` work on a
+  Vec record field, and a record field holding Vecs moves out, as in
+  `last := popped.value`. Pushing to or freeing a Vec while a loop over it
+  runs is rejected, also through a field or a called procedure.
+- Go output of `for v` over a local Vec compiles again.
 - A constant table read in several loops of one function, or through
   `.count`, no longer fails with "cannot bind aggregate constant".
 - Integer literals such as `1_000`, `0xDEAD_BEEF`, `0b1010_0101` and `u64`

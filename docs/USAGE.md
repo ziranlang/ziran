@@ -962,9 +962,16 @@ a local binding, a call result or a `.{...}` literal, so the source cannot be
 used afterwards. Read and change elements in place: `groups[i].parts[j]`,
 `VecPush(groups[i].parts, x)`, or `for * groups { ... }`. `for groups` and
 `x := groups[i]` would copy owned storage and are rejected. Clearing, popping,
-freeing or leaving scope frees the inner Vecs too. `Vec(Vec(T))` works the
+freeing or leaving scope frees the inner Vecs too. A Vec field iterates and
+slices in place like a local Vec: `for h.items`, `for * h.parts`, `for
+it.tags` inside `for * h.parts`, and `h.items[1:]`. While the loop or slice is
+live, its elements and the record's other fields stay writable, but pushing
+to, freeing or moving that Vec, or a record holding it, is rejected. A record
+field that holds Vecs moves out like a Vec field, as in
+`last := popped.value`. `Vec(Vec(T))` works the
 same way. C, Go and portable `.zx` support this; wasm has no Vec storage.
-`tests/nested_vec_elements.sh` checks it, including a leak check.
+`tests/nested_vec_elements.sh` checks it, including a leak check, and
+`tests/vec_field_loops.sh` checks field loops, slices and moves.
 
 ```zi
 Group :: struct { name: string; parts: Vec(string); }

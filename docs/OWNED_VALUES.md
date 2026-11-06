@@ -100,6 +100,7 @@ Scalars, immutable strings, and aggregates whose members are copyable retain
 value-copy semantics. An owned value, including `Vec[T]`, should move on assignment,
 argument passing, and return. A move source must be a local binding, a plain
 record-member path rooted at a local aggregate, or a fresh call result. The
+member can be a Vec or a record holding Vecs, as in `last := popped.value`. The
 checker rejects moving indexed or pointer-backed member storage and moving a
 global, because their aliases cannot yet be represented precisely enough. The
 checker rejects use after move and assignment over a direct or aggregate-held
@@ -113,7 +114,12 @@ A view declared as `[]T` from
 scope closes: moving or mutating the source, including `VecPush`, `VecPop`,
 `VecClear`, `VecFree`, `VecSwap`, and the string builder operations, is
 rejected while the view is live; `VecGet` and `VecClone` sources stay
-readable. `VecClone(dest, src)` requires a fresh or moved-from destination
+readable. The source can also be a Vec field reached from a local record or
+pointer, as in `VecSlice(h.items, 0, n)`, `h.items[1:]`, or the view a
+`for h.items` or `for it.parts` loop takes. That borrow is field-sensitive:
+elements stay writable, and so do sibling fields and their Vecs, while
+resizing or freeing the viewed Vec, moving or assigning it or a record that
+holds it, or calling a procedure whose summary does either, is rejected. `VecClone(dest, src)` requires a fresh or moved-from destination
 and returns `false` on allocation failure without changing the source.
 Native output and the portable VM agree on the observable value of
 every moved binding: the source is unreachable after the move.

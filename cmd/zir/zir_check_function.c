@@ -541,18 +541,15 @@ restart:
                c->fn->exprs[st->expr_root].kind == ZIR_EXPR_CALL &&
                !strcmp(c->fn->exprs[st->expr_root].name, "VecSlice") &&
                SliceElementType(st->type, NULL, 0)) {
-                int vector = c->fn->exprs[st->expr_root].first_child;
-                if(vector >= 0 &&
-                   c->fn->exprs[vector].kind == ZIR_EXPR_IDENT) {
-                    for(int b = c->count - 2; b >= 0; b--)
-                        if(!c->bindings[b].is_using_namespace &&
-                           !strcmp(c->bindings[b].name,
-                                   c->fn->exprs[vector].name) &&
-                           owned_vec_binding_type(c, c->bindings[b].type)) {
-                            c->bindings[c->count - 1].borrows_index = b;
-                            c->bindings[b].borrow_count++;
-                            break;
-                        }
+                /* A field path borrows its root binding as a whole. */
+                c->count--;
+                Binding *root = vec_place_root(c,
+                    c->fn->exprs[st->expr_root].first_child);
+                c->count++;
+                if(root != NULL) {
+                    c->bindings[c->count - 1].borrows_index =
+                        (int)(root - c->bindings);
+                    root->borrow_count++;
                 }
             }
             if((!fn->from_ir || fn->is_specialization) && st->is_using)

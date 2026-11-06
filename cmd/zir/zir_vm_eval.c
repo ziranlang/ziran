@@ -2745,18 +2745,22 @@ eval_expression(Frame *frame, int index, int depth)
     }
     case ZIR_EXPR_MEMBER: {
         if(expression->is_move) {
+            /* A Vec field, or a record field holding one, hands its
+             * storage over as a binding move does. */
             Value *source = assignment_slot(frame, index, depth + 1);
-            char element[ZIR_NAME_MAX];
-            if(source == NULL ||
-               !vm_vec_element_type(frame->vm, frame->module, expression->type,
-                               element, sizeof(element))) {
+            if(source == NULL || source->kind != VALUE_RECORD ||
+               !vm_type_contains_vec(frame->vm, frame->module,
+                                     expression->type, 0)) {
                 frame->vm->failed = 1;
                 break;
             }
             left = *source;
             *source = (Value){.kind = VALUE_INVALID};
-            return coerce_expression(frame->vm, frame->module, left,
-                                     expression->type);
+            Value moved = coerce_expression(frame->vm, frame->module, left,
+                                            expression->type);
+            if(moved.kind != VALUE_RECORD || moved.record != left.record)
+                retire_value(frame->vm, left, 0);
+            return moved;
         }
         left = eval(frame, expression->left, depth + 1);
         if(left.kind==VALUE_INLINE_RECORD) {

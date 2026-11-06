@@ -931,10 +931,12 @@ native_for_with_buffers(Emitter *e, int open, int close, NativeForBuffers *buffe
         const ZirStmt *value = &fn->stmts[open + 3];
         const ZirExpr *index = value->kind == ZIR_STMT_DECL && value->expr_root >= 0 ?
             &fn->exprs[value->expr_root] : NULL;
-        /* range over a string yields runes, not bytes, so strings count. */
+        /* range over a string yields runes, not bytes, so strings count;
+         * a Vec is a record holding its elements, so it counts too. */
         if(index != NULL && index->kind == ZIR_EXPR_INDEX &&
            fn->exprs[index->left].kind == ZIR_EXPR_IDENT &&
            strcmp(canonical(fn->exprs[index->left].type), "string") != 0 &&
+           !VecElementType(e->module, fn->exprs[index->left].type, NULL, 0) &&
            !call_can_change(e, index->left) &&
            !loop_body_reads(e, open + 4, loop_close, loop->loop_id, counter->name)) {
             char collection[ZIR_NAME_MAX], value_name[ZIR_NAME_MAX];

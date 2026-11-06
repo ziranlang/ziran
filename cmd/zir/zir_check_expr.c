@@ -1611,6 +1611,13 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         char element[ZIR_NAME_MAX];
         int array = ArrayElementType(left, element, sizeof(element), NULL);
         int string = !strcmp(left, "string");
+        if(!string && !array && VecElementType(c->module, left, NULL, 0)) {
+            copy_text(member_type, sizeof(member_type),
+                      slice_vec_place(c, index, left));
+            e = &c->fn->exprs[index];
+            type = member_type;
+            break;
+        }
         if(!string && !array && !SliceElementType(left, element, sizeof(element))) {
             error(c, e->span, "slice source requires a string, array, or slice", e->text);
             break;
@@ -2232,10 +2239,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             } else if(view) {
                 int third = second >= 0 ?
                     c->fn->exprs[second].next_sibling : -1;
-                Binding *source = lexical_vec_binding(c, first);
-                if(source == NULL)
+                if(vec_place_root(c, first) == NULL)
                     error(c, e->span,
-                          "VecSlice requires a local Vec binding", e->name);
+                          "VecSlice requires a local Vec place", e->name);
                 if(second < 0 || third < 0 ||
                    c->fn->exprs[third].next_sibling >= 0)
                     error(c, e->span, "VecSlice requires low and high bounds",

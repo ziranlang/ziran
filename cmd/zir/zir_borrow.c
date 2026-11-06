@@ -91,6 +91,9 @@ struct BorrowBinding {
 typedef struct ActiveTextBorrow {
     BorrowPlace backing;
     int depth;
+    /* A Vec slice view: its elements stay writable, but the Vec storage and
+     * every record enclosing it must keep their place. */
+    int vec;
 } ActiveTextBorrow;
 
 /* Whether a type holds text, answered once per module and type name: the
@@ -383,6 +386,32 @@ places_overlap(BorrowPlace left, BorrowPlace right)
     return 0;
 }
 
+/* Whether a write to outer replaces storage that inner lies within. */
+static int
+path_within(BorrowPath *outer, BorrowPath *inner)
+{
+    if(outer == NULL)
+        return 1;
+    if(inner == NULL || inner->depth < outer->depth)
+        return 0;
+    while(inner->depth > outer->depth)
+        inner = inner->parent;
+    return paths_overlap(outer, inner);
+}
+
+static int
+place_within(BorrowPlace outer, BorrowPlace inner)
+{
+    if(outer.root == NULL || inner.root == NULL) return 0;
+    if(outer.root == inner.root) return path_within(outer.path, inner.path);
+    if(outer.root->parameter >= 0 && inner.root->parameter >= 0 &&
+       (outer.root->type[0] == '*' || SliceElementType(outer.root->type, NULL, 0)) &&
+       (inner.root->type[0] == '*' || SliceElementType(inner.root->type, NULL, 0)))
+        return !strcmp(outer.root->type, inner.root->type) &&
+            path_within(outer.path, inner.path);
+    return 0;
+}
+
 static int
 same_path(BorrowPath *left, BorrowPath *right)
 {
@@ -455,9 +484,45 @@ static int
 text_backing_conflict(BorrowCheck *check, BorrowPlace destination)
 {
     for(int i = 0; i < check->active_count; i++)
-        if(places_overlap(check->active[i].backing, destination))
+        if(!check->active[i].vec &&
+           places_overlap(check->active[i].backing, destination))
             return 1;
     return 0;
+}
+
+/* A write that replaces a viewed Vec, or a record holding it, would leave
+ * the view's elements behind: VecPush, VecFree, a callee that does either,
+ * or an assignment to the Vec's place or an enclosing one. */
+static int
+vec_view_conflict(BorrowCheck *check, BorrowPlace destination)
+{
+    for(int i = 0; i < check->active_count; i++)
+        if(check->active[i].vec &&
+           place_within(destination, check->active[i].backing))
+            return 1;
+    return 0;
+}
+
+static void add_active_text_borrows(BorrowCheck *check, BorrowSource *sources,
+                                    int depth);
+static BorrowPlace storage_place(BorrowCheck *check, int index,
+                                 int follow_address);
+
+/* A slice taken by VecSlice borrows its Vec place until the view's block
+ * closes. */
+static void
+add_active_vec_borrow(BorrowCheck *check, int index, int depth)
+{
+    const ZirFunction *fn = check->current->fn;
+    if(index < 0 || fn->exprs[index].kind != ZIR_EXPR_CALL ||
+       strcmp(fn->exprs[index].name, "VecSlice"))
+        return;
+    BorrowSource source = {0};
+    source.place = storage_place(check, fn->exprs[index].first_child, 1);
+    int first = check->active_count;
+    add_active_text_borrows(check, &source, depth);
+    for(int i = first; i < check->active_count; i++)
+        check->active[i].vec = 1;
 }
 
 static void
@@ -478,6 +543,7 @@ add_active_text_borrows(BorrowCheck *check, BorrowSource *sources, int depth)
         }
         check->active[check->active_count].backing = source->place;
         check->active[check->active_count].depth = depth;
+        check->active[check->active_count].vec = 0;
         check->active_count++;
     }
 }
@@ -736,6 +802,10 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
 {
     record_mutation(check, destination);
     if(destination.root == NULL) return;
+    if(vec_view_conflict(check, destination)) {
+        reject(check, span, "cannot mutate a Vec with a live borrowed view");
+        return;
+    }
     if(text_backing_conflict(check, destination)) {
         reject(check, span, "mutating text backing storage while its view is live");
         return;
@@ -1490,6 +1560,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             if(text_view_type(check, statement->type))
                 add_active_text_borrows(check, declared->text_backings,
                                         check->depth);
+            add_active_vec_borrow(check, statement->expr_root, check->depth);
         } else if(statement->kind == ZIR_STMT_ASSIGN && statement->lhs_root >= 0) {
             const ZirExpr *destination = &fn->exprs[statement->lhs_root];
             const ZirExpr *assignment_root =

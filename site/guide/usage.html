@@ -799,9 +799,16 @@ a local binding, a call result or a <code>.{...}</code> literal, so the source c
 used afterwards. Read and change elements in place: <code>groups[i].parts[j]</code>,
 <code>VecPush(groups[i].parts, x)</code>, or <code>for * groups { ... }</code>. <code>for groups</code> and
 <code>x := groups[i]</code> would copy owned storage and are rejected. Clearing, popping,
-freeing or leaving scope frees the inner Vecs too. <code>Vec(Vec(T))</code> works the
+freeing or leaving scope frees the inner Vecs too. A Vec field iterates and
+slices in place like a local Vec: <code>for h.items</code>, <code>for * h.parts</code>, <code>for
+it.tags</code> inside <code>for * h.parts</code>, and <code>h.items[1:]</code>. While the loop or slice is
+live, its elements and the record's other fields stay writable, but pushing
+to, freeing or moving that Vec, or a record holding it, is rejected. A record
+field that holds Vecs moves out like a Vec field, as in
+<code>last := popped.value</code>. <code>Vec(Vec(T))</code> works the
 same way. C, Go and portable <code>.zx</code> support this; wasm has no Vec storage.
-<code>tests/nested_vec_elements.sh</code> checks it, including a leak check.</p>
+<code>tests/nested_vec_elements.sh</code> checks it, including a leak check, and
+<code>tests/vec_field_loops.sh</code> checks field loops, slices and moves.</p>
 <pre><code class="language-zi">Group :: struct { name: string; parts: Vec(string); }
 groups: Vec(Group)
 group: Group

@@ -88,6 +88,28 @@ lexical_vec_binding(Checker *c, int index)
     return NULL;
 }
 
+/* The local binding at the root of a Vec place: a Vec binding, or a
+ * local record or pointer reached through field selections. */
+Binding *
+vec_place_root(Checker *c, int index)
+{
+    if(index < 0 || index >= c->fn->expr_count)
+        return NULL;
+    if(c->fn->exprs[index].kind == ZIR_EXPR_IDENT)
+        return lexical_vec_binding(c, index);
+    while(index >= 0 && (c->fn->exprs[index].kind == ZIR_EXPR_MEMBER ||
+                         c->fn->exprs[index].kind == ZIR_EXPR_POINTER_MEMBER))
+        index = c->fn->exprs[index].left;
+    if(index < 0 || c->fn->exprs[index].kind != ZIR_EXPR_IDENT ||
+       c->fn->exprs[index].is_this)
+        return NULL;
+    for(int i = c->count - 1; i >= 0; i--)
+        if(!c->bindings[i].is_using_namespace &&
+           !strcmp(c->bindings[i].name, c->fn->exprs[index].name))
+            return &c->bindings[i];
+    return NULL;
+}
+
 /* Aggregate ownership follows the same move discipline as a direct Vec. */
 Binding *
 lexical_owned_binding(Checker *c, int index)
@@ -210,7 +232,7 @@ mark_moved_member_path(Checker *c, int index)
         return 0;
     e = &c->fn->exprs[index];
     if(e->kind != ZIR_EXPR_MEMBER ||
-       !VecElementType(c->module, e->type, NULL, 0))
+       !contains_vec(c->module, e->type, 0))
         return 0;
     binding = owned_member_path(c, index, path, sizeof(path));
     if(binding == NULL)
@@ -280,7 +302,7 @@ owned_initializer_shape(Checker *c, int index)
     if(e->kind == ZIR_EXPR_CALL)
         return 1;
     if(e->kind == ZIR_EXPR_MEMBER &&
-       VecElementType(c->module, e->type, NULL, 0)) {
+       contains_vec(c->module, e->type, 0)) {
         char path[ZIR_TEXT_MAX];
         return owned_member_path(c, index, path, sizeof(path)) != NULL;
     }

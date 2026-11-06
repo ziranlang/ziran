@@ -1862,7 +1862,10 @@ EmitNativeHelpers(FILE *file, const char *text)
         fwrite(mark, 1, (size_t)(numbers - mark), file);
     for(size_t i = 0, written = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         if(needed[i])
-            fprintf(file, "%s%s", written++ ? "\n" : "", c_number_helpers[i].definition);
+            /* Module headers can carry the same helpers for their inline copies. */
+            fprintf(file, "%s#ifndef ZIRAN_HELPER_%s\n#define ZIRAN_HELPER_%s\n%s#endif\n",
+                    written++ ? "\n" : "", c_number_helpers[i].name,
+                    c_number_helpers[i].name, c_number_helpers[i].definition);
     fputs(numbers ? numbers + strlen(NUMBER_HELPERS_MARK) : mark, file);
     return ferror(file) ? -1 : 0;
 }

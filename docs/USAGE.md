@@ -262,6 +262,15 @@ that procedure and exits with its integer result; the entry takes nothing or
 optimizes across modules. Each link then generates code for the whole program
 again, so one-file edits rebuild many times slower. `CFLAGS` still wins.
 
+Small public procedures are inlinable across modules in every C build: the
+module's header carries a `static inline` copy that other modules' calls use,
+while the module's own `.c` keeps the one external definition, so a
+procedure's address is the same everywhere. Each module still compiles and
+caches on its own; editing such a procedure's body rebuilds the modules that
+call it. Procedures that call file-scope code, or that use string
+literals, constant tables or function values, stay out of line. Run
+`sh tests/cross_module_inline.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

@@ -17,7 +17,10 @@ headers.mkdir()
 header = headers/'config #$ space.h'
 header.write_text('#define CONFIG 11\n')
 (work/'shared.zi').write_text('Increment :: 7;\n')
-(work/'leaf.zi').write_text('Shared :: #import "shared";\nRead :: () -> s32 { return Shared.Increment + 1 }\n')
+# Read calls a file-scope procedure, so it stays out of line and an edit to
+# that procedure rebuilds leaf alone.
+leaf = 'Shared :: #import "shared";\n#scope_file\nStep :: () -> s32 {{ return {} }}\n#scope_export\nRead :: () -> s32 {{ return Shared.Increment + Step() }}\n'
+(work/'leaf.zi').write_text(leaf.format(1))
 (work/'stable.zi').write_text('Read :: () -> s32 { return 3 }\n')
 (work/'app.zi').write_text('Leaf :: #import "leaf";\nStable :: #import "stable";\n'
                           'lib :: #system_library "host";\nHost :: () -> s32 #foreign lib "host";\n'
@@ -58,11 +61,16 @@ def build(answer, changed=None, fail=False, cwd=None):
 build(42)
 assert list(out.rglob('*.inputs')), 'compiler was not eligible for object reuse'
 build(42, set())
-(work/'leaf.zi').write_text('Shared :: #import "shared";\nRead :: () -> s32 { return Shared.Increment + 2 }\n')
+(work/'leaf.zi').write_text(leaf.format(2))
 build(43, {'leaf.c.o'})
 (work/'shared.zi').write_text('Increment :: 10;\n')
 updates = build(46)
 assert 'leaf.c.o' in updates and 'stable.c.o' not in updates, updates
+# Stable.Read is small enough for app to inline from stable.h, so editing
+# its body rebuilds app with it, and nothing else.
+(work/'stable.zi').write_text('Read :: () -> s32 { three: s32 = 3; return three }\n')
+updates = build(46)
+assert {'stable.c.o', 'app.c.o'} <= updates and 'leaf.c.o' not in updates, updates
 
 # Content checks cannot be replaced with size/mtime-only checks.
 saved = header.stat()

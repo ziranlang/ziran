@@ -4,10 +4,13 @@
 #define ZIRAN_COMPILER_DECLARATION_H_PRIVATE 1
 #include "compiler_declaration.h"
 #undef ZIRAN_COMPILER_DECLARATION_H_PRIVATE
+#ifndef ZIRAN_HELPER_ZiShl64
+#define ZIRAN_HELPER_ZiShl64
 static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return (uint64_t)(a << s);
 }
+#endif
 static int64_t compiler_declaration_Find(String source, String needle);
 static String compiler_declaration_Trim(String source);
 static void compiler_declaration_Put(Slice output, int64_t* used, String source);

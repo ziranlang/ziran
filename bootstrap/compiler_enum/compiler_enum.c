@@ -4,31 +4,46 @@
 #define ZIRAN_COMPILER_ENUM_H_PRIVATE 1
 #include "compiler_enum.h"
 #undef ZIRAN_COMPILER_ENUM_H_PRIVATE
+#ifndef ZIRAN_HELPER_ZiDivS64
+#define ZIRAN_HELPER_ZiDivS64
 static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
     if(!b) abort();
     if(b == -1) return a == min ? a : -a;
     return a / b;
 }
+#endif
 
+#ifndef ZIRAN_HELPER_ZiRemS64
+#define ZIRAN_HELPER_ZiRemS64
 static inline int64_t ZiRemS64(int64_t a, int64_t b) {
     if(!b) abort();
     return b == -1 ? 0 : a % b;
 }
+#endif
 
+#ifndef ZIRAN_HELPER_ZiDivU64
+#define ZIRAN_HELPER_ZiDivU64
 static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
     if(!b) abort();
     return a / b;
 }
+#endif
 
+#ifndef ZIRAN_HELPER_ZiShl64
+#define ZIRAN_HELPER_ZiShl64
 static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return (uint64_t)(a << s);
 }
+#endif
 
+#ifndef ZIRAN_HELPER_ZiShrS64
+#define ZIRAN_HELPER_ZiShrS64
 static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();
     return a < 0 ? ~(~a >> s) : a >> s;
 }
+#endif
 static void compiler_enum_Space(Cursor* cursor);
 static bool compiler_enum_IdentifierStart(uint8_t byte);
 static int64_t compiler_enum_Digit(uint8_t byte);

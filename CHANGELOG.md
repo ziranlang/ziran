@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Small public procedures are inlinable across modules in generated C
+  without LTO: their header carries a `static inline` copy for other modules.
 - Generated C divides and shifts by a nonconstant operand through a checked
   helper of its width, and shifts signed values right by a constant with one
   arithmetic shift, keeping the zero-divisor and shift-count aborts.

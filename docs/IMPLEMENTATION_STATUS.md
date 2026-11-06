@@ -520,6 +520,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   targets; NaN comparisons and infinities retain floating semantics, while
   converting a nonfinite float to an integer remains an error. Compile-time
   casts and arithmetic fold the tested boundaries with the same width rules.
+  Generated C headers carry a `static inline` copy of each small public
+  procedure that only uses what the header declares, which a function-like
+  macro routes other modules' calls to; the defining `.c` keeps the external
+  definition. Plain `-O2`/`-O3` builds inline across modules without LTO and
+  keep per-module object reuse. `tests/cross_module_inline.sh` checks C, Go,
+  native and portable results, the inlined calls, C hosts taking addresses,
+  C++ hosts and rebuilds after an inlined body changes.
   Generated C divides, takes remainders and shifts by a nonconstant operand
   through a checked helper of the operand's width instead of the general
   `IntegerOp` switch, so compilers emit one `idiv` or `sar` plus the checks;

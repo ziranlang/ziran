@@ -55,6 +55,112 @@ String compiler_text_OperatorProcedure(String op);
 int64_t compiler_text_OperatorTokenLength(String source);
 String compiler_text_ProcedureOperator(String name);
 
+/* Small procedures other modules inline; compiler_text.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE)
+#include "zir_bounds.h"
+static inline bool compiler_text_SpaceByte_ziran_inline(uint8_t byte);
+#define compiler_text_SpaceByte(...) compiler_text_SpaceByte_ziran_inline(__VA_ARGS__)
+static inline bool compiler_text_IdentifierByte_ziran_inline(uint8_t byte);
+#define compiler_text_IdentifierByte(...) compiler_text_IdentifierByte_ziran_inline(__VA_ARGS__)
+static inline int64_t compiler_text_SkipSpace_ziran_inline(String source, int64_t at, bool inline_only);
+#define compiler_text_SkipSpace(...) compiler_text_SkipSpace_ziran_inline(__VA_ARGS__)
+static inline int64_t compiler_text_BlockHeaderEnd_ziran_inline(String source);
+#define compiler_text_BlockHeaderEnd(...) compiler_text_BlockHeaderEnd_ziran_inline(__VA_ARGS__)
+static inline int64_t compiler_text_CamelIdentifier_ziran_inline(String source, Slice output);
+#define compiler_text_CamelIdentifier(...) compiler_text_CamelIdentifier_ziran_inline(__VA_ARGS__)
+
+static inline bool
+compiler_text_SpaceByte_ziran_inline(uint8_t byte)
+{
+    return byte == 32 || (byte >= 9 && byte <= 13);
+}
+
+static inline bool
+compiler_text_IdentifierByte_ziran_inline(uint8_t byte)
+{
+    return (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57) || byte == 95;
+}
+
+static inline int64_t
+compiler_text_SkipSpace_ziran_inline(String source, int64_t at, bool inline_only)
+{
+    while (at < (int64_t)(source).length) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, at);
+        if (inline_only) {
+            if (byte != 32 && byte != 9) {
+                break;
+            }
+        } else {
+            bool value_0 = compiler_text_SpaceByte(byte);
+            if (!value_0) {
+                break;
+            }
+        }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+    return at;
+}
+
+static inline int64_t
+compiler_text_BlockHeaderEnd_ziran_inline(String source)
+{
+    int64_t end = (int64_t)(source).length;
+    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+        end = (int64_t)((uint64_t)end - UINT64_C(1));
+    }
+    if (end > 0LL && (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))) == 123) {
+        end = (int64_t)((uint64_t)end - UINT64_C(1));
+    }
+    while (end > 0LL && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1)))))) {
+        end = (int64_t)((uint64_t)end - UINT64_C(1));
+    }
+    return end;
+}
+
+static inline int64_t
+compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
+{
+    if ((int64_t)(output).length == 0LL) {
+        return 0LL;
+    }
+    int64_t used = 0LL;
+    bool upper = true;
+    for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
+        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
+            break;
+        }
+        if ((byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)) {
+            if (upper && byte >= 97 && byte <= 122) {
+                byte = (uint8_t)((uint32_t)byte - 32u);
+            }
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = byte;
+            used = (int64_t)((uint64_t)used + UINT64_C(1));
+            upper = false;
+        } else {
+            upper = true;
+        }
+    }
+    if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 88;
+        used = (int64_t)((uint64_t)used + UINT64_C(1));
+    }
+    bool value_0 = used > 0LL && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] >= 48 && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] <= 57;
+    if (value_0 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+        int64_t index = used;
+        while (index > 0LL) {
+            uint8_t value_1 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_1;
+            index = (int64_t)((uint64_t)index - UINT64_C(1));
+        }
+        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 77;
+        used = (int64_t)((uint64_t)used + UINT64_C(1));
+    }
+    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;
+    return used;
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

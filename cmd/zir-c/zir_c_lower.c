@@ -902,6 +902,290 @@ rewrite_global_scalar(const ZirModule *module, const char *source,
 }
 /* Buffers lower_module keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
+/* Small public procedures get a static inline copy in their module's
+ * header, which a function-like macro routes other modules' calls to, so a
+ * plain -O3 build can inline them across modules. The module's own source
+ * defines MODULE_SOURCE and keeps the single external definition; taking the
+ * procedure's address names that definition. A copy may only reference what
+ * the header declares, which inline_candidate checks on the checked body and
+ * inline_text_ok rechecks on the emitted C. */
+enum { INLINE_STATEMENTS = 48, INLINE_EXPRESSIONS = 192, INLINE_TEXT = 8192 };
+
+static int
+has_word(const char *text, const char *word)
+{
+    size_t length = strlen(word);
+    if(length == 0) return 0;
+    for(const char *p = text; (p = strstr(p, word)) != NULL; p += length) {
+        int before = p > text && (isalnum((unsigned char)p[-1]) || p[-1] == '_');
+        int after = isalnum((unsigned char)p[length]) || p[length] == '_';
+        if(!before && !after) return 1;
+    }
+    return 0;
+}
+
+static const ZirImport *
+module_import(const ZirModule *m, const char *alias, size_t length)
+{
+    for(int i = 0; i < m->import_count; i++)
+        if(m->imports[i].kind == ZIR_IMPORT_MODULE &&
+           strlen(m->imports[i].name) == length &&
+           !strncmp(m->imports[i].name, alias, length))
+            return &m->imports[i];
+    return NULL;
+}
+
+/* An imported module whose header this header includes unconditionally. */
+static const ZirModule *
+header_module(const ZirModule *m, const char *alias, size_t length)
+{
+    const ZirImport *imp = module_import(m, alias, length);
+    if(imp == NULL || imp->resolved_module == NULL ||
+       NativeHeaderImportUse(m, imp) != 1)
+        return NULL;
+    return imp->resolved_module;
+}
+
+static int
+inline_type_ok(const ZirModule *m, const char *type)
+{
+    if(type == NULL || *type == '\0') return 1;
+    for(int i = 0; i < m->type_count; i++)
+        if(!m->types[i].is_public && has_word(type, m->types[i].name))
+            return 0;
+    for(const char *dot = strchr(type, '.'); dot != NULL; dot = strchr(dot + 1, '.')) {
+        const char *start = dot;
+        while(start > type && (isalnum((unsigned char)start[-1]) || start[-1] == '_'))
+            start--;
+        if(module_import(m, start, (size_t)(dot - start)) != NULL &&
+           header_module(m, start, (size_t)(dot - start)) == NULL)
+            return 0;
+    }
+    return 1;
+}
+
+static const ZirFunction *
+public_function(const ZirModule *m, const char *name)
+{
+    for(int i = 0; m != NULL && i < m->function_count; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        if(!strcmp(fn->name, name))
+            return fn->is_public && !fn->is_template && !fn->is_extern ? fn : NULL;
+    }
+    return NULL;
+}
+
+/* A procedure called by its bare name: this module's own, or one that open
+ * or `using` imports supply through headers this header includes, directly
+ * or not. */
+static const ZirFunction *
+open_function(const ZirModule *m, const char *name, int depth)
+{
+    if(depth > 8) return NULL;
+    for(int i = 0; i < m->import_count; i++) {
+        const ZirImport *imp = &m->imports[i];
+        const ZirFunction *fn;
+        if((imp->kind != ZIR_IMPORT_OPEN && !(imp->kind == ZIR_IMPORT_MODULE && imp->is_using)) ||
+           imp->resolved_module == NULL ||
+           NativeHeaderImportUse(m, imp) != 1)
+            continue;
+        if((fn = public_function(imp->resolved_module, name)) != NULL ||
+           (fn = open_function(imp->resolved_module, name, depth + 1)) != NULL)
+            return fn;
+    }
+    return NULL;
+}
+
+static const ZirFunction *
+header_function(const ZirModule *m, const char *name)
+{
+    for(int i = 0; i < m->function_count; i++)
+        if(!strcmp(m->functions[i].name, name)) return public_function(m, name);
+    return open_function(m, name, 0);
+}
+
+/* A name the header declares: a public procedure, define or global of M. */
+static int
+public_member(const ZirModule *m, const char *name)
+{
+    if(public_function(m, name) != NULL) return 1;
+    for(int i = 0; i < m->define_count; i++)
+        if(!strcmp(m->defines[i].name, name)) return m->defines[i].is_public;
+    for(int i = 0; i < m->global_count; i++)
+        if(!strcmp(m->globals[i].name, name)) return !m->globals[i].is_static;
+    return 0;
+}
+
+/* A module header named like a standard header can be included by the C
+ * library's own headers, before the declarations its inline copies need. */
+static int
+system_header_stem(const char *stem)
+{
+    static const char *const names[] = {
+        "alloca", "assert", "complex", "ctype", "dirent", "endian", "errno", "fcntl",
+        "features", "fenv", "float", "inttypes", "iso646", "limits", "locale", "math",
+        "poll", "pthread", "sched", "setjmp", "signal", "stdalign", "stdarg",
+        "stdatomic", "stdbool", "stddef", "stdint", "stdio", "stdlib", "stdnoreturn",
+        "string", "strings", "tgmath", "threads", "time", "uchar", "unistd", "wchar",
+        "wctype"
+    };
+    for(size_t i = 0; i < sizeof(names) / sizeof(names[0]); i++)
+        if(!strcmp(stem, names[i])) return 1;
+    return 0;
+}
+
+static int
+inline_candidate(const ZirModule *m, const ZirFunction *fn)
+{
+    if(m->name[0] == '\0' || !strcmp(m->name, "main") || EmitRunGuardsEnabled())
+        return 0;
+    if(fn->is_template || !fn->is_public || fn->is_extern || fn->exported ||
+       fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
+       (fn->assembly_text && *fn->assembly_text) || NativeProgramMain(m, fn) ||
+       ArrayElementType(fn->return_type, NULL, 0, NULL) ||
+       fn->stmt_count > INLINE_STATEMENTS || fn->expr_count > INLINE_EXPRESSIONS)
+        return 0;
+    for(int i = 0; i < fn->stmt_count; i++) {
+        const ZirStmt *st = &fn->stmts[i];
+        if(st->is_parallel || st->is_gpu || st->is_using || StatementHasAssembly(st))
+            return 0;
+        switch(st->kind) {
+        case ZIR_STMT_BLOCK_OPEN: case ZIR_STMT_BLOCK_CLOSE: case ZIR_STMT_DECL:
+        case ZIR_STMT_ASSIGN: case ZIR_STMT_EXPR: case ZIR_STMT_IF:
+        case ZIR_STMT_WHILE: case ZIR_STMT_FOR: case ZIR_STMT_RETURN:
+        case ZIR_STMT_BREAK: case ZIR_STMT_CONTINUE:
+            break;
+        default:
+            return 0;
+        }
+        if(st->kind == ZIR_STMT_DECL && !inline_type_ok(m, st->type))
+            return 0;
+    }
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *e = &fn->exprs[i];
+        const char *dot;
+        if(e->is_function_value || (e->slot_type && *e->slot_type) ||
+           !inline_type_ok(m, e->type))
+            return 0;
+        switch(e->kind) {
+        case ZIR_EXPR_INT: case ZIR_EXPR_FLOAT: case ZIR_EXPR_BINARY:
+        case ZIR_EXPR_UNARY: case ZIR_EXPR_POINTER_MEMBER: case ZIR_EXPR_INDEX:
+        case ZIR_EXPR_CONDITIONAL:
+            break;
+        case ZIR_EXPR_CAST: case ZIR_EXPR_SIZE_OF:
+            if(!inline_type_ok(m, e->name)) return 0;
+            break;
+        case ZIR_EXPR_IDENT:
+            if(module_import(m, e->name, strlen(e->name)) != NULL) {
+                if(header_module(m, e->name, strlen(e->name)) == NULL) return 0;
+                break;
+            }
+            for(int j = 0; j < m->global_count; j++)
+                if(!strcmp(m->globals[j].name, e->name) && m->globals[j].is_static)
+                    return 0;
+            for(int j = 0; j < m->define_count; j++)
+                if(!strcmp(m->defines[j].name, e->name) && !m->defines[j].is_public)
+                    return 0;
+            break;
+        case ZIR_EXPR_MEMBER:
+            if(e->left >= 0 && fn->exprs[e->left].kind == ZIR_EXPR_IDENT) {
+                const char *alias = fn->exprs[e->left].name;
+                if(module_import(m, alias, strlen(alias)) != NULL &&
+                   !public_member(header_module(m, alias, strlen(alias)), e->name))
+                    return 0;
+            }
+            break;
+        case ZIR_EXPR_CALL:
+            if(BitBuiltin(e->name) != ZIR_BIT_NONE) break;
+            dot = strchr(e->name, '.');
+            if(dot == NULL ? header_function(m, e->name) == NULL :
+               public_function(header_module(m, e->name, (size_t)(dot - e->name)), dot + 1) == NULL)
+                return 0;
+            break;
+        default:
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Names only this module's source or an unincluded header declares. */
+typedef struct InlineNames {
+    char **names;
+    int count;
+    int cap;
+} InlineNames;
+
+static void
+inline_name(InlineNames *names, const char *name)
+{
+    if(name == NULL || *name == '\0') return;
+    if(names->count == names->cap) {
+        int cap = names->cap ? names->cap * 2 : 64;
+        char **grown = realloc(names->names, (size_t)cap * sizeof(*grown));
+        if(grown == NULL) { perror("realloc"); exit(1); }
+        names->names = grown;
+        names->cap = cap;
+    }
+    names->names[names->count] = strdup(name);
+    if(names->names[names->count] == NULL) { perror("strdup"); exit(1); }
+    names->count++;
+}
+
+static void
+inline_module_names(InlineNames *names, const ZirModule *m, int private_only)
+{
+    char name[LOWER_NAME_MAX * 2];
+    for(int i = 0; i < m->function_count; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        if(fn->is_template || (private_only && fn->is_public)) continue;
+        function_c_name(m, fn, name, sizeof(name));
+        inline_name(names, name);
+    }
+    for(int i = 0; i < m->type_count; i++) {
+        if(private_only && m->types[i].is_public) continue;
+        NativeTypeName(m, &m->types[i], name, sizeof(name));
+        inline_name(names, name);
+    }
+    for(int i = 0; i < m->define_count; i++) {
+        if(private_only && m->defines[i].is_public) continue;
+        TargetDefineName(m, ZIR_C, m->defines[i].name, name, sizeof(name));
+        inline_name(names, name);
+    }
+    for(int i = 0; i < m->global_count; i++) {
+        if(private_only && !m->globals[i].is_static) continue;
+        TargetGlobalName(m, ZIR_C, m->globals[i].name, name, sizeof(name));
+        inline_name(names, name);
+    }
+    for(int i = 0; private_only && i < m->import_count; i++) {
+        const ZirImport *imp = &m->imports[i];
+        if(imp->kind == ZIR_IMPORT_EXTERN && !imp->is_public &&
+           c_extern_symbol(imp, name, sizeof(name)))
+            inline_name(names, name);
+    }
+}
+
+static int
+inline_text_ok(const char *text, const InlineNames *names)
+{
+    if(strlen(text) > INLINE_TEXT || has_word(text, "static"))
+        return 0;
+    for(const char *p = text; *p;) {
+        if(!(isalpha((unsigned char)*p) || *p == '_')) { p++; continue; }
+        const char *start = p;
+        while(isalnum((unsigned char)*p) || *p == '_') p++;
+        size_t length = (size_t)(p - start);
+        for(int i = 0; i < names->count; i++)
+            if(strlen(names->names[i]) == length && !memcmp(names->names[i], start, length))
+                return 0;
+    }
+    return 1;
+}
+
+typedef struct LowerModuleBuffers LowerModuleBuffers;
+static int emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
+                               int restab_count, LowerModuleBuffers *buffers);
+
 typedef struct LowerModuleBuffers {
     char stem[512];
     char guard[600];
@@ -924,6 +1208,105 @@ typedef struct LowerModuleBuffers {
 
 static int lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
              int restab_count, const char *out_dir, int linked);
+
+static FILE *
+inline_stream(TextStream *stream, char **text, size_t *size)
+{
+    FILE *file = TextStreamOpen(stream, text, size);
+    if(file == NULL) { perror("inline header text"); exit(1); }
+    return file;
+}
+
+static char *
+inline_stream_close(TextStream *stream, char **text)
+{
+    if(TextStreamClose(stream) != 0) { perror("inline header text"); exit(1); }
+    return *text;
+}
+
+/* Write the header's inline section; returns how many procedures it holds. */
+static int
+emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
+                    int restab_count, LowerModuleBuffers *buffers)
+{
+    InlineNames names = {0};
+    TextStream declarations, bodies;
+    char *declaration_text, *body_text;
+    size_t declaration_size, body_size;
+    FILE *declaration_file = NULL, *body_file = NULL;
+    int count = 0;
+    if(system_header_stem(buffers->stem)) return 0;
+    for(int i = 0; i < m->function_count; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        char cname[LOWER_NAME_MAX], cret[LOWER_NAME_MAX];
+        TextStream scratch, body;
+        char *scratch_text, *text;
+        size_t scratch_size, text_size;
+        if(!inline_candidate(m, fn)) continue;
+        if(declaration_file == NULL) {
+            inline_module_names(&names, m, 1);
+            for(int j = 0; j < m->import_count; j++) {
+                const ZirImport *imp = &m->imports[j];
+                if((imp->kind == ZIR_IMPORT_MODULE || imp->kind == ZIR_IMPORT_OPEN) &&
+                   imp->resolved_module != NULL && NativeHeaderImportUse(m, imp) != 1)
+                    inline_module_names(&names, imp->resolved_module, 0);
+            }
+            declaration_file = inline_stream(&declarations, &declaration_text, &declaration_size);
+            body_file = inline_stream(&bodies, &body_text, &body_size);
+        }
+        function_c_name(m, fn, cname, sizeof(cname));
+        ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
+        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
+        strip_alias_type(m, fn->return_type, cret, sizeof(cret));
+        /* A procedure that needs a helper beside its body stays out of line. */
+        FILE *out = inline_stream(&scratch, &scratch_text, &scratch_size);
+        BodySymbols symbols = {m, restab, restab_count};
+        EmitAssemblyBlockHelpers(out, m, fn, ZIR_C);
+        EmitParallelWorkers(out, m, fn, ZIR_C, resolve_body_symbol, &symbols);
+        EmitSlotWrappers(out, m, fn, ZIR_C, resolve_body_symbol, &symbols);
+        EmitAssemblyHelpers(out, m, fn, ZIR_C, cret, buffers->cargs);
+        int alone = inline_stream_close(&scratch, &scratch_text)[0] == '\0';
+        free(scratch_text);
+        if(!alone) continue;
+        out = inline_stream(&body, &text, &text_size);
+        lower_body(out, m, restab, restab_count, fn);
+        inline_stream_close(&body, &text);
+        if(inline_text_ok(text, &names)) {
+            const char *result = cret[0] ? cret : "void";
+            fprintf(declaration_file, "static inline %s %s_ziran_inline(%s);\n"
+                    "#define %s(...) %s_ziran_inline(__VA_ARGS__)\n",
+                    result, cname, buffers->cargs, cname, cname);
+            fprintf(body_file, "\nstatic inline %s\n%s_ziran_inline(%s)\n{\n%s}\n",
+                    result, cname, buffers->cargs, text);
+            count++;
+        }
+        free(text);
+    }
+    for(int i = 0; i < names.count; i++) free(names.names[i]);
+    free(names.names);
+    if(declaration_file == NULL) return 0;
+    inline_stream_close(&declarations, &declaration_text);
+    inline_stream_close(&bodies, &body_text);
+    if(count) {
+        size_t size = strlen(RUNTIME_INCLUDES_MARK) + strlen(NUMBER_HELPERS_MARK) +
+                      strlen(declaration_text) + strlen(body_text) + 1;
+        char *section = malloc(size);
+        if(section == NULL) { perror("malloc"); exit(1); }
+        snprintf(section, size, "%s%s%s%s", RUNTIME_INCLUDES_MARK, NUMBER_HELPERS_MARK,
+                 declaration_text, body_text);
+        fprintf(h, "\n/* Small procedures other modules inline; %s.c defines them. */\n"
+                   "#if !defined(__cplusplus) && !defined(%s_SOURCE)\n",
+                buffers->stem, buffers->guard);
+        if(ModuleUsesVecOperations(m))
+            fputs("#include \"zir_vec.h\"\n", h);
+        if(EmitNativeHelpers(h, section) != 0) { perror("inline header"); exit(1); }
+        fputs("#endif\n", h);
+        free(section);
+    }
+    free(declaration_text);
+    free(body_text);
+    return count;
+}
 
 static int
 lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
@@ -1171,6 +1554,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(NativeProgramMain(m, fn))
             EmitNativeMainDeclaration(h);
     }
+    int inlines = emit_header_inlines(h, m, restab, restab_count, buffers);
     fprintf(h, "\n#ifdef __cplusplus\n}\n#endif\n\n#endif /* %s */\n", buffers->guard);
     if(ferror(h) != 0 || fclose(h) != 0) {
         remove(buffers->htemp);
@@ -1203,6 +1587,10 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         return 0;
     }
     fprintf(c, "/* Generated by zi2c from %s. */\n", m->source_path);
+    /* The module's own source keeps the one definition of each inline copy,
+     * even when a system header includes this module's header first. */
+    if(inlines)
+        fprintf(c, "#define %s_SOURCE 1\n", buffers->guard);
     /* Runtime declarations precede public macros such as FILE. */
     fputs(RUNTIME_INCLUDES_MARK, c);
     if(ModuleUsesVecOperations(m))

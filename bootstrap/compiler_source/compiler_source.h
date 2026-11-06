@@ -105,6 +105,48 @@ bool compiler_source_LooksLikeProcedureHeader(String source);
 ControlBlock compiler_source_SplitProcedureBody(String source);
 MustUseModifier compiler_source_ProcedureMustUse(String source, String result_type);
 
+/* Small procedures other modules inline; compiler_source.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_SOURCE_H_SOURCE)
+static inline void compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_commas);
+#define compiler_source_NormalizeRecordSeparators(...) compiler_source_NormalizeRecordSeparators_ziran_inline(__VA_ARGS__)
+static inline bool compiler_source_BraceOutsideLiterals_ziran_inline(String source);
+#define compiler_source_BraceOutsideLiterals(...) compiler_source_BraceOutsideLiterals_ziran_inline(__VA_ARGS__)
+
+static inline void
+compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_commas)
+{
+    int64_t at = 0LL;
+    bool quoted = false;
+    int32_t nesting = 0;
+    while (at < (int64_t)(body).length) {
+        uint8_t byte = ((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)];
+        if (quoted) {
+            if (byte == 92 && (int64_t)((uint64_t)at + UINT64_C(1)) < (int64_t)(body).length) {
+                at = (int64_t)((uint64_t)at + UINT64_C(1));
+            } else if (byte == 34) {
+                quoted = false;
+            }
+        } else if (byte == 34) {
+            quoted = true;
+        } else if (byte == 91 || byte == 40) {
+            nesting = (int32_t)((uint32_t)nesting + 1u);
+        } else if (byte == 93 || byte == 41) {
+            nesting = (int32_t)((uint32_t)nesting - 1u);
+        } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
+            ((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)] = 10;
+        }
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+    }
+}
+
+static inline bool
+compiler_source_BraceOutsideLiterals_ziran_inline(String source)
+{
+    int64_t value_0 = compiler_source_OpeningBraceOutsideLiterals(source);
+    return value_0 >= 0LL;
+}
+#endif
+
 #ifdef __cplusplus
 }
 #endif

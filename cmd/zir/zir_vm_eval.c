@@ -1,5 +1,6 @@
 #include "zir_memory.h"
 #include "zir_vm_internal.h"
+#include "zir_simd.h"
 #include <limits.h>
 /* Buffers vm_print keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -882,7 +883,7 @@ typedef enum Builtin {
     BuiltinNamed, BuiltinTextView, BuiltinPrint, BuiltinNew, BuiltinFree,
     BuiltinVecPush, BuiltinVecReserve, BuiltinVecResize, BuiltinVecResizeBounded, BuiltinVecClear, BuiltinVecFree, BuiltinVecSwap,
     BuiltinVecPop, BuiltinVecGet, BuiltinVecClone, BuiltinVecSlice,
-    BuiltinBuilderAppend, BuiltinBuilderFinish, BuiltinBit
+    BuiltinBuilderAppend, BuiltinBuilderFinish, BuiltinBit, BuiltinSimd
 } Builtin;
 
 /* Most calls name ordinary functions. Exclude them by their first byte
@@ -901,6 +902,8 @@ builtin_call(const char *name)
         if(!strcmp(name, "zi_new")) return BuiltinNew;
         if(!strcmp(name, "zi_free")) return BuiltinFree;
         if(BitBuiltin(name) != ZIR_BIT_NONE) return BuiltinBit;
+        if(!strncmp(name, "zi_simd_", 8) && SimdOpChecked(name) != NULL)
+            return BuiltinSimd;
         break;
     case 'B':
         if(!strcmp(name, "BuilderAppend")) return BuiltinBuilderAppend;
@@ -2977,6 +2980,10 @@ eval_expression(Frame *frame, int index, int depth)
             item->data[bytes.length] = 0;
             item->length = bytes.length;
             value = keep_string(frame->vm, item, NULL, sizeof(*item) + bytes.length + 1);
+            break;
+        }
+        if(builtin == BuiltinSimd) {
+            value = vm_simd_call(frame, expression, depth);
             break;
         }
         if(builtin == BuiltinBit) {

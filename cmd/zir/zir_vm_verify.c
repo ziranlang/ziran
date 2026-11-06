@@ -1,6 +1,7 @@
 #include "zir_memory.h"
 #include "zir_vm_internal.h"
 #include "zir_scalar.h"
+#include "zir_simd.h"
 
 /* Set when the last parse_parameters or verify_sequence failed on one of
  * the VM's fixed limits, so the diagnostic can name the limit. */
@@ -716,6 +717,16 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
                    function->exprs[first].type[0] == '*' &&
                    verify_expression(module, function, bindings,
                                      binding_count, first, depth + 1);
+        }
+        if(SimdOpChecked(expression->name) != NULL) {
+            /* std/simd: checking settled every operand's type, and vectors
+             * are lane arrays here, so each operand only has to verify. */
+            for(int child = expression->first_child; child >= 0;
+                child = function->exprs[child].next_sibling)
+                if(!verify_expression(module, function, bindings,
+                                      binding_count, child, depth + 1))
+                    return 0;
+            return 1;
         }
         if(!strcmp(expression->name, "print")) {
             PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));

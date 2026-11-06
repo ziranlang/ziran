@@ -218,7 +218,7 @@ PARSE_PARTS := $(addprefix cmd/zir/zir_parse,.c _declaration.c _eval.c _typed.c 
 CHECK_PARTS := $(addprefix cmd/zir/zir_check,.c _value.c _expr.c _statement.c \
     _function.c _link.c _program.c _simd.c)
 EMIT_PARTS := $(addprefix cmd/zir/zir_emit,.c _value.c _call.c _expr.c _statement.c _gpu.c _range.c _simd.c _simd_go.c)
-VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c)
+VM_PARTS := $(addprefix cmd/zir/zir_vm,.c _verify.c _eval.c _run.c _simd.c)
 
 # COFF does not retain ELF hidden visibility, but objcopy can localize the
 # same declarations explicitly after the group's objects have been merged.

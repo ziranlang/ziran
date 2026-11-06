@@ -15,7 +15,8 @@ source=$repo/tests/spec/vm_inline_records_test.zi
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
     "$repo/tests/vm_inline_records_test.c" "$repo/cmd/zir/zir_vm.c" \
     "$repo/cmd/zir/zir_vm_eval.c" "$repo/cmd/zir/zir_vm_run.c" \
-    "$repo/cmd/zir/zir_vm_verify.c" "$library" -lm -pthread -o "$work/test"
+    "$repo/cmd/zir/zir_vm_verify.c" "$repo/cmd/zir/zir_vm_simd.c" \
+    "$library" -lm -pthread -o "$work/test"
 for form in source saved; do
     input=$source; root=$repo/tests/spec
     if test "$form" = saved; then input=$work/ir/vm_inline_records_test.zir; root=$work/ir; fi

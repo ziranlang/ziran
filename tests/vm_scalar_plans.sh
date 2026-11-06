@@ -12,7 +12,7 @@ source=$repo/tests/spec/vm_scalar_plans_test.zi
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
     "$repo/tests/vm_scalar_plans_test.c" "$repo/cmd/zir/zir_vm.c" \
     "$repo/cmd/zir/zir_vm_verify.c" "$repo/cmd/zir/zir_vm_run.c" \
-    "$library" -lm -pthread -o "$work/test"
+    "$repo/cmd/zir/zir_vm_simd.c" "$library" -lm -pthread -o "$work/test"
 for form in source saved; do
     input=$source
     root=$repo/tests/spec

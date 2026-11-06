@@ -17,6 +17,29 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* std/simd vectors run on the VM as fixed arrays of their lanes, u8x16 as
+ * [16]u8, so every VM file asks this instead of ArrayElementType. Their
+ * operations evaluate through the scalar reference (zir_vm_simd.c). */
+static inline int
+vm_array_element_type(const char *type, char *element, size_t element_size,
+                      int *capacity)
+{
+    ZirVector vector;
+    if(type != NULL && (type[0] == 'u' || type[0] == 's' || type[0] == 'f') &&
+       type[1] >= '0' && type[1] <= '9' && strchr(type, 'x') != NULL &&
+       VectorType(type, &vector)) {
+        size_t length = strlen(vector.lane);
+        if(element != NULL) {
+            if(length >= element_size) return 0;
+            memcpy(element, vector.lane, length + 1);
+        }
+        if(capacity != NULL) *capacity = vector.lanes;
+        return 1;
+    }
+    return (ArrayElementType)(type, element, element_size, capacity);
+}
+#define ArrayElementType vm_array_element_type
+
 /* VM_MAX_PARAMS is at most 64: named arguments are tracked in a uint64_t. */
 enum { VM_MAX_PARAMS = 64, VM_MAX_GLOBALS = 4096,
        VM_MAX_DEPTH = 128,
@@ -687,6 +710,8 @@ void place_write(Vm *vm, Value place, Value value);
 void binary_value(Vm *vm, const char *op, const Value *left, const Value *right,
                   const char *left_type, const char *right_type, Value *output);
 Value eval(Frame *frame, int index, int depth);
+/* A checked zi_simd_* call (zir_vm_simd.c). */
+Value vm_simd_call(Frame *frame, const ZirExpr *expression, int depth);
 int execute_scalar_function(Frame *frame, VmSignature *signature,
                              Value *result, Flow *flow);
 void pin_value(Vm *vm, Value value, int depth);

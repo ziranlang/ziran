@@ -278,6 +278,7 @@ void rename_local_procedures(char *line, size_t capacity, char (*names)[2][ZIR_N
                              int count, ZirSourceSpan span);
 int function_must_use(const char *line, const char *return_type, ZirSourceSpan span);
 int function_inlining(const char *line, ZirSourceSpan span);
+int function_target(const char *line, ZirSourceSpan span);
 void parse_go_method(const char *line, ZirFunction *function, ZirSourceSpan span);
 int strip_program_export(char *line, char *symbol, size_t symbol_size, ZirSourceSpan span);
 void separate_parameter_defaults(char *args, size_t capacity, char *defaults, size_t defaults_capacity, ZirSourceSpan span);

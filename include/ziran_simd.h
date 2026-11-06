@@ -12,9 +12,10 @@
  * Operations that move data between lanes work on each 128-bit block of a
  * 256-bit vector on its own, as AVX2 does; the others use every lane.
  *
- * Including this file again with ZIRAN_SIMD_TIER set to 2 (SSSE3), 3
- * (SSE4.1) or 4 (AVX2) defines that x86-64 tier's operations, named
- * zi_ssse3_..., zi_sse41_... or zi_avx2_..., for #target procedure clones.
+ * Including this file again with ZIRAN_SIMD_TIERS defined also defines the
+ * x86-64 tiers' operations, named zi_ssse3_..., zi_sse41_... and zi_avx2_...,
+ * for #target procedure clones, and zi_simd_tier(), which picks one of them
+ * for this CPU once (ZIRAN_SIMD_TIER=1..4 in the environment lowers it).
  */
 #ifndef ZIRAN_SIMD_COMMON_H
 #define ZIRAN_SIMD_COMMON_H
@@ -58,8 +59,9 @@
 #endif
 
 #if ZI_VEC && defined(__GNUC__) && !defined(__clang__)
-/* 256-bit vectors cross non-AVX procedure boundaries in memory, as every
- * Ziran call does; #target clones only call clones of the same tier. */
+/* 256-bit vectors cross non-AVX procedure boundaries in memory; checking
+ * keeps #target procedures, whose AVX2 clones would pass them in YMM
+ * registers, from passing them by value at all. */
 #pragma GCC diagnostic ignored "-Wpsabi"
 #endif
 
@@ -532,4 +534,53 @@ zi_simd_gather_check(const void *indices, int lanes, int is_signed, int64_t leng
 #undef ZI_TIER
 #undef ZI_FN
 #undef ZI_N
+#if ZI_BASE_TIER < 4
+/* #target procedures dispatch between clones when the build's own tier is
+ * below AVX2; generated C tests this. */
+#define ZIRAN_SIMD_DISPATCH 1
+#define ZI_TARGET_SSSE3 __attribute__((target("ssse3")))
+#define ZI_TARGET_SSE41 __attribute__((target("sse4.1")))
+#define ZI_TARGET_AVX2 __attribute__((target("avx2")))
+#include <cpuid.h>
+
+/* The best tier this CPU and OS run, at most ZIRAN_SIMD_TIER when that is set
+ * to 1 (SSE2) .. 4 (AVX2); 0 when the build's own tier is as good. */
+static int
+zi_simd_tier_detect(void)
+{
+    unsigned a, b, c, d;
+    int tier = 1;
+    if(__get_cpuid(1, &a, &b, &c, &d)) {
+        if(c & bit_SSSE3) tier = 2;
+        if(tier == 2 && (c & bit_SSE4_1)) tier = 3;
+        /* AVX2 also needs the OS to save the YMM registers. */
+        if(tier == 3 && (c & bit_OSXSAVE) && (c & bit_AVX)) {
+            unsigned low, high;
+            __asm__ volatile("xgetbv" : "=a"(low), "=d"(high) : "c"(0));
+            (void)high;
+            if((low & 6) == 6 && __get_cpuid_max(0, NULL) >= 7) {
+                __cpuid_count(7, 0, a, b, c, d);
+                if(b & bit_AVX2) tier = 4;
+            }
+        }
+    }
+    const char *forced = getenv("ZIRAN_SIMD_TIER");
+    if(forced != NULL && forced[0] >= '1' && forced[0] <= '4' && forced[1] == '\0' &&
+       forced[0] - '0' < tier)
+        tier = forced[0] - '0';
+    return tier > ZI_BASE_TIER ? tier : 0;
+}
+
+static inline int
+zi_simd_tier(void)
+{
+    static int cached = -1;
+    int tier = __atomic_load_n(&cached, __ATOMIC_RELAXED);
+    if(tier < 0) {
+        tier = zi_simd_tier_detect();
+        __atomic_store_n(&cached, tier, __ATOMIC_RELAXED);
+    }
+    return tier;
+}
+#endif
 #endif

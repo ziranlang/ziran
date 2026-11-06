@@ -173,7 +173,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 60u
+#define ZIR_FORMAT_VERSION 61u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -247,6 +247,7 @@ static const Field function_fields[] = {
     INTEGER_FIELD(ZirFunction, checked),
     INTEGER_FIELD(ZirFunction, uses_host), STRING_FIELD(ZirFunction, extern_target),
     STRING_FIELD(ZirFunction, extern_symbol), INTEGER_FIELD(ZirFunction, inlining),
+    INTEGER_FIELD(ZirFunction, simd_target),
     SPAN_FIELD(ZirFunction, span),
     {offsetof(ZirFunction, assembly_text), ZIR_TEXT_MAX, FIELD_FUNCTION_ASSEMBLY}
 };
@@ -1218,6 +1219,8 @@ validate_program(const ZirProgram *program)
                (function->must_use != 0 && function->must_use != 1) ||
                function->inlining < ZIR_INLINE_NONE ||
                function->inlining > ZIR_INLINE_COLD ||
+               (function->simd_target != 0 && function->simd_target != 1) ||
+               (function->simd_target && function->is_extern) ||
                (function->inlining != ZIR_INLINE_NONE && function->is_extern) ||
                (function->must_use &&
                 !strcmp(function->return_type, "void")) ||

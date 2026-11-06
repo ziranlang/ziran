@@ -804,6 +804,62 @@ lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
     }
 }
 
+/* The x86-64 tiers a #target procedure gets a clone for, best first, with
+ * the ziran_simd.h tier each needs above the build's own. */
+static const struct {
+    const char *name, *attribute;
+    int tier;
+} simd_tiers[] = {
+    {"avx2", "ZI_TARGET_AVX2", 4},
+    {"sse41", "ZI_TARGET_SSE41", 3},
+    {"ssse3", "ZI_TARGET_SSSE3", 2},
+};
+
+/* A #target procedure's clones, emitted before it when ziran_simd.h
+ * dispatches: the same body with each tier's std/simd helpers. */
+static void
+emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
+                   int restab_count, const ZirFunction *fn, const char *cret,
+                   const char *cname, const char *cargs)
+{
+    fputs("#if defined(ZIRAN_SIMD_DISPATCH)\n", c);
+    for(size_t t = 0; t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++) {
+        if(simd_tiers[t].tier < 4) fprintf(c, "#if ZI_BASE_TIER < %d\n", simd_tiers[t].tier);
+        fprintf(c, "static %s %s\n%s_ziran_%s(%s)\n{\n", simd_tiers[t].attribute,
+                cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
+        EmitUseSimdTier(simd_tiers[t].name);
+        lower_body(c, m, restab, restab_count, fn);
+        EmitUseSimdTier(NULL);
+        fputs("}\n", c);
+        if(simd_tiers[t].tier < 4) fputs("#endif\n", c);
+    }
+    fputs("#endif\n", c);
+}
+
+/* The start of a #target procedure's body: the best clone this CPU runs, or
+ * the body that follows when the build's own tier is as good. */
+static void
+emit_target_dispatch(FILE *c, const ZirFunction *fn, const char *cret,
+                     const char *cname, const char *abi_args)
+{
+    const ZirParameters *parameters = ParametersOf(abi_args);
+    int returns = cret[0] && strcmp(cret, "void");
+    fputs("#if defined(ZIRAN_SIMD_DISPATCH)\n    switch(zi_simd_tier()) {\n", c);
+    for(size_t t = 0; t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++) {
+        if(simd_tiers[t].tier < 4) fprintf(c, "#if ZI_BASE_TIER < %d\n", simd_tiers[t].tier);
+        fprintf(c, "    case %d: %s%s_ziran_%s(", simd_tiers[t].tier, returns ? "return " : "",
+                cname, simd_tiers[t].name);
+        for(int i = 0; i < parameters->count; i++) {
+            char name[LOWER_NAME_MAX];
+            TargetBindingName(fn, ZIR_C, parameters->items[i].name, name, sizeof(name));
+            fprintf(c, "%s%s", i ? ", " : "", name);
+        }
+        fprintf(c, ");%s\n", returns ? "" : " return;");
+        if(simd_tiers[t].tier < 4) fputs("#endif\n", c);
+    }
+    fputs("    default: break;\n    }\n#endif\n", c);
+}
+
 static int
 c_extern_symbol(const ZirImport *imp, char *dst, size_t dst_size)
 {
@@ -1128,7 +1184,7 @@ inline_candidate(const ZirModule *m, const ZirFunction *fn)
     if(m->name[0] == '\0' || !strcmp(m->name, "main") || EmitRunGuardsEnabled())
         return 0;
     if(fn->is_template || !fn->is_public || fn->is_extern || fn->exported ||
-       fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
+       fn->simd_target || fn->is_global_initializer || fn->uses_host || fn->go_method[0] ||
        (fn->assembly_text && *fn->assembly_text) || NativeProgramMain(m, fn) ||
        ArrayElementType(fn->return_type, NULL, 0, NULL) || fn->inlining == ZIR_INLINE_COLD ||
        (fn->inlining != ZIR_INLINE_ALWAYS &&
@@ -1812,6 +1868,12 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         emit_extern_prototype(c, m, imp);
     }
     emit_inlining_attributes(c, m);
+    for(i = 0; i < m->function_count; i++)
+        if(m->functions[i].simd_target && !m->functions[i].is_template &&
+           !m->functions[i].is_extern) {
+            fputs("#define ZIRAN_SIMD_TIERS 1\n#include \"ziran_simd.h\"\n", c);
+            break;
+        }
     /* Forward prototypes for private functions: initializers and earlier
      * definitions may reference them before their definition. */
     for(i = 0; i < m->function_count; i++) {
@@ -1906,6 +1968,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         BodySymbols symbols = {m, restab, restab_count};
         EmitSlotWrappers(c, m, fn, ZIR_C, resolve_body_symbol, &symbols);
         EmitAssemblyHelpers(c, m, fn, ZIR_C, cret, buffers->cargs);
+        if(fn->simd_target)
+            emit_target_clones(c, m, restab, restab_count, fn, cret, cname, buffers->cargs);
         if(fn->is_public)
             fprintf(c, "%s%s\n%s(%s)\n{\n", inlining_prefix(fn), cret[0] ? cret : "void",
                     cname, buffers->cargs);
@@ -1914,6 +1978,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                     cret[0] ? cret : "void", cname, buffers->cargs);
         if(EmitRunGuardsEnabled())
             fputs("    ZIR_ENTER();\n", c);
+        if(fn->simd_target)
+            emit_target_dispatch(c, fn, cret, cname, buffers->abi_args);
         EmitAssembly(c, m, fn, ZIR_C, cret);
         lower_body(c, m, restab, restab_count, fn);
         fprintf(c, "}\n");

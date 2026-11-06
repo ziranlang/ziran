@@ -171,6 +171,7 @@ typedef struct ZirFunction {
     char return_type[ZIR_NAME_MAX];
     int must_use; /* #must requires callers to keep the result */
     int inlining; /* ZIR_INLINE_ALWAYS for #inline, ZIR_INLINE_COLD for #cold */
+    int simd_target; /* #target: generated C picks the best x86-64 SIMD tier */
     const char *assembly_text; /* optional #asm variants; immutable kept text */
     int is_conversion; /* `Name :: #as (source: Type) -> Result` */
     char go_method[ZIR_NAME_MAX]; /* native receiver adapter; first parameter is the receiver */

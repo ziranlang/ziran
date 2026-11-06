@@ -62,6 +62,17 @@ function_inlining(const char *line, ZirSourceSpan span)
            modifier == InliningModifier_Cold ? ZIR_INLINE_COLD : ZIR_INLINE_NONE;
 }
 
+int
+function_target(const char *line, ZirSourceSpan span)
+{
+    TargetModifier modifier = compiler_source_ProcedureTarget(declaration_text(line));
+    if(modifier == TargetModifier_Arguments)
+        die_at(span, "#target does not take arguments");
+    if(modifier == TargetModifier_Duplicate)
+        die_at(span, "duplicate #target procedure modifier");
+    return modifier == TargetModifier_Target;
+}
+
 static void
 check_declaration_error(DeclarationError error, ZirSourceSpan span)
 {
@@ -613,6 +624,8 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
                               sizeof(imp->args), imp->return_type,
                               sizeof(imp->return_type), line);
         imp->must_use = function_must_use(line, imp->return_type, imp->span);
+        if(function_target(line, imp->span))
+            die_at(imp->span, "#target needs a procedure body");
         if(function_inlining(line, imp->span) != ZIR_INLINE_NONE)
             die_at(imp->span, "#inline and #cold need a procedure body");
         imp->extern_kind = extern_kind;

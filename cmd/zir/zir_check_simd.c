@@ -200,3 +200,65 @@ check_simd_call(Checker *c, int index, const char **result_type)
     *result_type = e->type;
     return 1;
 }
+
+/* Whether a value of `type` holds a 256-bit vector. AVX2 code passes those
+ * in YMM registers and other code in memory, so a #target clone never hands
+ * one by value across a call. */
+static int
+holds_wide_vector(const ZirModule *module, const char *type, int depth)
+{
+    ZirVector vector;
+    if(depth > 32 || type == NULL || !*type || *type == '*') return 0;
+    if(VectorType(type, &vector)) return vector.lanes * vector.lane_bits == 256;
+    if(BuiltinTypeName(type)) return 0;
+    char element[ZIR_NAME_MAX];
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return holds_wide_vector(module, element, depth + 1);
+    const ZirModule *owner = NULL;
+    const ZirType *record = FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_record_template || record->is_extern)
+        return 0;
+    size_t offset = 0;
+    const ZirTypeField *field;
+    while(TypeNextFieldShared(record, &offset, &field) == 1)
+        if(holds_wide_vector(owner ? owner : module, field->type, depth + 1))
+            return 1;
+    return 0;
+}
+
+/* #target procedures get one C clone per x86-64 tier behind a dispatcher,
+ * which forwards its arguments as they came. */
+void
+check_simd_target(Checker *c, ZirFunction *fn)
+{
+    if(!fn->simd_target) return;
+    if(fn->inlining == ZIR_INLINE_ALWAYS)
+        error(c, fn->span, "a #target procedure cannot be #inline", fn->name);
+    if(fn->assembly_text && *fn->assembly_text)
+        error(c, fn->span, "a #target procedure cannot hold #asm variants", fn->name);
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int i = 0; i < parameters->count; i++) {
+        const char *type = parameters->items[i].type;
+        if(type != NULL && type[0] == '.' && type[1] == '.')
+            error(c, fn->span, "a #target procedure cannot take variadic arguments", fn->name);
+        else if(holds_wide_vector(c->module, type, 0))
+            error(c, fn->span, "a #target procedure cannot take a 256-bit vector by value; "
+                  "pass it in an array or through a pointer", parameters->items[i].name);
+    }
+    if(holds_wide_vector(c->module, fn->return_type, 0))
+        error(c, fn->span, "a #target procedure cannot return a 256-bit vector by value; "
+              "store it through a pointer", fn->name);
+    for(int x = 0; x < fn->expr_count; x++) {
+        const ZirExpr *call = &fn->exprs[x];
+        if(call->kind != ZIR_EXPR_CALL || call->name == NULL || SimdOpChecked(call->name) != NULL)
+            continue;
+        int wide = holds_wide_vector(c->module, call->type, 0);
+        for(int child = call->first_child; child >= 0 && !wide;
+            child = fn->exprs[child].next_sibling)
+            wide = holds_wide_vector(c->module, fn->exprs[child].type, 0);
+        if(wide)
+            error(c, call->span, "a #target procedure cannot pass a 256-bit vector by value "
+                  "to another procedure", call->name);
+    }
+}

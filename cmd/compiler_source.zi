@@ -26,6 +26,7 @@ ControlBlock :: struct {
 ProcedureHeader :: struct { name: string; parameters: string; result: string }
 MustUseModifier :: enum s32 { None; Required; Arguments; Duplicate; NoResult }
 InliningModifier :: enum s32 { None; Inline; Cold; Arguments; Duplicate; Both }
+TargetModifier :: enum s32 { None; Target; Arguments; Duplicate }
 
 #scope_file
 Byte :: (source: string, at: s64) -> u8 {
@@ -666,5 +667,33 @@ ProcedureInlining :: (source: string) -> InliningModifier {
     if inline > 1 || cold > 1 { return .Duplicate }
     if inline == 1 { return .Inline }
     if cold == 1 { return .Cold }
+    return .None
+}
+
+// #target between a procedure's parameters and its body.
+ProcedureTarget :: (source: string) -> TargetModifier {
+    opening := Find(source, "(")
+    if opening < 0 { return .None }
+    closing := ClosingParenthesis(source[opening:])
+    if closing < 0 { return .None }
+    closing += opening
+    tail := source[closing + 1:]
+    end := Find(tail, "{")
+    if end < 0 { end = Find(tail, ";") }
+    if end < 0 { end = tail.count }
+    head := tail[0:end]
+    count: s32 = 0
+    at: s64 = 0
+    while at < end {
+        if head[at] == #char "\"" { at = AfterQuote(head, at) }
+        else if Matches(head, at, "#target") && !SourceIdentifier(Byte(head, at + 7)) {
+            after := SkipSpace(head, at + 7)
+            if after < end && head[after] != #char "#" { return .Arguments }
+            count += 1
+            at += 7
+        } else { at += 1 }
+    }
+    if count > 1 { return .Duplicate }
+    if count == 1 { return .Target }
     return .None
 }

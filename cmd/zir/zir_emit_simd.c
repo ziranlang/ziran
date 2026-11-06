@@ -6,21 +6,42 @@
 
 #include <stdio.h>
 
+const char *zir_emit_simd_tier;
+
+void
+EmitUseSimdTier(const char *tier)
+{
+    zir_emit_simd_tier = tier;
+}
+
+/* "zi_", or "zi_avx2_" and the like in a #target clone for that tier. The
+ * operations taking constants are macros that suit every tier. */
+static void
+helper_prefix(const Emitter *e, const SimdOp *op, char *out, size_t size)
+{
+    int macro = op != NULL && (op->id == ZI_OP_ALIGN_BYTES || op->id == ZI_OP_SHL_BYTES ||
+                               op->id == ZI_OP_SHR_BYTES || op->id == ZI_OP_SHUFFLE);
+    if(e->simd_tier != NULL && !macro) format(out, size, "zi_%s_", e->simd_tier);
+    else format(out, size, "zi_");
+}
+
 /* Reinterpret, Narrow, Convert and Gather name both their operand and result
  * types; every other helper names the type it works on. */
 static void
-helper_name(const SimdOp *op, const char *operand, const char *result,
-            char *out, size_t size)
+helper_name(const Emitter *e, const SimdOp *op, const char *operand,
+            const char *result, char *out, size_t size)
 {
+    char prefix[16];
+    helper_prefix(e, op, prefix, sizeof(prefix));
     switch(op->shape) {
     case SIMD_NARROW: case SIMD_REINTERPRET: case SIMD_CONVERT: case SIMD_GATHER:
-        format(out, size, "zi_%s_%s_%s", op->snake, operand, result);
+        format(out, size, "%s%s_%s_%s", prefix, op->snake, operand, result);
         return;
     case SIMD_MAKE: case SIMD_SPLAT: case SIMD_ZERO: case SIMD_LOAD:
-        format(out, size, "zi_%s_%s", op->snake, result);
+        format(out, size, "%s%s_%s", prefix, op->snake, result);
         return;
     default:
-        format(out, size, "zi_%s_%s", op->snake, operand);
+        format(out, size, "%s%s_%s", prefix, op->snake, operand);
     }
 }
 
@@ -134,7 +155,7 @@ c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
         declare(e, temporary, index_type, indices);
         copy_text(indices, sizeof(indices), temporary);
     }
-    helper_name(op, index.name, result, name, sizeof(name));
+    helper_name(e, op, index.name, result, name, sizeof(name));
     if(kind == SIMD_MEMORY_POINTER) {
         format(out, size, "%s((const void *)(%s), %s)", name, table, indices);
         return;
@@ -244,7 +265,7 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
         }
         c_address(e, children[0], buffers->index, touched_lanes(op, &vector), value >= 0,
                   buffers->address, sizeof(buffers->address));
-        helper_name(op, vector.name, vector.name, name, sizeof(buffers->name));
+        helper_name(e, op, vector.name, vector.name, name, sizeof(buffers->name));
         if(value >= 0) {
             line(e, "%s(%s, %s);", name, buffers->address, text[0]);
             out[0] = '\0';
@@ -267,7 +288,7 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
         return 0;
     }
     /* Select is named for its values, not for its mask. */
-    helper_name(op, op->shape == SIMD_SELECT && count > 1 ?
+    helper_name(e, op, op->shape == SIMD_SELECT && count > 1 ?
                 canonical(e->fn->exprs[children[1]].type) : first,
                 result, name, sizeof(buffers->name));
     for(int i = 0; i < count; i++) {
@@ -280,8 +301,10 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
             format(lane, sizeof(lane), "u%d", mask.lane_bits);
             const char *unsigned_mask = VectorTypeName(lane, mask.lanes);
             if(strcmp(first, unsigned_mask)) {
-                format(buffers->piece, sizeof(buffers->piece), "zi_reinterpret_%s_%s(%s)",
-                       first, unsigned_mask, value);
+                char prefix[16];
+                helper_prefix(e, NULL, prefix, sizeof(prefix));
+                format(buffers->piece, sizeof(buffers->piece), "%sreinterpret_%s_%s(%s)",
+                       prefix, first, unsigned_mask, value);
                 value = buffers->piece;
             }
         } else if(op->shape == SIMD_SHIFT && i == 1) {

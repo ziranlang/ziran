@@ -263,6 +263,8 @@ int check_template_declaration(Checker *c, ZirFunction *fn);
 int check_go_method(Checker *c, ZirFunction *fn);
 /* A std/simd operation call; sets *type (empty after an error). */
 int check_simd_call(Checker *c, int index, const char **type);
+/* #target procedure rules (zir_check_simd.c). */
+void check_simd_target(Checker *c, ZirFunction *fn);
 int normalize_function_arrays(const ZirModule *module, ZirFunction *fn);
 int canonical_type_arguments(const char *source, char *output, size_t capacity);
 int rewrite_type_applications(ZirModule *module, const char *source, char *output, size_t capacity, ZirSourceSpan span, int recursion);

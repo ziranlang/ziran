@@ -679,6 +679,7 @@ restart:
         error(c, fn->span, "cannot order checked expressions", fn->name);
         return 0;
     }
+    if(c->errors == errors_before) check_simd_target(c, fn);
     c->fn->checked = c->errors == errors_before;
     if(c->fn->checked) {
         fn->using_parameters = 0;

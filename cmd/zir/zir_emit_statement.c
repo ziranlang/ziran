@@ -1497,6 +1497,7 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
     if(!CanEmitBody(module, fn))return 0;
     e.out=out;e.module=module;e.fn=fn;e.target=target;e.resolve=resolver;e.context=context;e.indent=1;
     e.minify = zir_minify_output;
+    e.simd_tier = target == ZIR_C ? zir_emit_simd_tier : NULL;
     e.assembly=assembly;e.assembly_context=assembly_context;
     e.locals=calloc((size_t)fn->stmt_count+65,sizeof(*e.locals));
     if(!e.locals) {

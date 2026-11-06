@@ -5,6 +5,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 
 ## Working now
 
+- `std/simd` vector types and operations run with identical bits in native
+  C (GCC and Clang vectors with SSE2, SSSE3, SSE4.1, AVX2 and NEON
+  intrinsics, or the lane loops TinyCC and other compilers use), Go lane
+  loops, bundles on the native engine and the portable VM, from source and
+  saved IR. `#target` procedures get SSSE3, SSE4.1 and AVX2 clones in C
+  behind a dispatcher that reads CPUID (and the OS's YMM state) once;
+  `ZIRAN_SIMD_TIER` forces a lower tier, and `tests/simd_target.sh` checks
+  each forced clone under gdb where it can. Checking rejects 256-bit vectors
+  by value at a `#target` procedure's boundary and in its calls. WebAssembly
+  SIMD128 lowering and an ARMv7 NEON device check are still to come.
+
 - GCC object-cache preparation pipes the empty compile probe, allowing its
   compiler and assembler to overlap without a temporary assembly file. It keeps
   the previous compiler, math-library, assembler and checksum information and

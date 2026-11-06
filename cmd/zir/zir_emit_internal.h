@@ -120,6 +120,9 @@ typedef struct Emitter {
     /* Set by a C declaration whose initializer is a record or array
      * value, which may then be written as a brace list. */
     int braced_initializer;
+    /* "ssse3", "sse41" or "avx2" while a #target procedure's clone for that
+     * x86-64 tier is emitted, whose std/simd helpers carry that prefix. */
+    const char *simd_tier;
 } Emitter;
 
 /* Bound for readable inlined expressions. Longer results stay in named
@@ -180,6 +183,7 @@ typedef struct GpuRegionCode {
  * object and localizes these hidden symbols, so they never leave it. */
 #pragma GCC visibility push(hidden)
 extern int zir_minify_output;
+extern const char *zir_emit_simd_tier;
 int format(char *out, size_t size, const char *format_string, ...);
 int GpuLowerRegion(const ZirModule *module, const ZirFunction *fn, const ParallelRegion *region, GpuRegionCode *code);
 void GpuEmitShaderLines(Emitter *e, const char *text);

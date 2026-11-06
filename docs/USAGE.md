@@ -1470,6 +1470,37 @@ portable fallback, Go uses `math/bits`, and the portable VM computes the same
 results. A procedure of your own with one of these names is called instead.
 Run `sh tests/bit_builtins.sh build/bin/ziran`.
 
+### SIMD vectors
+
+`Simd :: #import "simd"` gives fixed-width vectors (`u8x16`, `s8x16`,
+`u16x8`, `s16x8`, `u32x4`, `s32x4`, `u64x2`, `s64x2`, `f32x4` and `f64x2`,
+and 256-bit forms such as `s16x16`) with operations such as `Simd.Add`,
+`Simd.Load(s16x8, row, at)` and `Simd.ByteShuffle`; `std/simd.zi` lists
+them all. Vectors are values, used through these operations rather than `+`
+or `==`. Every operation gives the same bits on every target. Native C uses
+SSE2 on x86-64, or SSSE3, SSE4.1 and AVX2 when the build enables them, and
+NEON on AArch64 and ARMv7. Go, bundles, the portable VM and TinyCC compute
+lane by lane.
+
+Mark a procedure `#target` to let native x86-64 C pick its SIMD instructions
+when the program runs:
+
+```jai
+Blend :: (row: []u8, out: []u8) #target {
+    ...
+}
+```
+
+Generated C holds SSSE3, SSE4.1 and AVX2 copies of `Blend` and calls the
+best one the CPU runs, chosen once, so one SSE2 build uses AVX2 where it can.
+`ZIRAN_SIMD_TIER=1` (SSE2) to `4` (AVX2) in the environment lowers the
+choice for testing. Builds that already enable AVX2, and other targets,
+compile the procedure once. A `#target` procedure cannot take or return a
+256-bit vector by value, or pass one to another procedure, because AVX2 code
+passes those in different registers; use an array or a pointer. It cannot be
+`#inline` or hold `#asm` variants. Run `sh tests/simd.sh build/bin/ziran`
+and `sh tests/simd_target.sh build/bin/ziran`.
+
 ### HTTP and process capabilities
 
 `std/net_http.zi` defines an explicit request/response host capability. A

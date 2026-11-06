@@ -1231,3 +1231,57 @@ compiler_source_ProcedureInlining(String source)
     }
     return InliningModifier_None;
 }
+
+TargetModifier
+compiler_source_ProcedureTarget(String source)
+{
+    int64_t opening = compiler_source_Find(source, StringLiteral("("));
+    if (opening < 0LL) {
+        return TargetModifier_None;
+    }
+    int64_t closing = compiler_source_ClosingParenthesis(StringRange(source, (int64_t)opening, (int64_t)source.length));
+    if (closing < 0LL) {
+        return TargetModifier_None;
+    }
+    closing = (int64_t)((uint64_t)closing + (uint64_t)opening);
+    String tail = StringRange(source, (int64_t)((int64_t)((uint64_t)closing + UINT64_C(1))), (int64_t)source.length);
+    int64_t end = compiler_source_Find(tail, StringLiteral("{"));
+    if (end < 0LL) {
+        end = compiler_source_Find(tail, StringLiteral(";"));
+    }
+    if (end < 0LL) {
+        end = (int64_t)(tail).length;
+    }
+    String head = StringRange(tail, (int64_t)0LL, (int64_t)end);
+    int32_t count = 0;
+    int64_t at = 0LL;
+    while (at < end) {
+        if ((uint8_t)ZIRAN_INDEX(head.data, head.length, at) == 34) {
+            at = compiler_source_AfterQuote(head, at);
+        } else {
+            bool value_0 = compiler_source_Matches(head, at, StringLiteral("#target"));
+            bool value_1 = value_0;
+            if (value_1) {
+                bool value_2 = compiler_source_SourceIdentifier(compiler_source_Byte(head, (int64_t)((uint64_t)at + UINT64_C(7))));
+                value_1 = !value_2;
+            }
+            if (value_1) {
+                int64_t after = compiler_source_SkipSpace(head, (int64_t)((uint64_t)at + UINT64_C(7)));
+                if (after < end && (uint8_t)ZIRAN_INDEX(head.data, head.length, after) != 35) {
+                    return TargetModifier_Arguments;
+                }
+                count = (int32_t)((uint32_t)count + 1u);
+                at = (int64_t)((uint64_t)at + UINT64_C(7));
+            } else {
+                at = (int64_t)((uint64_t)at + UINT64_C(1));
+            }
+        }
+    }
+    if (count > 1) {
+        return TargetModifier_Duplicate;
+    }
+    if (count == 1) {
+        return TargetModifier_Target;
+    }
+    return TargetModifier_None;
+}

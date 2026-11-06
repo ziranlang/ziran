@@ -19,6 +19,7 @@ typedef struct ControlBlock ControlBlock;
 typedef struct ProcedureHeader ProcedureHeader;
 typedef int32_t MustUseModifier;
 typedef int32_t InliningModifier;
+typedef int32_t TargetModifier;
 
 enum {
     SourceError_None = 0,
@@ -92,6 +93,13 @@ enum {
     InliningModifier_Duplicate = 4,
     InliningModifier_Both = 5,
 };
+
+enum {
+    TargetModifier_None = 0,
+    TargetModifier_Target = 1,
+    TargetModifier_Arguments = 2,
+    TargetModifier_Duplicate = 3,
+};
 bool compiler_source_SourceIdentifier(uint8_t byte);
 bool compiler_source_StartsWord(String source, String word);
 bool compiler_source_IdentifierText(String source, bool member_path);
@@ -115,6 +123,7 @@ bool compiler_source_LooksLikeProcedureHeader(String source);
 ControlBlock compiler_source_SplitProcedureBody(String source);
 MustUseModifier compiler_source_ProcedureMustUse(String source, String result_type);
 InliningModifier compiler_source_ProcedureInlining(String source);
+TargetModifier compiler_source_ProcedureTarget(String source);
 
 /* Small procedures other modules inline; compiler_source.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_SOURCE_H_SOURCE)

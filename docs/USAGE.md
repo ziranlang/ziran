@@ -1145,6 +1145,8 @@ storage. `JsonSetCopy` acts like `JsonSet` but owns a copy of its key; ordinary
 `JsonNewString` and `JsonNewNumber` continue to borrow. `JsonCopy` deep-copies
 text and keys into the target, so the source may
 be reset or dropped first, including when copying within one document.
+Read member names with `JsonKey` or `JsonKeyInto`: a node's raw `key` field is
+internal, and `JsonCopy` and `JsonSetCopy` leave it empty.
 `JsonString`, `JsonKey` and `JsonNumberText` still return independent owned
 strings. `JsonStringInto(document, node, output)`, `JsonKeyInto` and
 `JsonNumberTextInto` instead append to caller-owned `Vec(u8)` storage and return

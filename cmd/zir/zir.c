@@ -224,6 +224,29 @@ VecElementType(const ZirModule *module, const char *name,
     return 1;
 }
 
+int
+OwnedTextType(const ZirModule *module, const char *name)
+{
+    const ZirModule *owner = NULL;
+    if(module == NULL || name == NULL)
+        return 0;
+    const ZirType *type = FindType(module, name, &owner);
+    if(type == NULL || owner == NULL || strcmp(owner->name, "vec") ||
+       strcmp(type->name, "Text") || type->is_enum || type->is_union ||
+       type->is_procedure_type || type->is_record_template ||
+       type->is_extern || type->is_owned_vec || type->is_map)
+        return 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    char element[ZIR_NAME_MAX];
+    if(TypeNextField(type, &offset, &field) != 1 ||
+       strcmp(field.name, "bytes") ||
+       !VecElementType(owner, field.type, element, sizeof(element)) ||
+       strcmp(element, "u8"))
+        return 0;
+    return TypeNextField(type, &offset, &field) == 0;
+}
+
 static int
 file_scope_visible(const ZirModule *module, int is_file_private,
                    ZirSourceSpan span)

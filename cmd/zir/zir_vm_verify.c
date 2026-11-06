@@ -685,7 +685,9 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
             int first = expression->first_child;
             return first >= 0 &&
                    function->exprs[first].next_sibling < 0 &&
-                   strcmp(function->exprs[first].type, "[]u8") == 0 &&
+                   (strcmp(function->exprs[first].type, "[]u8") == 0 ||
+                    (OwnedTextType(module, function->exprs[first].type) &&
+                     assignment_root(function, first) != NULL)) &&
                    strcmp(expression->type, "string") == 0 &&
                    verify_expression(module, function, bindings,
                                      binding_count, first, depth + 1);

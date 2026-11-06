@@ -16,3 +16,19 @@ Vec :: struct($T: Type) {
     count: s64;
     capacity: s64;
 }
+
+// Owned UTF-8 text. It moves and drops like the Vec it holds, so its bytes
+// are freed when its owner goes away. TextView(text) borrows it as a string
+// while the Text stays in place, and a Text passed where a string is
+// expected lends the same view. The view cannot outlive the Text, and the
+// Text cannot move or change while a view is live.
+Text :: struct {
+    bytes: Vec(u8);
+}
+
+// Copy borrowed text into an owned Text; empty when it cannot be allocated.
+TextCopy :: (value: string) -> Text {
+    text: Text
+    if !BuilderAppend(text.bytes, value) { return .{} }
+    return text
+}

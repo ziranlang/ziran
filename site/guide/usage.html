@@ -816,6 +816,17 @@ each <code>%</code> takes the next argument and <code>%%</code> writes one perce
 <code>BuilderPrint</code> imports <code>std/format</code> automatically, and <code>std/format</code> makes
 <code>Vec</code> visible. <code>BuilderFinish(builder)</code> returns the text. Floats keep up to six
 digits after the point, with trailing zeros dropped.</p>
+<h3 id="owned-text">Owned text</h3>
+<p><code>std/vec</code> defines <code>Text :: struct { bytes: Vec(u8); }</code>, UTF-8 text that owns
+its bytes. A <code>Text</code> moves and drops like the <code>Vec</code> it holds: it is freed when
+its local, record field or <code>Vec</code> element goes away. <code>TextCopy(value)</code> copies a
+string into a new <code>Text</code>, and <code>BuilderAppend(text.bytes, more)</code> grows it.
+<code>TextView(text)</code> borrows the <code>Text</code> in place as a <code>string</code>; <code>TextView(it)</code>
+also accepts the pointer <code>it</code> of a <code>for *</code> loop. A <code>Text</code> place passed or
+stored where a <code>string</code> is expected lends the same view. A view cannot
+outlive its <code>Text</code>, so returning a view of a local <code>Text</code> or storing it in a
+global is rejected. The <code>Text</code> cannot move or change while a view of it is
+live. <code>TextView</code> of a fresh call result is rejected; bind the <code>Text</code> first.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:
 <code>ParseFloat64(text: string) -&gt; (value: float64, ok: bool)</code> accepts a complete
 ASCII decimal with optional sign, point and exponent, or <code>inf</code>/<code>Infinity</code> and

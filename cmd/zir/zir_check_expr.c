@@ -1803,10 +1803,48 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         }
         if(!strcmp(e->name, "TextView")) {
             int first = e->first_child;
-            if(first < 0 || c->fn->exprs[first].next_sibling >= 0 ||
-               c->fn->exprs[first].argument_name[0] ||
-               strcmp(expression_type(c, first), "[]u8"))
-                error(c, e->span, "TextView requires one []u8 argument", e->name);
+            const char *argument = first >= 0 &&
+                c->fn->exprs[first].next_sibling < 0 &&
+                !c->fn->exprs[first].argument_name[0] ?
+                expression_type(c, first) : "";
+            e = &c->fn->exprs[index];
+            if(argument[0] == '*' && OwnedTextType(c->module, argument + 1) &&
+               !c->inference_only) {
+                /* View the Text a pointer names, as `it` in `for *`:
+                 * rewrite the argument into its dereference. */
+                ZirExpr saved = c->fn->exprs[first];
+                char name[ZIR_NAME_MAX];
+                copy_text(name, sizeof(name), saved.name);
+                ZirExpr *added = FunctionAddExpr(c->fn, saved.kind, name, saved.span);
+                if(added == NULL) {
+                    c->failed = 1;
+                    break;
+                }
+                int pointer = (int)(added - c->fn->exprs);
+                c->fn->exprs[pointer] = saved;
+                c->fn->exprs[pointer].next_sibling = -1;
+                ZirExpr *deref = &c->fn->exprs[first];
+                ExprReset(deref);
+                deref->kind = ZIR_EXPR_UNARY;
+                copy_text(deref->op, sizeof(deref->op), "*");
+                deref->text = saved.text;
+                deref->left = deref->first_child = deref->third = -1;
+                deref->right = pointer;
+                deref->next_sibling = -1;
+                deref->span = saved.span;
+                c->conversions_applied = 1;
+                argument = expression_type(c, first);
+                e = &c->fn->exprs[index];
+            }
+            int owned = OwnedTextType(c->module, argument);
+            if(!owned && strcmp(argument, "[]u8"))
+                error(c, e->span, "TextView requires one []u8 or Text argument", e->name);
+            /* The view borrows the Text in place; a fresh call result has
+             * no owner to keep its bytes alive. */
+            else if(owned && c->fn->exprs[first].kind == ZIR_EXPR_CALL)
+                error(c, c->fn->exprs[first].span,
+                      "TextView borrows a Text in place; bind the Text to a local first",
+                      c->fn->exprs[first].name);
             type = "string";
             break;
         }
@@ -2496,14 +2534,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
              * for a nested call's own arguments, and move the array: the
              * call's result type must not be stored through a stale e. */
             e = &c->fn->exprs[index];
-            if(contains_vec(c->module, arg_type, 0) &&
+            /* A Text place passed for a string parameter lends a view
+             * below instead of moving. */
+            int lends_text = expected_type != NULL &&
+                !strcmp(skip_ws(expected_type + 1), "string") &&
+                OwnedTextType(c->module, arg_type) &&
+                c->fn->exprs[child].kind != ZIR_EXPR_CALL;
+            if(!lends_text && contains_vec(c->module, arg_type, 0) &&
                c->fn->exprs[child].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[child].kind != ZIR_EXPR_CALL &&
                !owned_initializer_shape(c, child))
                 error(c, c->fn->exprs[child].span,
                       "Vec arguments move a binding or pass a call result",
                       display_name);
-            if(contains_vec(c->module, arg_type, 0) &&
+            if(!lends_text && contains_vec(c->module, arg_type, 0) &&
                global_vec_source(c, child))
                 error(c, c->fn->exprs[child].span,
                       "global Vec storage cannot move; use a local",

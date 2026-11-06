@@ -65,7 +65,7 @@ if "$ziran" ir --root "$work" -o "$work/invalid-ir" \
     echo 'TextView accepted a non-byte slice' >&2
     exit 1
 fi
-rg -q 'TextView requires one \[\]u8 argument' "$work/invalid.log"
+rg -q 'TextView requires one \[\]u8 or Text argument' "$work/invalid.log"
 
 cat > "$work/escape.zi" <<'ZI'
 Bad :: () -> string {

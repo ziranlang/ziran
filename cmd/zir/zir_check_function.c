@@ -390,7 +390,16 @@ restart:
             Binding *destination = lexical_owned_binding(c, st->lhs_root);
             c->destination_was_moved = destination != NULL && destination->moved;
         }
-        if(c->errors == errors_at_statement && st->expr_root >= 0) {
+        /* A Text place stored or returned as a string lends a view below;
+         * the statement does not move it. */
+        int lends_text = st->expr_root >= 0 &&
+            fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
+            OwnedTextType(c->module, fn->exprs[st->expr_root].type) &&
+            ((st->kind == ZIR_STMT_DECL && !strcmp(st->type, "string")) ||
+             (st->kind == ZIR_STMT_RETURN && !strcmp(c->fn->return_type, "string")) ||
+             (st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
+              !strcmp(fn->exprs[st->lhs_root].type, "string")));
+        if(c->errors == errors_at_statement && st->expr_root >= 0 && !lends_text) {
             Binding *moved_from = lexical_owned_binding(c, st->expr_root);
             int consumed_root = 0;
             if(moved_from != NULL && moved_from->moved_path_count != 0 &&
@@ -606,6 +615,7 @@ restart:
         } else if(st->kind == ZIR_STMT_RETURN) {
             if(contains_vec(c->module, c->fn->return_type, 0) &&
                st->expr_root >= 0 &&
+               compatible_checked(c, c->fn->return_type, type) &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
                !owned_initializer_shape(c, st->expr_root))

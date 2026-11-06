@@ -1708,6 +1708,50 @@ lend_vec_as_slice(Checker *c, int index, const char *to)
     return expression_type(c, index);
 }
 
+/* An owned Text place passed or stored where a string is expected lends a
+ * borrowed view: rewrite `text` into TextView(text). The lifetime check
+ * keeps the view inside the Text's life. A fresh call result has no place
+ * to lend from. Returns "string", or NULL when this lending does not apply. */
+static const char *
+lend_text_as_string(Checker *c, int index, const char *to)
+{
+    ZirFunction *fn = c->fn;
+    ZirExprKind kind = fn->exprs[index].kind;
+    if(strcmp(to, "string") ||
+       !OwnedTextType(c->module, fn->exprs[index].type) ||
+       (kind != ZIR_EXPR_IDENT && kind != ZIR_EXPR_MEMBER &&
+        kind != ZIR_EXPR_POINTER_MEMBER && kind != ZIR_EXPR_INDEX))
+        return NULL;
+    if(c->inference_only)
+        return to;
+    char name[ZIR_NAME_MAX];
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirExpr *added = FunctionAddExpr(fn, kind, name, fn->exprs[index].span);
+    if(added == NULL) {
+        c->failed = 1;
+        return NULL;
+    }
+    int place = (int)(added - fn->exprs);
+    ZirExpr saved = fn->exprs[index];
+    fn->exprs[place] = saved;
+    fn->exprs[place].next_sibling = -1;
+    fn->exprs[place].argument_index = -1;
+    fn->exprs[place].argument_name = "";
+    ZirExpr *call = &fn->exprs[index];
+    ExprReset(call);
+    call->kind = ZIR_EXPR_CALL;
+    call->text = saved.text;
+    call->name = KeepName("TextView");
+    call->argument_name = saved.argument_name;
+    call->argument_index = saved.argument_index;
+    call->first_child = place;
+    call->left = call->right = call->third = -1;
+    call->next_sibling = saved.next_sibling;
+    call->span = saved.span;
+    c->conversions_applied = 1;
+    return expression_type(c, index);
+}
+
 const char *
 widen_expression(Checker *c, int index, const char *to)
 {
@@ -1772,6 +1816,8 @@ try_conversion(Checker *c, int index, const char *to, ZirSourceSpan span)
         return c->inference_only ? to : widen_expression(c, index, to);
     {
         const char *lent = lend_vec_as_slice(c, index, to);
+        if(lent == NULL)
+            lent = lend_text_as_string(c, index, to);
         if(lent != NULL)
             return lent;
     }
@@ -2011,7 +2057,8 @@ mark_expr_moves(Checker *c, int index)
             error(c, e->span, "Vec binding is used after moving", e->name);
         return;
     }
-    primitive = e->kind == ZIR_EXPR_CALL && vec_primitive_name(e->name);
+    primitive = e->kind == ZIR_EXPR_CALL &&
+                (vec_primitive_name(e->name) || !strcmp(e->name, "TextView"));
     Binding *storage = primitive && e->first_child >= 0 ?
         lexical_vec_binding(c, e->first_child) : NULL;
     int storage_was_moved = storage != NULL && storage->moved;
@@ -2072,6 +2119,7 @@ check_vec_call_results(Checker *c, int index, int transferred, int discarded)
         child = c->fn->exprs[child].next_sibling) {
         int child_transfer =
             (expr->kind == ZIR_EXPR_CALL &&
+             /* TextView reports its own error for a fresh Text. */
              (!vec_primitive_name(expr->name) ||
               (!strcmp(expr->name, "VecPush") &&
                child != expr->first_child)) &&

@@ -1317,6 +1317,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   source/saved IR, plus allocation-balanced empty `BuilderFinish` in C.
   Empty finished builders release reserved native storage in C.
   Nonempty finished native strings still retain their bytes for process lifetime.
+- Owned `Text` (`std/vec`, one `bytes: Vec(u8)` field) moves and drops as a
+  Vec-owning record on C, Go and the VM. `TextView(text)` and implicit lending
+  of a Text place to a `string` borrow its bytes under the text-view lifetime
+  and mutation checks, which also reject moving the Text while a view is live.
+  `tests/owned_text.sh` covers locals, fields, `Vec(Text)` elements, pointer
+  iteration, allocation balance, AddressSanitizer and source/saved IR.
 - Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every `BundleRun`: integer and boolean literals, compile-time constant

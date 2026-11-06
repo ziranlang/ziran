@@ -11,9 +11,10 @@ examples.
 1. **Automatic ownership cleanup.** Lower the remaining ownership decisions
    into checked IR rather than separate backend paths, broaden allocation-count
    and AddressSanitizer coverage, and retain source/saved-IR tests across
-   backends. Reclaiming the bytes detached by `BuilderFinish` requires an
-   explicit string-ownership, reference-counting, or region policy that is
-   sound across assignment, calls, returns, ABI boundaries, and cleanup.
+   backends. Owned `Text` in `std/vec` frees its bytes with its owner; the
+   remaining step is for `BuilderFinish` and the standard text producers to
+   return `Text` to owning callers while their `string` callers keep
+   compiling.
 2. **Borrowed views.** Choose one observable rule for `TextView` of mutable
    bytes, then make native and portable execution agree. Complete lifetime
    tracking for unknown heap aliases and host-backed views, rejecting aliases

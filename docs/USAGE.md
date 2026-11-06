@@ -987,6 +987,19 @@ each `%` takes the next argument and `%%` writes one percent. A file that uses
 `Vec` visible. `BuilderFinish(builder)` returns the text. Floats keep up to six
 digits after the point, with trailing zeros dropped.
 
+### Owned text
+
+`std/vec` defines `Text :: struct { bytes: Vec(u8); }`, UTF-8 text that owns
+its bytes. A `Text` moves and drops like the `Vec` it holds: it is freed when
+its local, record field or `Vec` element goes away. `TextCopy(value)` copies a
+string into a new `Text`, and `BuilderAppend(text.bytes, more)` grows it.
+`TextView(text)` borrows the `Text` in place as a `string`; `TextView(it)`
+also accepts the pointer `it` of a `for *` loop. A `Text` place passed or
+stored where a `string` is expected lends the same view. A view cannot
+outlive its `Text`, so returning a view of a local `Text` or storing it in a
+global is rejected. The `Text` cannot move or change while a view of it is
+live. `TextView` of a fresh call result is rejected; bind the `Text` first.
+
 `std/float_text.zi` supplies portable binary64 decimal conversion:
 `ParseFloat64(text: string) -> (value: float64, ok: bool)` accepts a complete
 ASCII decimal with optional sign, point and exponent, or `inf`/`Infinity` and

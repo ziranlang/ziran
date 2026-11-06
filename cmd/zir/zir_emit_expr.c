@@ -1569,7 +1569,24 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         if(!strcmp(expr->name, "TextView")) {
             if(expr->first_child < 0 ||
                e->fn->exprs[expr->first_child].next_sibling >= 0)
-                fatal(expr, "TextView requires one []u8 argument");
+                fatal(expr, "TextView requires one []u8 or Text argument");
+            const char *text_type = e->fn->exprs[expr->first_child].type;
+            if(OwnedTextType(e->module, text_type)) {
+                /* Borrow the Text's bytes in place; nothing is copied or
+                 * moved on C, while Go copies into its string. */
+                char bytes[ZIR_NAME_MAX * 4];
+                emit_destination(e, expr->first_child, buffers->a, sizeof(buffers->a));
+                emit_field_path(e->module, e->target, text_type, "bytes",
+                                buffers->a, bytes, sizeof(bytes));
+                if(e->target == ZIR_GO)
+                    format(out, size, "string(%s.Data[:%s.Count])", bytes, bytes);
+                else
+                    format(out, size,
+                           "StringView((%s).count > 0 ? (const char *)(%s).data : \"\", (size_t)(%s).count)",
+                           bytes, bytes, bytes);
+                e->pure = 1;
+                return;
+            }
             emit_expr(e, expr->first_child, "[]u8", buffers->a, sizeof(buffers->a));
             if(e->target == ZIR_GO) {
                 format(out, size, "string(%s)", buffers->a);

@@ -68,6 +68,16 @@ representation. The VM copies into an owned snapshot, preserves its owner
 through aliases and ranges, and collects unused snapshots at safe statement
 and call boundaries. Appending an empty string always succeeds
 without allocating.</p>
+<p><code>Text</code> in <code>std/vec</code> is owned text: a record whose one field is
+<code>bytes: Vec(u8)</code>, so it moves and drops like any record that owns a <code>Vec</code>,
+in a local, a record field or a <code>Vec(Text)</code> element. <code>TextCopy(value)</code> copies
+a <code>string</code> into one. <code>TextView(text)</code> borrows a Text place in place, and a
+Text place passed, returned, assigned or declared where a <code>string</code> is
+expected lends the same view. The view follows the lifetime rules above: it
+cannot outlive its Text, and the Text cannot be mutated or moved while the
+view is live. <code>TextView</code> of a fresh call result is rejected; bind the Text
+first. <code>tests/owned_text.sh</code> checks C with an allocation counter and under
+AddressSanitizer, Go and portable bundles from source and saved IR.</p>
 <p>Generic
 <code>Option</code> and <code>Result</code> are currently ordinary records with explicit status
 fields, applied as <code>Name :: Option(T)</code> or <code>Name :: Result(T, E)</code>. They copy

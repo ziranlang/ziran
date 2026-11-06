@@ -1149,6 +1149,26 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
     return result;
 }
 
+/* The lifetime of the storage an expression names, for a view that
+ * borrows that storage itself rather than a view held inside it. */
+static Origin
+storage_origin(BorrowCheck *check, int index)
+{
+    Origin backing = expression_origin(check, index);
+    if(backing.unknown)
+        return backing;
+    BorrowPlace place = storage_place(check, index, 1);
+    if(place.root == NULL)
+        return backing;
+    Origin origin = {0};
+    origin.depth = place.root->depth;
+    if(place.root->global_index >= 0)
+        origin.globals = global_bit(check, place.root->global_index);
+    if(direct_pointer_parameter(place.root))
+        origin.lent = UINT64_C(1) << place.root->parameter;
+    return origin;
+}
+
 static Origin
 expression_origin(BorrowCheck *check, int index)
 {
@@ -1207,19 +1227,9 @@ expression_origin(BorrowCheck *check, int index)
         const ZirExpr *base = &fn->exprs[expression->left];
         Origin backing = expression_origin(check, expression->left);
         if(backing.unknown) return backing;
-        if(ArrayElementType(base->type, NULL, 0, NULL)) {
-            BorrowPlace place = storage_place(check, expression->left, 1);
-            if(place.root != NULL) {
-                Origin origin = {0};
-                origin.depth = place.root->depth;
-                if(place.root->global_index >= 0)
-                    origin.globals = global_bit(check,
-                                                place.root->global_index);
-                if(direct_pointer_parameter(place.root))
-                    origin.lent = UINT64_C(1) << place.root->parameter;
-                return origin;
-            }
-        }
+        if(ArrayElementType(base->type, NULL, 0, NULL) &&
+           storage_place(check, expression->left, 1).root != NULL)
+            return storage_origin(check, expression->left);
         return backing;
     }
     case ZIR_EXPR_CONDITIONAL:
@@ -1244,8 +1254,15 @@ expression_origin(BorrowCheck *check, int index)
         return result;
     }
     case ZIR_EXPR_CALL:
-        if(!strcmp(expression->name, "TextView"))
-            return expression_origin(check, expression->first_child);
+        if(!strcmp(expression->name, "TextView")) {
+            /* A view of an owned Text borrows the Text's own storage, as a
+             * range of a fixed array borrows the array. */
+            int argument = expression->first_child;
+            if(argument >= 0 &&
+               OwnedTextType(check->current->module, fn->exprs[argument].type))
+                return storage_origin(check, argument);
+            return expression_origin(check, argument);
+        }
         if(!strcmp(expression->name, "BuilderFinish"))
             return (Origin){0};
         if(!strcmp(expression->name, "VecSlice")) {
@@ -1287,6 +1304,12 @@ check_ranges(BorrowCheck *check, int index)
        strcmp(check->current->fn->exprs[expression->left].type, "string") != 0 &&
        expression_origin(check, index).invalid)
         reject(check, expression->span, "slice range requires live owned backing storage");
+    /* Moving an owner hands its storage to another owner that may change or
+     * free it, so a live view of it must have closed first. */
+    if(expression->is_move &&
+       text_backing_conflict(check, storage_place(check, index, 1)))
+        reject(check, expression->span,
+               "moving owned storage while its text view is live");
     check_ranges(check, expression->left);
     check_ranges(check, expression->right);
     check_ranges(check, expression->third);

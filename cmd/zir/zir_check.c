@@ -593,8 +593,20 @@ type_error(Checker *c, ZirSourceSpan span, const char *message,
         .related_message = "The required type is declared here"
     };
     c->errors++;
-    DiagnosticDetailed(span, "check.type", &details, "%s: %s", message,
-                       mismatch_detail(detail, sizeof(detail), subject, expected, actual));
+    /* Owned Text and a borrowed string are different types; name the
+     * conversion that crosses between them. */
+    const char *hint = "";
+    if(expected != NULL && actual != NULL &&
+       !strcmp(expected, "string") && OwnedTextType(c->module, actual))
+        hint = "; owned Text is not a string: borrow it with TextView(text) "
+               "while the Text lives, or keep the Text as the type";
+    else if(expected != NULL && actual != NULL &&
+            !strcmp(actual, "string") && OwnedTextType(c->module, expected))
+        hint = "; a string does not own its bytes: copy it with "
+               "TextCopy(text), or use .{} for empty text";
+    DiagnosticDetailed(span, "check.type", &details, "%s: %s%s", message,
+                       mismatch_detail(detail, sizeof(detail), subject, expected, actual),
+                       hint);
 }
 
 void

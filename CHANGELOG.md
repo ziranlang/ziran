@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its
+  owner. `TextView(text)` borrows it, a `Text` passed where a `string` is
+  expected lends the same view, and `TextCopy` copies a string into one.
 - A constant table read in several loops of one function, or through
   `.count`, no longer fails with "cannot bind aggregate constant".
 - Integer literals such as `1_000`, `0xDEAD_BEEF`, `0b1010_0101` and `u64`

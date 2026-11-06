@@ -68,6 +68,17 @@ through aliases and ranges, and collects unused snapshots at safe statement
 and call boundaries. Appending an empty string always succeeds
 without allocating.
 
+`Text` in `std/vec` is owned text: a record whose one field is
+`bytes: Vec(u8)`, so it moves and drops like any record that owns a `Vec`,
+in a local, a record field or a `Vec(Text)` element. `TextCopy(value)` copies
+a `string` into one. `TextView(text)` borrows a Text place in place, and a
+Text place passed, returned, assigned or declared where a `string` is
+expected lends the same view. The view follows the lifetime rules above: it
+cannot outlive its Text, and the Text cannot be mutated or moved while the
+view is live. `TextView` of a fresh call result is rejected; bind the Text
+first. `tests/owned_text.sh` checks C with an allocation counter and under
+AddressSanitizer, Go and portable bundles from source and saved IR.
+
 Generic
 `Option` and `Result` are currently ordinary records with explicit status
 fields, applied as `Name :: Option(T)` or `Name :: Result(T, E)`. They copy

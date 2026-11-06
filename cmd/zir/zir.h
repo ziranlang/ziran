@@ -407,6 +407,10 @@ struct ZirModule;
 /* Recognize the checked, specialized standard Vec storage shape. */
 int VecElementType(const struct ZirModule *module, const char *type,
                    char *element, size_t element_size);
+/* Recognize std/vec's owned `Text`: a record whose one field is
+ * `bytes: Vec(u8)`. It moves and drops like any record owning a Vec; a
+ * `TextView` of it borrows its storage. */
+int OwnedTextType(const struct ZirModule *module, const char *type);
 
 struct ZirDocument;
 typedef struct ZirModule {

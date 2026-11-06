@@ -2904,6 +2904,49 @@ eval_expression(Frame *frame, int index, int depth)
         break;
     case ZIR_EXPR_CALL: {
         Builtin builtin = builtin_call(expression->name);
+        if(builtin == BuiltinTextView && expression->first_child >= 0 &&
+           OwnedTextType(frame->module,
+                         frame->function->exprs[expression->first_child].type)) {
+            /* Read the Text in place and copy its bytes into a VM string,
+             * as a []u8 view does; the Text keeps its own storage. */
+            Value place = assignment_slot_root(frame, expression->first_child,
+                                               depth + 1);
+            Value *text = frame->vm->failed ? NULL : place_slot(place);
+            Value *bytes = text != NULL && text->kind == VALUE_RECORD ?
+                record_field(text->record, "bytes") : NULL;
+            Value *data = bytes != NULL && bytes->kind == VALUE_RECORD ?
+                record_field(bytes->record, "data") : NULL;
+            Value *count = bytes != NULL && bytes->kind == VALUE_RECORD ?
+                record_field(bytes->record, "count") : NULL;
+            if(data == NULL || count == NULL || count->kind != VALUE_INT ||
+               count->integer < 0 || count->integer > INT32_MAX ||
+               (count->integer > 0 && data->kind != VALUE_ARRAY)) {
+                frame->vm->failed = 1;
+                break;
+            }
+            size_t length = (size_t)count->integer;
+            StringLiteral *item = malloc(sizeof(*item) + length + 1);
+            if(item == NULL) {
+                frame->vm->failed = 1;
+                break;
+            }
+            for(size_t i = 0; i < length; i++) {
+                Value byte = array_get(data->array, i);
+                if(byte.kind != VALUE_INT) {
+                    frame->vm->failed = 1;
+                    break;
+                }
+                item->data[i] = (unsigned char)integer_bits(byte);
+            }
+            if(frame->vm->failed) {
+                free(item);
+                break;
+            }
+            item->data[length] = 0;
+            item->length = length;
+            value = keep_string(frame->vm, item, NULL, sizeof(*item) + length + 1);
+            break;
+        }
         if(builtin == BuiltinTextView) {
             Value bytes = eval(frame, expression->first_child, depth + 1);
             if(frame->vm->failed || bytes.kind != VALUE_SLICE ||

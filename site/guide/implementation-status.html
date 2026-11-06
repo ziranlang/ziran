@@ -1362,6 +1362,12 @@
   source/saved IR, plus allocation-balanced empty <code>BuilderFinish</code> in C.
   Empty finished builders release reserved native storage in C.
   Nonempty finished native strings still retain their bytes for process lifetime.</li>
+<li>Owned <code>Text</code> (<code>std/vec</code>, one <code>bytes: Vec(u8)</code> field) moves and drops as a
+  Vec-owning record on C, Go and the VM. <code>TextView(text)</code> and implicit lending
+  of a Text place to a <code>string</code> borrow its bytes under the text-view lifetime
+  and mutation checks, which also reject moving the Text while a view is live.
+  <code>tests/owned_text.sh</code> covers locals, fields, <code>Vec(Text)</code> elements, pointer
+  iteration, allocation balance, AddressSanitizer and source/saved IR.</li>
 <li>Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every <code>BundleRun</code>: integer and boolean literals, compile-time constant

@@ -954,6 +954,8 @@ storage. <code>JsonSetCopy</code> acts like <code>JsonSet</code> but owns a copy
 <code>JsonNewString</code> and <code>JsonNewNumber</code> continue to borrow. <code>JsonCopy</code> deep-copies
 text and keys into the target, so the source may
 be reset or dropped first, including when copying within one document.
+Read member names with <code>JsonKey</code> or <code>JsonKeyInto</code>: a node's raw <code>key</code> field is
+internal, and <code>JsonCopy</code> and <code>JsonSetCopy</code> leave it empty.
 <code>JsonString</code>, <code>JsonKey</code> and <code>JsonNumberText</code> still return independent owned
 strings. <code>JsonStringInto(document, node, output)</code>, <code>JsonKeyInto</code> and
 <code>JsonNumberTextInto</code> instead append to caller-owned <code>Vec(u8)</code> storage and return

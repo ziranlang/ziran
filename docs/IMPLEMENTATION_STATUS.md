@@ -540,9 +540,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   declaration whose arguments name the new binding keeps the temporary.
   A `return` of an array-valued call of the same type passes the caller's
   result buffer on, and any other returned array is copied into it once
-  from its own storage rather than through a zero-filled temporary.
-  `tests/array_result_in_place.sh` checks C, Go, native and portable results
-  and the generated calls and returns.
+  from its own storage rather than through a zero-filled temporary. A local
+  array passed by value to a Ziran procedure goes in as it is, since the
+  callee copies every array parameter as it starts; foreign procedures,
+  procedure values and arguments a later argument could change still get
+  the caller's copy. `tests/array_result_in_place.sh` checks C, Go, native
+  and portable results and the generated calls, arguments and returns.
   A shadowing declaration's initializer reads the outer binding on every
   target: generated C computes it into a temporary before the new local is
   in scope. A `for` body that redeclares its binder, or holds a `continue`

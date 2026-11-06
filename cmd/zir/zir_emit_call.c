@@ -380,6 +380,34 @@ COMPILER_SCRATCH_VOID(, EmitGlobalSlotWrappers,
     EmitGlobalSlotWrappersBuffers, RECOVERABLE, free,
     EmitGlobalSlotWrappers_with_buffers(out, module, global, target, resolver, context, buffers))
 
+static void call_parameter_type(Emitter *e, const ZirExpr *call, int ordinal,
+                                char *out, size_t size);
+
+/* Whether argument, a local array, can be passed as it is: in C a Ziran
+ * procedure copies every array parameter as it starts, so a copy here
+ * would be a second one. Foreign procedures and procedure values may keep
+ * or write what they are given, so they still get a copy. */
+static int
+array_argument_copied_by_callee(Emitter *e, const ZirExpr *call, int ordinal, int argument)
+{
+    const ZirExpr *value = &e->fn->exprs[argument];
+    const ZirModule *owner = NULL;
+    const ZirFunction *function = NULL;
+    char parameter[ZIR_NAME_MAX] = "";
+    int local = 0;
+    if(e->target != ZIR_C || call->slot_type[0] || value->kind != ZIR_EXPR_IDENT ||
+       value->name == NULL || !ArrayValueType(canonical(value->type)))
+        return 0;
+    for(int i = e->local_count - 1; i >= 0 && !local; i--)
+        if(!strcmp(e->locals[i].name, value->name))
+            local = !e->locals[i].alias[0];
+    if(!local || ResolveFunction(e->module, call->name, &owner, &function) != 1 ||
+       function == NULL || owner == NULL || !CanEmitBody(owner, function))
+        return 0;
+    call_parameter_type(e, call, ordinal, parameter, sizeof(parameter));
+    return parameter[0] && !strcmp(canonical(parameter), canonical(value->type));
+}
+
 static void
 call_parameter_type(Emitter *e, const ZirExpr *call, int ordinal,
                     char *out, size_t size)
@@ -615,6 +643,8 @@ emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result
          * change. Go runs the calls themselves left to right; C does not. */
         e->call_in_place = !has_named && !later_reads &&
                            (e->target == ZIR_GO || !later_calls);
+        e->array_operand = e->call_in_place &&
+                           array_argument_copied_by_callee(e, expr, ordinal, child);
         emit_expr(e,child,argument_type,buffers->argument,sizeof(buffers->argument));
         if((later_calls && call_can_change(e, child)) ||
            (!plain_identifier(buffers->argument) &&

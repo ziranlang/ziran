@@ -288,7 +288,10 @@ C. The callee stores its result only when it returns, so arguments and
 globals that name the destination still read the old value during the call.
 Returning an array works the same way: `return Make(n)` hands the caller's
 destination on, and `return out`, `return holder.values` or a parameter is
-copied out once. Run `sh tests/array_result_in_place.sh build/bin/ziran`.
+copied out once. A local array passed by value to a Ziran procedure, as in
+`Sum(values)`, is copied once, by the procedure as it starts; the caller
+copies it first only when a later argument could change it. Run
+`sh tests/array_result_in_place.sh build/bin/ziran`.
 
 Indexing stays checked in every build, but generated C leaves out a check
 it can prove always passes: a loop counter its condition bounds, such as `i` in

@@ -32,6 +32,8 @@
   and `#cold` keeps a slow path out of line, including other modules' calls.
 - A procedure returning an array copies it to the caller once in generated
   C, and `return Make(n)` writes the caller's array directly.
+- A local array passed by value to a Ziran procedure is copied once in
+  generated C, not by both the caller and the callee.
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.

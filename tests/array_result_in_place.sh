@@ -5,6 +5,9 @@
 # the destination during the call, through an argument or a global, still
 # sees the old value. A return passes the caller's destination on the same
 # way, and returns any other array with one copy from its own storage.
+# A local array passed by value to a Ziran procedure is not copied by the
+# caller, since the callee copies it as it starts, unless a later argument
+# could change it first.
 # Results agree on C, Go and the portable VM from source and saved IR.
 set -eu
 
@@ -48,6 +51,10 @@ Pass :: (values: [4]s64) -> [4]s64 { return values }
 Global :: () -> [4]s64 { return shared }
 Field :: (holder: Holder) -> [4]s64 { return holder.values }
 Row :: (holder: Holder, at: s64) -> [4]s64 { return holder.grid[at] }
+Sum :: (values: [4]s64) -> s64 { return values[0] + values[1] + values[2] + values[3] }
+Bump :: (values: [4]s64) -> s64 { values[0] += 1; return values[0] }
+Set :: (p: *s64) -> s64 { p.* = 99; return 0 }
+Both :: (values: [4]s64, extra: s64) -> s64 { return values[0] + extra }
 #program_export
 Answer :: () -> s64 {
     fresh := Make(1)
@@ -84,6 +91,12 @@ Answer :: () -> s64 {
     copied[1] = 0
     if copied[0] != 6 || shared[1] != 7 { return 12 }
     if Field(holder)[2] != 12 || Row(holder, 1)[3] != 23 || Row(holder, 0)[3] != 0 { return 13 }
+    local := Make(1)
+    if Sum(local) != 10 || Bump(local) != 2 || local[0] != 1 { return 14 }
+    // Set runs after the first argument is taken.
+    if Both(local, Set(*local[0])) != 1 || local[0] != 99 { return 15 }
+    local = Reverse(local)
+    if local[0] != 4 || local[3] != 99 { return 16 }
     return 42
 }
 ZI
@@ -113,8 +126,12 @@ C
     "$output/app"
     sed -n '/^Answer(/,/^}/p' "$output/app.c" > "$work/answer.c"
     grep -q '^    app_Make(fresh, 1LL);' "$work/answer.c"
-    # The by-value argument is copied; the result lands in typed directly.
-    grep -q '^    app_Reverse(typed, value_[0-9]*);' "$work/answer.c"
+    # The callee copies the by-value argument; the result lands in typed
+    # directly.
+    grep -q '^    app_Reverse(typed, typed);' "$work/answer.c"
+    grep -q 'app_Sum(local)' "$work/answer.c"
+    grep -q 'app_Bump(local)' "$work/answer.c"
+    grep -q 'app_Both(value_[0-9]*, ' "$work/answer.c"
     grep -q '^    app_Make(holder.values, 10LL);' "$work/answer.c"
     grep -q 'app_FromShared(shared, 5LL);' "$work/answer.c"
     # No result temporary is copied into a destination afterwards.

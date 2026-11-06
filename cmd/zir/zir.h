@@ -589,6 +589,7 @@ int GoForeignCallParts(const char *target, char *package, size_t package_size,
                        char *symbol, size_t symbol_size);
 int TargetNameKnown(const char *target);
 int CheckTargetCapabilities(const ZirProgram *program, const char *target);
+int TargetProcedureTypeSupported(const char *target, int c_call);
 size_t ScalarByteWidth(const char *type);
 int UnionScalarFields(const ZirModule *module, const ZirType *record);
 int MapTypeParts(const ZirModule *module, const char *name,

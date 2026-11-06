@@ -24,6 +24,14 @@ TargetNameKnown(const char *target)
     return target != NULL && compiler_type_TargetKnown(StringView(target, strlen(target)));
 }
 
+/* Whether TARGET can use procedure types, or #c_call ones when C_CALL is set. */
+int
+TargetProcedureTypeSupported(const char *target, int c_call)
+{
+    return TargetNameKnown(target) &&
+           compiler_type_ProcedureTypeSupported(StringView(target, strlen(target)), c_call);
+}
+
 /* The maintained Ziran type module owns the target policy. This boundary
  * walks checked declarations and attaches their source locations. */
 int

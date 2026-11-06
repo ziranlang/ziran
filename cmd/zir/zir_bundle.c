@@ -11,8 +11,6 @@
 #include "zir_serial.h"
 #include "zir_expr.h"
 #include "zir_text.h"
-#include "zir_string.h"
-#include "compiler_type.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -1074,7 +1072,7 @@ go_rejects_type(const ZirModule *scope, const char *name)
         return go_rejects_type(scope, element);
     const ZirType *type = FindType(scope, name, NULL);
     return type != NULL && type->is_procedure_type &&
-           !compiler_type_ProcedureTypeSupported(StringView("go", 2), type->is_c_call);
+           !TargetProcedureTypeSupported("go", type->is_c_call);
 }
 
 /* A Go package exposes every #program_export function it can express, so each

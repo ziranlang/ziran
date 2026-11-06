@@ -171,7 +171,7 @@ compiler_enum_Term(Cursor* cursor, Slice entries)
     String value_8 = cursor->source;
     String name = StringRange(value_8, (int64_t)begin, (int64_t)cursor->at);
     for (int64_t it_index = 0LL; it_index < (int64_t)(entries).length; it_index++) {
-        Entry entry = ((Entry *)entries.data)[SliceIndex(entries, (int64_t)it_index)];
+        Entry entry = ((Entry *)entries.data)[it_index];
         if (StringEqual(entry.name, name)) {
             if (!negative) {
                 return entry.value;

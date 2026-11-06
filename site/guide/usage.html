@@ -245,6 +245,13 @@ declaration creates or a plain assignment names, such as <code>grid := Make(4)</
 C. The callee stores its result only when it returns, so arguments and
 globals that name the destination still read the old value during the call.
 Run <code>sh tests/array_result_in_place.sh build/bin/ziran</code>.</p>
+<p>Indexing stays checked in every build, but generated C leaves out a check
+it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
+<code>for i: 0..7</code> over a <code>[8]T</code> array or in <code>for i: 0..view.count-1</code> over a
+slice or string nothing reassigns, and values bounded by their type or by
+<code>&amp;</code>, <code>%</code> or <code>&gt;&gt;</code>, such as <code>table[x &amp; 255]</code> or <code>bytes[b]</code> for a <code>u8</code> <code>b</code> and 256-entry arrays. An
+index whose variable has its address taken or is changed before the read keeps
+its check. Run <code>sh tests/proven_index_ranges.sh build/bin/ziran</code>.</p>
 <p>Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

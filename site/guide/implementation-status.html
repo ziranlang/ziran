@@ -575,6 +575,16 @@
   declaration whose arguments name the new binding keeps the temporary.
   <code>tests/array_result_in_place.sh</code> checks C, Go, native and portable results
   and the generated calls.
+  Generated C drops the bounds check on an array, slice or string index it
+  proves in range from integer types, literals, <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>%</code>, <code>/</code>,
+  <code>&gt;&gt;</code>, <code>+</code>, <code>-</code> and <code>*</code>, and from loop conditions. A local or parameter
+  counts only when every write to it is a visible assignment and nothing
+  takes its address. A counter is bounded by an enclosing <code>while</code> condition
+  until the body writes it again, and stays nonnegative when it only grows by
+  literal steps in that loop. A slice or string count stays fixed while
+  nothing reassigns the view. <code>tests/proven_index_ranges.sh</code> checks the
+  unchecked reads and stores, and checks that ten unprovable cases still
+  abort on C, Go, native and portable targets.
   Generated C divides, takes remainders and shifts by a nonconstant operand
   through a checked helper of the operand's width instead of the general
   <code>IntegerOp</code> switch, so compilers emit one <code>idiv</code> or <code>sar</code> plus the checks;

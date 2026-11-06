@@ -1389,20 +1389,29 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         } else if(VecElementType(e->module, base_type, NULL, 0)) {
             format(buffers->result, sizeof(buffers->result), "(%s).Data[%s]", buffers->a, buffers->b);
         } else if(SliceElementType(base_type, NULL, 0)) {
-            slice_index(e, base_type, buffers->a, buffers->b, buffers->result, sizeof(buffers->result));
+            slice_index(e, base_type, buffers->a, buffers->b,
+                        !IndexBelowCount(e, expr->right, expr->left),
+                        buffers->result, sizeof(buffers->result));
         } else if(e->target == ZIR_GO && base_type[0] == '*') {
             go_pointer_index(e, buffers->a, buffers->b, buffers->result, sizeof(buffers->result));
         } else if(!strcmp(base_type, "string")) {
             if(e->target == ZIR_GO)
                 format(buffers->result, sizeof(buffers->result), "%s[%s]", buffers->a, buffers->b);
+            else if(IndexBelowCount(e, expr->right, expr->left))
+                format(buffers->result, sizeof(buffers->result), "(uint8_t)%s.data[%s]", buffers->a, buffers->b);
             else
                 format(buffers->result, sizeof(buffers->result), "(uint8_t)ZIRAN_INDEX(%s.data, %s.length, %s)", buffers->a, buffers->a, buffers->b);
         } else if(e->target == ZIR_C &&
                   fixed_array && capacity == 0) {
             format(buffers->result, sizeof(buffers->result), "ZIRAN_EMPTY_INDEX(%s, %s)", buffers->a, buffers->b);
+        } else if(e->target == ZIR_C && fixed_array && capacity > 0 &&
+                  IndexInRange(e, expr->right, capacity)) {
+            /* A proven index needs no check. */
+            format(buffers->result, sizeof(buffers->result), "(%s)[%s]",
+                   buffers->a, buffers->b);
         } else if(e->target == ZIR_C &&
                   fixed_array && capacity > 0) {
-            /* Fixed-capacity arrays are bounds-checked in debug builds. */
+            /* Fixed-capacity arrays are bounds-checked in every build. */
             format(buffers->result, sizeof(buffers->result), "ZIRAN_INDEX(%s, %d, %s)",
                    buffers->a, capacity, buffers->b);
         } else {

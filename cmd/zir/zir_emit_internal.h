@@ -72,6 +72,7 @@ typedef struct Local {
     char alias[ZIR_NAME_MAX * 2];
     int depth;
 } Local;
+typedef struct RangeFacts RangeFacts;
 typedef struct Emitter {
     FILE *out;
     const ZirModule *module;
@@ -108,6 +109,8 @@ typedef struct Emitter {
      * write directly; the call sets array_destination_used when it does. */
     const char *array_destination;
     int array_destination_used;
+    /* What the C body's index range proofs know about fn, or NULL. */
+    RangeFacts *ranges;
     /* Set for a Go declaration whose value already has the declared type,
      * so it can read name := value. */
     int short_declaration;
@@ -216,13 +219,20 @@ int enclosed(const char *text);
 void postfix_base(const char *text, char *out, size_t size);
 const char *bare(const char *text, char *out, size_t size);
 void number(Emitter *e, const char *type, const char *a, const char *a_type, const char *b, const char *b_type, int op, char *out, size_t size);
-void slice_index(Emitter *e, const char *type, const char *base, const char *index, char *out, size_t size);
+void slice_index(Emitter *e, const char *type, const char *base, const char *index, int checked, char *out, size_t size);
 void go_pointer_index(Emitter *e, const char *base, const char *index, char *out, size_t size);
 void emit_destination(Emitter *e, int index, char *out, size_t size);
 void literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *out, size_t size);
 void emit_call(Emitter *e, const ZirExpr *expr, const char *array_result, char *out, size_t size);
 void emit_function_value(Emitter *e, int index, char *out, size_t size);
 int member_path(const ZirFunction *fn, int index);
+RangeFacts *RangeFactsBuild(const ZirFunction *fn);
+void RangeFactsFree(RangeFacts *facts);
+/* Whether index expression index provably lies in 0..count-1. */
+int IndexInRange(const Emitter *e, int index, int64_t count);
+/* Whether index provably lies below the count of the slice or string that
+ * identifier base names. */
+int IndexBelowCount(const Emitter *e, int index, int base);
 int expression_calls(const ZirFunction *fn, int index);
 /* Whether a call run later could change what expression index reads. */
 int call_can_change(const Emitter *e, int index);

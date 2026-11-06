@@ -872,7 +872,7 @@ postfix_base(const char *text, char *out, size_t size)
 
 void
 slice_index(Emitter *e, const char *type, const char *base, const char *index,
-            char *out, size_t size)
+            int checked, char *out, size_t size)
 {
     if(e->target == ZIR_GO) {
         format(out, size, "%s[%s]", base, index);
@@ -885,7 +885,10 @@ slice_index(Emitter *e, const char *type, const char *base, const char *index,
         copy_text(mapped, sizeof(mapped), scalar);
     else
         e->resolve(e->context, element, mapped, sizeof(mapped));
-    format(out, size, "((%s *)%s.data)[SliceIndex(%s, (int64_t)%s)]", mapped, base, base, index);
+    if(checked)
+        format(out, size, "((%s *)%s.data)[SliceIndex(%s, (int64_t)%s)]", mapped, base, base, index);
+    else
+        format(out, size, "((%s *)%s.data)[%s]", mapped, base, index);
 }
 
 /* A Go slice needs the index for its temporary length and element access.
@@ -957,7 +960,8 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
             e->pure = base_pure && e->pure;
         }
         if(SliceElementType(e->fn->exprs[expr->left].type, NULL, 0))
-            slice_index(e, e->fn->exprs[expr->left].type, buffers->base, buffers->index, out, size);
+            slice_index(e, e->fn->exprs[expr->left].type, buffers->base, buffers->index,
+                        !IndexBelowCount(e, expr->right, expr->left), out, size);
         else if(e->target == ZIR_GO &&
                 e->fn->exprs[expr->left].type[0] == '*')
             go_pointer_index(e, buffers->base, buffers->index, out, size);
@@ -969,7 +973,12 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
         else {
             const char *base = buffers->wrapped;
             postfix_base(buffers->base, buffers->wrapped, sizeof(buffers->wrapped));
+            int capacity = 0;
             if(e->target == ZIR_C &&
+               ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, &capacity) &&
+               capacity > 0 && IndexInRange(e, expr->right, capacity))
+                format(out, size, "%s[%s]", base, buffers->index);
+            else if(e->target == ZIR_C &&
                ArrayElementType(e->fn->exprs[expr->left].type, NULL, 0, NULL))
                 format(out, size, "ZIRAN_INDEX(%s, sizeof(%s) / sizeof(%s[0]), %s)",
                        base, base, base, buffers->index);

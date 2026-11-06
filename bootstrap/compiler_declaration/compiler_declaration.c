@@ -55,7 +55,7 @@ static void
 compiler_declaration_Put(Slice output, int64_t* used, String source)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        uint8_t byte = (uint8_t)source.data[it_index];
         int64_t value_0 = *(used);
         int64_t value_1 = (int64_t)(output).length;
         if (value_0 < value_1) {
@@ -112,7 +112,7 @@ compiler_declaration_Basename(String source)
         int64_t range_last_1 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
         int64_t at = range_first_1;
         while (at <= range_last_1) {
-            if ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 47) {
+            if ((uint8_t)source.data[at] == 47) {
                 begin = (int64_t)((uint64_t)at + UINT64_C(1));
             }
             if (at == range_last_1) {
@@ -1001,23 +1001,23 @@ compiler_declaration_ParseForeign(String source, int64_t name_limit)
     }
     result.present = true;
     result.is_type = compiler_source_StartsWord(declaration, StringLiteral("#type"));
-    result.go_results = ZIRAN_INDEX(attributes, 4, 0) > 0;
-    result.go_field = ZIRAN_INDEX(attributes, 4, 1) > 0;
-    result.go_defer = ZIRAN_INDEX(attributes, 4, 2) > 0;
-    result.go_variadic = ZIRAN_INDEX(attributes, 4, 3) > 0;
-    if (result.go_results && (result.is_type || ZIRAN_INDEX(attributes, 4, 0) > 1 || ZIRAN_INDEX(after_foreign, 4, 0))) {
+    result.go_results = (attributes)[0] > 0;
+    result.go_field = (attributes)[1] > 0;
+    result.go_defer = (attributes)[2] > 0;
+    result.go_variadic = (attributes)[3] > 0;
+    if (result.go_results && (result.is_type || (attributes)[0] > 1 || (after_foreign)[0])) {
         result.error = DeclarationError_ForeignResults;
         return result;
     }
-    if (result.go_field && (result.is_type || result.go_results || ZIRAN_INDEX(attributes, 4, 1) > 1 || ZIRAN_INDEX(after_foreign, 4, 1))) {
+    if (result.go_field && (result.is_type || result.go_results || (attributes)[1] > 1 || (after_foreign)[1])) {
         result.error = DeclarationError_ForeignField;
         return result;
     }
-    if (result.go_defer && (result.is_type || result.go_results || result.go_field || ZIRAN_INDEX(attributes, 4, 2) > 1 || ZIRAN_INDEX(after_foreign, 4, 2))) {
+    if (result.go_defer && (result.is_type || result.go_results || result.go_field || (attributes)[2] > 1 || (after_foreign)[2])) {
         result.error = DeclarationError_ForeignDefer;
         return result;
     }
-    if (result.go_variadic && (result.is_type || result.go_field || ZIRAN_INDEX(attributes, 4, 3) > 1 || ZIRAN_INDEX(after_foreign, 4, 3))) {
+    if (result.go_variadic && (result.is_type || result.go_field || (attributes)[3] > 1 || (after_foreign)[3])) {
         result.error = DeclarationError_ForeignVariadic;
         return result;
     }
@@ -1811,7 +1811,7 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
         count = (int32_t)((uint32_t)count + 1u);
         at = range.next;
     }
-    String format = ZIRAN_INDEX(parts, 64, 1);
+    String format = (parts)[1];
     bool value_1 = count < 2 || (int64_t)(format).length < 2LL || (uint8_t)ZIRAN_INDEX(format.data, format.length, 0) != 34;
     if (value_1 || (uint8_t)ZIRAN_INDEX(format.data, format.length, ((int64_t)((uint64_t)((int64_t)(format).length) - UINT64_C(1)))) != 34) {
         result.error = DeclarationError_BuilderFormat;
@@ -1840,12 +1840,12 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
             return result;
         }
         if (at > begin) {
-            compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), StringRange(format, (int64_t)begin, (int64_t)at), true);
+            compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], StringRange(format, (int64_t)begin, (int64_t)at), true);
         }
         if (((DeclarationError)(result.error)) != DeclarationError_None) {
             return result;
         }
-        compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), ZIRAN_INDEX(parts, 64, argument), false);
+        compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], ZIRAN_INDEX(parts, 64, argument), false);
         if (((DeclarationError)(result.error)) != DeclarationError_None) {
             return result;
         }
@@ -1858,7 +1858,7 @@ compiler_declaration_BuilderPrintPieces(String source, Slice output, int32_t max
         return result;
     }
     if (at > begin) {
-        compiler_declaration_AddPrintPiece(&(result), output, maximum, ZIRAN_INDEX(parts, 64, 0), StringRange(format, (int64_t)begin, (int64_t)at), true);
+        compiler_declaration_AddPrintPiece(&(result), output, maximum, (parts)[0], StringRange(format, (int64_t)begin, (int64_t)at), true);
     }
     return result;
 }

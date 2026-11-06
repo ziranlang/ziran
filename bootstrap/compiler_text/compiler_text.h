@@ -126,7 +126,7 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
     int64_t used = 0LL;
     bool upper = true;
     for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        uint8_t byte = (uint8_t)source.data[it_index];
         if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
             break;
         }

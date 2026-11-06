@@ -283,10 +283,10 @@ compiler_type_GoCall(String target, int64_t receiver_limit)
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(target).length) - UINT64_C(1));
         int64_t at = range_first_8;
         while (at <= range_last_8) {
-            if ((uint8_t)ZIRAN_INDEX(target.data, target.length, at) == 47) {
+            if ((uint8_t)target.data[at] == 47) {
                 slash = true;
             }
-            if ((uint8_t)ZIRAN_INDEX(target.data, target.length, at) == 46) {
+            if ((uint8_t)target.data[at] == 46) {
                 end = at;
                 if (compiler_type_Byte(target, (int64_t)((uint64_t)at + UINT64_C(1))) == 40) {
                     method = at;
@@ -304,7 +304,7 @@ compiler_type_GoCall(String target, int64_t receiver_limit)
     }
     String module = StringRange(target, (int64_t)start, (int64_t)end);
     for (int64_t it_index = 0LL; it_index < (int64_t)(module).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(module.data, module.length, it_index);
+        uint8_t byte = (uint8_t)module.data[it_index];
         bool value_0 = compiler_text_IdentifierByte(byte);
         if (!value_0 && byte != 47 && byte != 46 && byte != 45) {
             return (ForeignCall){0};
@@ -398,7 +398,7 @@ compiler_type_Identifier(String source)
         return false;
     }
     for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        uint8_t byte = (uint8_t)source.data[it_index];
         bool value_0 = compiler_text_IdentifierByte(byte);
         if (!value_0) {
             return false;

@@ -63,7 +63,7 @@ static bool
 compiler_scan_Contains(String bytes, uint8_t byte)
 {
     for (int64_t it_index = 0LL; it_index < (int64_t)(bytes).length; it_index++) {
-        uint8_t value = (uint8_t)ZIRAN_INDEX(bytes.data, bytes.length, it_index);
+        uint8_t value = (uint8_t)bytes.data[it_index];
         if (value == byte) {
             return true;
         }

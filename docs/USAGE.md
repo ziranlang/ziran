@@ -278,6 +278,14 @@ C. The callee stores its result only when it returns, so arguments and
 globals that name the destination still read the old value during the call.
 Run `sh tests/array_result_in_place.sh build/bin/ziran`.
 
+Indexing stays checked in every build, but generated C leaves out a check
+it can prove always passes: a loop counter its condition bounds, such as `i` in
+`for i: 0..7` over a `[8]T` array or in `for i: 0..view.count-1` over a
+slice or string nothing reassigns, and values bounded by their type or by
+`&`, `%` or `>>`, such as `table[x & 255]` or `bytes[b]` for a `u8` `b` and 256-entry arrays. An
+index whose variable has its address taken or is changed before the read keeps
+its check. Run `sh tests/proven_index_ranges.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

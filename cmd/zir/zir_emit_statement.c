@@ -1458,12 +1458,15 @@ EmitBody_with_buffers(FILE *out,const ZirModule *module,const ZirFunction *fn,Zi
         }
         track_local(&e, buffers->params[i], type);
     }
+    if(target == ZIR_C)
+        e.ranges = RangeFactsBuild(fn);
     emit_sequence(&e,0,fn->stmt_count);
     if(!e.sequence_terminated) {
         drop_locals(&e, 0);
         if(strcmp(fn->return_type, "void"))
             line(&e, target == ZIR_GO ? "panic(\"unreachable\")" : "abort();");
     }
+    RangeFactsFree(e.ranges);
     free(e.locals);return 1;
 }
 

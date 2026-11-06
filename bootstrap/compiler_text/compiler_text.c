@@ -37,7 +37,7 @@ compiler_text_NameDistance(String a, String b, int32_t limit)
     int64_t i = 1LL;
     while (i <= (int64_t)(a).length) {
         int32_t best = (int32_t)(i);
-        ZIRAN_INDEX(current, sizeof(current) / sizeof(current[0]), 0) = best;
+        current[0] = best;
         int64_t j = 1LL;
         while (j <= (int64_t)(b).length) {
             bool value_1 = (uint8_t)ZIRAN_INDEX(a.data, a.length, ((int64_t)((uint64_t)i - UINT64_C(1)))) != (uint8_t)ZIRAN_INDEX(b.data, b.length, ((int64_t)((uint64_t)j - UINT64_C(1))));
@@ -153,7 +153,7 @@ compiler_text_CamelIdentifier(String source, Slice output)
     int64_t used = 0LL;
     bool upper = true;
     for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        uint8_t byte = (uint8_t)source.data[it_index];
         if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
             break;
         }
@@ -236,7 +236,7 @@ compiler_text_EscapeCString(String source, Slice output)
     }
     int64_t used = 0LL;
     for (int64_t it_index = 0LL; it_index < (int64_t)(source).length; it_index++) {
-        uint8_t byte = (uint8_t)ZIRAN_INDEX(source.data, source.length, it_index);
+        uint8_t byte = (uint8_t)source.data[it_index];
         if ((int64_t)((uint64_t)used + UINT64_C(1)) >= (int64_t)(output).length) {
             break;
         }
@@ -363,7 +363,7 @@ compiler_text_DecodeString(String source, Slice output)
                 int64_t range_last_20 = (int64_t)((uint64_t)((int64_t)(escapes).length) - UINT64_C(1));
                 int64_t index = range_first_20;
                 while (index <= range_last_20) {
-                    if (value == (uint32_t)((uint8_t)ZIRAN_INDEX(escapes.data, escapes.length, index))) {
+                    if (value == (uint32_t)((uint8_t)escapes.data[index])) {
                         value = (uint32_t)(ZIRAN_INDEX(values, 10, index));
                         found = true;
                         break;
@@ -414,23 +414,23 @@ compiler_text_DecodeString(String source, Slice output)
             return (DecodedLiteral){.valid = false, .count = 0LL};
         }
         uint8_t bytes[4] = {0};
-        ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 0) = (uint8_t)(value);
+        bytes[0] = (uint8_t)(value);
         int32_t count = 1;
         if (unicode_escape && value >= 128) {
             if (value < 2048) {
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 0) = (uint8_t)(((uint32_t)(192u | (uint32_t)((value >> 6)))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 1) = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
+                bytes[0] = (uint8_t)(((uint32_t)(192u | (uint32_t)((value >> 6)))));
+                bytes[1] = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
                 count = 2;
             } else if (value < 65536) {
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 0) = (uint8_t)(((uint32_t)(224u | (uint32_t)((value >> 12)))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 1) = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 6)) & 63u))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 2) = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
+                bytes[0] = (uint8_t)(((uint32_t)(224u | (uint32_t)((value >> 12)))));
+                bytes[1] = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 6)) & 63u))));
+                bytes[2] = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
                 count = 3;
             } else {
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 0) = (uint8_t)(((uint32_t)(240u | (uint32_t)((value >> 18)))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 1) = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 12)) & 63u))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 2) = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 6)) & 63u))));
-                ZIRAN_INDEX(bytes, sizeof(bytes) / sizeof(bytes[0]), 3) = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
+                bytes[0] = (uint8_t)(((uint32_t)(240u | (uint32_t)((value >> 18)))));
+                bytes[1] = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 12)) & 63u))));
+                bytes[2] = (uint8_t)(((uint32_t)(128u | ((uint32_t)((value >> 6)) & 63u))));
+                bytes[3] = (uint8_t)(((uint32_t)(128u | ((uint32_t)value & 63u))));
                 count = 4;
             }
         }
@@ -439,7 +439,7 @@ compiler_text_DecodeString(String source, Slice output)
             int32_t range_last_82 = (int32_t)((uint32_t)count - 1u);
             int32_t index = range_first_82;
             while (index <= range_last_82) {
-                uint8_t byte = ZIRAN_INDEX(bytes, 4, index);
+                uint8_t byte = (bytes)[index];
                 if (remaining > 0) {
                     if (((uint8_t)((uint32_t)byte & 192u)) != 128) {
                         return (DecodedLiteral){.valid = false, .count = 0LL};
@@ -543,8 +543,8 @@ String
 compiler_text_OperatorProcedure(String op)
 {
     for (int64_t index = 0LL; index <= 15LL; index++) {
-        if (StringEqual(op, ZIRAN_INDEX(Operators, 16, index))) {
-            return ZIRAN_INDEX(Procedures, 16, index);
+        if (StringEqual(op, (Operators)[index])) {
+            return (Procedures)[index];
         }
     }
     return StringLiteral("");
@@ -554,7 +554,7 @@ int64_t
 compiler_text_OperatorTokenLength(String source)
 {
     for (int64_t index = 0LL; index <= 15LL; index++) {
-        String op = ZIRAN_INDEX(Operators, 16, index);
+        String op = (Operators)[index];
         if ((int64_t)(source).length >= (int64_t)(op).length && StringEqual(StringRange(source, (int64_t)0LL, (int64_t)(int64_t)(op).length), op)) {
             return (int64_t)(op).length;
         }
@@ -566,8 +566,8 @@ String
 compiler_text_ProcedureOperator(String name)
 {
     for (int64_t index = 0LL; index <= 15LL; index++) {
-        if (StringEqual(name, ZIRAN_INDEX(Procedures, 16, index))) {
-            return ZIRAN_INDEX(Operators, 16, index);
+        if (StringEqual(name, (Procedures)[index])) {
+            return (Operators)[index];
         }
     }
     return StringLiteral("");

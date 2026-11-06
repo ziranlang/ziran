@@ -211,7 +211,7 @@ compiler_source_NonJaiControl(String source, String word)
     }
     String operators = StringLiteral(":=.[+-*/%&|^<>!");
     for (int64_t it_index = 0LL; it_index < (int64_t)(operators).length; it_index++) {
-        uint8_t operator_byte = (uint8_t)ZIRAN_INDEX(operators.data, operators.length, it_index);
+        uint8_t operator_byte = (uint8_t)operators.data[it_index];
         if (byte == operator_byte) {
             return false;
         }
@@ -290,7 +290,7 @@ compiler_source_ClassifyStatement(String source)
     }
     String rejected[11] = {StringLiteral("s8 "), StringLiteral("s16 "), StringLiteral("s32 "), StringLiteral("s64 "), StringLiteral("float32 "), StringLiteral("float64 "), StringLiteral("bool "), StringLiteral("unsigned "), StringLiteral("long "), StringLiteral("const "), StringLiteral("struct ")};
     for (int64_t it_index = 0LL; it_index < 11; it_index++) {
-        String prefix = ZIRAN_INDEX(rejected, 11, it_index);
+        String prefix = (rejected)[it_index];
         if (compiler_source_Matches(source, 0LL, prefix)) {
             return StatementKind_Declaration;
         }

@@ -59,7 +59,7 @@ compiler_expression_BinarySpelling(String operator)
 {
     String operators[18] = {StringLiteral("||"), StringLiteral("&&"), StringLiteral("|"), StringLiteral("^"), StringLiteral("&"), StringLiteral("=="), StringLiteral("!="), StringLiteral("<"), StringLiteral("<="), StringLiteral(">"), StringLiteral(">="), StringLiteral("<<"), StringLiteral(">>"), StringLiteral("+"), StringLiteral("-"), StringLiteral("*"), StringLiteral("/"), StringLiteral("%")};
     for (int64_t it_index = 0LL; it_index < 18; it_index++) {
-        String spelling = ZIRAN_INDEX(operators, 18, it_index);
+        String spelling = (operators)[it_index];
         if (StringEqual(operator, spelling)) {
             return spelling;
         }
@@ -968,7 +968,7 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
         int64_t range_last_4 = (int64_t)((uint64_t)((int64_t)(first).length) - UINT64_C(1));
         int64_t index = range_first_4;
         while (index <= range_last_4) {
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)ZIRAN_INDEX(first.data, first.length, index);
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)first.data[index];
             if (index == range_last_4) {
                 break;
             }
@@ -981,7 +981,7 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(second).length) - UINT64_C(1));
         int64_t index = range_first_8;
         while (index <= range_last_8) {
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)index)))] = (uint8_t)ZIRAN_INDEX(second.data, second.length, index);
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)(((uint64_t)((int64_t)(first).length) + UINT64_C(1)) + (uint64_t)index)))] = (uint8_t)second.data[index];
             if (index == range_last_8) {
                 break;
             }
@@ -1108,7 +1108,7 @@ compiler_expression_FindByte(String source, uint8_t wanted)
         int64_t range_last_0 = (int64_t)((uint64_t)((int64_t)(source).length) - UINT64_C(1));
         int64_t at = range_first_0;
         while (at <= range_last_0) {
-            if ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == wanted) {
+            if ((uint8_t)source.data[at] == wanted) {
                 return at;
             }
             if (at == range_last_0) {

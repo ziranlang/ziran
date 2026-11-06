@@ -44,5 +44,5 @@ done
 # covers both; the VM is the slowest part of this check under the sanitizers.
 cmp "$work/source.zx" "$work/saved.zx"
 run_bundle "$ziran" run "$work/source.zx"
-run_bundle "$(dirname -- "$ziran")/zi2zx-vm" run "$work/source.zx"
+run_bundle "$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx"
 echo 'float text and JSON: edge, every binade boundary, seeded random and long decimal parity passed on C/Go/VM from source and saved IR'

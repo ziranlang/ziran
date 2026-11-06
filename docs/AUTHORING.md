@@ -10,7 +10,7 @@ Canonical `.zi` is the only authoring source. The checked tools around it are:
    ([checked source edits](SEMANTIC_EDIT.md)).
 4. Optional transport: `ziran compact`/`expand --map` (an exact round trip,
    see the [compact transport](TRANSPORT_VIEW.md)).
-5. Verify: `check`, `ir`, `bundle`, `run`, `zi2zx-vm run`, and native C/Go
+5. Verify: `check`, `ir`, `bundle`, `run`, `zi2zx run --vm`, and native C/Go
    runs where the task asks for portable parity.
 
 `tests/authoring_workflows.sh` runs these real commands on the frozen L-01
@@ -59,7 +59,7 @@ infrastructure errors.
   failing sources must produce identical diagnostics, whose offsets map
   through the transport.
 - **Execution:** the restored final bytes go through the L-01 checker, law,
-  saved-IR, bundle, `zi2zx-vm` and native parity pipeline.
+  saved-IR, bundle, `zi2zx run --vm` and native parity pipeline.
 
 The observation phase runs twice in fresh directories and must give identical
 results.
@@ -72,7 +72,7 @@ separate from the L-01 transcript schema. It records:
 - the corpus version and manifest SHA-256, plus the plan and evaluator
   hashes;
 - the `ziran --version` string and SHA-256 hashes of `ziran`, `zi-api`,
-  `zi-edit`, `zi-fmt`, `zi2zir`, `zi2c`, `zi2go`, `zi2zx` and `zi2zx-vm`;
+  `zi-edit`, `zi-fmt`, `zi2zir`, `zi2c`, `zi2go` and `zi2zx`;
 - the API budgets used, each tool's requests and response sizes, and its
   results;
 - `context_bytes` for each task. These are UTF-8 byte counts for:

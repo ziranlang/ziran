@@ -27,7 +27,7 @@ usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
-            "       zi2zx run file.zx\n"
+            "       zi2zx run [--vm] file.zx\n"
 #ifdef ZIRAN_NATIVE_ZX
             "       zi2zx native-c [--embedded] -o DIR file.zx ...\n"
 #endif
@@ -300,10 +300,13 @@ enum { RUN_STACK_BYTES = 256 * 1024 * 1024 };
 static int
 run_command(int argc, char **argv)
 {
-    while(argc > 0 && !strncmp(argv[0], "--diagnostics=", 14)) {
-        if(!SetDiagnosticFormat(argv[0] + 14)) { usage(); return 1; }
-        argc--;
-        argv++;
+    for(; argc > 0 && !strncmp(argv[0], "--", 2); argc--, argv++) {
+        if(!strcmp(argv[0], "--vm"))
+            BundleUsePortableVm(1);
+        else if(strncmp(argv[0], "--diagnostics=", 14) || !SetDiagnosticFormat(argv[0] + 14)) {
+            usage();
+            return 1;
+        }
     }
     if(argc != 1) {
         usage();

@@ -14,8 +14,9 @@ target names are not aliases.
 
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
-modules. `zi2zx run FILE` validates and executes
-zero-argument integer, bool, or void entry functions on a portable interpreter.
+modules. `zi2zx run [--vm] FILE` validates and executes
+zero-argument integer, bool, or void entry functions, as native code where
+the platform compiles it and on the portable VM elsewhere or with `--vm`.
 Integer entries support `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, and `u64`;
 the command prints unsigned results over their full range. C hosts recover a
 `u64` entry result by casting the returned `long long` to `uint64_t`.
@@ -227,7 +228,7 @@ a worker stops the run with the failure a serial run would meet first. Each
 worker counts steps against what the run has left, and the run is charged
 for all of them when the region ends.
 
-Windows and macOS hosts run the portable VM, and `zi2zx-vm` with
+Windows and macOS hosts run the portable VM, and `zi2zx run --vm` and
 `libziran-vm.a` run it everywhere for tests of the VM itself.
 `ZIRAN_NATIVE_TIMING=1` reports where compilation time goes and
 `ZIRAN_NATIVE_KEEP=1` keeps the generated C.

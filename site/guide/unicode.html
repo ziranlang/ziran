@@ -147,7 +147,7 @@ normalization outputs byte for byte. Normal tests need no network access.</p>
 build-queue -- sh tests/unicode_data.sh build/bin/ziran
 </code></pre>
 <p>The Unicode suite executes source and saved IR on native C, Go, the portable
-VM (<code>zi2zx-vm</code>) and the native bundle runner, comparing source/saved bundles.
+VM (<code>zi2zx run --vm</code>) and the native bundle runner, comparing source/saved bundles.
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,

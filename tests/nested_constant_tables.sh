@@ -10,7 +10,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-run_vm="$(dirname "$ziran")/zi2zx-vm"
+run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -81,10 +81,10 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    test "$("$run_vm" run "$work/$input.zx")" = 42
+    test "$("$run_vm" run --vm "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry app:Outside \
         -o "$work/outside-$input.zx" "$module"
-    if "$run_vm" run "$work/outside-$input.zx" > /dev/null 2>&1; then
+    if "$run_vm" run --vm "$work/outside-$input.zx" > /dev/null 2>&1; then
         echo 'an index past a constant table row was accepted' >&2
         exit 1
     fi

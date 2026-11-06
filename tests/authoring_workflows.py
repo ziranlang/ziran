@@ -30,7 +30,7 @@ HEADER = b"ZI-COMPACT-1\n"
 API_BUDGET = {"max_symbols": 16, "max_bytes": 4096}
 KINDS = ("imports", "constants", "globals", "types", "functions", "laws")
 DECLARATIONS = ("constants", "globals", "types", "functions")
-TOOLS = ("ziran", "zi-api", "zi-edit", "zi-fmt", "zi2zir", "zi2c", "zi2go", "zi2zx", "zi2zx-vm")
+TOOLS = ("ziran", "zi-api", "zi-edit", "zi-fmt", "zi2zir", "zi2c", "zi2go", "zi2zx")
 # Reference tokenizer implementations inspected through installed module metadata
 # only. Nothing is imported, downloaded or read from account/cache directories.
 TOKENIZER_MODULES = ("tiktoken", "tokenizers", "sentencepiece", "transformers")
@@ -730,7 +730,7 @@ def self_test(manifest_path, manifest, checker):
             record["execution"] = None
             continue
         # Restored transport bytes run through the L-01 checker, saved IR,
-        # bundle, explicit zi2zx-vm and native C/Go parity pipeline.
+        # bundle, explicit `zi2zx run --vm` and native C/Go parity pipeline.
         record["execution"] = checker.evaluate(task, files, task["expected"]["final"], task["portable_parity"])
         if not record["execution"]["passed"]:
             work.problems.append(task["id"] + ": restored final source failed: " + "; ".join(record["execution"]["problems"]))

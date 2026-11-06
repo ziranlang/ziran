@@ -335,12 +335,12 @@ class Checker:
         self.env = scrubbed_env(scratch)
         self.turns = 0
         tool = Path(self.ziran)
-        self.vm = tool.parent / "zi2zx-vm"
-        require(self.vm.is_file(), "missing portable interpreter: " + str(self.vm))
+        self.vm = tool.parent / "zi2zx"
+        require(self.vm.is_file(), "missing bundle runner: " + str(self.vm))
         self.identity = {"path": "$REPO/build/bin/ziran" if tool == REPO / "build/bin/ziran" else str(tool),
                          "sha256": file_digest(tool),
                          "tools_sha256": {name: file_digest(tool.parent / name)
-                                          for name in ("zi2zir", "zi2c", "zi2go", "zi2zx", "zi2zx-vm")
+                                          for name in ("zi2zir", "zi2c", "zi2go", "zi2zx")
                                           if (tool.parent / name).is_file()}}
 
     def command(self, args, cwd=REPO):
@@ -414,8 +414,8 @@ class Checker:
                 ("bundle_saved", [self.ziran, "bundle", "--root", ir, "--module-path", ir, "--entry", task["entry"], "-o", root / "saved.zx", ir / (entry + ".zir")]),
                 ("source", [self.ziran, "run", bundle]),
                 ("saved", [self.ziran, "run", root / "saved.zx"]),
-                ("source_vm", [self.vm, "run", bundle]),
-                ("saved_vm", [self.vm, "run", root / "saved.zx"])]
+                ("source_vm", [self.vm, "run", "--vm", bundle]),
+                ("saved_vm", [self.vm, "run", "--vm", root / "saved.zx"])]
             for name, command in commands:
                 code, out, err = self.command(command)
                 run[name] = {"exit_code": code, "stdout": out, "stderr": err}

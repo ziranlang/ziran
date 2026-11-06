@@ -52,6 +52,16 @@ struct Bundle {
 static int check_unchecked(Bundle *bundle);
 #endif
 
+/* Set by `zi2zx run --vm`: instances run on the portable VM even where
+ * compiled code is available, so the VM itself can be tested anywhere. */
+static int portable_vm;
+
+void
+BundleUsePortableVm(int enabled)
+{
+    portable_vm = enabled != 0;
+}
+
 const ZirProgram *
 BundleProgram(const Bundle *bundle)
 {
@@ -346,7 +356,7 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
      * compiler checked them before, so they open without checking until
      * something needs the checked program. A read that trust does not
      * settle reads again. */
-    if(digest != NULL && count == 0) {
+    if(digest != NULL && count == 0 && !portable_vm) {
         unsigned char identity[32];
         bundle_identity(bundle, identity);
 #ifdef ZIRAN_NATIVE_ZX
@@ -556,12 +566,10 @@ struct BundleInstance {
     ZxNative *native;
     const char **capability_names;
 #endif
-#ifndef ZIRAN_NATIVE_ZX
     VmInstance *vm;
     /* Present when a wasm provider is installed and the bundle lowered;
      * otherwise the instance runs on the portable VM above. */
     ZxWasm *wasm;
-#endif
 };
 
 static int
@@ -696,26 +704,31 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
     /* Native platforms run bundles only as native code; a bundle that cannot
      * be compiled is an error, never a slower fallback. An unchecked bundle
      * runs its cached code, or is checked and compiled when that code is
-     * gone. */
-    int missing = 1;
-    if(unchecked)
-        instance->native = ZxNativeOpenCached(&entry, identity,
-                                              instance->capability_names,
-                                              instance->capability_names + count, count,
-                                              dispatch, &instance->set, &missing);
-    if(instance->native == NULL && missing && check_unchecked((Bundle *)bundle))
-        instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
-                                        identity, instance->capability_names,
-                                        instance->capability_names + count, count,
-                                        dispatch, &instance->set);
-    if(instance->native == NULL) {
-#else
-#ifdef ZIRAN_LINKED_ZX
+     * gone. Only an explicit portable VM request runs the VM here. */
+    if(!portable_vm) {
+        int missing = 1;
+        if(unchecked)
+            instance->native = ZxNativeOpenCached(&entry, identity,
+                                                  instance->capability_names,
+                                                  instance->capability_names + count, count,
+                                                  dispatch, &instance->set, &missing);
+        if(instance->native == NULL && missing && check_unchecked((Bundle *)bundle))
+            instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
+                                            identity, instance->capability_names,
+                                            instance->capability_names + count, count,
+                                            dispatch, &instance->set);
+        if(instance->native == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        return instance;
+    }
+#elif defined(ZIRAN_LINKED_ZX)
     /* A bundle whose code was linked into this host runs as that code. While
      * another instance holds it, or for any other bundle, the portable VM
      * runs the checked program. */
     int busy = 0;
-    if(ZxNativeLinked(identity)) {
+    if(!portable_vm && ZxNativeLinked(identity)) {
         instance->native = ZxNativeOpenLinked(unchecked ? &entry : bundle->entry, identity,
                                               instance->capability_names,
                                               instance->capability_names + count, count,
@@ -726,6 +739,13 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
             BundleInstanceClose(instance);
             return NULL;
         }
+    }
+#endif
+#ifdef ZIRAN_COMPILED_ZX
+    /* The VM runs the checked program. */
+    if(!check_unchecked((Bundle *)bundle)) {
+        BundleInstanceClose(instance);
+        return NULL;
     }
 #endif
     /* With a wasm provider installed, the wasm tier takes the bundles it
@@ -741,7 +761,6 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
     instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
                                            bundle->entry, dispatch, &instance->set);
     if(instance->vm == NULL) {
-#endif
         BundleInstanceClose(instance);
         return NULL;
     }
@@ -758,13 +777,9 @@ BundleInstanceRun(BundleInstance *instance, long long *result,
     if(instance->native != NULL)
         return ZxNativeRun(instance->native, result, has_result);
 #endif
-#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL)
         return ZxWasmRun(instance->wasm, result, has_result);
     return VmInstanceRun(instance->vm, result, has_result);
-#else
-    return 0;
-#endif
 }
 
 void
@@ -778,13 +793,11 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
         return;
     }
 #endif
-#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL) {
         ZxWasmLimitSteps(instance->wasm, max_steps);
         return;
     }
     VmInstanceLimitSteps(instance->vm, max_steps);
-#endif
 }
 
 void
@@ -798,13 +811,11 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
         return;
     }
 #endif
-#ifndef ZIRAN_NATIVE_ZX
     if(instance->wasm != NULL) {
         ZxWasmMatchFieldsByName(instance->wasm, enabled);
         return;
     }
     VmInstanceMatchFieldsByName(instance->vm, enabled);
-#endif
 }
 
 void
@@ -816,10 +827,8 @@ BundleInstanceClose(BundleInstance *instance)
     ZxNativeClose(instance->native);
     free(instance->capability_names);
 #endif
-#ifndef ZIRAN_NATIVE_ZX
     ZxWasmClose(instance->wasm);
     VmInstanceClose(instance->vm);
-#endif
     free(instance->owned_bindings);
     free(instance);
 }

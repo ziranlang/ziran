@@ -9,7 +9,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-run_vm="$(dirname "$ziran")/zi2zx-vm"
+run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -56,7 +56,7 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    test "$("$run_vm" run "$work/$input.zx")" = 42
+    test "$("$run_vm" run --vm "$work/$input.zx")" = 42
 
     output=$work/c-$input
     "$ziran" build --target=c --root "$root" -o "$output" "$module"

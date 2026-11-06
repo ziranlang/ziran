@@ -10,7 +10,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-run_vm="$(dirname "$ziran")/zi2zx-vm"
+run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -112,10 +112,10 @@ for input in source saved; do
     test "$("$ziran" run "$work/$input.zx")" = 42
     # The interpreter builds each table once; rebuilding 4096 entries per
     # read would take minutes.
-    test "$(timeout 60 "$run_vm" run "$work/$input.zx")" = 42
+    test "$(timeout 60 "$run_vm" run --vm "$work/$input.zx")" = 42
     "$ziran" bundle --root "$root" --entry app:Outside \
         -o "$work/outside-$input.zx" "$module"
-    if "$run_vm" run "$work/outside-$input.zx" > /dev/null 2>&1; then
+    if "$run_vm" run --vm "$work/outside-$input.zx" > /dev/null 2>&1; then
         echo 'an out-of-range constant table index was accepted' >&2
         exit 1
     fi

@@ -40,7 +40,7 @@ done
 # covers both; the VM is the slowest part of this check under the sanitizers.
 cmp "$work/source.zx" "$work/saved.zx"
 run_vm "$ziran" run "$work/source.zx"
-run_vm "$(dirname -- "$ziran")/zi2zx-vm" run "$work/source.zx"
+run_vm "$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx"
 if test -n "${ZIRAN_UNICODE_UCD:-}"; then
     "$ziran" build --root scripts --module-path std --target=c --exe --entry unicode_normalization_data:main \
         -o "$work/generator" scripts/unicode_normalization_data.zi

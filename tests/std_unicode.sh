@@ -22,7 +22,7 @@ for form in source saved; do
     fi
     "$ziran" bundle "$@" --entry "$fixture:NativeMain" -o "$work/$fixture-$form.zx" "$input"
     test "$("$ziran" run "$work/$fixture-$form.zx")" = 0
-    test "$("$(dirname -- "$ziran")/zi2zx-vm" run "$work/$fixture-$form.zx")" = 0
+    test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/$fixture-$form.zx")" = 0
     for target in c go; do
         output="$work/$fixture/$form-$target"
         if test "$target" = go; then

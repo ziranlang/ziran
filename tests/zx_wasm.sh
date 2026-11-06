@@ -21,7 +21,7 @@ command -v "$nodebin" >/dev/null 2>&1 || {
 }
 
 zi2wasm=$(dirname -- "$ziran")/zi2wasm
-zi2zx_vm=$(dirname -- "$ziran")/zi2zx-vm
+zi2zx_vm=$(dirname -- "$ziran")/zi2zx
 test -x "$zi2wasm" || {
     echo "zx-wasm-test: $zi2wasm is not built; run make first"
     exit 1
@@ -173,7 +173,7 @@ esac
 "$ziran" bundle --root "$repo/tests/spec" --entry "$entry" \
     -o "$work/zx_wasm_test.zx" "$source"
 test "$("$ziran" run "$work/zx_wasm_test.zx")" = "$expected"
-test "$("$zi2zx_vm" run "$work/zx_wasm_test.zx")" = "$expected"
+test "$("$zi2zx_vm" run --vm "$work/zx_wasm_test.zx")" = "$expected"
 
 # An engine rejects a whole module that holds SIMD instructions it lacks, so
 # wasm32+simd128 variants enter generated C only when the build enables SIMD.

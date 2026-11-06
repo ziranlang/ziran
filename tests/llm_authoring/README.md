@@ -5,8 +5,8 @@ private holdout. All product source and replacement artifacts are `.zi` files.
 No model, remote service, tokenizer package or download is used. Go execution
 uses the installed toolchain with `GOPROXY=off`, `GOSUMDB=off` and
 `GOTOOLCHAIN=local`. C and Go toolchains must already be installed.
-The toolchain must provide the explicit portable interpreter `zi2zx-vm` beside
-`ziran`; a missing interpreter is an infrastructure error.
+The toolchain must provide `zi2zx`, whose `run --vm` is the explicit portable
+interpreter, beside `ziran`; a missing runner is an infrastructure error.
 
 From the repository root:
 
@@ -43,7 +43,7 @@ invocations time out after 90 seconds; no timings are used as benchmark data.
 requires a corpus-version change before collecting comparable evaluations.
 The checked-in SHA-256 values freeze the initial and solution source bytes;
 the report records SHA-256 for the actual launcher, backend compiler tools and
-`zi2zx-vm` interpreter. This does not
+`zi2zx` runner. This does not
 claim that uncommitted compiler sources match that executable.
 
 Each task fixes its prompt, permitted `context` module paths, initial/solution
@@ -61,7 +61,7 @@ Initial and solution programs run through the actual `ziran check` with the
 recorded target expectations. Successful programs also run through `.zi` to
 `.zir`, saved-IR checking, source/saved `.zx` byte equality, ordinary bundle
 execution through `ziran run`, and explicit source/saved execution through
-`zi2zx-vm run`. Ordinary bundle execution can select the native tier; the
+`zi2zx run --vm`. Ordinary bundle execution can select the native tier; the
 `source_vm` and `saved_vm` results specifically exercise the portable
 interpreter. Tasks marked `portable_parity` execute their solutions on native C
 and Go as well. Native C uses `ziran run`; Go uses the existing generated

@@ -9,7 +9,7 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-run_vm="$(dirname "$ziran")/zi2zx-vm"
+run_vm="$(dirname "$ziran")/zi2zx"
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -75,11 +75,11 @@ for input in source saved; do
     "$ziran" bundle --root "$root" --entry app:Answer \
         -o "$work/$input.zx" "$module"
     test "$("$ziran" run "$work/$input.zx")" = 42
-    test "$("$run_vm" run "$work/$input.zx")" = 42
+    test "$("$run_vm" run --vm "$work/$input.zx")" = 42
     for name in ZeroDivide ZeroRemainder WideShift NegativeShift ByteShift LongShift; do
         "$ziran" bundle --root "$root" --entry "app:Fail$name" \
             -o "$work/$name-$input.zx" "$module"
-        if "$run_vm" run "$work/$name-$input.zx" > /dev/null 2>&1; then
+        if "$run_vm" run --vm "$work/$name-$input.zx" > /dev/null 2>&1; then
             echo "$name did not abort on the VM" >&2
             exit 1
         fi

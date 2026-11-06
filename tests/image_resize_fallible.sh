@@ -25,7 +25,7 @@ for form in source saved; do
     fi
     "$ziran" bundle "$@" --entry "$fixture:NativeMain" -o "$work/$form.zx" "$input"
     run_vm "$ziran" run "$work/$form.zx"
-    run_vm "$(dirname "$ziran")/zi2zx-vm" run "$work/$form.zx"
+    run_vm "$(dirname "$ziran")/zi2zx" run --vm "$work/$form.zx"
     "$ziran" build "$@" --target=c --exe --entry "$fixture:NativeMain" -o "$work/$form-c" "$input"
     "$work/$form-c/$fixture"
     "$ziran" build "$@" --target=go --pkg main --exe --entry "$fixture:NativeMain" -o "$work/$form-go" "$input"

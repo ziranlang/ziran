@@ -99,7 +99,7 @@ main :: () -> s32 {
 }
 EOF
 "$ziran" bundle --root "$work" --entry probe:main -o "$work/probe.zx" "$work/probe.zi"
-test "$("$(dirname -- "$ziran")/zi2zx-vm" run "$work/probe.zx")" = 0
+test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/probe.zx")" = 0
 # A mismatched release or unsupported expansion must fail before replacing output.
 printf 'preserve\n' > "$work/protected.zi"
 cp "$work/protected.zi" "$work/expected.zi"

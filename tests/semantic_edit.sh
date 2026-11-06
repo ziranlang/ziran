@@ -98,8 +98,8 @@ subprocess.run([ziran,'ir','--root',str(root),'-o',str(output),str(program)],che
 for entry in (program,output/'main.zir'):
  out=work/('saved.zx' if entry.suffix=='.zir' else 'source.zx')
  subprocess.run([ziran,'bundle','--root',str(entry.parent),'--entry','main:main','-o',str(out),str(entry)],check=True,capture_output=True)
- vm=pathlib.Path(ziran).with_name('zi2zx-vm')
- result=subprocess.run([str(vm),'run',str(out)],capture_output=True,timeout=30)
+ vm=pathlib.Path(ziran).with_name('zi2zx')
+ result=subprocess.run([str(vm),'run','--vm',str(out)],capture_output=True,timeout=30)
  assert result.returncode==0 and result.stdout==b'42\n',(entry,result.returncode,result.stderr)
 print('semantic edit: preview/apply, declaration IDs, rollback, paths, imports, UTF-8, stale versions PASS')
 PY

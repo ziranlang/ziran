@@ -3,7 +3,7 @@
 set -eu
 ziran=${1:?pass the ziran command}
 # These check the portable VM itself, which runs where native code cannot.
-run_vm="$(dirname "$ziran")/zi2zx-vm"
+run_vm="$(dirname "$ziran")/zi2zx"
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -16,7 +16,7 @@ for form in source saved; do
     if test "$form" = saved; then root=$work/ir; input=$root/$module.zir; fi
     "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
     for run in 1 2; do
-        test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$run_vm" run "$work/$form.zx")" = 42
+        test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$run_vm" run --vm "$work/$form.zx")" = 42
         python3 - "$work/$form-$run.jsonl" <<'PY'
 import json, sys
 sample = json.loads(open(sys.argv[1]).read().splitlines()[-1])

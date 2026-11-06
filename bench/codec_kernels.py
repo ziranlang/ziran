@@ -406,7 +406,7 @@ def main():
     if not cc or not hasattr(os, 'wait4'):
         parser.error('a C compiler and POSIX wait4 are required')
     bins = args.bin_dir.resolve()
-    required = ['ziran', 'zi2zir', 'zi2c', 'zi2go', 'zi2zx', 'zi2zx-vm']
+    required = ['ziran', 'zi2zir', 'zi2c', 'zi2go', 'zi2zx']
     for name in required:
         if not (bins / name).is_file():
             parser.error(f'missing compiler tool: {bins / name}; build the toolchain first')
@@ -634,8 +634,8 @@ def main():
             wanted = validation if function == 'Validate' else oracle(function[:-5], 8, 37)
             bundle = out / f'{form}-{function}.zx'
             invoke([ziran, 'bundle', '--root', root, '--entry', f'codec_kernels:{function}', '-o', bundle, entry], 'codegen', f'{form} {function} bundle')
-            # zi2zx-vm is explicitly the portable interpreter, not native dispatch.
-            command = [bins / 'zi2zx-vm', 'run', bundle]
+            # `run --vm` is explicitly the portable interpreter, not native dispatch.
+            command = [bins / 'zi2zx', 'run', '--vm', bundle]
             actual = invoke(command, 'correctness', f'{form} portable {function}')[0]
             if actual != str(wanted):
                 raise AssertionError(f'{form} portable {function}: {actual} != {wanted}')
@@ -661,7 +661,7 @@ def main():
                 capabilities['wasm']['reason'] = 'zi2wasm tool is not built'
         bundle = out / f'{form}-layout.zx'
         invoke([ziran, 'bundle', '--root', root, '--entry', 'codec_kernels_layout:Sizes', '-o', bundle, audit_entry], 'codegen', f'{form} logical size bundle')
-        value = int(invoke([bins / 'zi2zx-vm', 'run', bundle], 'audit', f'{form} portable logical sizes')[0])
+        value = int(invoke([bins / 'zi2zx', 'run', '--vm', bundle], 'audit', f'{form} portable logical sizes')[0])
         logical_fingerprint = 8 * 1000000 + 8 * 10000 + 16 * 100 + 24
         if value != logical_fingerprint:
             raise AssertionError(f'{form} portable size_of differs from TypeLayout: {value}')
@@ -779,7 +779,7 @@ def main():
         if digest(path) != identity['sha256']:
             raise RuntimeError(f'tool changed during run: {path}')
     capabilities['native-c'] = {'execution': 'validated', 'modes': ['dispatch', 'ZIRAN_NO_ASM']}
-    capabilities['portable-zx'] = {'execution': 'validated', 'runner': str(bins / 'zi2zx-vm')}
+    capabilities['portable-zx'] = {'execution': 'validated', 'runner': str(bins / 'zi2zx') + ' run --vm'}
     wasm_results = [value['execution'] for key, value in capabilities.items()
                     if key.startswith('wasm-') and key.endswith('Bench')]
     if wasm_results and all(value == 'validated' for value in wasm_results):

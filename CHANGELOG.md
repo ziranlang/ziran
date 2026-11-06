@@ -173,6 +173,8 @@
 ### Removed
 - The Python target: `zi2py`, `--target=py`, `py:` imports and the `std/*_py`
   modules. Run native scripts with `ziran run --target=c`.
+- The separate `zi2zx-vm` runner. `zi2zx run --vm FILE` runs a bundle on the
+  portable VM instead.
 
 ### Changed
 - Native `--exe` builds default to `-O3`, and lowering a ZX bundle to C is

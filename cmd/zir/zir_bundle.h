@@ -98,6 +98,9 @@ int BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTa
 typedef struct Bundle Bundle;
 const ZirProgram *BundleProgram(const Bundle *bundle);
 const ZirFunction *BundleEntry(const Bundle *bundle);
+/* Instances opened after this run on the portable VM when ENABLED, even
+ * where compiled code is available (`zi2zx run --vm`). */
+void BundleUsePortableVm(int enabled);
 /* Native engine builds: the SHA-256 naming the bundle's compiled code, and
  * its program written as C that a host links ahead of time
  * (ZxNativeWriteLinked), which returns that identity too. */

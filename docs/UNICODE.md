@@ -181,7 +181,7 @@ build-queue -- sh tests/unicode_data.sh build/bin/ziran
 ```
 
 The Unicode suite executes source and saved IR on native C, Go, the portable
-VM (`zi2zx-vm`) and the native bundle runner, comparing source/saved bundles.
+VM (`zi2zx run --vm`) and the native bundle runner, comparing source/saved bundles.
 It covers every changed fold/lower/title mapping and every word, space, decimal
 and printability range's endpoints (8,323 generated assertions), plus contextual
 sigma, combining and titlecase expansions, supplementary scalars, splitting, malformed UTF-8,

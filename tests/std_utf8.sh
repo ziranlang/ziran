@@ -21,8 +21,8 @@ export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
-test "$("$(dirname -- "$ziran")/zi2zx-vm" run "$work/source.zx")" = 42
-test "$("$(dirname -- "$ziran")/zi2zx-vm" run "$work/saved.zx")" = 42
+test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/source.zx")" = 42
+test "$("$(dirname -- "$ziran")/zi2zx" run --vm "$work/saved.zx")" = 42
 
 export GOCACHE="$work/go-cache"
 for form in source saved; do

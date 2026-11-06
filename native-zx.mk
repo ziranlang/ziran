@@ -64,7 +64,7 @@ endif
 
 # The portable VM stays the engine where TinyCC has no code generator (the
 # browser, Windows, macOS). Tests of the VM itself run it everywhere through
-# zi2zx-vm and libziran-vm.a, which differ only in running instances on it.
+# `zi2zx run --vm` and libziran-vm.a, a libziran that runs instances on it.
 ZIRAN_VM_HOST_OBJECT := $(BUILD_DIR)/obj/zir_host_vm.o
 ZIRAN_VM_LIB_OBJECTS := $(filter-out $(call obj,cmd/zir/zir_host.c) $(NATIVE_ZX_OBJECTS),$(LIB_OBJECTS)) \
     $(ZIRAN_VM_HOST_OBJECT)
@@ -74,11 +74,4 @@ $(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-
 $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk
 	$(RM) $@
 	$(AR) rcs $@ $(ZIRAN_VM_LIB_OBJECTS)
-# Its command line has no native-c, which needs the native engine.
-ZIRAN_VM_MAIN_OBJECT := $(BUILD_DIR)/obj/zir_zx_main_vm.o
-$(ZIRAN_VM_MAIN_OBJECT): cmd/zir-zx/main.c $(BUILD_DIR)/.compiler-flags native-zx.mk
-	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
-$(BIN_DIR)/zi2zx-vm: $(ZIRAN_VM_MAIN_OBJECT) $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
-	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
-all: $(BIN_DIR)/zi2zx-vm $(BUILD_DIR)/libziran-vm.a
+all: $(BUILD_DIR)/libziran-vm.a

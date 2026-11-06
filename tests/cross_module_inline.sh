@@ -114,3 +114,40 @@ for shift in 1 2; do
     set +e; "$work/edit/out/app"; status=$?; set -e
     test "$status" = $((168 >> shift))
 done
+
+# Modules whose headers include each other: whichever header a C file reads
+# first precedes the other's declarations, so neither copies a body that
+# calls into the other, and both still build and agree.
+mkdir "$work/cycle"
+cat > "$work/cycle/left.zi" <<'ZI'
+Right :: #import "right";
+Wide :: (value: s32) -> s32 { return Right.Pad(value) + 1 }
+Double :: (value: s32) -> s32 { return value * 2 }
+ZI
+cat > "$work/cycle/right.zi" <<'ZI'
+Left :: #import "left";
+Pad :: (value: s32) -> s32 { return value + 4 }
+Weigh :: (value: s32) -> s32 { return Left.Double(value) + Pad(0) }
+ZI
+cat > "$work/cycle/app.zi" <<'ZI'
+Left :: #import "left";
+Right :: #import "right";
+#program_export
+Answer :: () -> s64 { return cast(s64) (Left.Wide(3) + Right.Weigh(3) + 24) }
+ZI
+"$ziran" build --target=c --root "$work/cycle" -o "$work/cycle/out" "$work/cycle/app.zi"
+grep -q '#include "right.h"' "$work/cycle/out/left.h"
+grep -q '#include "left.h"' "$work/cycle/out/right.h"
+for name in left_Wide right_Weigh; do
+    if grep -q "${name}_ziran_inline" "$work/cycle/out/"*.h; then
+        echo "${name} calls into its include cycle but was copied into a header" >&2
+        exit 1
+    fi
+done
+for name in left_Double right_Pad; do
+    grep -q "^#define ${name}(...) ${name}_ziran_inline(__VA_ARGS__)" "$work/cycle/out/"*.h
+done
+printf '#include "app.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' > "$work/cycle/out/main.c"
+"${CC:-cc}" -std=c99 -pedantic-errors -Wall -Werror -O2 \
+    -I"$repo/include" -I"$work/cycle/out" "$work/cycle/out"/*.c -o "$work/cycle/app"
+"$work/cycle/app"

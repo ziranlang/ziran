@@ -1223,6 +1223,67 @@ inline_module_names(InlineNames *names, const ZirModule *m, int private_only)
     }
 }
 
+/* Modules whose headers this header includes unconditionally, directly or
+ * not; each is listed once. */
+typedef struct HeaderModules {
+    const ZirModule **items;
+    int count;
+    int cap;
+} HeaderModules;
+
+static int
+header_modules_add(HeaderModules *set, const ZirModule *m)
+{
+    for(int i = 0; i < set->count; i++)
+        if(set->items[i] == m) return 0;
+    if(set->count == set->cap) {
+        int cap = set->cap ? set->cap * 2 : 32;
+        const ZirModule **grown = realloc(set->items, (size_t)cap * sizeof(*grown));
+        if(grown == NULL) { perror("realloc"); exit(1); }
+        set->items = grown;
+        set->cap = cap;
+    }
+    set->items[set->count++] = m;
+    return 1;
+}
+
+static void
+header_modules_reached(HeaderModules *set, const ZirModule *m)
+{
+    for(int i = 0; i < m->import_count; i++) {
+        const ZirImport *imp = &m->imports[i];
+        if(imp->resolved_module != NULL && NativeHeaderImportUse(m, imp) == 1 &&
+           header_modules_add(set, imp->resolved_module))
+            header_modules_reached(set, imp->resolved_module);
+    }
+}
+
+static int
+header_reaches(const ZirModule *from, const ZirModule *target)
+{
+    HeaderModules set = {0};
+    header_modules_reached(&set, from);
+    int found = 0;
+    for(int i = 0; i < set.count && !found; i++)
+        found = set.items[i] == target;
+    free(set.items);
+    return found;
+}
+
+/* When modules include each other's headers, whichever header the C source
+ * reaches first is read before the others' declarations, so an inline copy
+ * must not name anything from a module in its own include cycle. */
+static void
+inline_cycle_names(InlineNames *names, const ZirModule *m)
+{
+    HeaderModules set = {0};
+    header_modules_reached(&set, m);
+    for(int i = 0; i < set.count; i++)
+        if(set.items[i] != m && header_reaches(set.items[i], m))
+            inline_module_names(names, set.items[i], 0);
+    free(set.items);
+}
+
 static int
 inline_text_ok(const char *text, const InlineNames *names)
 {
@@ -1309,6 +1370,7 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
                    imp->resolved_module != NULL && NativeHeaderImportUse(m, imp) != 1)
                     inline_module_names(&names, imp->resolved_module, 0);
             }
+            inline_cycle_names(&names, m);
             declaration_file = inline_stream(&declarations, &declaration_text, &declaration_size);
             body_file = inline_stream(&bodies, &body_text, &body_size);
         }

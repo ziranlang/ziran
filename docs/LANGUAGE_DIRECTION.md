@@ -337,7 +337,7 @@ a closing `END` at the start of a line. The opening line contains only the
 delimiter, and the newline before the closing line belongs to the string.
 Quotes, backslashes, tabs, and UTF-8 text in the body are preserved. The
 4095 character source line limit applies to each physical line of the body;
-the lowered literal itself may reach 16383 characters.
+a string literal itself has no length limit, as a constant or a global.
 Nested `/* ... */` comments and `//` line comments may appear between tokens;
 comment delimiters inside quoted strings remain text. Legacy `# ` comments
 are rejected. An unclosed block comment is a source error, including in a

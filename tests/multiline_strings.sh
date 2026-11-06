@@ -246,3 +246,48 @@ func main() { if LongTable_Answer() != 42 { panic("long table") } }
 GO
     GO111MODULE=off go run "$work/long-go-$input/long_table.go" "$work/long-go-$input/main.go"
 done
+
+# A table far past 64 KB, as a constant and as a global variable, works on the
+# portable, C and Go targets from source and from saved IR.
+for kind in const global; do
+    name="huge_$kind"
+    camel="Huge$(printf %s "$kind" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')"
+    awk -v kind="$kind" 'BEGIN {
+        if (kind == "const") print "Table :: #string END"
+        else print "Table: string = #string END"
+        for (n = 0; n < 50; n++) { for (i = 0; i < 2000; i++) printf "%c", 97 + (i % 26); print "" }
+        print "END;"
+        print "#program_export"
+        print "Answer :: () -> s32 {"
+        print "    if Table.count != 100050 { return 0 }"
+        print "    if Table[0] != #char \"a\" || Table[1999] != #char \"x\" { return 0 }"
+        print "    if Table[2000] != #char \"\\n\" || Table[100049] != #char \"\\n\" { return 0 }"
+        print "    return 42"
+        print "}"
+    }' > "$work/$name.zi"
+    "$ziran" ir --root "$work" -o "$work/${name}_ir" "$work/$name.zi"
+    "$ziran" bundle --root "$work" --entry "$name:Answer" \
+        -o "$work/$name.zx" "$work/$name.zi"
+    "$ziran" bundle --root "$work/${name}_ir" --entry "$name:Answer" \
+        -o "$work/${name}_ir.zx" "$work/${name}_ir/$name.zir"
+    cmp "$work/$name.zx" "$work/${name}_ir.zx"
+    test "$("$ziran" run "$work/$name.zx")" = 42
+    for input in source ir; do
+        if test "$input" = source; then
+            filename="$work/$name.zi"
+        else
+            filename="$work/${name}_ir/$name.zir"
+        fi
+        out="$work/$name-c-$input"
+        "$ziran" build --target=c --root "$work" -o "$out" "$filename"
+        printf '#include "%s.h"\nint main(void) { return Answer() == 42 ? 0 : 1; }\n' \
+            "$name" > "$out/main.c"
+        ${CC:-cc} -Iinclude -I"$out" "$out/$name.c" "$out/main.c" -o "$out/app"
+        "$out/app"
+        out="$work/$name-go-$input"
+        "$ziran" build --target=go --pkg main --root "$work" -o "$out" "$filename"
+        printf 'package main\nfunc main() { if %s_Answer() != 42 { panic("huge table") } }\n' \
+            "$camel" > "$out/main.go"
+        GO111MODULE=off go run "$out/$name.go" "$out/main.go"
+    done
+done

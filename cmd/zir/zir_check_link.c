@@ -867,6 +867,19 @@ COMPILER_SCRATCH_RETURN(static, int, rewrite_private_reference,
     RewritePrivateReferenceBuffers, RECOVERABLE, free,
     rewrite_private_reference_with_buffers(source, capacity, span, original, internal, buffers))
 
+/* A global's initializer is kept text of any length. */
+static int
+rewrite_global_init(ZirGlobal *global, const char *original,
+                    const char *internal)
+{
+    size_t capacity;
+    char *edit = TextEditBegin(global->init, &capacity);
+    int ok = rewrite_private_reference(edit, capacity, global->span, original,
+                                       internal);
+    global->init = TextEditEnd(edit);
+    return ok;
+}
+
 int
 name_private_defines(ZirModule *module)
 {
@@ -916,9 +929,7 @@ name_private_defines(ZirModule *module)
             if(!rewrite_private_reference(global->type,
                                           sizeof(global->type), global->span,
                                           rename->original, rename->internal) ||
-               !rewrite_private_reference(global->init,
-                                          sizeof(global->init), global->span,
-                                          rename->original, rename->internal))
+               !rewrite_global_init(global, rename->original, rename->internal))
                 goto failed;
         }
         for(int d = 0; d < module->define_count; d++) {
@@ -1000,9 +1011,8 @@ name_private_globals(ZirModule *module)
         for(int g = 0; g < module->global_count; g++) {
             ZirGlobal *global = &module->globals[g];
             if(strcmp(SpanPath(global->span), path)) continue;
-            if(!rewrite_private_reference(global->init, sizeof(global->init),
-                                          global->span, rename->original,
-                                          rename->internal)) goto failed;
+            if(!rewrite_global_init(global, rename->original,
+                                    rename->internal)) goto failed;
         }
         for(int f = 0; f < module->function_count; f++) {
             ZirFunction *caller = &module->functions[f];
@@ -1113,9 +1123,8 @@ name_private_types(ZirModule *module)
             if(!rewrite_private_reference(global->type, sizeof(global->type),
                                           global->span, rename->original,
                                           rename->internal) ||
-               !rewrite_private_reference(global->init, sizeof(global->init),
-                                          global->span, rename->original,
-                                          rename->internal)) goto failed;
+               !rewrite_global_init(global, rename->original,
+                                    rename->internal)) goto failed;
         }
         for(int d = 0; d < module->define_count; d++) {
             ZirDefine *definition = &module->defines[d];

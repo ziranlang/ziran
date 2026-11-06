@@ -95,6 +95,64 @@ check_physical_lines(const char *source, const char *path)
     }
 }
 
+/* Quoted text longer than a line buffer is replaced by a short marker; the
+ * text itself waits in the raw-text table until it is kept (KeepText). */
+enum { LONG_LITERAL_MIN = 2048 };
+
+static char *
+shorten_long_literals(char *source)
+{
+    size_t length = strlen(source), used = 0;
+    char *out = NULL;
+    int depth = 0;
+    for(size_t at = 0; at < length;) {
+        char byte = source[at];
+        if(depth == 0 && byte == '/' && source[at + 1] == '/') {
+            size_t end = at;
+            while(end < length && source[end] != '\n') end++;
+            if(out) { memcpy(out + used, source + at, end - at); used += end - at; }
+            at = end;
+            continue;
+        }
+        if(byte == '/' && source[at + 1] == '*') depth++;
+        else if(depth > 0 && byte == '*' && source[at + 1] == '/') {
+            if(out) { out[used++] = '*'; out[used++] = '/'; }
+            at += 2;
+            depth--;
+            continue;
+        }
+        if(depth == 0 && (byte == '"' || byte == '\'')) {
+            size_t end = at + 1;
+            while(end < length && source[end] != byte) {
+                if(source[end] == '\\' && end + 1 < length) end++;
+                end++;
+            }
+            if(byte == '"' && end < length && end - at - 1 >= LONG_LITERAL_MIN) {
+                if(out == NULL) {
+                    out = malloc(length + 1);
+                    if(out == NULL) die("out of memory reading source");
+                    memcpy(out, source, at);
+                    used = at;
+                }
+                int index = RawTextRegister(source + at + 1, end - at - 1);
+                used += (size_t)sprintf(out + used, "\"\x1fR%d\x1f\"", index);
+                at = end + 1;
+                continue;
+            }
+            size_t stop = end < length ? end + 1 : length;
+            if(out) { memcpy(out + used, source + at, stop - at); used += stop - at; }
+            at = stop;
+            continue;
+        }
+        if(out) out[used++] = byte;
+        at++;
+    }
+    if(out == NULL) return source;
+    out[used] = '\0';
+    free(source);
+    return out;
+}
+
 /* C owns parser storage and diagnostics; scanning rules live in Ziran. */
 char *
 lower_jai_multiline_strings(const char *source, const char *path)
@@ -117,6 +175,7 @@ lower_jai_multiline_strings(const char *source, const char *path)
     if(output == NULL) die("out of memory reading source");
     compiler_source_RewriteRawStrings(input, (Slice){output, result.count}, ZIR_NAME_MAX);
     output[result.count] = '\0';
+    output = shorten_long_literals(output);
     if(strcmp(source, output)) DocumentMarkRewritten(path);
     return output;
 }

@@ -749,9 +749,9 @@ expression(ExprParser *p, int minimum)
 }
 
 static int
-parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
-           ZirSourceSpan span, const char *expected_type, int stmt_index,
-           int expand_defaults)
+parse_expr_text(ZirFunction *fn, const ZirModule *module, const char *text,
+                ZirSourceSpan span, const char *expected_type, int stmt_index,
+                int expand_defaults)
 {
     ExprParser p = {0};
     int initial = fn->expr_count, result;
@@ -770,6 +770,19 @@ parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
         if(!FunctionAddExpr(fn, ZIR_EXPR_UNKNOWN, text, span)) return -1;
         return fn->expr_count - 1;
     }
+    return result;
+}
+
+/* Text still holding raw-string markers is parsed in full. */
+static int
+parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
+           ZirSourceSpan span, const char *expected_type, int stmt_index,
+           int expand_defaults)
+{
+    char *expanded = RawTextExpand(text);
+    int result = parse_expr_text(fn, module, expanded != NULL ? expanded : text,
+                                 span, expected_type, stmt_index, expand_defaults);
+    free(expanded);
     return result;
 }
 

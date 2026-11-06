@@ -1118,12 +1118,31 @@ ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
     if(index>=0) {
         ZirExpr *expr=&buffers->fn.exprs[index];
         if(expr->kind == ZIR_EXPR_STRING && !strcmp(type, "string")) {
-            EmitStringLiteral(expr, target, buffers->value, sizeof(buffers->value));
-            if(target == ZIR_C)
-                format(out, size, "{%s, sizeof(%s) - 1}", buffers->value, buffers->value);
-            else
-                copy_text(out, size, buffers->value);
-            ok = 1;
+            if(strlen(expr->text) >= sizeof(buffers->value) / 4) {
+                /* A long table is escaped into a block of its own size. */
+                size_t capacity = strlen(expr->text) * 4 + 16;
+                char *literal = AllocateOrExit(capacity);
+                unsigned char *bytes = AllocateOrExit(strlen(expr->text) + 1);
+                size_t decoded = 0;
+                EmitStringLiteral(expr, target, literal, capacity);
+                DecodeStringLiteral(expr->text, bytes, strlen(expr->text) + 1, &decoded);
+                if(strlen(literal) + 32 < size) {
+                    if(target == ZIR_C)
+                        format(out, size, "{%s, %zu}", literal, decoded);
+                    else
+                        copy_text(out, size, literal);
+                    ok = 1;
+                }
+                free(bytes);
+                free(literal);
+            } else {
+                EmitStringLiteral(expr, target, buffers->value, sizeof(buffers->value));
+                if(target == ZIR_C)
+                    format(out, size, "{%s, sizeof(%s) - 1}", buffers->value, buffers->value);
+                else
+                    copy_text(out, size, buffers->value);
+                ok = 1;
+            }
         } else if(expr->kind==ZIR_EXPR_INT && width(type)) {
             literal(&e,expr,type,0,out,size);ok=1;
         } else if(expr->kind==ZIR_EXPR_UNARY && !strcmp(expr->op,"-") &&

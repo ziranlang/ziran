@@ -251,7 +251,7 @@ static const Field function_fields[] = {
 };
 static const Field global_fields[] = {
     STRING_FIELD(ZirGlobal, name), STRING_FIELD(ZirGlobal, type),
-    STRING_FIELD(ZirGlobal, init), INTEGER_FIELD(ZirGlobal, is_static),
+    TEXT_FIELD(ZirGlobal, init), INTEGER_FIELD(ZirGlobal, is_static),
     INTEGER_FIELD(ZirGlobal, is_file_private), SPAN_FIELD(ZirGlobal, span)
 };
 static const Field define_fields[] = {

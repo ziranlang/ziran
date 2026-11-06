@@ -695,19 +695,24 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
     }
     for(int i = 0; i < module->global_count; i++) {
         ZirGlobal *global = &module->globals[i];
-        char before[ZIR_TEXT_MAX];
+        const char *before = global->init;
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(global->span));
         SymbolLookupsChanged();
-        copy_text(before, sizeof(before), global->init);
-        if(find_unquoted_text(global->init, "#ifx") != NULL)
-            lower_compile_ifx_value(global->init, sizeof(global->init),
-                                    module, &constants, global->span,
-                                    allow_deferred);
+        if(find_unquoted_text(global->init, "#ifx") != NULL) {
+            size_t capacity;
+            char *edit = TextEditBegin(global->init, &capacity);
+            lower_compile_ifx_value(edit, capacity, module, &constants,
+                                    global->span, allow_deferred);
+            global->init = TextEditEnd(edit);
+        }
         if(find_unquoted_text(global->init, "#ifx") == NULL &&
-           find_unquoted_word(global->init, "size_of") != NULL)
-            lower_size_of_value(global->init, sizeof(global->init),
-                                module, global->span);
+           find_unquoted_word(global->init, "size_of") != NULL) {
+            size_t capacity;
+            char *edit = TextEditBegin(global->init, &capacity);
+            lower_size_of_value(edit, capacity, module, global->span);
+            global->init = TextEditEnd(edit);
+        }
         if(strcmp(before, global->init) != 0) progress++;
     }
     for(int i = 0; i < module->function_count; i++) {

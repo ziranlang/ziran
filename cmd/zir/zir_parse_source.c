@@ -1933,14 +1933,21 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             ZirGlobal *global = &module->globals[gi];
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       SpanPath(global->span));
-            if(find_unquoted_text(global->init, "#ifx") != NULL)
-                lower_compile_ifx_value(global->init, sizeof(global->init),
-                                        module, &consts, global->span, 1);
+            if(find_unquoted_text(global->init, "#ifx") != NULL) {
+                size_t capacity;
+                char *edit = TextEditBegin(global->init, &capacity);
+                lower_compile_ifx_value(edit, capacity, module, &consts,
+                                        global->span, 1);
+                global->init = TextEditEnd(edit);
+            }
             if(find_unquoted_text(global->init, "#ifx") == NULL &&
                find_unquoted_word(global->init, "size_of") != NULL &&
-               find_unquoted_word(global->init, "type_of") == NULL)
-                lower_size_of_value(global->init, sizeof(global->init),
-                                    module, global->span);
+               find_unquoted_word(global->init, "type_of") == NULL) {
+                size_t capacity;
+                char *edit = TextEditBegin(global->init, &capacity);
+                lower_size_of_value(edit, capacity, module, global->span);
+                global->init = TextEditEnd(edit);
+            }
         }
         for(int fi = 0; fi < module->function_count; fi++) {
             ZirFunction *fn = &module->functions[fi];

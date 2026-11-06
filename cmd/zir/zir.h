@@ -256,7 +256,7 @@ ExprWalkFirst(ZirExprWalk *walk, int root)
 typedef struct ZirGlobal {
     char name[ZIR_NAME_MAX];
     char type[ZIR_TEXT_MAX];
-    char init[ZIR_TEXT_MAX];
+    const char *init; /* shared and immutable: assign KeepText(...); a raw #string table can exceed a line */
     int is_static;   /* internal linkage in generated native code */
     int is_file_private;
     int native_name_collision; /* in-memory: another global maps to this native name */
@@ -509,6 +509,10 @@ void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
 const char *KeepText(const char *text);
+/* A long string literal travels through the line-based parser as a short
+ * marker (`"\x1fR<n>\x1f"`) and returns to full text when it is kept. */
+int RawTextRegister(const char *body, size_t length);
+char *RawTextExpand(const char *text);
 /* Edit kept text in place: take a copy with room to grow, change it, store it. */
 char *TextEditBegin(const char *text, size_t *capacity);
 const char *TextEditEnd(char *buffer);

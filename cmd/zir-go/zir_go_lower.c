@@ -2523,6 +2523,22 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                      * and lowers direct global initializers to literals. */
                     continue;
                 }
+                if(strlen(value) >= ZIR_GO_TEXT_MAX / 4) {
+                    /* A long string table is escaped into a block of its own size. */
+                    size_t capacity = strlen(value) * 4 + 64;
+                    char *literal = malloc(capacity);
+                    if(literal == NULL) exit(1);
+                    if(!ScalarLiteral("string", value, ZIR_GO, m->defines[i].span,
+                                      literal, capacity))
+                    {
+                        Diagnostic(m->defines[i].span, "zir_go.global",
+                                   "cannot lower long constant %s", m->defines[i].name);
+                        exit(1);
+                    }
+                    fprintf(f, "const %s = %s\n", cname, literal);
+                    free(literal);
+                    continue;
+                }
                 tx_expr(m, m->defines[i].value, buffers->cval, sizeof(buffers->cval));
                 fprintf(f, "const %s = %s\n", cname, buffers->cval);
             }
@@ -2533,6 +2549,20 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                 TargetGlobalName(m, ZIR_GO, g->name, gname,
                                  sizeof(gname));
                 require_go_type(g->type, gt, sizeof(gt), g->span);
+                if(strlen(g->init) >= ZIR_GO_TEXT_MAX / 4 && !strcmp(g->type, "string")) {
+                    size_t capacity = strlen(g->init) * 4 + 64;
+                    char *literal = malloc(capacity);
+                    if(literal == NULL) exit(1);
+                    if(!ScalarLiteral(g->type, g->init, ZIR_GO, g->span, literal, capacity))
+                    {
+                        Diagnostic(g->span, "zir_go.global",
+                                   "cannot lower long global %s", g->name);
+                        exit(1);
+                    }
+                    fprintf(f, "var %s %s = %s\n", gname, gt, literal);
+                    free(literal);
+                    continue;
+                }
                 if(!ScalarLiteral(g->type, g->init, ZIR_GO, g->span,
                                   buffers->ginit, sizeof(buffers->ginit))) {
                     int compound = EmitGlobalInitializer(m, g, ZIR_GO,

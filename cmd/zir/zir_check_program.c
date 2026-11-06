@@ -55,13 +55,16 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       buffers->saved_path);
             SymbolLookupsChanged();
-            for(int g = 0; g < module->global_count; g++)
-                if(!lower_file_record_using(module, module->globals[g].init,
-                         sizeof(module->globals[g].init),
-                         module->globals[g].span) ||
-                   !LowerFileScopeUsing(module, module->globals[g].init,
-                         sizeof(module->globals[g].init),
-                         module->globals[g].span)) return 0;
+            for(int g = 0; g < module->global_count; g++) {
+                size_t init_capacity;
+                char *init_edit = TextEditBegin(module->globals[g].init, &init_capacity);
+                int init_ok = lower_file_record_using(module, init_edit,
+                         init_capacity, module->globals[g].span) &&
+                   LowerFileScopeUsing(module, init_edit,
+                         init_capacity, module->globals[g].span);
+                module->globals[g].init = TextEditEnd(init_edit);
+                if(!init_ok) return 0;
+            }
             for(int d = 0; d < module->define_count; d++)
             {
                 ZirDefine *definition = &module->defines[d];
@@ -212,6 +215,12 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                                          global->span);
                 int literal_initializer = raw_root >= 0 &&
                     buffers->raw.exprs[raw_root].kind == ZIR_EXPR_COMPOUND;
+                /* A long string table is already its own literal, and the
+                 * folding buffer below could not hold it. */
+                if(raw_root >= 0 &&
+                   buffers->raw.exprs[raw_root].kind == ZIR_EXPR_STRING &&
+                   strlen(buffers->raw.exprs[raw_root].text) >= ZIR_TEXT_MAX / 2)
+                    literal_initializer = 1;
                 char constant_name[ZIR_NAME_MAX] = "";
                 if(raw_root >= 0 &&
                    buffers->raw.exprs[raw_root].kind == ZIR_EXPR_IDENT)
@@ -244,8 +253,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                             free(buffers->raw.exprs);
                             return 0;
                         }
-                        copy_text(global->init, sizeof(global->init),
-                                  buffers->lowered);
+                        global->init = KeepText(buffers->lowered);
                         literal_initializer = 1;
                     }
                 }
@@ -273,7 +281,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                             return 0;
                         }
                     }
-                    copy_text(global->init, sizeof(global->init), buffers->folded);
+                    global->init = KeepText(buffers->folded);
                 }
                 if(!check_file_private_expression(module, global->init,
                                                   global->span))
@@ -380,7 +388,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         return 0;
                     startup->is_global_initializer = 1;
                     startup->is_file_private = 1;
-                    global->init[0] = '\0';
+                    global->init = "";
                 }
             }
             for(int d = 0; d < module->define_count; d++)

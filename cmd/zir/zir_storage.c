@@ -3,6 +3,7 @@
 #include "zir_diagnostic.h"
 #include <stdarg.h>
 #include <stdatomic.h>
+#include <ctype.h>
 
 /* Every span names its file, and the compiler makes many spans, so each
  * path is stored once here and a span keeps its number. Number 0 is the
@@ -372,10 +373,87 @@ int SourceFile(const char *path)
     return result;
 }
 
+static struct {
+    char **items;
+    size_t *lengths;
+    size_t count, capacity;
+    atomic_int lock;
+} raw_texts;
+
+int
+RawTextRegister(const char *body, size_t length)
+{
+    char *copy = malloc(length + 1);
+    if(copy == NULL) kept_text_failed();
+    memcpy(copy, body, length);
+    copy[length] = '\0';
+    lock_table(&raw_texts.lock);
+    if(raw_texts.count == raw_texts.capacity) {
+        size_t capacity = raw_texts.capacity ? raw_texts.capacity * 2 : 64;
+        char **items = realloc(raw_texts.items, capacity * sizeof(*items));
+        size_t *lengths = realloc(raw_texts.lengths, capacity * sizeof(*lengths));
+        if(items == NULL || lengths == NULL) kept_text_failed();
+        raw_texts.items = items;
+        raw_texts.lengths = lengths;
+        raw_texts.capacity = capacity;
+    }
+    int index = (int)raw_texts.count++;
+    raw_texts.items[index] = copy;
+    raw_texts.lengths[index] = length;
+    unlock_table(&raw_texts.lock);
+    return index;
+}
+
+/* The text with every marker replaced by its literal body, or NULL when it
+ * holds none. The caller frees the result. */
+char *
+RawTextExpand(const char *text)
+{
+    const char *mark = strchr(text, '\x1f');
+    if(mark == NULL) return NULL;
+    size_t length = strlen(text), used = 0, capacity = length + 1;
+    char *out = malloc(capacity);
+    if(out == NULL) kept_text_failed();
+    for(const char *p = text; *p;) {
+        if(p[0] == '\x1f' && p[1] == 'R' && isdigit((unsigned char)p[2])) {
+            const char *q = p + 2;
+            size_t index = 0;
+            while(isdigit((unsigned char)*q)) index = index * 10 + (size_t)(*q++ - '0');
+            if(*q == '\x1f') {
+                lock_table(&raw_texts.lock);
+                const char *body = index < raw_texts.count ? raw_texts.items[index] : NULL;
+                size_t body_length = body != NULL ? raw_texts.lengths[index] : 0;
+                unlock_table(&raw_texts.lock);
+                if(body != NULL) {
+                    if(used + body_length + (length - (size_t)(q - text)) + 1 > capacity) {
+                        capacity = used + body_length + (length - (size_t)(q - text)) + 1;
+                        out = realloc(out, capacity);
+                        if(out == NULL) kept_text_failed();
+                    }
+                    memcpy(out + used, body, body_length);
+                    used += body_length;
+                    p = q + 1;
+                    continue;
+                }
+            }
+        }
+        if(used + 2 > capacity) {
+            capacity *= 2;
+            out = realloc(out, capacity);
+            if(out == NULL) kept_text_failed();
+        }
+        out[used++] = *p++;
+    }
+    out[used] = '\0';
+    return out;
+}
+
 const char *KeepText(const char *text)
 {
     CompilerMemory *memory = CompilerMemoryPause();
-    const char *result = KeepText_persistent(text);
+    char *expanded = text != NULL ? RawTextExpand(text) : NULL;
+    const char *result = KeepText_persistent(expanded != NULL ? expanded : text);
+    free(expanded);
     CompilerMemoryResume(memory);
     return result;
 }

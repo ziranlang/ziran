@@ -1351,8 +1351,7 @@ ModuleAddGlobal(ZirModule *module, const char *name, const char *type,
              sizeof(module->globals[0].name), name);
     copy_text(module->globals[module->global_count].type,
              sizeof(module->globals[0].type), type);
-    copy_text(module->globals[module->global_count].init,
-             sizeof(module->globals[0].init), init);
+    module->globals[module->global_count].init = KeepText(init);
     module->globals[module->global_count].span = span;
     module->global_count++;
 }

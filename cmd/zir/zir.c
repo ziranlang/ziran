@@ -225,15 +225,38 @@ VecElementType(const ZirModule *module, const char *name,
 }
 
 int
+StandardScopedName(const char *leaf, char *out, size_t size)
+{
+    /* The loader's package identity: FNV-1a of the package name `std`. */
+    uint64_t hash = 1469598103934665603ull;
+    for(const unsigned char *at = (const unsigned char *)"std"; *at; at++) {
+        hash ^= *at;
+        hash *= 1099511628211ull;
+    }
+    int written = snprintf(out, size, "p%016llx_%s", (unsigned long long)hash, leaf);
+    return written > 0 && (size_t)written < size;
+}
+
+int
+StandardModuleName(const char *name, const char *leaf)
+{
+    char scoped[ZIR_NAME_MAX];
+    if(name == NULL || leaf == NULL)
+        return 0;
+    if(!strcmp(name, leaf) || (!strncmp(name, "std_", 4) && !strcmp(name + 4, leaf)))
+        return 1;
+    return StandardScopedName(leaf, scoped, sizeof(scoped)) && !strcmp(name, scoped);
+}
+
+int
 OwnedTextType(const ZirModule *module, const char *name)
 {
     const ZirModule *owner = NULL;
     if(module == NULL || name == NULL)
         return 0;
     const ZirType *type = FindType(module, name, &owner);
-    /* std/vec is `vec` alone and `std_vec` inside a project. */
     if(type == NULL || owner == NULL ||
-       (strcmp(owner->name, "vec") && strcmp(owner->name, "std_vec")) ||
+       (strcmp(owner->standard_name, "vec") && !StandardModuleName(owner->name, "vec")) ||
        strcmp(type->name, "Text") || type->is_enum || type->is_union ||
        type->is_procedure_type || type->is_record_template ||
        type->is_extern || type->is_owned_vec || type->is_map)

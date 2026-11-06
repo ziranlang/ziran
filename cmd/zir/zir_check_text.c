@@ -508,8 +508,12 @@ text_detach_call(const ZirFunction *fn, int index)
        fn->exprs[e->first_child].next_sibling >= 0 ||
        fn->exprs[e->first_child].kind != ZIR_EXPR_CALL)
         return 0;
-    return !strcmp(e->name, "vec.TextDetach") ||
-        !strcmp(e->name, "std_vec.TextDetach");
+    const char *dot = strrchr(e->name, '.');
+    if(dot == NULL || strcmp(dot, ".TextDetach"))
+        return 0;
+    char owner[ZIR_NAME_MAX];
+    snprintf(owner, sizeof(owner), "%.*s", (int)(dot - e->name), e->name);
+    return StandardModuleName(owner, "vec");
 }
 
 static int
@@ -741,8 +745,13 @@ scope_text(ZirFunction *fn, int view_node, int call, int s, int *serial)
 static const char *
 builder_text_module(const ZirModule *module, const ZirFunction *fn, int index)
 {
-    static const char *const modules[] = {"vec", "std_vec"};
+    char scoped[ZIR_NAME_MAX];
+    const char *modules[] = {"vec", "std_vec", scoped};
+    if(!StandardScopedName("vec", scoped, sizeof(scoped)))
+        scoped[0] = '\0';
     const ZirExpr *e = &fn->exprs[index];
+    if(module->standard_name[0] && !strcmp(module->standard_name, "vec"))
+        return NULL;
     if(e->kind != ZIR_EXPR_CALL || e->left >= 0 || e->name == NULL ||
        strcmp(e->name, "BuilderFinish") || e->type == NULL ||
        strcmp(e->type, "string") || e->first_child < 0 ||
@@ -752,11 +761,13 @@ builder_text_module(const ZirModule *module, const ZirFunction *fn, int index)
         char qualified[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;
         const ZirFunction *found = NULL;
+        if(!*modules[i])
+            continue;
         if(!strcmp(module->name, modules[i]))
             return NULL;
         snprintf(qualified, sizeof(qualified), "%s.TextFromBuilder", modules[i]);
         if(ResolveFunction(module, qualified, &owner, &found) == 1)
-            return modules[i];
+            return KeepName(modules[i]);
     }
     return NULL;
 }

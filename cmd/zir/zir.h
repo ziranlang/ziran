@@ -421,6 +421,12 @@ int VecElementType(const struct ZirModule *module, const char *type,
  * `bytes: Vec(u8)`. It moves and drops like any record owning a Vec; a
  * `TextView` of it borrows its storage. */
 int OwnedTextType(const struct ZirModule *module, const char *type);
+/* Whether NAME is a module identity of the standard library's std/LEAF:
+ * LEAF alone, std_LEAF inside a project, or the p<hash>_LEAF identity a
+ * `--module-path std=DIR` package gives it, also in saved IR. */
+int StandardModuleName(const char *name, const char *leaf);
+/* The identity `--module-path std=DIR` gives std/LEAF, into OUT. */
+int StandardScopedName(const char *leaf, char *out, size_t size);
 
 struct ZirDocument;
 typedef struct ZirModule {

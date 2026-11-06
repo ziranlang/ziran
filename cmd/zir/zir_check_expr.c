@@ -30,14 +30,21 @@ text_owner_position(Checker *c, int index)
 }
 
 /* Name std/vec procedure `name` from the checked module. Any module that
- * meets a Text or a byte builder reaches std/vec, which is `vec` alone and
- * `std_vec` inside a project. */
+ * meets a Text or a byte builder reaches std/vec, which is `vec` alone,
+ * `std_vec` inside a project and p<hash>_vec under --module-path std=DIR. */
 static const char *
 text_procedure(Checker *c, const char *name)
 {
-    static const char *const modules[] = {"vec", "std_vec"};
+    char scoped[ZIR_NAME_MAX];
+    const char *modules[] = {"vec", "std_vec", scoped};
     char qualified[ZIR_NAME_MAX];
+    if(!StandardScopedName("vec", scoped, sizeof(scoped)))
+        scoped[0] = '\0';
+    if(!strcmp(c->module->standard_name, "vec"))
+        return KeepName(name);
     for(size_t i = 0; i < sizeof(modules) / sizeof(*modules); i++) {
+        if(!*modules[i])
+            continue;
         if(!strcmp(c->module->name, modules[i]))
             return KeepName(name);
         const ZirModule *owner = NULL;

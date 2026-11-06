@@ -380,16 +380,18 @@ PkgOverrideIdentity :: (directory: string) -> string {
 // credentials for a private repository, the same repository is tried once
 // over the other transport. Neither attempt prompts for a password.
 PkgRemoteCapture :: (args: []string, url_index: s32) -> PkgProcessResult {
-    names: [1]string
-    values: [1]string
-    names[0] = "GIT_TERMINAL_PROMPT"
-    values[0] = "0"
+    names: [13]string
+    values: [13]string
+    count: s32 = PkgQuietGitEnv(names[:], values[:])
+    names[count] = "GIT_TERMINAL_PROMPT"
+    values[count] = "0"
+    count += 1
     url: string = args[url_index]
-    result: PkgProcessResult = PkgCaptureEnv(args, "", names[:], values[:])
+    result: PkgProcessResult = PkgCaptureEnv(args, "", names[0:count], values[0:count])
     alternate: string = PkgAlternateURL(url)
     if result.code == 0 || alternate.count == 0 { return result }
     args[url_index] = alternate
-    retried: PkgProcessResult = PkgCaptureEnv(args, "", names[:], values[:])
+    retried: PkgProcessResult = PkgCaptureEnv(args, "", names[0:count], values[0:count])
     args[url_index] = url
     if retried.code == 0 { return retried }
     PkgShowToolFailure(result.text)
@@ -1038,6 +1040,16 @@ PkgApplyOverrideIdentities :: (root: string, overrides: *PkgOverrides,
     return true
 }
 
+// Names the package, where its manifest was read and what disagrees with the
+// lock, so a stale local override is not reported as a bare fetch failure.
+PkgLockMismatch :: (item: *PkgLocked, override: string, detail: string) -> bool {
+    source: string = PkgJoin("package cache ", item.path)
+    if override.count > 0 { source = PkgJoin("local override ", override) }
+    unused PkgFail(PkgJoin(PkgJoin3(item.name, PkgJoin3(" (", source, ") "), detail),
+        "; run `ziran lock` or commit the override"))
+    return false
+}
+
 PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     locked_mode: bool, current: *PkgManifest) -> bool {
     overrides: *PkgOverrides = PkgNewOverrides()
@@ -1123,19 +1135,37 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             index += 1
             continue
         }
-        if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"), *item.manifest) ||
-           item.manifest.name != item.name ||
-           item.manifest.dependency_count != item.edge_count { return false }
+        if !PkgParseManifest(PkgJoin(item.path, "/ziran.toml"), *item.manifest) {
+            return PkgLockMismatch(item, override, "has no readable ziran.toml")
+        }
+        if item.manifest.name != item.name {
+            return PkgLockMismatch(item, override,
+                PkgJoin3("declares package ", item.manifest.name,
+                    PkgJoin(", but ziran.lock records ", item.name)))
+        }
+        if item.manifest.dependency_count != item.edge_count {
+            return PkgLockMismatch(item, override, "declares a different number of dependencies than ziran.lock records")
+        }
         child: s32 = 0
         while child < item.manifest.dependency_count {
             dep: *PkgDependency = *item.manifest.dependencies[child]
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
-            if target < 0 || !PkgSameSource(locked.packages[target].url, dep.git) ||
+            if target < 0 {
+                return PkgLockMismatch(item, override,
+                    PkgJoin3("declares ", dep.alias, ", but ziran.lock has no pin for it"))
+            }
+            if !PkgSameSource(locked.packages[target].url, dep.git) ||
                 !PkgEdgeRefMatches(*locked.packages[target], dep.ref,
                     PkgEdgeValue(*item.refs[0], item.ref_count, dep.alias),
                     PkgSourceOverride(overrides, current, locked, dep.git, dep.alias, root)) ||
-                locked.packages[target].source != dep.source { return false }
+                locked.packages[target].source != dep.source {
+                return PkgLockMismatch(item, override,
+                    PkgJoin(PkgJoin(PkgJoin3("declares ", dep.alias, " "),
+                        PkgJoin3(dep.ref, " from ", dep.git)),
+                    PkgJoin(PkgJoin3(", but ziran.lock pins ", locked.packages[target].name, " "),
+                        PkgJoin3(locked.packages[target].commit, " from ", locked.packages[target].url))))
+            }
             child += 1
         }
         index += 1

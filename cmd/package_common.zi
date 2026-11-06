@@ -240,14 +240,41 @@ PkgRun :: (arguments: []string, cwd: string, names: []string,
     return code
 }
 
+// Git writes trace output to stderr, which captures share with stdout. Clear
+// every trace switch so an inherited GIT_TRACE cannot make a clean cache entry
+// look modified or garble a ref listing.
+PkgQuietGitEnv :: (names: []string, values: []string) -> s32 {
+    quiet: [12]string
+    quiet[0] = "GIT_TRACE"
+    quiet[1] = "GIT_TRACE2"
+    quiet[2] = "GIT_TRACE2_EVENT"
+    quiet[3] = "GIT_TRACE2_PERF"
+    quiet[4] = "GIT_TRACE_SETUP"
+    quiet[5] = "GIT_TRACE_PACKET"
+    quiet[6] = "GIT_TRACE_CURL"
+    quiet[7] = "GIT_TRACE_PERFORMANCE"
+    quiet[8] = "GIT_TRACE_PACK_ACCESS"
+    quiet[9] = "GIT_TRACE_SHALLOW"
+    quiet[10] = "GIT_TRACE_REFS"
+    quiet[11] = "GIT_CURL_VERBOSE"
+    index: s32 = 0
+    while index < 12 {
+        names[index] = quiet[index]
+        values[index] = ""
+        index += 1
+    }
+    return 12
+}
+
 PkgCaptureRaw :: (arguments: []string, cwd: string) -> PkgProcessResult {
     result: PkgProcessResult
-    names: [0]string
-    values: [0]string
+    names: [12]string
+    values: [12]string
+    count: s32 = PkgQuietGitEnv(names[:], values[:])
     memory: *u8 = PkgMallocRaw(1048576)
     if memory == null { result.code = -1; return result }
     output: []u8 = BytesFromPointer(memory, 1048576)
-    result.code = RunProcess(arguments, cwd, names[:], values[:], output)
+    result.code = RunProcess(arguments, cwd, names[0:count], values[0:count], output)
     result.text = TextFromCString(memory)
     return result
 }

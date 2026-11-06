@@ -13,7 +13,7 @@ result := Decode(BorrowBytes(bytes), options)
 // Check result.is_ok before using result.image, an owned std/image.Image.
 </code></pre>
 <p>From a consumer, add <code>https://github.com/ziranlang/avif.git</code> with <code>ziran add</code>.
-The manifest pins libavif, libaom and optional dav1d source packages, plus the
+The manifest pins libavif, dav1d (the default engine) and libaom (the oracle) source packages, plus the
 av1 package with the authored AV1 decoder. Local
 canonical checkout overrides belong in ignored <code>ziran.local.toml</code>. Production lockfiles resolve committed package and toolchain revisions.</p>
 <p>Run the package suite in this checkout:</p>
@@ -62,10 +62,14 @@ See <a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">i
 <div><code>RawRGB :: struct { width: u32; height: u32; depth: u32; format: s32; upsampling: s32; downsampling: s32; avoid_yuv: s32; ignore_alpha: s32; premultiplied: s32; float_pixels: s32; threads: s32; pixels: *u8; row_bytes: u32; }</code></div>
 <div><code>RawCrop :: struct { x: u32; y: u32; width: u32; height: u32; }</code><p>Explicit libavif codec choices. AUTO is never requested, so an unavailable</p></div>
 <div><code>CodecLibaom :: 1</code><p>Explicit libavif codec choices. AUTO is never requested, so an unavailable codec fails with UnsupportedCapability instead of silently switching.</p></div>
-<div><code>CodecDav1d :: 2</code><p>Smaller frames decode on one thread: starting decoder threads costs more</p></div>
-<div><code>THREADED_MIN_PIXELS :: 262144</code></div>
+<div><code>CodecDav1d :: 2</code><p>Automatic thread policy (`threads=0`), measured on the USB Moto (MT6765, 8x Cortex-A53) and an x86-64 host; receipt in Kryon docs/BACKENDS.md. dav1d's in-frame threads and libavif's YUV-&gt;RGB row split slowed small frames on the Moto by up to 2.7x. 4:4:4/4:2:2/4:0:0 frames gain from THREADED_MIN_PIXELS; 4:2:0 frames only from THREADED_MIN_PIXELS_420.</p></div>
+<div><code>AUTO_THREADS :: 4</code><p>Automatic thread policy (`threads=0`), measured on the USB Moto (MT6765, 8x Cortex-A53) and an x86-64 host; receipt in Kryon docs/BACKENDS.md. dav1d's in-frame threads and libavif's YUV-&gt;RGB row split slowed small frames on the Moto by up to 2.7x. 4:4:4/4:2:2/4:0:0 frames gain from THREADED_MIN_PIXELS; 4:2:0 frames only from THREADED_MIN_PIXELS_420. Both stages share the count, at most AUTO_THREADS usable cores.</p></div>
+<div><code>THREADED_MIN_PIXELS :: 2097152</code></div>
+<div><code>THREADED_MIN_PIXELS_420 :: 8388608</code></div>
+<div><code>PixelFormatYUV420 :: 3</code></div>
 <div><code>OnlineCores :: () -&gt; s32</code></div>
-<div><code>DecodeThreads :: (pixels: s64) -&gt; s32</code><p>Automatic native thread count for a source frame: one thread below THREADED_MIN_PIXELS, otherwise the usable cores capped at MAX_DECODE_THREADS.</p></div>
+<div><code>AutoThreads :: () -&gt; s32</code><p>Usable cores capped at AUTO_THREADS.</p></div>
+<div><code>DecodeThreads :: (pixels: s64, format: s32) -&gt; s32</code><p>Automatic thread count for a source frame of `format` (avifPixelFormat).</p></div>
 <div><code>AvifVersion :: #type () -&gt; *u8</code></div>
 <div><code>AvifCreate :: #type () -&gt; *RawDecoder</code></div>
 <div><code>AvifDestroy :: #type (decoder: *RawDecoder)</code></div>

@@ -426,6 +426,14 @@ layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
         *alignment = 8;
         return 1;
     }
+    /* A vector is laid out as its lane array, so any lane-aligned memory
+     * holds one; generated C reduces its native alignment to match. */
+    ZirVector vector;
+    if(VectorType(type, &vector)) {
+        *size = (size_t)vector.bytes;
+        *alignment = (size_t)vector.lane_bits / 8;
+        return 1;
+    }
     if(SliceElementType(type, element, sizeof(element))) {
         if(local_storage_error(module, type) != NULL)
             return 0;

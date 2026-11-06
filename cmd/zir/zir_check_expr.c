@@ -1790,6 +1790,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     case ZIR_EXPR_CALL: {
         char display_name[ZIR_NAME_MAX];
         copy_text(display_name, sizeof(display_name), e->name);
+        if(check_simd_call(c, index, &type))
+            break;
+        e = &c->fn->exprs[index];
         /* Jai's New(T) allocates a zeroed T and returns *T; free(p) releases
          * it. The checked call is zi_new (its type names T) or zi_free, so a
          * procedure of the program's own named New or free still wins. */
@@ -2718,6 +2721,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             e = &c->fn->exprs[index];
             break;
         }
+        if(VectorType(left, NULL) || VectorType(right, NULL)) {
+            error(c, e->span, "vectors use std/simd operations, such as Simd.Add or Simd.Equal", e->op);
+            break;
+        }
         if((operator_operand(c, left) || operator_operand(c, right)) &&
            OperatorProcedureName(e->op) != NULL &&
            strcmp(e->op, "==") && strcmp(e->op, "!=")) {
@@ -2802,6 +2809,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         break;
     }
     case ZIR_EXPR_UNARY:
+        if(strcmp(e->op, "&") && strcmp(e->op, "*") && VectorType(right, NULL)) {
+            error(c, e->span, "vectors use std/simd operations, such as Simd.Neg or Simd.Not", e->op);
+            break;
+        }
         if(strcmp(e->op, "+") && strcmp(e->op, "-") &&
            strcmp(e->op, "!") && strcmp(e->op, "~") &&
            strcmp(e->op, "&") && strcmp(e->op, "*"))

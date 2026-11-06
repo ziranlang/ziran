@@ -596,6 +596,16 @@ int TargetNameKnown(const char *target);
 int CheckTargetCapabilities(const ZirProgram *program, const char *target);
 int TargetProcedureTypeSupported(const char *target, int c_call);
 size_t ScalarByteWidth(const char *type);
+/* Fixed-width SIMD vector types such as u8x16 or f32x8; the spelling rules
+ * are in cmd/compiler_type.zi. Every string is static. */
+typedef struct ZirVector {
+    const char *name; /* canonical spelling */
+    const char *lane; /* u8, s8 ... s64, float32 or float64 */
+    int lanes, lane_bits, bytes, is_signed, is_float;
+} ZirVector;
+int VectorType(const char *type, ZirVector *vector);
+/* The vector with lane type `lane` and `lanes` lanes, or NULL. */
+const char *VectorTypeName(const char *lane, int lanes);
 int UnionScalarFields(const ZirModule *module, const ZirType *record);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);

@@ -15,6 +15,7 @@ extern "C" {
 typedef struct RecordField RecordField;
 typedef struct ElementType ElementType;
 typedef struct ForeignCall ForeignCall;
+typedef struct VectorShape VectorShape;
 
 struct RecordField {
     int32_t status;
@@ -37,6 +38,11 @@ struct ForeignCall {
     String receiver;
     String symbol;
 };
+
+struct VectorShape {
+    int32_t lanes;
+    String lane;
+};
 bool compiler_type_TargetKnown(String target);
 String compiler_type_ForeignTypeTarget(String foreign, bool is_map);
 bool compiler_type_ForeignImportSupported(String target, String foreign);
@@ -45,6 +51,7 @@ int32_t compiler_type_ScalarByteWidth(String type);
 RecordField compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace);
 ElementType compiler_type_SliceElement(String type);
 ElementType compiler_type_ArrayElement(String type);
+VectorShape compiler_type_VectorType(String name);
 bool compiler_type_BuiltinName(String name);
 bool compiler_type_BuiltinValueName(String name);
 bool compiler_type_MapPrimitive(String name);

@@ -129,8 +129,37 @@ ArrayElement :: (type: string) -> ElementType {
     return .{true, element, capacity}
 }
 
+// Fixed-width SIMD vectors spell their lane type and lane count, such as
+// u8x16 or f32x8, and hold 128 or 256 bits. Float lanes are float32 and
+// float64. An invalid spelling has zero lanes.
+VectorShape :: struct { lanes: s32; lane: string }
+
+VectorType :: (name: string) -> VectorShape {
+    if name.count < 5 || name.count > 6 { return .{} }
+    x := Find(name, #char "x", 2)
+    if x < 0 || x > 3 || x + 1 >= name.count || name[x + 1] == #char "0" { return .{} }
+    prefix := name[0:x]
+    lane := ""
+    bits: s64 = 0
+    if prefix == "u8" || prefix == "s8" { lane = prefix; bits = 8 }
+    else if prefix == "u16" || prefix == "s16" { lane = prefix; bits = 16 }
+    else if prefix == "u32" || prefix == "s32" { lane = prefix; bits = 32 }
+    else if prefix == "u64" || prefix == "s64" { lane = prefix; bits = 64 }
+    else if prefix == "f32" { lane = "float32"; bits = 32 }
+    else if prefix == "f64" { lane = "float64"; bits = 64 }
+    else { return .{} }
+    count: s64 = 0
+    for byte: name[x + 1:] {
+        if byte < #char "0" || byte > #char "9" { return .{} }
+        count = count * 10 + cast(s64)(byte - #char "0")
+    }
+    if count * bits != 128 && count * bits != 256 { return .{} }
+    return .{cast(s32) count, lane}
+}
+
 BuiltinName :: (name: string) -> bool {
     if name.count < 2 || name.count > 7 { return false }
+    if VectorType(name).lanes > 0 { return true }
     return name == "bool" || name == "void" || name == "s8" || name == "u8" ||
     name == "s16" || name == "u16" || name == "s32" || name == "u32" ||
     name == "s64" || name == "u64" || name == "isize" || name == "usize" ||
@@ -142,7 +171,7 @@ BuiltinName :: (name: string) -> bool {
 // void and compile-time-only names cannot be record field values.
 BuiltinValueName :: (name: string) -> bool {
     return name == "string" || name == "isize" || name == "usize" ||
-        ScalarByteWidth(name) > 0
+        ScalarByteWidth(name) > 0 || VectorType(name).lanes > 0
 }
 
 MapPrimitive :: (name: string) -> bool {

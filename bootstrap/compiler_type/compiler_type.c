@@ -236,26 +236,92 @@ compiler_type_ArrayElement(String type)
     return (ElementType){.valid = true, .element = element, .capacity = capacity};
 }
 
+VectorShape
+compiler_type_VectorType(String name)
+{
+    if ((int64_t)(name).length < 5LL || (int64_t)(name).length > 6LL) {
+        return (VectorShape){0};
+    }
+    int64_t x = compiler_type_Find(name, 120, 2LL);
+    if (x < 0LL || x > 3LL || (int64_t)((uint64_t)x + UINT64_C(1)) >= (int64_t)(name).length || (uint8_t)ZIRAN_INDEX(name.data, name.length, ((int64_t)((uint64_t)x + UINT64_C(1)))) == 48) {
+        return (VectorShape){0};
+    }
+    String prefix = StringRange(name, (int64_t)0LL, (int64_t)x);
+    String lane = StringLiteral("");
+    int64_t bits = 0LL;
+    if (StringEqual(prefix, StringLiteral("u8")) || StringEqual(prefix, StringLiteral("s8"))) {
+        lane = prefix;
+        bits = 8LL;
+    } else if (StringEqual(prefix, StringLiteral("u16")) || StringEqual(prefix, StringLiteral("s16"))) {
+        lane = prefix;
+        bits = 16LL;
+    } else if (StringEqual(prefix, StringLiteral("u32")) || StringEqual(prefix, StringLiteral("s32"))) {
+        lane = prefix;
+        bits = 32LL;
+    } else if (StringEqual(prefix, StringLiteral("u64")) || StringEqual(prefix, StringLiteral("s64"))) {
+        lane = prefix;
+        bits = 64LL;
+    } else if (StringEqual(prefix, StringLiteral("f32"))) {
+        lane = StringLiteral("float32");
+        bits = 32LL;
+    } else if (StringEqual(prefix, StringLiteral("f64"))) {
+        lane = StringLiteral("float64");
+        bits = 64LL;
+    } else {
+        return (VectorShape){0};
+    }
+    int64_t count = 0LL;
+    {
+        String value_0 = StringRange(name, (int64_t)((int64_t)((uint64_t)x + UINT64_C(1))), (int64_t)name.length);
+        String loop_view_38 = StringRange(value_0, (int64_t)0, (int64_t)value_0.length);
+        int64_t loop_count_38 = (int64_t)(loop_view_38).length;
+        int64_t loop_cursor_38 = 0LL;
+        while (loop_cursor_38 < loop_count_38) {
+            int64_t loop_index_38 = loop_cursor_38;
+            uint8_t byte = (uint8_t)loop_view_38.data[loop_index_38];
+            if (byte < 48 || byte > 57) {
+                return (VectorShape){0};
+            }
+            count = (int64_t)(((uint64_t)count * UINT64_C(10)) + (uint64_t)(((uint8_t)((uint32_t)byte - 48u))));
+            loop_cursor_38 = (int64_t)((uint64_t)loop_cursor_38 + UINT64_C(1));
+        }
+    }
+    if ((int64_t)((uint64_t)count * (uint64_t)bits) != 128LL && (int64_t)((uint64_t)count * (uint64_t)bits) != 256LL) {
+        return (VectorShape){0};
+    }
+    return (VectorShape){.lanes = (int32_t)(count), .lane = lane};
+}
+
 bool
 compiler_type_BuiltinName(String name)
 {
     if ((int64_t)(name).length < 2LL || (int64_t)(name).length > 7LL) {
         return false;
     }
-    bool value_0 = StringEqual(name, StringLiteral("bool")) || StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("s8"));
-    bool value_1 = value_0 || StringEqual(name, StringLiteral("u8")) || StringEqual(name, StringLiteral("s16")) || StringEqual(name, StringLiteral("u16"));
-    bool value_2 = value_1 || StringEqual(name, StringLiteral("s32")) || StringEqual(name, StringLiteral("u32")) || StringEqual(name, StringLiteral("s64"));
-    bool value_3 = value_2 || StringEqual(name, StringLiteral("u64")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
-    bool value_4 = value_3 || StringEqual(name, StringLiteral("float32")) || StringEqual(name, StringLiteral("float64"));
-    bool value_5 = value_4 || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("int")) || StringEqual(name, StringLiteral("float"));
-    return value_5 || StringEqual(name, StringLiteral("Type")) || StringEqual(name, StringLiteral("any"));
+    VectorShape value_0 = compiler_type_VectorType(name);
+    if (value_0.lanes > 0) {
+        return true;
+    }
+    bool value_1 = StringEqual(name, StringLiteral("bool")) || StringEqual(name, StringLiteral("void")) || StringEqual(name, StringLiteral("s8"));
+    bool value_2 = value_1 || StringEqual(name, StringLiteral("u8")) || StringEqual(name, StringLiteral("s16")) || StringEqual(name, StringLiteral("u16"));
+    bool value_3 = value_2 || StringEqual(name, StringLiteral("s32")) || StringEqual(name, StringLiteral("u32")) || StringEqual(name, StringLiteral("s64"));
+    bool value_4 = value_3 || StringEqual(name, StringLiteral("u64")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
+    bool value_5 = value_4 || StringEqual(name, StringLiteral("float32")) || StringEqual(name, StringLiteral("float64"));
+    bool value_6 = value_5 || StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("int")) || StringEqual(name, StringLiteral("float"));
+    return value_6 || StringEqual(name, StringLiteral("Type")) || StringEqual(name, StringLiteral("any"));
 }
 
 bool
 compiler_type_BuiltinValueName(String name)
 {
     bool value_0 = StringEqual(name, StringLiteral("string")) || StringEqual(name, StringLiteral("isize")) || StringEqual(name, StringLiteral("usize"));
-    return value_0 || compiler_type_ScalarByteWidth(name) > 0;
+    bool value_1 = value_0 || compiler_type_ScalarByteWidth(name) > 0;
+    bool value_2 = value_1;
+    if (!value_2) {
+        VectorShape value_3 = compiler_type_VectorType(name);
+        value_2 = (value_3.lanes > 0);
+    }
+    return value_2;
 }
 
 bool

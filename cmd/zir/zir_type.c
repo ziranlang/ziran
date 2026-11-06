@@ -272,6 +272,49 @@ int ArrayElementType(const char *type, char *element, size_t element_size, int *
     return 1;
 }
 
+static const char *const vector_names[] = {
+    "u8x16", "s8x16", "u16x8", "s16x8", "u32x4", "s32x4", "u64x2", "s64x2",
+    "f32x4", "f64x2", "u8x32", "s8x32", "u16x16", "s16x16", "u32x8", "s32x8",
+    "u64x4", "s64x4", "f32x8", "f64x4"
+};
+
+int VectorType(const char *type, ZirVector *vector)
+{
+    if(type == NULL || (type[0] != 'u' && type[0] != 's' && type[0] != 'f'))
+        return 0;
+    VectorShape shape = compiler_type_VectorType(type_text(type));
+    if(shape.lanes <= 0) return 0;
+    static const char *const lanes[] = {
+        "u8", "s8", "u16", "s16", "u32", "s32", "u64", "s64", "float32", "float64"
+    };
+    const char *lane = NULL;
+    for(size_t i = 0; i < sizeof(lanes) / sizeof(*lanes); i++)
+        if((size_t)shape.lane.length == strlen(lanes[i]) &&
+           !memcmp(shape.lane.data, lanes[i], (size_t)shape.lane.length))
+            lane = lanes[i];
+    const char *name = NULL;
+    for(size_t i = 0; i < sizeof(vector_names) / sizeof(*vector_names); i++)
+        if(!strcmp(type, vector_names[i])) name = vector_names[i];
+    if(lane == NULL || name == NULL) return 0;
+    if(vector != NULL) {
+        int bits = lane[0] == 'f' ? atoi(lane + 5) : atoi(lane + 1);
+        *vector = (ZirVector){.name = name, .lane = lane, .lanes = shape.lanes,
+            .lane_bits = bits, .bytes = shape.lanes * bits / 8,
+            .is_signed = lane[0] == 's', .is_float = lane[0] == 'f'};
+    }
+    return 1;
+}
+
+const char *VectorTypeName(const char *lane, int lanes)
+{
+    ZirVector vector;
+    for(size_t i = 0; i < sizeof(vector_names) / sizeof(*vector_names); i++)
+        if(VectorType(vector_names[i], &vector) && vector.lanes == lanes &&
+           lane != NULL && !strcmp(vector.lane, lane))
+            return vector.name;
+    return NULL;
+}
+
 int BuiltinTypeName(const char *name)
 {
     return compiler_type_BuiltinName(type_text(name));

@@ -924,10 +924,14 @@ name_private_defines(ZirModule *module)
         for(int d = 0; d < module->define_count; d++) {
             ZirDefine *definition = &module->defines[d];
             if(strcmp(SpanPath(definition->span), path)) continue;
-            if(!rewrite_private_reference(definition->value,
-                                          sizeof(definition->value),
-                                          definition->span, rename->original,
-                                          rename->internal)) goto failed;
+            size_t value_capacity;
+            char *value_edit = TextEditBegin(definition->value, &value_capacity);
+            int value_ok = rewrite_private_reference(value_edit, value_capacity,
+                                                     definition->span,
+                                                     rename->original,
+                                                     rename->internal);
+            definition->value = TextEditEnd(value_edit);
+            if(!value_ok) goto failed;
         }
         for(int t = 0; t < module->type_count; t++) {
             ZirType *type = &module->types[t];
@@ -1116,10 +1120,14 @@ name_private_types(ZirModule *module)
         for(int d = 0; d < module->define_count; d++) {
             ZirDefine *definition = &module->defines[d];
             if(strcmp(SpanPath(definition->span), path)) continue;
-            if(!rewrite_private_reference(definition->value,
-                                          sizeof(definition->value),
-                                          definition->span, rename->original,
-                                          rename->internal)) goto failed;
+            size_t value_capacity;
+            char *value_edit = TextEditBegin(definition->value, &value_capacity);
+            int value_ok = rewrite_private_reference(value_edit, value_capacity,
+                                                     definition->span,
+                                                     rename->original,
+                                                     rename->internal);
+            definition->value = TextEditEnd(value_edit);
+            if(!value_ok) goto failed;
         }
         for(int i = 0; i < module->import_count; i++) {
             ZirImport *import = &module->imports[i];

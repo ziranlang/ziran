@@ -208,8 +208,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         for(int i = 0; i < define_count; i++) {
             copy_text(consts.items[i].name,
                       sizeof(consts.items[i].name), defines[i]);
-            copy_text(consts.items[i].expr,
-                      sizeof(consts.items[i].expr), "1");
+            consts.items[i].expr = KeepText("1");
             consts.items[i].is_public = 1;
         }
     }
@@ -341,8 +340,8 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
              buffers->type_frames[type_frame_count - 1].active) &&
             (body_mcount == 0 || body_mactive[body_mcount - 1]);
         if(!from_queue && active_source && !compile_condition_line)
-            normalize_jai_source_tokens(buffers->line, buffers->rel, canonical,
-                                        physical_line_no);
+            normalize_jai_source_line(buffers->line, buffers->rel, canonical,
+                                      physical_line_no, in_string);
         snprintf(buffers->raw, sizeof(buffers->raw), "%s", buffers->line);
         {
             char *trimmed = trim(buffers->raw);
@@ -1457,8 +1456,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                            sizeof(consts.items[consts.count]));
                     snprintf(consts.items[consts.count].name,
                              sizeof(consts.items[0].name), "%s", cname);
-                    snprintf(consts.items[consts.count].expr,
-                             sizeof(consts.items[0].expr), "%s", expr);
+                    consts.items[consts.count].expr = KeepText(expr);
                     copy_text(consts.items[consts.count].path,
                               sizeof(consts.items[0].path), buffers->rel);
                     consts.items[consts.count].is_file_private = scope_file;

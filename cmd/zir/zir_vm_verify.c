@@ -380,8 +380,16 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
     }
     case ZIR_EXPR_STRING: {
         size_t length;
-        return strcmp(expression->type, "string") == 0 &&
-               DecodeStringLiteral(expression->text, buffers->bytes, sizeof(buffers->bytes), &length);
+        if(strcmp(expression->type, "string") != 0) return 0;
+        size_t capacity = strlen(expression->text) + 1;
+        if(capacity <= sizeof(buffers->bytes))
+            return DecodeStringLiteral(expression->text, buffers->bytes, sizeof(buffers->bytes), &length);
+        /* A long raw string decodes to fewer bytes than its text. */
+        unsigned char *bytes = malloc(capacity);
+        if(bytes == NULL) return 0;
+        int valid = DecodeStringLiteral(expression->text, bytes, capacity, &length);
+        free(bytes);
+        return valid;
     }
     case ZIR_EXPR_COMPILE_TIME:
         return strcmp(expression->type, "bool") == 0 &&

@@ -38,6 +38,7 @@ LexerNext(ZirLexer *lx)
     token.kind = (ZirTokenKind)scan.kind;
     token.span = Span(lx->path, scan.line, scan.column);
     size_t length = scan.end - scan.begin;
+    token.length = length;
     if(length >= sizeof(token.text)) {
         length = sizeof(token.text) - 1;
         token.truncated = 1;

@@ -298,7 +298,7 @@ eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
         const ZirDefine *source = &owner->defines[i];
         ZirConst *constant = &names.items[i];
         copy_text(constant->name, sizeof(constant->name), source->name);
-        copy_text(constant->expr, sizeof(constant->expr), source->value);
+        constant->expr = KeepText(source->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(source->span));
         constant->is_file_private = source->is_file_private;
@@ -1244,7 +1244,7 @@ evaluate_imported_typed_define(const ZirModule *module, const char *path,
         const ZirDefine *source = &owner->defines[i];
         ZirConst *constant = &names.items[i];
         copy_text(constant->name, sizeof(constant->name), source->name);
-        copy_text(constant->expr, sizeof(constant->expr), source->value);
+        constant->expr = KeepText(source->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(source->span));
         constant->is_file_private = source->is_file_private;

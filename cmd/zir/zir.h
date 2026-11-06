@@ -266,7 +266,7 @@ typedef struct ZirGlobal {
 /* A Ziran `Name :: value` constant emitted into generated target interfaces. */
 typedef struct ZirDefine {
     char name[ZIR_NAME_MAX];
-    char value[ZIR_TEXT_MAX];
+    const char *value; /* shared and immutable: assign KeepText(...); a raw #string table can exceed a line */
     int is_public; /* visible to importing modules */
     int is_file_private;
     int requires_open_enum; /* unresolved source alias, cleared by checking */
@@ -509,6 +509,9 @@ void copy_text(char *dst, size_t dst_size, const char *src);
 ZirSourceSpan Span(const char *path, int line, int column);
 int SourceFile(const char *path);
 const char *KeepText(const char *text);
+/* Edit kept text in place: take a copy with room to grow, change it, store it. */
+char *TextEditBegin(const char *text, size_t *capacity);
+const char *TextEditEnd(char *buffer);
 /* FindType and ResolveFunctionAt keep entry-scope answers until this is
  * called. Call it after changing anything they read outside ModuleAddType,
  * ModuleAddFunction, ModuleAddImport and ProgramAddModule: a module's types,

@@ -34,9 +34,11 @@ static void
 next(ExprParser *p)
 {
     p->token = LexerNext(&p->lexer);
-    if(p->token.truncated)
-        p->failed = 1;   /* a cut token cannot round-trip to source text */
-    p->begin = p->lexer.pos - strlen(p->token.text);
+    /* A cut token cannot round-trip to source text, except a long string
+     * literal, whose full text is read from the source. */
+    if(p->token.truncated && p->token.kind != ZIR_TOKEN_STRING)
+        p->failed = 1;
+    p->begin = p->lexer.pos - p->token.length;
 }
 
 static int
@@ -476,8 +478,10 @@ static int64_t expression_begin(void *context)
 
 static String expression_token(void *context)
 {
-    const char *text = ((ExprParser *)context)->token.text;
-    return StringView(text, strlen(text));
+    ExprParser *p = context;
+    if(p->token.truncated)
+        return StringView(p->lexer.src + p->begin, p->token.length);
+    return StringView(p->token.text, strlen(p->token.text));
 }
 
 static int32_t expression_prefix(void *context)

@@ -1306,6 +1306,27 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = 1;
         break;
     case ZIR_EXPR_STRING:
+        if(strlen(expr->text) >= sizeof(buffers->a) / 4) {
+            /* A long literal, such as a raw #string table, cannot travel in
+             * the fixed expression buffers: declare it as a constant and use
+             * its name. */
+            size_t capacity = strlen(expr->text) * 4 + 16;
+            char *literal = AllocateOrExit(capacity);
+            char name[ZIR_NAME_MAX];
+            EmitStringLiteral(expr, e->target, literal, capacity);
+            fresh(e, name);
+            if(e->target == ZIR_C) {
+                line(e, "static const char %s[] = %s;", name, literal);
+                format(buffers->result, sizeof(buffers->result),
+                       "StringLiteral(%s)", name);
+            } else {
+                line(e, "const %s = %s", name, literal);
+                copy_text(buffers->result, sizeof(buffers->result), name);
+            }
+            free(literal);
+            pure = 1;
+            break;
+        }
         EmitStringLiteral(expr, e->target, buffers->a, sizeof(buffers->a));
         if(e->target == ZIR_C)
             format(buffers->result, sizeof(buffers->result), "StringLiteral(%s)", buffers->a);

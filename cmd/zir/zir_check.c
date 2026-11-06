@@ -1239,7 +1239,7 @@ evaluate_global_startup_literal(const ZirModule *module, int before,
         if(collision) continue;
         ZirDefine *value = &values[count++];
         copy_text(value->name, sizeof(value->name), global->name);
-        copy_text(value->value, sizeof(value->value), global->init);
+        value->value = KeepText(global->init);
         value->is_public = !global->is_static;
         value->is_file_private = global->is_file_private;
         value->span = global->span;

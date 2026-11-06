@@ -83,8 +83,7 @@ add_visible_compile_defines(ZirModule *visible, const ZirModule *parsed,
         ZirDefine *definition = &visible->defines[visible->define_count++];
         copy_text(definition->name, sizeof(definition->name),
                   constant->name);
-        copy_text(definition->value, sizeof(definition->value),
-                  constant->expr);
+        definition->value = KeepText(constant->expr);
         definition->is_public = constant->is_public;
         definition->is_file_private = constant->is_file_private;
         definition->span = Span(constant->path, constant->source_line, 1);
@@ -352,7 +351,7 @@ find_unquoted_text(const char *source, const char *needle)
 }
 
 char *
-find_unquoted_word(char *source, const char *word)
+find_unquoted_word(const char *source, const char *word)
 {
     size_t length = strlen(word);
     for(char *at = find_unquoted_text(source, word); at != NULL;
@@ -664,32 +663,35 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         ZirDefine *definition = &module->defines[i];
         ZirConst *constant = &constants.items[i];
         copy_text(constant->name, sizeof(constant->name), definition->name);
-        copy_text(constant->expr, sizeof(constant->expr), definition->value);
+        constant->expr = KeepText(definition->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
     }
     for(int i = 0; i < module->define_count; i++) {
         ZirDefine *definition = &module->defines[i];
-        char before[ZIR_TEXT_MAX];
+        const char *before = definition->value;
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(definition->span));
         SymbolLookupsChanged();
-        copy_text(before, sizeof(before), definition->value);
-        if(find_unquoted_text(definition->value, "#ifx") != NULL)
-            lower_compile_ifx_value(definition->value,
-                                    sizeof(definition->value), module,
+        if(find_unquoted_text(definition->value, "#ifx") != NULL) {
+            size_t capacity;
+            char *edit = TextEditBegin(definition->value, &capacity);
+            lower_compile_ifx_value(edit, capacity, module,
                                     &constants, definition->span,
                                     allow_deferred);
+            definition->value = TextEditEnd(edit);
+        }
         if(!starts_word(definition->value, "#run") &&
            find_unquoted_text(definition->value, "#ifx") == NULL &&
-           find_unquoted_word(definition->value, "size_of") != NULL)
-            lower_size_of_value(definition->value,
-                                sizeof(definition->value), module,
-                                definition->span);
+           find_unquoted_word(definition->value, "size_of") != NULL) {
+            size_t capacity;
+            char *edit = TextEditBegin(definition->value, &capacity);
+            lower_size_of_value(edit, capacity, module, definition->span);
+            definition->value = TextEditEnd(edit);
+        }
         if(strcmp(before, definition->value) != 0) progress++;
-        copy_text(constants.items[i].expr,
-                  sizeof(constants.items[i].expr), definition->value);
+        constants.items[i].expr = KeepText(definition->value);
     }
     for(int i = 0; i < module->global_count; i++) {
         ZirGlobal *global = &module->globals[i];

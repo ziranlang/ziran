@@ -14,8 +14,9 @@ typedef struct NormalizeJaiSourceTokensBuffers {
     char directory[ZIR_PATH_MAX];
 } NormalizeJaiSourceTokensBuffers;
 
-void normalize_jai_source_tokens(char *line, const char *path,
-                            const char *physical_path, int line_no);
+int normalize_jai_source_line(char *line, const char *path,
+                              const char *physical_path, int line_no,
+                              int in_string);
 
 /* Set when a line used [..]T, so the module imports std/vec for Vec. */
 _Thread_local int ZirSourceUsesResizableArrays;
@@ -61,9 +62,10 @@ type_text_length(const char *text)
     return (size_t)(p - text);
 }
 
-static void
+static int
 normalize_jai_source_tokens_with_buffers(char *line, const char *path,
-                            const char *physical_path, int line_no, NormalizeJaiSourceTokensBuffers *buffers)
+                            const char *physical_path, int line_no, int in_string,
+                            NormalizeJaiSourceTokensBuffers *buffers)
 {
     static const struct { const char *jai, *internal; } names[] = {
         {"int", "s64"}, {"float", "float32"}
@@ -72,8 +74,10 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
         "i8", "i16", "i32", "i64", "f32", "f64", "double", NULL
     };
     size_t used = 0;
+    /* A line can begin inside a string an earlier line opened. */
+    char quote = in_string ? '"' : '\0';
     for(const char *p = line; *p; ) {
-        if(*p == '/' && p[1] == '/') {
+        if(quote == '\0' && *p == '/' && p[1] == '/') {
             size_t remaining = strlen(p);
             if(used + remaining >= sizeof(buffers->normalized))
                 die_at(Span(path, line_no, 1), "source line exceeds size limit");
@@ -81,11 +85,13 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
             used += remaining;
             break;
         }
-        if(*p == '"' || *p == '\'') {
-            char quote = *p;
-            if(used + 1 >= sizeof(buffers->normalized))
-                die_at(Span(path, line_no, 1), "source line exceeds size limit");
-            buffers->normalized[used++] = *p++;
+        if(quote != '\0' || *p == '"' || *p == '\'') {
+            if(quote == '\0') {
+                quote = *p;
+                if(used + 1 >= sizeof(buffers->normalized))
+                    die_at(Span(path, line_no, 1), "source line exceeds size limit");
+                buffers->normalized[used++] = *p++;
+            }
             while(*p) {
                 char next = *p++;
                 if(used + 1 >= sizeof(buffers->normalized))
@@ -96,6 +102,7 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
                         die_at(Span(path, line_no, 1), "source line exceeds size limit");
                     buffers->normalized[used++] = *p++;
                 } else if(next == quote) {
+                    quote = '\0';
                     break;
                 }
             }
@@ -250,18 +257,22 @@ normalize_jai_source_tokens_with_buffers(char *line, const char *path,
     }
     buffers->normalized[used] = '\0';
     copy_text(line, SOURCE_LINE_MAX, buffers->normalized);
+    return quote == '"';
 }
 
 /* Canonicalize Jai's scalar aliases and source-position expressions before
- * parsing declarations. Quoted text and comments are left intact. */
-void
-normalize_jai_source_tokens(char *line, const char *path,
-                            const char *physical_path, int line_no)
+ * parsing declarations. Quoted text and comments are left intact, including
+ * the rest of a string that IN_STRING says an earlier line opened. Returns
+ * whether the line ends inside a string. */
+int
+normalize_jai_source_line(char *line, const char *path,
+                          const char *physical_path, int line_no, int in_string)
 {
     /* `operator + :: (a: V, b: V) -> V` declares the procedure operator_add;
      * several such declarations are overloads of it. */
     char *start = (char *)skip_inline_ws(line);
-    if(strncmp(start, "operator", 8) == 0 && !is_ident_char((unsigned char)start[8])) {
+    if(!in_string && strncmp(start, "operator", 8) == 0 &&
+       !is_ident_char((unsigned char)start[8])) {
         const char *op = skip_inline_ws(start + 8);
         size_t length = OperatorTokenLength(op);
         const char *after = skip_inline_ws(op + length);
@@ -291,9 +302,18 @@ normalize_jai_source_tokens(char *line, const char *path,
         &scratch_key, free);
     NormalizeJaiSourceTokensBuffers *buffers = !CompilerMemoryRecovering() ? CompilerScratchTake(scratch_hint) : NULL;
     if(!buffers) buffers = AllocateOrExit(sizeof(*buffers));
-    normalize_jai_source_tokens_with_buffers(line, path, physical_path, line_no, buffers);
+    int open = normalize_jai_source_tokens_with_buffers(line, path, physical_path,
+                                                        line_no, in_string, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers))
         free(buffers);
+    return open;
+}
+
+void
+normalize_jai_source_tokens(char *line, const char *path,
+                            const char *physical_path, int line_no)
+{
+    (void)normalize_jai_source_line(line, path, physical_path, line_no, 0);
 }
 
 /* File and embedded declarations share the complete frontend. A line that
@@ -355,6 +375,7 @@ discover_named_type_with_buffers(const char *source, const char *path, const cha
     size_t normalized_length = 0;
     int physical_line = line_no;
     if(contains_source_directive(source, "#if")) return;
+    int in_string = 0;
     for(const char *cursor = source; *cursor;) {
         const char *end = strchr(cursor, '\n');
         size_t length = end == NULL ? strlen(cursor) :
@@ -362,7 +383,8 @@ discover_named_type_with_buffers(const char *source, const char *path, const cha
         if(length >= sizeof(buffers->line)) return;
         memcpy(buffers->line, cursor, length);
         buffers->line[length] = '\0';
-        normalize_jai_source_tokens(buffers->line, rel, path, physical_line++);
+        in_string = normalize_jai_source_line(buffers->line, rel, path,
+                                              physical_line++, in_string);
         length = strlen(buffers->line);
         if(normalized_length + length + 2 >= sizeof(buffers->normalized)) return;
         memcpy(buffers->normalized + normalized_length, buffers->line, length);
@@ -1089,9 +1111,12 @@ discover_file_scope_with_buffers(const char *source, const char *path, const cha
                             memset(constant, 0, sizeof(*constant));
                             copy_text(constant->name, sizeof(constant->name),
                                       name);
-                            memcpy(constant->expr, expr, value_length);
-                            constant->expr[value_length] = '\0';
-                            trim_in_place(constant->expr);
+                            char *expr_text = AllocateOrExit(value_length + 1);
+                            memcpy(expr_text, expr, value_length);
+                            expr_text[value_length] = '\0';
+                            trim_in_place(expr_text);
+                            constant->expr = KeepText(expr_text);
+                            free(expr_text);
                             copy_text(constant->path, sizeof(constant->path),
                                       rel);
                             constant->is_file_private = scope_file;

@@ -59,7 +59,7 @@ typedef struct SourceBuffer {
 
 typedef struct {
     char name[ZIR_NAME_MAX];
-    char expr[ZIR_TEXT_MAX];
+    const char *expr; /* kept text: a raw #string table can exceed a line */
     char type[ZIR_NAME_MAX]; /* active evaluator local; empty for file constants */
     char path[SOURCE_PATH_MAX];
     int is_file_private;
@@ -328,7 +328,7 @@ ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseCont
 void free_visible_compile_module(ZirModule *visible);
 int select_compile_condition(ZirModule *module, const ZirConsts *consts, const char *source, ZirSourceSpan span, const CompileParseContext *context, const char *source_path, int *deferred);
 char *find_unquoted_text(const char *source, const char *needle);
-char *find_unquoted_word(char *source, const char *word);
+char *find_unquoted_word(const char *source, const char *word);
 int lower_compile_ifx_value(char *value, size_t capacity, const ZirModule *module, const ZirConsts *consts, ZirSourceSpan span, int allow_deferred);
 int lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module, const ZirConsts *consts, int allow_deferred);
 void lower_size_of_value(char *value, size_t capacity, const ZirModule *module, ZirSourceSpan span);
@@ -337,6 +337,7 @@ int cond_top_step(char *line, ZirCondFrame *frames, int *count, ZirModule *modul
 void cond_frame_settle(ZirCondFrame *frames, int count);
 void strip_block_comments(char *s, int *comment_depth);
 void normalize_jai_source_tokens(char *line, const char *path, const char *physical_path, int line_no);
+int normalize_jai_source_line(char *line, const char *path, const char *physical_path, int line_no, int in_string);
 char *read_source_line(char *line, size_t size, const char **source, const char *path, int line_no);
 void free_deferred_types(ZirDeferredTypes *deferred);
 void free_discovered_files(ZirDiscoveredFiles *files);

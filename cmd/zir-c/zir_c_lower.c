@@ -909,7 +909,7 @@ typedef struct LowerModuleBuffers {
     char cpath[1024];
     char htemp[1100];
     char ctemp[1100];
-    char value[LOWER_TEXT_MAX];
+    char value[LOWER_GLOBAL_MAX];
     char raw[LOWER_TEXT_MAX];
     char member[LOWER_TEXT_MAX];
     char mapped[LOWER_TEXT_MAX];

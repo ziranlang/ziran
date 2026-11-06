@@ -21,6 +21,7 @@ typedef enum ZirTokenKind {
 typedef struct ZirToken {
     ZirTokenKind kind;
     int truncated;   /* token text exceeded the buffer and was cut */
+    size_t length;   /* full length in the source, even when cut */
     char text[ZIR_TEXT_MAX];
     ZirSourceSpan span;
 } ZirToken;

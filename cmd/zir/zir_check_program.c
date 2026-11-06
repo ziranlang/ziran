@@ -81,12 +81,14 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         return 0;
                     }
                 }
-                if(!lower_file_record_using(module, definition->value,
-                         sizeof(definition->value),
-                         definition->span) ||
-                   !LowerFileScopeUsing(module, definition->value,
-                         sizeof(definition->value),
-                         definition->span)) return 0;
+                size_t value_capacity;
+                char *value_edit = TextEditBegin(definition->value, &value_capacity);
+                int value_ok = lower_file_record_using(module, value_edit,
+                         value_capacity, definition->span) &&
+                   LowerFileScopeUsing(module, value_edit,
+                         value_capacity, definition->span);
+                definition->value = TextEditEnd(value_edit);
+                if(!value_ok) return 0;
                 definition->requires_open_enum = 0;
             }
             for(int a = 0; a < module->assert_count; a++)
@@ -138,15 +140,15 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     const char *expression = skip_ws(definition->value + 4);
                     if(EvaluateCompileExpression(module, expression,
                                                  definition->span, 1, &value)) {
-                        snprintf(definition->value,
-                                 sizeof(definition->value), "%" PRId64, value);
+                        char digits[32];
+                        snprintf(digits, sizeof(digits), "%" PRId64, value);
+                        definition->value = KeepText(digits);
                     } else {
                         if(!EvaluateCompileLiteral(module, expression,
                                                    definition->span, 1, buffers->literal,
                                                    sizeof(buffers->literal), NULL))
                             continue;
-                        copy_text(definition->value,
-                                  sizeof(definition->value), buffers->literal);
+                        definition->value = KeepText(buffers->literal);
                     }
                     progress++;
                 }

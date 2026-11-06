@@ -85,9 +85,9 @@ static void statements(void)
     FunctionAddStmt(&function, ZIR_STMT_RETURN, long_statement, span);
     StructureFunction(&function, NULL);
     assert(function.stmts[0].expr_root >= 0);
-    /* Oversized individual tokens are explicitly unknown, never truncated. */
-    assert(function.exprs[function.stmts[0].expr_root].kind == ZIR_EXPR_UNKNOWN);
-    assert(strlen(function.exprs[function.stmts[0].expr_root].text) == length + 4);
+    /* A string token beyond the token buffer is read from the source whole. */
+    assert(function.exprs[function.stmts[0].expr_root].kind == ZIR_EXPR_STRING);
+    assert(strlen(function.exprs[function.stmts[0].expr_root].text) == length + 2);
     free(long_statement);
     free(function.stmts);
     free(function.exprs);

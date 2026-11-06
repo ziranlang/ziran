@@ -1366,6 +1366,24 @@ ModuleAddStatic(ZirModule *module, const char *name, const char *type,
         module->globals[module->global_count - 1].is_static = 1;
 }
 
+char *
+TextEditBegin(const char *text, size_t *capacity)
+{
+    size_t length = strlen(text);
+    char *buffer = AllocateOrExit(length + ZIR_TEXT_MAX);
+    memcpy(buffer, text, length + 1);
+    *capacity = length + ZIR_TEXT_MAX;
+    return buffer;
+}
+
+const char *
+TextEditEnd(char *buffer)
+{
+    const char *kept = KeepText(buffer);
+    free(buffer);
+    return kept;
+}
+
 ZirDefine *
 ModuleAddDefine(ZirModule *module, const char *name, const char *value,
                    ZirSourceSpan span)
@@ -1383,7 +1401,7 @@ ModuleAddDefine(ZirModule *module, const char *name, const char *value,
     d = &module->defines[module->define_count++];
     memset(d, 0, sizeof(*d));
     copy_text(d->name, sizeof(d->name), name);
-    copy_text(d->value, sizeof(d->value), value);
+    d->value = KeepText(value);
     d->is_public = 1;
     d->span = span;
     return d;

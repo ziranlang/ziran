@@ -201,3 +201,48 @@ grep -Eq 'long_line\.zi:3:[0-9]+: source line exceeds 4095 characters' \
     cat "$work/long_line.err" >&2
     exit 1
 }
+
+# A raw table longer than a statement buffer works as an ordinary constant in
+# statements on every target, and keeps all of its bytes.
+awk 'BEGIN {
+    print "Table :: #string END"
+    for (n = 0; n < 3; n++) { for (i = 0; i < 2000; i++) printf "%c", 97 + (i % 26); print "" }
+    print "END;"
+    print "Take :: (value: string) -> s32 { return cast(s32)value.count }"
+    print "#program_export"
+    print "Answer :: () -> s32 {"
+    print "    if Table.count != 6003 || Take(Table) != 6003 { return 0 }"
+    print "    if Table[0] != #char \"a\" || Table[1999] != #char \"x\" { return 0 }"
+    print "    if Table[2000] != #char \"\\n\" || Table[6002] != #char \"\\n\" { return 0 }"
+    print "    return 42"
+    print "}"
+}' > "$work/long_table.zi"
+"$ziran" ir --root "$work" -o "$work/long_table_ir" "$work/long_table.zi"
+"$ziran" bundle --root "$work" --entry long_table:Answer \
+    -o "$work/long_table.zx" "$work/long_table.zi"
+"$ziran" bundle --root "$work/long_table_ir" --entry long_table:Answer \
+    -o "$work/long_table_ir.zx" "$work/long_table_ir/long_table.zir"
+cmp "$work/long_table.zx" "$work/long_table_ir.zx"
+test "$("$ziran" run "$work/long_table.zx")" = 42
+for input in source ir; do
+    if test "$input" = source; then
+        filename="$work/long_table.zi"
+    else
+        filename="$work/long_table_ir/long_table.zir"
+    fi
+    "$ziran" build --target=c --root "$work" -o "$work/long-c-$input" "$filename"
+    cat > "$work/long-c-$input/main.c" <<'C'
+#include "long_table.h"
+int main(void) { return Answer() == 42 ? 0 : 1; }
+C
+    ${CC:-cc} -Iinclude -I"$work/long-c-$input" "$work/long-c-$input/long_table.c" \
+        "$work/long-c-$input/main.c" -o "$work/long-c-$input/app"
+    "$work/long-c-$input/app"
+    "$ziran" build --target=go --pkg main --root "$work" \
+        -o "$work/long-go-$input" "$filename"
+    cat > "$work/long-go-$input/main.go" <<'GO'
+package main
+func main() { if LongTable_Answer() != 42 { panic("long table") } }
+GO
+    GO111MODULE=off go run "$work/long-go-$input/long_table.go" "$work/long-go-$input/main.go"
+done

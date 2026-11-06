@@ -431,7 +431,7 @@ integer_constant(const ZirModule *module, const char *name, int64_t *value)
  * macro spelling must not become a backend dependency in saved .zir or .zx. */
 int
 bound_string_constant(const ZirModule *module, const char *name, int depth,
-                      char *literal, size_t size)
+                      const char **literal)
 {
     if(depth > 128)
         return -1;
@@ -446,11 +446,12 @@ bound_string_constant(const ZirModule *module, const char *name, int depth,
     if(index < 0)
         status = -1;
     else if(expression.exprs[index].kind == ZIR_EXPR_STRING) {
-        copy_text(literal, size, expression.exprs[index].text);
+        /* Kept text has no length cap: a raw #string table may exceed a line. */
+        *literal = KeepText(expression.exprs[index].text);
         status = 1;
     } else if(expression.exprs[index].kind == ZIR_EXPR_IDENT) {
         status = bound_string_constant(owner, expression.exprs[index].name,
-                                       depth + 1, literal, size);
+                                       depth + 1, literal);
     }
     free(expression.exprs);
     return status;

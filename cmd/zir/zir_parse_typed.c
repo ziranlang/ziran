@@ -32,6 +32,16 @@ enum_member_text(const ZirModule *module, const char *type, int64_t value,
     return 0;
 }
 
+/* Replace a constant's text with its enum member spelling when it has one. */
+static void
+enum_member_expr(const ZirModule *module, const char *type, int64_t value,
+                 const char **expr)
+{
+    char text[ZIR_TEXT_MAX];
+    if(enum_member_text(module, type, value, text, sizeof(text)))
+        *expr = KeepText(text);
+}
+
 static int evaluate_typed_function(const ZirModule *module, const char *name, ZirSourceSpan call_span, CompileValue *arguments, char argument_names[][ZIR_NAME_MAX], int argument_count, int depth, int *fuel, CompileValue *result);
 static int canonical_compound(const ZirModule *module, CompileValue *value);
 /* Buffers evaluate_typed_node keeps on the heap so deep nesting fits the stack;
@@ -744,11 +754,12 @@ typed_add_local(TypedBody *body, const char *name, const char *type,
             (size_t)body->names.count * sizeof(*body->names.items));
     ZirConst *local = &body->names.items[0];
     memset(local, 0, sizeof(*local));
+    local->expr = "";
     copy_text(local->name, sizeof(local->name), name);
     copy_text(local->type, sizeof(local->type), type);
     copy_text(local->path, sizeof(local->path), SpanPath(body->fn->span));
     if(value != NULL)
-        copy_text(local->expr, sizeof(local->expr), value->literal);
+        local->expr = KeepText(value->literal);
     body->names.count++;
     body->local_count++;
     return 1;
@@ -1224,9 +1235,7 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                                             buffers->combined,
                                             sizeof(buffers->combined)))
                         goto failed;
-                    copy_text(body->names.items[target].expr,
-                              sizeof(body->names.items[target].expr),
-                              buffers->combined);
+                    body->names.items[target].expr = KeepText(buffers->combined);
                     continue;
                 }
             }
@@ -1269,9 +1278,7 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                                        value.literal, buffers->combined,
                                        sizeof(buffers->combined), 0))
                         goto failed;
-                    copy_text(body->names.items[target].expr,
-                              sizeof(body->names.items[target].expr),
-                              buffers->combined);
+                    body->names.items[target].expr = KeepText(buffers->combined);
                     continue;
                 }
             }
@@ -1288,8 +1295,7 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             } else if(!typed_body_expression(body, equals, &value)) goto failed;
             if(!compile_type_value(body->names.items[local].type,
                                    &value)) goto failed;
-            copy_text(body->names.items[local].expr,
-                      sizeof(body->names.items[local].expr), value.literal);
+            body->names.items[local].expr = KeepText(value.literal);
             continue;
         }
         if(statement->kind == ZIR_STMT_EXPR) {
@@ -1439,11 +1445,10 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         memset(binding, 0, sizeof(*binding));
         copy_text(binding->name, sizeof(binding->name), part);
         copy_text(binding->type, sizeof(binding->type), type);
-        copy_text(binding->expr, sizeof(binding->expr),
-                  buffers->ordered[i].literal);
+        binding->expr = KeepText(buffers->ordered[i].literal);
         if(buffers->ordered[i].kind == COMPILE_INTEGER)
-            enum_member_text(owner, type, buffers->ordered[i].integer,
-                             binding->expr, sizeof(binding->expr));
+            enum_member_expr(owner, type, buffers->ordered[i].integer,
+                             &binding->expr);
         copy_text(binding->path, sizeof(binding->path), SpanPath(fn->span));
         body.names.count++;
     }
@@ -1454,8 +1459,7 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         memset(constant, 0, sizeof(*constant));
         copy_text(constant->name, sizeof(constant->name),
                   definition->name);
-        copy_text(constant->expr, sizeof(constant->expr),
-                  definition->value);
+        constant->expr = KeepText(definition->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
@@ -1557,8 +1561,7 @@ EvaluateCompileExpression(const ZirModule *module, const char *source,
             ZirConst *constant = &constants.items[i];
             copy_text(constant->name, sizeof(constant->name),
                       definition->name);
-            copy_text(constant->expr, sizeof(constant->expr),
-                      definition->value);
+            constant->expr = KeepText(definition->value);
             copy_text(constant->path, sizeof(constant->path),
                       SpanPath(definition->span));
             constant->is_file_private = definition->is_file_private;
@@ -1595,8 +1598,7 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
         ZirConst *constant = &constants.items[i];
         copy_text(constant->name, sizeof(constant->name),
                   definition->name);
-        copy_text(constant->expr, sizeof(constant->expr),
-                  definition->value);
+        constant->expr = KeepText(definition->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
@@ -1639,7 +1641,7 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
         const ZirDefine *definition = &module->defines[i];
         ZirConst *constant = &constants.items[i];
         copy_text(constant->name, sizeof(constant->name), definition->name);
-        copy_text(constant->expr, sizeof(constant->expr), definition->value);
+        constant->expr = KeepText(definition->value);
         copy_text(constant->path, sizeof(constant->path),
                   SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
@@ -1649,12 +1651,13 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
         copy_text(constant->name, sizeof(constant->name), names[i]);
         copy_text(constant->type, sizeof(constant->type),
                   types[i][0] ? types[i] : "s64");
-        snprintf(constant->expr, sizeof(constant->expr), "%" PRId64, values[i]);
+        char digits[32];
+        snprintf(digits, sizeof(digits), "%" PRId64, values[i]);
+        constant->expr = KeepText(digits);
         if(exprs[i][0])
-            copy_text(constant->expr, sizeof(constant->expr), exprs[i]);
+            constant->expr = KeepText(exprs[i]);
         else
-            enum_member_text(module, types[i], values[i], constant->expr,
-                             sizeof(constant->expr));
+            enum_member_expr(module, types[i], values[i], &constant->expr);
         copy_text(constant->path, sizeof(constant->path), SpanPath(span));
     }
     int prior = ZirLawEvaluation;

@@ -15,7 +15,8 @@
   new local, and the VM no longer steps the shadow instead of the loop.
 - Generated C leaves out bounds checks it proves always pass, such as
   `t[i]` in `for i: 0..7` over a `[8]T` array, `view[i]` in
-  `for i: 0..view.count-1` and `table[x & 255]`.
+  `for i: 0..view.count-1`, `table[x & 255]`, and `bytes[at]` after
+  `line := row * 16` and `at := line + (offset & 15)`.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

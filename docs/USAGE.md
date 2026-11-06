@@ -282,7 +282,11 @@ Indexing stays checked in every build, but generated C leaves out a check
 it can prove always passes: a loop counter its condition bounds, such as `i` in
 `for i: 0..7` over a `[8]T` array or in `for i: 0..view.count-1` over a
 slice or string nothing reassigns, and values bounded by their type or by
-`&`, `%` or `>>`, such as `table[x & 255]` or `bytes[b]` for a `u8` `b` and 256-entry arrays. An
+`&`, `%` or `>>`, such as `table[x & 255]` or `bytes[b]` for a `u8` `b` and 256-entry arrays.
+Locals built from such values keep their ranges: after `line := row * 16`
+and `at := line + (offset & 15)` for `row` in `0..15`, `bytes[at]` over a
+256-entry array needs no check, and a counter declared without a value
+starts at zero. An
 index whose variable has its address taken or is changed before the read keeps
 its check. Run `sh tests/proven_index_ranges.sh build/bin/ziran`.
 

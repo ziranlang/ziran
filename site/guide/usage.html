@@ -249,7 +249,11 @@ Run <code>sh tests/array_result_in_place.sh build/bin/ziran</code>.</p>
 it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
 <code>for i: 0..7</code> over a <code>[8]T</code> array or in <code>for i: 0..view.count-1</code> over a
 slice or string nothing reassigns, and values bounded by their type or by
-<code>&amp;</code>, <code>%</code> or <code>&gt;&gt;</code>, such as <code>table[x &amp; 255]</code> or <code>bytes[b]</code> for a <code>u8</code> <code>b</code> and 256-entry arrays. An
+<code>&amp;</code>, <code>%</code> or <code>&gt;&gt;</code>, such as <code>table[x &amp; 255]</code> or <code>bytes[b]</code> for a <code>u8</code> <code>b</code> and 256-entry arrays.
+Locals built from such values keep their ranges: after <code>line := row * 16</code>
+and <code>at := line + (offset &amp; 15)</code> for <code>row</code> in <code>0..15</code>, <code>bytes[at]</code> over a
+256-entry array needs no check, and a counter declared without a value
+starts at zero. An
 index whose variable has its address taken or is changed before the read keeps
 its check. Run <code>sh tests/proven_index_ranges.sh build/bin/ziran</code>.</p>
 <p>Generated C keeps Ziran's integer rules: a zero divisor or a shift count

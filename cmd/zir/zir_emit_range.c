@@ -12,11 +12,13 @@
  * - inside a while body, before the body writes the counter again, the
  *   counter still satisfies the loop condition, such as i <= 7 or
  *   i < view.count, and it never goes below its smallest stored value when
- *   it only grows by constants within that loop.
+ *   it only grows by constants within that loop;
+ * - a declaration without a value starts at zero, and a chain of locals
+ *   such as line := row * 16 and at := line + offset carries its ranges.
  *
  * Anything else keeps its check, so a program aborts exactly where it did. */
 
-enum { RANGE_DEPTH = 8, RANGE_BUDGET = 4096 };
+enum { RANGE_DEPTH = 8, RANGE_BUDGET = 4096, RANGE_HOPS = 48 };
 
 typedef struct RangeFacts {
     const ZirFunction *fn;
@@ -33,6 +35,11 @@ typedef struct RangeFacts {
     int *increment_loop; /* while holding every += write, -1 none, -2 mixed */
     int64_t *step_total;
     const char **binding_type;
+    unsigned char *computing; /* per binding: its own value is being worked out */
+    int hops;            /* bindings being worked out, innermost question last */
+    /* Answers by binding and statement. */
+    struct RangeMemo *memo;
+    unsigned memo_mask, memo_count;
     /* Steps left for the current question; a long chain of bindings
      * stops being followed instead of taking exponential time. */
     int budget;
@@ -42,6 +49,11 @@ typedef struct RangeFacts {
 typedef struct Range {
     int64_t low, high;
 } Range;
+
+typedef struct RangeMemo {
+    int64_t key; /* binding * (statements + 2) + statement + 2, 0 when empty */
+    Range range;
+} RangeMemo;
 
 static int expr_range(const RangeFacts *f, int index, int depth, Range *out);
 
@@ -140,6 +152,8 @@ RangeFactsFree(RangeFacts *f)
     free(f->increment_loop);
     free(f->step_total);
     free(f->binding_type);
+    free(f->computing);
+    free(f->memo);
     free(f);
 }
 
@@ -247,6 +261,7 @@ RangeFactsBuild(const ZirFunction *fn)
     f->increment_loop = malloc((size_t)bindings * sizeof(int));
     f->step_total = calloc((size_t)bindings, sizeof(int64_t));
     f->binding_type = calloc((size_t)bindings, sizeof(char *));
+    f->computing = calloc((size_t)bindings, 1);
     while(mask < (unsigned)bindings * 2u && mask < (1u << 30))
         mask <<= 1;
     heads = malloc((size_t)mask * sizeof(int));
@@ -258,7 +273,7 @@ RangeFactsBuild(const ZirFunction *fn)
     if(!f->statement_of || !f->binding_of || !f->block_end || !f->loop_of ||
        !f->next_write || !f->unknown || !f->first_write || !f->last_write ||
        !f->increment_loop || !f->step_total || !f->binding_type || !scope || !opens ||
-       !heads || !walk.pending) {
+       !heads || !walk.pending || !f->computing) {
         free(heads);
         free(scope);
         free(opens);
@@ -485,8 +500,78 @@ unchanged_since_condition(const RangeFacts *f, int binding, int loop, int at)
     return 1;
 }
 
+static RangeMemo *
+memo_slot(const RangeFacts *f, int64_t key)
+{
+    unsigned i;
+    if(f->memo == NULL)
+        return NULL;
+    for(i = (unsigned)((uint64_t)key * UINT64_C(0x9e3779b97f4a7c15) >> 40) & f->memo_mask;
+        f->memo[i].key != 0 && f->memo[i].key != key; i = (i + 1) & f->memo_mask) {
+    }
+    return &f->memo[i];
+}
+
+static void
+memo_store(const RangeFacts *f, int64_t key, Range range)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    RangeMemo *slot;
+    if(g->memo == NULL || (g->memo_count + 1) * 2 > g->memo_mask + 1) {
+        unsigned size = g->memo == NULL ? 1024 : (g->memo_mask + 1) * 2;
+        RangeMemo *old = g->memo, *grown = calloc(size, sizeof(*grown));
+        unsigned old_size = old == NULL ? 0 : g->memo_mask + 1;
+        if(grown == NULL)
+            return;
+        g->memo = grown;
+        g->memo_mask = size - 1;
+        g->memo_count = 0;
+        for(unsigned i = 0; i < old_size; i++)
+            if(old[i].key != 0) {
+                *memo_slot(g, old[i].key) = old[i];
+                g->memo_count++;
+            }
+        free(old);
+    }
+    slot = memo_slot(g, key);
+    if(slot->key == 0)
+        g->memo_count++;
+    slot->key = key;
+    slot->range = range;
+}
+
+static int binding_base_range(const RangeFacts *f, int binding, int at, int depth, Range *out);
+
+/* Binding's value at statement at. Each binding followed starts its own
+ * expression depth; a binding already being worked out, or a chain longer
+ * than RANGE_HOPS, answers with its type's range. */
 static int
 binding_range(const RangeFacts *f, int binding, int at, int depth, Range *out)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    int64_t key = (int64_t)binding * (f->statements + 2) + at + 2;
+    RangeMemo *slot = memo_slot(f, key);
+    int ok;
+    (void)depth;
+    if(slot != NULL && slot->key == key) {
+        *out = slot->range;
+        return 1;
+    }
+    if(f->computing[binding] || f->hops >= RANGE_HOPS)
+        return type_range(f->binding_type[binding], out);
+    g->computing[binding] = 1;
+    g->hops++;
+    ok = binding_base_range(f, binding, at, 0, out);
+    g->hops--;
+    g->computing[binding] = 0;
+    /* A question cut short keeps a sound but wider answer; ask it again. */
+    if(ok && f->budget >= 0)
+        memo_store(f, key, *out);
+    return ok;
+}
+
+static int
+binding_base_range(const RangeFacts *f, int binding, int at, int depth, Range *out)
 {
     const ZirFunction *fn = f->fn;
     const char *type = f->binding_type[binding];
@@ -499,8 +584,10 @@ binding_range(const RangeFacts *f, int binding, int at, int depth, Range *out)
     if(binding >= f->statements) {
         /* A parameter's incoming value is any value of its type. */
         value = whole;
-    } else if(fn->stmts[binding].expr_root < 0 ||
-              !expr_range(f, fn->stmts[binding].expr_root, depth + 1, &value)) {
+    } else if(fn->stmts[binding].expr_root < 0) {
+        /* A declaration without a value starts at zero. */
+        value.low = value.high = 0;
+    } else if(!expr_range(f, fn->stmts[binding].expr_root, depth + 1, &value)) {
         return 1;
     }
     for(int s = f->first_write[binding]; s >= 0; s = f->next_write[s]) {

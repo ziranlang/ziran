@@ -548,13 +548,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, `&`, `|`, `^`, `%`, `/`,
-  `>>`, `+`, `-` and `*`, and from loop conditions. A local or parameter
+  `>>`, `+`, `-` and `*`, and from loop conditions. A local's range follows
+  its initializer through any chain of locals, such as `line := row * 16`
+  and `at := line + offset`, and a declaration without a value starts at
+  zero. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing `while` condition
   until the body writes it again, and stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while
   nothing reassigns the view. `tests/proven_index_ranges.sh` checks the
-  unchecked reads and stores, and checks that ten unprovable cases still
+  unchecked reads and stores, and checks that eleven unprovable cases still
   abort on C, Go, native and portable targets.
   Generated C divides, takes remainders and shifts by a nonconstant operand
   through a checked helper of the operand's width instead of the general

@@ -159,6 +159,14 @@ reading_foreign(const ZirModule *module, const char *name)
     return 0;
 }
 
+/* The `#reads` procedure type a call goes through, or NULL. */
+static const ZirType *
+reads_slot(const ZirModule *module, const char *type)
+{
+    const ZirType *slot = type != NULL && *type ? FindType(module, type, NULL) : NULL;
+    return slot != NULL && slot->is_procedure_type && slot->reads_arguments ? slot : NULL;
+}
+
 /* Where argument ARGUMENT of call CALL goes, or with FIELD, that field of
  * a record argument. A callee that hands the string back passes it on to
  * wherever the call's result goes. */
@@ -167,6 +175,10 @@ argument_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
               const Parents *parents, int call, int argument, const char *field)
 {
     const ZirExpr *e = &fn->exprs[call];
+    /* Every procedure stored in a `#reads` type was checked to only read
+     * its strings, so a call through one only reads its arguments. */
+    if(reads_slot(module, e->slot_type) != NULL)
+        return argument != e->left ? FLOW_READ : FLOW_RETAINED;
     if(e->left >= 0 || e->is_function_value || !e->name || !*e->name)
         return FLOW_RETAINED;
     if(field == NULL && (!strcmp(e->name, "print") || !strcmp(e->name, "TextCopy")))
@@ -1088,11 +1100,207 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
     }
 }
 
+/* Which string a procedure FN may keep: a string parameter, or a string
+ * field of a record parameter passed by value, that it does not only read.
+ * Writes the name into KEPT and answers 0, or answers 1 when it keeps none. */
+static int
+reads_only(TextScope *scope, const ZirModule *owner, const ZirFunction *fn,
+           char *kept, size_t size)
+{
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int p = 0; p < parameters->count; p++) {
+        const ZirParameter *item = &parameters->items[p];
+        const char *name = item->binding_name ? item->binding_name : item->name;
+        const char *type = skip_ws(item->value_type ? item->value_type : item->type);
+        const ZirModule *record_owner = NULL;
+        const ZirType *record = NULL;
+        if(!strcmp(type, "string")) {
+            /* A foreign procedure only reads when it is `#reads` too. */
+            if(p >= 64 || fn->is_extern || fn->is_template ||
+               parameter_flow(scope, owner, fn, p, NULL) != FLOW_READ) {
+                if(!fn->is_extern || !reading_foreign(owner, fn->name)) {
+                    snprintf(kept, size, "%s", name);
+                    return 0;
+                }
+            }
+            continue;
+        }
+        if(pointer_type(type) || (record = FindType(owner, type, &record_owner)) == NULL ||
+           record->is_enum || record->is_procedure_type || record->is_extern ||
+           record->is_record_template)
+            continue;
+        size_t offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(record, &offset, &field) == 1) {
+            if(strcmp(skip_ws(field.type), "string"))
+                continue;
+            if(p >= 64 || fn->is_extern || fn->is_template ||
+               parameter_flow(scope, owner, fn, p, KeepName(field.name)) != FLOW_READ) {
+                snprintf(kept, size, "%s.%s", name, field.name);
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
+/* Each procedure stored in a `#reads` procedure type, as a slot's value,
+ * a record field or an argument, must only read its strings. */
+static int
+check_reads_slots(TextScope *scope, const ZirModule *module, const ZirFunction *fn)
+{
+    int ok = 1;
+    for(int x = 0; x < fn->expr_count; x++) {
+        const ZirExpr *e = &fn->exprs[x];
+        const ZirType *slot = e->is_function_value && e->name ?
+            reads_slot(module, e->type) : NULL;
+        const ZirModule *owner = NULL;
+        const ZirFunction *callee = NULL;
+        char kept[ZIR_TEXT_MAX];
+        if(slot == NULL ||
+           ResolveFunction(module, e->name, &owner, &callee) != 1 ||
+           callee == NULL || owner == NULL ||
+           reads_only(scope, owner, callee, kept, sizeof(kept)))
+            continue;
+        Diagnostic(e->span, "check.slot_signature",
+                   "%s keeps its parameter %s, but %s is #reads",
+                   e->name, kept, slot->name);
+        ok = 0;
+    }
+    return ok;
+}
+
+/* Whether a value of TYPE can hold a `#reads` procedure: the type itself,
+ * an array of one or a record field. */
+static int
+holds_reads_slot(const ZirModule *module, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    const ZirType *record;
+    if(type == NULL || depth > 16)
+        return 0;
+    type = skip_ws(type);
+    if(reads_slot(module, type) != NULL)
+        return 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return holds_reads_slot(module, element, depth + 1);
+    record = pointer_type(type) ? NULL : FindType(module, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_extern || record->is_record_template)
+        return 0;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1)
+        if(holds_reads_slot(owner ? owner : module, field.type, depth + 1))
+            return 1;
+    return 0;
+}
+
+/* A global's initializer stores procedures too, as in
+ * `hook: Painter = Paint;` or `hooks: Hooks = .{paint = Paint};`. SCOPE
+ * names the procedures; TYPES declares the type at INDEX. */
+static int
+check_reads_initializer(TextScope *scope, const ZirModule *scope_module,
+                        const ZirModule *types, const ZirFunction *probe,
+                        int index, const char *type, const ZirGlobal *global,
+                        int depth)
+{
+    char element[ZIR_NAME_MAX];
+    if(index < 0 || index >= probe->expr_count || type == NULL || depth > 16)
+        return 1;
+    const ZirExpr *e = &probe->exprs[index];
+    type = skip_ws(type);
+    const ZirType *slot = reads_slot(types, type);
+    if(slot != NULL) {
+        const ZirModule *owner = NULL;
+        const ZirFunction *callee = NULL;
+        char kept[ZIR_TEXT_MAX];
+        const char *name = e->text && *e->text ? e->text : e->name;
+        if((e->kind != ZIR_EXPR_IDENT && e->kind != ZIR_EXPR_MEMBER) || name == NULL ||
+           ResolveFunction(scope_module, name, &owner, &callee) != 1 ||
+           callee == NULL || owner == NULL ||
+           reads_only(scope, owner, callee, kept, sizeof(kept)))
+            return 1;
+        Diagnostic(global->span, "check.slot_signature",
+                   "%s keeps its parameter %s, but %s is #reads",
+                   name, kept, slot->name);
+        return 0;
+    }
+    if(e->kind != ZIR_EXPR_COMPOUND)
+        return 1;
+    int ok = 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL)) {
+        for(int child = e->first_child; child >= 0; child = probe->exprs[child].next_sibling)
+            if(probe->exprs[child].kind == ZIR_EXPR_FIELD_INIT &&
+               !check_reads_initializer(scope, scope_module, types, probe,
+                                        probe->exprs[child].right, element,
+                                        global, depth + 1))
+                ok = 0;
+        return ok;
+    }
+    const ZirModule *owner = NULL;
+    const ZirType *record = pointer_type(type) ? NULL : FindType(types, type, &owner);
+    if(record == NULL || record->is_enum || record->is_procedure_type ||
+       record->is_extern || record->is_record_template)
+        return 1;
+    int ordinal = 0;
+    for(int child = e->first_child; child >= 0;
+        child = probe->exprs[child].next_sibling, ordinal++) {
+        const ZirExpr *entry = &probe->exprs[child];
+        if(entry->kind != ZIR_EXPR_FIELD_INIT)
+            continue;
+        size_t offset = 0;
+        ZirTypeField field;
+        int position = 0, found = 0;
+        while(!found && TypeNextField(record, &offset, &field) == 1)
+            found = entry->name && *entry->name ? !strcmp(field.name, entry->name) :
+                position++ == ordinal;
+        if(found && !check_reads_initializer(scope, scope_module, owner ? owner : types,
+                                             probe, entry->right, field.type,
+                                             global, depth + 1))
+            ok = 0;
+    }
+    return ok;
+}
+
 int
 ScopeTextArguments(ZirProgram **programs, int count)
 {
     TextScope scope = {0};
     int ok = 1;
+    int kept = 0;
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int f = 0; f < module->function_count; f++)
+                if(!module->functions[f].is_template &&
+                   !check_reads_slots(&scope, module, &module->functions[f]))
+                    kept = 1;
+            for(int g = 0; g < module->global_count; g++) {
+                const ZirGlobal *global = &module->globals[g];
+                if(global->init == NULL || !*global->init ||
+                   !holds_reads_slot(module, global->type, 0))
+                    continue;
+                ZirFunction *probe = calloc(1, sizeof(*probe));
+                if(probe == NULL) {
+                    scope.failed = 1;
+                    break;
+                }
+                int root = ParseExprTyped(probe, module, global->init, global->span,
+                                          global->type);
+                if(!check_reads_initializer(&scope, module, module, probe, root,
+                                            global->type, global, 0))
+                    kept = 1;
+                free(probe->exprs);
+                free(probe);
+            }
+        }
+    if(kept) {
+        free(scope.answers);
+        free(scope.fields);
+        return 0;
+    }
     for(int p = 0; ok && p < count; p++)
         for(int m = 0; ok && m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];

@@ -919,6 +919,16 @@ is an error, because that body already shows what it reads.
 <code>tests/foreign_reads.sh</code> checks both.
 <code>TextDetach(text)</code> detaches explicitly, and <code>TextFromBuilder(bytes)</code> takes a
 builder's bytes as a <code>Text</code>.</p>
+<p>A procedure type makes the same promise for each procedure stored in it
+with <code>#reads</code> after its result:</p>
+<pre><code>SelectionPainter :: #type (x: s32, props: TextProps, label: string) -&gt; s32 #reads;
+</code></pre>
+<p>Each procedure stored in the type, as a slot's value, a record field, an
+argument or a global's initializer, must only read its string parameters
+and the string fields of its record parameters; one that keeps one is an
+error naming that parameter. Text passed through a value of the type is
+then freed like Text passed straight to such a procedure.
+<code>tests/text_procedure_type_reads.sh</code> checks it.</p>
 <p>The standard text producers return <code>Text</code>: <code>TextReplace</code>, <code>TextJoin</code>, <code>TextLower</code>, <code>TextHex</code>, <code>Float64Repr</code>, <code>JsonWrite</code>, <code>JsonString</code>, <code>JsonKey</code>, <code>JsonQuote</code>, <code>JsonNumberText</code>, <code>JoinPath</code>, <code>ResolvePath</code>, <code>WorkingDirectory</code>, <code>CreateTemporaryDirectory</code>, <code>CopyText</code>, <code>ReadStandardInput</code>, <code>DecodeReplace</code>, <code>Lower</code>, <code>CaseFold</code>, <code>Capitalize</code> and <code>Transform</code>. Existing callers keep
 getting a <code>string</code>; <code>json: Text = JsonWrite(...)</code> frees the text with <code>json</code>.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:

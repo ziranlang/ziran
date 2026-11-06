@@ -1100,6 +1100,20 @@ is an error, because that body already shows what it reads.
 `TextDetach(text)` detaches explicitly, and `TextFromBuilder(bytes)` takes a
 builder's bytes as a `Text`.
 
+A procedure type makes the same promise for each procedure stored in it
+with `#reads` after its result:
+
+```
+SelectionPainter :: #type (x: s32, props: TextProps, label: string) -> s32 #reads;
+```
+
+Each procedure stored in the type, as a slot's value, a record field, an
+argument or a global's initializer, must only read its string parameters
+and the string fields of its record parameters; one that keeps one is an
+error naming that parameter. Text passed through a value of the type is
+then freed like Text passed straight to such a procedure.
+`tests/text_procedure_type_reads.sh` checks it.
+
 The standard text producers return `Text`: `TextReplace`, `TextJoin`, `TextLower`, `TextHex`, `Float64Repr`, `JsonWrite`, `JsonString`, `JsonKey`, `JsonQuote`, `JsonNumberText`, `JoinPath`, `ResolvePath`, `WorkingDirectory`, `CreateTemporaryDirectory`, `CopyText`, `ReadStandardInput`, `DecodeReplace`, `Lower`, `CaseFold`, `Capitalize` and `Transform`. Existing callers keep
 getting a `string`; `json: Text = JsonWrite(...)` frees the text with `json`.
 

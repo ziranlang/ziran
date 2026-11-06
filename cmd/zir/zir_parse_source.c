@@ -1119,13 +1119,22 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             size_t return_length = strlen(ret);
             const char *c_call = strstr(t, "#c_call");
             int is_c_call = c_call != NULL;
+            /* `-> Result #reads;` promises read-only string arguments. The
+             * header's result already stops at the directive. */
+            const char *reads = strstr(t, "#reads");
+            int reads_arguments = reads != NULL;
+            if(reads_arguments &&
+               (is_c_call || strcmp(skip_ws(reads + strlen("#reads")), ";") ||
+                return_length == 0 || strstr(reads + 1, "#reads") != NULL))
+                die_at(Span(buffers->rel, line_no, 1),
+                       "#reads goes once after a procedure type's result, as in -> s32 #reads;");
             if(is_c_call) {
                 if(*skip_ws(c_call + strlen("#c_call")) != ';' ||
                    skip_ws(c_call + strlen("#c_call"))[1] != '\0' ||
                    return_length == 0)
                     die_at(Span(buffers->rel, line_no, 1),
                            "procedure type requires Result #c_call;");
-            } else {
+            } else if(!reads_arguments) {
                 if(return_length == 0 || ret[return_length - 1] != ';')
                     die_at(Span(buffers->rel, line_no, 1),
                            "procedure type requires a result type and ';'");
@@ -1144,6 +1153,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 die("out of memory declaring procedure type");
             slot->is_procedure_type = 1;
             slot->is_c_call = is_c_call;
+            slot->reads_arguments = reads_arguments;
             slot->is_public = scope_public;
             slot->is_file_private = scope_file;
             copy_text(slot->procedure_return_type,

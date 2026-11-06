@@ -173,7 +173,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 61u
+#define ZIR_FORMAT_VERSION 62u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -291,6 +291,7 @@ static const Field type_fields[] = {
     INTEGER_FIELD(ZirType, is_synthetic_application),
     INTEGER_FIELD(ZirType, is_procedure_type),
     INTEGER_FIELD(ZirType, is_c_call),
+    INTEGER_FIELD(ZirType, reads_arguments),
     STRING_FIELD(ZirType, procedure_return_type),
     INTEGER_FIELD(ZirType, is_public),
     INTEGER_FIELD(ZirType, is_file_private),
@@ -1164,6 +1165,8 @@ validate_program(const ZirProgram *program)
                 !type->procedure_return_type[0]) ||
                (type->is_c_call != 0 && type->is_c_call != 1) ||
                (type->is_c_call && !type->is_procedure_type) ||
+               (type->reads_arguments != 0 && type->reads_arguments != 1) ||
+               (type->reads_arguments && (!type->is_procedure_type || type->is_c_call)) ||
                (!type->is_procedure_type &&
                 type->procedure_return_type[0]) ||
                type->name[0] == '#' ||

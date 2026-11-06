@@ -42,6 +42,10 @@
 - A callee that copies its string parameters into a local `[N]string` and
   only reads the elements, or that points a `string` local at other views
   of them with `=`, as in `v = s[1:3]`, only reads them.
+- A procedure type marked `#reads` after its result, as in
+  `Painter :: #type (label: string) -> s32 #reads;`, only holds procedures
+  that read their strings, so Text passed through it is freed too. Saved IR
+  is format 62.
 - A file that names `Text` or `Vec(T)` imports `std/vec` automatically, so
   its C header, bundle and Go code see the same types as the code that made
   them. A parameter or return type that names no visible type is an error.

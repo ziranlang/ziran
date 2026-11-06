@@ -359,6 +359,9 @@ typedef struct ZirType {
     char foreign_target[ZIR_PATH_MAX]; /* opaque Go type: go:package.Type */
     int is_procedure_type; /* named procedure type; body holds parameters */
     int is_c_call; /* procedure type uses the native C callback ABI */
+    /* `#reads`: each procedure stored in the type only reads its string
+     * parameters and the string fields of its record parameters. */
+    int reads_arguments;
     char procedure_return_type[ZIR_NAME_MAX];
     int is_public; /* visible to importing modules */
     int is_file_private;

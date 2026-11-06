@@ -466,17 +466,17 @@ add_range(Range a, Range b, int subtract, Range *out)
     return add_checked(a.low, b.low, &out->low) && add_checked(a.high, b.high, &out->high);
 }
 
+/* The product's range, when no corner product overflows: a 32-bit value
+ * less one, such as cast(s64)height - 1, times a 32-bit stride fits. */
 static int
 multiply_range(Range a, Range b, Range *out)
 {
-    const int64_t limit = INT64_C(1) << 31;
     int64_t products[4];
-    if(a.low < -limit || a.high > limit || b.low < -limit || b.high > limit)
+    if(__builtin_mul_overflow(a.low, b.low, &products[0]) ||
+       __builtin_mul_overflow(a.low, b.high, &products[1]) ||
+       __builtin_mul_overflow(a.high, b.low, &products[2]) ||
+       __builtin_mul_overflow(a.high, b.high, &products[3]))
         return 0;
-    products[0] = a.low * b.low;
-    products[1] = a.low * b.high;
-    products[2] = a.high * b.low;
-    products[3] = a.high * b.high;
     out->low = out->high = products[0];
     for(int i = 1; i < 4; i++) {
         if(products[i] < out->low) out->low = products[i];
@@ -552,11 +552,33 @@ condition_bound(const RangeFacts *f, int condition, int binding, int depth, int6
 
 /* Every write of binding inside loop comes after statement at, outside any
  * loop nested in loop, so at holds the value the condition last saw. */
+/* Whether every path from statement s jumps away before it reaches
+ * statement at: a continue, break, return or unreachable follows s in its
+ * own block, with at not between them. A for loop's step before a continue
+ * is such a write: the loop's condition runs again before the body does. */
+static int
+leaves_before(const RangeFacts *f, int s, int at)
+{
+    int block = f->parent_of[s];
+    int end = block >= 0 ? f->block_end[block] : f->statements;
+    for(int c = s + 1; c < end; c++) {
+        ZirStmtKind kind = f->fn->stmts[c].kind;
+        if(s < at && at <= c)
+            return 0;
+        if(f->parent_of[c] == block &&
+           (kind == ZIR_STMT_CONTINUE || kind == ZIR_STMT_BREAK ||
+            kind == ZIR_STMT_RETURN || kind == ZIR_STMT_UNREACHABLE))
+            return 1;
+    }
+    return 0;
+}
+
 static int
 unchanged_since_condition(const RangeFacts *f, int binding, int loop, int at)
 {
     for(int s = f->first_write[binding]; s >= 0; s = f->next_write[s])
-        if(s > loop && s < f->block_end[loop] && (s < at || f->loop_of[s] != loop))
+        if(s > loop && s < f->block_end[loop] &&
+           ((s < at && !leaves_before(f, s, at)) || f->loop_of[s] != loop))
             return 0;
     return 1;
 }
@@ -584,7 +606,7 @@ unchanged_between(const RangeFacts *f, int binding, int from, int at)
     if(binding < 0 || binding >= f->bindings || f->unknown[binding])
         return 0;
     for(int s = f->first_write[binding]; s >= 0; s = f->next_write[s]) {
-        if(s > from && s < at)
+        if(s > from && s < at && !leaves_before(f, s, at))
             return 0;
         for(int loop = f->loop_of[at]; loop >= 0; loop = f->loop_of[loop])
             if(!(loop < from && from < f->block_end[loop]) && s > loop && s < f->block_end[loop])
@@ -1494,16 +1516,81 @@ gather_facts(const RangeFacts *f, int at, Poly *list, int max)
     return count;
 }
 
-/* Replace each written binding in q by an upper bound, a fact bound - v >= 0
- * or its largest value, where q only grows with v. Afterwards q is at
- * least the index everywhere at statement at. */
+
+/* Whether p >= 0 at statement at: from the ranges of what it names, or
+ * after taking away up to depth facts that share a binding with it, each
+ * never negative. stride >= 0 follows from stride - width >= 0 and, inside
+ * for j: 0..width - 1, width - 1 - j >= 0 with j >= 0. */
 static int
-substitute_bounds(const RangeFacts *f, Poly *q, int at, const Poly *facts, int count)
+poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count,
+                 int depth)
 {
-    for(int round = 0; round < 8; round++) {
-        Poly rest, grows, bound, product;
-        Range sign;
-        int v = -1, found = 0;
+    Range range;
+    if(poly_range(f, p, at, &range) && range.low >= 0)
+        return 1;
+    for(int i = 0; depth > 0 && i < count; i++) {
+        Poly rest;
+        int shares = 0;
+        for(int t = 0; t < p->count && !shares; t++)
+            for(int a = 0; a < p->term[t].degree && !shares; a++)
+                for(int u = 0; u < facts[i].count && !shares; u++)
+                    for(int b = 0; b < facts[i].term[u].degree && !shares; b++)
+                        shares = p->term[t].atom[a] == facts[i].term[u].atom[b];
+        if(shares && poly_add(&rest, p, &facts[i], 1) &&
+           poly_nonnegative(f, &rest, at, facts, count, depth - 1))
+            return 1;
+    }
+    return 0;
+}
+
+/* Whether every term of p is a positive multiple of bindings each never
+ * negative, and its constant is not negative either. */
+static int
+terms_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count)
+{
+    if(p->k.low < 0)
+        return 0;
+    for(int t = 0; t < p->count; t++) {
+        if(p->term[t].coef < 0)
+            return 0;
+        for(int a = 0; a < p->term[t].degree; a++) {
+            Poly atom;
+            poly_atom(&atom, p->term[t].atom[a]);
+            if(!poly_nonnegative(f, &atom, at, facts, count, 2))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+/* Whether q <= limit - 1 at statement at once q names only invariant
+ * bindings: directly, or as d = fact + rest where a fact is never negative. */
+static int
+poly_below_limit(const RangeFacts *f, const Poly *q, int at, const Poly *facts, int count,
+                 const Poly *limit)
+{
+    Poly d, one;
+    poly_constant(&one, 1, 1);
+    return poly_add(&d, limit, q, 1) && poly_add(&d, &d, &one, 1) &&
+           poly_nonnegative(f, &d, at, facts, count, 3);
+}
+
+enum { SUBSTITUTE_TRIES = 64 };
+
+/* Replace each written binding in q by an upper bound, a fact bound - v >= 0
+ * or its largest value, where q only grows with v, until q is below limit.
+ * Every fact bounding v is tried in turn, since the nearest one, such as
+ * i <= 31 from a guard, may be weaker than an outer one such as
+ * i <= height - 1. Afterwards q is at least the index everywhere at
+ * statement at. */
+static int
+substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *facts, int count,
+                  const Poly *limit, int round, int *tries)
+{
+    {
+        const Poly *q = start;
+        Poly rest, grows, bound, product, next;
+        int v = -1;
         for(int t = 0; t < q->count && v < 0; t++)
             for(int a = 0; a < q->term[t].degree; a++)
                 if(q->term[t].atom[a] < f->bindings && !invariant(f, q->term[t].atom[a])) {
@@ -1511,7 +1598,9 @@ substitute_bounds(const RangeFacts *f, Poly *q, int at, const Poly *facts, int c
                     break;
                 }
         if(v < 0)
-            return 1;
+            return poly_below_limit(f, q, at, facts, count, limit);
+        if(round >= 8 || ++*tries > SUBSTITUTE_TRIES)
+            return 0;
         /* q = rest + grows * v */
         poly_constant(&rest, q->k.low, q->k.high);
         poly_constant(&grows, 0, 0);
@@ -1539,9 +1628,9 @@ substitute_bounds(const RangeFacts *f, Poly *q, int at, const Poly *facts, int c
                 return 0;
             }
         }
-        if(!poly_range(f, &grows, at, &sign) || sign.low < 0)
+        if(!poly_nonnegative(f, &grows, at, facts, count, 2))
             return 0;
-        for(int i = 0; i < count && !found; i++) {
+        for(int i = 0; i < count; i++) {
             int term = -1, uses = 0;
             for(int t = 0; t < facts[i].count; t++)
                 for(int a = 0; a < facts[i].term[t].degree; a++)
@@ -1552,19 +1641,21 @@ substitute_bounds(const RangeFacts *f, Poly *q, int at, const Poly *facts, int c
             if(uses == 1 && facts[i].term[term].degree == 1 && facts[i].term[term].coef == -1) {
                 Poly atom;
                 poly_atom(&atom, v);
-                found = poly_add(&bound, &facts[i], &atom, 0);
+                if(poly_add(&bound, &facts[i], &atom, 0) &&
+                   poly_multiply(&product, &grows, &bound) && poly_add(&next, &rest, &product, 0) &&
+                   substitute_bounds(f, &next, at, facts, count, limit, round + 1, tries))
+                    return 1;
             }
         }
-        if(!found) {
+        {
             Range largest;
             if(!binding_range(f, v, at, 0, &largest))
                 return 0;
             poly_constant(&bound, largest.high, largest.high);
         }
-        if(!poly_multiply(&product, &grows, &bound) || !poly_add(q, &rest, &product, 0))
-            return 0;
+        return poly_multiply(&product, &grows, &bound) && poly_add(&next, &rest, &product, 0) &&
+               substitute_bounds(f, &next, at, facts, count, limit, round + 1, tries);
     }
-    return 0;
 }
 
 enum { INDEX_FACTS = 48 };
@@ -1573,26 +1664,21 @@ enum { INDEX_FACTS = 48 };
 static int
 poly_index_below(const RangeFacts *f, int index, const Poly *limit)
 {
-    Poly q, d, one, *facts;
+    Poly q, *facts;
     Range range;
-    int at = f->statement_of[index], count, proven = 0;
-    if(at < 0 || !expr_range(f, index, 0, &range) || range.low < 0 || !to_poly(f, index, at, 0, &q))
+    int at = f->statement_of[index], count, proven, tries = 0;
+    /* The index must not wrap; its sign may still need the facts. */
+    if(at < 0 || !expr_range(f, index, 0, &range) || !to_poly(f, index, at, 0, &q))
         return 0;
     facts = malloc(INDEX_FACTS * sizeof(*facts));
     if(facts == NULL)
         return 0;
     count = gather_facts(f, at, facts, INDEX_FACTS);
-    poly_constant(&one, 1, 1);
-    if(substitute_bounds(f, &q, at, facts, count) && poly_add(&d, limit, &q, 1) &&
-       poly_add(&d, &d, &one, 1)) {
-        proven = poly_range(f, &d, at, &range) && range.low >= 0;
-        /* d = fact + rest, and a fact is never negative. */
-        for(int i = 0; i < count && !proven; i++) {
-            Poly rest;
-            proven = poly_add(&rest, &d, &facts[i], 1) && poly_range(f, &rest, at, &range) &&
-                     range.low >= 0;
-        }
+    if(range.low < 0 && !terms_nonnegative(f, &q, at, facts, count)) {
+        free(facts);
+        return 0;
     }
+    proven = substitute_bounds(f, &q, at, facts, count, limit, 0, &tries);
     free(facts);
     return proven;
 }

@@ -570,7 +570,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   functions and five reads that keep their checks. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing `while` condition
-  until the body writes it again, and stays nonnegative when it only grows by
+  until the body writes it again; a write followed by `continue`, `break`,
+  `return` or `unreachable` in its own block, such as the step a `for` loop
+  runs before a `continue`, does not count for reads after that block. When
+  several facts bound a counter, such as `i <= 31` from a guard and
+  `i <= height - 1` from the loop, each is tried. A factor's sign and the
+  final comparison may take away up to three facts, so `stride >= width`
+  and `width - 1 - j >= 0` show `stride >= 1`, and products of 32-bit values
+  such as `(cast(s64)height - 1) * stride` keep their range when no corner
+  overflows; `tests/loop_guard_ranges.sh` checks eight proven functions and
+  five reads that keep their checks. A
+  counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while
   nothing reassigns the view. `tests/proven_index_ranges.sh` checks the
   unchecked reads and stores, and checks that eleven unprovable cases still

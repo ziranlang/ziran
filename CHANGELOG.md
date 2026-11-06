@@ -35,6 +35,9 @@
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.
+- Those checks stay out when the loop body has an `if` that continues or
+  returns, such as `if flag > 3 { continue }`, or an enclosing `if i < 32`,
+  and for rows `stride` apart after a guard that `stride >= width`.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

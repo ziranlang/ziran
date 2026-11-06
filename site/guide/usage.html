@@ -276,6 +276,14 @@ operands, and an earlier <code>if</code> that ends in <code>return</code>, <code
 all act as guards until a value they compare changes. Every step of the
 index must provably not wrap. Run
 <code>sh tests/guarded_index_ranges.sh build/bin/ziran</code>.</p>
+<p>An <code>if</code> inside a loop only adds to what the loop proves. After
+<code>if flag &gt; 3 { continue }</code>, <code>if i &gt;= 32 { continue }</code> or
+<code>if code != 0 { return code }</code>, and inside <code>if i &lt; 32 { ... }</code>, the read
+<code>view[i * width + j]</code> in <code>for i: 0..height - 1</code> still uses <code>i &lt;= height - 1</code>.
+Facts chain, too: inside <code>for j: 0..width - 1</code> the width is at least 1, so
+after <code>if stride &lt; width || samples.count &lt; (cast(s64)height - 1) * stride + width { return }</code>
+the read <code>samples[i * stride + j]</code> needs no check. Run
+<code>sh tests/loop_guard_ranges.sh build/bin/ziran</code>.</p>
 <p>Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

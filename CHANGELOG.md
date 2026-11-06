@@ -23,9 +23,9 @@
 - Curl HTTP accepts named header values up to 8191 bytes.
 - `std/image` adds fallible caller-owned resampling and bicubic resize;
   `std/float_text` adds `Float64ReprInto`.
-- `std/resample` gives native programs Pillow's resize as allocation-free
-  row kernels, with SSE2, AVX2 and NEON (AArch64 and ARMv7) versions that
-  make the same bytes.
+- `std/resample` gives programs Pillow's resize as allocation-free row
+  kernels, with SSE2, AVX2, NEON (AArch64 and ARMv7) and WebAssembly SIMD128
+  versions that make the same bytes.
 - `#asm` adds `arm+neon` for ARMv7, selected at run time, and
   `wasm32+simd128` for WebAssembly builds made with `-msimd128`.
 

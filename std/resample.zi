@@ -1,6 +1,6 @@
 // Pillow's separable resampling of 8-bit RGBA as allocation-free row
-// kernels, with SSE2, AVX2 and NEON (AArch64 and ARMv7) versions that make
-// the same bytes.
+// kernels, with SSE2, AVX2, NEON (AArch64 and ARMv7) and WebAssembly SIMD128
+// versions that make the same bytes.
 //
 //     axis: ResampleAxis
 //     ResampleAxisInto(*axis, 640, 853, RESAMPLE_LANCZOS)  // weights once
@@ -27,6 +27,7 @@ RESAMPLE_SCALAR :: 0
 RESAMPLE_SSE2 :: 1
 RESAMPLE_AVX2 :: 2
 RESAMPLE_NEON :: 3
+RESAMPLE_SIMD128 :: 4
 
 // Weights from INPUT source positions to OUTPUT positions along one axis.
 ResampleAxis :: struct {
@@ -194,11 +195,13 @@ HasAvx2 :: () -> s32 #asm("x86_64+avx2", "movl $1, %[out]", "=r", "", "", "") { 
 HasSse2 :: () -> s32 #asm("x86_64", "movl $1, %[out]", "=r", "", "", "") { return 0 }
 HasNeon :: () -> s32 #asm("aarch64", "mov %w[out], #1", "=r", "", "", "") { return 0 }
 HasArmNeon :: () -> s32 #asm("arm+neon", "mov %[out], #1", "=r", "", "", "") { return 0 }
+// SIMD128 is a build option, not a CPU check: true only in a module built
+// with -msimd128, which a host loads where WebAssembly.validate accepts SIMD.
+HasSimd128 :: () -> s32 #asm("wasm32+simd128", "i32.const 1
+        local.set %[out]", "=r", "", "", "") { return 0 }
 
 // A32 has too few registers for every argument as an operand, so the ARMv7
-// kernels read theirs from one of these. Their I32 suffixes are upper case:
-// the source scan reads a string's continuation lines as tokens and rejects
-// the lower-case spelling; both assemblers ignore the case.
+// kernels read theirs from one of these.
 ArmRow :: struct {
     source: *u8
     bounds: *s32
@@ -433,8 +436,8 @@ HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [
         ldr r10, [r2], #4
         add r8, r1, r8, lsl #2
         mov r12, r3
-        vmov.I32 q8, #0x200000
-        vmov.I32 q9, #0
+        vmov.i32 q8, #0x200000
+        vmov.i32 q9, #0
     2:
         cmp r10, #2
         blt 3f
@@ -443,8 +446,8 @@ HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [
         vmovl.u8 q2, d0
         vmovl.u16 q3, d4
         vmovl.u16 q10, d5
-        vmla.I32 q8, q3, d2[0]
-        vmla.I32 q9, q10, d2[1]
+        vmla.i32 q8, q3, d2[0]
+        vmla.i32 q9, q10, d2[1]
         sub r10, r10, #2
         b 2b
     3:
@@ -454,9 +457,9 @@ HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [
         vld1.32 {d2[0]}, [r12]
         vmovl.u8 q2, d0
         vmovl.u16 q3, d4
-        vmla.I32 q8, q3, d2[0]
+        vmla.i32 q8, q3, d2[0]
     4:
-        vadd.I32 q8, q8, q9
+        vadd.i32 q8, q8, q9
         vshr.s32 q8, q8, #22
         vqmovn.s32 d22, q8
         vqmovun.s16 d24, q11
@@ -707,10 +710,10 @@ VerticalArm :: (columns: *ArmColumns) #asm("arm+neon", "ldr r2, [%[columns], #4]
         cmp r8, r1
         bge 9f
     1:
-        vmov.I32 q8, #0x200000
-        vmov.I32 q9, #0x200000
-        vmov.I32 q10, #0x200000
-        vmov.I32 q11, #0x200000
+        vmov.i32 q8, #0x200000
+        vmov.i32 q9, #0x200000
+        vmov.i32 q10, #0x200000
+        vmov.i32 q11, #0x200000
         ldr r10, [%[columns]]
         add r10, r10, r8
         ldr r12, [%[columns], #8]
@@ -721,13 +724,13 @@ VerticalArm :: (columns: *ArmColumns) #asm("arm+neon", "ldr r2, [%[columns], #4]
         vmovl.u8 q2, d0
         vmovl.u16 q12, d4
         vmovl.u16 q13, d5
-        vmla.I32 q8, q12, d2[0]
-        vmla.I32 q9, q13, d2[0]
+        vmla.i32 q8, q12, d2[0]
+        vmla.i32 q9, q13, d2[0]
         vmovl.u8 q2, d1
         vmovl.u16 q12, d4
         vmovl.u16 q13, d5
-        vmla.I32 q10, q12, d2[0]
-        vmla.I32 q11, q13, d2[0]
+        vmla.i32 q10, q12, d2[0]
+        vmla.i32 q11, q13, d2[0]
         subs lr, lr, #1
         bne 2b
         vshr.s32 q8, q8, #22
@@ -753,6 +756,209 @@ VerticalArm :: (columns: *ArmColumns) #asm("arm+neon", "ldr r2, [%[columns], #4]
         columns.target, 0, cast(s64)columns.bytes)
 }
 
+// WebAssembly SIMD128. A v128 cannot be an operand, so each output keeps one
+// i32x4 sum on the operand stack through typed blocks (Clang 19 or later):
+// one pixel's four channels horizontally, four bytes of a row vertically.
+// The counts and strides are 32-bit, like wasm32 pointers.
+HorizontalSimd128 :: (source: *u8, bounds: *s32, weights: *s32, step: s32, output: s32,
+    target: *u8, axis: *ResampleAxis) {
+    entry: *s32 = bounds
+    row: *s32 = weights
+    to: *u8 = target
+    left: s32 = output
+    at: *u8 = source
+    weight: *s32 = weights
+    taps: s32 = 0
+    pixel: s32 = 0
+    #asm("wasm32+simd128", "local.get %[bounds]
+        local.set %[entry]
+        local.get %[weights]
+        local.set %[row]
+        local.get %[target]
+        local.set %[to]
+        local.get %[output]
+        local.set %[left]
+        block
+        local.get %[left]
+        i32.eqz
+        br_if 0
+        loop
+        local.get %[source]
+        local.get %[entry]
+        i32.load 0:p2align=2
+        i32.const 2
+        i32.shl
+        i32.add
+        local.set %[at]
+        local.get %[entry]
+        i32.load 4:p2align=2
+        local.set %[taps]
+        local.get %[row]
+        local.set %[weight]
+        i32.const 2097152
+        i32x4.splat
+        block (v128) -> (v128)
+        local.get %[taps]
+        i32.const 2
+        i32.lt_s
+        br_if 0
+        loop (v128) -> (v128)
+        local.get %[at]
+        v128.load64_zero 0:p2align=0
+        i16x8.extend_low_i8x16_u
+        i32x4.extend_low_i16x8_u
+        local.get %[weight]
+        v128.load32_splat 0:p2align=2
+        i32x4.mul
+        i32x4.add
+        local.get %[at]
+        v128.load32_zero 4:p2align=0
+        i16x8.extend_low_i8x16_u
+        i32x4.extend_low_i16x8_u
+        local.get %[weight]
+        v128.load32_splat 4:p2align=2
+        i32x4.mul
+        i32x4.add
+        local.get %[at]
+        i32.const 8
+        i32.add
+        local.set %[at]
+        local.get %[weight]
+        i32.const 8
+        i32.add
+        local.set %[weight]
+        local.get %[taps]
+        i32.const 2
+        i32.sub
+        local.tee %[taps]
+        i32.const 2
+        i32.ge_s
+        br_if 0
+        end_loop
+        end_block
+        block (v128) -> (v128)
+        local.get %[taps]
+        i32.eqz
+        br_if 0
+        local.get %[at]
+        v128.load32_zero 0:p2align=0
+        i16x8.extend_low_i8x16_u
+        i32x4.extend_low_i16x8_u
+        local.get %[weight]
+        v128.load32_splat 0:p2align=2
+        i32x4.mul
+        i32x4.add
+        end_block
+        i32.const 22
+        i32x4.shr_s
+        v128.const 0, 0, 0, 0
+        i16x8.narrow_i32x4_s
+        v128.const 0, 0, 0, 0
+        i8x16.narrow_i16x8_u
+        i32x4.extract_lane 0
+        local.set %[pixel]
+        local.get %[to]
+        local.get %[pixel]
+        i32.store 0:p2align=0
+        local.get %[to]
+        i32.const 4
+        i32.add
+        local.set %[to]
+        local.get %[entry]
+        i32.const 8
+        i32.add
+        local.set %[entry]
+        local.get %[row]
+        local.get %[step]
+        i32.add
+        local.set %[row]
+        local.get %[left]
+        i32.const 1
+        i32.sub
+        local.tee %[left]
+        br_if 0
+        end_loop
+        end_block",
+        "=&r:entry;=&r:row;=&r:to;=&r:left;=&r:at;=&r:weight;=&r:taps;=&r:pixel",
+        "r:source;r:bounds;r:weights;r:step;r:output;r:target", "memory", "volatile") {
+        HorizontalScalar(axis, source, target)
+    }
+}
+
+VerticalSimd128 :: (rows: *u8, stride: s32, weights: *s32, count: s32, target: *u8, bytes: s32) {
+    offset: s32 = 0
+    at: *u8 = rows
+    weight: *s32 = weights
+    taps: s32 = 0
+    pixel: s32 = 0
+    #asm("wasm32+simd128", "i32.const 0
+        local.set %[offset]
+        block
+        local.get %[bytes]
+        i32.eqz
+        br_if 0
+        loop
+        local.get %[rows]
+        local.get %[offset]
+        i32.add
+        local.set %[at]
+        local.get %[weights]
+        local.set %[weight]
+        local.get %[count]
+        local.set %[taps]
+        i32.const 2097152
+        i32x4.splat
+        loop (v128) -> (v128)
+        local.get %[at]
+        v128.load32_zero 0:p2align=0
+        i16x8.extend_low_i8x16_u
+        i32x4.extend_low_i16x8_u
+        local.get %[weight]
+        v128.load32_splat 0:p2align=2
+        i32x4.mul
+        i32x4.add
+        local.get %[at]
+        local.get %[stride]
+        i32.add
+        local.set %[at]
+        local.get %[weight]
+        i32.const 4
+        i32.add
+        local.set %[weight]
+        local.get %[taps]
+        i32.const 1
+        i32.sub
+        local.tee %[taps]
+        br_if 0
+        end_loop
+        i32.const 22
+        i32x4.shr_s
+        v128.const 0, 0, 0, 0
+        i16x8.narrow_i32x4_s
+        v128.const 0, 0, 0, 0
+        i8x16.narrow_i16x8_u
+        i32x4.extract_lane 0
+        local.set %[pixel]
+        local.get %[target]
+        local.get %[offset]
+        i32.add
+        local.get %[pixel]
+        i32.store 0:p2align=0
+        local.get %[offset]
+        i32.const 4
+        i32.add
+        local.tee %[offset]
+        local.get %[bytes]
+        i32.lt_u
+        br_if 0
+        end_loop
+        end_block",
+        "=&r:offset;=&r:at;=&r:weight;=&r:taps;=&r:pixel",
+        "r:rows;r:stride;r:weights;r:count;r:target;r:bytes", "memory", "volatile") {
+        VerticalScalar(rows, cast(s64)stride, weights, cast(s64)count, true, target, 0, cast(s64)bytes)
+    }
+}
+
 Level :: () -> s32 {
     if resample_forced >= 0 { return resample_forced }
     return ResampleKernels()
@@ -760,13 +966,15 @@ Level :: () -> s32 {
 
 #scope_export
 // The fastest kernels this program and CPU have: RESAMPLE_AVX2,
-// RESAMPLE_SSE2, RESAMPLE_NEON (AArch64, or ARMv7 with NEON) or
+// RESAMPLE_SSE2, RESAMPLE_NEON (AArch64, or ARMv7 with NEON),
+// RESAMPLE_SIMD128 (a WebAssembly module built with -msimd128) or
 // RESAMPLE_SCALAR. A build with ZIRAN_NO_ASM, a compiler without GNU
 // assembly and .zx use the scalar ones.
 ResampleKernels :: () -> s32 {
     if HasAvx2() != 0 { return RESAMPLE_AVX2 }
     if HasSse2() != 0 { return RESAMPLE_SSE2 }
     if HasNeon() != 0 || HasArmNeon() != 0 { return RESAMPLE_NEON }
+    if HasSimd128() != 0 { return RESAMPLE_SIMD128 }
     return RESAMPLE_SCALAR
 }
 
@@ -778,7 +986,8 @@ ResampleUseKernels :: (level: s32) -> bool {
     available := level == RESAMPLE_SCALAR ||
         (level == RESAMPLE_SSE2 && HasSse2() != 0) ||
         (level == RESAMPLE_AVX2 && HasAvx2() != 0) ||
-        (level == RESAMPLE_NEON && (HasNeon() != 0 || HasArmNeon() != 0))
+        (level == RESAMPLE_NEON && (HasNeon() != 0 || HasArmNeon() != 0)) ||
+        (level == RESAMPLE_SIMD128 && HasSimd128() != 0)
     if available { resample_forced = level }
     return available
 }
@@ -883,6 +1092,8 @@ ResampleRowHorizontal :: (axis: *ResampleAxis, source: *u8, target: *u8) {
     } else if axis.exact && level == RESAMPLE_NEON {
         row := ArmRow.{source, *axis.bounds[0], *axis.weights[0], axis.size * 4, axis.output, target}
         HorizontalArm(*row, axis)
+    } else if axis.exact && level == RESAMPLE_SIMD128 {
+        HorizontalSimd128(source, *axis.bounds[0], *axis.weights[0], axis.size * 4, axis.output, target, axis)
     } else {
         HorizontalScalar(axis, source, target)
     }
@@ -918,6 +1129,10 @@ ResampleRowVertical :: (axis: *ResampleAxis, row: s32, source: *u8, stride: s64,
                 columns := ArmColumns.{rows, cast(s32)stride, weights, cast(s32)count, target, cast(s32)done}
                 VerticalArm(*columns)
             }
+        }
+        if level == RESAMPLE_SIMD128 {
+            VerticalSimd128(rows, cast(s32)stride, weights, cast(s32)count, target, cast(s32)bytes)
+            done = bytes
         }
     }
     if done < bytes { VerticalScalar(rows, stride, weights, count, axis.exact, target, done, bytes) }

@@ -3,8 +3,10 @@
 # operation shape that each build agrees on (GCC and Clang native vectors,
 # SSE4.1 and AVX2 instructions, the lane-array fallback that TinyCC and older
 # compilers use, sanitizers, Go's lane loops, bundles on the native engine and
-# the portable VM's reference lanes), from source and from saved IR. Checking
-# rejects mismatched vectors, out-of-range constants and operators on vectors.
+# the portable VM's reference lanes, wasm32 with and without SIMD128, and
+# AArch64 and ARMv7 from the Android NDK), from source and from saved IR.
+# Checking rejects mismatched vectors, out-of-range constants and operators on
+# vectors.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -354,6 +356,122 @@ C
     "${CC:-cc}" -std=c11 -Wno-psabi -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined \
         -I"$output" "$output"/*.c -o "$output/sanitized" -lm
     test "$(ASAN_OPTIONS=detect_leaks=0 "$output/sanitized")" = "$expected"
+fi
+
+# WebAssembly: the generated C built for wasm32 with -msimd128 uses SIMD128
+# instructions and without it none, and both give the native lanes where
+# wasmtime (WASMTIME) runs them. The C needs no libc beyond these stubs.
+wasmcc=${ZIRAN_WASM_CC:-$clang}
+objdump=
+for candidate in llvm-objdump llvm-objdump-21 llvm-objdump-20 llvm-objdump-19 llvm-objdump-18; do
+    if command -v "$candidate" >/dev/null 2>&1; then objdump=$candidate; break; fi
+done
+wasmtime=${WASMTIME:-$(command -v wasmtime || true)}
+if test -n "$wasmcc" && printf 'int f(void) { return 0; }\n' |
+    $wasmcc --target=wasm32 -nostdlib -Wl,--no-entry -Wl,--export=f -x c - \
+        -o "$work/probe.wasm" 2>/dev/null; then
+    sed '/^main :: () {$/,$d' "$work/app.zi" > "$work/wasm_app.zi"
+    cat >> "$work/wasm_app.zi" <<'ZI'
+Result :: () -> u64 { return Fingerprint() }
+Check :: () -> s64 { return Answer() }
+ZI
+    "$ziran" build --target=c --root "$work" -o "$work/wasm-c" "$work/wasm_app.zi"
+    mkdir -p "$work/freestanding"
+    cat > "$work/freestanding/stdio.h" <<'C'
+#pragma once
+typedef struct FILE FILE;
+#define stderr ((FILE *)0)
+static inline int fprintf(FILE *file, const char *format, ...) { (void)file; (void)format; return 0; }
+C
+    printf '#pragma once\n_Noreturn static inline void abort(void) { __builtin_trap(); }\n' \
+        > "$work/freestanding/stdlib.h"
+    printf '#pragma once\n#define memcpy __builtin_memcpy\n#define memset __builtin_memset\n' \
+        > "$work/freestanding/string.h"
+    for mode in simd128 baseline; do
+        flags=
+        test "$mode" = simd128 && flags=-msimd128
+        # shellcheck disable=SC2086
+        $wasmcc --target=wasm32 -std=c11 -O2 -mbulk-memory -ffreestanding -nostdlib -Wno-psabi $flags \
+            -isystem "$work/freestanding" -I"$work/wasm-c" -Wl,--no-entry \
+            -Wl,--export=wasm_app_Result -Wl,--export=wasm_app_Check "$work"/wasm-c/*.c \
+            -o "$work/$mode.wasm"
+        if test -n "$objdump"; then
+            count=$("$objdump" -d "$work/$mode.wasm" |
+                grep -cE '(i8x16|i16x8|i32x4|i64x2|f32x4|f64x2|v128)\.' || true)
+            if test "$mode" = simd128 && test "$count" -lt 100; then
+                echo "wasm32 -msimd128: only $count SIMD128 instructions" >&2
+                exit 1
+            fi
+            if test "$mode" = baseline && test "$count" != 0; then
+                echo "wasm32 without -msimd128 holds $count SIMD128 instructions" >&2
+                exit 1
+            fi
+        fi
+        if test -n "$wasmtime"; then
+            # wasmtime warns that --invoke with results is experimental.
+            check=$("$wasmtime" run --invoke wasm_app_Check "$work/$mode.wasm" 2> "$work/wasmtime.err" | tail -n 1)
+            # It prints an i64 result as signed.
+            result=$(printf '%u' "$("$wasmtime" run --invoke wasm_app_Result "$work/$mode.wasm" 2>> "$work/wasmtime.err" | tail -n 1)")
+            test "$check $result" = "$expected" ||
+                { cat "$work/wasmtime.err" >&2; echo "wasm32 $mode: $check $result, expected $expected" >&2; exit 1; }
+            echo "wasm32 $mode: $check $result"
+        fi
+    done
+fi
+
+# Android NDK (ANDROID_NDK_HOME): AArch64 and ARMv7 with NEON, ARMv7 with VFP
+# only and the scalar lanes, run under QEMU_AARCH64 / QEMU_ARM or on the ARMv7
+# device ARMV7_ADB_SERIAL names.
+if test -n "${ANDROID_NDK_HOME:-}"; then
+    bin=$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/bin
+    output=$work/c-source
+    arm_run() {
+        triple=$1 binary=$2
+        case "$triple" in
+            aarch64*) qemu=${QEMU_AARCH64:-} device= ;;
+            *) qemu=${QEMU_ARM:-} device=${ARMV7_ADB_SERIAL:-} ;;
+        esac
+        if test -n "$qemu"; then
+            "$qemu" "$binary"
+        elif test -n "$device"; then
+            remote=/data/local/tmp/ziran-simd-$$
+            adb -s "$device" push "$binary" "$remote" >/dev/null
+            if adb -s "$device" shell "chmod 755 $remote && $remote; status=\$?; rm -f $remote; exit \$status" \
+                > "$work/arm.out"; then
+                tr -d '\r' < "$work/arm.out"
+            else
+                tr -d '\r' < "$work/arm.out"
+                return 1
+            fi
+        else
+            return 2
+        fi
+    }
+    for build in "aarch64-linux-android24:-O2" "aarch64-linux-android24:-O2 -DZIRAN_SIMD_SCALAR" \
+        "armv7a-linux-androideabi24:-O2" "armv7a-linux-androideabi24:-O2 -mfpu=vfpv3-d16" \
+        "armv7a-linux-androideabi24:-O2 -DZIRAN_SIMD_SCALAR"; do
+        triple=${build%%:*} flags=${build#*:}
+        # shellcheck disable=SC2086
+        "$bin/$triple-clang" -std=c11 -static -Wno-psabi $flags -I"$output" "$output"/*.c -lm \
+            -o "$work/$triple-app"
+        if test "$flags" = -O2; then
+            # The NEON build holds NEON instructions (q registers or .16b-style lanes).
+            "$bin/llvm-objdump" -d "$work/$triple-app" | grep -qE 'v[a-z0-9]+\.[iuf]?[0-9]+[[:space:]]+q[0-9]|\.(16b|8h|4s|2d)' ||
+                { echo "$triple: no NEON instructions" >&2; exit 1; }
+        fi
+        status=0
+        result=$(arm_run "$triple" "$work/$triple-app") || status=$?
+        if test "$status" = 2; then
+            case "$triple" in
+                aarch64*) echo "$triple $flags built; set QEMU_AARCH64 to run it" ;;
+                *) echo "$triple $flags built; set QEMU_ARM or ARMV7_ADB_SERIAL to run it" ;;
+            esac
+            continue
+        fi
+        test "$status" = 0 && test "$result" = "$expected" ||
+            { echo "$triple $flags: $result (status $status), expected $expected" >&2; exit 1; }
+        echo "$triple $flags: $result"
+    done
 fi
 
 # A slice access outside the data stops the program.

@@ -17,8 +17,12 @@
   behind a dispatcher that reads CPUID (and the OS's YMM state) once;
   <code>ZIRAN_SIMD_TIER</code> forces a lower tier, and <code>tests/simd_target.sh</code> checks
   each forced clone under gdb where it can. Checking rejects 256-bit vectors
-  by value at a <code>#target</code> procedure's boundary and in its calls. WebAssembly
-  SIMD128 lowering and an ARMv7 NEON device check are still to come.</p>
+  by value at a <code>#target</code> procedure's boundary and in its calls. C built for
+  wasm32 with <code>-msimd128</code> uses SIMD128 instructions and gives the same lanes
+  under wasmtime as a build without them; bundles on a WebAssembly host run
+  SIMD through the portable VM. ARMv7 builds with NEON, with VFP only and
+  with scalar lanes give the same results on an ARMv7 phone; AArch64 builds
+  hold NEON instructions but run only under a <code>QEMU_AARCH64</code> here.</p>
 </li>
 <li>
 <p>GCC object-cache preparation pipes the empty compile probe, allowing its

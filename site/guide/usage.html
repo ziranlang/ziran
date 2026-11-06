@@ -1256,9 +1256,9 @@ and 256-bit forms such as <code>s16x16</code>) with operations such as <code>Sim
 <code>Simd.Load(s16x8, row, at)</code> and <code>Simd.ByteShuffle</code>; <code>std/simd.zi</code> lists
 them all. Vectors are values, used through these operations rather than <code>+</code>
 or <code>==</code>. Every operation gives the same bits on every target. Native C uses
-SSE2 on x86-64, or SSSE3, SSE4.1 and AVX2 when the build enables them, and
-NEON on AArch64 and ARMv7. Go, bundles, the portable VM and TinyCC compute
-lane by lane.</p>
+SSE2 on x86-64, or SSSE3, SSE4.1 and AVX2 when the build enables them, NEON
+on AArch64 and ARMv7, and WebAssembly SIMD128 when a wasm32 build passes
+<code>-msimd128</code>. Go, bundles, the portable VM and TinyCC compute lane by lane.</p>
 <p>Mark a procedure <code>#target</code> to let native x86-64 C pick its SIMD instructions
 when the program runs:</p>
 <pre><code class="language-jai">Blend :: (row: []u8, out: []u8) #target {
@@ -1273,7 +1273,11 @@ compile the procedure once. A <code>#target</code> procedure cannot take or retu
 256-bit vector by value, or pass one to another procedure, because AVX2 code
 passes those in different registers; use an array or a pointer. It cannot be
 <code>#inline</code> or hold <code>#asm</code> variants. Run <code>sh tests/simd.sh build/bin/ziran</code>
-and <code>sh tests/simd_target.sh build/bin/ziran</code>.</p>
+and <code>sh tests/simd_target.sh build/bin/ziran</code>. With <code>WASMTIME</code> set to a
+wasmtime command, <code>tests/simd.sh</code> also runs its wasm32 modules; with
+<code>ANDROID_NDK_HOME</code> it builds AArch64 and ARMv7, and runs them under
+<code>QEMU_AARCH64</code> and <code>QEMU_ARM</code> or on the ARMv7 device <code>ARMV7_ADB_SERIAL</code>
+names.</p>
 <h3 id="http-and-process-capabilities">HTTP and process capabilities</h3>
 <p><code>std/net_http.zi</code> defines an explicit request/response host capability. A
 platform adapter supplies transport and TLS; checked Ziran code owns request

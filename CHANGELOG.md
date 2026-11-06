@@ -4,7 +4,7 @@
 
 - `std/simd` vectors such as `u8x16`, `s16x8` and `f32x4`, and 256-bit forms
   such as `s16x16`, with operations that give the same bits in C (SSE2 to
-  AVX2 and NEON), Go, bundles and the portable VM.
+  AVX2, NEON and WebAssembly SIMD128), Go, bundles and the portable VM.
 - A `#target` procedure runs the best x86-64 SIMD instructions the CPU has,
   chosen once when the program runs. `ZIRAN_SIMD_TIER` lowers the choice.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its

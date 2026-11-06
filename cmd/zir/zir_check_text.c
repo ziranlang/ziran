@@ -14,14 +14,16 @@
  * TextCopy. Returning, storing, aliasing or passing it to a foreign or
  * unknown callee keeps the old detached string. The rewrite only moves the
  * call when nothing evaluated before it in the statement can observe the
- * move, and never out of a loop or else-if condition or an `&&`, `||` or
- * `ifx` arm. A string local initialized from a fresh Text, as in
+ * move: literals, locals, and globals when the moved call provably writes
+ * none. It never moves one out of a loop or else-if condition or an `&&`,
+ * `||` or `ifx` arm. A string local initialized from a fresh Text, as in
  * `line := Render(...)`, becomes that Text the same way when every use of
  * it after its declaration and inside its block only reads it. Saved IR
  * holds the rewritten form, so loading it finds nothing more to do. */
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
+#include <ctype.h>
 #include <stdio.h>
 
 enum { SCOPE_UNKNOWN, SCOPE_COMPUTING, SCOPE_READ_ONLY, SCOPE_RETAINED };
@@ -29,6 +31,9 @@ enum { SCOPE_UNKNOWN, SCOPE_COMPUTING, SCOPE_READ_ONLY, SCOPE_RETAINED };
 typedef struct ScopeAnswer {
     const ZirFunction *fn;
     unsigned char state[64];
+    /* Whether a call may write a global: SCOPE_UNKNOWN, SCOPE_COMPUTING,
+     * SCOPE_READ_ONLY for no or SCOPE_RETAINED for maybe. */
+    unsigned char writes;
 } ScopeAnswer;
 
 typedef struct TextScope {
@@ -233,6 +238,123 @@ parameter_read_only(TextScope *scope, const ZirModule *module,
 }
 
 static int
+pointer_type(const char *type)
+{
+    return type != NULL && *skip_ws(type) == '*';
+}
+
+/* Whether writing through the place at INDEX may change a global: its root
+ * is a global, or a pointer is followed on the way to it. */
+static int
+place_reaches_global(const ZirFunction *fn, int index)
+{
+    while(index >= 0) {
+        const ZirExpr *e = &fn->exprs[index];
+        if(pointer_type(e->type))
+            return 1;
+        if(e->kind == ZIR_EXPR_IDENT)
+            return e->is_global_value;
+        if(e->kind != ZIR_EXPR_MEMBER && e->kind != ZIR_EXPR_INDEX &&
+           e->kind != ZIR_EXPR_SLICE)
+            return 1;
+        index = e->left;
+    }
+    return 1;
+}
+
+static int function_writes_globals(TextScope *scope, const ZirModule *module,
+                                   const ZirFunction *fn);
+
+/* Whether evaluating the call at INDEX may write a global: it calls a
+ * foreign, unknown or writing procedure, hands it a place reaching a
+ * global or takes a global's address. */
+static int
+call_writes_globals(TextScope *scope, const ZirModule *module,
+                    const ZirFunction *fn, int index)
+{
+    const ZirExpr *e = &fn->exprs[index];
+    if(e->left >= 0 || e->is_function_value || !e->name || !*e->name)
+        return 1;
+    for(int arg = e->first_child; arg >= 0; arg = fn->exprs[arg].next_sibling) {
+        const char *type = fn->exprs[arg].type ? skip_ws(fn->exprs[arg].type) : "";
+        int copied = !strcmp(type, "string") || !strcmp(type, "bool") ||
+            ((type[0] == 's' || type[0] == 'u' || type[0] == 'f') &&
+             isdigit((unsigned char)type[1]));
+        if(!copied && place_reaches_global(fn, arg))
+            return 1;
+    }
+    const ZirModule *owner = NULL;
+    const ZirFunction *callee = NULL;
+    int found = ResolveFunction(module, e->name, &owner, &callee);
+    if(found != 1) {
+        if(found != 0)
+            return 1;
+        for(int i = 0; i < module->import_count; i++)
+            if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
+               !strcmp(module->imports[i].name, e->name))
+                return 1;
+        /* A builtin such as print, TextView or BuilderAppend acts only on
+         * its arguments. */
+        return 0;
+    }
+    if(callee == NULL || owner == NULL || callee->is_extern ||
+       callee->is_template || callee->stmt_count == 0)
+        return 1;
+    return function_writes_globals(scope, owner, callee);
+}
+
+/* Whether the tree at INDEX may write a global when evaluated. */
+static int
+tree_writes_globals(TextScope *scope, const ZirModule *module,
+                    const ZirFunction *fn, int index)
+{
+    if(index < 0)
+        return 0;
+    const ZirExpr *e = &fn->exprs[index];
+    if(e->kind == ZIR_EXPR_UNARY && (!strcmp(e->op, "*") || !strcmp(e->op, "&")))
+        return 1;
+    if(e->kind == ZIR_EXPR_CALL && call_writes_globals(scope, module, fn, index))
+        return 1;
+    if(tree_writes_globals(scope, module, fn, e->left) ||
+       tree_writes_globals(scope, module, fn, e->right) ||
+       tree_writes_globals(scope, module, fn, e->third))
+        return 1;
+    for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(tree_writes_globals(scope, module, fn, child))
+            return 1;
+    return 0;
+}
+
+/* Whether calling FN may write a global. A recursive query answers yes. */
+static int
+function_writes_globals(TextScope *scope, const ZirModule *module,
+                        const ZirFunction *fn)
+{
+    ScopeAnswer *answer = answer_for(scope, fn);
+    if(answer == NULL)
+        return 1;
+    if(answer->writes != SCOPE_UNKNOWN)
+        return answer->writes != SCOPE_READ_ONLY;
+    answer->writes = SCOPE_COMPUTING;
+    int result = 0;
+    for(int s = 0; !result && s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->kind == ZIR_STMT_ASSIGN && place_reaches_global(fn, st->lhs_root))
+            result = 1;
+    }
+    for(int x = 0; !result && x < fn->expr_count; x++) {
+        const ZirExpr *e = &fn->exprs[x];
+        if((e->kind == ZIR_EXPR_UNARY && (!strcmp(e->op, "*") || !strcmp(e->op, "&"))) ||
+           (e->kind == ZIR_EXPR_CALL && call_writes_globals(scope, module, fn, x)))
+            result = 1;
+    }
+    answer = answer_for(scope, fn);
+    if(answer != NULL)
+        answer->writes = result ? SCOPE_RETAINED : SCOPE_READ_ONLY;
+    return result;
+}
+
+static int
 text_detach_call(const ZirFunction *fn, int index)
 {
     const ZirExpr *e = &fn->exprs[index];
@@ -270,10 +392,31 @@ address_taken(const ZirFunction *fn, const char *name)
     return 0;
 }
 
-/* Nothing in INDEX's tree can observe a call moved before it: literals,
- * local reads and views of local Text no pointer reaches. */
+/* Whether FN takes the address of a global anywhere, so a pointer may
+ * reach it. */
 static int
-settled(const ZirFunction *fn, int index)
+global_address_taken(const ZirFunction *fn)
+{
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *e = &fn->exprs[i];
+        if(e->kind != ZIR_EXPR_UNARY || (strcmp(e->op, "*") && strcmp(e->op, "&")))
+            continue;
+        int place = e->left >= 0 ? e->left : e->first_child;
+        while(place >= 0 && (fn->exprs[place].kind == ZIR_EXPR_MEMBER ||
+                             fn->exprs[place].kind == ZIR_EXPR_INDEX))
+            place = fn->exprs[place].left;
+        if(place < 0 || fn->exprs[place].kind != ZIR_EXPR_IDENT ||
+           fn->exprs[place].is_global_value)
+            return 1;
+    }
+    return 0;
+}
+
+/* Nothing in INDEX's tree can observe a call moved before it: literals,
+ * local reads, views of local Text no pointer reaches, and global reads
+ * when GLOBALS says the moved call writes none. */
+static int
+settled(const ZirFunction *fn, int index, int globals)
 {
     if(index < 0)
         return 1;
@@ -283,7 +426,10 @@ settled(const ZirFunction *fn, int index)
     case ZIR_EXPR_SIZE_OF:
         return 1;
     case ZIR_EXPR_IDENT:
-        return !e->is_global_value;
+        return !e->is_global_value || globals;
+    case ZIR_EXPR_UNARY:
+        return (!strcmp(e->op, "-") || !strcmp(e->op, "!")) &&
+            settled(fn, e->left >= 0 ? e->left : e->first_child, globals);
     case ZIR_EXPR_CALL:
         return !strcmp(e->name, "TextView") && e->first_child >= 0 &&
             fn->exprs[e->first_child].kind == ZIR_EXPR_IDENT &&
@@ -297,11 +443,11 @@ settled(const ZirFunction *fn, int index)
         if(e->kind == ZIR_EXPR_BINARY &&
            (!strcmp(e->op, "&&") || !strcmp(e->op, "||")))
             return 0;
-        if(!settled(fn, e->left) || !settled(fn, e->right) ||
-           !settled(fn, e->third))
+        if(!settled(fn, e->left, globals) || !settled(fn, e->right, globals) ||
+           !settled(fn, e->third, globals))
             return 0;
         for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
-            if(!settled(fn, child))
+            if(!settled(fn, child, globals))
                 return 0;
         return 1;
     default:
@@ -330,7 +476,7 @@ takes_address(const ZirFunction *fn, int index)
 /* Whether CHILD of PARENT runs after only settled siblings, so the
  * statement may evaluate CHILD's call first. */
 static int
-earlier_settled(const ZirFunction *fn, int parent, int child)
+earlier_settled(const ZirFunction *fn, int parent, int child, int globals)
 {
     const ZirExpr *e = &fn->exprs[parent];
     if(e->kind == ZIR_EXPR_CONDITIONAL ||
@@ -341,25 +487,27 @@ earlier_settled(const ZirFunction *fn, int parent, int child)
     for(int i = 0; i < 3; i++) {
         if(order[i] == child)
             return 1;
-        if(!settled(fn, order[i]))
+        if(!settled(fn, order[i], globals))
             return 0;
     }
     for(int sibling = e->first_child; sibling >= 0; sibling = fn->exprs[sibling].next_sibling) {
         if(sibling == child)
             return 1;
-        if(!settled(fn, sibling))
+        if(!settled(fn, sibling, globals))
             return 0;
     }
     return 0;
 }
 
-/* The statement whose evaluation can start with CALL, or -1. */
+/* The statement whose evaluation can start with CALL, or -1. GLOBALS says
+ * CALL writes no global, so earlier global reads see the same values. */
 static int
-hoist_statement(const ZirFunction *fn, const Parents *parents, int call)
+hoist_statement(const ZirFunction *fn, const Parents *parents, int call,
+                int globals)
 {
     int node = call;
     while(parents->of[node] >= 0) {
-        if(!earlier_settled(fn, parents->of[node], node))
+        if(!earlier_settled(fn, parents->of[node], node, globals))
             return -1;
         node = parents->of[node];
     }
@@ -378,7 +526,7 @@ hoist_statement(const ZirFunction *fn, const Parents *parents, int call)
         return st->is_else ? -1 : s;
     case ZIR_STMT_ASSIGN:
         /* A for-loop step is where continue jumps; it stays first. */
-        return !st->for_step && settled(fn, st->lhs_root) ? s : -1;
+        return !st->for_step && settled(fn, st->lhs_root, globals) ? s : -1;
     default:
         return -1;
     }
@@ -642,7 +790,15 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
             if(!value_read_only(scope, module, fn, &parents, x) ||
                takes_address(fn, fn->exprs[x].first_child))
                 continue;
-            int s = hoist_statement(fn, &parents, x);
+            /* The moved call is the Text producer with its arguments. */
+            int moved = vec_module ? x : fn->exprs[x].first_child;
+            int globals = !global_address_taken(fn) &&
+                !tree_writes_globals(scope, module, fn, moved);
+            if(scope->failed) {
+                free(parents.of);
+                return 0;
+            }
+            int s = hoist_statement(fn, &parents, x, globals);
             if(s < 0)
                 continue;
             int call = vec_module ? builder_text_call(fn, x, vec_module) :

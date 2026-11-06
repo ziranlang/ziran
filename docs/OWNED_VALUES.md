@@ -91,9 +91,10 @@ before the statement, which lends its view and frees it when the block
 closes; `BuilderFinish` in such a position becomes `TextFromBuilder` the same
 way, and so does a `string` local such as `line := Render(...)` initialized
 from one when every use after its declaration inside its block only reads
-it. Results computed after another call in the same expression, in a loop
-or `else if` condition, or in an `&&`, `||` or `ifx` arm stay detached so
-nothing runs earlier than written. `tests/text_scoped_arguments.sh` shows no
+it. Results computed after another call in the same expression, after a
+global the producing call may write, in a loop or `else if` condition, or in
+an `&&`, `||` or `ifx` arm stay detached so nothing runs earlier than
+written; literals, `-1` and globals it leaves alone may come first. `tests/text_scoped_arguments.sh` shows no
 allocations left in 1000 rounds of such reads and keeps stored, pushed,
 returned, aliased, deferred and global arguments and locals alive.
 `tests/owned_text_results.sh` counts 1000 allocations kept in 1000 rounds of

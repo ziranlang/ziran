@@ -22,6 +22,8 @@
 - A local such as `line := Render(...)` that is only read, compared,
   counted or passed to a procedure that only reads it is freed when its
   block closes too.
+- A `-1` or a global argument before such a result no longer keeps it,
+  unless the producing call may change a global.
 - A local named like a C library function, such as `free`, no longer hides
   it in generated C, and one named like a Go builtin no longer hides it in
   Go.

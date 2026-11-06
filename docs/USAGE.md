@@ -1071,8 +1071,9 @@ comparison, `.count`, or `BuilderFinish` passed the same way, as in
 `line := Render(...)` whose uses only do the same. A callee or local that
 stores, returns, aliases or defers the string, or a foreign callee, keeps
 it. The result is never computed earlier than written, so one after
-another call in its expression, in a loop or `else if` condition, or in an
-`&&`, `||` or `ifx` arm keeps its bytes. `tests/text_scoped_arguments.sh`
+another call in its expression, after a global its procedure may change, in
+a loop or `else if` condition, or in an `&&`, `||` or `ifx` arm keeps its
+bytes. Literals such as `-1` and other globals may come first. `tests/text_scoped_arguments.sh`
 checks both kinds.
 `TextDetach(text)` detaches explicitly, and `TextFromBuilder(bytes)` takes a
 builder's bytes as a `Text`.

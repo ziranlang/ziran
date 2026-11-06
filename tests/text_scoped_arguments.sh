@@ -5,8 +5,9 @@
 # such as `a := Make(...)` whose uses only read it. A callee or local that
 # stores, pushes, returns, aliases, defers or remembers the string in a global
 # keeps the old string. The result is never computed earlier than written: after
-# another call in the same expression, in a loop or else-if condition, or in
-# an `&&`, `||` or `ifx` arm it stays in place. Source and saved IR agree on C
+# another call in the same expression, after a global its producer may write,
+# in a loop or else-if condition, or in an `&&`, `||` or `ifx` arm it stays in
+# place. Literals, `-1` and globals the producer leaves alone may come first. Source and saved IR agree on C
 # (allocation-counted and under AddressSanitizer), Go and portable `.zx`.
 set -eu
 
@@ -20,6 +21,7 @@ cat > "$work/scoped.zi" <<'ZI'
 Holder :: struct { s: string; names: Vec(string); }
 calls: s64 = 0;
 last: string = "";
+width: s64 = 5;
 
 Make :: (a: string, b: string) -> Text {
     calls += 1
@@ -33,6 +35,13 @@ Late :: () -> Text {
     return BuilderFinish(out)
 }
 Bump :: () -> s64 { calls += 10; return 0 }
+// Writes no global.
+Pure :: (a: string) -> Text {
+    out: Vec(u8)
+    BuilderAppend(out, a)
+    return BuilderFinish(out)
+}
+Pair :: (n: s64, s: string) -> s64 { return n + s.count }
 
 // Only read during the call.
 Take :: (s: string) -> s64 { return s.count }
@@ -59,6 +68,8 @@ Scoped :: (rounds: s64) -> s64 {
         early: Vec(u8)
         BuilderAppend(early, "e")
         if BuilderFinish(early) != "e" { return -1 }
+        total += Pair(-1, Pure("abc"))
+        total += Pair(width, Pure("ab"))
         round += 1
     }
     return total
@@ -156,12 +167,15 @@ Order :: () -> s64 {
     i: s64 = 0
     while Take(Make("ab", "")) > i { i += 1 }
     if calls != 4 { return 6 }
+    // Make writes calls, so calls is read before Make runs.
+    calls = 0
+    if Pair(calls, Make("a", "")) != 1 { return 7 }
     return 0
 }
 
 #program_export
 Check :: () -> s32 {
-    if Scoped(1) != 3 + 125 + 1 + 1 + 5 { return 1 }
+    if Scoped(1) != 3 + 125 + 1 + 1 + 5 + 2 + 7 { return 1 }
     if Locals(1) != 3 + 3 + 1 + 1 + 2 { return 4 }
     if Retained() != 0 { return 2 }
     if Order() != 0 { return 3 }
@@ -203,7 +217,7 @@ void *__wrap_realloc(void *p, size_t size) { void *r = __real_realloc(p, size); 
 void __wrap_free(void *p) { if (p) outstanding--; __real_free(p); }
 int main(void) {
     long before = outstanding;
-    if (Scoped(1000) != 135000 || Locals(1000) != 10000) return 1;
+    if (Scoped(1000) != 144000 || Locals(1000) != 10000) return 1;
     long scoped = outstanding - before;
     printf("1000 rounds: %ld allocations left\n", scoped);
     if (Check() != 42) return 1;
@@ -220,7 +234,7 @@ C
         -o "$library" "$module"
     cat > "$work/plain.c" <<'C'
 #include "scoped.h"
-int main(void) { return Scoped(50) == 6750 && Locals(50) == 500 && Check() == 42 ? 0 : 1; }
+int main(void) { return Scoped(50) == 7200 && Locals(50) == 500 && Check() == 42 ? 0 : 1; }
 C
     "${CC:-cc}" -std=c11 -g -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -fno-omit-frame-pointer \

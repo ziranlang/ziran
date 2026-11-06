@@ -1450,7 +1450,10 @@
   value of <code>BuilderAppend</code>, and <code>string</code> parameters whose checked callee
   only reads them, found transitively with a cycle counted as retained.
   Foreign and template callees retain. The move is skipped after an earlier
-  call or address in the statement, in loop and <code>else if</code> conditions, in
+  call or address in the statement, after a global read when the moved call
+  may write any global (through an assignment, a pointer, an address, a
+  global argument or a foreign, template or recursive callee, found
+  transitively), in loop and <code>else if</code> conditions, in
   <code>&amp;&amp;</code>, <code>||</code> and <code>ifx</code> arms and in <code>for</code> steps. A <code>string</code> local declared
   from such a result becomes a <code>Text</code> local when its name has one binding in
   the function, no defer follows in its block and every use after the

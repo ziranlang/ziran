@@ -1404,7 +1404,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   value of `BuilderAppend`, and `string` parameters whose checked callee
   only reads them, found transitively with a cycle counted as retained.
   Foreign and template callees retain. The move is skipped after an earlier
-  call or address in the statement, in loop and `else if` conditions, in
+  call or address in the statement, after a global read when the moved call
+  may write any global (through an assignment, a pointer, an address, a
+  global argument or a foreign, template or recursive callee, found
+  transitively), in loop and `else if` conditions, in
   `&&`, `||` and `ifx` arms and in `for` steps. A `string` local declared
   from such a result becomes a `Text` local when its name has one binding in
   the function, no defer follows in its block and every use after the

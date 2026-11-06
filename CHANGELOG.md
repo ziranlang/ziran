@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Integer literals such as `1_000`, `0xDEAD_BEEF`, `0b1010_0101` and `u64`
+  values above the `s64` maximum work in globals, `::` constants, constant
+  tables, array sizes and range bounds, and pass the portable VM's checks.
 - `x := x + 5` in an inner block, and `i := ...` in a `for` body over `i`,
   read the outer binding on every target; generated C no longer reads the
   new local, and the VM no longer steps the shadow instead of the loop.

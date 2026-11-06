@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdatomic.h>
 #include <string.h>
 
@@ -405,4 +406,56 @@ const ZirParameters *ParametersOf(const char *text)
     const ZirParameters *result = ParametersOf_persistent(text);
     CompilerMemoryResume(memory);
     return result;
+}
+
+int
+ZirIntegerLiteral(const char *text, unsigned long long *value)
+{
+    char digits[80];
+    size_t length = 0;
+    int base = 10;
+    const char *p = text;
+    unsigned long long result = 0;
+    if(p == NULL || *p < '0' || *p > '9')
+        return 0;
+    if(p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) { base = 16; p += 2; }
+    else if(p[0] == '0' && (p[1] == 'b' || p[1] == 'B')) { base = 2; p += 2; }
+    else if(p[0] == '0' && p[1] != '\0') { base = 8; p++; }
+    for(; *p; p++) {
+        if(*p == '_')
+            continue;
+        if(length + 1 >= sizeof(digits))
+            return 0;
+        digits[length++] = *p;
+    }
+    if(length == 0)
+        return base == 8;
+    for(size_t i = 0; i < length; i++) {
+        int digit;
+        char c = digits[i];
+        if(c >= '0' && c <= '9') digit = c - '0';
+        else if(c >= 'a' && c <= 'f') digit = c - 'a' + 10;
+        else if(c >= 'A' && c <= 'F') digit = c - 'A' + 10;
+        else return 0;
+        if(digit >= base ||
+           result > (ULLONG_MAX - (unsigned long long)digit) / (unsigned long long)base)
+            return 0;
+        result = result * (unsigned long long)base + (unsigned long long)digit;
+    }
+    *value = result;
+    return 1;
+}
+
+int
+ZirSignedIntegerLiteral(const char *text, unsigned long long *value,
+                        int *negative)
+{
+    unsigned long long bits;
+    int minus = text != NULL && text[0] == '-';
+    if(!ZirIntegerLiteral(text + minus, &bits) ||
+       (minus && bits > (unsigned long long)INT64_MAX + 1))
+        return 0;
+    *value = minus ? 0 - bits : bits;
+    *negative = minus;
+    return 1;
 }

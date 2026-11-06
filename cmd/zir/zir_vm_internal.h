@@ -7,6 +7,7 @@
 #include "zir_expr.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
+#include "zir_scalar.h"
 
 #include <ctype.h>
 #include <errno.h>

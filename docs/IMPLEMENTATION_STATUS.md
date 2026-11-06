@@ -540,6 +540,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   a top-level redeclaration gets its own block, so the step never advances
   the shadow. `tests/shadowed_binding_reads_outer.sh` checks C, Go, native
   and portable results.
+  Integer literals with `_` separators, `0b` binary and `u64` values above
+  the `s64` maximum share one parser across the checker, constant folding,
+  range lowering, proofs, the VM verifier, evaluator and global
+  initializers, and the C and Go emitters; C header constants are written in
+  decimal. `tests/integer_literal_spellings.sh` checks C, Go, native and
+  portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, `&`, `|`, `^`, `%`, `/`,
   `>>`, `+`, `-` and `*`, and from loop conditions. A local or parameter

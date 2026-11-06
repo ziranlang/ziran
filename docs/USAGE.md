@@ -875,6 +875,15 @@ initializer still reads the outer binding, so `x := x + 5` adds to the outer
 `i`. Two bindings of one name in the same block are rejected. Run
 `sh tests/shadowed_binding_reads_outer.sh build/bin/ziran`.
 
+## Integer literals
+
+Integer literals are decimal, `0x` hex or `0b` binary, with `_` between
+digits: `1_000_000`, `0xDEAD_BEEF`, `0b1010_0101`. A `u64` literal may use the
+whole unsigned range, as in `0xFFFF_FFFF_FFFF_FFFF`. Locals, globals, `::`
+constants, constant tables, array sizes and range bounds accept the same
+spellings on every target, and generated C headers spell them in decimal. Run
+`sh tests/integer_literal_spellings.sh build/bin/ziran`.
+
 ## Standard library
 
 Import a standard module as `#import "std/text"`. In a project the pinned

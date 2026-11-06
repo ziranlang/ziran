@@ -361,14 +361,9 @@ verify_expression_with_buffers(const ZirModule *module, const ZirFunction *funct
         return 1;
     }
     case ZIR_EXPR_INT: {
-        char *end;
-        errno = 0;
-        if(expression->text[0] == '-') {
-            (void)strtoll(expression->text, &end, 0);
-            return errno == 0 && end != expression->text && *end == 0;
-        }
-        (void)strtoull(expression->text, &end, 0);
-        return errno == 0 && end != expression->text && *end == 0;
+        unsigned long long bits;
+        int negative;
+        return ZirSignedIntegerLiteral(expression->text, &bits, &negative);
     }
     case ZIR_EXPR_FLOAT: {
         char *end;
@@ -1307,6 +1302,12 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                 int literal_ok =
                     EvaluateCompileExpression(module, global->init,
                                               global->span, 0, &folded);
+                if(!literal_ok && ScalarWidth(global->type)) {
+                    unsigned long long bits;
+                    int negative;
+                    literal_ok = ZirSignedIntegerLiteral(init, &bits,
+                                                         &negative);
+                }
                 if(!literal_ok && !strcmp(global->type, "string"))
                     literal_ok = init[0] == '"';
                 if(!literal_ok &&

@@ -1007,11 +1007,14 @@ literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *o
         negative = !negative;
         memmove(raw, raw + 1, length);
     }
-    errno = 0;
-    value = strtoull(raw,&end,0);
-    if(end == raw || errno == ERANGE) fatal(expr,"integer literal is out of range");
+    end = raw + strlen(raw);
+    while(end > raw && strchr("uUlL", end[-1])) end--;
     if(*end && strcmp(end,"u") && strcmp(end,"U") && strcmp(end,"l") && strcmp(end,"L") &&
        strcmp(end,"ll") && strcmp(end,"LL") && strcmp(end,"ull") && strcmp(end,"ULL")) fatal(expr,"invalid integer literal");
+    char suffix = *end;
+    *end = 0;
+    if(!ZirIntegerLiteral(raw, &value)) fatal(expr,"integer literal is out of range");
+    *end = suffix;
     int w = width(type);
     if(w) {
         uint64_t max = w == 64 ? UINT64_MAX : (UINT64_C(1)<<w)-1;

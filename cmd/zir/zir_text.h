@@ -29,6 +29,14 @@ double ParseDecimal(const char *text, char **end);
 /* Puts '.' back in place of the locale's decimal point in printf output. */
 void DecimalPointDot(char *text);
 int split_top_level(const char *s, char *parts, int max, size_t part_size);
+/* An unsigned integer literal as the language spells it: decimal, 0x hex,
+ * 0b binary or a leading-0 octal, with optional _ separators between digits,
+ * up to the full u64 range. Returns 1 when all of TEXT is that literal. */
+int ZirIntegerLiteral(const char *text, unsigned long long *value);
+/* The same with an optional leading minus: *value holds the two's-complement
+ * bits and *negative the sign. A negative literal reaches at most 2^63. */
+int ZirSignedIntegerLiteral(const char *text, unsigned long long *value,
+                            int *negative);
 /* A parameter list split once. Each parameter is trimmed text as
  * split_top_level gives it, with the name before its first ':' (trimmed)
  * and the type after it; both are NULL without a ':'. */

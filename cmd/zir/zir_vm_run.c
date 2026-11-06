@@ -1668,9 +1668,17 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
     }
     {
         int64_t folded = 0;
+        unsigned long long bits;
+        int negative;
         if(EvaluateCompileExpression(module, expr->text, span, 0, &folded)) {
             *target = target->kind == VALUE_REAL ?
                 real_value((double)folded) : int_value(folded);
+            return 1;
+        }
+        if(target->kind != VALUE_REAL &&
+           ZirSignedIntegerLiteral(expr->text, &bits, &negative)) {
+            *target = !negative && bits > INT64_MAX ? uint_value(bits) :
+                int_value((int64_t)bits);
             return 1;
         }
         char *end = NULL;
@@ -1780,11 +1788,22 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
                     slot->value = global_literal_string(vm, init);
                 } else {
                     int64_t folded = 0;
-                    if(EvaluateCompileExpression(module, init,
+                    unsigned long long bits = 0;
+                    int negative = 0;
+                    int folds = EvaluateCompileExpression(module, init,
                                                 slot->declaration->span, 0,
-                                                &folded)) {
+                                                &folded);
+                    int spelled = !folds &&
+                        ScalarWidth(slot->declaration->type) &&
+                        ZirSignedIntegerLiteral(init, &bits, &negative);
+                    if(folds || spelled) {
                         Value coerced = coerce(vm, module,
-                                               int_value(folded),
+                                               spelled && !negative &&
+                                               bits > INT64_MAX ?
+                                               uint_value(bits) :
+                                               int_value(spelled ?
+                                                         (int64_t)bits :
+                                                         folded),
                                                slot->declaration->type);
                         if(!vm->failed)
                             slot->value = coerced;

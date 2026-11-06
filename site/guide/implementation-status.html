@@ -582,6 +582,12 @@
   a top-level redeclaration gets its own block, so the step never advances
   the shadow. <code>tests/shadowed_binding_reads_outer.sh</code> checks C, Go, native
   and portable results.
+  Integer literals with <code>_</code> separators, <code>0b</code> binary and <code>u64</code> values above
+  the <code>s64</code> maximum share one parser across the checker, constant folding,
+  range lowering, proofs, the VM verifier, evaluator and global
+  initializers, and the C and Go emitters; C header constants are written in
+  decimal. <code>tests/integer_literal_spellings.sh</code> checks C, Go, native and
+  portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>%</code>, <code>/</code>,
   <code>&gt;&gt;</code>, <code>+</code>, <code>-</code> and <code>*</code>, and from loop conditions. A local or parameter

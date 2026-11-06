@@ -248,6 +248,64 @@ resolve_aliased_fn(const ZirModule *m, const ZirCModuleSyms *restab,
 
 /* Rewrite the remaining textual constant, global initializer, or type bound.
  * Function bodies are emitted from checked expression graphs. */
+/* Spells each integer literal in TEXT the way C reads it: _ separators and
+ * 0b binary become decimal, with ULL past the s64 maximum. Strings,
+ * characters and identifiers stay as written. Returns 0 when the result
+ * does not fit SIZE bytes. */
+static int
+c_integer_spellings(char *text, size_t size)
+{
+    char *out = malloc(size);
+    size_t used = 0;
+    const char *read = text;
+    if(out == NULL) return 0;
+#define C_SPELLING_PUT(s, n) do { size_t put_n = (n); \
+        if(used + put_n >= size) { free(out); return 0; } \
+        memcpy(out + used, (s), put_n); used += put_n; } while(0)
+    while(*read) {
+        const char *start = read;
+        if(*read == '"' || *read == '\'') {
+            char quote = *read++;
+            while(*read && *read != quote) read += read[0] == '\\' && read[1] ? 2 : 1;
+            if(*read) read++;
+            C_SPELLING_PUT(start, (size_t)(read - start));
+            continue;
+        }
+        if(!isalnum((unsigned char)*read) && *read != '_') {
+            C_SPELLING_PUT(read, 1);
+            read++;
+            continue;
+        }
+        while(isalnum((unsigned char)*read) || *read == '_') read++;
+        size_t length = (size_t)(read - start), digits = length;
+        while(digits > 1 && strchr("uUlL", start[digits - 1]) != NULL) digits--;
+        char literal[96], spelling[32];
+        unsigned long long value;
+        int rewrite = isdigit((unsigned char)start[0]) && *read != '.' &&
+            digits < sizeof(literal) &&
+            (memchr(start, '_', length) != NULL ||
+             (start[0] == '0' && (start[1] == 'b' || start[1] == 'B')));
+        if(rewrite) {
+            memcpy(literal, start, digits);
+            literal[digits] = 0;
+            rewrite = ZirIntegerLiteral(literal, &value);
+        }
+        if(!rewrite) {
+            C_SPELLING_PUT(start, length);
+            continue;
+        }
+        int n = snprintf(spelling, sizeof(spelling), "%llu%s", value,
+                         digits == length && value > INT64_MAX ? "ULL" : "");
+        C_SPELLING_PUT(spelling, (size_t)n);
+        C_SPELLING_PUT(start + digits, length - digits);
+    }
+#undef C_SPELLING_PUT
+    out[used] = 0;
+    memcpy(text, out, used + 1);
+    free(out);
+    return 1;
+}
+
 static int
 rewrite_body2(const ZirModule *m, const ZirCModuleSyms *restab,
               int restab_count, const char *src, char *dst, size_t dst_size)
@@ -1362,6 +1420,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         /* A table constant written over several lines stays one macro. */
         for(char *p = buffers->value; *p; p++)
             if(*p == '\n' || *p == '\r') *p = ' ';
+        if(!c_integer_spellings(buffers->value, sizeof(buffers->value)))
+            c_rewrite_overflow(m->source_path, d->span.line);
         fprintf(h, "#define %s %s\n", name, buffers->value);
         if(!d->is_public) fputs("#endif\n", h);
     }

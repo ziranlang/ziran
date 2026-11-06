@@ -339,12 +339,11 @@ integer_expression(const ZirModule *module, const ZirFunction *expression,
         return 1;
     }
     if(node->kind == ZIR_EXPR_INT) {
-        char *end;
-        errno = 0;
-        *value = strtoll(node->text, &end, 0);
-        if(errno || end == node->text || *end || *value < 0 ||
-           (!wide && *value > INT32_MAX))
+        unsigned long long bits;
+        if(!ZirIntegerLiteral(node->text, &bits) || bits > INT64_MAX ||
+           (!wide && bits > INT32_MAX))
             return -1;
+        *value = (int64_t)bits;
         return 1;
     }
     int64_t left = 0, right = 0;

@@ -146,13 +146,13 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     compile_value_clear(&right);
     char *end;
     int64_t integer;
+    unsigned long long literal_bits;
     double real;
     int truth;
     switch(expression->kind) {
     case ZIR_EXPR_INT:
-        errno = 0;
-        uint64_t bits = strtoull(expression->text, &end, 0);
-        if(errno == ERANGE || end == expression->text || *end) return 0;
+        if(!ZirIntegerLiteral(expression->text, &literal_bits)) return 0;
+        uint64_t bits = literal_bits;
         integer = ScalarSigned(bits, 64);
         result->kind = COMPILE_INTEGER;
         result->integer = integer;

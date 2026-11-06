@@ -320,7 +320,6 @@ eval_imported_integer_define(ZirEval *ev, const char *name, size_t length,
 static int64_t
 eval_primary(ZirEval *ev)
 {
-    char *end;
     int64_t value;
 
     if(ev->fuel != NULL && --*ev->fuel < 0) {
@@ -346,16 +345,27 @@ eval_primary(ZirEval *ev)
         return value;
     }
     if(isdigit((unsigned char)*ev->p)) {
-        errno = 0;
-        value = strtoll(ev->p, &end, 0);
-        if(end == ev->p || errno == ERANGE) {
+        /* The whole token, separators included, less a U, L or UL suffix. */
+        char digits[96];
+        unsigned long long bits;
+        const char *start = ev->p;
+        size_t length;
+        while(isalnum((unsigned char)*ev->p) || *ev->p == '_')
+            ev->p++;
+        length = (size_t)(ev->p - start);
+        while(length > 1 && strchr("uUlL", start[length - 1]) != NULL)
+            length--;
+        if(length >= sizeof(digits)) {
             ev->known = 0;
             return 0;
         }
-        ev->p = end;
-        while(isalnum((unsigned char)*ev->p) || *ev->p == '_')
-            ev->p++;   /* integer suffixes: U, L, UL */
-        return value;
+        memcpy(digits, start, length);
+        digits[length] = 0;
+        if(!ZirIntegerLiteral(digits, &bits) || bits > INT64_MAX) {
+            ev->known = 0;
+            return 0;
+        }
+        return (int64_t)bits;
     }
     if(isalpha((unsigned char)*ev->p) || *ev->p == '_') {
         const char *word = ev->p;

@@ -185,10 +185,8 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
     const ZirExpr *e = &fn->exprs[index];
     int result = -1;
     if(e->kind == ZIR_EXPR_INT) {
-        char *end;
-        errno = 0;
-        uint64_t value = strtoull(e->text, &end, 0);
-        if(errno || *end || end == e->text) return unsupported(c, "invalid integer literal in proof");
+        unsigned long long value;
+        if(!ZirIntegerLiteral(e->text, &value)) return unsupported(c, "invalid integer literal in proof");
         int type = expected > 0 ? expected :
                    scalar_type(c, m, value > INT64_MAX ? "u64" : "s64");
         if(type < 0) return -1;

@@ -83,28 +83,10 @@ within(Range inner, Range outer)
 static int
 literal_value(const char *text, int64_t *value)
 {
-    int base = 10;
-    const char *p = text;
-    uint64_t result = 0;
-    if(p == NULL || *p == '\0')
+    unsigned long long bits;
+    if(!ZirIntegerLiteral(text, &bits) || bits > (UINT64_C(1) << 62))
         return 0;
-    if(p[0] == '0' && (p[1] == 'x' || p[1] == 'X')) { base = 16; p += 2; }
-    else if(p[0] == '0' && (p[1] == 'b' || p[1] == 'B')) { base = 2; p += 2; }
-    else if(p[0] == '0' && p[1] != '\0')
-        return 0;
-    if(*p == '\0')
-        return 0;
-    for(; *p; p++) {
-        int digit;
-        if(*p >= '0' && *p <= '9') digit = *p - '0';
-        else if(*p >= 'a' && *p <= 'f') digit = *p - 'a' + 10;
-        else if(*p >= 'A' && *p <= 'F') digit = *p - 'A' + 10;
-        else return 0;
-        if(digit >= base || result > (UINT64_C(1) << 62) / (uint64_t)base)
-            return 0;
-        result = result * (uint64_t)base + (uint64_t)digit;
-    }
-    *value = (int64_t)result;
+    *value = (int64_t)bits;
     return 1;
 }
 

@@ -944,20 +944,39 @@ body_changes(const ZirFunction *fn, int index, int close, const char *name)
     return 0;
 }
 
+/* An integer literal with an optional minus sign and surrounding spaces. */
+static int
+signed_literal(const char *text, long long *value)
+{
+    char digits[ZIR_NAME_MAX];
+    unsigned long long bits;
+    size_t length;
+    int negative;
+    while(*text == ' ') text++;
+    length = strlen(text);
+    while(length > 0 && text[length - 1] == ' ') length--;
+    if(length == 0 || length >= sizeof(digits))
+        return 0;
+    memcpy(digits, text, length);
+    digits[length] = '\0';
+    if(!ZirSignedIntegerLiteral(digits, &bits, &negative) ||
+       (!negative && bits > LLONG_MAX))
+        return 0;
+    *value = (long long)bits;
+    return 1;
+}
+
 /* A bound known before the loop runs: an integer literal, or a module
  * constant that is one and no local or parameter hides. */
 static int
 literal_bound(const ZirFunction *fn, const ZirModule *module, const char *text,
               long long *value)
 {
-    char *end, name[ZIR_NAME_MAX];
+    char name[ZIR_NAME_MAX];
     size_t length;
     while(*text == ' ') text++;
     if(!*text) return 0;
-    errno = 0;
-    *value = strtoll(text, &end, 0);
-    while(*end == ' ') end++;
-    if(end != text && errno == 0 && *end == '\0')
+    if(signed_literal(text, value))
         return 1;
     length = strlen(text);
     while(length > 0 && text[length - 1] == ' ') length--;
@@ -972,12 +991,7 @@ literal_bound(const ZirFunction *fn, const ZirModule *module, const char *text,
             return 0;
     for(int i = 0; i < module->define_count; i++)
         if(!strcmp(module->defines[i].name, name)) {
-            const char *defined = module->defines[i].value;
-            while(*defined == ' ') defined++;
-            errno = 0;
-            *value = strtoll(defined, &end, 0);
-            while(*end == ' ') end++;
-            return end != defined && errno == 0 && *end == '\0';
+            return signed_literal(module->defines[i].value, value);
         }
     return 0;
 }

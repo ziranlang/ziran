@@ -1141,11 +1141,15 @@ numeric_literal(Frame *frame, const ZirExpr *expression, Value *output)
     errno = 0;
     if(expression->kind == ZIR_EXPR_FLOAT)
         value = real_value(ParseDecimal(expression->text, &end));
-    else if(expression->text[0] == '-')
-        value = int_value(strtoll(expression->text, &end, 0));
     else {
-        unsigned long long bits = strtoull(expression->text, &end, 0);
-        value = bits > INT64_MAX ? uint_value(bits) : int_value((int64_t)bits);
+        int negative = 0;
+        unsigned long long bits = 0;
+        end = (char *)expression->text;
+        if(ZirSignedIntegerLiteral(expression->text, &bits, &negative)) {
+            end += strlen(end);
+            value = !negative && bits > INT64_MAX ? uint_value(bits)
+                  : int_value((int64_t)bits);
+        }
     }
     if(errno || end == expression->text || *end ||
        (value.kind == VALUE_REAL && !isfinite(value.real))) {

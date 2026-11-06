@@ -2,10 +2,10 @@
 # A procedure that returns owned Text works for both kinds of caller. A
 # caller that names the Text keeps it and frees it with its owner; a caller
 # written for string results, as in `name := Join(...)`, still gets a string
-# that keeps its bytes; one only read within its statement is freed after it. BuilderFinish gives a Text where one is expected. A
-# module that never imports std/vec can use either. Source and
-# saved IR agree on C (allocation-counted and under AddressSanitizer), Go and
-# portable `.zx`.
+# that keeps its bytes unless it is only read, which frees it with its block.
+# BuilderFinish gives a Text where one is expected. A module that never
+# imports std/vec can use either. Source and saved IR agree on C
+# (allocation-counted and under AddressSanitizer), Go and portable `.zx`.
 set -eu
 
 ziran=$1
@@ -51,9 +51,9 @@ Take :: (value: string) -> s64 { return value.count }
 Measure :: (text: Text) -> s64 { return TextView(text).count }
 Finish :: () -> Text { b: Vec(u8); BuilderAppend(b, "fin"); return BuilderFinish(b) }
 
-// Results kept as strings keep their bytes for the rest of the program. The
-// argument to Take is freed after its statement; the `.count` read after that
-// call is not moved ahead of it, so it keeps its bytes too.
+// Results used as strings: `written` and the argument to Take are only read,
+// so they are freed with their block. The `.count` read after the Take call
+// is not moved ahead of it, so it keeps its bytes for the program.
 #program_export
 Detached :: (rounds: s64) -> s64 {
     total: s64 = 0
@@ -174,7 +174,7 @@ int main(int argc, char **argv) {
     printf("%ld rounds: %ld allocations kept as strings, %ld kept as Text\n",
            rounds, detached, owned);
     if (Check() != 42) return 1;
-    return owned == 0 && detached == 2 * rounds ? 0 : 2;
+    return owned == 0 && detached == rounds ? 0 : 2;
 }
 C
     "${CC:-cc}" -std=c11 -I"$repo/include" -I"$c_output" \

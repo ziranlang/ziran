@@ -1,7 +1,7 @@
 #!/bin/sh
 # Standard text producers return owned Text. A caller written for a string,
-# as in `s := TextReplace(...)`, still gets a string; one only read within its
-# statement, or kept as Text, is freed. Source and saved IR agree on C (allocation-counted
+# as in `s := TextReplace(...)`, still gets a string; one that is only read,
+# or kept as Text, is freed. Source and saved IR agree on C (allocation-counted
 # and under AddressSanitizer), Go and portable `.zx`.
 set -eu
 
@@ -19,9 +19,9 @@ cat > "$work/producers.zi" <<'ZI'
 
 Take :: (value: string) -> s64 { return value.count }
 
-// Written for string results, `replaced` and the Float64Repr read after the
-// Take call keep their bytes; TextLower and JsonQuote are freed after their
-// statements.
+// Written for string results: only the Float64Repr read after the Take call
+// keeps its bytes; `replaced`, TextLower and JsonQuote are only read and are
+// freed with their block.
 #program_export
 Detached :: (rounds: s64) -> s64 {
     total: s64 = 0
@@ -97,7 +97,7 @@ int main(void) {
     long owned = outstanding - before;
     printf("1000 rounds: %ld allocations kept as strings, %ld kept as Text\n", detached, owned);
     if (Check() != 42) return 1;
-    return owned == 0 && detached == 2000 ? 0 : 2;
+    return owned == 0 && detached == 1000 ? 0 : 2;
 }
 C
     "${CC:-cc}" -std=c11 -I"$repo/include" -I"$c_output" "$c_output"/*.c "$work/count.c" \

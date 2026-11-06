@@ -89,17 +89,19 @@ statement, by a comparison, `.count` or a `string` parameter whose callee's
 checked body only reads it, instead moves into a scoped `Text` local declared
 before the statement, which lends its view and frees it when the block
 closes; `BuilderFinish` in such a position becomes `TextFromBuilder` the same
-way. Results computed after another call in the same expression, in a loop
+way, and so does a `string` local such as `line := Render(...)` initialized
+from one when every use after its declaration inside its block only reads
+it. Results computed after another call in the same expression, in a loop
 or `else if` condition, or in an `&&`, `||` or `ifx` arm stay detached so
 nothing runs earlier than written. `tests/text_scoped_arguments.sh` shows no
 allocations left in 1000 rounds of such reads and keeps stored, pushed,
-returned, aliased and global arguments alive. `tests/owned_text_results.sh`
-counts 2000 allocations kept in 1000 rounds of three `Text` results used as
-strings, two named or read after a call, and none kept as `Text`. The
-standard producers, such as `TextReplace`, `Float64Repr`, `JsonWrite` and
-`JoinPath`, return `Text` the same way; `tests/std_text_results.sh` measures
-2000 allocations kept in 1000 rounds of four producers used as strings, and
-none kept as `Text`.
+returned, aliased, deferred and global arguments and locals alive.
+`tests/owned_text_results.sh` counts 1000 allocations kept in 1000 rounds of
+three `Text` results used as strings, from the one read after a call, and
+none kept as `Text`. The standard producers, such as `TextReplace`,
+`Float64Repr`, `JsonWrite` and `JoinPath`, return `Text` the same way;
+`tests/std_text_results.sh` measures 1000 allocations kept in 1000 rounds of
+four producers used as strings, and none kept as `Text`.
 
 Generic
 `Option` and `Result` are currently ordinary records with explicit status

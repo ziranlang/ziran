@@ -19,6 +19,12 @@
 - A `Text` result only read within its statement, as in
   `Count(JsonWrite(...))`, `Render(a) == Render(b)` or `.count`, is freed
   when its block closes instead of kept for the program.
+- A local such as `line := Render(...)` that is only read, compared,
+  counted or passed to a procedure that only reads it is freed when its
+  block closes too.
+- A local named like a C library function, such as `free`, no longer hides
+  it in generated C, and one named like a Go builtin no longer hides it in
+  Go.
 - `make install-user` keeps a `~/.local/bin/ziran` that launches another
   tool, such as a build queue wrapper, and says so instead of failing.
 - `for h.items`, `for * h.parts`, `for it.tags` and `h.items[1:]` work on a

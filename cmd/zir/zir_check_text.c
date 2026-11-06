@@ -15,8 +15,10 @@
  * unknown callee keeps the old detached string. The rewrite only moves the
  * call when nothing evaluated before it in the statement can observe the
  * move, and never out of a loop or else-if condition or an `&&`, `||` or
- * `ifx` arm. Saved IR holds the rewritten form, so loading it finds
- * nothing more to do. */
+ * `ifx` arm. A string local initialized from a fresh Text, as in
+ * `line := Render(...)`, becomes that Text the same way when every use of
+ * it after its declaration and inside its block only reads it. Saved IR
+ * holds the rewritten form, so loading it finds nothing more to do. */
 #include "zir_memory.h"
 #include "zir_check_internal.h"
 
@@ -248,8 +250,28 @@ scoped_name(const char *name)
     return name != NULL && !strncmp(name, "text_scope_", 11);
 }
 
+/* Whether some `*` or `&` in FN reaches local NAME or a place inside it,
+ * through which a call could change it. */
+static int
+address_taken(const ZirFunction *fn, const char *name)
+{
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *e = &fn->exprs[i];
+        if(e->kind != ZIR_EXPR_UNARY || (strcmp(e->op, "*") && strcmp(e->op, "&")))
+            continue;
+        int place = e->left >= 0 ? e->left : e->first_child;
+        while(place >= 0 && (fn->exprs[place].kind == ZIR_EXPR_MEMBER ||
+                             fn->exprs[place].kind == ZIR_EXPR_INDEX))
+            place = fn->exprs[place].left;
+        if(place < 0 || (fn->exprs[place].kind == ZIR_EXPR_IDENT &&
+                         fn->exprs[place].name && !strcmp(fn->exprs[place].name, name)))
+            return 1;
+    }
+    return 0;
+}
+
 /* Nothing in INDEX's tree can observe a call moved before it: literals,
- * local reads and earlier scoped views. */
+ * local reads and views of local Text no pointer reaches. */
 static int
 settled(const ZirFunction *fn, int index)
 {
@@ -265,7 +287,10 @@ settled(const ZirFunction *fn, int index)
     case ZIR_EXPR_CALL:
         return !strcmp(e->name, "TextView") && e->first_child >= 0 &&
             fn->exprs[e->first_child].kind == ZIR_EXPR_IDENT &&
-            scoped_name(fn->exprs[e->first_child].name);
+            !fn->exprs[e->first_child].is_global_value &&
+            fn->exprs[e->first_child].name != NULL &&
+            (scoped_name(fn->exprs[e->first_child].name) ||
+             !address_taken(fn, fn->exprs[e->first_child].name));
     case ZIR_EXPR_MEMBER: case ZIR_EXPR_INDEX: case ZIR_EXPR_SLICE:
     case ZIR_EXPR_BINARY: case ZIR_EXPR_CAST: case ZIR_EXPR_FIELD_INIT:
     case ZIR_EXPR_COMPOUND:
@@ -466,10 +491,142 @@ builder_text_call(ZirFunction *fn, int finish, const char *vec_module)
     return index;
 }
 
+/* The statement whose expression tree holds X, or -1. */
+static int
+statement_of(const Parents *parents, int x)
+{
+    while(parents->of[x] >= 0)
+        x = parents->of[x];
+    return parents->of[x] < -1 ? -2 - parents->of[x] : -1;
+}
+
+/* The BLOCK_CLOSE ending the block that holds statement S, counted as the
+ * checker counts scopes, or the statement count at function level. */
+static int
+block_end(const ZirFunction *fn, int s)
+{
+    int depth = 0;
+    for(int t = s + 1; t < fn->stmt_count; t++) {
+        ZirStmtKind kind = fn->stmts[t].kind;
+        if(kind == ZIR_STMT_BLOCK_CLOSE) {
+            if(depth == 0)
+                return t;
+            depth--;
+        } else if(kind == ZIR_STMT_BLOCK_OPEN || kind == ZIR_STMT_IF ||
+                  kind == ZIR_STMT_WHILE || kind == ZIR_STMT_FOR) {
+            depth++;
+        }
+    }
+    return fn->stmt_count;
+}
+
+/* Whether the string local declared by statement S is only read, and only
+ * after S inside its own block. Another binding of the name anywhere in
+ * the function, or a defer that could run after the block, keeps it. */
+static int
+local_read_only(TextScope *scope, const ZirModule *module,
+                const ZirFunction *fn, const Parents *parents, int s)
+{
+    const char *name = fn->stmts[s].name;
+    int end = block_end(fn, s);
+    for(int t = 0; t < fn->stmt_count; t++) {
+        const ZirStmt *st = &fn->stmts[t];
+        if(t != s && st->kind == ZIR_STMT_DECL && st->name && !strcmp(st->name, name))
+            return 0;
+        if(t > s && t < end && st->kind == ZIR_STMT_DEFER)
+            return 0;
+    }
+    for(int x = 0; x < fn->expr_count; x++) {
+        const ZirExpr *e = &fn->exprs[x];
+        if(e->kind != ZIR_EXPR_IDENT || e->is_this || e->is_function_value ||
+           e->name == NULL || strcmp(e->name, name) || parents->of[x] == -1)
+            continue;
+        int at = statement_of(parents, x);
+        if(at <= s || at >= end || !value_read_only(scope, module, fn, parents, x))
+            return 0;
+    }
+    return 1;
+}
+
+/* Keeps the Text call CALL of string local statement S as that local's
+ * Text and lends a view of it at each use. */
+static int
+keep_local_text(ZirFunction *fn, int s, int call)
+{
+    const char *name = fn->stmts[s].name;
+    int count = fn->expr_count;
+    for(int x = 0; x < count; x++) {
+        if(fn->exprs[x].kind != ZIR_EXPR_IDENT || fn->exprs[x].is_this ||
+           fn->exprs[x].name == NULL || strcmp(fn->exprs[x].name, name))
+            continue;
+        ZirExpr *local = FunctionAddExpr(fn, ZIR_EXPR_IDENT, fn->exprs[x].text,
+                                         fn->exprs[x].span);
+        if(local == NULL)
+            return 0;
+        *local = fn->exprs[x];
+        local->type = fn->exprs[call].type;
+        local->next_sibling = -1;
+        local->argument_index = -1;
+        local->argument_name = "";
+        int view = (int)(local - fn->exprs);
+        ZirExpr *lent = &fn->exprs[x];
+        lent->kind = ZIR_EXPR_CALL;
+        lent->name = KeepName("TextView");
+        lent->slot_type = "";
+        lent->left = lent->right = lent->third = -1;
+        lent->first_child = view;
+    }
+    ZirExpr *kept = &fn->exprs[call];
+    kept->next_sibling = -1;
+    kept->argument_index = -1;
+    kept->argument_name = "";
+    kept->text_owned = 1;
+    fn->stmts[s].type = kept->type;
+    fn->stmts[s].expr_root = call;
+    return 1;
+}
+
+/* A string local initialized from a fresh Text, as in
+ * `line := Render(...)`, whose uses only read it becomes that Text. */
+static int
+infer_local_texts(TextScope *scope, const ZirModule *module, ZirFunction *fn,
+                  int *changed)
+{
+    Parents parents = {0};
+    for(int s = 0; s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        int root = st->expr_root;
+        const char *vec_module = NULL;
+        if(st->kind != ZIR_STMT_DECL || st->is_using || st->name == NULL ||
+           !*st->name || st->type == NULL || strcmp(st->type, "string") ||
+           root < 0 || st->lhs_root >= 0 ||
+           (!text_detach_call(fn, root) &&
+            (vec_module = builder_text_module(module, fn, root)) == NULL))
+            continue;
+        if(parents.of == NULL && !parents_build(fn, &parents))
+            return 0;
+        if(!local_read_only(scope, module, fn, &parents, s))
+            continue;
+        int call = vec_module ? builder_text_call(fn, root, vec_module) :
+            fn->exprs[root].first_child;
+        if(call < 0 || !keep_local_text(fn, s, call)) {
+            free(parents.of);
+            return 0;
+        }
+        free(parents.of);
+        parents.of = NULL;
+        *changed = 1;
+    }
+    free(parents.of);
+    return 1;
+}
+
 static int
 scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
 {
-    int serial = 0;
+    int serial = 0, inferred = 0;
+    if(!infer_local_texts(scope, module, fn, &inferred))
+        return 0;
     for(;;) {
         Parents parents = {0};
         if(!parents_build(fn, &parents))
@@ -499,7 +656,7 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
         free(parents.of);
         /* Saved IR lists children before parents and statements in order. */
         if(done)
-            return serial == 0 || rebuild_conversion_layout(fn);
+            return (serial == 0 && !inferred) || rebuild_conversion_layout(fn);
     }
 }
 

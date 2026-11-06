@@ -1,9 +1,10 @@
 #!/bin/sh
 # A fresh Text result that is only read within its statement, such as an
 # argument to a procedure that only reads it, a comparison or a `.count`, is
-# freed when its block closes instead of kept as a string. A callee that
-# stores, pushes, returns, aliases or remembers the argument in a global keeps
-# the old string. The result is never computed earlier than written: after
+# freed when its block closes instead of kept as a string, and so is a local
+# such as `a := Make(...)` whose uses only read it. A callee or local that
+# stores, pushes, returns, aliases, defers or remembers the string in a global
+# keeps the old string. The result is never computed earlier than written: after
 # another call in the same expression, in a loop or else-if condition, or in
 # an `&&`, `||` or `ifx` arm it stays in place. Source and saved IR agree on C
 # (allocation-counted and under AddressSanitizer), Go and portable `.zx`.
@@ -63,6 +64,51 @@ Scoped :: (rounds: s64) -> s64 {
     return total
 }
 
+// Locals that only read their Text are freed with their block.
+#program_export
+Locals :: (rounds: s64) -> s64 {
+    total: s64 = 0
+    round: s64 = 0
+    while round < rounds {
+        a := Make("ab", "c")
+        total += a.count + Take(a)
+        if a == "abc" { total += 1 }
+        b: string = Make("x", "")
+        total += Outer(b) - 120
+        built: Vec(u8)
+        BuilderAppend(built, "hi")
+        h := BuilderFinish(built)
+        if h.count != 2 { return -1 }
+        total += 2
+        round += 1
+    }
+    return total
+}
+
+KeepLocal :: (h: *Holder) {
+    k := Make("lo", "cal")
+    h.s = k
+    p := Make("pu", "shed")
+    VecPush(h.names, p)
+    g := Make("glo", "bal")
+    Remember(g)
+    a := Make("ali", "as")
+    t := a
+    h.names[0] = t
+}
+ReturnLocal :: () -> string { r := Make("ret", "urn"); return r }
+Deferred :: (h: *Holder) {
+    d := Make("de", "fer")
+    defer { h.s = d }
+    h.s = ""
+}
+Shadowed :: (h: *Holder) -> s64 {
+    n: s64 = 0
+    if n == 0 { s := Make("one", ""); n += s.count }
+    if n > 0 { s := Make("two", "!"); h.s = s }
+    return n
+}
+
 Fill :: (h: *Holder) {
     Store(h, Make("fi", "eld"))
     Push(h, Make("ve", "c"))
@@ -80,6 +126,15 @@ Retained :: () -> s64 {
     a: Holder
     Aliased(*a)
     if a.s != "alias" { return 2 }
+    l: Holder
+    KeepLocal(*l)
+    if l.s != "local" || l.names[0] != "alias" || last != "global" { return 3 }
+    if ReturnLocal() != "return" { return 4 }
+    d: Holder
+    Deferred(*d)
+    if d.s != "defer" { return 5 }
+    w: Holder
+    if Shadowed(*w) != 3 || w.s != "two!" { return 6 }
     return 0
 }
 
@@ -107,6 +162,7 @@ Order :: () -> s64 {
 #program_export
 Check :: () -> s32 {
     if Scoped(1) != 3 + 125 + 1 + 1 + 5 { return 1 }
+    if Locals(1) != 3 + 3 + 1 + 1 + 2 { return 4 }
     if Retained() != 0 { return 2 }
     if Order() != 0 { return 3 }
     return 42
@@ -147,7 +203,7 @@ void *__wrap_realloc(void *p, size_t size) { void *r = __real_realloc(p, size); 
 void __wrap_free(void *p) { if (p) outstanding--; __real_free(p); }
 int main(void) {
     long before = outstanding;
-    if (Scoped(1000) != 135000) return 1;
+    if (Scoped(1000) != 135000 || Locals(1000) != 10000) return 1;
     long scoped = outstanding - before;
     printf("1000 rounds: %ld allocations left\n", scoped);
     if (Check() != 42) return 1;
@@ -164,7 +220,7 @@ C
         -o "$library" "$module"
     cat > "$work/plain.c" <<'C'
 #include "scoped.h"
-int main(void) { return Scoped(50) == 6750 && Check() == 42 ? 0 : 1; }
+int main(void) { return Scoped(50) == 6750 && Locals(50) == 500 && Check() == 42 ? 0 : 1; }
 C
     "${CC:-cc}" -std=c11 -g -fsanitize=address,undefined \
         -fno-sanitize-recover=undefined -fno-omit-frame-pointer \

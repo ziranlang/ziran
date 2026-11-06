@@ -1060,12 +1060,13 @@ discarded statement, which frees it. Anywhere else, as in
 detaches into a `string` that keeps its bytes for the rest of the program,
 as `BuilderFinish` strings always have, so callers written for a `string`
 result keep working. Write `line: Text = Render(...)` to free it with `line`.
-A result that is only read within its statement is freed when its block
-closes instead: an argument to a procedure whose body only reads that
-`string` parameter, a comparison, `.count`, or `BuilderFinish` passed the
-same way, as in `Count(Render(a))` or `Render(a) == Render(b)`. A callee that
-stores, returns or aliases the parameter, or a foreign one, keeps the
-string. The result is never computed earlier than written, so one after
+A result that is only read is freed when its block closes instead: an
+argument to a procedure whose body only reads that `string` parameter, a
+comparison, `.count`, or `BuilderFinish` passed the same way, as in
+`Count(Render(a))` or `Render(a) == Render(b)`, and a local such as
+`line := Render(...)` whose uses only do the same. A callee or local that
+stores, returns, aliases or defers the string, or a foreign callee, keeps
+it. The result is never computed earlier than written, so one after
 another call in its expression, in a loop or `else if` condition, or in an
 `&&`, `||` or `ifx` arm keeps its bytes. `tests/text_scoped_arguments.sh`
 checks both kinds.

@@ -88,17 +88,19 @@ statement, by a comparison, <code>.count</code> or a <code>string</code> paramet
 checked body only reads it, instead moves into a scoped <code>Text</code> local declared
 before the statement, which lends its view and frees it when the block
 closes; <code>BuilderFinish</code> in such a position becomes <code>TextFromBuilder</code> the same
-way. Results computed after another call in the same expression, in a loop
+way, and so does a <code>string</code> local such as <code>line := Render(...)</code> initialized
+from one when every use after its declaration inside its block only reads
+it. Results computed after another call in the same expression, in a loop
 or <code>else if</code> condition, or in an <code>&amp;&amp;</code>, <code>||</code> or <code>ifx</code> arm stay detached so
 nothing runs earlier than written. <code>tests/text_scoped_arguments.sh</code> shows no
 allocations left in 1000 rounds of such reads and keeps stored, pushed,
-returned, aliased and global arguments alive. <code>tests/owned_text_results.sh</code>
-counts 2000 allocations kept in 1000 rounds of three <code>Text</code> results used as
-strings, two named or read after a call, and none kept as <code>Text</code>. The
-standard producers, such as <code>TextReplace</code>, <code>Float64Repr</code>, <code>JsonWrite</code> and
-<code>JoinPath</code>, return <code>Text</code> the same way; <code>tests/std_text_results.sh</code> measures
-2000 allocations kept in 1000 rounds of four producers used as strings, and
-none kept as <code>Text</code>.</p>
+returned, aliased, deferred and global arguments and locals alive.
+<code>tests/owned_text_results.sh</code> counts 1000 allocations kept in 1000 rounds of
+three <code>Text</code> results used as strings, from the one read after a call, and
+none kept as <code>Text</code>. The standard producers, such as <code>TextReplace</code>,
+<code>Float64Repr</code>, <code>JsonWrite</code> and <code>JoinPath</code>, return <code>Text</code> the same way;
+<code>tests/std_text_results.sh</code> measures 1000 allocations kept in 1000 rounds of
+four producers used as strings, and none kept as <code>Text</code>.</p>
 <p>Generic
 <code>Option</code> and <code>Result</code> are currently ordinary records with explicit status
 fields, applied as <code>Name :: Option(T)</code> or <code>Name :: Result(T, E)</code>. They copy

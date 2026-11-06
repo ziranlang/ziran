@@ -1402,9 +1402,16 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   only reads them, found transitively with a cycle counted as retained.
   Foreign and template callees retain. The move is skipped after an earlier
   call or address in the statement, in loop and `else if` conditions, in
-  `&&`, `||` and `ifx` arms and in `for` steps. Saved IR holds the rewritten
-  form. `tests/text_scoped_arguments.sh` checks C allocation balance,
+  `&&`, `||` and `ifx` arms and in `for` steps. A `string` local declared
+  from such a result becomes a `Text` local when its name has one binding in
+  the function, no defer follows in its block and every use after the
+  declaration inside that block reads it the same way; each use then lends a
+  `TextView`. Saved IR holds the rewritten form.
+  `tests/text_scoped_arguments.sh` checks C allocation balance,
   AddressSanitizer, Go and the VM from source and saved IR.
+- Locals and parameters spelled like a C library or Go builtin name that
+  generated code calls, such as `free`, `memcpy` or `len`, are renamed in
+  the C and Go output; `tests/runtime_local_names.sh` covers both.
 - A slice of a Vec place, `v[a:b]` with either bound optional, becomes
   `VecSlice(v, a, b)` in the checker, so `for` over a Vec record field,
   as in `for h.items` or `for it.tags` inside `for * h.parts`, needs no

@@ -13,8 +13,8 @@ examples.
    and AddressSanitizer coverage, and retain source/saved-IR tests across
    backends. Owned `Text` is freed with its owner, and a procedure returning
    `Text` still serves callers that use the result as a `string`, which keep
-   the bytes for the program's lifetime unless the result is only read within
-   its statement; the standard text producers, such
+   the bytes for the program's lifetime unless the result, or a local
+   initialized from it, is only read; the standard text producers, such
    as `JsonWrite` and `Float64Repr`, return `Text`. The remaining steps are
    for result records such as `ReadEntireFile`'s to carry it, and for
    programs to keep those results as `Text`. Moving an indexed or

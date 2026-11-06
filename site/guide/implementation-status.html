@@ -1448,9 +1448,16 @@
   only reads them, found transitively with a cycle counted as retained.
   Foreign and template callees retain. The move is skipped after an earlier
   call or address in the statement, in loop and <code>else if</code> conditions, in
-  <code>&amp;&amp;</code>, <code>||</code> and <code>ifx</code> arms and in <code>for</code> steps. Saved IR holds the rewritten
-  form. <code>tests/text_scoped_arguments.sh</code> checks C allocation balance,
+  <code>&amp;&amp;</code>, <code>||</code> and <code>ifx</code> arms and in <code>for</code> steps. A <code>string</code> local declared
+  from such a result becomes a <code>Text</code> local when its name has one binding in
+  the function, no defer follows in its block and every use after the
+  declaration inside that block reads it the same way; each use then lends a
+  <code>TextView</code>. Saved IR holds the rewritten form.
+  <code>tests/text_scoped_arguments.sh</code> checks C allocation balance,
   AddressSanitizer, Go and the VM from source and saved IR.</li>
+<li>Locals and parameters spelled like a C library or Go builtin name that
+  generated code calls, such as <code>free</code>, <code>memcpy</code> or <code>len</code>, are renamed in
+  the C and Go output; <code>tests/runtime_local_names.sh</code> covers both.</li>
 <li>A slice of a Vec place, <code>v[a:b]</code> with either bound optional, becomes
   <code>VecSlice(v, a, b)</code> in the checker, so <code>for</code> over a Vec record field,
   as in <code>for h.items</code> or <code>for it.tags</code> inside <code>for * h.parts</code>, needs no

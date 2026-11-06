@@ -439,6 +439,28 @@ static const char *const go_keywords[] = {
     "formatFloat", "unsafe", "zirGoAssemblyEnabled", NULL
 };
 
+/* Generated function bodies call these C library and runtime names, so a
+ * local or parameter spelled the same, such as `free := ...`, is renamed
+ * instead of hiding them. */
+static const char *const c_runtime_names[] = {
+    "abort", "calloc", "errno", "exit", "fflush", "fprintf", "fputs",
+    "free", "fwrite", "malloc", "memcmp", "memcpy", "memmove", "memset",
+    "print_float", "printf", "putchar", "puts", "qsort", "realloc",
+    "snprintf", "stderr", "stdout", "strchr", "strcmp", "strlen", "strrchr",
+    "bool", "true", "false", "size_t", "ptrdiff_t", "uintptr_t",
+    "int8_t", "int16_t", "int32_t", "int64_t",
+    "uint8_t", "uint16_t", "uint32_t", "uint64_t", NULL
+};
+/* Go's predeclared names that generated bodies call or convert through. */
+static const char *const go_runtime_names[] = {
+    "any", "append", "bool", "byte", "cap", "clear", "close", "complex",
+    "copy", "delete", "error", "false", "float32", "float64", "imag",
+    "int", "int8", "int16", "int32", "int64", "iota", "len", "make",
+    "max", "min", "new", "nil", "panic", "print", "println", "real",
+    "recover", "rune", "string", "true", "uint", "uint8", "uint16",
+    "uint32", "uint64", "uintptr", NULL
+};
+
 static int
 keyword(const char *name, const char *const *words)
 {
@@ -458,7 +480,8 @@ void
 TargetBindingName(const ZirFunction *fn, ZirTarget target,
                   const char *name, char *out, size_t size)
 {
-    int reserved = keyword(name, target == ZIR_GO ? go_keywords : c_keywords);
+    int reserved = keyword(name, target == ZIR_GO ? go_keywords : c_keywords) ||
+        (fn != NULL && keyword(name, target == ZIR_GO ? go_runtime_names : c_runtime_names));
     if(!reserved && (fn == NULL || !function_reads_global(fn, name))) {
         copy_text(out, size, name);
         return;

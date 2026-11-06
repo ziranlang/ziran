@@ -32,3 +32,16 @@ TextCopy :: (value: string) -> Text {
     if !BuilderAppend(text.bytes, value) { return .{} }
     return text
 }
+
+// Take a byte builder's bytes as an owned Text without copying them.
+// BuilderFinish(builder) does the same where a Text is expected.
+TextFromBuilder :: (bytes: Vec(u8)) -> Text {
+    return .{bytes = bytes}
+}
+
+// Give up ownership: the returned string keeps the bytes for the rest of
+// the program. A Text call result used where it is not kept as a Text, such
+// as `name := JsonWrite(value)`, detaches this way.
+TextDetach :: (text: Text) -> string {
+    return BuilderFinish(text.bytes)
+}

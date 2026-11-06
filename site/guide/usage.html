@@ -840,6 +840,17 @@ stored where a <code>string</code> is expected lends the same view. A view canno
 outlive its <code>Text</code>, so returning a view of a local <code>Text</code> or storing it in a
 global is rejected. The <code>Text</code> cannot move or change while a view of it is
 live. <code>TextView</code> of a fresh call result is rejected; bind the <code>Text</code> first.</p>
+<p>A procedure can return <code>Text</code>, and <code>BuilderFinish(builder)</code> gives a <code>Text</code>
+where one is expected, as in <code>return BuilderFinish(out)</code> from a <code>-&gt; Text</code>
+procedure. A <code>Text</code> result is kept where its owner takes it: a declared,
+assigned or returned <code>Text</code>, a <code>Text</code> parameter or <code>Vec(Text)</code> element, or a
+discarded statement, which frees it. Anywhere else, as in
+<code>line := Render(...)</code> or an argument for a <code>string</code> parameter, the result
+detaches into a <code>string</code> that keeps its bytes for the rest of the program,
+as <code>BuilderFinish</code> strings always have, so callers written for a <code>string</code>
+result keep working. Write <code>line: Text = Render(...)</code> to free it with <code>line</code>.
+<code>TextDetach(text)</code> detaches explicitly, and <code>TextFromBuilder(bytes)</code> takes a
+builder's bytes as a <code>Text</code>.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:
 <code>ParseFloat64(text: string) -&gt; (value: float64, ok: bool)</code> accepts a complete
 ASCII decimal with optional sign, point and exponent, or <code>inf</code>/<code>Infinity</code> and

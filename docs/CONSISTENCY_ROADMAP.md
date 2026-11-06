@@ -11,10 +11,12 @@ examples.
 1. **Automatic ownership cleanup.** Lower the remaining ownership decisions
    into checked IR rather than separate backend paths, broaden allocation-count
    and AddressSanitizer coverage, and retain source/saved-IR tests across
-   backends. Owned `Text` in `std/vec` frees its bytes with its owner; the
-   remaining step is for `BuilderFinish` and the standard text producers to
-   return `Text` to owning callers while their `string` callers keep
-   compiling.
+   backends. Owned `Text` is freed with its owner, and a procedure returning
+   `Text` still serves callers that use the result as a `string`, which keep
+   the bytes for the program's lifetime. The remaining steps are for the
+   standard text producers, such as `JsonWrite` and `Float64Repr`, to return
+   `Text`, for result records such as `ReadEntireFile`'s to carry it, and for
+   programs to keep those results as `Text`.
 2. **Borrowed views.** Choose one observable rule for `TextView` of mutable
    bytes, then make native and portable execution agree. Complete lifetime
    tracking for unknown heap aliases and host-backed views, rejecting aliases

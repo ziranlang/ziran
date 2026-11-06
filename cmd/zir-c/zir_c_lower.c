@@ -379,6 +379,31 @@ rewrite_body2(const ZirModule *m, const ZirCModuleSyms *restab,
                 }
             }
             if(*e == '.' && e[1] != '\0' &&
+               !is_module_alias(m, p, (size_t)(e - p))) {
+                /* module_name.Procedure( names a public procedure of a
+                 * module reached only through other imports, as the
+                 * checker's calls to std/vec's Text helpers do. */
+                const char *m0 = e + 1, *me = m0;
+                while(isalnum((unsigned char)*me) || *me == '_')
+                    me++;
+                char dotted[ZIR_NAME_MAX];
+                const ZirModule *owner = NULL;
+                const ZirFunction *callee = NULL;
+                int length = snprintf(dotted, sizeof(dotted), "%.*s", (int)(me - p), p);
+                if(*me == '(' && length > 0 && (size_t)length < sizeof(dotted) &&
+                   ResolveFunction(m, dotted, &owner, &callee) == 1) {
+                    char cname[LOWER_NAME_MAX * 3];
+                    function_c_name(owner, callee, cname, sizeof(cname));
+                    size_t clen = strlen(cname);
+                    if(n + clen < dst_size) {
+                        memcpy(dst + n, cname, clen);
+                        n += clen;
+                    }
+                    p = me - 1;
+                    continue;
+                }
+            }
+            if(*e == '.' && e[1] != '\0' &&
                is_module_alias(m, p, (size_t)(e - p))) {
                 /* alias.member — cross-module call or enum/type member */
                 const char *m0 = e + 1;

@@ -357,7 +357,11 @@ restart:
                       expression_type(c, st->lhs_root));
             c->assign_destination = 0;
         }
+        /* A discarded Text result is kept, and so dropped. */
+        if(st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED)
+            c->text_owner = st->expr_root + 1;
         type = expression_type(c, st->expr_root);
+        c->text_owner = 0;
         c->expected_type[0] = '\0';
         errors_at_statement = c->errors;
         if(st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED) {

@@ -79,6 +79,15 @@ view is live. `TextView` of a fresh call result is rejected; bind the Text
 first. `tests/owned_text.sh` checks C with an allocation counter and under
 AddressSanitizer, Go and portable bundles from source and saved IR.
 
+A `Text` call result, and `BuilderFinish` where a `Text` is expected, is
+kept by an owner that takes it: a declared, assigned or returned `Text`, a
+`Text` parameter, element or field, or a discarded statement. The checker
+rewrites a `Text` call result anywhere else into `vec.TextDetach(result)`,
+which keeps the string semantics described above: the bytes stay allocated
+for the rest of the program. `tests/owned_text_results.sh` counts the
+difference: 1000 rounds of three `Text` results leave 3000 allocations when
+they are used as strings and none when they are kept as `Text`.
+
 Generic
 `Option` and `Result` are currently ordinary records with explicit status
 fields, applied as `Name :: Option(T)` or `Name :: Result(T, E)`. They copy

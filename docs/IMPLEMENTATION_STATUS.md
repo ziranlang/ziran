@@ -1332,6 +1332,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   and mutation checks, which also reject moving the Text while a view is live.
   `tests/owned_text.sh` covers locals, fields, `Vec(Text)` elements, pointer
   iteration, allocation balance, AddressSanitizer and source/saved IR.
+- The checker keeps a `Text` call result in owning positions and rewrites it
+  elsewhere into `vec.TextDetach(result)`, which needs no backend support
+  and keeps the old string semantics. `BuilderFinish` in an owning position
+  becomes `vec.TextFromBuilder`. `vec.Name` calls resolve from modules that
+  reach std/vec only through other imports. `tests/owned_text_results.sh`
+  checks both kinds of caller and counts allocations.
 - Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every `BundleRun`: integer and boolean literals, compile-time constant

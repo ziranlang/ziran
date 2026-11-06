@@ -1014,6 +1014,18 @@ outlive its `Text`, so returning a view of a local `Text` or storing it in a
 global is rejected. The `Text` cannot move or change while a view of it is
 live. `TextView` of a fresh call result is rejected; bind the `Text` first.
 
+A procedure can return `Text`, and `BuilderFinish(builder)` gives a `Text`
+where one is expected, as in `return BuilderFinish(out)` from a `-> Text`
+procedure. A `Text` result is kept where its owner takes it: a declared,
+assigned or returned `Text`, a `Text` parameter or `Vec(Text)` element, or a
+discarded statement, which frees it. Anywhere else, as in
+`line := Render(...)` or an argument for a `string` parameter, the result
+detaches into a `string` that keeps its bytes for the rest of the program,
+as `BuilderFinish` strings always have, so callers written for a `string`
+result keep working. Write `line: Text = Render(...)` to free it with `line`.
+`TextDetach(text)` detaches explicitly, and `TextFromBuilder(bytes)` takes a
+builder's bytes as a `Text`.
+
 `std/float_text.zi` supplies portable binary64 decimal conversion:
 `ParseFloat64(text: string) -> (value: float64, ok: bool)` accepts a complete
 ASCII decimal with optional sign, point and exponent, or `inf`/`Infinity` and

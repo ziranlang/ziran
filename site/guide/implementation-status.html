@@ -1377,6 +1377,12 @@
   and mutation checks, which also reject moving the Text while a view is live.
   <code>tests/owned_text.sh</code> covers locals, fields, <code>Vec(Text)</code> elements, pointer
   iteration, allocation balance, AddressSanitizer and source/saved IR.</li>
+<li>The checker keeps a <code>Text</code> call result in owning positions and rewrites it
+  elsewhere into <code>vec.TextDetach(result)</code>, which needs no backend support
+  and keeps the old string semantics. <code>BuilderFinish</code> in an owning position
+  becomes <code>vec.TextFromBuilder</code>. <code>vec.Name</code> calls resolve from modules that
+  reach std/vec only through other imports. <code>tests/owned_text_results.sh</code>
+  checks both kinds of caller and counts allocations.</li>
 <li>Portable bundles retain referenced module globals, including records and
   fixed arrays. Explicit initializers run before the first statement of
   every <code>BundleRun</code>: integer and boolean literals, compile-time constant

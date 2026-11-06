@@ -78,6 +78,14 @@ cannot outlive its Text, and the Text cannot be mutated or moved while the
 view is live. <code>TextView</code> of a fresh call result is rejected; bind the Text
 first. <code>tests/owned_text.sh</code> checks C with an allocation counter and under
 AddressSanitizer, Go and portable bundles from source and saved IR.</p>
+<p>A <code>Text</code> call result, and <code>BuilderFinish</code> where a <code>Text</code> is expected, is
+kept by an owner that takes it: a declared, assigned or returned <code>Text</code>, a
+<code>Text</code> parameter, element or field, or a discarded statement. The checker
+rewrites a <code>Text</code> call result anywhere else into <code>vec.TextDetach(result)</code>,
+which keeps the string semantics described above: the bytes stay allocated
+for the rest of the program. <code>tests/owned_text_results.sh</code> counts the
+difference: 1000 rounds of three <code>Text</code> results leave 3000 allocations when
+they are used as strings and none when they are kept as <code>Text</code>.</p>
 <p>Generic
 <code>Option</code> and <code>Result</code> are currently ordinary records with explicit status
 fields, applied as <code>Name :: Option(T)</code> or <code>Name :: Result(T, E)</code>. They copy

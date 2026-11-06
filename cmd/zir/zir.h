@@ -145,6 +145,7 @@ typedef struct ZirExpr {
     int is_this; /* #this resolves to the enclosing procedure despite shadowing */
     int is_global_value; /* in-memory only: identifier/call bound to a global */
     int is_move; /* in-memory only: a checked owned binding is consumed here */
+    int text_owned; /* in-memory only: a Text call result its owner keeps */
     const char *slot_type; /* lexical callable signature, empty for ordinary calls; KeepName */
     const char *text; /* shared and immutable: assign KeepText(...) */
     const char *name; /* KeepName */

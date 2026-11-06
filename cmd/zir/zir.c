@@ -231,7 +231,9 @@ OwnedTextType(const ZirModule *module, const char *name)
     if(module == NULL || name == NULL)
         return 0;
     const ZirType *type = FindType(module, name, &owner);
-    if(type == NULL || owner == NULL || strcmp(owner->name, "vec") ||
+    /* std/vec is `vec` alone and `std_vec` inside a project. */
+    if(type == NULL || owner == NULL ||
+       (strcmp(owner->name, "vec") && strcmp(owner->name, "std_vec")) ||
        strcmp(type->name, "Text") || type->is_enum || type->is_union ||
        type->is_procedure_type || type->is_record_template ||
        type->is_extern || type->is_owned_vec || type->is_map)
@@ -311,6 +313,8 @@ free_symbol_visits(SymbolVisit *visits)
 static int resolve_function_depth(const ZirModule *module, const char *name,
                        const char *source_path, const ZirModule **owner,
                        const ZirFunction **function, int depth, SymbolVisit **visits);
+static const ZirModule *reachable_module(const ZirModule *module,
+                                         const char *name, size_t length);
 
 static int
 resolve_function_uncached(const ZirModule *module, const char *name,
@@ -354,6 +358,21 @@ resolve_function_uncached(const ZirModule *module, const char *name,
                 if(*function != NULL && *function != nested) return -1;
                 *owner = nested_owner;
                 *function = nested;
+            }
+        }
+        /* As for types, `module_name.Procedure` also names a public
+         * procedure of a module reached only through other imports; the
+         * checker calls std/vec's Text helpers this way. */
+        if(*function == NULL && depth == 0) {
+            const ZirModule *target = reachable_module(module, name, alias_length);
+            for(int f = 0; target != NULL && f < target->function_count; f++) {
+                const ZirFunction *candidate = &target->functions[f];
+                if(candidate->is_public && !candidate->is_file_private &&
+                   !strcmp(candidate->name, dot + 1)) {
+                    *owner = target;
+                    *function = candidate;
+                    break;
+                }
             }
         }
         return *function != NULL;

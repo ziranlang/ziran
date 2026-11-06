@@ -17,6 +17,74 @@ typedef struct ExpressionTypeBuffers {
 
 const char *expression_type(Checker *c, int index);
 
+/* An owned Text call result is kept where an owner takes it: a declared,
+ * assigned or returned Text, a Text parameter or element, a Text field, or
+ * a discarded statement, which drops it. Elsewhere it detaches into a
+ * `string`, as text results always have, so code written for string
+ * results keeps its meaning and opts in by naming the Text. */
+static int
+text_owner_position(Checker *c, int index)
+{
+    return c->text_owner == index + 1 ||
+           (c->expected_type[0] && OwnedTextType(c->module, c->expected_type));
+}
+
+/* Name std/vec procedure `name` from the checked module. Any module that
+ * meets a Text or a byte builder reaches std/vec, which is `vec` alone and
+ * `std_vec` inside a project. */
+static const char *
+text_procedure(Checker *c, const char *name)
+{
+    static const char *const modules[] = {"vec", "std_vec"};
+    char qualified[ZIR_NAME_MAX];
+    for(size_t i = 0; i < sizeof(modules) / sizeof(*modules); i++) {
+        if(!strcmp(c->module->name, modules[i]))
+            return KeepName(name);
+        const ZirModule *owner = NULL;
+        const ZirFunction *found = NULL;
+        snprintf(qualified, sizeof(qualified), "%s.%s", modules[i], name);
+        if(ResolveFunction(c->module, qualified, &owner, &found) == 1)
+            return KeepName(qualified);
+    }
+    snprintf(qualified, sizeof(qualified), "vec.%s", name);
+    return KeepName(qualified);
+}
+
+/* Rewrite the Text call at `index` into `vec.TextDetach(call)`, which
+ * gives the bytes to a string that keeps them. Parents keep the index. */
+static const char *
+detach_text_result(Checker *c, int index)
+{
+    ZirFunction *fn = c->fn;
+    char name[ZIR_NAME_MAX];
+    copy_text(name, sizeof(name), fn->exprs[index].name);
+    ZirExpr *added = FunctionAddExpr(fn, ZIR_EXPR_CALL, name, fn->exprs[index].span);
+    if(added == NULL) {
+        c->failed = 1;
+        return "";
+    }
+    int result = (int)(added - fn->exprs);
+    ZirExpr saved = fn->exprs[index];
+    fn->exprs[result] = saved;
+    fn->exprs[result].next_sibling = -1;
+    fn->exprs[result].argument_index = -1;
+    fn->exprs[result].argument_name = "";
+    fn->exprs[result].text_owned = 1;
+    ZirExpr *call = &fn->exprs[index];
+    ExprReset(call);
+    call->kind = ZIR_EXPR_CALL;
+    call->text = saved.text;
+    call->name = text_procedure(c, "TextDetach");
+    call->argument_name = saved.argument_name;
+    call->argument_index = saved.argument_index;
+    call->first_child = result;
+    call->left = call->right = call->third = -1;
+    call->next_sibling = saved.next_sibling;
+    call->span = saved.span;
+    c->conversions_applied = 1;
+    return expression_type(c, index);
+}
+
 /* Inference can bind T to *Record, []Record, or [N]Record. A wrapper does
  * not make the caller's record visible in the template module. Compare
  * resolved identities too: equally named records can belong to each side. */
@@ -1803,10 +1871,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
         }
         if(!strcmp(e->name, "TextView")) {
             int first = e->first_child;
+            /* Keep a fresh Text argument so the error below names it. */
+            int saved_owner = c->text_owner;
+            c->text_owner = first + 1;
             const char *argument = first >= 0 &&
                 c->fn->exprs[first].next_sibling < 0 &&
                 !c->fn->exprs[first].argument_name[0] ?
                 expression_type(c, first) : "";
+            c->text_owner = saved_owner;
             e = &c->fn->exprs[index];
             if(argument[0] == '*' && OwnedTextType(c->module, argument + 1) &&
                !c->inference_only) {
@@ -1994,6 +2066,17 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             } else
                 type = contains ? "bool" : count ? "s64" : "void";
             break;
+        }
+        if(!strcmp(e->name, "BuilderFinish") && text_owner_position(c, index)) {
+            /* Where an owner takes the result, the builder's bytes become
+             * its Text instead of a string that keeps them. */
+            if(c->inference_only && c->expected_type[0])
+                return KeepName(c->expected_type);
+            if(!c->inference_only) {
+                e->name = text_procedure(c, "TextFromBuilder");
+                c->conversions_applied = 1;
+                return expression_type(c, index);
+            }
         }
         if(!strcmp(e->name, "VecPush") || !strcmp(e->name, "VecReserve") || (!strcmp(e->name, "VecResize") || !strcmp(e->name, "VecResizeBounded")) || !strcmp(e->name, "VecClear") ||
            !strcmp(e->name, "VecFree") || !strcmp(e->name, "VecSwap") ||
@@ -2794,9 +2877,20 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
     }
     }
     if(*ScalarType(type)) type = ScalarType(type);
+    e = &c->fn->exprs[index];
     if(type != e->type)
         e->type = KeepName(type);
     e->type = normalized_array(c->module, e->type);
+    if(e->kind == ZIR_EXPR_CALL && !e->text_owned &&
+       OwnedTextType(c->module, e->type)) {
+        if(text_owner_position(c, index)) {
+            if(!c->inference_only)
+                e->text_owned = 1;
+        } else if(c->inference_only)
+            return "string";
+        else
+            return detach_text_result(c, index);
+    }
     return e->type;
 }
 

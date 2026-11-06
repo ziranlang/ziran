@@ -79,6 +79,7 @@ typedef struct Checker {
     int assign_destination;
     int destination_was_moved;
     int conversions_applied;
+    int text_owner; /* expression index + 1 whose Text result is kept, or 0 */
     char vec_slice_type[ZIR_NAME_MAX];
     struct {
         int at;

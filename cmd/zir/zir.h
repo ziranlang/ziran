@@ -161,6 +161,8 @@ typedef struct ZirExpr {
     ZirSourceSpan span;
 } ZirExpr;
 
+enum { ZIR_INLINE_NONE, ZIR_INLINE_ALWAYS, ZIR_INLINE_COLD };
+
 typedef struct ZirFunction {
     char name[ZIR_NAME_MAX];
     const char *args_text; /* parameters; read with FunctionArgs, set with KeepParameters */
@@ -168,6 +170,7 @@ typedef struct ZirFunction {
     uint64_t using_parameters; /* template parameter namespace flags */
     char return_type[ZIR_NAME_MAX];
     int must_use; /* #must requires callers to keep the result */
+    int inlining; /* ZIR_INLINE_ALWAYS for #inline, ZIR_INLINE_COLD for #cold */
     const char *assembly_text; /* optional #asm variants; immutable kept text */
     int is_conversion; /* `Name :: #as (source: Type) -> Result` */
     char go_method[ZIR_NAME_MAX]; /* native receiver adapter; first parameter is the receiver */

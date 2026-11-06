@@ -154,6 +154,32 @@ check_foreign_slice_returns(ZirProgram **programs, int count)
     return 1;
 }
 
+/* C compilers refuse to always inline a procedure into itself. */
+int
+check_inline_procedures(ZirProgram **programs, int count)
+{
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++) {
+            const ZirModule *module = &programs[p]->modules[m];
+            for(int f = 0; f < module->function_count; f++) {
+                const ZirFunction *fn = &module->functions[f];
+                if(fn->inlining != ZIR_INLINE_ALWAYS)
+                    continue;
+                for(int e = 0; e < fn->expr_count; e++) {
+                    const ZirExpr *call = &fn->exprs[e];
+                    if(call->kind == ZIR_EXPR_CALL && call->name != NULL &&
+                       (!strcmp(call->name, fn->name) ||
+                        (fn->overload_name[0] && !strcmp(call->name, fn->overload_name)))) {
+                        Diagnostic(call->span, "check.inline",
+                                   "#inline procedure %s calls itself", fn->name);
+                        return 0;
+                    }
+                }
+            }
+        }
+    return 1;
+}
+
 /* Resolve Jai type-constructor calls before the ordinary checker sees type
  * names. Concrete applications get a stable private name so the existing IR
  * and target backends can refer to the same instantiated record. */

@@ -527,6 +527,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   keep per-module object reuse. `tests/cross_module_inline.sh` checks C, Go,
   native and portable results, the inlined calls, C hosts taking addresses,
   C++ hosts and rebuilds after an inlined body changes.
+  `#inline` procedures are `always_inline` in C, private ones
+  `static inline`, and public ones keep their header copy past the size
+  limit; `#cold` procedures are `noinline, cold`, get no header copy, and are
+  `//go:noinline` in Go. Saved IR keeps the modifier.
+  `tests/procedure_inlining.sh` checks the attributes, out-of-line and
+  inlined calls, C at `-O0` and `-O2`, Go, native and portable results, and
+  the rejected forms.
   A C call returning an array whose result initializes a local or is assigned
   to a stable array lvalue passes that destination as the callee's result
   buffer instead of a zero-filled temporary that is copied afterwards; a

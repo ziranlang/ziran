@@ -48,6 +48,20 @@ function_must_use(const char *line, const char *return_type,
     return modifier == MustUseModifier_Required;
 }
 
+int
+function_inlining(const char *line, ZirSourceSpan span)
+{
+    InliningModifier modifier = compiler_source_ProcedureInlining(declaration_text(line));
+    if(modifier == InliningModifier_Arguments)
+        die_at(span, "#inline and #cold do not take arguments");
+    if(modifier == InliningModifier_Duplicate)
+        die_at(span, "duplicate #inline or #cold procedure modifier");
+    if(modifier == InliningModifier_Both)
+        die_at(span, "a procedure cannot be both #inline and #cold");
+    return modifier == InliningModifier_Inline ? ZIR_INLINE_ALWAYS :
+           modifier == InliningModifier_Cold ? ZIR_INLINE_COLD : ZIR_INLINE_NONE;
+}
+
 static void
 check_declaration_error(DeclarationError error, ZirSourceSpan span)
 {
@@ -599,6 +613,8 @@ parse_foreign_line(ZirModule *module, const char *path, int line_no,
                               sizeof(imp->args), imp->return_type,
                               sizeof(imp->return_type), line);
         imp->must_use = function_must_use(line, imp->return_type, imp->span);
+        if(function_inlining(line, imp->span) != ZIR_INLINE_NONE)
+            die_at(imp->span, "#inline and #cold need a procedure body");
         imp->extern_kind = extern_kind;
         imp->go_results = declaration.go_results;
         imp->go_field = declaration.go_field;

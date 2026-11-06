@@ -1386,6 +1386,8 @@ lower_function_with_buffers(FILE *f, const ZirModule *m, const ZirFunction *fn,
     /* signature: converted arguments */
     {
         const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+        if(fn->inlining == ZIR_INLINE_COLD)
+            fputs("//go:noinline\n", f);
         fputs("func ", f);
         fprintf(f, "%s_%s(", guard, buffers->fname);
         for(int i = 0; i < parameters->count; i++) {

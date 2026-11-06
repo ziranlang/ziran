@@ -458,7 +458,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
         for(int m = 0; m < programs[p]->module_count; m++)
             if(!normalize_type_applications(&programs[p]->modules[m]))
                 return 0;
-    if(!check_foreign_slice_returns(programs, count))
+    if(!check_foreign_slice_returns(programs, count) ||
+       !check_inline_procedures(programs, count))
         return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {

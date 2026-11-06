@@ -761,7 +761,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                    !starts_word(modifier, "#go_field") &&
                    !starts_word(modifier, "#go_defer") &&
                    !starts_word(modifier, "#go_variadic") &&
-                   !starts_word(modifier, "#must"))
+                   !starts_word(modifier, "#must") &&
+                   !starts_word(modifier, "#inline") &&
+                   !starts_word(modifier, "#cold"))
                     die_at(Span(buffers->rel, line_no, 1),
                            "unknown function modifier: %s", modifier);
         }
@@ -1227,6 +1229,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                 }
                 fn->using_parameters = using_parameters;
                 fn->must_use = function_must_use(t, ret, fn->span);
+                fn->inlining = function_inlining(t, fn->span);
                 parse_go_method(t, fn, fn->span);
                 fn->default_args_text = KeepParameters(buffers->defaults);
                 if(strchr(buffers->args, '$') != NULL) {

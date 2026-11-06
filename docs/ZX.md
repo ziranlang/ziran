@@ -35,7 +35,7 @@ or `-`; other constant expressions remain outside this subset. The bundle is
 `ZX` plus two zero bytes, a little-endian version, length-prefixed entry module
 and function names, a host capability count and its required module/function
 names, and a
-length-prefixed version 59 `.zir` payload. Named law and waiver tables precede
+length-prefixed version 60 `.zir` payload. Named law and waiver tables precede
 that payload; each law includes its method, declared domain, concrete case
 count, counterexample, and waiver state. The loader rechecks embedded theorem
 certificates and compares the outer tables against the checked IR. Verification
@@ -186,7 +186,7 @@ and 26 in every other bundle, so hosts built before 27 still open standalone
 bundles, included libraries and add-ons that share no module. Older hosts
 reject a version 27 header before reading capability requirements or executing
 initializers. This reader accepts both and rejects a version 26 add-on that
-needs composition. The saved `.zir` version remains 59: its declaration
+needs composition. The saved `.zir` version did not change: its declaration
 encoding and the behavior of source and native builds are unchanged.
 `tests/bundle_partial_modules.sh` exercises source and saved IR, native C and
 both ZX engines, with capability, private access, duplicate provider,

@@ -20,6 +20,8 @@
   `t[i]` in `for i: 0..7` over a `[8]T` array, `view[i]` in
   `for i: 0..view.count-1`, `table[x & 255]`, and `bytes[at]` after
   `line := row * 16` and `at := line + (offset & 15)`.
+- `#inline` after a procedure's result always inlines it in generated C,
+  and `#cold` keeps a slow path out of line, including other modules' calls.
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.

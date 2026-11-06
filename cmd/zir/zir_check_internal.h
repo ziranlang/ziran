@@ -265,6 +265,7 @@ int canonical_type_arguments(const char *source, char *output, size_t capacity);
 int rewrite_type_applications(ZirModule *module, const char *source, char *output, size_t capacity, ZirSourceSpan span, int recursion);
 int normalize_type_applications(ZirModule *module);
 int check_foreign_slice_returns(ZirProgram **programs, int count);
+int check_inline_procedures(ZirProgram **programs, int count);
 int fill_late_type_instances(ZirModule *module, ZirSourceSpan span);
 int order_local_types(ZirModule *module);
 int jai_module_types(const ZirModule *module);

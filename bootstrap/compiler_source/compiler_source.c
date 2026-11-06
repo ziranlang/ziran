@@ -1161,3 +1161,73 @@ compiler_source_ProcedureMustUse(String source, String result_type)
     }
     return MustUseModifier_Required;
 }
+
+InliningModifier
+compiler_source_ProcedureInlining(String source)
+{
+    int64_t opening = compiler_source_Find(source, StringLiteral("("));
+    if (opening < 0LL) {
+        return InliningModifier_None;
+    }
+    int64_t closing = compiler_source_ClosingParenthesis(StringRange(source, (int64_t)opening, (int64_t)source.length));
+    if (closing < 0LL) {
+        return InliningModifier_None;
+    }
+    closing = (int64_t)((uint64_t)closing + (uint64_t)opening);
+    String tail = StringRange(source, (int64_t)((int64_t)((uint64_t)closing + UINT64_C(1))), (int64_t)source.length);
+    int64_t end = compiler_source_Find(tail, StringLiteral("{"));
+    if (end < 0LL) {
+        end = compiler_source_Find(tail, StringLiteral(";"));
+    }
+    if (end < 0LL) {
+        end = (int64_t)(tail).length;
+    }
+    String head = StringRange(tail, (int64_t)0LL, (int64_t)end);
+    int32_t ziran_keyword_inline_0 = 0;
+    int32_t cold = 0;
+    int64_t at = 0LL;
+    while (at < end) {
+        int64_t length = 0LL;
+        if (compiler_source_Matches(head, at, StringLiteral("#inline"))) {
+            length = 7LL;
+        } else if (compiler_source_Matches(head, at, StringLiteral("#cold"))) {
+            length = 5LL;
+        }
+        if ((uint8_t)ZIRAN_INDEX(tail.data, tail.length, at) == 34) {
+            at = compiler_source_AfterQuote(head, at);
+        } else {
+            bool value_0 = length > 0LL;
+            if (value_0) {
+                bool value_1 = compiler_source_SourceIdentifier(compiler_source_Byte(head, (int64_t)((uint64_t)at + (uint64_t)length)));
+                value_0 = !value_1;
+            }
+            if (value_0) {
+                int64_t after = compiler_source_SkipSpace(head, (int64_t)((uint64_t)at + (uint64_t)length));
+                if (after < end && (uint8_t)ZIRAN_INDEX(head.data, head.length, after) != 35) {
+                    return InliningModifier_Arguments;
+                }
+                if (length == 7LL) {
+                    ziran_keyword_inline_0 = (int32_t)((uint32_t)ziran_keyword_inline_0 + 1u);
+                } else {
+                    cold = (int32_t)((uint32_t)cold + 1u);
+                }
+                at = (int64_t)((uint64_t)at + (uint64_t)length);
+            } else {
+                at = (int64_t)((uint64_t)at + UINT64_C(1));
+            }
+        }
+    }
+    if (ziran_keyword_inline_0 > 0 && cold > 0) {
+        return InliningModifier_Both;
+    }
+    if (ziran_keyword_inline_0 > 1 || cold > 1) {
+        return InliningModifier_Duplicate;
+    }
+    if (ziran_keyword_inline_0 == 1) {
+        return InliningModifier_Inline;
+    }
+    if (cold == 1) {
+        return InliningModifier_Cold;
+    }
+    return InliningModifier_None;
+}

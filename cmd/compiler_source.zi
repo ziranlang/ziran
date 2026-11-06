@@ -25,6 +25,7 @@ ControlBlock :: struct {
 }
 ProcedureHeader :: struct { name: string; parameters: string; result: string }
 MustUseModifier :: enum s32 { None; Required; Arguments; Duplicate; NoResult }
+InliningModifier :: enum s32 { None; Inline; Cold; Arguments; Duplicate; Both }
 
 #scope_file
 Byte :: (source: string, at: s64) -> u8 {
@@ -632,4 +633,38 @@ ProcedureMustUse :: (source: string, result_type: string) -> MustUseModifier {
     if count == 0 { return .None }
     if result_type == "void" { return .NoResult }
     return .Required
+}
+
+// #inline or #cold between a procedure's parameters and its body.
+ProcedureInlining :: (source: string) -> InliningModifier {
+    opening := Find(source, "(")
+    if opening < 0 { return .None }
+    closing := ClosingParenthesis(source[opening:])
+    if closing < 0 { return .None }
+    closing += opening
+    tail := source[closing + 1:]
+    end := Find(tail, "{")
+    if end < 0 { end = Find(tail, ";") }
+    if end < 0 { end = tail.count }
+    head := tail[0:end]
+    inline: s32 = 0
+    cold: s32 = 0
+    at: s64 = 0
+    while at < end {
+        length: s64 = 0
+        if Matches(head, at, "#inline") { length = 7 }
+        else if Matches(head, at, "#cold") { length = 5 }
+        if tail[at] == #char "\"" { at = AfterQuote(head, at) }
+        else if length > 0 && !SourceIdentifier(Byte(head, at + length)) {
+            after := SkipSpace(head, at + length)
+            if after < end && head[after] != #char "#" { return .Arguments }
+            if length == 7 { inline += 1 } else { cold += 1 }
+            at += length
+        } else { at += 1 }
+    }
+    if inline > 0 && cold > 0 { return .Both }
+    if inline > 1 || cold > 1 { return .Duplicate }
+    if inline == 1 { return .Inline }
+    if cold == 1 { return .Cold }
+    return .None
 }

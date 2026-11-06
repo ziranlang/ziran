@@ -271,6 +271,16 @@ call it. Procedures that call file-scope code, or that use string
 literals, constant tables or function values, stay out of line. Run
 `sh tests/cross_module_inline.sh build/bin/ziran`.
 
+`#inline` after a procedure's result asks generated C to always inline it:
+`Mix :: (value: s64) -> s64 #inline { ... }`. GCC and Clang get
+`always_inline`, a public procedure's header copy is kept whatever its
+size, and a procedure that calls itself is rejected. `#cold` does the
+opposite for slow paths such as a refill: the procedure is never inlined,
+is laid out as rarely run, and other modules call its one definition
+rather than a header copy. Neither changes what a call does, and Go marks
+a `#cold` procedure `//go:noinline`. Run
+`sh tests/procedure_inlining.sh build/bin/ziran`.
+
 A call that returns an array writes its result straight into the array a
 declaration creates or a plain assignment names, such as `grid := Make(4)`,
 `row = Next(row)` or `holder.values = Make(10)`, with no temporary and copy in

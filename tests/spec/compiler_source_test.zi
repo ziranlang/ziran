@@ -128,6 +128,15 @@ ProcedureChecks :: () -> bool {
     ProcedureMustUse("Read :: () -> s32 \"unfinished\\", "s32") != .None ||
     ProcedureMustUse("Read :: (", "s32") != .None ||
     ProcedureMustUse("", "void") != .None { return false }
+    if ProcedureInlining("Read :: () -> s32 #inline {") != .Inline ||
+    ProcedureInlining("Read :: (x: s32) #cold {") != .Cold ||
+    ProcedureInlining("Read :: () -> s32 #must #inline {") != .Inline ||
+    ProcedureInlining("Read :: (text: string = \"#inline\") -> s32 {") != .None ||
+    ProcedureInlining("Read :: () -> s32 #inlined {") != .None ||
+    ProcedureInlining("Read :: () -> s32 { #cold }") != .None ||
+    ProcedureInlining("Read :: () -> s32 #inline #inline {") != .Duplicate ||
+    ProcedureInlining("Read :: () -> s32 #inline #cold {") != .Both ||
+    ProcedureInlining("Read :: () -> s32 #cold(1) {") != .Arguments { return false }
     return true
 }
 

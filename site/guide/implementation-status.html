@@ -569,6 +569,13 @@
   keep per-module object reuse. <code>tests/cross_module_inline.sh</code> checks C, Go,
   native and portable results, the inlined calls, C hosts taking addresses,
   C++ hosts and rebuilds after an inlined body changes.
+  <code>#inline</code> procedures are <code>always_inline</code> in C, private ones
+  <code>static inline</code>, and public ones keep their header copy past the size
+  limit; <code>#cold</code> procedures are <code>noinline, cold</code>, get no header copy, and are
+  <code>//go:noinline</code> in Go. Saved IR keeps the modifier.
+  <code>tests/procedure_inlining.sh</code> checks the attributes, out-of-line and
+  inlined calls, C at <code>-O0</code> and <code>-O2</code>, Go, native and portable results, and
+  the rejected forms.
   A C call returning an array whose result initializes a local or is assigned
   to a stable array lvalue passes that destination as the callee's result
   buffer instead of a zero-filled temporary that is copied afterwards; a

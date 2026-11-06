@@ -1,0 +1,347 @@
+#!/bin/sh
+# std/simd: lane semantics with known answers, and one fingerprint of every
+# operation shape that each C build agrees on (native vectors, SSE4.1 and
+# AVX2 instructions, the lane-array fallback that TinyCC and older compilers
+# use, and sanitizers), from source and from saved IR. Checking rejects
+# mismatched vectors, out-of-range constants and operators on vectors.
+set -eu
+
+ziran=${1:?pass the ziran command}
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT HUP INT TERM
+
+cat > "$work/app.zi" <<'ZI'
+Simd :: #import "simd"
+
+Three :: 3
+
+Answer :: () -> s64 {
+    a := Simd.Make(s16x8, 1, -2, 3, -4, 30000, -30000, 7, -32768)
+    b := Simd.Make(s16x8, 9, 8, -7, 6, 5000, -5000, 3, -1)
+    sat := Simd.AddSat(a, b)
+    if Simd.Lane(sat, 4) != 32767 || Simd.Lane(sat, 5) != -32768 || Simd.Lane(sat, 0) != 10 { return 1 }
+    wrap := Simd.Add(a, b)
+    if Simd.Lane(wrap, 4) != -30536 || Simd.Lane(wrap, 7) != 32767 { return 2 }
+    if Simd.Lane(Simd.MulHighRound(a, b), 4) != 4578 { return 3 }
+    narrow := Simd.Narrow(u8x16, Simd.Make(s16x8, -300, 300, 127, 0, 0, 0, 0, 0), b)
+    if Simd.Lane(narrow, 0) != 0 || Simd.Lane(narrow, 1) != 255 || Simd.Lane(narrow, 2) != 127 ||
+        Simd.Lane(narrow, 8) != 9 || Simd.Lane(narrow, 10) != 0 { return 4 }
+    w := Simd.Make(s32x4, -100, 100, -2147483648, 2147483647)
+    if Simd.Lane(Simd.ShiftRight(w, 5), 0) != -4 || Simd.Lane(Simd.ShiftRight(w, 33), 0) != -1 ||
+        Simd.Lane(Simd.ShiftRight(w, 33), 1) != 0 || Simd.Lane(Simd.ShiftLeft(w, 40), 3) != 0 { return 5 }
+    if Simd.Lane(Simd.ShiftRight(Simd.Reinterpret(u32x4, w), 28), 0) != 15 { return 6 }
+    if Simd.Lane(Simd.ShiftRightRound(w, Three), 0) != -12 || Simd.Lane(Simd.ShiftRightRound(w, Three), 1) != 13 { return 7 }
+    table := Simd.Make(u8x16, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115)
+    picks := Simd.Make(u8x16, 15, 0, 16, 200, 3, 3, 3, 3, 1, 2, 3, 4, 5, 6, 7, 8)
+    shuffled := Simd.ByteShuffle(table, picks)
+    if Simd.Lane(shuffled, 0) != 115 || Simd.Lane(shuffled, 2) != 0 || Simd.Lane(shuffled, 3) != 0 { return 8 }
+    aligned := Simd.AlignBytes(picks, table, 5)
+    if Simd.Lane(aligned, 0) != 105 || Simd.Lane(aligned, 10) != 115 || Simd.Lane(aligned, 11) != 15 { return 9 }
+    if Simd.Lane(Simd.ShiftBytesRight(table, Three), 0) != 103 || Simd.Lane(Simd.ShiftBytesRight(table, Three), 13) != 0 ||
+        Simd.Lane(Simd.ShiftBytesLeft(table, 3), 2) != 0 || Simd.Lane(Simd.ShiftBytesLeft(table, 3), 3) != 100 { return 10 }
+    blocks := Simd.Shuffle(Simd.Make(s64x4, 1, 2, 3, 4), 1, 0)
+    if Simd.Lane(blocks, 0) != 2 || Simd.Lane(blocks, 1) != 1 || Simd.Lane(blocks, 2) != 4 || Simd.Lane(blocks, 3) != 3 { return 11 }
+    mixed := Simd.InterleaveLow(table, picks)
+    if Simd.Lane(mixed, 0) != 100 || Simd.Lane(mixed, 1) != 15 || Simd.Lane(mixed, 2) != 101 { return 12 }
+    if Simd.Lane(Simd.WidenHigh(a), 0) != 30000 || Simd.Lane(Simd.WidenHigh(a), 3) != -32768 { return 13 }
+    pairs := Simd.MulAddPairs(a, b)
+    if Simd.Lane(pairs, 0) != -7 || Simd.Lane(pairs, 2) != 300000000 { return 14 }
+    pixels := Simd.Splat(u8x16, 255)
+    weights := Simd.Splat(s8x16, 127)
+    if Simd.Lane(Simd.MulAddPairsSat(pixels, weights), 0) != 32767 { return 15 }
+    if Simd.Lane(Simd.SumAbsDiff(table, Simd.Splat(u8x16, 100)), 0) != 28 { return 16 }
+    if Simd.ReduceMaxIndex(Simd.Make(s16x8, 1, 9, 3, 9, 0, 0, 0, 0)) != 1 || Simd.ReduceAdd(b) != 18 ||
+        Simd.ReduceMin(a) != -32768 || Simd.ReduceMax(a) != 30000 { return 17 }
+    f := Simd.Make(f32x4, 1.75, -1.75, 3000000000.0, -3000000000.0)
+    signed := Simd.Convert(s32x4, f)
+    unsigned := Simd.Convert(u32x4, f)
+    if Simd.Lane(signed, 0) != 1 || Simd.Lane(signed, 1) != -1 || Simd.Lane(signed, 2) != 2147483647 ||
+        Simd.Lane(signed, 3) != -2147483648 { return 18 }
+    if Simd.Lane(unsigned, 1) != 0 || Simd.Lane(unsigned, 2) != 3000000000 || Simd.Lane(unsigned, 3) != 0 { return 19 }
+    half := Simd.Div(Simd.Make(f32x4, 1.5, -2.25, 9.0, 0.0), Simd.Splat(f32x4, 3.0))
+    if Simd.Lane(half, 0) != 0.5 || Simd.Lane(half, 1) != -0.75 || Simd.Lane(half, 2) != 3.0 { return 20 }
+    zeros := Simd.Equal(Simd.Make(f64x2, -0.0, 1.0), Simd.Zero(f64x2))
+    if Simd.Lane(zeros, 0) != 18446744073709551615 || Simd.Lane(zeros, 1) != 0 { return 21 }
+    negative := Simd.Less(a, Simd.Zero(s16x8))
+    magnitude := Simd.Select(negative, Simd.Neg(a), a)
+    if Simd.Lane(magnitude, 1) != 2 || Simd.Lane(magnitude, 4) != 30000 || Simd.Lane(magnitude, 7) != -32768 { return 22 }
+    if !Simd.AllZero(Simd.Zero(u32x8)) || Simd.AllZero(Simd.WithLane(Simd.Zero(u32x8), 7, 1)) { return 23 }
+    data: [12]s32
+    for i: 0..11 { data[i] = cast(s32) (i * 10) }
+    row := Simd.Load(s32x4, data, 5)
+    if Simd.Lane(row, 0) != 50 || Simd.Lane(row, 3) != 80 { return 24 }
+    low := Simd.LoadLow(s32x4, data[:], 10)
+    if Simd.Lane(low, 0) != 100 || Simd.Lane(low, 1) != 110 || Simd.Lane(low, 2) != 0 { return 25 }
+    Simd.Store(data[:], 8, Simd.Splat(s32x4, -1))
+    if data[7] != 70 || data[8] != -1 || data[11] != -1 { return 26 }
+    Simd.StoreLow(data[:], 0, Simd.Splat(s32x4, 5))
+    if data[0] != 5 || data[1] != 5 || data[2] != 20 { return 27 }
+    got := Simd.Gather(data, Simd.Make(s32x4, 3, 2, 1, 0))
+    if Simd.Lane(got, 0) != 30 || Simd.Lane(got, 3) != 5 { return 28 }
+    halves := Simd.Combine(Simd.Low(Simd.Widen(b)), Simd.High(Simd.Widen(b)))
+    if Simd.Lane(halves, 7) != -1 || Simd.Lane(halves, 4) != 5000 { return 29 }
+    return 42
+}
+
+Shift :: 3
+
+Mix :: (hash: u64, v: u8x16) -> u64 {
+    bytes: [16]u8
+    Simd.Store(bytes[:], 0, v)
+    h := hash
+    for i: 0..15 { h = (h ^ cast(u64) bytes[i]) * 1099511628211 }
+    return h
+}
+
+Mix32 :: (hash: u64, v: u8x32) -> u64 {
+    return Mix(Mix(hash, Simd.Low(v)), Simd.High(v))
+}
+
+MixValue :: (hash: u64, v: s64) -> u64 {
+    return (hash ^ cast(u64) v) * 1099511628211
+}
+
+Arithmetic :: () -> u64 {
+    a := Simd.Make(s16x8, 1, -2, 3, -4, 30000, -30000, 7, -32768)
+    b := Simd.Make(s16x8, 9, 8, -7, 6, 5000, -5000, 3, -1)
+    h: u64 = 14695981039346656037
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Add(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Sub(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Mul(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.AddSat(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.SubSat(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Min(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Max(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulHigh(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulHighRound(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Abs(a)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Neg(a)))
+    u := Simd.Reinterpret(u8x16, a)
+    v := Simd.Reinterpret(u8x16, b)
+    h = Mix(h, Simd.Average(u, v))
+    h = Mix(h, Simd.And(u, v))
+    h = Mix(h, Simd.Or(u, v))
+    h = Mix(h, Simd.Xor(u, v))
+    h = Mix(h, Simd.AndNot(u, v))
+    h = Mix(h, Simd.Not(u))
+    f := Simd.Make(f32x4, 1.5, -2.25, 1000000.0, -0.0)
+    g := Simd.Splat(f32x4, 3.0)
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Div(f, g)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Mul(f, g)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Abs(f)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Neg(f)))
+    w := Simd.Make(s32x8, 1, 2, 3, 4, -5, -6, 2147483647, -2147483648)
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Add(w, w)))
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Max(w, Simd.Zero(s32x8))))
+    return h
+}
+
+Compares :: () -> u64 {
+    a := Simd.Make(s16x8, 1, -2, 3, -4, 5, -6, 7, -8)
+    b := Simd.Splat(s16x8, 0)
+    h: u64 = 1
+    lt := Simd.Less(a, b)
+    h = Mix(h, Simd.Reinterpret(u8x16, lt))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Greater(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Equal(a, a)))
+    // A signed mask reinterprets to the helpers' unsigned mask.
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Select(lt, Simd.Neg(a), a)))
+    f := Simd.Make(f64x2, 1.0, -1.0)
+    m := Simd.Less(f, Simd.Zero(f64x2))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Select(m, Simd.Splat(f64x2, 9.0), f)))
+    return h
+}
+
+Shifts :: (count: s64) -> u64 {
+    a := Simd.Make(s32x4, -100, 100, -2147483648, 2147483647)
+    u := Simd.Reinterpret(u32x4, a)
+    h: u64 = 2
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftLeft(a, count)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftRight(a, count)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftRight(u, count)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftRightRound(a, Shift)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftLeft(a, 40)))
+    counts := Simd.Make(u32x4, 0, 1, 31, 32)
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftLeftLanes(u, counts)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.ShiftRightLanes(u, counts)))
+    bytes := Simd.Reinterpret(u8x16, a)
+    h = Mix(h, Simd.ShiftBytesLeft(bytes, 3))
+    h = Mix(h, Simd.ShiftBytesRight(bytes, Shift + 1))
+    h = Mix(h, Simd.AlignBytes(bytes, Simd.Not(bytes), 5))
+    return h
+}
+
+Lanes :: () -> u64 {
+    a := Simd.Make(u16x8, 10, 11, 12, 13, 14, 15, 16, 17)
+    h: u64 = 3
+    h = MixValue(h, cast(s64) Simd.Lane(a, 5))
+    b := Simd.WithLane(a, Shift, 999)
+    h = Mix(h, Simd.Reinterpret(u8x16, b))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Shuffle(a, 7, 6, 5, 4, 0, 0, 1, Shift)))
+    wide := Simd.Make(s64x4, 1, 2, 3, 4)
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Shuffle(wide, 1, 0)))
+    table := Simd.Make(u8x16, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115)
+    index := Simd.Make(u8x16, 15, 0, 16, 200, 3, 3, 3, 3, 1, 2, 3, 4, 5, 6, 7, 8)
+    h = Mix(h, Simd.ByteShuffle(table, index))
+    h = Mix(h, Simd.InterleaveLow(table, index))
+    h = Mix(h, Simd.InterleaveHigh(table, index))
+    return h
+}
+
+Memory :: (data: []s16, raw: *s16) -> u64 {
+    h: u64 = 4
+    a := Simd.Load(s16x8, data, 0)
+    b := Simd.Load(s16x8, data, 5)
+    c := Simd.LoadLow(s16x8, data, 12)
+    d := Simd.Load(s16x8, raw, 1)
+    fixed: [10]s16
+    for i: 0..9 { fixed[i] = cast(s16) (i * 7 - 20) }
+    e := Simd.Load(s16x8, fixed, 2)
+    h = Mix(h, Simd.Reinterpret(u8x16, a))
+    h = Mix(h, Simd.Reinterpret(u8x16, b))
+    h = Mix(h, Simd.Reinterpret(u8x16, c))
+    h = Mix(h, Simd.Reinterpret(u8x16, d))
+    h = Mix(h, Simd.Reinterpret(u8x16, e))
+    out: [16]s16
+    Simd.Store(out[:], 3, Simd.Add(a, b))
+    Simd.StoreLow(out[:], 12, c)
+    Simd.Store(raw, 0, e)
+    for i: 0..15 { h = MixValue(h, cast(s64) out[i]) }
+    for i: 0..7 { h = MixValue(h, cast(s64) data[i]) }
+    numbers: [8]s32
+    for i: 0..7 { numbers[i] = cast(s32) (i * i - 9) }
+    picks := Simd.Make(s32x4, 7, 0, 3, 3)
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Gather(numbers, picks)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Gather(numbers[:], Simd.Reinterpret(u32x4, picks))))
+    return h
+}
+
+Width :: () -> u64 {
+    a := Simd.Make(s16x8, -300, 300, 127, -128, 255, 0, 32767, -32768)
+    b := Simd.Make(s16x8, 1, 2, 3, 4, 5, 6, 7, 8)
+    h: u64 = 5
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Narrow(s8x16, a, b)))
+    h = Mix(h, Simd.Narrow(u8x16, a, b))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.WidenLow(a)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.WidenHigh(a)))
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Widen(a)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulWideLow(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulWideHigh(a, b)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulAddPairs(a, b)))
+    pixels := Simd.Reinterpret(u8x16, a)
+    weights := Simd.Reinterpret(s8x16, b)
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.MulAddPairsSat(pixels, weights)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.AddPairs(a)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.SumAbsDiff(pixels, Simd.Reinterpret(u8x16, b))))
+    h = MixValue(h, cast(s64) Simd.ReduceAdd(a))
+    h = MixValue(h, cast(s64) Simd.ReduceMin(a))
+    h = MixValue(h, cast(s64) Simd.ReduceMax(a))
+    h = MixValue(h, Simd.ReduceMaxIndex(b))
+    if Simd.AllZero(Simd.Zero(u8x16)) { h = MixValue(h, 1) }
+    if Simd.AllZero(pixels) { h = MixValue(h, 2) }
+    f := Simd.Make(f32x4, 1.75, -1.75, 3000000000.0, -3000000000.0)
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Convert(s32x4, f)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Convert(u32x4, f)))
+    h = Mix(h, Simd.Reinterpret(u8x16, Simd.Convert(f32x4, Simd.Make(s32x4, 1, -1, 16777217, -7))))
+    h = Mix32(h, Simd.Reinterpret(u8x32, Simd.Combine(a, b)))
+    return h
+}
+
+Fingerprint :: () -> u64 {
+    data: [16]s16
+    for i: 0..15 { data[i] = cast(s16) (i * 1000 - 7000) }
+    h := Arithmetic()
+    h = MixValue(h, cast(s64) (Compares() >> 1))
+    h = MixValue(h, cast(s64) (Shifts(5) >> 1))
+    h = MixValue(h, cast(s64) (Shifts(33) >> 1))
+    h = MixValue(h, cast(s64) (Lanes() >> 1))
+    h = MixValue(h, cast(s64) (Memory(data[:], *data[2]) >> 1))
+    h = MixValue(h, cast(s64) (Width() >> 1))
+    return h
+}
+
+main :: () {
+    print("% %\n", Answer(), Fingerprint())
+}
+ZI
+
+"$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
+expected=
+for input in source saved; do
+    if test "$input" = source; then
+        module=$work/app.zi
+        root=$work
+    else
+        module=$work/ir/app.zir
+        root=$work/ir
+    fi
+    output=$work/c-$input
+    "$ziran" build --target=c --entry app:main --root "$root" -o "$output" "$module"
+    printf '#include "app.h"\nint main(void) { app_main(); return 0; }\n' > "$output/main.c"
+    set -- "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"
+    case "$(uname -m)" in
+        x86_64|amd64)
+            set -- "$@" "-O2 -msse4.1"
+            grep -qw avx2 /proc/cpuinfo 2>/dev/null && set -- "$@" "-O2 -mavx2"
+            ;;
+    esac
+    for flags in "$@"; do
+        # shellcheck disable=SC2086
+        "${CC:-cc}" -std=c11 $flags -I"$output" "$output"/*.c -o "$output/app" -lm
+        result=$("$output/app")
+        case "$result" in "42 "*) ;; *) echo "C $input $flags: $result" >&2; exit 1 ;; esac
+        if test -z "$expected"; then expected=$result
+        elif test "$result" != "$expected"; then
+            echo "C $input $flags: $result, expected $expected" >&2
+            exit 1
+        fi
+    done
+    grep -q 'zi_add_sat_s16x8(' "$output/app.c"
+    grep -q 'zi_simd_at(' "$output/app.c"
+done
+
+if "${CC:-cc}" -fsanitize=address,undefined -x c -o "$work/probe" - <<'C' 2>/dev/null; then
+int main(void) { return 0; }
+C
+    output=$work/c-source
+    "${CC:-cc}" -std=c11 -O1 -fsanitize=address,undefined -fno-sanitize-recover=undefined \
+        -I"$output" "$output"/*.c -o "$output/sanitized" -lm
+    test "$(ASAN_OPTIONS=detect_leaks=0 "$output/sanitized")" = "$expected"
+fi
+
+# A slice access outside the data stops the program.
+cat > "$work/outside.zi" <<'ZI'
+Simd :: #import "simd"
+main :: () {
+    data: [6]s16
+    v := Simd.Load(s16x8, data[:], 0)
+    print("%\n", Simd.Lane(v, 0))
+}
+ZI
+"$ziran" build --target=c --entry outside:main --root "$work" -o "$work/outside" "$work/outside.zi"
+printf '#include "outside.h"\nint main(void) { outside_main(); return 0; }\n' > "$work/outside/main.c"
+"${CC:-cc}" -std=c11 -O2 -I"$work/outside" "$work/outside"/*.c -o "$work/outside/app"
+if "$work/outside/app" 2> "$work/outside.err"; then
+    echo "an out-of-bounds SIMD load ran" >&2
+    exit 1
+fi
+grep -q "out of bounds" "$work/outside.err"
+
+reject() {
+    printf 'Simd :: #import "simd"\nmain :: () {\n    a := Simd.Splat(s16x8, 3)\n    %s\n}\n' "$1" > "$work/bad.zi"
+    if "$ziran" ir --root "$work" -o "$work/bad-ir" "$work/bad.zi" 2> "$work/bad.err"; then
+        echo "accepted: $1" >&2
+        exit 1
+    fi
+    grep -q "$2" "$work/bad.err" || { cat "$work/bad.err" >&2; exit 1; }
+}
+reject 'b := Simd.Add(a, Simd.Splat(u16x8, 3))' 'Simd.Add takes two vectors of one type'
+reject 'b := Simd.Lane(a, 8)' 'Simd.Lane takes a constant lane index below the lane count'
+reject 'b := Simd.Splat(u8x16, 300)' 'Simd.Splat takes the vector type and one value of its lane type'
+reject 'b := a + a' 'vectors use std/simd operations'
+reject 'b := a == a' 'vectors use std/simd operations'
+reject 'b := Simd.Frob(a)' 'unresolved function: Simd.Frob'
+reject 'b := Simd.Shuffle(a, 0, 1, 2, 3, 4, 5, 6, 8)' 'constant lane indices'
+reject 'b := Simd.Narrow(u8x16, a)' 'Simd.Narrow takes'
+echo "simd: C lanes agree ($expected)"

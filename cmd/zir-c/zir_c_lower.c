@@ -3,6 +3,7 @@
  * Source input is checked .zi or saved .zir.
  */
 #include "zir_c_lower.h"
+#include "zir_simd.h"
 #include "zir.h"
 #include "zir_scratch.h"
 #include "zir_text.h"
@@ -605,6 +606,10 @@ strip_alias_type(const ZirModule *m, const char *type,
         copy_text(dst, dst_size, "Slice");
         return;
     }
+    if(VectorType(type, NULL)) {
+        copy_text(dst, dst_size, TargetType(type, ZIR_C));
+        return;
+    }
     if(NativeTypeAtUse(m, type, dst, dst_size)) return;
     const char *dot = strchr(type, '.');
     const char *scalar = ScalarType(type);
@@ -1180,7 +1185,7 @@ inline_candidate(const ZirModule *m, const ZirFunction *fn)
             }
             break;
         case ZIR_EXPR_CALL:
-            if(BitBuiltin(e->name) != ZIR_BIT_NONE) break;
+            if(BitBuiltin(e->name) != ZIR_BIT_NONE || SimdOpChecked(e->name) != NULL) break;
             dot = strchr(e->name, '.');
             if(dot == NULL ? header_function(m, e->name) == NULL :
                public_function(header_module(m, e->name, (size_t)(dot - e->name)), dot + 1) == NULL)
@@ -1513,6 +1518,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     emit_inlining_attributes(h, m);
     if(ModuleUsesSlices(m))
         fputs("#include \"zir_slice.h\"\n", h);
+    if(ModuleHeaderUsesVectors(m))
+        fputs("#include \"ziran_simd.h\"\n", h);
     EmitStringType(h);
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];

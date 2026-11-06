@@ -237,6 +237,8 @@ int expression_calls(const ZirFunction *fn, int index);
 /* Whether a call run later could change what expression index reads. */
 int call_can_change(const Emitter *e, int index);
 void emit_print(Emitter *e, const ZirExpr *expr);
+/* A std/simd operation; 1 when it was a statement (a store). */
+int emit_simd_call(Emitter *e, const ZirExpr *expr, char *out, size_t size);
 void emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size);
 void zero_record(Emitter *e, const char *type, char *out, size_t size);
 #pragma GCC visibility pop

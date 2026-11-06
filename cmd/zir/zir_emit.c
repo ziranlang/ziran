@@ -265,6 +265,58 @@ ModuleUsesSlices(const ZirModule *module)
     return 0;
 }
 
+/* Whether type text, such as a record field or a parameter list, names a
+ * SIMD vector type anywhere in it. */
+static int
+mentions_vector(const char *text)
+{
+    for(const char *p = text; p != NULL && *p;) {
+        if(!isalnum((unsigned char)*p) && *p != '_') { p++; continue; }
+        const char *start = p;
+        while(isalnum((unsigned char)*p) || *p == '_') p++;
+        char name[8];
+        size_t length = (size_t)(p - start);
+        if(length >= 5 && length < sizeof(name)) {
+            memcpy(name, start, length);
+            name[length] = '\0';
+            if(VectorType(name, NULL)) return 1;
+        }
+    }
+    return 0;
+}
+
+int
+ModuleHeaderUsesVectors(const ZirModule *module)
+{
+    for(int i = 0; i < module->global_count; i++)
+        if(mentions_vector(module->globals[i].type)) return 1;
+    for(int i = 0; i < module->type_count; i++) {
+        const ZirType *record = &module->types[i];
+        if(record->is_enum) continue;
+        if(record->is_procedure_type) {
+            if(mentions_vector(record->procedure_return_type) || mentions_vector(record->body))
+                return 1;
+            continue;
+        }
+        size_t offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(record, &offset, &field) > 0)
+            if(mentions_vector(field.type)) return 1;
+    }
+    for(int i = 0; i < module->import_count; i++) {
+        const ZirImport *imp = &module->imports[i];
+        if(imp->kind == ZIR_IMPORT_EXTERN &&
+           (mentions_vector(imp->return_type) || mentions_vector(imp->args)))
+            return 1;
+    }
+    for(int i = 0; i < module->function_count; i++) {
+        const ZirFunction *fn = &module->functions[i];
+        if(mentions_vector(fn->return_type) || mentions_vector(FunctionArgs(fn)))
+            return 1;
+    }
+    return 0;
+}
+
 int
 ModuleUsesVecOperations(const ZirModule *module)
 {
@@ -1476,6 +1528,22 @@ zero_value(const char *type, ZirTarget target)
         return target == ZIR_GO ? "nil" : "{0}";
     if(type[0] == '[')
         return "";
+    ZirVector vector;
+    if(VectorType(canonical(type), &vector)) {
+        static const char *const go_zeros[] = {
+            "[16]uint8{}", "[16]int8{}", "[8]uint16{}", "[8]int16{}", "[4]uint32{}",
+            "[4]int32{}", "[2]uint64{}", "[2]int64{}", "[4]float32{}", "[2]float64{}",
+            "[32]uint8{}", "[32]int8{}", "[16]uint16{}", "[16]int16{}", "[8]uint32{}",
+            "[8]int32{}", "[4]uint64{}", "[4]int64{}", "[8]float32{}", "[4]float64{}"
+        };
+        if(target != ZIR_GO) return "{0}";
+        for(size_t i = 0; i < sizeof(go_zeros) / sizeof(*go_zeros); i++) {
+            const char *native = TargetType(vector.name, ZIR_GO);
+            size_t length = strlen(native);
+            if(!strncmp(go_zeros[i], native, length) && !strcmp(go_zeros[i] + length, "{}"))
+                return go_zeros[i];
+        }
+    }
     if(type[0] != '[' && strchr(type, '*') != NULL)
         return target == ZIR_GO ? "nil" : "((void *)0)";
     if(!strcmp(canonical(type), "string"))
@@ -1784,8 +1852,27 @@ static const struct {
 
 enum {
     NATIVE_BOUNDS = 1, NATIVE_STRING = 2, NATIVE_STDIO = 4,
-    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16
+    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32
 };
+
+/* SIMD names: the vector types (zi_s16x8), their helpers (zi_add_s16x8,
+ * zi_narrow_s16x8_u8x16) and the access checks. */
+static int
+simd_identifier(const char *start, size_t length)
+{
+    if(length < 8 || memcmp(start, "zi_", 3)) return 0;
+    if((length == 10 && !memcmp(start, "zi_simd_at", 10)) ||
+       (length == 20 && !memcmp(start, "zi_simd_gather_check", 20)))
+        return 1;
+    const char *last = start + length;
+    while(last > start + 3 && last[-1] != '_') last--;
+    char name[8];
+    size_t tail = (size_t)(start + length - last);
+    if(tail == 0 || tail >= sizeof(name)) return 0;
+    memcpy(name, last, tail);
+    name[tail] = '\0';
+    return VectorType(name, NULL);
+}
 
 /* Scan whole identifier tokens, including those in literals and comments.
  * False positives only add an include; emitted runtime calls cannot be missed
@@ -1816,6 +1903,8 @@ native_runtime_includes(const char *text)
         while((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
               (*p >= '0' && *p <= '9') || *p == '_') p++;
         size_t length = (size_t)(p - start);
+        if(!(includes & NATIVE_SIMD) && *start == 'z' && simd_identifier(start, length))
+            includes |= NATIVE_SIMD;
         for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
             if(!(includes & uses[i].include) && uses[i].length == length &&
                *start == *uses[i].name &&
@@ -1849,6 +1938,7 @@ EmitNativeHelpers(FILE *file, const char *text)
     if(any) includes |= NATIVE_STDLIB;
     fwrite(text, 1, (size_t)(mark - text), file);
     if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);
+    if(includes & NATIVE_SIMD) fputs("#include \"ziran_simd.h\"\n", file);
     if(includes & NATIVE_STRING) fputs("#include \"zir_string.h\"\n", file);
     if(!(includes & NATIVE_STRING)) {
         if((includes & NATIVE_STDIO) && !(includes & NATIVE_BOUNDS))

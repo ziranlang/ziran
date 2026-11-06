@@ -1,6 +1,7 @@
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
+#include "zir_simd.h"
 #include "zir_stream.h"
 
 /* These reads and wrapping integer operations neither call nor fault. Keep
@@ -1530,6 +1531,14 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             out[0] = '\0';
             e->pure = 0;
             return;
+        }
+        if(SimdOpChecked(expr->name) != NULL) {
+            if(emit_simd_call(e, expr, buffers->result, sizeof(buffers->result))) {
+                out[0] = '\0';
+                return;
+            }
+            pure = e->pure;
+            break;
         }
         if(BitBuiltin(expr->name) != ZIR_BIT_NONE) {
             int op = BitBuiltin(expr->name);

@@ -1,4 +1,5 @@
 #include "zir_scratch.h"
+#include "zir_simd.h"
 #include "zir_memory.h"
 #include "zir_bundle.h"
 #include "zir_stream.h"
@@ -756,7 +757,8 @@ builtin_call(const char *name)
            !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
            !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish") ||
            !strcmp(name, "print") || !strcmp(name, "zi_new") ||
-           !strcmp(name, "zi_free") || BitBuiltin(name) != ZIR_BIT_NONE;
+           !strcmp(name, "zi_free") || BitBuiltin(name) != ZIR_BIT_NONE ||
+           SimdOpChecked(name) != NULL;
 }
 
 static const char *

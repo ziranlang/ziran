@@ -1,4 +1,5 @@
 #include "zir_memory.h"
+#include "zir_simd.h"
 #include "zir_borrow.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
@@ -847,6 +848,14 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
     if(!strcmp(name, "print") || !strcmp(name, "assert") ||
        !strcmp(name, "TextView") || !strcmp(name, "VecSlice") ||
        !strcmp(name, "VecGet") || BitBuiltin(name) != ZIR_BIT_NONE) return;
+    if(SimdOpChecked(name) != NULL) {
+        /* A store writes through its slice or pointer; the rest only read. */
+        const SimdOp *op = SimdOpChecked(name);
+        if(op->shape == SIMD_STORE)
+            check_mutation(check, storage_place(check, expression->first_child, 1),
+                           expression->span);
+        return;
+    }
     if(!strcmp(name, "VecPush") || !strcmp(name, "VecReserve") || (!strcmp(name, "VecResize") || !strcmp(name, "VecResizeBounded")) || !strcmp(name, "VecPop") ||
        !strcmp(name, "VecClear") || !strcmp(name, "VecFree") ||
        !strcmp(name, "VecSwap") || !strcmp(name, "VecClone") ||

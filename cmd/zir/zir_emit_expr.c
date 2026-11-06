@@ -1725,7 +1725,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         else
             copy_text(buffers->b, sizeof(buffers->b), zero_value(type, e->target));
         declare(e, temp, type, buffers->b);
-        line(e, e->target == ZIR_GO ? "if %s {" : "if (%s) {", buffers->a);
+        line(e, e->target == ZIR_GO ? "if %s {" : "if (%s) {",
+             bare(buffers->a, buffers->b, sizeof(buffers->b)));
         e->indent++;
         conditional_branch(e, expr->right, type, buffers->b, sizeof(buffers->b),
                            buffers->a, sizeof(buffers->a));
@@ -1923,7 +1924,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             atom=0;
         } else if(!strcmp(canonical(e->fn->exprs[expr->right].type),"bool")) {
             fresh(e,temp);declare(e,temp,type,"0");
-            line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",buffers->a);e->indent++;
+            line(e,e->target==ZIR_GO?"if %s {":"if (%s) {",bare(buffers->a,buffers->b,sizeof(buffers->b)));e->indent++;
             line(e,"%s = 1%s",temp,e->target==ZIR_GO?"":";");
             e->indent--;
             line(e, "}");

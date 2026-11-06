@@ -97,6 +97,10 @@
   procedure's body, so `ziran run` (TinyCC) and unoptimized builds skip the
   call: an AV1 decode runs about 7% faster under `ziran run` and 4% faster at
   `-O0`. A private procedure every caller inlined is no C warning.
+- Generated C builds without warnings under GCC and Clang `-Wall -Wextra`:
+  an `ifx` comparison gets one pair of parentheses, a local nothing reads is
+  cast to void, and a procedure named like `ReadSignedBits` no longer pulls
+  in an unused helper.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

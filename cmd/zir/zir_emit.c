@@ -2002,6 +2002,17 @@ native_runtime_includes(const char *text)
     return includes;
 }
 
+/* Whether text calls name, as a whole word: ReadSignedBits( is no call of
+ * SignedBits. */
+static int
+calls_word(const char *text, const char *call)
+{
+    for(const char *at = strstr(text, call); at != NULL; at = strstr(at + 1, call))
+        if(at == text || !(isalnum((unsigned char)at[-1]) || at[-1] == '_'))
+            return 1;
+    return 0;
+}
+
 /* Resolve both dependency marks before writing the final native text. */
 int
 EmitNativeHelpers(FILE *file, const char *text)
@@ -2016,7 +2027,7 @@ EmitNativeHelpers(FILE *file, const char *text)
     for(size_t i = 0; numbers && i < sizeof(needed) / sizeof(needed[0]); i++) {
         char call[32];
         format(call, sizeof(call), "%s(", c_number_helpers[i].name);
-        needed[i] = strstr(text, call) != NULL;
+        needed[i] = calls_word(text, call);
     }
     needed[0] |= needed[1];
     needed[7] |= needed[8];

@@ -1593,9 +1593,10 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 line(e, "_ = %s", binding);
             }
             if(e->target == ZIR_C &&
-               TypeHasZeroArray(e->module, st->type)) {
+               (TypeHasZeroArray(e->module, st->type) || c_binding_unread(e->fn, st->name))) {
                 /* Counts and null data views can fold away every runtime use
-                 * of zero-storage arrays, including nested array shapes. */
+                 * of zero-storage arrays, including nested array shapes; a
+                 * local the program never reads is no C warning either. */
                 char binding[ZIR_NAME_MAX];
                 TargetBindingName(e->fn, e->target, st->name, binding,
                                   sizeof(binding));

@@ -28,8 +28,10 @@
  * which each run sets for its instance. While a parallel region runs, only
  * its workers run compiled code: the floor is off, and each worker's stack
  * is aligned to its size, so the mask finds how deep it is and where its own
- * step budget lives, so workers never write a shared counter. Module
- * globals are marked ZIR_GLOBAL. */
+ * step budget lives, so workers never write a shared counter. A function
+ * finds its budget once, at entry (ZIR_BUDGET, which ZIR_ENTER and each
+ * parallel worker start with), and its loop iterations spend from it.
+ * Module globals are marked ZIR_GLOBAL. */
 static const char guard_header[] =
     "#ifndef ZX_GUARD_H\n"
     "#define ZX_GUARD_H\n"
@@ -42,10 +44,11 @@ static const char guard_header[] =
     "void ZxNativeStackOverrun(void);\n"
     "void ZxNativeUnreachable(const char *place);\n"
     "#define ZIR_GLOBAL\n"
-    "#define ZIR_STEP() do { char zx_step; long long *zx_budget = zx_native_stack_mask ? "
-    "(long long *)(((unsigned long)&zx_step & ~zx_native_stack_mask) + zx_native_budget_slot) : "
-    "&zx_native_budget; if(--*zx_budget < 0) ZxNativeOverrun(); } while(0)\n"
-    "#define ZIR_ENTER() do { char zx_here; if(&zx_here < zx_native_floor || ((unsigned long)&zx_here & zx_native_stack_mask) < zx_native_stack_margin) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"
+    "#define ZIR_BUDGET() char zx_here; long long *const zx_budget = zx_native_stack_mask ? "
+    "(long long *)(((unsigned long)&zx_here & ~zx_native_stack_mask) + zx_native_budget_slot) : "
+    "&zx_native_budget\n"
+    "#define ZIR_STEP() do { if(--*zx_budget < 0) ZxNativeOverrun(); } while(0)\n"
+    "#define ZIR_ENTER() ZIR_BUDGET(); do { if(&zx_here < zx_native_floor || ((unsigned long)&zx_here & zx_native_stack_mask) < zx_native_stack_margin) ZxNativeStackOverrun(); ZIR_STEP(); } while(0)\n"
     "#define ZIR_UNREACHABLE(place) ZxNativeUnreachable(place)\n"
     "#endif\n";
 
@@ -68,6 +71,7 @@ static const char linked_guard_header[] =
     "void ZxNativeStackOverrun(void);\n"
     "void ZxNativeUnreachable(const char *place);\n"
     "#define ZIR_GLOBAL __attribute__((section(\"%s\")))\n"
+    "#define ZIR_BUDGET() (void)0\n"
     "#define ZIR_STEP() do { if(--zx_native_budget < 0) ZxNativeOverrun(); } while(0)\n"
     "#ifdef __EMSCRIPTEN__\n"
     "unsigned long emscripten_stack_get_current(void);\n"

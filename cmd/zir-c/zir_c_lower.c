@@ -827,6 +827,8 @@ emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
         if(simd_tiers[t].tier < 4) fprintf(c, "#if ZI_BASE_TIER < %d\n", simd_tiers[t].tier);
         fprintf(c, "static %s %s\n%s_ziran_%s(%s)\n{\n", simd_tiers[t].attribute,
                 cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
+        if(EmitRunGuardsEnabled())
+            fputs("    ZIR_BUDGET();\n", c);
         EmitUseSimdTier(simd_tiers[t].name);
         lower_body(c, m, restab, restab_count, fn);
         EmitUseSimdTier(NULL);

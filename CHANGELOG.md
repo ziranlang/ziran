@@ -81,6 +81,9 @@
   a guard written as `cast(s64)(height - 1) * stride + width`.
 - A long `||` guard with comparisons no index uses still proves the reads,
   and so does a filter window that starts `radius` rows and columns back.
+- `ziran run` spends its step budget more cheaply: each procedure finds its
+  budget once instead of at every loop iteration, so an AV1 decode runs
+  about 7% faster.
 - Generated C writes an array call result straight into the local or array
   lvalue it initializes or is assigned to, without a temporary and a copy.
 - Small public procedures are inlinable across modules in generated C

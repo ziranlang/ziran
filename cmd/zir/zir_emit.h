@@ -154,7 +154,8 @@ int FoldIntegerOperation(const char *op, const char *type, uint64_t a, uint64_t 
                          uint64_t *result);
 void EmitStringType(FILE *out);
 /* Natively run bundles bound their work and stack: with guards on, C
- * lowering marks each function entry ZIR_ENTER(), each loop iteration
+ * lowering marks each function entry ZIR_ENTER(), the start of each
+ * parallel worker and #target clone ZIR_BUDGET(), each loop iteration
  * ZIR_STEP() and each unreachable statement ZIR_UNREACHABLE("place"); the
  * native engine defines them. Ordinary C output is unchanged. */
 void EmitRunGuards(int enabled);

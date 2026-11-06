@@ -593,6 +593,8 @@ emit_parallel_worker(Emitter *e, const ZirFunction *fn,
     fprintf(e->out, "    struct %s_ctx *%s = "
             "(struct %s_ctx *)%s;\n", region->worker, context,
             region->worker, opaque);
+    if(run_guards)
+        line(e, "ZIR_BUDGET();");
     copy_text(mapped, sizeof(mapped), scalar ? scalar : "int64_t");
     line(e, "%s %s = %s->start;", mapped, region->first, context);
     line(e, "%s %s = %s->end;", mapped, region->last, context);

@@ -8,9 +8,12 @@
 # such as i <= 31 does not hide the loop's own. Facts also chain: inside
 # for j: 0..width - 1 width is at least 1, so stride >= width makes
 # samples[i * stride + j] safe after samples.count < (height - 1) * stride +
-# width returns. A write that does reach the
-# read keeps its check, and those reads still abort on C, Go, native and the
-# portable VM from source and saved IR.
+# width returns. A local chosen by ifx, such as the row a flip picks, is
+# proven for both choices, and a guard written as cast(s64)(height - 1)
+# counts where the loop shows height - 1 did not wrap in s32. A write that
+# does reach the read, a branch past the last row and a guard whose s32 sum
+# may wrap keep their checks, and those reads still abort on C, Go, native
+# and the portable VM from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -99,6 +102,39 @@ Column :: (samples: []u16, stride: s32, width: s32, height: s32) -> s64 {
     for i: 0..cast(s64)height - 1 { for j: 0..cast(s64)width - 1 { total += cast(s64)samples[i * stride] } }
     return total
 }
+// AV1-style flips with the guard's height - 1 in s32.
+Flip :: (samples: []u16, stride: s32, residual: []s32, width: s32, height: s32,
+         flip_rows: bool, flip_columns: bool) -> s64 {
+    if stride < width || residual.count != cast(s64)width * height ||
+        samples.count < cast(s64)(height - 1) * stride + width {
+        return -1
+    }
+    total: s64
+    for i: 0..cast(s64)height - 1 {
+        yy := ifx flip_rows then cast(s64)height - 1 - i else i
+        for j: 0..cast(s64)width - 1 {
+            xx := ifx flip_columns then cast(s64)width - 1 - j else j
+            at := yy * stride + xx
+            total += cast(s64)samples[at] * (i + 1) + cast(s64)residual[i * width + j]
+        }
+    }
+    return total
+}
+// The flipped row starts one past the last.
+Mirror :: (samples: []u16, stride: s32, width: s32, height: s32, flip_rows: bool) -> s64 {
+    if stride < width || samples.count < cast(s64)(height - 1) * stride + width { return -1 }
+    total: s64
+    for i: 0..cast(s64)height - 1 {
+        yy := ifx flip_rows then cast(s64)height - i else i
+        for j: 0..cast(s64)width - 1 { total += cast(s64)samples[yy * stride + j] }
+    }
+    return total
+}
+// height + 1 wraps to the lowest s32 when height is the highest.
+Wrap :: (samples: []u16, height: s32) -> s64 {
+    if height < 0 || samples.count < cast(s64)(height + 1) { return -1 }
+    return cast(s64)samples[cast(s64)height]
+}
 // Without the inner loop, stride 0 and an empty slice reach samples[0].
 Flat :: (samples: []u16, stride: s32, height: s32) -> s64 {
     if stride < 0 || samples.count < cast(s64)height * stride { return -1 }
@@ -175,6 +211,10 @@ Answer :: () -> s64 {
     if Reconstruct(s[0:24], 10, r[:], 4, 3) != 6 + 46 + 86 + 12 { return 7 }
     if Reconstruct(s[0:23], 10, r[:], 4, 3) != -1 || Column(s[:], 10, 4, 4) != 4 * 60 { return 8 }
     if Flat(s[:], 10, 4) != 60 { return 9 }
+    // Rows weighted 1, 2 and 3 from the top, or from the bottom when flipped.
+    if Flip(s[0:24], 10, r[:], 4, 3, false, false) != 368 || Flip(s[0:24], 10, r[:], 4, 3, true, true) != 208 ||
+        Flip(s[0:23], 10, r[:], 4, 3, true, false) != -1 { return 10 }
+    if Mirror(s[0:24], 10, 4, 3, false) != 138 || Wrap(s[:], 5) != 5 { return 11 }
     t: [4]s64
     t[0] = 1; t[1] = 2; t[2] = 3; t[3] = 4
     if Bumped(t[:], 2) != 3 || Late(t[:], 3, 1) != 9 || Late(t[:], 4, 0) != 0 || Maybe(t[:], 2) != 3 { return 6 }
@@ -190,10 +230,13 @@ Fault :: (which: s64) -> s64 {
     if which == 4 { return Weak(v[:], 8, 8) }
     e: [1]u16
     if which == 5 { return Flat(e[0:0], 0, 1) }
+    s: [24]u16
+    if which == 6 { return Mirror(s[:], 10, 4, 3, true) }
+    if which == 7 { return Wrap(e[:], 2147483647) }
     return 0
 }
 ZI
-faults="Bumped Late Maybe Weak Flat"
+faults="Bumped Late Maybe Weak Flat Mirror Wrap"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"
@@ -244,7 +287,7 @@ C
         fi
         which=$((which + 1))
     done
-    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column; do
+    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column Flip; do
         sed -n "/^app_$name(/,/^}/p" "$output/app.c" > "$work/proven.c"
         test -s "$work/proven.c"
         if grep -q 'ZIRAN_INDEX\|SliceIndex' "$work/proven.c"; then

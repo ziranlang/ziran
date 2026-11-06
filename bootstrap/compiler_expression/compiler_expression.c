@@ -975,7 +975,7 @@ compiler_expression_QualifiedName(Slice output, String first, String second, int
             index = (int64_t)((uint64_t)index + UINT64_C(1));
         }
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)(int64_t)(first).length)] = 46;
+    ((uint8_t *)output.data)[(int64_t)(first).length] = 46;
     {
         int64_t range_first_8 = 0LL;
         int64_t range_last_8 = (int64_t)((uint64_t)((int64_t)(second).length) - UINT64_C(1));

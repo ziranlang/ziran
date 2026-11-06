@@ -318,7 +318,11 @@ An `if` inside a loop only adds to what the loop proves. After
 `view[i * width + j]` in `for i: 0..height - 1` still uses `i <= height - 1`.
 Facts chain, too: inside `for j: 0..width - 1` the width is at least 1, so
 after `if stride < width || samples.count < (cast(s64)height - 1) * stride + width { return }`
-the read `samples[i * stride + j]` needs no check. Run
+the read `samples[i * stride + j]` needs no check. A local chosen by `ifx`,
+such as `yy := ifx flip_rows then cast(s64)height - 1 - i else i`, is proven
+for both choices, so `samples[yy * stride + xx]` needs none either. The
+guard may also write `cast(s64)(height - 1) * stride`: inside the loop
+`height` is at least 1, so `height - 1` did not wrap in `s32`. Run
 `sh tests/loop_guard_ranges.sh build/bin/ziran`.
 
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count

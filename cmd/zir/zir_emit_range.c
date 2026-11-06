@@ -54,6 +54,10 @@ typedef struct RangeFacts {
      * stops being followed instead of taking exponential time. */
     int budget;
     int broken;
+    /* While a guard's comparison is read: what must hold for each narrow
+     * operation in it not to have wrapped, each poly >= 0. */
+    struct Poly *side;
+    int sides;
 } RangeFacts;
 
 typedef struct Range {
@@ -80,10 +84,16 @@ typedef struct Poly {
 } Poly;
 
 /* A guard's facts, each poly >= 0, built once per guard and truth. */
+enum { GUARD_SIDES = 4 };
+
+/* A fact may hold only when its sides, each poly >= 0, hold too: when
+ * cast(s64)(height - 1) did not wrap in s32, as inside for i: 0..height - 1. */
 typedef struct GuardFacts {
     int state; /* 0 not built, 1 building, 2 built */
     int count;
     Poly *poly;
+    int *sides;  /* per fact, or NULL when no fact has any */
+    Poly *side;  /* GUARD_SIDES per fact */
 } GuardFacts;
 
 static int expr_range(const RangeFacts *f, int index, int depth, Range *out);
@@ -192,7 +202,11 @@ RangeFactsFree(RangeFacts *f)
     free(f->memo);
     if(f->facts != NULL)
         for(int s = 0; s < 2 * f->statements; s++)
+        {
             free(f->facts[s].poly);
+            free(f->facts[s].sides);
+            free(f->facts[s].side);
+        }
     free(f->facts);
     free(f);
 }
@@ -1270,6 +1284,39 @@ reads_unchanged(const RangeFacts *f, int root, int from, int at)
     return unchanged;
 }
 
+/* Note what p must satisfy to lie in whole at statement at; 0 when that
+ * does not fit. */
+static int
+record_sides(const RangeFacts *f, const Poly *p, Range whole, int at)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    Range range;
+    Poly bound;
+    if(poly_range(f, p, at, &range) && within(range, whole))
+        return 1;
+    if(!poly_range(f, p, at, &range))
+        range = (Range){INT64_MIN, INT64_MAX};
+    if(range.low < whole.low) {
+        /* p - low >= 0 */
+        if(whole.low == INT64_MIN || g->sides >= GUARD_SIDES)
+            return 0;
+        poly_constant(&bound, whole.low, whole.low);
+        if(!poly_add(&g->side[g->sides], p, &bound, 1))
+            return 0;
+        g->sides++;
+    }
+    if(range.high > whole.high) {
+        /* high - p >= 0 */
+        if(whole.high == INT64_MAX || g->sides >= GUARD_SIDES)
+            return 0;
+        poly_constant(&bound, whole.high, whole.high);
+        if(!poly_add(&g->side[g->sides], &bound, p, 1))
+            return 0;
+        g->sides++;
+    }
+    return 1;
+}
+
 /* The exact value of an integer expression at statement at, or 0 when an
  * operation may wrap. A declaration nothing writes stands for its value
  * when what that reads is unchanged at at; other bindings stay atoms. */
@@ -1295,8 +1342,9 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
         return 1;
     }
     case ZIR_EXPR_CAST:
-        if(integer_type(fn->exprs[expr->right].type) && expr_range(f, expr->right, 0, &a) &&
-           within(a, whole))
+        if(integer_type(fn->exprs[expr->right].type) &&
+           ((expr_range(f, expr->right, 0, &a) && within(a, whole)) ||
+            (type_range(fn->exprs[expr->right].type, &a) && within(a, whole))))
             return to_poly(f, expr->right, at, depth + 1, out);
         break;
     case ZIR_EXPR_IDENT: {
@@ -1306,7 +1354,8 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
            !type_range(f->binding_type[binding], &own) || !within(own, whole))
             break;
         if(invariant(f, binding) && binding < f->statements &&
-           fn->stmts[binding].kind == ZIR_STMT_DECL && fn->stmts[binding].expr_root >= 0) {
+           fn->stmts[binding].kind == ZIR_STMT_DECL && fn->stmts[binding].expr_root >= 0 &&
+           fn->exprs[fn->stmts[binding].expr_root].kind != ZIR_EXPR_CONDITIONAL) {
             int value = fn->stmts[binding].expr_root;
             if(expr_range(f, value, 0, &a) && within(a, own) &&
                reads_unchanged(f, value, binding, at) && to_poly(f, value, at, depth + 1, out))
@@ -1377,6 +1426,15 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
     default:
         break;
     }
+    /* In a guard, + - * whose result may leave its type is exact on the
+     * side that it did not. */
+    if(f->side != NULL && expr->kind == ZIR_EXPR_BINARY && integer_type(fn->exprs[expr->left].type) &&
+       (!strcmp(expr->op, "+") || !strcmp(expr->op, "-") || !strcmp(expr->op, "*")) &&
+       to_poly(f, expr->left, at, depth + 1, &left) && to_poly(f, expr->right, at, depth + 1, &right) &&
+       (expr->op[0] == '*' ? poly_multiply(out, &left, &right) :
+                             poly_add(out, &left, &right, expr->op[0] == '-')) &&
+       record_sides(f, out, whole, at))
+        return 1;
     /* Anything else is some value in its range. */
     if(!expr_range(f, index, 0, &a))
         return 0;
@@ -1443,18 +1501,46 @@ condition_facts(const RangeFacts *f, int condition, int truth, int statement, in
     for(int i = 0; i < 6; i++)
         if(!strcmp(expr->op, ops[i]))
             op = i;
-    if(op < 0 || !compares_values(f, expr->left, expr->right) ||
-       !to_poly(f, expr->left, statement, 0, &left) || !to_poly(f, expr->right, statement, 0, &right))
+    if(op < 0 || !compares_values(f, expr->left, expr->right))
         return;
-    if(!truth)
-        op = negate[op];
-    switch(op) {
-    case 0: add_fact(facts, &right, &left, 1); break;
-    case 1: add_fact(facts, &right, &left, 0); break;
-    case 2: add_fact(facts, &left, &right, 1); break;
-    case 3: add_fact(facts, &left, &right, 0); break;
-    case 4: add_fact(facts, &left, &right, 0); add_fact(facts, &right, &left, 0); break;
-    default: break;
+    {
+        RangeFacts *g = (RangeFacts *)f;
+        Poly *outer = g->side, side[GUARD_SIDES];
+        int outer_sides = g->sides, read, sides, first = facts->count;
+        g->side = side;
+        g->sides = 0;
+        read = to_poly(f, expr->left, statement, 0, &left) &&
+               to_poly(f, expr->right, statement, 0, &right);
+        sides = g->sides;
+        g->side = outer;
+        g->sides = outer_sides;
+        if(!read)
+            return;
+        if(sides > 0 && facts->sides == NULL) {
+            facts->sides = calloc(GUARD_FACTS, sizeof(int));
+            facts->side = malloc(GUARD_FACTS * GUARD_SIDES * sizeof(Poly));
+            if(facts->sides == NULL || facts->side == NULL) {
+                free(facts->sides);
+                free(facts->side);
+                facts->sides = NULL;
+                facts->side = NULL;
+                return;
+            }
+        }
+        if(!truth)
+            op = negate[op];
+        switch(op) {
+        case 0: add_fact(facts, &right, &left, 1); break;
+        case 1: add_fact(facts, &right, &left, 0); break;
+        case 2: add_fact(facts, &left, &right, 1); break;
+        case 3: add_fact(facts, &left, &right, 0); break;
+        case 4: add_fact(facts, &left, &right, 0); add_fact(facts, &right, &left, 0); break;
+        default: break;
+        }
+        for(int i = first; sides > 0 && i < facts->count; i++) {
+            facts->sides[i] = sides;
+            memcpy(&facts->side[i * GUARD_SIDES], side, (size_t)sides * sizeof(Poly));
+        }
     }
 }
 
@@ -1477,45 +1563,84 @@ guard_facts(const RangeFacts *f, int guard, int truth)
     return facts->state == 2 ? facts : NULL;
 }
 
-/* Keep the facts of guard that still hold at statement at. */
+typedef struct SidedFact {
+    const GuardFacts *facts;
+    int index;
+} SidedFact;
+
+/* Whether every written binding p names keeps the value it had at guard. */
+static int
+names_unchanged(const RangeFacts *f, const Poly *p, int guard, int at, int loop)
+{
+    for(int t = 0; t < p->count; t++)
+        for(int a = 0; a < p->term[t].degree; a++) {
+            int atom = p->term[t].atom[a];
+            if(atom < f->bindings && !invariant(f, atom) &&
+               !(loop ? unchanged_since_condition(f, atom, guard, at) :
+                        unchanged_between(f, atom, guard, at)))
+                return 0;
+        }
+    return 1;
+}
+
+/* Keep the facts of guard that still hold at statement at; those with sides
+ * wait in sided until the other facts can show the sides. */
 static void
-add_valid_facts(const RangeFacts *f, int guard, int truth, int at, Poly *list, int *count, int max)
+add_valid_facts(const RangeFacts *f, int guard, int truth, int at, Poly *list, int *count, int max,
+                SidedFact *sided, int *pending)
 {
     const GuardFacts *facts = guard_facts(f, guard, truth);
     int loop = f->fn->stmts[guard].kind == ZIR_STMT_WHILE;
     for(int i = 0; facts != NULL && i < facts->count && *count < max; i++) {
-        const Poly *p = &facts->poly[i];
-        int valid = 1;
-        for(int t = 0; t < p->count && valid; t++)
-            for(int a = 0; a < p->term[t].degree && valid; a++) {
-                int atom = p->term[t].atom[a];
-                if(atom < f->bindings && !invariant(f, atom))
-                    valid = loop ? unchanged_since_condition(f, atom, guard, at) :
-                                   unchanged_between(f, atom, guard, at);
-            }
-        if(valid)
-            list[(*count)++] = *p;
+        int sides = facts->sides != NULL ? facts->sides[i] : 0, valid;
+        valid = names_unchanged(f, &facts->poly[i], guard, at, loop);
+        for(int s = 0; s < sides && valid; s++)
+            valid = names_unchanged(f, &facts->side[i * GUARD_SIDES + s], guard, at, loop);
+        if(!valid)
+            continue;
+        if(sides == 0)
+            list[(*count)++] = facts->poly[i];
+        else if(*pending < max)
+            sided[(*pending)++] = (SidedFact){facts, i};
     }
 }
+
+static int poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count,
+                            int depth);
 
 static int
 gather_facts(const RangeFacts *f, int at, Poly *list, int max)
 {
-    int count = 0;
+    SidedFact *sided = malloc((size_t)max * sizeof(*sided));
+    int count = 0, pending = 0;
+    if(sided == NULL)
+        return 0;
     for(int x = at; x >= 0; x = f->parent_of[x]) {
         int open = f->parent_of[x];
         for(int guard = f->fn->stmts[x].for_step ? -1 : f->prev_guard[x]; guard >= 0;
             guard = f->prev_guard[guard])
-            add_valid_facts(f, guard, 0, at, list, &count, max);
+            add_valid_facts(f, guard, 0, at, list, &count, max, sided, &pending);
         if(open < 0)
             break;
         if(f->fn->stmts[open].expr_root >= 0 &&
            (f->fn->stmts[open].kind == ZIR_STMT_IF || f->fn->stmts[open].kind == ZIR_STMT_WHILE))
-            add_valid_facts(f, open, 1, at, list, &count, max);
+            add_valid_facts(f, open, 1, at, list, &count, max, sided, &pending);
     }
+    /* The sides name only values unchanged since the guard, so showing them
+     * here shows the guard's operations did not wrap. */
+    for(int i = 0; i < pending && count < max; i++) {
+        const GuardFacts *facts = sided[i].facts;
+        int n = sided[i].index, shown = 1;
+        for(int s = 0; s < facts->sides[n] && shown; s++)
+            shown = poly_nonnegative(f, &facts->side[n * GUARD_SIDES + s], at, list, count, 2);
+        if(shown)
+            list[count++] = facts->poly[n];
+    }
+    free(sided);
     return count;
 }
 
+static int choice_branches(const RangeFacts *f, int atom, int at, Poly *then, Poly *other);
 
 /* Whether p >= 0 at statement at: from the ranges of what it names, or
  * after taking away up to depth facts that share a binding with it, each
@@ -1528,18 +1653,28 @@ poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, 
     Range range;
     if(poly_range(f, p, at, &range) && range.low >= 0)
         return 1;
-    for(int i = 0; depth > 0 && i < count; i++) {
-        Poly rest;
-        int shares = 0;
-        for(int t = 0; t < p->count && !shares; t++)
-            for(int a = 0; a < p->term[t].degree && !shares; a++)
-                for(int u = 0; u < facts[i].count && !shares; u++)
-                    for(int b = 0; b < facts[i].term[u].degree && !shares; b++)
-                        shares = p->term[t].atom[a] == facts[i].term[u].atom[b];
-        if(shares && poly_add(&rest, p, &facts[i], 1) &&
-           poly_nonnegative(f, &rest, at, facts, count, depth - 1))
+    if(p->count == 1 && p->term[0].degree == 1 && p->term[0].coef > 0 && p->k.low >= 0) {
+        Poly then, other;
+        if(choice_branches(f, p->term[0].atom[0], at, &then, &other) &&
+           poly_nonnegative(f, &then, at, facts, count, depth) &&
+           poly_nonnegative(f, &other, at, facts, count, depth))
             return 1;
     }
+    /* Each fact alone is tried before any pair, so a guard that matches
+     * directly costs one look rather than a search under every other fact. */
+    for(int pass = depth > 1 ? 0 : 1; depth > 0 && pass < 2; pass++)
+        for(int i = 0; i < count; i++) {
+            Poly rest;
+            int shares = 0;
+            for(int t = 0; t < p->count && !shares; t++)
+                for(int a = 0; a < p->term[t].degree && !shares; a++)
+                    for(int u = 0; u < facts[i].count && !shares; u++)
+                        for(int b = 0; b < facts[i].term[u].degree && !shares; b++)
+                            shares = p->term[t].atom[a] == facts[i].term[u].atom[b];
+            if(shares && poly_add(&rest, p, &facts[i], 1) &&
+               poly_nonnegative(f, &rest, at, facts, count, pass ? depth - 1 : 0))
+                return 1;
+        }
     return 0;
 }
 
@@ -1577,8 +1712,31 @@ poly_below_limit(const RangeFacts *f, const Poly *q, int at, const Poly *facts, 
 
 enum { SUBSTITUTE_TRIES = 64 };
 
+/* Whether atom is a local declared as ifx c then a else b, with what a and
+ * b read unchanged at statement at and each fitting the local's type; then
+ * and other are a and b as polynomials there. */
+static int
+choice_branches(const RangeFacts *f, int atom, int at, Poly *then, Poly *other)
+{
+    const ZirFunction *fn = f->fn;
+    const ZirExpr *value;
+    Range own, a, b;
+    if(atom < 0 || atom >= f->statements || !invariant(f, atom) ||
+       fn->stmts[atom].kind != ZIR_STMT_DECL || fn->stmts[atom].expr_root < 0 ||
+       f->binding_type[atom] == NULL || !type_range(f->binding_type[atom], &own))
+        return 0;
+    value = &fn->exprs[fn->stmts[atom].expr_root];
+    return value->kind == ZIR_EXPR_CONDITIONAL &&
+           reads_unchanged(f, fn->stmts[atom].expr_root, atom, at) &&
+           expr_range(f, value->right, 0, &a) && within(a, own) &&
+           expr_range(f, value->third, 0, &b) && within(b, own) &&
+           to_poly(f, value->right, at, 1, then) && to_poly(f, value->third, at, 1, other);
+}
+
 /* Replace each written binding in q by an upper bound, a fact bound - v >= 0
- * or its largest value, where q only grows with v, until q is below limit.
+ * or its largest value, where q only grows with v, or by a lower bound where
+ * q only shrinks with it, until q is below limit. A local chosen by ifx is
+ * replaced by each branch in turn, and both must hold.
  * Every fact bounding v is tried in turn, since the nearest one, such as
  * i <= 31 from a guard, may be weaker than an outer one such as
  * i <= height - 1. Afterwards q is at least the index everywhere at
@@ -1589,14 +1747,21 @@ substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *fa
 {
     {
         const Poly *q = start;
-        Poly rest, grows, bound, product, next;
-        int v = -1;
+        Poly rest, grows, bound, product, next, branch[2];
+        int v = -1, choice = 0, lower = 0;
         for(int t = 0; t < q->count && v < 0; t++)
-            for(int a = 0; a < q->term[t].degree; a++)
-                if(q->term[t].atom[a] < f->bindings && !invariant(f, q->term[t].atom[a])) {
-                    v = q->term[t].atom[a];
+            for(int a = 0; a < q->term[t].degree; a++) {
+                int atom = q->term[t].atom[a];
+                if(atom < f->bindings && !invariant(f, atom)) {
+                    v = atom;
                     break;
                 }
+                if(choice_branches(f, atom, at, &branch[0], &branch[1])) {
+                    v = atom;
+                    choice = 1;
+                    break;
+                }
+            }
         if(v < 0)
             return poly_below_limit(f, q, at, facts, count, limit);
         if(round >= 8 || ++*tries > SUBSTITUTE_TRIES)
@@ -1628,8 +1793,22 @@ substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *fa
                 return 0;
             }
         }
-        if(!poly_nonnegative(f, &grows, at, facts, count, 2))
-            return 0;
+        if(choice) {
+            for(int b = 0; b < 2; b++)
+                if(!poly_multiply(&product, &grows, &branch[b]) ||
+                   !poly_add(&next, &rest, &product, 0) ||
+                   !substitute_bounds(f, &next, at, facts, count, limit, round + 1, tries))
+                    return 0;
+            return 1;
+        }
+        if(!poly_nonnegative(f, &grows, at, facts, count, 2)) {
+            Poly zero, shrinks;
+            poly_constant(&zero, 0, 0);
+            if(!poly_add(&shrinks, &zero, &grows, 1) ||
+               !poly_nonnegative(f, &shrinks, at, facts, count, 2))
+                return 0;
+            lower = 1;
+        }
         for(int i = 0; i < count; i++) {
             int term = -1, uses = 0;
             for(int t = 0; t < facts[i].count; t++)
@@ -1638,10 +1817,13 @@ substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *fa
                         uses++;
                         term = t;
                     }
-            if(uses == 1 && facts[i].term[term].degree == 1 && facts[i].term[term].coef == -1) {
+            /* bound - v >= 0 gives an upper bound, v - bound >= 0 a lower one. */
+            if(uses == 1 && facts[i].term[term].degree == 1 &&
+               facts[i].term[term].coef == (lower ? 1 : -1)) {
                 Poly atom;
                 poly_atom(&atom, v);
-                if(poly_add(&bound, &facts[i], &atom, 0) &&
+                if((lower ? poly_add(&bound, &atom, &facts[i], 1) :
+                            poly_add(&bound, &facts[i], &atom, 0)) &&
                    poly_multiply(&product, &grows, &bound) && poly_add(&next, &rest, &product, 0) &&
                    substitute_bounds(f, &next, at, facts, count, limit, round + 1, tries))
                     return 1;
@@ -1651,7 +1833,10 @@ substitute_bounds(const RangeFacts *f, const Poly *start, int at, const Poly *fa
             Range largest;
             if(!binding_range(f, v, at, 0, &largest))
                 return 0;
-            poly_constant(&bound, largest.high, largest.high);
+            if(lower)
+                poly_constant(&bound, largest.low, largest.low);
+            else
+                poly_constant(&bound, largest.high, largest.high);
         }
         return poly_multiply(&product, &grows, &bound) && poly_add(&next, &rest, &product, 0) &&
                substitute_bounds(f, &next, at, facts, count, limit, round + 1, tries);

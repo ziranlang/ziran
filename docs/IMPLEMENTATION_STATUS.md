@@ -578,8 +578,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   final comparison may take away up to three facts, so `stride >= width`
   and `width - 1 - j >= 0` show `stride >= 1`, and products of 32-bit values
   such as `(cast(s64)height - 1) * stride` keep their range when no corner
-  overflows; `tests/loop_guard_ranges.sh` checks eight proven functions and
-  five reads that keep their checks. A
+  overflows. A local declared from `ifx` is proven for each branch, a
+  counter an index shrinks with is replaced by its lower bound, and a guard
+  comparison with a narrow step that might wrap, such as
+  `cast(s64)(height - 1)` in `s32`, counts where the other facts show it did
+  not; `tests/loop_guard_ranges.sh` checks nine proven functions and seven
+  reads that keep their checks. A
   counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while
   nothing reassigns the view. `tests/proven_index_ranges.sh` checks the

@@ -242,7 +242,6 @@ is_member_path_text(const char *text)
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParseFileGlobalBuffers {
     char type[ZIR_TEXT_MAX];
-    char init[ZIR_TEXT_MAX];
 } ParseFileGlobalBuffers;
 
 void parse_file_global(ZirModule *module, const char *declaration,
@@ -285,25 +284,26 @@ parse_file_global_with_buffers(ZirModule *module, const char *declaration,
     buffers->type[length] = '\0';
     if(buffers->type[0] == '\0')
         die_at(span, "file-scope variable needs a type");
-    length = 0;
+    /* A table initializer may be any length; it is kept as it is. */
+    const char *init = "";
+    char *trimmed = NULL;
     if(equal != NULL) {
         value = skip_ws(equal + 1);
-        while(*value != '\0' && length + 1 < sizeof(buffers->init))
-            buffers->init[length++] = *value++;
-        if(*value != '\0')
-            die_at(span, "file-scope variable initializer exceeds %d bytes; "
-                   "declare the table as a local in a procedure, or fill the variable from one",
-                   (int)sizeof(buffers->init) - 1);
-        while(length > 0 && (isspace((unsigned char)buffers->init[length - 1]) ||
-                             buffers->init[length - 1] == ';')) length--;
+        length = strlen(value);
+        while(length > 0 && (isspace((unsigned char)value[length - 1]) ||
+                             value[length - 1] == ';')) length--;
         if(length == 0)
             die_at(span, "file-scope variable initializer is empty");
+        trimmed = AllocateOrExit(length + 1);
+        memcpy(trimmed, value, length);
+        trimmed[length] = '\0';
+        init = trimmed;
     }
-    buffers->init[length] = '\0';
     if(scope_public)
-        ModuleAddGlobal(module, name, buffers->type, buffers->init, span);
+        ModuleAddGlobal(module, name, buffers->type, init, span);
     else
-        ModuleAddStatic(module, name, buffers->type, buffers->init, span);
+        ModuleAddStatic(module, name, buffers->type, init, span);
+    free(trimmed);
     if(module->global_count > 0)
         module->globals[module->global_count - 1].is_file_private = scope_file;
     if(name_out != NULL)

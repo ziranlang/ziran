@@ -10,7 +10,6 @@ typedef struct CheckProgramsBuffers {
     ZirToken token;
     char literal[ZIR_TEXT_MAX];
     ZirFunction raw;
-    char lowered[ZIR_TEXT_MAX];
     char folded[ZIR_TEXT_MAX];
     ZirFunction expression;
     Checker initializer;
@@ -244,16 +243,16 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     CompoundConstant compound = {0};
                     if(bound_compound_constant(module, constant_name, 0,
                             &compound) == 1) {
-                        if(!lower_compound_global(module, global, &compound,
-                                                  buffers->lowered,
-                                                  sizeof(buffers->lowered))) {
+                        const char *lowered =
+                            lower_compound_global(module, global, &compound);
+                        if(lowered == NULL) {
                             Diagnostic(global->span, "check.constant_type",
                                        "aggregate constant type is unavailable or mismatched: %s",
                                        constant_name);
                             free(buffers->raw.exprs);
                             return 0;
                         }
-                        global->init = KeepText(buffers->lowered);
+                        global->init = lowered;
                         literal_initializer = 1;
                     }
                 }
@@ -272,15 +271,17 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         compound.owner = folded_owner;
                         compound_qualifier_for_global(&compound,
                                                       global->type);
-                        if(!lower_compound_global(module, global, &compound,
-                                                  buffers->folded, sizeof(buffers->folded))) {
+                        const char *lowered =
+                            lower_compound_global(module, global, &compound);
+                        if(lowered == NULL) {
                             Diagnostic(global->span, "check.constant_type",
                                        "aggregate initializer type is unavailable or mismatched: %s",
                                        global->init);
                             return 0;
                         }
-                    }
-                    global->init = KeepText(buffers->folded);
+                        global->init = lowered;
+                    } else
+                        global->init = KeepText(buffers->folded);
                 }
                 if(!check_file_private_expression(module, global->init,
                                                   global->span))

@@ -2585,12 +2585,13 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     free(literal);
                     continue;
                 }
+                char *compound_text = NULL;
                 if(!ScalarLiteral(g->type, g->init, ZIR_GO, g->span,
                                   buffers->ginit, sizeof(buffers->ginit))) {
-                    int compound = EmitGlobalInitializer(m, g, ZIR_GO,
+                    int compound = 0;
+                    compound_text = EmitGlobalInitializerText(m, g, ZIR_GO,
                         rewrite_global_scalar, rewrite_global_type,
-                        rewrite_global_field, (void *)g, buffers->ginit,
-                        sizeof(buffers->ginit));
+                        rewrite_global_field, (void *)g, &compound);
                     if(compound < 0) {
                         Diagnostic(g->span, "zir_go.global",
                                    "cannot lower compound global initializer: %s",
@@ -2600,13 +2601,15 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     if(compound == 0)
                         tx_expr(m, g->init, buffers->ginit, sizeof(buffers->ginit));
                 }
-                if(buffers->ginit[0] != '\0') {
-                    if(buffers->ginit[0] == '{')
-                        fprintf(f, "var %s = %s%s\n", gname, gt, buffers->ginit);
+                const char *ginit = compound_text != NULL ? compound_text : buffers->ginit;
+                if(ginit[0] != '\0') {
+                    if(ginit[0] == '{')
+                        fprintf(f, "var %s = %s%s\n", gname, gt, ginit);
                     else
-                        fprintf(f, "var %s %s = %s\n", gname, gt, buffers->ginit);
+                        fprintf(f, "var %s %s = %s\n", gname, gt, ginit);
                 } else
                     fprintf(f, "var %s %s\n", gname, gt);
+                free(compound_text);
             }
             GoAssembly *assembly = GoAssemblyOpen(progs, prog_count, m);
             /* functions ('#foreign' prototypes have no body: they lower to

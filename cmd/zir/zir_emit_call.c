@@ -255,6 +255,28 @@ COMPILER_SCRATCH_RETURN(, int, EmitGlobalInitializer,
                       char *out, size_t size),
     EmitGlobalInitializerBuffers, RECOVERABLE, free,
     EmitGlobalInitializer_with_buffers(module, global, target, scalar, type_name, field_name, context, out, size, buffers))
+char *
+EmitGlobalInitializerText(const ZirModule *module, const ZirGlobal *global,
+                          ZirTarget target, ZirGlobalScalarRewrite scalar,
+                          ZirGlobalTypeRewrite type_name,
+                          ZirGlobalFieldRewrite field_name, void *context,
+                          int *status)
+{
+    /* Each element grows by at most a type conversion; a longer result
+     * gets one larger attempt before the initializer counts as unlowerable. */
+    size_t size = strlen(global->init) * 4 + 4096;
+    for(int attempt = 0; attempt < 2; attempt++, size *= 8) {
+        char *text = AllocateOrExit(size);
+        *status = EmitGlobalInitializer(module, global, target, scalar,
+                                        type_name, field_name, context,
+                                        text, size);
+        if(*status == 1) return text;
+        free(text);
+        if(*status == 0) return NULL;
+    }
+    return NULL;
+}
+
 /* Buffers emit_global_slot_wrappers_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalSlotWrappersNodeBuffers {

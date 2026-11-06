@@ -1245,6 +1245,11 @@ value. Indexes are
 bounds-checked as for any array. A function may read a table, and its
 <code>.count</code>, in as many loops as it needs. Nested arrays are not constant tables
 yet. Run <code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>
+<p>A file-scope variable may start from a table of any length, named as in
+<code>table: [4096]u8 = Lib.BIG</code> or written out. Each target defines the variable
+with its values, so nothing fills it when the program starts, and writing it
+leaves the table unchanged. Run <code>sh tests/large_constant_globals.sh
+build/bin/ziran</code>.</p>
 <h3 id="bit-counts-and-byte-swaps">Bit counts and byte swaps</h3>
 <p><code>clz(x)</code>, <code>ctz(x)</code> and <code>popcount(x)</code> count leading zero bits, trailing zero
 bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,

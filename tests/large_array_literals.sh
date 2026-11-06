@@ -87,18 +87,14 @@ test "$(wc -c < "$work/table260k.zi")" -gt 1048576
 cmp "$work/table260k-source.zx" "$work/table260k-saved.zx"
 test "$("$ziran" run "$work/table260k-saved.zx")" = 0
 
-# A file-scope initializer keeps a fixed buffer; past it the error names the
-# limit instead of a confusing parse failure.
+# A file-scope initializer of any length starts the variable with its values.
 python3 - "$work/global.zi" <<'PY'
 import sys
 rows = ",\n".join("    " + ", ".join("-100" for _ in range(20)) for _ in range(50))
-open(sys.argv[1], "w").write(f"Table: [1000]s32 = .[\n{rows}\n];\nmain :: () -> s32 {{ return Table[0] + 100 }}\n")
+open(sys.argv[1], "w").write(f"Table: [1000]s32 = .[\n{rows}\n];\nmain :: () -> s32 {{ return Table[0] + Table[999] + 200 }}\n")
 PY
-if "$ziran" check --root "$work" "$work/global.zi" 2> "$work/global.err"; then
-    echo "an oversized file-scope initializer was accepted" >&2
-    exit 1
-fi
-grep -q 'file-scope variable initializer exceeds 4095 bytes' "$work/global.err"
+"$ziran" bundle --root "$work" --entry global:main -o "$work/global.zx" "$work/global.zi"
+test "$("$ziran" run "$work/global.zx")" = 0
 
 # An untyped .[...] gets its element type from a declaration or a prefix.
 cat > "$work/assign.zi" <<'ZI'

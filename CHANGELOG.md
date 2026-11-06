@@ -46,6 +46,8 @@
   generated C, not by both the caller and the callee.
 - Generated Go shifts by a variable count without the general integer
   helper, and copies a constant table straight from its shared `var`.
+- A file-scope variable can start from a constant table of any length,
+  such as `table: [4096]u8 = BIG`, instead of failing past 4 KiB.
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.

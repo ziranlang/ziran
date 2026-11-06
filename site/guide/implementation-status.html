@@ -676,7 +676,13 @@
   statement failed with "expression is not supported by language checking"
   or silently. <code>tests/long_literals.sh</code> checks source and saved IR on C,
   Go, and <code>.zx</code>; <code>tests/large_array_literals.sh</code> checks 20,000-, 70,000-
-  and 260,000-element tables, which parse and check in linear time.</li>
+  and 260,000-element tables, which parse and check in linear time.
+  A file-scope variable initializer, written out or naming a constant table
+  of any length, is kept whole instead of passing through 4 KiB buffers that
+  rejected it, and C and Go define the variable with its values.
+  <code>tests/large_constant_globals.sh</code> checks 3,000-, 4,096- and 6,000-element
+  globals, one from an imported table, on C, Go, native and the VM from
+  source and saved IR.</li>
 <li><code>ziran check --lint</code> warns (code <code>lint.cast</code>) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an

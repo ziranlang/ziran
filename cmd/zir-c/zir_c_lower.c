@@ -1409,7 +1409,6 @@ typedef struct LowerModuleBuffers {
     char cargs[LOWER_TEXT_MAX];
     char abi_args[ZIR_TEXT_MAX];
     char initw[LOWER_GLOBAL_MAX];
-    char recordw[LOWER_GLOBAL_MAX];
 } LowerModuleBuffers;
 
 static int lower_module(const ZirModule *m, const ZirCModuleSyms *restab,
@@ -1916,22 +1915,21 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         }
         {
             buffers->initw[0] = '\0';
+            char *compound_text = NULL;
             /* initializers carry 'null' and module-local function refs */
             if(!ScalarLiteral(g->type, g->init, ZIR_C, g->span, buffers->initw, sizeof(buffers->initw))) {
-                buffers->recordw[0] = '\0';
-                int compound = EmitGlobalInitializer(m, g, ZIR_C,
-                    rewrite_global_scalar, NULL, NULL, NULL, buffers->recordw,
-                    sizeof(buffers->recordw));
+                int compound = 0;
+                compound_text = EmitGlobalInitializerText(m, g, ZIR_C,
+                    rewrite_global_scalar, NULL, NULL, NULL, &compound);
                 if(compound < 0) {
                     Diagnostic(g->span, "zir_c.global",
                                "cannot lower compound global initializer: %s",
                                g->name);
                     exit(1);
                 }
-                if(compound > 0)
-                    snprintf(buffers->initw, sizeof(buffers->initw), "%s", buffers->recordw);
-                else if(!rewrite_body2(m, NULL, 0, g->init, buffers->initw,
-                                       sizeof(buffers->initw)))
+                if(compound == 0 &&
+                   !rewrite_body2(m, NULL, 0, g->init, buffers->initw,
+                                  sizeof(buffers->initw)))
                     c_rewrite_overflow(m->source_path, g->span.line);
             }
             int zero = TypeHasZeroArray(m, g->type);
@@ -1940,7 +1938,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                     zero ? "__extension__ " : "",
                     g->is_static ? "static " : "",
                     EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", buffers->base, name, suffix,
+                    compound_text != NULL ? compound_text :
                     buffers->initw[0] ? buffers->initw : zero ? "{}" : "{0}");
+            free(compound_text);
         }
     }
     for(i = 0; i < m->function_count; i++) {

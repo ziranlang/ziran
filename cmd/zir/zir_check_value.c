@@ -736,71 +736,76 @@ MapTypePartsAtUse(const ZirModule *module, const char *name,
         record_field_type_at_use(module, owner, name, value, value_size);
 }
 
-static int
-append_compound_text(char *out, size_t size, size_t *used,
-                     const char *part)
+typedef struct CompoundText { char *text; size_t used, capacity; } CompoundText;
+
+static void
+append_compound_text(CompoundText *out, const char *part)
 {
     size_t length = strlen(part);
-    if(length >= size - *used) return 0;
-    memcpy(out + *used, part, length);
-    *used += length;
-    out[*used] = '\0';
-    return 1;
+    if(out->used + length + 1 > out->capacity) {
+        size_t capacity = out->capacity ? out->capacity : 256;
+        while(out->used + length + 1 > capacity) capacity *= 2;
+        char *grown = AllocateOrExit(capacity);
+        if(out->used) memcpy(grown, out->text, out->used + 1);
+        free(out->text);
+        out->text = grown;
+        out->capacity = capacity;
+    }
+    memcpy(out->text + out->used, part, length + 1);
+    out->used += length;
 }
 
 static int
 render_compound_at_use(const ZirFunction *expression, int index,
-                       char *out, size_t size, size_t *used, int depth)
+                       CompoundText *out, int depth)
 {
     if(index < 0 || index >= expression->expr_count || depth > 64)
         return 0;
     const ZirExpr *node = &expression->exprs[index];
-    if(node->kind != ZIR_EXPR_COMPOUND)
-        return append_compound_text(out, size, used, node->text);
+    if(node->kind != ZIR_EXPR_COMPOUND) {
+        append_compound_text(out, node->text);
+        return 1;
+    }
     int array = node->name[0] == '[';
-    if(!append_compound_text(out, size, used,
-                             array ? ".[" : ".{")) return 0;
+    append_compound_text(out, array ? ".[" : ".{");
     int ordinal = 0;
     for(int child = node->first_child; child >= 0;
         child = expression->exprs[child].next_sibling) {
         const ZirExpr *entry = &expression->exprs[child];
-        if(ordinal++ && !append_compound_text(out, size, used, ", "))
-            return 0;
+        if(ordinal++) append_compound_text(out, ", ");
         if(!array && !strcmp(entry->op, "=")) {
-            if(!append_compound_text(out, size, used, ".") ||
-               !append_compound_text(out, size, used, entry->name) ||
-               !append_compound_text(out, size, used, " = "))
-                return 0;
+            append_compound_text(out, ".");
+            append_compound_text(out, entry->name);
+            append_compound_text(out, " = ");
         }
-        if(!render_compound_at_use(expression, entry->right, out, size,
-                                   used, depth + 1)) return 0;
+        if(!render_compound_at_use(expression, entry->right, out, depth + 1))
+            return 0;
     }
-    return append_compound_text(out, size, used, array ? "]" : "}");
+    append_compound_text(out, array ? "]" : "}");
+    return 1;
 }
 
-int
+const char *
 lower_compound_global(const ZirModule *module, const ZirGlobal *global,
-                      const CompoundConstant *compound,
-                      char *result, size_t size)
+                      const CompoundConstant *compound)
 {
     ZirFunction expression = {0};
     int root = ParseExpr(&expression, compound->owner, compound->literal,
                          global->span);
-    int ok = 0;
+    const char *result = NULL;
     if(root >= 0 && expression.exprs[root].kind == ZIR_EXPR_COMPOUND &&
        literal_compound_graph(&expression)) {
         char actual[ZIR_NAME_MAX];
+        CompoundText text = {0};
         if(compound_type_at_use(module, compound,
                 expression.exprs[root].name, actual, sizeof(actual)) &&
-           !strcmp(actual, global->type)) {
-            size_t used = 0;
-            result[0] = '\0';
-            ok = render_compound_at_use(&expression, root, result,
-                                        size, &used, 0);
-        }
+           !strcmp(actual, global->type) &&
+           render_compound_at_use(&expression, root, &text, 0))
+            result = KeepText(text.text);
+        free(text.text);
     }
     free(expression.exprs);
-    return ok;
+    return result;
 }
 
 void

@@ -81,6 +81,13 @@ int EmitGlobalInitializer(const ZirModule *module, const ZirGlobal *global,
                           ZirGlobalTypeRewrite type_name,
                           ZirGlobalFieldRewrite field_name, void *context,
                           char *out, size_t size);
+/* EmitGlobalInitializer into text sized for the initializer, which the
+ * caller frees; *status is its result and the text is NULL unless it is 1. */
+char *EmitGlobalInitializerText(const ZirModule *module, const ZirGlobal *global,
+                                ZirTarget target, ZirGlobalScalarRewrite scalar,
+                                ZirGlobalTypeRewrite type_name,
+                                ZirGlobalFieldRewrite field_name, void *context,
+                                int *status);
 void EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
                             const ZirGlobal *global, ZirTarget target,
                             ZirResolveTarget resolver, void *context);

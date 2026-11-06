@@ -634,6 +634,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   or silently. `tests/long_literals.sh` checks source and saved IR on C,
   Go, and `.zx`; `tests/large_array_literals.sh` checks 20,000-, 70,000-
   and 260,000-element tables, which parse and check in linear time.
+  A file-scope variable initializer, written out or naming a constant table
+  of any length, is kept whole instead of passing through 4 KiB buffers that
+  rejected it, and C and Go define the variable with its values.
+  `tests/large_constant_globals.sh` checks 3,000-, 4,096- and 6,000-element
+  globals, one from an imported table, on C, Go, native and the VM from
+  source and saved IR.
 - `ziran check --lint` warns (code `lint.cast`) about casts to a value's own
   type and casts that only widen a whole typed initializer, assignment,
   argument, or result; it leaves casts that set arithmetic width, choose an

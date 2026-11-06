@@ -1464,6 +1464,12 @@ bounds-checked as for any array. A function may read a table, and its
 `.count`, in as many loops as it needs. Nested arrays are not constant tables
 yet. Run `sh tests/constant_tables.sh build/bin/ziran`.
 
+A file-scope variable may start from a table of any length, named as in
+`table: [4096]u8 = Lib.BIG` or written out. Each target defines the variable
+with its values, so nothing fills it when the program starts, and writing it
+leaves the table unchanged. Run `sh tests/large_constant_globals.sh
+build/bin/ziran`.
+
 ### Bit counts and byte swaps
 
 `clz(x)`, `ctz(x)` and `popcount(x)` count leading zero bits, trailing zero

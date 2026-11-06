@@ -10,6 +10,7 @@ Duplicate :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
 Close :: (fd: s32) -> s32 #foreign libc "close";
 ChangeDirectory :: (path: *u8) -> s32 #foreign libc "chdir";
 SetEnvironment :: (name: *u8, value: *u8, overwrite: s32) -> s32 #foreign libc "setenv";
+UnsetEnvironment :: (name: *u8) -> s32 #foreign libc "unsetenv";
 Execute :: (path: *u8, arguments: *ProcessPointer) -> s32 #foreign libc "execvp";
 Exit :: (code: s32) #foreign libc "_exit";
 Wait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
@@ -109,7 +110,12 @@ RunProcess :: (arguments: []string, directory: string,
         if cwd != null && ChangeDirectory(cwd) != 0 { Exit(127) }
         index = 0
         while index < names.count {
-            if SetEnvironment(keys[index].value, entries[index].value, 1) != 0 { Exit(127) }
+            // An empty value removes the variable. Setting it to "" would
+            // leave it defined, and tools such as git's GIT_CURL_VERBOSE
+            // switch on when the name merely exists.
+            if values[index].count == 0 {
+                if UnsetEnvironment(keys[index].value) != 0 { Exit(127) }
+            } else if SetEnvironment(keys[index].value, entries[index].value, 1) != 0 { Exit(127) }
             index += 1
         }
         Execute(pointers[0].value, *pointers[0])

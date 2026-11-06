@@ -240,6 +240,7 @@ PkgRun :: (arguments: []string, cwd: string, names: []string,
     return code
 }
 
+// An empty value means "unset" in RunProcess.
 // Git writes trace output to stderr, which captures share with stdout. Clear
 // every trace switch so an inherited GIT_TRACE cannot make a clean cache entry
 // look modified or garble a ref listing.

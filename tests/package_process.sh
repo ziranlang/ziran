@@ -25,6 +25,10 @@ Check :: (directory: string) -> s32 {
     if TextFromCString(*output[0]) != "child ; $literal\n" { return 4 }
     if RunProcess(args[:], "", none[:], none[:], output[:]) != 0 { return 5 }
     if TextFromCString(*output[0]) != "parent\n" { return 6 }
+    args[2] = "import os;print(os.environ.get('ZIRAN_PROCESS_TEST','unset'))"
+    clear: [1]string = .[""]
+    if RunProcess(args[:], "", names[:], clear[:], output[:]) != 0 { return 25 }
+    if TextFromCString(*output[0]) != "unset\n" { return 26 }
     pwd: [1]string = .["/bin/pwd"]
     if RunProcess(pwd[:], directory, none[:], none[:], output[:]) != 0 { return 7 }
     if TextFromCString(*output[0])[0:directory.count] != directory { return 8 }

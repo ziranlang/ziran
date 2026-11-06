@@ -3,8 +3,9 @@
 # declaration creates or a plain assignment names, without a temporary and a
 # copy in C. The callee writes its result only when it returns, so reading
 # the destination during the call, through an argument or a global, still
-# sees the old value. Results agree on C, Go and the portable VM from source
-# and saved IR.
+# sees the old value. A return passes the caller's destination on the same
+# way, and returns any other array with one copy from its own storage.
+# Results agree on C, Go and the portable VM from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -39,6 +40,14 @@ Early :: (n: s64) -> [4]s64 {
     return Make(n)
 }
 First :: (values: [4]s64) -> s64 { return values[0] }
+// Returns: a call passes the caller's destination on; a parameter, a
+// global, a field or a row is copied once.
+Wrap :: (n: s64) -> [4]s64 { return Make(n + 1) }
+ViaShared :: (n: s64) -> [4]s64 { return FromShared(n) }
+Pass :: (values: [4]s64) -> [4]s64 { return values }
+Global :: () -> [4]s64 { return shared }
+Field :: (holder: Holder) -> [4]s64 { return holder.values }
+Row :: (holder: Holder, at: s64) -> [4]s64 { return holder.grid[at] }
 #program_export
 Answer :: () -> s64 {
     fresh := Make(1)
@@ -64,6 +73,17 @@ Answer :: () -> s64 {
         if outer[0] != 33 { return 7 }
     }
     if outer[0] != 30 { return 8 }
+    wrapped := Wrap(1)
+    if wrapped[0] != 2 || wrapped[3] != 5 { return 9 }
+    shared = Make(1)
+    shared = ViaShared(5)
+    if shared[0] != 6 || shared[3] != 9 { return 10 }
+    typed = Pass(typed)
+    if typed[0] != 5 || typed[3] != 2 { return 11 }
+    copied := Global()
+    copied[1] = 0
+    if copied[0] != 6 || shared[1] != 7 { return 12 }
+    if Field(holder)[2] != 12 || Row(holder, 1)[3] != 23 || Row(holder, 0)[3] != 0 { return 13 }
     return 42
 }
 ZI
@@ -102,6 +122,22 @@ C
         echo 'an array call result was still copied into its destination' >&2
         exit 1
     fi
+    # Returns write the caller's destination without a result temporary.
+    sed -n '/^app_Early(/,/^}/p; /^app_Wrap(/,/^}/p; /^app_ViaShared(/,/^}/p;
+            /^app_Make(/,/^}/p; /^app_Pass(/,/^}/p; /^app_Global(/,/^}/p;
+            /^app_Field(/,/^}/p; /^app_Row(/,/^}/p' "$output/app.c" > "$work/returns.c"
+    if grep -q 'value_[0-9]' "$work/returns.c"; then
+        echo 'an array return still went through a temporary' >&2
+        exit 1
+    fi
+    grep -q '^        app_Make(array_result_0_0, 0LL);' "$work/returns.c"
+    grep -q '^    app_Make(array_result_0_0, n);' "$work/returns.c"
+    grep -q '^    app_FromShared(array_result_0_0, n);' "$work/returns.c"
+    grep -q 'memmove(array_result_0_0, out, sizeof(int64_t\[4\]));' "$work/returns.c"
+    grep -q 'memmove(array_result_0_0, values, sizeof(int64_t\[4\]));' "$work/returns.c"
+    grep -q 'memmove(array_result_0_0, shared, sizeof(int64_t\[4\]));' "$work/returns.c"
+    # Pass also copies its by-value parameter in.
+    test "$(grep -c 'memmove' "$work/returns.c")" = 6
 
     output=$work/go-$input
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"

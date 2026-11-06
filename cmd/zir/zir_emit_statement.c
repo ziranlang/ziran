@@ -1246,6 +1246,40 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             break;
         case ZIR_STMT_RETURN:
             if(st->expr_root >= 0) {
+                const char *returned_type = e->fn->return_type;
+                const ZirExpr *returned = &e->fn->exprs[st->expr_root];
+                if(e->target == ZIR_C && ArrayElementType(returned_type, NULL, 0, NULL) &&
+                   !TypeHasZeroArray(e->module, returned_type) && returned->type != NULL &&
+                   !strcmp(canonical(returned->type), canonical(returned_type))) {
+                    /* The result goes straight to the caller's ABI pointer:
+                     * a call of the same array type writes it in place, and
+                     * any other array is copied once from its own storage,
+                     * never through a temporary. */
+                    char output[ZIR_NAME_MAX];
+                    char element[ZIR_NAME_MAX * 2];
+                    char bounds[ZIR_NAME_MAX * 2];
+                    ArrayAbiName(e->fn, -1, output, sizeof(output));
+                    int direct = array_result_in_place(e, st->expr_root, returned_type, NULL);
+                    e->call_in_place = 1;
+                    if(direct) {
+                        e->array_destination = output;
+                        e->array_destination_used = 0;
+                    } else {
+                        e->array_operand = 1;
+                    }
+                    emit_expr(e, st->expr_root, returned_type, buffers->value, sizeof(buffers->value));
+                    e->array_destination = NULL;
+                    e->array_operand = 0;
+                    if(!direct || !e->array_destination_used) {
+                        array_target_type(e, returned_type, element, sizeof(element),
+                                          bounds, sizeof(bounds));
+                        line(e, "memmove(%s, %s, sizeof(%s%s));", output, buffers->value,
+                             element, bounds);
+                    }
+                    drop_locals(e, 0);
+                    line(e, "return;");
+                    e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+                }
                 e->call_in_place = 1;
                 emit_expr(e, st->expr_root, e->fn->return_type, buffers->value, sizeof(buffers->value));
                 if(e->target == ZIR_C &&

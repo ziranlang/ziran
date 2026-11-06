@@ -109,6 +109,9 @@ typedef struct Emitter {
      * write directly; the call sets array_destination_used when it does. */
     const char *array_destination;
     int array_destination_used;
+    /* Set by a consumer that copies an array-valued expression straight out
+     * of its C text, such as a return: the expression is not captured. */
+    int array_operand;
     /* What the C body's index range proofs know about fn, or NULL. */
     RangeFacts *ranges;
     /* Set for a Go declaration whose value already has the declared type,

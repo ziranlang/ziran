@@ -1001,9 +1001,11 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     char temp[ZIR_NAME_MAX];
     int pure=0;
     int call_in_place = e->call_in_place;
+    int array_operand = e->array_operand;
     int braced = e->braced_initializer;
     e->braced_initializer = 0;
     e->call_in_place = 0;
+    e->array_operand = 0;
     /* Binary-shaped results re-bind when spliced into a parent expression, so
      * the tail parenthesizes them; identifiers, literals, calls, and slices
      * are operand-safe without wrapping. */
@@ -1933,7 +1935,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
      * otherwise exhaust a native thread's stack solely because their emitted
      * call text crosses the readability bound. */
     int in_place = call_in_place &&
-                   (e->target == ZIR_GO || !ArrayElementType(type, NULL, 0, NULL));
+                   (e->target == ZIR_GO || array_operand ||
+                    !ArrayElementType(type, NULL, 0, NULL));
     if(in_place || folds_text(e, buffers->result, type)) {
         /* declare() applies this cast for named enum types; inlined text has
          * to carry it so Go sees matching operand types. An explicit cast

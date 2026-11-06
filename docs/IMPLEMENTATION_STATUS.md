@@ -538,8 +538,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   to a stable array lvalue passes that destination as the callee's result
   buffer instead of a zero-filled temporary that is copied afterwards; a
   declaration whose arguments name the new binding keeps the temporary.
+  A `return` of an array-valued call of the same type passes the caller's
+  result buffer on, and any other returned array is copied into it once
+  from its own storage rather than through a zero-filled temporary.
   `tests/array_result_in_place.sh` checks C, Go, native and portable results
-  and the generated calls.
+  and the generated calls and returns.
   A shadowing declaration's initializer reads the outer binding on every
   target: generated C computes it into a temporary before the new local is
   in scope. A `for` body that redeclares its binder, or holds a `continue`

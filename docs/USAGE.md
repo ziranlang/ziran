@@ -286,7 +286,9 @@ declaration creates or a plain assignment names, such as `grid := Make(4)`,
 `row = Next(row)` or `holder.values = Make(10)`, with no temporary and copy in
 C. The callee stores its result only when it returns, so arguments and
 globals that name the destination still read the old value during the call.
-Run `sh tests/array_result_in_place.sh build/bin/ziran`.
+Returning an array works the same way: `return Make(n)` hands the caller's
+destination on, and `return out`, `return holder.values` or a parameter is
+copied out once. Run `sh tests/array_result_in_place.sh build/bin/ziran`.
 
 Indexing stays checked in every build, but generated C leaves out a check
 it can prove always passes: a loop counter its condition bounds, such as `i` in

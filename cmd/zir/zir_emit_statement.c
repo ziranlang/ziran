@@ -1157,7 +1157,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             }
             if(st->expr_root>=0) {
                 e->call_in_place = 1;
-                e->braced_initializer = e->target != ZIR_GO &&
+                e->braced_initializer =
                     e->fn->exprs[st->expr_root].kind == ZIR_EXPR_COMPOUND;
                 emit_expr(e,st->expr_root,st->type,buffers->value,sizeof(buffers->value));
                 e->short_declaration = typed_initializer(e, st->expr_root, st->type);

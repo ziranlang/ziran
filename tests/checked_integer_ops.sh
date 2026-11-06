@@ -1,7 +1,8 @@
 #!/bin/sh
 # Division, remainder and shifts whose operands are not constants compile in
-# C to a checked helper of their own width, not the general IntegerOp switch,
-# and keep the language's results on C, Go and the portable VM: truncating
+# C to a checked helper of their own width, not the general IntegerOp switch;
+# Go shifts in the operand's own type after checking the count instead of
+# calling integerOp. Both keep the language's results on C, Go and the portable VM: truncating
 # division, MIN / -1 wrapping to MIN, arithmetic right shifts, and an abort
 # for a zero divisor or a shift count outside 0..width-1.
 set -eu
@@ -137,5 +138,11 @@ GO
             exit 1
         fi
     done
+    if grep -q 'integerOp(' "$output/app.go"; then
+        echo 'a Go shift still went through integerOp' >&2
+        exit 1
+    fi
+    sed -n '/^func App_ShlS8(/,/^}/p' "$output/app.go" | grep -q 'a << shiftCount(uint64(b), 8)'
+    sed -n '/^func App_ShrU64(/,/^}/p' "$output/app.go" | grep -q 'a >> shiftCount(uint64(b), 64)'
 done
 cmp "$work/source.zx" "$work/saved.zx"

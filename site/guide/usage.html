@@ -295,7 +295,9 @@ guard may also write <code>cast(s64)(height - 1) * stride</code>: inside the loo
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift
 count needs no check, and other divisions and shifts call a small checked
-helper of their width. Run <code>sh tests/checked_integer_ops.sh build/bin/ziran</code>.</p>
+helper of their width. Generated Go shifts by a variable count in the
+operand's own type after checking the count. Run
+<code>sh tests/checked_integer_ops.sh build/bin/ziran</code>.</p>
 <p><code>#parallel_gpu for</code> runs a loop on the fastest GPU in native C builds on Linux
 and Android, and on CPU threads otherwise. Programs need no graphics libraries
 to build or start. A region qualifies when it uses only <code>s32</code>, <code>u32</code>, <code>float32</code>,
@@ -1237,7 +1239,9 @@ decoding with the C compiler's over a million random patterns.
 as many lines as it needs. Reading <code>COS[i]</code> reads one table the module shares
 (a file-scope <code>static const</code> in C, a package <code>var</code> in Go, built once in the
 portable VM) instead of copying the array; copying it into a variable, as in
-<code>local: [3]s32 = COS</code>, still makes an independent copy. Indexes are
+<code>local: [3]s32 = COS</code>, still makes an independent copy, which Go takes
+straight from the shared <code>var</code>, as it does when passing the table by
+value. Indexes are
 bounds-checked as for any array. A function may read a table, and its
 <code>.count</code>, in as many loops as it needs. Nested arrays are not constant tables
 yet. Run <code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>

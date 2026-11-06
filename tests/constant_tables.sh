@@ -1,7 +1,9 @@
 #!/bin/sh
 # An index read of a constant array, such as TABLE :: #run s64.[...], reads
 # one shared read-only table: a module-level static const in C, a package
-# var in Go and a value the VM builds once. Copies keep value semantics.
+# var in Go and a value the VM builds once. Go also declares a copy or
+# passes the table by value straight from that var. Copies keep value
+# semantics.
 # A function may read one table in many loops, beside widening casts and
 # .count, without running out of room to bind it.
 set -eu
@@ -60,6 +62,7 @@ Taps :: (b: s32) -> s32 {
     for i: 0..cast(s64)1 { s += TABLE[b + i] }
     return s
 }
+Bump :: (values: [8]s32) -> s32 { values[0] += 10; return values[0] }
 Counted :: () -> s32 {
     sum: s32 = 0
     for i: 0..TABLE.count - 1 { sum += TABLE[i] }
@@ -85,6 +88,7 @@ Answer :: () -> s64 {
     if Grid(4, 4) != 81 { return 7 }
     if Taps(1) != 26 { return 8 }
     if Counted() != 45 { return 9 }
+    if Bump(TABLE) != 13 || TABLE[0] != 3 { return 10 }
     return Lib.NUMBERS[2] + cast(s64) (Pick(0) - 3)
 }
 #program_export
@@ -154,5 +158,8 @@ GO
     test "$(grep -c '^var App_ziran_table[0-9]* = \[8\]int32{3, 1, 4, 1, 5, 9, 2, 6}' "$output/app.go")" = 1
     sed -n '/^func App_Pick(/,/^}/p' "$output/app.go" > "$work/pick.go"
     grep -q 'return App_ziran_table[0-9]*\[i\]' "$work/pick.go"
+    sed -n '/^func App_Answer(/,/^}/p' "$output/app.go" > "$work/answer.go"
+    grep -q 'local := App_ziran_table[0-9]*$' "$work/answer.go"
+    grep -q 'App_Bump(App_ziran_table[0-9]*)' "$work/answer.go"
 done
 cmp "$work/source.zx" "$work/saved.zx"

@@ -1026,6 +1026,14 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         pure = 1;
         break;
     case ZIR_EXPR_COMPOUND: {
+        /* A Go array copies when it is declared from or passed, so the
+         * module's shared table serves those uses as it does index reads. */
+        if(e->target == ZIR_GO && braced && constant_tables != NULL &&
+           constant_tables->target == ZIR_GO && constant_array_literal(e, index, type, 0)) {
+            shared_constant_table(e, index, type, out, size);
+            e->pure = 1;
+            return;
+        }
         /* Array literals may exceed the expression scratch buffer. Emit
          * their ordered element stores, as the C path already does,
          * instead of constructing one unbounded Go expression. */

@@ -224,7 +224,7 @@ go_validate_exports(const ZirProgram *const *programs, int count)
         "clear", "close", "complex", "copy", "delete", "imag", "len", "make",
         "max", "min", "new", "panic", "print", "println", "real", "recover",
         "unsafe", "signedBits", "wrapAdd", "wrapSub", "wrapMul", "floatToInt",
-        "integerOp", "zirGoCgoEnabled", "zirGoAssemblyEnabled", NULL
+        "integerOp", "shiftCount", "zirGoCgoEnabled", "zirGoAssemblyEnabled", NULL
     };
     for(int i = 0; i < g_function_count; i++) {
         const ZirFunction *function = g_functions[i].declaration;

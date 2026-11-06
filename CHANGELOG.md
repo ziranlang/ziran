@@ -44,6 +44,8 @@
   C, and `return Make(n)` writes the caller's array directly.
 - A local array passed by value to a Ziran procedure is copied once in
   generated C, not by both the caller and the callee.
+- Generated Go shifts by a variable count without the general integer
+  helper, and copies a constant table straight from its shared `var`.
 - Generated C also leaves out bounds checks an earlier guard proves, such as
   `input[row * stride + column]` in loops over `row` and `column` after an
   `if` that returns when `input.count` is too small.

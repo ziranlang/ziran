@@ -645,6 +645,10 @@ emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result
                            (e->target == ZIR_GO || !later_calls);
         e->array_operand = e->call_in_place &&
                            array_argument_copied_by_callee(e, expr, ordinal, child);
+        /* Go passes an array by value, so a constant table goes as it is. */
+        e->braced_initializer = e->target == ZIR_GO &&
+                                e->fn->exprs[child].kind == ZIR_EXPR_COMPOUND &&
+                                ArrayValueType(canonical(argument_type));
         emit_expr(e,child,argument_type,buffers->argument,sizeof(buffers->argument));
         if((later_calls && call_can_change(e, child)) ||
            (!plain_identifier(buffers->argument) &&

@@ -612,6 +612,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `IntegerOp` switch, so compilers emit one `idiv` or `sar` plus the checks;
   `tests/checked_integer_ops.sh` covers every width on C, Go, native and
   portable bundles from source and saved IR, and rejects `IntegerOp` in the C.
+  Generated Go shifts by a nonconstant count in the operand's own type behind
+  an inlinable `shiftCount` check, and the test rejects `integerOp` in the Go.
   `tests/numeric_semantics.sh` checks these cases from source and saved IR on
   C, Go, and `.zx`. Its stable conformance IDs are published by
   `ziran capabilities --json`, described by
@@ -687,7 +689,8 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
 - An index read of a constant number or boolean array (`TABLE :: s32.[...]`
   or `#run s32.[...]`, any length) reads one shared read-only table: a
   file-scope `static const` in C, a package `var` in Go and a value the
-  portable VM builds once and keeps. `tests/constant_tables.sh` checks C, Go,
+  portable VM builds once and keeps. Go also declares a copy or passes the
+  table by value from that `var`. `tests/constant_tables.sh` checks C, Go,
   native and portable bundles from source and saved IR, value copies, bounds
   and that the read copies nothing. A function may read one table in any
   number of loops, beside widening casts and `.count`: binding a table grows

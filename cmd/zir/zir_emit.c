@@ -38,6 +38,10 @@ static const struct {
      "// negativeZero is -0.0, which Go constants cannot hold.\n"
      "func negativeZero() float64 {\n\tzero := 0.0\n\treturn -zero\n}\n"},
     {"wrapAdd", "func wrapAdd(a, b uint64) uint64 { return a + b }\n"},
+    {"shiftCount",
+     "// shiftCount returns s, panicking unless it is below the width w.\n"
+     "func shiftCount(s, w uint64) uint64 {\n"
+     "\tif s >= w {\n\t\tpanic(\"invalid shift count\")\n\t}\n\treturn s\n}\n"},
     {"wrapSub", "func wrapSub(a, b uint64) uint64 { return a - b }\n"},
     {"wrapMul", "func wrapMul(a, b uint64) uint64 { return a * b }\n"},
     {"floatToInt",

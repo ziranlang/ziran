@@ -332,7 +332,9 @@ Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift
 count needs no check, and other divisions and shifts call a small checked
-helper of their width. Run `sh tests/checked_integer_ops.sh build/bin/ziran`.
+helper of their width. Generated Go shifts by a variable count in the
+operand's own type after checking the count. Run
+`sh tests/checked_integer_ops.sh build/bin/ziran`.
 
 `#parallel_gpu for` runs a loop on the fastest GPU in native C builds on Linux
 and Android, and on CPU threads otherwise. Programs need no graphics libraries
@@ -1455,7 +1457,9 @@ A constant array of numbers or booleans is a read-only table:
 as many lines as it needs. Reading `COS[i]` reads one table the module shares
 (a file-scope `static const` in C, a package `var` in Go, built once in the
 portable VM) instead of copying the array; copying it into a variable, as in
-`local: [3]s32 = COS`, still makes an independent copy. Indexes are
+`local: [3]s32 = COS`, still makes an independent copy, which Go takes
+straight from the shared `var`, as it does when passing the table by
+value. Indexes are
 bounds-checked as for any array. A function may read a table, and its
 `.count`, in as many loops as it needs. Nested arrays are not constant tables
 yet. Run `sh tests/constant_tables.sh build/bin/ziran`.

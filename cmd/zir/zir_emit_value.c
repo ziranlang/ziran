@@ -799,6 +799,17 @@ number_with_buffers(Emitter *e, const char *type, const char *a, const char *a_t
             }
             return;
         }
+        /* Go shifts by a variable count in the operand's own type, which
+         * wraps and fills signs as Ziran does, once the count is checked. */
+        if(e->target == ZIR_GO && op >= 6 && !right_literal) {
+            if(left_literal || !same_number_type(a_type, type))
+                format(buffers->left, sizeof(buffers->left), "%s(%s)", native, a);
+            else
+                copy_text(buffers->left, sizeof(buffers->left), a);
+            format(out, size, "%s %s shiftCount(uint64(%s), %d)", buffers->left,
+                   op == 6 ? "<<" : ">>", b, w);
+            return;
+        }
     }
     /* The remaining C divisions and shifts call a checked helper of their
      * own width instead of the general IntegerOp switch. */

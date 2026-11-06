@@ -1113,6 +1113,15 @@ and NaN, so native targets and portable bundles agree without reinterpreting
 memory. Run <code>sh tests/std_binary.sh build/bin/ziran</code>, which also compares the
 decoding with the C compiler's over a million random patterns.
 <code>std/binary_linux.zi</code> keeps 64-bit fields for native Linux programs.</p>
+<h3 id="constant-tables">Constant tables</h3>
+<p>A constant array of numbers or booleans is a read-only table:
+<code>COS :: s32.[4096, 4095, 4091]</code> or <code>#run s32.[...]</code>, of any length and over
+as many lines as it needs. Reading <code>COS[i]</code> reads one table the module shares
+(a file-scope <code>static const</code> in C, a package <code>var</code> in Go, built once in the
+portable VM) instead of copying the array; copying it into a variable, as in
+<code>local: [3]s32 = COS</code>, still makes an independent copy. Indexes are
+bounds-checked as for any array. Nested arrays are not constant tables yet.
+Run <code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>
 <h3 id="bit-counts-and-byte-swaps">Bit counts and byte swaps</h3>
 <p><code>clz(x)</code>, <code>ctz(x)</code> and <code>popcount(x)</code> count leading zero bits, trailing zero
 bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,

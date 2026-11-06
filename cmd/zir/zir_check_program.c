@@ -268,8 +268,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         &folded_owner))) {
                     if(folded_owner != NULL) {
                         CompoundConstant compound = {0};
-                        copy_text(compound.literal,
-                                  sizeof(compound.literal), buffers->folded);
+                        compound.literal = KeepText(buffers->folded);
                         compound.owner = folded_owner;
                         compound_qualifier_for_global(&compound,
                                                       global->type);

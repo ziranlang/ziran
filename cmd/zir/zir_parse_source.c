@@ -110,6 +110,41 @@ free_parse_source_buffers(void *value)
     free(buffers);
 }
 
+/* TYPE.[n, n, ...]: an element type name, then one bracketed list of
+ * number and boolean literals, with no calls, names or nesting. */
+static int
+plain_number_array(const char *text)
+{
+    const char *p = text;
+    if(!isalpha((unsigned char)*p) && *p != '_')
+        return 0;
+    while(isalnum((unsigned char)*p) || *p == '_')
+        p++;
+    if(p[0] != '.' || p[1] != '[')
+        return 0;
+    for(p += 2; *p && *p != ']';) {
+        if(isspace((unsigned char)*p) || *p == ',') {
+            p++;
+            continue;
+        }
+        const char *start = p;
+        while(isalnum((unsigned char)*p) || *p == '_' || *p == '.' ||
+              ((*p == '-' || *p == '+') &&
+               (p == start || p[-1] == 'e' || p[-1] == 'E')))
+            p++;
+        size_t length = (size_t)(p - start);
+        if(length == 0)
+            return 0;
+        if(start[0] == '-' || start[0] == '+')
+            start++;
+        if(!isdigit((unsigned char)start[0]) &&
+           !(length == 4 && !strncmp(start, "true", 4)) &&
+           !(length == 5 && !strncmp(start, "false", 5)))
+            return 0;
+    }
+    return *p == ']' && p[1] == '\0';
+}
+
 static ZirProgram *parse_source(const char *path, const char *root, const char *source,
              ZirCompileImportResolver resolver, void *resolver_context,
              const char *const *defines, int define_count);
@@ -1344,7 +1379,13 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         consts.items = items;
                         consts.capacity = capacity;
                     }
-                    if(starts_word(expr, "#run")) {
+                    if(starts_word(expr, "#run") &&
+                       plain_number_array(trim((char *)(expr + 4)))) {
+                        /* Running a literal table yields the literal, so
+                         * a table of any length skips the bounded
+                         * evaluation buffers. */
+                        expr = trim((char *)(expr + 4));
+                    } else if(starts_word(expr, "#run")) {
                         int64_t value = 0;
                         int folded;
                         ZirConsts visible = visible_compile_constants(

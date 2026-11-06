@@ -1315,6 +1315,17 @@ memory. Run `sh tests/std_binary.sh build/bin/ziran`, which also compares the
 decoding with the C compiler's over a million random patterns.
 `std/binary_linux.zi` keeps 64-bit fields for native Linux programs.
 
+### Constant tables
+
+A constant array of numbers or booleans is a read-only table:
+`COS :: s32.[4096, 4095, 4091]` or `#run s32.[...]`, of any length and over
+as many lines as it needs. Reading `COS[i]` reads one table the module shares
+(a file-scope `static const` in C, a package `var` in Go, built once in the
+portable VM) instead of copying the array; copying it into a variable, as in
+`local: [3]s32 = COS`, still makes an independent copy. Indexes are
+bounds-checked as for any array. Nested arrays are not constant tables yet.
+Run `sh tests/constant_tables.sh build/bin/ziran`.
+
 ### Bit counts and byte swaps
 
 `clz(x)`, `ctz(x)` and `popcount(x)` count leading zero bits, trailing zero

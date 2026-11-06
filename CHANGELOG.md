@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Constant number and boolean arrays of any length (`TABLE :: s32.[...]`, also
+  through `#run`) are read-only tables: `TABLE[i]` reads one shared copy on C,
+  Go and the VM instead of copying the array at every read.
 - `clz`, `ctz`, `popcount` and `bswap` builtins for `u8`, `u16`, `u32` and
   `u64`, with the width as the count for zero, on C, Go and the VM.
 - A Vec can hold Vecs and records that own Vecs: `VecPush` moves the element

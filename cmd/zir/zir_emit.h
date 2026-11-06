@@ -111,9 +111,15 @@ void EmitParallelWorkers(FILE *out, const ZirModule *module,
                          const ZirFunction *fn, ZirTarget target,
                          ZirResolveTarget resolve, void *context);
 void EmitNumbers(FILE *out, const ZirModule *module, ZirTarget target);
+/* Module-level read-only tables for constant array literals read by index.
+ * Begin before a module's functions; End returns the definitions (NULL or
+ * malloc'd text) for the lowering to place before them (C) or after (Go). */
+void EmitConstantTablesBegin(const char *prefix, ZirTarget target);
+char *EmitConstantTablesEnd(void);
 /* Resolve runtime includes and numeric helpers in generated native text. */
 #define RUNTIME_INCLUDES_MARK "/* ziran runtime includes */\n"
 #define NUMBER_HELPERS_MARK "/* ziran numeric helpers */\n"
+#define CONSTANT_TABLES_MARK "/* ziran constant tables */\n"
 int EmitNativeHelpers(FILE *out, const char *text);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */

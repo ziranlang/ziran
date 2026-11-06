@@ -963,10 +963,8 @@ bound_compound_constant(const ZirModule *module, const char *name, int depth,
     if(root < 0) status = -1;
     else if(expression.exprs[root].kind == ZIR_EXPR_COMPOUND &&
             literal_compound_graph(&expression)) {
-        if(strlen(definition->value) >= sizeof(result->literal)) status = -1;
-        else {
-            copy_text(result->literal, sizeof(result->literal),
-                      definition->value);
+        {
+            result->literal = definition->value;
             result->owner = owner;
             result->qualifier[0] = '\0';
             if(selected_import != NULL &&

@@ -1160,6 +1160,74 @@ numeric_literal(Frame *frame, const ZirExpr *expression, Value *output)
     return output;
 }
 
+/* An array literal whose elements are all number or boolean literals, at
+ * any nesting of arrays: immutable, so it can be built once and shared. */
+static int
+constant_array_literal(const ZirFunction *function, int index, int depth)
+{
+    if(depth > 32 || index < 0 || index >= function->expr_count)
+        return 0;
+    const ZirExpr *expression = &function->exprs[index];
+    if(expression->kind != ZIR_EXPR_COMPOUND || expression->first_child < 0 ||
+       !ArrayElementType(expression->type, NULL, 0, NULL))
+        return 0;
+    for(int child = expression->first_child; child >= 0;
+        child = function->exprs[child].next_sibling) {
+        const ZirExpr *entry = &function->exprs[child];
+        if(entry->kind != ZIR_EXPR_FIELD_INIT || entry->name[0] ||
+           entry->right < 0 || entry->right >= function->expr_count)
+            return 0;
+        const ZirExpr *value = &function->exprs[entry->right];
+        if(value->kind == ZIR_EXPR_COMPOUND) {
+            if(!constant_array_literal(function, entry->right, depth + 1))
+                return 0;
+            continue;
+        }
+        if(value->kind == ZIR_EXPR_UNARY && !strcmp(value->op, "-") &&
+           value->right >= 0 && value->right < function->expr_count)
+            value = &function->exprs[value->right];
+        if(value->kind != ZIR_EXPR_INT && value->kind != ZIR_EXPR_FLOAT &&
+           !(value->kind == ZIR_EXPR_IDENT && !value->is_move &&
+             (!strcmp(value->name, "true") || !strcmp(value->name, "false"))))
+            return 0;
+        if(!*ScalarType(entry->type))
+            return 0;
+    }
+    return 1;
+}
+
+/* The shared read-only value of constant array literal INDEX, or NULL for
+ * any other expression. Indexing it reads elements in place, as indexing a
+ * stored array does, instead of building the literal on every read. */
+static Value *
+constant_table(Frame *frame, int index, int depth)
+{
+    Vm *vm = frame->vm;
+    const ZirExpr *expression = &frame->function->exprs[index];
+    if(expression->kind != ZIR_EXPR_COMPOUND)
+        return NULL;
+    uintptr_t hash = (uintptr_t)expression;
+    hash ^= hash >> 17;
+    hash ^= hash >> 9;
+    size_t slot = (hash >> 4) & (VM_CONSTANT_TABLE_SLOTS - 1);
+    if(vm->constant_tables != NULL &&
+       vm->constant_tables[slot].expression == expression &&
+       vm->constant_tables[slot].module == frame->module)
+        return &vm->constant_tables[slot].value;
+    if(!constant_array_literal(frame->function, index, 0))
+        return NULL;
+    if(vm->constant_tables == NULL)
+        vm->constant_tables = calloc(VM_CONSTANT_TABLE_SLOTS, sizeof(*vm->constant_tables));
+    if(vm->constant_tables == NULL)
+        return NULL;
+    Value value = eval(frame, index, depth + 1);
+    if(vm->failed || value.kind != VALUE_ARRAY)
+        return NULL;
+    /* A replaced entry's array is no longer pinned and is collected. */
+    vm->constant_tables[slot] = (VmConstantSite){expression, frame->module, value};
+    return &vm->constant_tables[slot].value;
+}
+
 /* Leaves can allocate literal or coercion storage, but cannot execute a
  * function or trigger VM collection. Their caller stores the returned value
  * before evaluating another operand. Keep the full temporary root chain for
@@ -2793,7 +2861,11 @@ eval_expression(Frame *frame, int index, int depth)
         /* Indexing a stored array borrows its backing values. Copying the
          * entire array for each read would exhaust the VM allocation budget
          * in an ordinary loop. The result is coerced below as a value. */
-        Value *stored = assignment_slot(frame, expression->left, depth + 1);
+        Value *stored = constant_table(frame, expression->left, depth);
+        if(stored == NULL && frame->vm->failed)
+            break;
+        if(stored == NULL)
+            stored = assignment_slot(frame, expression->left, depth + 1);
         left = stored != NULL &&
                (stored->kind == VALUE_ARRAY ||
                 vm_vec_element_type(frame->vm, frame->module,

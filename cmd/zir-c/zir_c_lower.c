@@ -976,6 +976,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         if(!d->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
             c_rewrite_overflow(m->source_path, d->span.line);
+        /* A table constant written over several lines stays one macro. */
+        for(char *p = buffers->value; *p; p++)
+            if(*p == '\n' || *p == '\r') *p = ' ';
         fprintf(h, "#define %s %s\n", name, buffers->value);
         if(!d->is_public) fputs("#endif\n", h);
     }
@@ -1211,6 +1214,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     else
         fprintf(c, "#include \"%s.h\"\n", buffers->stem);
     EmitNumbers(c, m, ZIR_C);
+    fputs(CONSTANT_TABLES_MARK, c);
+    EmitConstantTablesBegin(buffers->guard, ZIR_C);
     /* Private-scope imports include here (implementation-only). */
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
@@ -1380,10 +1385,33 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "%s_constructor(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);
     }
+    char *tables = EmitConstantTablesEnd();
     if(TextStreamClose(&stream) != 0) {
+        free(tables);
         Diagnostic(m->span, "zir_c.global",
                    "cannot finish C source output: %s", buffers->cpath);
         return 0;
+    }
+    {
+        /* Shared constant tables go before the first function. */
+        char *mark = strstr(source_text, CONSTANT_TABLES_MARK);
+        size_t before = mark ? (size_t)(mark - source_text) : 0;
+        size_t added = tables ? strlen(tables) : 0;
+        size_t after = mark ? strlen(mark + strlen(CONSTANT_TABLES_MARK)) : 0;
+        char *joined = mark ? malloc(before + added + after + 1) : NULL;
+        if(mark == NULL || joined == NULL) {
+            free(tables);
+            free(source_text);
+            Diagnostic(m->span, "zir_c.global",
+                       "cannot finish C source output: %s", buffers->cpath);
+            return 0;
+        }
+        memcpy(joined, source_text, before);
+        if(added) memcpy(joined + before, tables, added);
+        memcpy(joined + before + added, mark + strlen(CONSTANT_TABLES_MARK), after + 1);
+        free(tables);
+        free(source_text);
+        source_text = joined;
     }
     c = GeneratedOutputOpen(buffers->cpath, buffers->ctemp, sizeof(buffers->ctemp));
     int finished = c ? EmitNativeHelpers(c, source_text) : -1;

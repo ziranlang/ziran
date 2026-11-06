@@ -592,6 +592,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   on Linux, Android, the web, and Windows. It adds `ReadEntireFile` and
   `WriteEntireFile`. `tests/file_portable.sh` runs it on C from source and
   saved IR.
+- An index read of a constant number or boolean array (`TABLE :: s32.[...]`
+  or `#run s32.[...]`, any length) reads one shared read-only table: a
+  file-scope `static const` in C, a package `var` in Go and a value the
+  portable VM builds once and keeps. `tests/constant_tables.sh` checks C, Go,
+  native and portable bundles from source and saved IR, value copies, bounds
+  and that the read copies nothing. Nested-array constants remain unsupported.
 - `clz`, `ctz`, `popcount` and `bswap` take one `u8`/`u16`/`u32`/`u64` and
   return that type, with the width as the count for zero. C emits
   `__builtin_*` helpers (with a portable fallback), Go `math/bits`, and the

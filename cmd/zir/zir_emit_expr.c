@@ -1,6 +1,7 @@
 #include "zir_scratch.h"
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
+#include "zir_stream.h"
 
 /* These reads and wrapping integer operations neither call nor fault. Keep
  * snapshots for indexes, dereferences and conversions that can fail, so their
@@ -769,6 +770,135 @@ constant_array_table(Emitter *e, int index, const char *type, int braced,
     copy_text(out, size, copy);
 }
 
+/* Read-only constant tables a module shares: an index read of a constant
+ * array literal, such as a `TABLE :: #run s32.[...]` constant, reads one
+ * module-level table (C static const, Go package var) instead of a fresh
+ * copy per use. The lowering that writes the module opens the set and
+ * places the definitions; other emitters keep the copying path. */
+typedef struct ConstantTables {
+    char prefix[256];
+    ZirTarget target;
+    TextStream stream;
+    FILE *out;
+    char *text;
+    size_t length;
+    char **keys;
+    int count, capacity;
+} ConstantTables;
+
+static _Thread_local ConstantTables *constant_tables;
+
+void
+EmitConstantTablesBegin(const char *prefix, ZirTarget target)
+{
+    free(EmitConstantTablesEnd());
+    ConstantTables *tables = calloc(1, sizeof(*tables));
+    if(tables == NULL) {
+        Diagnostic((ZirSourceSpan){0}, "emit.expression", "out of memory");
+        exit(1);
+    }
+    copy_text(tables->prefix, sizeof(tables->prefix), prefix);
+    tables->target = target;
+    tables->out = TextStreamOpen(&tables->stream, &tables->text, &tables->length);
+    if(tables->out == NULL) {
+        free(tables);
+        return;
+    }
+    constant_tables = tables;
+}
+
+char *
+EmitConstantTablesEnd(void)
+{
+    ConstantTables *tables = constant_tables;
+    char *text = NULL;
+    constant_tables = NULL;
+    if(tables == NULL)
+        return NULL;
+    if(TextStreamClose(&tables->stream) != 0) {
+        Diagnostic((ZirSourceSpan){0}, "emit.expression",
+                   "cannot finish constant tables");
+        exit(1);
+    }
+    text = tables->text;
+    for(int i = 0; i < tables->count; i++)
+        free(tables->keys[i]);
+    free(tables->keys);
+    free(tables);
+    return text;
+}
+
+/* The shared table holding constant array literal INDEX, written once per
+ * module and named in OUT. */
+static void
+shared_constant_table(Emitter *e, int index, const char *type, char *out, size_t size)
+{
+    ConstantTables *tables = constant_tables;
+    char element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+    char *initializer = NULL, *key;
+    size_t length = 0, key_size;
+    TextStream stream;
+    FILE *saved = e->out;
+    int indent = e->indent, column = 0;
+    array_target_type(e, type, element, sizeof(element), bounds, sizeof(bounds));
+    e->out = TextStreamOpen(&stream, &initializer, &length);
+    if(e->out == NULL) {
+        Diagnostic(e->fn->span, "emit.expression", "cannot write constant table");
+        exit(1);
+    }
+    e->indent = 0;
+    emit_constant_initializer(e, index, &column);
+    e->indent = indent;
+    e->out = saved;
+    if(TextStreamClose(&stream) != 0) {
+        Diagnostic(e->fn->span, "emit.expression", "cannot write constant table");
+        exit(1);
+    }
+    key_size = strlen(element) + strlen(bounds) + length + 2;
+    key = AllocateOrExit(key_size);
+    snprintf(key, key_size, "%s%s=%s", bounds, element, initializer);
+    free(initializer);
+    for(int i = 0; i < tables->count; i++)
+        if(!strcmp(tables->keys[i], key)) {
+            free(key);
+            format(out, size, "%s_table%d", tables->prefix, i);
+            return;
+        }
+    if(tables->count == tables->capacity) {
+        int capacity = tables->capacity ? tables->capacity * 2 : 8;
+        char **keys = realloc(tables->keys, (size_t)capacity * sizeof(*keys));
+        if(keys == NULL) {
+            Diagnostic(e->fn->span, "emit.expression", "out of memory");
+            exit(1);
+        }
+        tables->keys = keys;
+        tables->capacity = capacity;
+    }
+    format(out, size, "%s_table%d", tables->prefix, tables->count);
+    tables->keys[tables->count++] = key;
+    if(tables->target == ZIR_GO)
+        fprintf(tables->out, "var %s = %s%s%s\n\n", out, bounds, element,
+                strchr(key, '=') + 1);
+    else
+        fprintf(tables->out, "static const %s %s%s = %s;\n", element, out, bounds,
+                strchr(key, '=') + 1);
+}
+
+/* The base of an index read that is a constant array literal, written as
+ * the module's shared table without a copy: TABLE[i]. Emits nothing and
+ * returns 0 for any other base. */
+static int
+constant_table_base(Emitter *e, int index, char *out, size_t size)
+{
+    const ZirExpr *expr = &e->fn->exprs[index];
+    if(constant_tables == NULL || constant_tables->target != e->target ||
+       expr->kind != ZIR_EXPR_COMPOUND ||
+       !constant_array_literal(e, index, expr->type, 0))
+        return 0;
+    shared_constant_table(e, index, canonical(expr->type), out, size);
+    return 1;
+}
+
 /* The one member of a plain enum holding value, by the target's own
  * constant name: Shape_CIRCLE in C, ShapeCIRCLE in Go. Flags and values
  * two members share keep the number. */
@@ -1239,12 +1369,16 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     case ZIR_EXPR_INDEX: {
         const char *base_type = e->fn->exprs[expr->left].type;
         int capacity = 0;
-        int base_pure;
-        if(member_path(e->fn, expr->left))
+        int base_pure = 1;
+        if(constant_table_base(e, expr->left, buffers->a, sizeof(buffers->a)))
+            ;
+        else if(member_path(e->fn, expr->left)) {
             emit_destination(e, expr->left, buffers->a, sizeof(buffers->a));
-        else
+            base_pure = e->pure;
+        } else {
             emit_expr(e, expr->left, base_type, buffers->a, sizeof(buffers->a));
-        base_pure = e->pure;
+            base_pure = e->pure;
+        }
         emit_expr(e, expr->right, "s32", buffers->b, sizeof(buffers->b));
         pure = base_pure && e->pure;
         int fixed_array = ArrayElementType(base_type, NULL, 0, &capacity);

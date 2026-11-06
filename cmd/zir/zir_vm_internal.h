@@ -468,6 +468,8 @@ typedef struct VmExecutableFunction {
     VmSignature signature;
 } VmExecutableFunction;
 
+enum { VM_CONSTANT_TABLE_SLOTS = 1024 };
+
 typedef struct VmConstantSite {
     const ZirExpr *expression;
     const ZirModule *module;
@@ -551,6 +553,9 @@ typedef struct Vm {
     VmParameter *parameters;
     VmTypeSite *type_sites;
     VmConstantSite *constant_sites;
+    /* Constant array literals read by index, evaluated once and shared
+     * read-only; collection keeps them as it keeps globals. */
+    VmConstantSite *constant_tables;
     VmScalarSite *scalar_sites;
     size_t scalar_site_count, scalar_site_slots;
     size_t scalar_function_bytes;

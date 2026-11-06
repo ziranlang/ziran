@@ -2161,6 +2161,11 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                      test_stem ? (native_test ? "" : "_ziran") : (native_test ? "_test" : ""));
             mkdir_parent(buffers->path);
             f = TextStreamOpen(&stream, &text, &length);
+            {
+                char prefix[ZIR_GO_NAME_MAX + 8];
+                snprintf(prefix, sizeof(prefix), "%s_ziran", guard);
+                EmitConstantTablesBegin(prefix, ZIR_GO);
+            }
             if(f == NULL) {
                 Diagnostic(m->span, "zir_go.global",
                            "cannot create Go output: %s", buffers->path);
@@ -2641,6 +2646,13 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
             if(startup_count) {
                 fprintf(f, "func init() { %s_ziranInit() }\n\n", guard);
             }
+            }
+            {
+                /* Shared constant tables follow the module's code. */
+                char *tables = EmitConstantTablesEnd();
+                if(tables != NULL && tables[0])
+                    fputs(tables, f);
+                free(tables);
             }
             if(TextStreamClose(&stream) != 0) {
                 Diagnostic(m->span, "zir_go.global",

@@ -1078,6 +1078,9 @@ pin_globals(Vm *vm)
 {
     for(int i = 0; i < vm->global_count; i++)
         pin_value_at(vm, &vm->globals[i].value);
+    for(int i = 0; vm->constant_tables != NULL && i < VM_CONSTANT_TABLE_SLOTS; i++)
+        if(vm->constant_tables[i].expression != NULL)
+            pin_value_at(vm, &vm->constant_tables[i].value);
 }
 
 /* A callee may write through a slice borrowed from a caller. Its newly
@@ -1972,6 +1975,7 @@ VmInstanceClose(VmInstance *instance)
     free_executable(&instance->vm);
     free(instance->vm.type_sites);
     free(instance->vm.constant_sites);
+    free(instance->vm.constant_tables);
     free(instance->vm.globals);
     free_runtime_buffers(&instance->vm);
     free_evaluation_buffers(&instance->vm);

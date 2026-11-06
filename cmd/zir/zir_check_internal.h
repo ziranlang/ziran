@@ -101,7 +101,9 @@ typedef struct ExprOrder {
 } ExprOrder;
 
 typedef struct CompoundConstant {
-    char literal[ZIR_TEXT_MAX];
+    /* Shared immutable text, such as the define's value; a constant
+     * table may be far longer than one line. */
+    const char *literal;
     char qualifier[ZIR_NAME_MAX];
     const ZirModule *owner;
 } CompoundConstant;

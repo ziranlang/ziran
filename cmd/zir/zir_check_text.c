@@ -59,6 +59,13 @@ typedef struct TextScope {
     FieldAnswer *fields;
     size_t field_count;
     size_t field_capacity;
+    /* Set while following a parameter: what flows is a borrowed view, so
+     * `=` into a plain string local only rebinds that local. */
+    int borrowed;
+    /* String locals being followed, so a local fed from itself, as in
+     * `v = v[1:]`, is not followed again. */
+    struct { const ZirFunction *fn; int s; } walking[16];
+    int walking_count;
     int failed;
 } TextScope;
 
@@ -126,6 +133,8 @@ static int parameter_flow(TextScope *scope, const ZirModule *module,
                           const char *field);
 static int value_flow(TextScope *scope, const ZirModule *module,
                       const ZirFunction *fn, const Parents *parents, int value);
+static int string_array_type(const char *type);
+static int string_local(const ZirFunction *fn, int place);
 static int local_flow(TextScope *scope, const ZirModule *module,
                       const ZirFunction *fn, const Parents *parents, int s);
 
@@ -206,6 +215,18 @@ value_flow(TextScope *scope, const ZirModule *module,
            st->name != NULL && *st->name && st->type != NULL &&
            !strcmp(st->type, "string"))
             return local_flow(scope, module, fn, parents, s);
+        /* A view stored into a plain string local, as in `v = s[1:3]`,
+         * goes where that local's values go. */
+        if(scope->borrowed && st->kind == ZIR_STMT_ASSIGN &&
+           !strcmp(st->assignment_op, "=")) {
+            int local = string_local(fn, st->lhs_root);
+            if(local < 0)
+                return FLOW_RETAINED;
+            for(int i = 0; i < scope->walking_count; i++)
+                if(scope->walking[i].fn == fn && scope->walking[i].s == local)
+                    return FLOW_READ;
+            return local_flow(scope, module, fn, parents, local);
+        }
         return FLOW_RETAINED;
     }
     if(parent < 0)
@@ -227,10 +248,23 @@ value_flow(TextScope *scope, const ZirModule *module,
     case ZIR_EXPR_CALL:
         return argument_flow(scope, module, fn, parents, parent, value, NULL);
     case ZIR_EXPR_FIELD_INIT: {
-        /* A field of a record literal handed straight to a call. */
         int record = parents->of[parent];
-        if(e->right != value || record < 0 || !e->name || !*e->name ||
-           fn->exprs[record].kind != ZIR_EXPR_COMPOUND)
+        if(e->right != value || record < 0 || fn->exprs[record].kind != ZIR_EXPR_COMPOUND)
+            return FLOW_RETAINED;
+        /* An element of a local string array's literal, as in
+         * `parts: [9]string = .[a, b]`, goes where the array's elements go. */
+        int up = parents->of[record];
+        if(up < -1 && (!e->name || !*e->name)) {
+            int s = -2 - up;
+            const ZirStmt *st = &fn->stmts[s];
+            if(st->kind != ZIR_STMT_DECL || st->expr_root != record || st->is_using ||
+               st->lhs_root >= 0 || st->name == NULL || !*st->name ||
+               !string_array_type(st->type))
+                return FLOW_RETAINED;
+            return local_flow(scope, module, fn, parents, s);
+        }
+        /* A field of a record literal handed straight to a call. */
+        if(!e->name || !*e->name)
             return FLOW_RETAINED;
         int call = parents->of[record];
         if(call < 0 || fn->exprs[call].kind != ZIR_EXPR_CALL)
@@ -334,6 +368,8 @@ parameter_flow(TextScope *scope, const ZirModule *module,
     }
     *state = SCOPE_COMPUTING;
     int result = FLOW_RETAINED;
+    int borrowed = scope->borrowed;
+    scope->borrowed = 1;
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     const ZirParameter *item = parameter < parameters->count ?
         &parameters->items[parameter] : NULL;
@@ -375,6 +411,7 @@ parameter_flow(TextScope *scope, const ZirModule *module,
         }
         free(parents.of);
     }
+    scope->borrowed = borrowed;
     /* The tables may have grown during the walk. */
     state = flow_state(scope, fn, parameter, field);
     if(state != NULL)
@@ -577,9 +614,16 @@ settled(const ZirFunction *fn, int index, int globals)
         return 1;
     case ZIR_EXPR_IDENT:
         return !e->is_global_value || globals;
-    case ZIR_EXPR_UNARY:
+    case ZIR_EXPR_UNARY: {
+        int operand = e->left >= 0 ? e->left : e->right >= 0 ? e->right : e->first_child;
+        /* A variable's address, as in `Append(*out, ...)`, cannot change. */
+        if((!strcmp(e->op, "*") || !strcmp(e->op, "&")) && operand >= 0 &&
+           fn->exprs[operand].kind == ZIR_EXPR_IDENT &&
+           fn->exprs[operand].name != NULL && !fn->exprs[operand].is_function_value)
+            return 1;
         return (!strcmp(e->op, "-") || !strcmp(e->op, "!")) &&
-            settled(fn, e->left >= 0 ? e->left : e->first_child, globals);
+            settled(fn, operand, globals);
+    }
     case ZIR_EXPR_CALL:
         return !strcmp(e->name, "TextView") && e->first_child >= 0 &&
             fn->exprs[e->first_child].kind == ZIR_EXPR_IDENT &&
@@ -825,14 +869,30 @@ block_end(const ZirFunction *fn, int s)
     return fn->stmt_count;
 }
 
+/* Whether TYPE is a fixed array of strings, such as `[9]string`. */
+static int
+string_array_type(const char *type)
+{
+    if(type == NULL || *type++ != '[' || !isdigit((unsigned char)*type))
+        return 0;
+    while(isdigit((unsigned char)*type))
+        type++;
+    return !strcmp(type, "]string");
+}
+
 /* Whether the string local declared by statement S is only read, and only
- * after S inside its own block. Another binding of the name anywhere in
- * the function, or a defer that could run after the block, keeps it. */
+ * after S inside its own block. For a local string array, its elements are
+ * followed wherever an index reads one, and any other use keeps them. While
+ * a parameter is followed, `=` into the local only rebinds it, and the view
+ * assigned goes where the local's values go. Another binding of the name
+ * anywhere in the function, or a defer that could run after the block,
+ * keeps it. */
 static int
 local_flow(TextScope *scope, const ZirModule *module,
            const ZirFunction *fn, const Parents *parents, int s)
 {
     const char *name = fn->stmts[s].name;
+    int array = string_array_type(fn->stmts[s].type);
     int end = block_end(fn, s);
     for(int t = 0; t < fn->stmt_count; t++) {
         const ZirStmt *st = &fn->stmts[t];
@@ -841,6 +901,11 @@ local_flow(TextScope *scope, const ZirModule *module,
         if(t > s && t < end && st->kind == ZIR_STMT_DEFER)
             return FLOW_RETAINED;
     }
+    if(scope->walking_count == (int)(sizeof(scope->walking) / sizeof(scope->walking[0])))
+        return FLOW_RETAINED;
+    int walking = scope->walking_count++;
+    scope->walking[walking].fn = fn;
+    scope->walking[walking].s = s;
     int result = FLOW_READ;
     for(int x = 0; result && x < fn->expr_count; x++) {
         const ZirExpr *e = &fn->exprs[x];
@@ -848,11 +913,52 @@ local_flow(TextScope *scope, const ZirModule *module,
            e->name == NULL || strcmp(e->name, name) || parents->of[x] == -1)
             continue;
         int at = statement_of(parents, x);
-        if(at <= s || at >= end)
-            return FLOW_RETAINED;
+        if(at <= s || at >= end) {
+            result = FLOW_RETAINED;
+            break;
+        }
+        /* Rebinding a local that holds a borrowed view writes no string. */
+        if(scope->borrowed && !array && parents->of[x] == -2 - at &&
+           fn->stmts[at].kind == ZIR_STMT_ASSIGN && fn->stmts[at].lhs_root == x &&
+           !strcmp(fn->stmts[at].assignment_op, "="))
+            continue;
+        if(array) {
+            int up = parents->of[x];
+            if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_INDEX && fn->exprs[up].left == x)
+                result = combine(result, value_flow(scope, module, fn, parents, up));
+            else if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_MEMBER &&
+                    fn->exprs[up].left == x && !strcmp(fn->exprs[up].name, "count"))
+                continue;
+            else
+                result = FLOW_RETAINED;
+            continue;
+        }
         result = combine(result, value_flow(scope, module, fn, parents, x));
     }
+    scope->walking_count = walking;
     return result;
+}
+
+/* The declaration of the plain string local that PLACE names, or -1. */
+static int
+string_local(const ZirFunction *fn, int place)
+{
+    if(place < 0 || fn->exprs[place].kind != ZIR_EXPR_IDENT ||
+       fn->exprs[place].is_global_value || fn->exprs[place].is_this ||
+       fn->exprs[place].name == NULL)
+        return -1;
+    int found = -1;
+    for(int s = 0; s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->kind != ZIR_STMT_DECL || st->name == NULL ||
+           strcmp(st->name, fn->exprs[place].name))
+            continue;
+        if(found >= 0 || st->is_using || st->lhs_root >= 0 || st->type == NULL ||
+           strcmp(st->type, "string"))
+            return -1;
+        found = s;
+    }
+    return found;
 }
 
 static int

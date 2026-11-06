@@ -1072,13 +1072,18 @@ comparison, `.count`, or `BuilderFinish` passed the same way, as in
 `line := Render(...)` whose uses only do the same. Reads follow `ifx` arms,
 locals, a procedure that returns its argument when that result is only
 read, and a record literal field, as in `Draw(Props.{.text = Render(a)})`,
-whose callee only reads that field of its record parameter. A callee or
-local that stores, returns, aliases or defers the string, or a foreign
-callee not marked `#reads`, keeps it. The result is never computed earlier
-than written, so one after another call in its expression, after a global
-its procedure may change, in a loop or `else if` condition, or in an `&&`,
-`||` or `ifx` arm keeps its bytes. Literals such as `-1` and other globals
-may come first. `tests/text_scoped_arguments.sh` checks both kinds.
+whose callee only reads that field of its record parameter. Inside a
+callee, a parameter may also be copied into a local `[N]string` whose
+elements are only read, or into a `string` local that `=` later points at
+other views of parameters or at literals, as in `v = s[1:3]`, and still
+only be read. A callee or local that stores, returns, aliases or defers the
+string, or a foreign callee not marked `#reads`, keeps it. The result is
+never computed earlier than written, so one after another call in its
+expression, after a global its procedure may change, in a loop or `else if`
+condition, or in an `&&`, `||` or `ifx` arm keeps its bytes. Literals such
+as `-1`, other globals and a local's address, as in
+`BuilderPrint(*out, "%", Render(a))`, may come first.
+`tests/text_scoped_arguments.sh` checks both kinds.
 
 A foreign procedure that only reads its string and byte arguments during
 the call says so with `#reads` before `#foreign`:

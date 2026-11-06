@@ -32,6 +32,11 @@
 - Such a result passed through an `ifx` arm, a local, a procedure that
   returns it, or a record literal field such as `Props.{.text = Render()}`
   whose callee only reads that field is freed the same way.
+- Such a result handed to std/format's `Append` or `BuilderPrint`, whose
+  first argument is the builder's address, is freed too.
+- A callee that copies its string parameters into a local `[N]string` and
+  only reads the elements, or that points a `string` local at other views
+  of them with `=`, as in `v = s[1:3]`, only reads them.
 - A file that names `Text` or `Vec(T)` imports `std/vec` automatically, so
   its C header, bundle and Go code see the same types as the code that made
   them. A parameter or return type that names no visible type is an error.

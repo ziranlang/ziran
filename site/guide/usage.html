@@ -896,13 +896,18 @@ comparison, <code>.count</code>, or <code>BuilderFinish</code> passed the same w
 <code>line := Render(...)</code> whose uses only do the same. Reads follow <code>ifx</code> arms,
 locals, a procedure that returns its argument when that result is only
 read, and a record literal field, as in <code>Draw(Props.{.text = Render(a)})</code>,
-whose callee only reads that field of its record parameter. A callee or
-local that stores, returns, aliases or defers the string, or a foreign
-callee not marked <code>#reads</code>, keeps it. The result is never computed earlier
-than written, so one after another call in its expression, after a global
-its procedure may change, in a loop or <code>else if</code> condition, or in an <code>&amp;&amp;</code>,
-<code>||</code> or <code>ifx</code> arm keeps its bytes. Literals such as <code>-1</code> and other globals
-may come first. <code>tests/text_scoped_arguments.sh</code> checks both kinds.</p>
+whose callee only reads that field of its record parameter. Inside a
+callee, a parameter may also be copied into a local <code>[N]string</code> whose
+elements are only read, or into a <code>string</code> local that <code>=</code> later points at
+other views of parameters or at literals, as in <code>v = s[1:3]</code>, and still
+only be read. A callee or local that stores, returns, aliases or defers the
+string, or a foreign callee not marked <code>#reads</code>, keeps it. The result is
+never computed earlier than written, so one after another call in its
+expression, after a global its procedure may change, in a loop or <code>else if</code>
+condition, or in an <code>&amp;&amp;</code>, <code>||</code> or <code>ifx</code> arm keeps its bytes. Literals such
+as <code>-1</code>, other globals and a local's address, as in
+<code>BuilderPrint(*out, "%", Render(a))</code>, may come first.
+<code>tests/text_scoped_arguments.sh</code> checks both kinds.</p>
 <p>A foreign procedure that only reads its string and byte arguments during
 the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
 <pre><code>MeasureWidth :: (value: string, font: s32) -&gt; s32 #reads #foreign host_api;

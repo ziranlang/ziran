@@ -32,6 +32,9 @@
 - Such a result passed through an `ifx` arm, a local, a procedure that
   returns it, or a record literal field such as `Props.{.text = Render()}`
   whose callee only reads that field is freed the same way.
+- A file that names `Text` or `Vec(T)` imports `std/vec` automatically, so
+  its C header, bundle and Go code see the same types as the code that made
+  them. A parameter or return type that names no visible type is an error.
 - `#reads` before `#foreign` marks a foreign procedure that only reads its
   string and byte arguments, so Text passed to it is freed too.
 - A `-1` or a global argument before such a result no longer keeps it,

@@ -2,6 +2,8 @@
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_parse_internal.h"
+
+static int names_vec_types(const ZirModule *module);
 /* Buffers parse_source keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct ParseSourceBuffers {
@@ -2055,8 +2057,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
         if(!present)
             parse_import_line(module, buffers->rel, 1, import_line, 0);
     }
-    if(ZirSourceUsesResizableArrays) {
-        /* [..]T and array_add are std/vec's Vec; import it for the file. */
+    if(ZirSourceUsesResizableArrays || names_vec_types(&program->modules[0])) {
+        /* [..]T and array_add are std/vec's Vec, and Text and Vec(T) are
+         * std/vec's types; import it for the file. */
         int present = 0;
         module = &program->modules[0];
         for(int i = 0; i < module->import_count; i++)
@@ -2082,6 +2085,54 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
     free_discovered_files(&discovered_files);
     free(canonical);
     return program;
+}
+
+/* Whether TEXT holds WORD as a whole identifier, followed by '(' when
+ * CALL is set. */
+static int
+names_word(const char *text, const char *word, int call)
+{
+    size_t length = strlen(word);
+    for(const char *at = text ? strstr(text, word) : NULL; at; at = strstr(at + 1, word)) {
+        const char *after = at + length;
+        if((at == text || !(isalnum((unsigned char)at[-1]) || at[-1] == '_' || at[-1] == '.')) &&
+           !(isalnum((unsigned char)*after) || *after == '_') &&
+           (!call || *after == '('))
+            return 1;
+    }
+    return 0;
+}
+
+static int
+names_vec_type(const char *text)
+{
+    return names_word(text, "Text", 0) || names_word(text, "Vec", 1);
+}
+
+/* Whether MODULE's signatures, locals, records or globals name Text or
+ * Vec(T) without declaring a type of that name itself. */
+static int
+names_vec_types(const ZirModule *module)
+{
+    for(int i = 0; i < module->type_count; i++)
+        if(!strcmp(module->types[i].name, "Text") || !strcmp(module->types[i].name, "Vec"))
+            return 0;
+    for(int i = 0; i < module->type_count; i++)
+        if(names_vec_type(module->types[i].body) ||
+           names_vec_type(module->types[i].procedure_return_type))
+            return 1;
+    for(int i = 0; i < module->global_count; i++)
+        if(names_vec_type(module->globals[i].type))
+            return 1;
+    for(int f = 0; f < module->function_count; f++) {
+        const ZirFunction *fn = &module->functions[f];
+        if(names_vec_type(FunctionArgs(fn)) || names_vec_type(fn->return_type))
+            return 1;
+        for(int i = 0; i < fn->stmt_count; i++)
+            if(fn->stmts[i].kind == ZIR_STMT_DECL && names_vec_type(fn->stmts[i].type))
+                return 1;
+    }
+    return 0;
 }
 
 static ZirProgram *

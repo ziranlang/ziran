@@ -180,6 +180,24 @@ assembly_block_binding(void *context, const char *name)
     return NULL;
 }
 
+/* Whether TYPE names something MODULE can see: a target type, a declared
+ * or imported type, an array, slice, pointer or variadic of one, or an
+ * inline procedure type. A misspelled or unimported name, such as Text
+ * without std/vec, is reported where it is written. */
+static int
+type_resolvable(const ZirModule *module, const char *type)
+{
+    while(*type == '*' || *type == ' ')
+        type++;
+    if(!strncmp(type, "..", 2))
+        return !strcmp(type + 2, "any") || type_resolvable(module, type + 2);
+    if(!*type || *type == '[' || *type == '(' || *type == '$' ||
+       !strncmp(type, "#type", 5) || TargetType(type, ZIR_C) != NULL ||
+       SliceElementType(type, NULL, 0) || FindType(module, type, NULL) != NULL)
+        return 1;
+    return 0;
+}
+
 static int
 check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *buffers)
 {
@@ -190,6 +208,9 @@ check_function_with_buffers(Checker *c, ZirFunction *fn, CheckFunctionBuffers *b
         error(c, fn->span, "Vec cannot cross an extern signature", fn->name);
     select_lookup_file(c->module, fn->span);
     if(!CheckAssembly(c->module, fn)) return 0;
+    if(!fn->is_template && strcmp(fn->return_type, "void") &&
+       !type_resolvable(c->module, fn->return_type))
+        error(c, fn->span, "unknown return type", fn->return_type);
     const ZirType *return_slot = FindType(c->module, c->fn->return_type, NULL);
     if(return_slot != NULL && return_slot->is_record_template) {
         Diagnostic(c->fn->span, "check.specialize",
@@ -237,6 +258,8 @@ restart:
                            colon);
                 return 0;
             }
+            if(!fn->is_template && !type_resolvable(c->module, colon))
+                error(c, fn->span, "unknown parameter type", colon);
             if(pointer_to_array(colon))
                 error(c, fn->span, "pointers to arrays are not supported; pass the element pointer", buffers->params[a]);
             if(contains_vec(c->module, colon, 0) && fn->is_extern)

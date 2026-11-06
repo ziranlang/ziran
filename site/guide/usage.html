@@ -870,7 +870,8 @@ each <code>%</code> takes the next argument and <code>%%</code> writes one perce
 digits after the point, with trailing zeros dropped.</p>
 <h3 id="owned-text">Owned text</h3>
 <p><code>std/vec</code> defines <code>Text :: struct { bytes: Vec(u8); }</code>, UTF-8 text that owns
-its bytes. A <code>Text</code> moves and drops like the <code>Vec</code> it holds: it is freed when
+its bytes. A file that names <code>Text</code> or <code>Vec(T)</code> without declaring its own
+imports <code>std/vec</code> automatically. A <code>Text</code> moves and drops like the <code>Vec</code> it holds: it is freed when
 its local, record field or <code>Vec</code> element goes away. <code>TextCopy(value)</code> copies a
 string into a new <code>Text</code>, and <code>BuilderAppend(text.bytes, more)</code> grows it.
 <code>TextView(text)</code> borrows the <code>Text</code> in place as a <code>string</code>; <code>TextView(it)</code>

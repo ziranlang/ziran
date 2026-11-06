@@ -1045,7 +1045,8 @@ digits after the point, with trailing zeros dropped.
 ### Owned text
 
 `std/vec` defines `Text :: struct { bytes: Vec(u8); }`, UTF-8 text that owns
-its bytes. A `Text` moves and drops like the `Vec` it holds: it is freed when
+its bytes. A file that names `Text` or `Vec(T)` without declaring its own
+imports `std/vec` automatically. A `Text` moves and drops like the `Vec` it holds: it is freed when
 its local, record field or `Vec` element goes away. `TextCopy(value)` copies a
 string into a new `Text`, and `BuilderAppend(text.bytes, more)` grows it.
 `TextView(text)` borrows the `Text` in place as a `string`; `TextView(it)`

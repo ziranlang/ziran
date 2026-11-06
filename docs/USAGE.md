@@ -867,6 +867,14 @@ Label :: (owner: *Owner) -> string { return owner.label }  // view stored in the
 Call it as `Rest(owner.values[:])`. Inside the call, views of
 `owner.values` may be read and written freely.
 
+## Shadowing
+
+A declaration in an inner block or a `for` body may reuse an outer name. Its
+initializer still reads the outer binding, so `x := x + 5` adds to the outer
+`x`, and `for i: 0..7 { i := i * 10 }` keeps counting with the loop's own
+`i`. Two bindings of one name in the same block are rejected. Run
+`sh tests/shadowed_binding_reads_outer.sh build/bin/ziran`.
+
 ## Standard library
 
 Import a standard module as `#import "std/text"`. In a project the pinned

@@ -533,6 +533,13 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   declaration whose arguments name the new binding keeps the temporary.
   `tests/array_result_in_place.sh` checks C, Go, native and portable results
   and the generated calls.
+  A shadowing declaration's initializer reads the outer binding on every
+  target: generated C computes it into a temporary before the new local is
+  in scope. A `for` body that redeclares its binder, or holds a `continue`
+  where a nested redeclaration is in scope, lowers to a separate cursor, and
+  a top-level redeclaration gets its own block, so the step never advances
+  the shadow. `tests/shadowed_binding_reads_outer.sh` checks C, Go, native
+  and portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, `&`, `|`, `^`, `%`, `/`,
   `>>`, `+`, `-` and `*`, and from loop conditions. A local or parameter

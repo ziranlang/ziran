@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `x := x + 5` in an inner block, and `i := ...` in a `for` body over `i`,
+  read the outer binding on every target; generated C no longer reads the
+  new local, and the VM no longer steps the shadow instead of the loop.
 - Generated C leaves out bounds checks it proves always pass, such as
   `t[i]` in `for i: 0..7` over a `[8]T` array, `view[i]` in
   `for i: 0..view.count-1` and `table[x & 255]`.

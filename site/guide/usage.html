@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler and standard library guide: the Ziran guide, rendered from docs/USAGE.md."><title>Compiler and standard library guide · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/usage"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler and standard library guide</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/USAGE.md">docs/USAGE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-native-code">Generate native code</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-native-code">Generate native code</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
 <section class="prose"><p><a href="https://github.com/ziranlang/ziran/blob/master/README.md">Back to the README</a> · <a href="implementation-status.html">Implementation status</a></p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
@@ -717,6 +717,12 @@ Label :: (owner: *Owner) -&gt; string { return owner.label }  // view stored in 
 </code></pre>
 <p>Call it as <code>Rest(owner.values[:])</code>. Inside the call, views of
 <code>owner.values</code> may be read and written freely.</p>
+<h2 id="shadowing">Shadowing</h2>
+<p>A declaration in an inner block or a <code>for</code> body may reuse an outer name. Its
+initializer still reads the outer binding, so <code>x := x + 5</code> adds to the outer
+<code>x</code>, and <code>for i: 0..7 { i := i * 10 }</code> keeps counting with the loop's own
+<code>i</code>. Two bindings of one name in the same block are rejected. Run
+<code>sh tests/shadowed_binding_reads_outer.sh build/bin/ziran</code>.</p>
 <h2 id="standard-library">Standard library</h2>
 <p>Import a standard module as <code>#import "std/text"</code>. In a project the pinned
 toolchain supplies it. A standalone command takes it from

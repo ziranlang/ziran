@@ -891,6 +891,50 @@ body_mentions(const ZirFunction *fn, int index, int close, const char *name)
 }
 
 static int
+declares(const ZirStmt *st, const char *name)
+{
+    ZirLexer lexer;
+    ZirToken first;
+    if(st->kind != ZIR_STMT_DECL || st->text == NULL)
+        return 0;
+    LexerInit(&lexer, st->text, SpanPath(st->span));
+    first = LexerNext(&lexer);
+    return first.kind == ZIR_TOKEN_IDENT && !strcmp(first.text, name);
+}
+
+/* How the loop body at index..close shadows name: 2 when it declares name
+ * at its top level, where the loop's own binding and final step live; 1
+ * when a nested declaration's scope holds a continue, before which the
+ * lowering steps the loop; 0 when no step can see the shadow. */
+static int
+body_shadows(const ZirFunction *fn, int index, int close, const char *name)
+{
+    int depth = 0, found = 0;
+    for(int i = index + 1; i < close; i++) {
+        const ZirStmt *st = &fn->stmts[i];
+        if(declares(st, name)) {
+            int inner = 0;
+            if(depth == 0)
+                return 2;
+            for(int j = i + 1; j < close; j++) {
+                const ZirStmt *later = &fn->stmts[j];
+                if(later->kind == ZIR_STMT_BLOCK_CLOSE && --inner < 0)
+                    break;
+                if(opens_stmt(later))
+                    inner++;
+                if(later->kind == ZIR_STMT_CONTINUE)
+                    found = 1;
+            }
+        }
+        if(st->kind == ZIR_STMT_BLOCK_CLOSE && depth > 0)
+            depth--;
+        if(opens_stmt(st))
+            depth++;
+    }
+    return found;
+}
+
+static int
 body_changes(const ZirFunction *fn, int index, int close, const char *name)
 {
     for(int i = index + 1; i < close; i++)
@@ -969,7 +1013,11 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
     int constant = literal_bound(fn, module, buffers->start, &low) &&
                    literal_bound(fn, module, buffers->end, &high) &&
                    (reverse ? low > LLONG_MIN : high < LLONG_MAX);
-    int own_cursor = !body_changes(fn, index, close, binder);
+    /* A body that declares its own binder of the same name keeps that
+     * binding in a block of its own, and the loop steps a separate cursor
+     * so the shadow cannot capture the step. */
+    int shadows = body_shadows(fn, index, close, binder);
+    int own_cursor = !body_changes(fn, index, close, binder) && !shadows;
     int wants_index = body_mentions(fn, index, close, "it_index");
     /* Parallel regions keep the full form their workers are built from. */
     if(header->is_parallel) {
@@ -1049,8 +1097,11 @@ lower_one_range_with_buffers(ZirFunction *fn, const ZirModule *module, int index
         int step_of = constant && own_cursor ? header->loop_id : 0;
         if(step_of)
             buffers->out.stmts[while_at].for_form = 1;
-        if(!copy_loop_body(&buffers->out, fn, index, close, cursor, terminal, reverse, 1,
-                           header->loop_id, step_of)) goto done;
+        if((shadows == 2 && !range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) ||
+           !copy_loop_body(&buffers->out, fn, index, close, cursor, terminal, reverse, 1,
+                           header->loop_id, step_of) ||
+           (shadows == 2 && !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)))
+            goto done;
         if(!range_advance(&buffers->out, cursor, terminal, reverse, span, 0, step_of) ||
            !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
            !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;
@@ -1110,9 +1161,12 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
     }
     /* A forward loop over a name the body leaves alone indexes it
      * directly, counting with its own index name. */
+    int shadows_index = body_shadows(fn, index, close, index_name);
+    int wrap = body_shadows(fn, index, close, value_name) == 2 || shadows_index == 2;
     int direct = !reverse && !header->is_parallel && compiler_statement_PlainName(statement_text(buffers->collection)) &&
                  !body_changes(fn, index, close, buffers->collection) &&
-                 !body_changes(fn, index, close, index_name);
+                 !body_shadows(fn, index, close, buffers->collection) &&
+                 !body_changes(fn, index, close, index_name) && !shadows_index;
     if(direct) {
         snprintf(view, sizeof(view), "%s", buffers->collection);
         snprintf(count, sizeof(count), "%s.count", buffers->collection);
@@ -1161,8 +1215,10 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
        (snprintf(buffers->line, sizeof(buffers->line), "%s: s64 = %s", index_name,
                  item_index) >= (int)sizeof(buffers->line) ||
         !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span))) goto done;
-    if(!copy_loop_body(&buffers->out, fn, index, close, cursor, "", 0, 0,
+    if((wrap && !range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) ||
+       !copy_loop_body(&buffers->out, fn, index, close, cursor, "", 0, 0,
                        header->loop_id, step_of) ||
+       (wrap && !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)) ||
        !loop_advance(&buffers->out, cursor, "", 0, 0, span, 0, step_of) ||
        !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span) ||
        !range_line(&buffers->out, ZIR_STMT_BLOCK_CLOSE, "}", span)) goto done;

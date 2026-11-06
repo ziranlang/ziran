@@ -575,6 +575,13 @@
   declaration whose arguments name the new binding keeps the temporary.
   <code>tests/array_result_in_place.sh</code> checks C, Go, native and portable results
   and the generated calls.
+  A shadowing declaration's initializer reads the outer binding on every
+  target: generated C computes it into a temporary before the new local is
+  in scope. A <code>for</code> body that redeclares its binder, or holds a <code>continue</code>
+  where a nested redeclaration is in scope, lowers to a separate cursor, and
+  a top-level redeclaration gets its own block, so the step never advances
+  the shadow. <code>tests/shadowed_binding_reads_outer.sh</code> checks C, Go, native
+  and portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, <code>&amp;</code>, <code>|</code>, <code>^</code>, <code>%</code>, <code>/</code>,
   <code>&gt;&gt;</code>, <code>+</code>, <code>-</code> and <code>*</code>, and from loop conditions. A local or parameter

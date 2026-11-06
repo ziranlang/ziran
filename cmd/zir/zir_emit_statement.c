@@ -19,6 +19,21 @@ EmitRunGuardsEnabled(void)
 static void emit_sequence(Emitter *e,int begin,int end);
 static int emit_switch(Emitter *e, int declaration, int end);
 
+/* Whether expression root names name anywhere, even where it lowers away. */
+static int
+names_binding(const ZirFunction *fn, int root, const char *name)
+{
+    ZirExprWalk walk = {fn, malloc((size_t)fn->expr_count * sizeof(int)), 0};
+    int named = 0;
+    if(walk.pending == NULL)
+        return 1;
+    for(int i = ExprWalkFirst(&walk, root); i >= 0 && !named; i = ExprWalkNext(&walk))
+        named = fn->exprs[i].kind == ZIR_EXPR_IDENT && fn->exprs[i].name != NULL &&
+                !strcmp(fn->exprs[i].name, name);
+    free(walk.pending);
+    return named;
+}
+
 /* Whether a C array-valued call can write its result straight into the
  * statement's destination: the whole right side is that call, of the same
  * array type, and a new local's name does not appear in its arguments,
@@ -1144,6 +1159,15 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     e->fn->exprs[st->expr_root].kind == ZIR_EXPR_COMPOUND;
                 emit_expr(e,st->expr_root,st->type,buffers->value,sizeof(buffers->value));
                 e->short_declaration = typed_initializer(e, st->expr_root, st->type);
+                if(e->target == ZIR_C && names_binding(e->fn, st->expr_root, st->name)) {
+                    /* x := x + 5 in an inner block reads the outer x, but a
+                     * C declaration is in scope in its own initializer. */
+                    char outer[ZIR_NAME_MAX];
+                    fresh(e, outer);
+                    e->short_declaration = 0;
+                    declare(e, outer, st->type, buffers->value);
+                    copy_text(buffers->value, sizeof(buffers->value), outer);
+                }
             }
             else if(record_type(e->module, st->type)) {
                 zero_record(e, st->type, buffers->value, sizeof(buffers->value));

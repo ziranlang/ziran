@@ -180,7 +180,7 @@ Check :: () -> s64 {
     return groups.count
 }
 ZI
-reject global_source 'global Vec storage cannot move' <<'ZI'
+reject global_source 'global Vec storage would move into the Vec' <<'ZI'
 #import "vec"
 Group :: struct { parts: Vec(s32); }
 shared: Group;

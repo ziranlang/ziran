@@ -108,8 +108,9 @@ Inner :: struct { items: Vec(s32); }
 Box :: struct { inner: Inner; }
 box: Box;
 Check :: () -> s32 {
-    moved := box.inner.items
-    return cast(s32)moved.count
+    list: Vec(Inner)
+    VecPush(list, box.inner)
+    return cast(s32)list.count
 }
 ZI
 
@@ -143,9 +144,9 @@ cat > "$work/global_field_move.zi" <<'ZI'
 #import "vec"
 Inner :: struct { items: Vec(s32); }
 items: Vec(s32);
+Count :: (value: Inner) -> s32 { return cast(s32)value.items.count }
 Check :: () -> s32 {
-    value := Inner.{items = items}
-    return cast(s32)value.items.count
+    return Count(Inner.{items = items})
 }
 ZI
 
@@ -206,8 +207,8 @@ for path, expected in [(sys.argv[1], 'used after moving'),
                        (sys.argv[3], 'owned aggregate is used after moving'),
                        (sys.argv[4], 'moves a binding or takes a call result'),
                        (sys.argv[5], 'moves a binding or takes a call result'),
-                       (sys.argv[6], 'global Vec storage cannot move'),
-                       (sys.argv[7], 'global Vec storage cannot move'),
+                       (sys.argv[6], 'move into the call and empty the global'),
+                       (sys.argv[7], 'move into the Vec and empty the global'),
                        (sys.argv[8], 'used after moving'),
                        (sys.argv[9], 'leaks it')]:
     diagnostics = [json.loads(line)

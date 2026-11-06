@@ -452,6 +452,15 @@ restart:
                (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
                 st->kind == ZIR_STMT_RETURN))
                 consumed_root = mark_moved_member_path(c, st->expr_root);
+            /* A global place hands over its storage and is left empty, so
+             * later reads see an empty value rather than moved storage. */
+            if(!consumed_root &&
+               (st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN ||
+                st->kind == ZIR_STMT_RETURN) &&
+               global_owned_place(c, st->expr_root)) {
+                c->fn->exprs[st->expr_root].is_move = 1;
+                consumed_root = 1;
+            }
             if(!consumed_root) {
                 mark_expr_moves(c, st->expr_root);
                 reject_read_of_moved(c, st->expr_root, st->expr_root);
@@ -547,15 +556,9 @@ restart:
                contains_vec(c->module, st->type, 0) &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
-               !owned_initializer_shape(c, st->expr_root))
+               !owned_transfer_shape(c, st->expr_root))
                 error(c, st->span,
                       "Vec initialization moves a binding or takes a call result",
-                      st->name);
-            if(st->expr_root >= 0 &&
-               contains_vec(c->module, st->type, 0) &&
-               global_vec_source(c, st->expr_root))
-                error(c, st->span,
-                      "global Vec storage cannot move; use a local",
                       st->name);
             bind(c, st->name, st->type, st->span);
             /* A declared VecSlice view borrows its source until the view's
@@ -582,27 +585,29 @@ restart:
             const char *lhs = expression_type(c, st->lhs_root);
             c->assign_destination = 0;
             if(contains_vec(c->module, lhs, 0)) {
-                if(c->fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT)
+                int global_place = global_owned_place(c, st->lhs_root);
+                if(strcmp(st->assignment_op, "="))
                     error(c, st->span,
-                          "Vec assignment requires a simple binding destination",
+                          "Vec compound assignment is not supported",
+                          st->assignment_op);
+                else if(c->fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT &&
+                        !global_place)
+                    error(c, st->span,
+                          "Vec assignment requires a simple binding or global destination",
                           st->text);
-                else if(lexical_owned_binding(c, st->lhs_root) == NULL)
+                else if(!global_place &&
+                        lexical_owned_binding(c, st->lhs_root) == NULL)
                     error(c, st->span,
-                          "global Vec assignment is not supported; move it into a local first",
+                          "Vec assignment requires an owned local or global destination",
                           st->text);
                 else if(st->expr_root >= 0 &&
                         c->fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                         c->fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
-                        !owned_initializer_shape(c, st->expr_root))
+                        !owned_transfer_shape(c, st->expr_root))
                     error(c, st->span,
                           "Vec assignment moves a binding or takes a call result",
                           st->text);
-                else if(st->expr_root >= 0 &&
-                        global_vec_source(c, st->expr_root))
-                    error(c, st->span,
-                          "global Vec storage cannot move; use a local",
-                          st->text);
-                else if(c->destination_was_moved == 0)
+                else if(!global_place && c->destination_was_moved == 0)
                     error(c, st->span,
                           "assignment over an owned Vec leaks it; free or move it first",
                           c->fn->exprs[st->lhs_root].name);
@@ -642,7 +647,7 @@ restart:
                compatible_checked(c, c->fn->return_type, type) &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_IDENT &&
                fn->exprs[st->expr_root].kind != ZIR_EXPR_CALL &&
-               !owned_initializer_shape(c, st->expr_root))
+               !owned_transfer_shape(c, st->expr_root))
                 error(c, st->span,
                       "owned return moves a binding or takes a call result",
                       c->fn->name);
@@ -668,11 +673,6 @@ restart:
             }
             if((st->expr_root < 0) != !strcmp(c->fn->return_type, "void"))
                 error(c, st->span, "return value does not match function signature", c->fn->name);
-            if(contains_vec(c->module, c->fn->return_type, 0) &&
-               global_vec_source(c, st->expr_root))
-                error(c, st->span,
-                      "global Vec storage cannot move; use a local",
-                      c->fn->exprs[st->expr_root].name);
         } else if(st->kind == ZIR_STMT_IF || st->kind == ZIR_STMT_WHILE) {
             if(st->expr_root < 0 &&
                (st->kind == ZIR_STMT_WHILE || !st->is_else ||

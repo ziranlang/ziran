@@ -1369,6 +1369,24 @@ eval_leaf(Frame *frame, const ZirExpr *expression)
                                      stored, expression->type);
         }
         GlobalSlot *global = find_global_slot(frame, expression);
+        if(global != NULL && expression->is_move) {
+            /* A global hands its storage over and keeps an empty value of
+             * its type, so later reads and assignments see valid storage. */
+            Value stored = global->value;
+            if(stored.kind != VALUE_RECORD ||
+               !vm_type_contains_vec(frame->vm, frame->module,
+                                     expression->type, 0)) {
+                frame->vm->failed = 1;
+                break;
+            }
+            global->value = default_value(frame->vm, global->module,
+                                          global->type, 0);
+            Value moved = coerce_expression(frame->vm, frame->module,
+                                            stored, expression->type);
+            if(moved.kind != VALUE_RECORD || moved.record != stored.record)
+                retire_value(frame->vm, stored, 0);
+            return moved;
+        }
         if(global != NULL) {
             /* Same-module aggregate storage is already typed. Imported
              * spellings still resolve in the caller's scope below. */
@@ -2795,7 +2813,15 @@ eval_expression(Frame *frame, int index, int depth)
                 break;
             }
             left = *source;
-            *source = (Value){.kind = VALUE_INVALID};
+            /* A field of a global stays readable: it keeps an empty value
+             * of its type. A local's moved field is never read again. */
+            const ZirExpr *root = expression;
+            while(root->kind == ZIR_EXPR_MEMBER && root->left >= 0)
+                root = &frame->function->exprs[root->left];
+            *source = root->kind == ZIR_EXPR_IDENT &&
+                      find_local(frame, root->name) == NULL ?
+                default_value(frame->vm, frame->module, expression->type, 0) :
+                (Value){.kind = VALUE_INVALID};
             Value moved = coerce_expression(frame->vm, frame->module, left,
                                             expression->type);
             if(moved.kind != VALUE_RECORD || moved.record != left.record)

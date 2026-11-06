@@ -1506,8 +1506,10 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             entry->type = KeepName(field.type);
             if(!compatible_checked(c, field.type, value_type))
                 error(c, entry->span, "initializer field type mismatch", field.name);
+            /* A global place may move into a field here; an argument or
+             * VecPush element that holds one is rejected where it is used. */
             if(contains_vec(c->module, field.type, 0) &&
-               !owned_initializer_shape(c, entry->right))
+               !owned_transfer_shape(c, entry->right))
                 error(c, entry->span,
                       "owned record field moves a binding or takes a call result",
                       field.name);
@@ -2171,14 +2173,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                     else if(contains_vec(c->module, element, 0) &&
                             c->fn->exprs[second].kind != ZIR_EXPR_IDENT &&
                             c->fn->exprs[second].kind != ZIR_EXPR_CALL &&
-                            !owned_initializer_shape(c, second))
+                            !owned_transfer_shape(c, second))
                         error(c, c->fn->exprs[second].span,
                               "VecPush of an owned element moves a binding or takes a call result",
                               element);
                     else if(contains_vec(c->module, element, 0) &&
                             global_vec_source(c, second))
                         error(c, c->fn->exprs[second].span,
-                              "global Vec storage cannot move; use a local",
+                              "global Vec storage would move into the Vec and empty the global; move it into a local first",
                               c->fn->exprs[second].name);
                     else if(!strcmp(item_type, "integer") ||
                             !strcmp(item_type, "real")) {
@@ -2642,14 +2644,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             if(!lends_text && contains_vec(c->module, arg_type, 0) &&
                c->fn->exprs[child].kind != ZIR_EXPR_IDENT &&
                c->fn->exprs[child].kind != ZIR_EXPR_CALL &&
-               !owned_initializer_shape(c, child))
+               !owned_transfer_shape(c, child))
                 error(c, c->fn->exprs[child].span,
                       "Vec arguments move a binding or pass a call result",
                       display_name);
             if(!lends_text && contains_vec(c->module, arg_type, 0) &&
                global_vec_source(c, child))
                 error(c, c->fn->exprs[child].span,
-                      "global Vec storage cannot move; use a local",
+                      "global Vec storage would move into the call and empty the global; pass its address or move it into a local first",
                       c->fn->exprs[child].name);
             copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
             if(args && parameter >= 0 && parameter < fixed) {

@@ -2108,6 +2108,12 @@ mark_expr_moves(Checker *c, int index)
         }
         if(mark_moved_member_path(c, right))
             return;
+        /* Only a declaration, assignment or return reaches a record field
+         * with a global place; arguments reject it before. */
+        if(global_owned_place(c, right)) {
+            c->fn->exprs[right].is_move = 1;
+            return;
+        }
         if(c->fn->exprs[right].kind == ZIR_EXPR_COMPOUND ||
            c->fn->exprs[right].kind == ZIR_EXPR_CALL) {
             mark_expr_moves(c, right);

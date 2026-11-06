@@ -263,17 +263,14 @@ rg -q 'Vec storage is private' "$work/private.err"
 cat > "$work/copy.zi" <<'ZI'
 #import "vec"
 items: Vec(s32);
+Consume :: (values: Vec(s32)) -> s32 { return cast(s32)values.count }
 #program_export
-Bad :: () -> s32 {
-    alias: Vec(s32) = items
-    VecFree(alias)
-    return 0
-}
+Bad :: () -> s32 { return Consume(items) }
 ZI
-expect_rejection 'moving a global Vec was accepted' "$work/copy.err" \
+expect_rejection 'passing a global Vec to an owning call was accepted' "$work/copy.err" \
     "$ziran" check --root "$work" --module-path "$repo/std" \
     "$work/copy.zi"
-rg -q 'global Vec storage cannot move' "$work/copy.err"
+rg -q 'global Vec storage would move into the call and empty the global' "$work/copy.err"
 
 cat > "$work/usemove.zi" <<'ZI'
 #import "vec"

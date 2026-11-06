@@ -259,8 +259,9 @@ mark_moved_member_path(Checker *c, int index)
     return 1;
 }
 
-/* Only local bindings move. A global keeps shared module state, so moving it
- * would leave every other function reading transferred storage. */
+/* A global holding owned storage, or a record literal that would move one.
+ * A call argument or VecPush element would empty the global as a side
+ * effect, so only a declaration, assignment or return moves a global. */
 int
 global_vec_source(Checker *c, int index)
 {
@@ -288,15 +289,38 @@ global_vec_source(Checker *c, int index)
     return global != NULL && contains_vec(c->module, global->type, 0);
 }
 
-/* A constructing aggregate moves each owned field from a local binding, fresh
- * call result, or another constructing aggregate with the same discipline. */
+/* A global, or a field path of one, that holds owned storage. Assigning it
+ * frees the old value and takes the new one; a declaration, assignment or
+ * return that moves it takes the storage and leaves the global empty. */
 int
-owned_initializer_shape(Checker *c, int index)
+global_owned_place(Checker *c, int index)
 {
     const ZirExpr *e;
     if(index < 0 || index >= c->fn->expr_count)
         return 0;
     e = &c->fn->exprs[index];
+    if(e->type == NULL || !contains_vec(c->module, e->type, 0))
+        return 0;
+    if(e->kind == ZIR_EXPR_MEMBER) {
+        const ZirExpr *left = e->left >= 0 ? &c->fn->exprs[e->left] : NULL;
+        /* A field reached through a pointer belongs to its pointee. */
+        if(left == NULL || left->type == NULL || left->type[0] == '*')
+            return 0;
+        return global_owned_place(c, e->left);
+    }
+    return e->kind == ZIR_EXPR_IDENT && !*lookup_lexical(c, e->name) &&
+           global_binding(c, e->name) != NULL;
+}
+
+static int
+owned_shape(Checker *c, int index, int globals)
+{
+    const ZirExpr *e;
+    if(index < 0 || index >= c->fn->expr_count)
+        return 0;
+    e = &c->fn->exprs[index];
+    if(globals && global_owned_place(c, index))
+        return 1;
     if(e->kind == ZIR_EXPR_IDENT)
         return !global_vec_source(c, index);
     if(e->kind == ZIR_EXPR_CALL)
@@ -313,10 +337,25 @@ owned_initializer_shape(Checker *c, int index)
         const ZirExpr *entry = &c->fn->exprs[child];
         if(entry->kind == ZIR_EXPR_FIELD_INIT &&
            contains_vec(c->module, entry->type, 0) &&
-           !owned_initializer_shape(c, entry->right))
+           !owned_shape(c, entry->right, globals))
             return 0;
     }
     return 1;
+}
+
+/* A constructing aggregate moves each owned field from a local binding, fresh
+ * call result, or another constructing aggregate with the same discipline. */
+int
+owned_initializer_shape(Checker *c, int index)
+{
+    return owned_shape(c, index, 0);
+}
+
+/* A declaration, assignment or return may also move a global place. */
+int
+owned_transfer_shape(Checker *c, int index)
+{
+    return owned_shape(c, index, 1);
 }
 
 int

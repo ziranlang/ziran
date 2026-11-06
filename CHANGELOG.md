@@ -46,6 +46,9 @@
   `Painter :: #type (label: string) -> s32 #reads;`, only holds procedures
   that read their strings, so Text passed through it is freed too. Saved IR
   is format 62.
+- A global holding a `Vec` or `Text`, alone or in a record, can be assigned,
+  which frees its old value, and moved into a local or returned, which
+  leaves it empty.
 - A file that names `Text` or `Vec(T)` imports `std/vec` automatically, so
   its C header, bundle and Go code see the same types as the code that made
   them. A parameter or return type that names no visible type is an error.

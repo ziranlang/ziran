@@ -1618,6 +1618,28 @@ typedef struct EmitSequenceBuffers {
     char plain[ZIR_TEXT_MAX];
 } EmitSequenceBuffers;
 
+/* Whether an assignment stores owned storage into a global or a field path
+ * of one, which frees the global's old value first. The checker admits no
+ * other owned destination that is not a local binding. */
+static int
+global_owned_destination(Emitter *e, int index)
+{
+    const ZirExpr *place = &e->fn->exprs[index];
+    if(!emitter_type_contains_vec(e->module, place->type, 0))
+        return 0;
+    while(place->kind == ZIR_EXPR_MEMBER && place->left >= 0) {
+        place = &e->fn->exprs[place->left];
+        if(place->type == NULL || place->type[0] == '*')
+            return 0;
+    }
+    if(place->kind != ZIR_EXPR_IDENT)
+        return 0;
+    for(int i = 0; i < e->local_count; i++)
+        if(!strcmp(e->locals[i].name, place->name))
+            return 0;
+    return 1;
+}
+
 static void emit_sequence(Emitter *e,int begin,int end);
 
 static void
@@ -1724,12 +1746,14 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     break;
                 }
             } else {
+                int global_owned = global_owned_destination(e, st->lhs_root);
                 /* A stable local field is as safe as a name: no call can
                  * change its destination while the right side runs. Keep
                  * snapshots for computed or aliasable destinations. */
-                e->call_in_place = e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT ||
-                    (!expression_calls(e->fn, st->lhs_root) &&
-                     !call_can_change(e, st->lhs_root));
+                e->call_in_place = !global_owned &&
+                    (e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT ||
+                     (!expression_calls(e->fn, st->lhs_root) &&
+                      !call_can_change(e, st->lhs_root)));
                 /* A stable destination also receives an array result in place. */
                 int in_place = e->call_in_place &&
                     array_result_in_place(e, st->expr_root, e->fn->exprs[st->lhs_root].type, NULL);
@@ -1742,6 +1766,15 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 if(in_place && e->array_destination_used)
                     break;
                 copy_text(buffers->result,sizeof(buffers->result),buffers->value);
+                if(global_owned) {
+                    /* The new value is complete before the old one is
+                     * freed, since it may read or move the global. */
+                    const char *type = e->fn->exprs[st->lhs_root].type;
+                    fresh(e, buffers->old);
+                    declare(e, buffers->old, type, buffers->value);
+                    drop_owned_value(e, buffers->lhs, type, e->module, 0);
+                    copy_text(buffers->result, sizeof(buffers->result), buffers->old);
+                }
             }
             assign_value(e, buffers->lhs, e->fn->exprs[st->lhs_root].type, buffers->result);
             break;

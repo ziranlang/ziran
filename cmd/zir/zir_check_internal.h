@@ -185,6 +185,8 @@ Binding *lexical_owned_binding(Checker *c, int index);
 void check_moved_path_use(Checker *c, int index);
 int mark_moved_member_path(Checker *c, int index);
 int global_vec_source(Checker *c, int index);
+int global_owned_place(Checker *c, int index);
+int owned_transfer_shape(Checker *c, int index);
 int owned_initializer_shape(Checker *c, int index);
 int numeric(const char *type);
 int integer_type(const char *type);

@@ -837,6 +837,15 @@ VecPush(group.parts, &quot;a&quot;)
 VecPush(groups, group)
 groups[0].parts[0] = &quot;b&quot;
 </code></pre>
+<p>A global can hold a Vec or <code>Text</code>, alone or in a record. Assigning the
+global, or a field of it, frees the old value and takes the new one, as in
+<code>collection = CollectionParse(text)</code> or <code>shelf.items = TextCopy(name)</code>. A
+declaration, assignment or return that moves a global, as in
+<code>taken := collection</code>, takes its storage and leaves the global empty. A call
+argument or <code>VecPush</code> element cannot move a global, because that would empty
+it as a side effect: pass its address or move it into a local first. A
+global cannot be replaced or moved while a view of it is live.
+<code>tests/global_owned_storage.sh</code> checks C, saved IR and native and VM bundles.</p>
 <p><code>VecResizeBounded(values, count: s64, maximum_capacity: s64) -&gt; bool</code> uses
 <code>VecResize</code>'s initialized-length and owned-element semantics while bounding the
 resulting backing capacity. It rejects negative sizes, a count above the

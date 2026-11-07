@@ -1270,6 +1270,84 @@ header_parameters_use(const ZirModule *m, const char *args, unsigned char use,
         header_type_use(m, parameters->items[i].type, use, uses);
 }
 
+/* M's own type that TYPE names after its array, slice and pointer layers
+ * are removed, as an index into M's types, or -1. */
+static int
+header_local_type(const ZirModule *m, const char *type)
+{
+    if(type == NULL || *type == '\0') return -1;
+    char base[ZIR_NAME_MAX];
+    copy_text(base, sizeof(base), type);
+    for(int depth = 0; depth < 64; depth++) {
+        char element[ZIR_NAME_MAX];
+        if(ArrayElementType(base, element, sizeof(element), NULL) ||
+           SliceElementType(base, element, sizeof(element))) {
+            copy_text(base, sizeof(base), element);
+            continue;
+        }
+        if(base[0] == '*') {
+            memmove(base, base + 1, strlen(base));
+            continue;
+        }
+        break;
+    }
+    const ZirModule *owner = NULL;
+    const ZirType *found = FindType(m, base, &owner);
+    if(found == NULL || (owner != NULL && owner != m) ||
+       found < m->types || found >= m->types + m->type_count)
+        return -1;
+    return (int)(found - m->types);
+}
+
+static void
+header_mark_visible(const ZirModule *m, const char *type, unsigned char *visible,
+                    int *stack, int *depth)
+{
+    int index = header_local_type(m, type);
+    if(index < 0 || visible[index]) return;
+    visible[index] = 1;
+    stack[(*depth)++] = index;
+}
+
+/* Which of M's types its header declares outside the _PRIVATE guard, one
+ * entry per type: the public ones and every module-private type a public
+ * type's layout reaches through its fields, so that an importer can compile
+ * that layout. The private types stay unnamed in Ziran outside the module. */
+static unsigned char *
+header_visible_types(const ZirModule *m)
+{
+    size_t count = m->type_count > 0 ? (size_t)m->type_count : 1;
+    unsigned char *visible = calloc(count, 1);
+    int *stack = malloc(count * sizeof(*stack));
+    if(visible == NULL || stack == NULL) {
+        DiagnosticOutOfMemory();
+        exit(1);
+    }
+    int depth = 0;
+    for(int i = 0; i < m->type_count; i++)
+        if(m->types[i].is_public) {
+            visible[i] = 1;
+            stack[depth++] = i;
+        }
+    while(depth > 0) {
+        const ZirType *type = &m->types[stack[--depth]];
+        if(type->is_extern || type->is_enum || type->is_record_template) continue;
+        if(type->is_procedure_type) {
+            header_mark_visible(m, type->procedure_return_type, visible, stack, &depth);
+            const ZirParameters *parameters = ParametersOf(type->body);
+            for(int i = 0; i < parameters->count; i++)
+                header_mark_visible(m, parameters->items[i].type, visible, stack, &depth);
+            continue;
+        }
+        size_t offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(type, &offset, &field) == 1)
+            header_mark_visible(m, field.type, visible, stack, &depth);
+    }
+    free(stack);
+    return visible;
+}
+
 /* How M's header includes each import, one entry per import: 1
  * unconditionally, when the import is required or a public declaration
  * names one of its types; 2 behind M's _PRIVATE guard, when only private
@@ -1278,10 +1356,11 @@ static void
 header_import_uses(const ZirModule *m, unsigned char *uses)
 {
     memset(uses, 0, (size_t)m->import_count);
+    unsigned char *visible = header_visible_types(m);
     for(int i = 0; i < m->type_count; i++) {
         const ZirType *type = &m->types[i];
         if(type->is_extern || type->is_enum || type->is_record_template) continue;
-        unsigned char use = type->is_public ? 1 : 2;
+        unsigned char use = visible[i] ? 1 : 2;
         if(type->is_procedure_type) {
             header_type_use(m, type->procedure_return_type, use, uses);
             header_parameters_use(m, type->body, use, uses);
@@ -1312,6 +1391,7 @@ header_import_uses(const ZirModule *m, unsigned char *uses)
         if(imp->kind != ZIR_IMPORT_OPEN && imp->kind != ZIR_IMPORT_MODULE) uses[i] = 0;
         else if(imp->required) uses[i] = 1;
     }
+    free(visible);
 }
 
 /* The header facts of every module one lowering reaches, found by module:
@@ -1956,6 +2036,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         fprintf(h, "#define %s %s\n", name, buffers->value);
         if(!d->is_public) fputs("#endif\n", h);
     }
+    unsigned char *visible = header_visible_types(m);
     /* Stored procedure values may appear in record fields and in #c_call
      * descriptors. Forward record names before defining any procedure
      * typedefs. */
@@ -1965,7 +2046,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         NativeTypeName(m, ty, native, sizeof(native));
         if(!ty->is_extern && !ty->is_record_template &&
            !ty->is_procedure_type && !ty->is_enum) {
-            if(!ty->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+            if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
             /* One checked type application can occur in several module
              * headers. C99 requires its typedef to be declared only once. */
             if(ty->is_synthetic_application)
@@ -1976,7 +2057,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             if(ty->is_abi_incomplete)
                 fprintf(h, "#pragma ziran abi_incomplete %s\n", native);
             if(ty->is_synthetic_application) fputs("#endif\n", h);
-            if(!ty->is_public) fputs("#endif\n", h);
+            if(!visible[i]) fputs("#endif\n", h);
         }
         if(ty->is_enum) {
             const char *backing = enum_storage_type(ty->enum_backing);
@@ -1991,9 +2072,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         const ZirType *slot = &m->types[i];
         if(!slot->is_procedure_type)
             continue;
-        if(!slot->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         EmitSlotType(h, slot, ZIR_C, resolve_slot_type, (void *)m);
-        if(!slot->is_public) fputs("#endif\n", h);
+        if(!visible[i]) fputs("#endif\n", h);
     }
     for(i = 0; i < m->type_count; i++) {
         const ZirType *ty = &m->types[i];
@@ -2003,7 +2084,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             continue;
         if(ty->is_procedure_type)
             continue;
-        if(!ty->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        if(!visible[i]) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         if(ty->is_enum) {
             const char *backing = enum_storage_type(ty->enum_backing);
             if(backing == NULL) {
@@ -2055,7 +2136,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 }
             }
             fprintf(h, "};\n");
-            if(!ty->is_public) fputs("#endif\n", h);
+            if(!visible[i]) fputs("#endif\n", h);
             continue;
         }
         if(ty->is_synthetic_application)
@@ -2086,8 +2167,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         }
         fprintf(h, "};\n");
         if(ty->is_synthetic_application) fputs("#endif\n", h);
-        if(!ty->is_public) fputs("#endif\n", h);
+        if(!visible[i]) fputs("#endif\n", h);
     }
+    free(visible);
     /* Public file-scope variables have external linkage: declare extern in the header,
      * after every named type they reference. Private-scope globals stay
      * in the .c. */

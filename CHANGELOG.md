@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+- String constants and string globals longer than 4095 bytes build as strict
+  C (GCC and Clang `-pedantic -Werror`, TinyCC). Header string constants
+  are escaped like other C strings, so `??` text no longer forms a trigraph.
+- std's libc bindings for `getcwd`, `readlink`, `read`, `write`, `poll`,
+  `bcopy`, `mempcpy` and `curl_ws_recv` use `usize` and `isize` for size_t
+  and ssize_t values, so they link and run on wasm32.
+- `VecSlice` and `values[a:b]` can view a global Vec or a Vec field of a
+  global record. While the view lives, the Vec cannot grow, be freed or be
+  replaced, here or in a called procedure; the view cannot be returned or
+  kept outside its block.
+- `build --target=c --exe` links with Emscripten's `emcc`, keeping the
+  `.wasm` file its launcher loads.
+- Each `#load` file of a module can store and index the same `Vec` or
+  `Option` of a module-private record.
+- A public record whose fields hold module-private types builds in modules
+  that import it: its C header now defines those types.
 - A fresh Text from a procedure that only reads through a pointer argument,
   as in `AwardsText(*awards)`, is freed with its block, and so is one read
   by a local whose name another block also declares.

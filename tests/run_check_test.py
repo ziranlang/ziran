@@ -1,9 +1,16 @@
 """Failure logs stay complete on disk while console excerpts stay bounded."""
 import importlib.util
+import contextlib
+import io
+import json
+import os
 from pathlib import Path
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("run_check", Path(__file__).with_name("run_check.py"))
 runner = importlib.util.module_from_spec(spec)
@@ -11,6 +18,121 @@ spec.loader.exec_module(runner)
 
 
 class CheckRunnerTest(unittest.TestCase):
+    def test_incremental_selection_failures_bypass_and_corrupt_cache(self):
+        scratch = Path(__file__).resolve().parent.parent / 'build/check-logs'
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            repo = Path(directory)
+            (repo / 'tests').mkdir()
+            logs = repo / 'logs'
+            fixture = repo / 'fixture'
+            fixture.write_text('one')
+            script = repo / 'tests/fixture.sh'
+            script.write_text('exit "${FIXTURE_STATUS:-0}"\n')
+            other = repo / 'tests/other.sh'
+            other.write_text('exit 0\n')
+            pins = {script.name: runner.file_hash(script), other.name: runner.file_hash(other)}
+
+            def run(*options):
+                argv = ['run_check.py', '--bin-dir', str(repo / 'bin'), '--log-dir', str(logs),
+                        '--jobs', '1', '--filter', 'fixture', *options]
+                with patch.object(sys, 'argv', argv), contextlib.redirect_stdout(io.StringIO()):
+                    code = runner.main()
+                return code, json.loads((logs / 'results.json').read_text())
+
+            with patch.object(runner, '__file__', str(repo / 'tests/run_check.py')), \
+                    patch.dict(runner.CACHE_SCRIPTS, pins, clear=True), \
+                    patch.object(runner, 'input_fingerprint', side_effect=lambda *a: runner.file_hash(fixture)):
+                self.assertEqual(run('--incremental')[1]['executed'], 1)
+                reused = run('--incremental')[1]
+                self.assertEqual((reused['executed'], reused['reused']), (0, 1))
+                self.assertEqual(reused['total'], 1)  # Filter never adds the other case.
+                fixture.write_text('two')
+                self.assertEqual(run('--incremental')[1]['executed'], 1)
+                for bypass in ('--no-cache', '--full'):
+                    self.assertEqual(run('--incremental', bypass)[1]['executed'], 1)
+                self.assertEqual(run()[1]['executed'], 1)
+                with patch.dict(os.environ, {'FIXTURE_STATUS': '1'}):
+                    for _ in range(2):
+                        code, result = run('--incremental')
+                        self.assertEqual((code, result['failed'], result['executed']), (1, 1, 1))
+                self.assertEqual(run('--incremental')[0], 0)
+                with patch.dict(os.environ, {'FIXTURE_STATUS': '1'}):
+                    self.assertEqual(run('--no-cache')[0], 1)
+                self.assertEqual(run('--incremental')[1]['executed'], 1)
+                (logs / 'incremental.json').write_text('{broken')
+                self.assertEqual(run('--incremental')[1]['executed'], 1)
+                (logs / 'incremental.json').unlink()
+                with patch.object(runner, 'input_fingerprint', side_effect=['before', 'after']):
+                    self.assertEqual(run('--incremental')[1]['executed'], 1)
+                self.assertEqual(json.loads((logs / 'incremental.json').read_text()), {})
+                script.write_text('exit 0 # changed, dependency scope needs review\n')
+                for _ in range(2):
+                    self.assertEqual(run('--incremental')[1]['executed'], 1)
+
+    @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux ELF runtime fingerprint')
+    def test_fingerprint_covers_content_runtime_fixtures_environment_and_tools(self):
+        scratch = Path(__file__).resolve().parent.parent / 'build/check-logs'
+        scratch.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=scratch) as directory:
+            repo = Path(directory)
+            bin_dir = repo / 'build/bin'
+            bin_dir.mkdir(parents=True)
+            binary = bin_dir / 'ziran'
+            shutil.copyfile(sys.executable, binary)
+            source = repo / 'source.zi'
+            source.write_text('first')
+            (repo / 'tests').mkdir()
+            fixture = repo / 'tests/input.zi'
+            fixture.write_text('first')
+            library = bin_dir.parent / 'libziran.a'
+            library.write_bytes(b'runtime one')
+            original_run = subprocess.run
+
+            def command(args, **kwargs):
+                if args[0] == 'git':
+                    return subprocess.CompletedProcess(args, 0, b'source.zi\0', b'')
+                return original_run(args, **kwargs)
+
+            env = {'PATH': os.environ['PATH']}
+            with patch.object(runner.subprocess, 'run', side_effect=command):
+                fingerprint = lambda: runner.input_fingerprint(repo, bin_dir, env)
+                previous = fingerprint()
+                self.assertIsNotNone(previous)
+                self.assertEqual(previous, fingerprint())
+                env['INVOCATION_ID'] = 'another command'
+                env['HARMONY_BUILD_OWNER'] = 'another lease'
+                self.assertEqual(previous, fingerprint())
+                for path in (source, fixture, library, binary):
+                    stamp = path.stat()
+                    with path.open('ab') as output:
+                        output.write(b'changed')
+                    os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns))
+                    changed = fingerprint()
+                    self.assertIsNotNone(changed)
+                    self.assertNotEqual(previous, changed, path)
+                    previous = changed
+                env['CC'] = 'different toolchain'
+                self.assertNotEqual(previous, fingerprint())
+                env['ZIRAN_PACKAGE_MAP'] = '/external/package-map'
+                self.assertIsNone(fingerprint())
+                del env['ZIRAN_PACKAGE_MAP']
+                tool = repo / 'tool'
+                shutil.copyfile(sys.executable, tool)
+                with patch.object(runner.shutil, 'which', return_value=str(tool)):
+                    previous = fingerprint()
+                    with tool.open('ab') as output:
+                        output.write(b'tool changed')
+                    self.assertNotEqual(previous, fingerprint())
+                with patch.object(runner.shutil, 'which', return_value=None):
+                    self.assertIsNone(fingerprint())
+                fixture.unlink()
+                fixture.symlink_to(source)
+                self.assertIsNone(fingerprint())
+
+    def test_unknown_dependency_scope_has_no_cache_key(self):
+        self.assertIsNone(runner.cache_key('unknown.sh', ['sh'], Path.cwd(), 'known'))
+
     def test_large_failure_keeps_all_output_and_only_shows_tail(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

@@ -1553,6 +1553,13 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             copy_text(buffers->a, sizeof(buffers->a), buffers->result);
             format(buffers->result, sizeof(buffers->result), "(%s)", buffers->a);
         }
+        /* A C double literal would widen float32 arithmetic to double;
+         * the float constant keeps each operation rounding to float32. */
+        const char *native = TargetType(type, ZIR_C);
+        if(e->target == ZIR_C && native != NULL && !strcmp(native, "float")) {
+            copy_text(buffers->a, sizeof(buffers->a), buffers->result);
+            format(buffers->result, sizeof(buffers->result), "((float)%s)", buffers->a);
+        }
         pure = 1;
         break;
     }

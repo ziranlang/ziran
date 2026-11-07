@@ -126,6 +126,11 @@
       "summary": "u8 bitwise XOR is unsigned and width-preserving."
     },
     {
+      "id": "numeric.float.literal.f32",
+      "summary": "A float literal in float32 arithmetic is a float32 constant, so each operation rounds once to float32.",
+      "gap": "The portable VM (zi2zx run --vm) still evaluates the literals in double and rounds only the results."
+    },
+    {
       "id": "numeric.shift.reject.width",
       "summary": "A shift count at the operand bit width fails on every target."
     },

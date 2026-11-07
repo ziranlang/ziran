@@ -106,6 +106,22 @@ Answer :: () -> s32 {
     return 42
 }
 
+FloatLiteral :: (x: float32) -> float32 {
+    return x * 0.5 + x * 0.3
+}
+
+// The portable VM (zi2zx run --vm) still computes the literals in double;
+// the manifest case records that gap.
+#program_export
+Float32Literal :: () -> s32 {
+    // Bits 0x3e991279 give 0x3e74ea5c; a double chain gives 0x3e74ea5b.
+    input: float32 = 0.2989690601825714
+    want: float32 = 0.23917526006698608
+    // conformance: numeric.float.literal.f32
+    if FloatLiteral(input) != want { return 1 }
+    return 0
+}
+
 #program_export
 Bad8 :: () -> s32 {
     value: u8 = cast(u8)1
@@ -156,7 +172,7 @@ PY
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
 
-for entry in Answer Bad8 Bad16 BadNegative; do
+for entry in Answer Bad8 Bad16 BadNegative Float32Literal; do
     for input in source saved; do
         if test "$input" = source; then
             root=$work
@@ -174,6 +190,10 @@ done
 for input in source saved; do
     if test "$("$ziran" run "$work/$input-Answer.zx")" != 42; then
         echo 'portable numeric result differs from native targets' >&2
+        exit 1
+    fi
+    if test "$("$ziran" run "$work/$input-Float32Literal.zx")" != 0; then
+        echo 'portable runner widened float32 literal arithmetic to double' >&2
         exit 1
     fi
     for entry in Bad8 Bad16 BadNegative; do
@@ -202,6 +222,10 @@ package main
 import "os"
 func main() {
     if len(os.Args) > 1 {
+        if os.Args[1] == "float32" {
+            if Numeric_Float32Literal() != 0 { panic("float32 literal") }
+            return
+        }
         if os.Args[1] == "8" { Numeric_Bad8(); return }
         if os.Args[1] == "negative" { Numeric_BadNegative(); return }
         Numeric_Bad16(); return
@@ -217,6 +241,7 @@ GO
 #include "numeric.h"
 int main(int argc, char **argv) {
     if (argc > 1) {
+        if (argv[1][0] == 'f') return Float32Literal();
         if (argv[1][0] == '8') return Bad8();
         if (argv[1][0] == 'n') return BadNegative();
         return Bad16();
@@ -228,6 +253,10 @@ C
                 "$output/numeric.c" "$output/main.c" -lm -o "$output/app"
         fi
         "$output/app"
+        if ! "$output/app" float32; then
+            echo "$target widened float32 literal arithmetic to double" >&2
+            exit 1
+        fi
         for amount in 8 16 negative; do
             if "$output/app" "$amount" > "$output/bad-$amount.log" 2>&1; then
                 echo "$target accepted an oversized $amount-bit shift" >&2

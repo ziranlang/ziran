@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 const char *zir_emit_simd_tier;
 
@@ -14,6 +15,59 @@ EmitUseSimdTier(const char *tier, int native_blocks)
 {
     zir_emit_simd_tier = tier;
     zir_native_blocks = tier != NULL ? native_blocks : 0;
+}
+
+/* The procedure of module a plain call names, when only one has that name. */
+static const ZirFunction *
+module_procedure(const ZirModule *module, const char *name)
+{
+    const ZirFunction *found = NULL;
+    if(name[0] == '\0' || strchr(name, '.') != NULL)
+        return NULL;
+    for(int i = 0; i < module->function_count; i++)
+        if(!strcmp(module->functions[i].name, name)) {
+            if(found != NULL)
+                return NULL;
+            found = &module->functions[i];
+        }
+    return found;
+}
+
+static int
+tier_copied(const ZirModule *module, const ZirFunction *fn, int depth)
+{
+    if(fn->inlining != ZIR_INLINE_ALWAYS || fn->simd_target || fn->is_template ||
+       fn->is_extern || (fn->assembly_text && *fn->assembly_text) || depth >= 8)
+        return 0;
+    for(int i = 0; i < fn->expr_count; i++)
+        if(fn->exprs[i].kind == ZIR_EXPR_CALL && SimdOpChecked(fn->exprs[i].name) != NULL)
+            return 1;
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *x = &fn->exprs[i];
+        const ZirFunction *callee;
+        if(x->kind != ZIR_EXPR_CALL || x->slot_type[0])
+            continue;
+        callee = module_procedure(module, x->name);
+        if(callee != NULL && callee != fn && tier_copied(module, callee, depth + 1))
+            return 1;
+    }
+    return 0;
+}
+
+int
+SimdTierCopied(const ZirModule *module, const ZirFunction *fn)
+{
+    return tier_copied(module, fn, 0);
+}
+
+int
+SimdTierCopyCall(const Emitter *e, const ZirExpr *call)
+{
+    const ZirFunction *callee;
+    if(e->target != ZIR_C || e->simd_tier == NULL || call->slot_type[0])
+        return 0;
+    callee = module_procedure(e->module, call->name);
+    return callee != NULL && SimdTierCopied(e->module, callee);
 }
 
 /* "zi_", or "zi_avx2_" and the like in a #target clone for that tier. The

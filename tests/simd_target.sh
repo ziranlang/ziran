@@ -1,7 +1,8 @@
 #!/bin/sh
 # #target procedures: generated C carries one clone per x86-64 tier (SSSE3,
 # SSE4.1, AVX2) behind a dispatcher that picks the best one this CPU runs,
-# and ZIRAN_SIMD_TIER=1..4 forces a lower one. Every forced tier, every
+# and ZIRAN_SIMD_TIER=1..4 forces a lower one. A clone calls its tier's copy
+# of each #inline procedure of the module that uses std/simd. Every forced tier, every
 # fixed-ISA build, sanitizers, Go, bundles and the portable VM print the same
 # lanes, from source and from saved IR. Checking keeps 256-bit vectors from
 # crossing a #target procedure's calls by value, where AVX2 code passes them
@@ -75,13 +76,43 @@ Row :: (base: s32) -> [4]s32 #target {
     return out
 }
 
+// a raised to at least each row of four lanes; the loop keeps it a call.
+Raise :: (a: s32x4, rows: []s32) -> s32x4 #inline {
+    best := a
+    i := 0
+    while i + 4 <= rows.count {
+        best = Simd.Max(best, Simd.Load(s32x4, rows, i))
+        i += 4
+    }
+    return best
+}
+
+// Raise over both tables, with no std/simd of its own.
+RaiseBoth :: (a: s32x4, first: []s32, second: []s32) -> s32x4 #inline {
+    best := a
+    for pass: 0..1 {
+        if pass == 0 { best = Raise(best, first) } else { best = Raise(best, second) }
+    }
+    return best
+}
+
+// Each clone calls its tier's copies of RaiseBoth and Raise.
+Peak :: (first: []s32, second: []s32) -> s32 #target {
+    return Simd.ReduceMax(RaiseBoth(Simd.Splat(s32x4, -1000), first, second))
+}
+
 main :: () {
     data: [160]u8
     for i: 0..159 { data[i] = cast(u8) ((i * 37 + 11) & 255) }
     row := Row(40)
     spread: [8]s32
     Lib.Spread(spread[:], 7)
-    print("% % % % %\n", Kernel(data[:], 9), row[3], spread[0], spread[3], spread[6])
+    first: [8]s32
+    second: [12]s32
+    for i: 0..7 { first[i] = cast(s32) ((i * 73) % 41 - 20) }
+    for i: 0..11 { second[i] = cast(s32) ((i * 29) % 53 - 30) }
+    print("% % % % % %\n", Kernel(data[:], 9), row[3], spread[0], spread[3], spread[6],
+          Peak(first[:], second[:]))
 }
 ZI
 
@@ -143,6 +174,13 @@ for input in source saved; do
     grep -q 'zi_avx2_byte_shuffle_u8x16(' "$output/app.c"
     grep -q 'zi_sse41_min_s32x4(' "$output/app.c"
     grep -q 'case 2: app_Row_ziran_ssse3(array_result_0_0, base); return;' "$output/app.c"
+    # A clone calls its tier's copy of an #inline procedure that uses
+    # std/simd, itself or through another, with that tier's helpers.
+    copy() { awk -v name="$1" '$0 ~ "^" name "\\(.*\\)$" {on = 1} on {print} on && /^}/ {exit}' "$output/app.c"; }
+    copy app_Peak_ziran_avx2 | grep -q 'app_RaiseBoth_ziran_avx2('
+    copy app_RaiseBoth_ziran_sse41 | grep -q 'app_Raise_ziran_sse41('
+    copy app_Raise_ziran_sse41 | grep -q 'zi_sse41_max_s32x4('
+    copy app_Raise_ziran_avx2 | grep -q 'zi_avx2_max_s32x4('
     # The dispatcher stays out of line, so no header copy skips it.
     ! grep -q 'Spread_ziran_inline' "$output/lib.h"
     compilers=${CC:-cc}
@@ -205,7 +243,7 @@ C
         agree "VM $input" "$("$work/vm-run" "$work/$input.zx")"
     fi
 done
-case "$expected" in *" 44 7 10 -5") ;; *) echo "unexpected lanes: $expected" >&2; exit 1 ;; esac
+case "$expected" in *" 44 7 10 -5 19") ;; *) echo "unexpected lanes: $expected" >&2; exit 1 ;; esac
 
 reject() {
     printf 'Simd :: #import "simd"\n%s\nmain :: () {}\n' "$1" > "$work/bad.zi"

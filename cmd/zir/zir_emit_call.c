@@ -729,6 +729,21 @@ emit_call_with_buffers(Emitter *e, const ZirExpr *expr, const char *array_result
         return;
     }
     e->resolve(e->context, buffers->text, buffers->resolved, sizeof(buffers->resolved));
+    if(SimdTierCopyCall(e, expr)) {
+        /* The callee's copy for this clone's tier: name_ziran_avx2(...). */
+        size_t name = 0, length = strlen(buffers->resolved);
+        int added;
+        while(identifier_byte(buffers->resolved[name]))
+            name++;
+        if(name == 0 || buffers->resolved[name] != '(')
+            fatal(expr, "unexpected call text for a SIMD tier copy");
+        format(buffers->source, sizeof(buffers->source), "_ziran_%s", e->simd_tier);
+        added = (int)strlen(buffers->source);
+        if(length + (size_t)added >= sizeof(buffers->resolved))
+            fatal(expr, "call text too long for a SIMD tier copy");
+        memmove(buffers->resolved + name + added, buffers->resolved + name, length - name + 1);
+        memcpy(buffers->resolved + name, buffers->source, (size_t)added);
+    }
     replace_call_placeholders(buffers->resolved, buffers->arguments, argument_count, out, size);
 }
 

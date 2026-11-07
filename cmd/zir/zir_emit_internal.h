@@ -268,6 +268,9 @@ int call_can_change(const Emitter *e, int index);
 void emit_print(Emitter *e, const ZirExpr *expr);
 /* A std/simd operation; 1 when it was a statement (a store). */
 int emit_simd_call(Emitter *e, const ZirExpr *expr, char *out, size_t size);
+/* Whether call, in a #target clone, goes to its callee's copy for the
+ * clone's tier (see SimdTierCopied). */
+int SimdTierCopyCall(const Emitter *e, const ZirExpr *call);
 void emit_expr(Emitter *e, int index, const char *expected, char *out, size_t size);
 void zero_record(Emitter *e, const char *type, char *out, size_t size);
 #pragma GCC visibility pop

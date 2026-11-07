@@ -26,6 +26,13 @@ Step :: (v: s32x4, k: s32) -> s32x4 #inline {
     return Simd.Max(Simd.Min(b, Simd.Splat(s32x4, 100000)), Simd.Splat(s32x4, -100000))
 }
 
+// The loop keeps it a call, to the copy in the unit of the clone's tier.
+Settle :: (v: s32x4, rounds: s32) -> s32x4 #inline {
+    w := v
+    for i: 1..rounds { w = Simd.Max(Simd.Sub(w, Simd.Splat(s32x4, i)), Simd.Splat(s32x4, -50000)) }
+    return w
+}
+
 #scope_file
 Scale :: (x: s32) -> s32 { return x * 2 + 1 }
 #scope_export
@@ -41,7 +48,7 @@ ZI
         i=$((i + 1))
     done
     cat <<'ZI'
-    Simd.Store(out, 0, v)
+    Simd.Store(out, 0, Settle(v, 3))
 }
 ZI
 } > "$work/wide.zi"
@@ -82,6 +89,8 @@ for tier in avx2 sse41 ssse3; do
         fi
     done
 done
+# A clone calls its tier's copy of an #inline procedure using std/simd.
+grep -q 'wide_Settle_ziran_avx2(v, 3);' "$output/wide.c"
 printf '#include "app.h"\nint main(void) { app_main(); return 0; }\n' > "$output/main.c"
 
 compilers=${CC:-cc}

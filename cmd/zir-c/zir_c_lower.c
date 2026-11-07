@@ -978,6 +978,38 @@ emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
     fputs("#endif\n", c);
 }
 
+/* The copies, one per tier, of an #inline procedure that uses std/simd,
+ * which the module's #target clones call (see SimdTierCopied); only a
+ * prototype for each when body is 0. A split module keeps each copy in
+ * the unit of its tier's clones. */
+static void
+emit_tier_copies(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
+                 int restab_count, const ZirFunction *fn, const char *cret,
+                 const char *cname, const char *cargs, int split, int body)
+{
+    fputs("#if defined(ZIRAN_SIMD_DISPATCH)\n", c);
+    for(size_t t = 0; t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++) {
+        if(simd_tiers[t].tier < 4) fprintf(c, "#if ZI_BASE_TIER < %d\n", simd_tiers[t].tier);
+        if(split)
+            fprintf(c, "#if defined(ZIRAN_TIER_UNIT) && ZIRAN_TIER_UNIT == %d\n",
+                    simd_tiers[t].tier);
+        fprintf(c, "static inline ZIRAN_ALWAYS_INLINE %s %s\n%s_ziran_%s(%s)%s",
+                simd_tiers[t].attribute, cret[0] ? cret : "void", cname,
+                simd_tiers[t].name, cargs, body ? "\n{\n" : ";\n");
+        if(body) {
+            if(EmitRunGuardsEnabled())
+                fputs("    ZIR_ENTER();\n", c);
+            EmitUseSimdTier(simd_tiers[t].name, simd_tiers[t].tier >= 4 ? 2 : 1);
+            lower_body(c, m, restab, restab_count, fn);
+            EmitUseSimdTier(NULL, 0);
+            fputs("}\n", c);
+        }
+        if(split) fputs("#endif\n", c);
+        if(simd_tiers[t].tier < 4) fputs("#endif\n", c);
+    }
+    fputs("#endif\n", c);
+}
+
 /* The unit that builds one tier's clones of a split module. */
 static int
 write_tier_unit(const ZirModule *m, const char *cpath, const char *name, int tier)
@@ -1994,6 +2026,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     int i;
     int needs_startup = ModuleNeedsStartup(m);
     int split = module_splits_tiers(m);
+    int targets = 0;
     char init_name[LOWER_NAME_MAX];
     NativeCModuleInitName(m, init_name, sizeof(init_name));
     stem_from_source(m->source_path, buffers->stem, sizeof(buffers->stem));
@@ -2326,11 +2359,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         emit_extern_prototype(c, m, imp);
     }
     emit_inlining_attributes(c, m);
-    for(i = 0; i < m->function_count; i++)
+    for(i = 0; i < m->function_count && !targets; i++)
         if(m->functions[i].simd_target && !m->functions[i].is_template &&
            !m->functions[i].is_extern) {
             fputs("#define ZIRAN_SIMD_TIERS 1\n#include \"ziran_simd.h\"\n", c);
-            break;
+            targets = 1;
         }
     /* A tier unit's clones are hidden symbols the module source calls. */
     if(split)
@@ -2366,6 +2399,20 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                          cret, sizeof(cret));
         fprintf(c, "static %s%s %s(%s) ZIRAN_MAYBE_UNUSED;\n", inlining_prefix(fn),
                 cret[0] ? cret : "void", cname, buffers->cargs);
+    }
+    /* The tier copies a clone may call before their definitions. */
+    for(i = 0; i < m->function_count && targets; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        char cname[LOWER_NAME_MAX];
+        char cret[LOWER_NAME_MAX];
+        if(!SimdTierCopied(m, fn))
+            continue;
+        function_c_name(m, fn, cname, sizeof(cname));
+        ArrayAbiArgs(fn, buffers->abi_args, sizeof(buffers->abi_args));
+        convert_args(m, fn, buffers->abi_args, buffers->cargs, sizeof(buffers->cargs), 0);
+        strip_alias_type(m, ArrayElementType(fn->return_type, NULL, 0, NULL) ? "void" : fn->return_type,
+                         cret, sizeof(cret));
+        emit_tier_copies(c, m, restab, restab_count, fn, cret, cname, buffers->cargs, split, 0);
     }
     /* A tier unit leaves the module's variables and exported procedures to
      * the module source, which defines them once. */
@@ -2489,6 +2536,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             EmitNativeMain(c, m, fn, ZIR_C);
         if(split && fn->is_public)
             fputs("#endif\n", c);
+        if(targets && SimdTierCopied(m, fn))
+            emit_tier_copies(c, m, restab, restab_count, fn, cret, cname, buffers->cargs, split, 1);
     }
     if(split)
         fputs("\n#ifndef ZIRAN_TIER_UNIT", c);

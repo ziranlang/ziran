@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- A `#target` procedure's SSSE3, SSE4.1 and AVX2 copies call the same
+  tier's copy of each `#inline` procedure of the module that uses
+  `std/simd`, which ran SSE2 code before. The AV1 decoder decodes a 1080p
+  q40 frame 4% faster.
 - Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
   code running them handles: two in a `#target` procedure's AVX2 copy and
   in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and

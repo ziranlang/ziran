@@ -188,4 +188,9 @@ void EmitUseMinifiedOutput(int enabled);
  * x86-64 tier ("ssse3", "sse41" or "avx2"), whose native vectors hold
  * native_blocks 128-bit blocks; NULL for the build's own. */
 void EmitUseSimdTier(const char *tier, int native_blocks);
+/* Whether fn, an #inline procedure of module, has a copy per x86-64 tier
+ * for the module's #target clones to call, as it uses std/simd itself or
+ * through another such procedure: a copy with the build's own helpers
+ * would run its operations below the clone's tier. */
+int SimdTierCopied(const ZirModule *module, const ZirFunction *fn);
 #endif

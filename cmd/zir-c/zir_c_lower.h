@@ -14,6 +14,11 @@ typedef struct ZirCModuleSyms {
     char module_slash[ZIR_PATH_MAX];
     ZirCFunctionSym *fns;            /* one entry per function, no fixed cap */
     int fn_count;
+    /* The program's first module, the one the stem names, and how its
+     * header includes each of its imports, worked out once for lowering
+     * every module that reaches it. */
+    const ZirModule *module;
+    unsigned char *header_uses;
 } ZirCModuleSyms;
 
 /* Lower a ZirProgram to C source (.c/.h). restab/restab_count resolve

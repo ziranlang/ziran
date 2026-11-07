@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- zi2c writes the C for large programs far faster: it works out how each
+  module's header includes its imports once, so Breeze's 921 modules lower in
+  under a second instead of over two minutes, with the same output.
 - `#reads` follows strings through field paths: a record parameter copied into
   a local record's field is followed to its later uses, a later `=` into the
   field replaces the string, and nested record fields are checked. Fresh Text

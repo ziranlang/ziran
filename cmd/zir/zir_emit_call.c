@@ -277,6 +277,28 @@ EmitGlobalInitializerText(const ZirModule *module, const ZirGlobal *global,
     return NULL;
 }
 
+/* Whether a value of type could hold a procedure slot, so that its
+ * initializer may need wrappers: tables of numbers never do, and are not
+ * parsed again to find out. Too deep a type answers yes. */
+static int
+global_type_holds_slot(const ZirModule *scope, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    if(depth > 32) return 1;
+    const ZirType *declared = FindType(scope, type, &owner);
+    if(declared != NULL && declared->is_procedure_type) return 1;
+    if(ArrayElementType(type, element, sizeof(element), NULL))
+        return global_type_holds_slot(scope, element, depth + 1);
+    if(declared == NULL) return 0;
+    ZirTypeField field;
+    size_t offset = 0;
+    while(TypeNextField(declared, &offset, &field) == 1)
+        if(global_type_holds_slot(owner != NULL ? owner : scope, field.type, depth + 1))
+            return 1;
+    return 0;
+}
+
 /* Buffers emit_global_slot_wrappers_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitGlobalSlotWrappersNodeBuffers {
@@ -384,7 +406,8 @@ EmitGlobalSlotWrappers_with_buffers(FILE *out, const ZirModule *module,
                        ZirResolveTarget resolver, void *context, EmitGlobalSlotWrappersBuffers *buffers)
 {
     memset(&buffers->probe, 0, sizeof(buffers->probe));
-    if(target != ZIR_C || !global->init[0])
+    if(target != ZIR_C || !global->init[0] ||
+       !global_type_holds_slot(module, global->type, 0))
         return;
     int root = ParseExprTyped(&buffers->probe, module, global->init,
                               global->span, global->type);

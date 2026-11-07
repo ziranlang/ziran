@@ -95,10 +95,38 @@ COMPILER_SCRATCH_RETURN(static, int, portable_type_path,
     PortableTypePathBuffers, RECOVERABLE, free,
     portable_type_path_with_buffers(module, type, path, buffers))
 
+/* One CanEmitBody pass asks about the same few expression types again and
+ * again; it remembers each answer by the module and type text it asked
+ * about, which do not change during the pass. */
+enum { PORTABLE_MEMO_SLOTS = 512 };
+typedef struct PortableMemoSlot {
+    const ZirModule *module;
+    const char *type;
+    unsigned pass;
+    int answer;
+} PortableMemoSlot;
+static _Thread_local PortableMemoSlot portable_memo[PORTABLE_MEMO_SLOTS];
+static _Thread_local unsigned portable_memo_pass;
+
 static int
 portable_type(const ZirModule *module, const char *type)
 {
-    return portable_type_path(module, type, NULL);
+    uintptr_t key = ((uintptr_t)type >> 3) ^ ((uintptr_t)module >> 6);
+    PortableMemoSlot *slot = &portable_memo[(key ^ (key >> 9)) % PORTABLE_MEMO_SLOTS];
+    if(slot->pass == portable_memo_pass && slot->type == type && slot->module == module)
+        return slot->answer;
+    int answer = portable_type_path(module, type, NULL);
+    *slot = (PortableMemoSlot){module, type, portable_memo_pass, answer};
+    return answer;
+}
+
+static void
+portable_memo_begin(void)
+{
+    if(++portable_memo_pass == 0) {
+        memset(portable_memo, 0, sizeof(portable_memo));
+        portable_memo_pass = 1;
+    }
 }
 
 static int supported_expression(const ZirModule *module, const ZirFunction *fn,
@@ -234,6 +262,7 @@ CanEmitBody(const ZirModule *module, const ZirFunction *fn)
         buffers->expression_support = NULL;
         buffers->expression_capacity = 0;
     }
+    portable_memo_begin();
     int returned = CanEmitBody_with_buffers(module, fn, buffers);
     if(CompilerMemoryRecovering() || !CompilerScratchPut(scratch_hint, buffers)) {
         free(buffers->expression_support);

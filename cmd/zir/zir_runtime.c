@@ -45,10 +45,12 @@ EmitRuntimeHeaders_with_buffers(const char *out_dir, const char *generated_path,
     unsigned char *needed = AllocateOrExit(count ? count : 1);
     memset(needed, 0, count);
     while(fgets(buffers->line, sizeof(buffers->line), file) != NULL) {
+        if(strncmp(buffers->line, "#include \"", 10) != 0)
+            continue;
         for(size_t i = 0; i < count; i++) {
-            char include[256];
-            snprintf(include, sizeof(include), "#include \"%s\"", ZirRuntimeHeaders[i].name);
-            if(strncmp(buffers->line, include, strlen(include)) == 0)
+            size_t length = strlen(ZirRuntimeHeaders[i].name);
+            if(strncmp(buffers->line + 10, ZirRuntimeHeaders[i].name, length) == 0 &&
+               buffers->line[10 + length] == '"')
                 needed[i] = 1;
         }
     }

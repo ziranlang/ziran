@@ -53,10 +53,53 @@ fatal(const ZirExpr *expr, const char *message)
     exit(1);
 }
 
+/* Whether any name fresh could collide with starts like its names do.
+ * Most functions and modules have none, and then each fresh name is taken
+ * without looking through them all. The answer is kept for one function
+ * of one module at a time. */
+static int
+mentions_value_names(const ZirFunction *fn, const ZirModule *module)
+{
+    static _Thread_local const ZirFunction *function;
+    static _Thread_local const ZirExpr *exprs;
+    static _Thread_local const ZirModule *owner;
+    static _Thread_local int expr_count, stmt_count, global_count, define_count, function_count;
+    static _Thread_local int answer;
+    if(function == fn && exprs == fn->exprs && expr_count == fn->expr_count &&
+       stmt_count == fn->stmt_count && owner == module &&
+       global_count == module->global_count && define_count == module->define_count &&
+       function_count == module->function_count)
+        return answer;
+    function = fn;
+    exprs = fn->exprs;
+    expr_count = fn->expr_count;
+    stmt_count = fn->stmt_count;
+    owner = module;
+    global_count = module->global_count;
+    define_count = module->define_count;
+    function_count = module->function_count;
+    answer = strstr(FunctionArgs(fn), "value_") != NULL;
+    for(int i = 0; !answer && i < fn->stmt_count; i++)
+        answer = fn->stmts[i].name != NULL && !strncmp(fn->stmts[i].name, "value_", 6);
+    for(int i = 0; !answer && i < fn->expr_count; i++)
+        answer = fn->exprs[i].name != NULL && !strncmp(fn->exprs[i].name, "value_", 6);
+    for(int i = 0; !answer && i < module->global_count; i++)
+        answer = !strncmp(module->globals[i].name, "value_", 6);
+    for(int i = 0; !answer && i < module->define_count; i++)
+        answer = !strncmp(module->defines[i].name, "value_", 6);
+    for(int i = 0; !answer && i < module->function_count; i++)
+        answer = !strncmp(module->functions[i].name, "value_", 6);
+    return answer;
+}
+
 void
 fresh(Emitter *e, char *name)
 {
     int collision;
+    if(!mentions_value_names(e->fn, e->module)) {
+        format(name, ZIR_NAME_MAX, "value_%d", e->serial++);
+        return;
+    }
     do {
         format(name, ZIR_NAME_MAX, "value_%d", e->serial++);
         collision = function_mentions(e->fn, name);
@@ -1166,6 +1209,21 @@ ScalarLiteral_with_buffers(const char *type, const char *text, ZirTarget target,
     if(!strcmp(type,"bool")) {
         if(!strcmp(text,"true") || !strcmp(text,"false")) {copy_text(out,size,text);return 1;}
         return 0;
+    }
+    /* Only strings, integers and floats have literals here. */
+    if(strcmp(type,"string") && !width(type) && type[0]!='f') return 0;
+    /* A plain decimal integer, as table elements are, needs no parse. */
+    if(width(type)) {
+        const char *digits = text + (text[0] == '-');
+        size_t count = strspn(digits, "0123456789");
+        if(count && !digits[count] && (digits[0] != '0' || count == 1)) {
+            ZirExpr value = {0};
+            value.kind = ZIR_EXPR_INT;
+            value.text = digits;
+            value.span = span;
+            literal(&e, &value, type, digits != text, out, size);
+            return 1;
+        }
     }
     int index=ParseExpr(&buffers->fn,NULL,text,span);
     if(index>=0) {

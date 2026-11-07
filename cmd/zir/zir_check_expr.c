@@ -1438,12 +1438,15 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 copy_text(saved_expected, sizeof(saved_expected), c->expected_type);
                 copy_text(c->expected_type, sizeof(c->expected_type), element);
                 const char *value_type = expression_type(c, entry->right);
+                // Checking the element may add expressions and move the array.
+                entry = &c->fn->exprs[child];
                 copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
                 if(!compatible_checked(c, element, value_type))
                     error(c, entry->span, "array initializer element type mismatch", element);
                 entry->type = KeepName(element);
                 count++;
             }
+            e = &c->fn->exprs[index];
             if(capacity >= 0 && count > capacity)
                 error(c, e->span, "too many array initializer elements", e->name);
             type = e->name;

@@ -56,7 +56,7 @@ int main(int argc, char **argv) {
     return ok ? 0 : 1;
 }
 C
-    "${CC:-cc}" -std=c11 -I"$repo/include" "$work/vm-run.c" "$vm_lib" -lm -pthread \
+    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$work/vm-run.c" "$vm_lib" -lm -pthread \
         -o "$work/vm-run"
 fi
 

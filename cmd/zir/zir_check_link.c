@@ -218,12 +218,19 @@ canonical_type_arguments(const char *source, char *output, size_t capacity)
 }
 /* Buffers rewrite_type_applications keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
-/* A type application such as Vec(Pixel) stays private to its module when
- * an argument names one of the module's private types: other modules cannot
- * spell it, and its C definition must not reach their headers. */
-int
-TypeArgumentsPublic(const ZirModule *module, const char *arguments)
+/* A type application such as Vec(Pixel) takes the narrowest scope of its
+ * template and its arguments. An argument private to the module keeps the
+ * application out of the public C header, since other modules cannot spell
+ * it, but every file of the module, such as a #load-ed one, reaches the same
+ * instance; only an argument private to its file keeps the instance to that
+ * file. */
+void
+TypeApplicationScope(const ZirModule *module, const char *arguments,
+                     int template_public, int template_file_private,
+                     ZirType *instance)
 {
+    int is_public = template_public;
+    int is_file_private = template_file_private;
     const char *cursor = arguments;
     while(cursor != NULL && *cursor) {
         if(isalpha((unsigned char)*cursor) || *cursor == '_') {
@@ -236,12 +243,16 @@ TypeArgumentsPublic(const ZirModule *module, const char *arguments)
             while(isalnum((unsigned char)*cursor) || *cursor == '_') cursor++;
             const ZirModule *owner = NULL;
             const ZirType *type = FindType(module, name, &owner);
-            if(type != NULL && owner == module && !type->is_public) return 0;
+            if(type != NULL && owner == module) {
+                if(!type->is_public) is_public = 0;
+                if(type->is_file_private) is_file_private = 1;
+            }
             continue;
         }
         cursor++;
     }
-    return 1;
+    instance->is_public = is_public;
+    instance->is_file_private = is_file_private;
 }
 
 typedef struct RewriteTypeApplicationsBuffers {
@@ -354,9 +365,8 @@ rewrite_type_applications_with_buffers(ZirModule *module, const char *source,
                     int generic_file_private = generic->is_file_private;
                     instance = ModuleAddType(module, name, span);
                     if(instance == NULL) return 0;
-                    int arguments_public = TypeArgumentsPublic(module, buffers->canonical);
-                    instance->is_public = generic_public && arguments_public;
-                    instance->is_file_private = generic_file_private || !arguments_public;
+                    TypeApplicationScope(module, buffers->canonical, generic_public,
+                                         generic_file_private, instance);
                     instance->is_type_instance = 1;
                     instance->is_synthetic_application = 1;
                     copy_text(instance->template_name,

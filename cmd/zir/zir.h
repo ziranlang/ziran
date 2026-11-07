@@ -513,8 +513,12 @@ int ResolveGlobal(const ZirModule *module, const char *name,
 const ZirType *FindType(const ZirModule *module, const char *name,
                         const ZirModule **owner);
 const ZirType *BuiltinType(const char *name);
-/* False when ARGUMENTS name one of MODULE's private types. */
-int TypeArgumentsPublic(const ZirModule *module, const char *arguments);
+/* Set INSTANCE, an application of a template with the given scope to
+ * ARGUMENTS, to the narrowest scope of the template and MODULE's types the
+ * arguments name. */
+void TypeApplicationScope(const ZirModule *module, const char *arguments,
+                          int template_public, int template_file_private,
+                          ZirType *instance);
 /* True for a name the language defines as a type (s32, string, int, ...);
  * no module may declare a type with such a name. */
 int BuiltinTypeName(const char *name);

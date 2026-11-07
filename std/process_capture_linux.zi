@@ -10,7 +10,7 @@ CaptureClose :: (fd: s32) -> s32 #foreign libc "close";
 CaptureExec :: (path: *u8, arguments: *CapturePointer) -> s32 #foreign libc "execvp";
 CaptureExit :: (code: s32) -> void #foreign libc "_exit";
 CaptureWait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign libc "waitpid";
-CaptureRead :: (fd: s32, output: *u8, count: u64) -> s64 #foreign libc "read";
+CaptureRead :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
 
 CapturePointer :: struct { value: *u8 }
 CaptureArgument :: struct { bytes: [4096]u8 }
@@ -64,8 +64,8 @@ CaptureOutput :: (arguments: []string, output: []u8) -> CaptureResult {
     }
     CaptureClose(fds[1])
     while result.length < cast(s32)output.count {
-        count: s64 = CaptureRead(fds[0], *output[result.length],
-            cast(u64)(cast(s32)output.count - result.length))
+        count := cast(s64)CaptureRead(fds[0], *output[result.length],
+            cast(usize)(cast(s32)output.count - result.length))
         if count < 0 {
             result.error = true
             break

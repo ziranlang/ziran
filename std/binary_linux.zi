@@ -2,9 +2,9 @@
 // application record layout is imposed by this module.
 libc :: #system_library "libc";
 FloatFromBits :: (source: *u64, destination: *float64,
-    count: u64) -> void #foreign libc "bcopy";
+    count: usize) -> void #foreign libc "bcopy";
 FloatToBits :: (destination: *u64, source: *float64,
-    count: u64) -> *u64 #foreign libc "mempcpy";
+    count: usize) -> *u64 #foreign libc "mempcpy";
 
 #program_export
 ReadU64LE :: (bytes: []u8, at: s32) -> u64 {

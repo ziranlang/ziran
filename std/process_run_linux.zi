@@ -26,8 +26,8 @@ ForkRaw :: () -> s32 #foreign libc "fork";
 Pipe2Raw :: (fds: *s32, flags: s32) -> s32 #foreign libc "pipe2";
 DupRaw :: (source: s32, destination: s32) -> s32 #foreign libc "dup2";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
-ReadRaw :: (fd: s32, output: *u8, count: u64) -> s64 #foreign libc "read";
-WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
+ReadRaw :: (fd: s32, output: *u8, count: usize) -> isize #foreign libc "read";
+WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
 OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
 ExecRaw :: (path: *u8, arguments: *ProcessArgumentSlot) -> s32 #foreign libc "execvp";
 ExitRaw :: (code: s32) -> void #foreign libc "_exit";
@@ -251,7 +251,7 @@ Start :: (options: ProcessOptions, run: *ProcessRun, capture: bool) -> s32 {
     error: s32 = 0
     count: s64 = -1
     while count < 0 {
-        count = ReadRaw(status[0], cast(*u8)*error, 4)
+        count = cast(s64)ReadRaw(status[0], cast(*u8)*error, 4)
         if count < 0 && <<ErrnoRaw() != INTERRUPTED { count = 0 }
     }
     CloseRaw(status[0])
@@ -313,7 +313,7 @@ RunProcess :: (options: ProcessOptions, run: *ProcessRun) -> bool {
     if capture {
         chunk: [65536]u8
         while true {
-            count := ReadRaw(fd, *chunk[0], 65536)
+            count := cast(s64)ReadRaw(fd, *chunk[0], 65536)
             if count < 0 && <<ErrnoRaw() == INTERRUPTED { continue }
             if count <= 0 { break }
             index: s64 = 0

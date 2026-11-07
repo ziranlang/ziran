@@ -12,8 +12,8 @@ curl_easy_setopt :: (handle: *void, option: s32, args: ..any) -> s32 #foreign cu
 curl_easy_perform :: (handle: *void) -> s32 #foreign curl;
 curl_easy_getinfo :: (handle: *void, option: s32, args: ..any) -> s32 #foreign curl;
 curl_slist_free_all :: (list: *void) #foreign curl;
-curl_ws_recv :: (handle: *void, data: *u8, capacity: u64,
-    received: *u64, frame: **CurlWsFrame) -> s32 #foreign curl;
+curl_ws_recv :: (handle: *void, data: *u8, capacity: usize,
+    received: *usize, frame: **CurlWsFrame) -> s32 #foreign curl;
 #if #defined(_WIN32) {
     // curl_socket_t is SOCKET, a pointer-sized handle, on Windows.
     ws2_32 :: #system_library "ws2_32";
@@ -41,7 +41,8 @@ curl_ws_recv :: (handle: *void, data: *u8, capacity: u64,
         events: s16
         returned: s16
     }
-    PollRaw :: (descriptors: *PollDescriptor, count: u64,
+    // nfds_t is unsigned long on Linux, which is pointer-sized.
+    PollRaw :: (descriptors: *PollDescriptor, count: usize,
         timeout_ms: s32) -> s32 #foreign c "poll";
     PollRead :: 1;
 
@@ -117,10 +118,10 @@ ReceiveWebSocketCurl :: (context: *void, url: string, token: string,
             end_time := time(null) + 35
             length: s64 = 0
             while time(null) < end_time {
-                received: u64 = 0
+                received: usize = 0
                 frame: *CurlWsFrame = null
                 code := curl_ws_recv(handle, *output[length],
-                    cast(u64)(output.count - length - 1),
+                    cast(usize)(output.count - length - 1),
                     *received, *frame)
                 if code == CurlAgain {
                     descriptor.returned = 0
@@ -133,7 +134,7 @@ ReceiveWebSocketCurl :: (context: *void, url: string, token: string,
                     if length != 0 { break }
                     continue
                 }
-                if received > cast(u64)(output.count - length - 1) {
+                if received > cast(usize)(output.count - length - 1) {
                     break
                 }
                 length += cast(s64)received

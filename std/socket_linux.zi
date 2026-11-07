@@ -29,7 +29,8 @@ LinuxPollFd :: struct {
 
 SocketRaw :: (domain: s32, type: s32, protocol: s32) -> s32 #foreign libc "socket";
 ConnectRaw :: (fd: s32, address: *LinuxSocketAddress, length: u32) -> s32 #foreign libc "connect";
-PollRaw :: (fds: *LinuxPollFd, count: u32, timeout_ms: s32) -> s32 #foreign libc "poll";
+// nfds_t is unsigned long on Linux, which is pointer-sized.
+PollRaw :: (fds: *LinuxPollFd, count: usize, timeout_ms: s32) -> s32 #foreign libc "poll";
 GetSocketOptionRaw :: (fd: s32, level: s32, option: s32, value: *s32,
     length: *u32) -> s32 #foreign libc "getsockopt";
 SendRaw :: (fd: s32, output: *u8, count: usize, flags: s32) -> isize #foreign libc "send";

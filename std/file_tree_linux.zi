@@ -30,17 +30,17 @@ OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
 FlockRaw :: (fd: s32, operation: s32) -> s32 #foreign libc "flock";
 FsyncRaw :: (fd: s32) -> s32 #foreign libc "fsync";
-WriteRaw :: (fd: s32, input: *u8, count: u64) -> s64 #foreign libc "write";
+WriteRaw :: (fd: s32, input: *u8, count: usize) -> isize #foreign libc "write";
 RenameRaw :: (source: *u8, target: *u8) -> s32 #foreign libc "rename";
 RealPathRaw :: (path: *u8, output: *u8) -> *u8 #foreign libc "realpath";
 TemporaryDirectoryRaw :: (template: *u8) -> *u8 #foreign libc "mkdtemp";
 EffectiveUserRaw :: () -> u32 #foreign libc "geteuid";
-WorkingDirectoryRaw :: (output: *u8, size: u64) -> *u8 #foreign libc "getcwd";
+WorkingDirectoryRaw :: (output: *u8, size: usize) -> *u8 #foreign libc "getcwd";
 ProcessIdRaw :: () -> s32 #foreign libc "getpid";
 ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
 FreeOwnedRaw :: (memory: *void) #foreign libc "free";
 SymbolicLinkRaw :: (target: *u8, path: *u8) -> s32 #foreign libc "symlink";
-ReadLinkRaw :: (path: *u8, output: *u8, capacity: u64) -> s64 #foreign libc "readlink";
+ReadLinkRaw :: (path: *u8, output: *u8, capacity: usize) -> isize #foreign libc "readlink";
 
 StatxRecord :: struct { words: [32]u64 }
 
@@ -380,7 +380,7 @@ CopyLink :: (source: string, target: string) -> bool {
     destination: [4096]u8
     link: [4096]u8
     if !CopyCString(source, name[:]) || !CopyCString(target, link[:]) { return false }
-    count := ReadLinkRaw(*name[0], *destination[0], 4095)
+    count := cast(s64)ReadLinkRaw(*name[0], *destination[0], 4095)
     if count < 0 { return false }
     destination[count] = 0
     return SymbolicLinkRaw(*destination[0], *link[0]) == 0
@@ -420,7 +420,7 @@ ReplaceFile :: (path: string, text: string) -> bool {
         while size < 65536 && written + size < text.count { chunk[size] = text[written + size]; size += 1 }
         sent: s64 = 0
         while sent < size {
-            count := WriteRaw(fd, *chunk[sent], cast(u64)(size - sent))
+            count := cast(s64)WriteRaw(fd, *chunk[sent], cast(usize)(size - sent))
             if count < 0 && <<ErrnoRaw() == INTERRUPTED { continue }
             if count <= 0 { ok = false; break }
             sent += count

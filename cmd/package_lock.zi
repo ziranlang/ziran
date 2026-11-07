@@ -5,6 +5,7 @@ Diagnostics :: #import "diagnostics"
 #import "json_scan"
 #import "file_linux"
 #import "byte_text_linux"
+#import "c_string"
 
 #scope_export
 PkgLocked :: struct {
@@ -560,60 +561,135 @@ PkgDropCheckout :: (destination: string) {
     unused PkgFail(PkgJoin("package cache incomplete, modified or unsupported; preserved at ", destination))
 }
 
+#scope_file
+libc :: #system_library "libc";
+PkgMkdtempRaw :: (template: *u8) -> *u8 #foreign libc "mkdtemp";
+PkgFlockRaw :: (fd: s32, operation: s32) -> s32 #foreign libc "flock";
+PkgFcntlRaw :: (fd: s32, command: s32, value: ..any) -> s32 #foreign libc "fcntl";
+
+#scope_export
+
+// Takes the exclusive advisory lock at PATH, creating the file. Git children
+// must not inherit it: a detached gc or maintenance run would keep the lock.
+PkgLockEntry :: (path: string) -> FileHandle {
+    lock: FileHandle = OpenUpdate(path)
+    // F_SETFD, FD_CLOEXEC and LOCK_EX are the same on Linux and Darwin.
+    if lock.valid && (PkgFcntlRaw(lock.fd, 2, 1) != 0 || PkgFlockRaw(lock.fd, 2) != 0) {
+        unused CloseFile(lock)
+        lock.valid = false
+    }
+    return lock
+}
+
+// Closing the descriptor releases its lock.
+PkgUnlockEntry :: (lock: FileHandle) {
+    if lock.valid { unused CloseFile(lock) }
+}
+
+// A new private directory named "<id>.tmp-XXXXXX" beside the entries.
+PkgTemporaryEntry :: (sources: string, id: string) -> string {
+    name: [4096]u8
+    if !CopyCString(PkgJoin3(sources, "/", PkgJoin(id, ".tmp-XXXXXX")), name[:]) ||
+        PkgMkdtempRaw(*name[0]) == null { return "" }
+    return PkgJoin("", TextFromCString(*name[0]))
+}
+
+// Removes a temporary directory this process created, never an entry.
+PkgRemoveTemporary :: (path: string) {
+    args: [4]string
+    args[0] = "rm"
+    args[1] = "-rf"
+    args[2] = "--"
+    args[3] = path
+    unused PkgCapture(args[:], "")
+}
+
+// Concurrent commands share one cache. A fresh entry is cloned into a private
+// "<id>.tmp-" sibling and published with a rename that never replaces, so a
+// half-written clone is never at the entry path. "<id>.lock" serializes
+// cloning, validation, repair and fetching of one entry. Only the exact
+// entry name is ever read, so a crashed run's temporary sibling or lock file
+// is never mistaken for an entry.
 PkgCheckout :: (url: string, commit: string, offline: bool) -> string {
     if !PkgGitURL(url) || !PkgValidCommit(commit) { return "" }
-    destination: string = PkgJoin3(PkgCacheRoot(), "/sources/",
-        PkgSourceId(PkgSourceKey(url), commit))
-    if PathExists(destination) {
-        origin: [6]string
-        origin[0] = "git"
-        origin[1] = "-C"
-        origin[2] = destination
-        origin[3] = "config"
-        origin[4] = "--get-all"
-        origin[5] = "remote.origin.url"
-        actual: PkgProcessResult = PkgCapture(origin[:], "")
-        if actual.code != 0 || !PkgSameSource(actual.text, url) {
-            PkgDropCheckout(destination)
-            return ""
-        }
-        head: string = PkgGitHead(destination)
-        if (head == commit || !offline) && PkgCheckoutAt(destination, commit) {
-            return destination
-        }
-        // Only fetch into a validated, healthy cache. Existing objects repair
-        // missing payload offline; network access is needed only for an absent
-        // target commit. Never fetch into an arbitrary or modified checkout.
-        if !offline && head != commit && PkgCheckoutAt(destination, head) {
-            fetch: [5]string
-            fetch[0] = "git"
-            fetch[1] = "-C"
-            fetch[2] = destination
-            fetch[3] = "fetch"
-            fetch[4] = url
-            if PkgRemoteCapture(fetch[:], 4).code == 0 &&
-                PkgCheckoutAt(destination, commit) { return destination }
-        }
+    sources: string = PkgJoin(PkgCacheRoot(), "/sources")
+    id: string = PkgSourceId(PkgSourceKey(url), commit)
+    destination: string = PkgJoin3(sources, "/", id)
+    if !PathExists(destination) && (offline || !PkgMkdirs(sources)) { return "" }
+    // An unwritable cache cannot take the lock; it then cannot be modified
+    // either, and the non-replacing rename still keeps publication safe.
+    lock: FileHandle = PkgLockEntry(PkgJoin(destination, ".lock"))
+    path: string = ""
+    if PathExists(destination) { path = PkgUseEntry(destination, url, commit, offline) }
+    else if !offline { path = PkgPublishEntry(sources, id, destination, url, commit) }
+    PkgUnlockEntry(lock)
+    return path
+}
+
+// Validates a published entry and repairs or fetches it only when healthy.
+PkgUseEntry :: (destination: string, url: string, commit: string, offline: bool) -> string {
+    origin: [6]string
+    origin[0] = "git"
+    origin[1] = "-C"
+    origin[2] = destination
+    origin[3] = "config"
+    origin[4] = "--get-all"
+    origin[5] = "remote.origin.url"
+    actual: PkgProcessResult = PkgCapture(origin[:], "")
+    if actual.code != 0 || !PkgSameSource(actual.text, url) {
         PkgDropCheckout(destination)
         return ""
     }
-    if offline || !PkgMkdirs(PkgJoin(PkgCacheRoot(), "/sources")) { return "" }
+    head: string = PkgGitHead(destination)
+    if (head == commit || !offline) && PkgCheckoutAt(destination, commit) {
+        return destination
+    }
+    // Only fetch into a validated, healthy cache. Existing objects repair
+    // missing payload offline; network access is needed only for an absent
+    // target commit. Never fetch into an arbitrary or modified checkout.
+    if !offline && head != commit && PkgCheckoutAt(destination, head) {
+        fetch: [5]string
+        fetch[0] = "git"
+        fetch[1] = "-C"
+        fetch[2] = destination
+        fetch[3] = "fetch"
+        fetch[4] = url
+        if PkgRemoteCapture(fetch[:], 4).code == 0 &&
+            PkgCheckoutAt(destination, commit) { return destination }
+    }
+    PkgDropCheckout(destination)
+    return ""
+}
+
+// Clones into a private sibling, checks it out and publishes it. A failed
+// attempt removes only its own temporary directory. When another process
+// published first, its entry is validated like any existing one.
+PkgPublishEntry :: (sources: string, id: string, destination: string, url: string,
+    commit: string) -> string {
+    temporary: string = PkgTemporaryEntry(sources, id)
+    if temporary.count == 0 {
+        unused PkgFail(PkgJoin("cannot create a temporary package checkout in ", sources))
+        return ""
+    }
     args: [6]string
     args[0] = "git"
     args[1] = "clone"
     args[2] = "--quiet"
     args[3] = "--no-checkout"
     args[4] = url
-    args[5] = destination
-    if PkgRemoteCapture(args[:], 4).code != 0 {
-        PkgDropCheckout(destination)
+    args[5] = temporary
+    if PkgRemoteCapture(args[:], 4).code != 0 || !PkgCheckoutAt(temporary, commit) {
+        PkgRemoveTemporary(temporary)
+        unused PkgFail(PkgJoin3("cannot check out ", url, PkgJoin(" at ", commit)))
         return ""
     }
-    if !PkgCheckoutAt(destination, commit) {
-        PkgDropCheckout(destination)
+    if RenameNoReplace(temporary, destination) { return destination }
+    PkgRemoveTemporary(temporary)
+    if !PathExists(destination) {
+        unused PkgFail(PkgJoin("cannot publish package cache entry ", destination))
         return ""
     }
-    return destination
+    return PkgUseEntry(destination, url, commit, false)
 }
 
 PkgAppend :: (builder: *PkgBuilder, value: string) -> void {

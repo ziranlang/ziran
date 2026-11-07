@@ -12,9 +12,10 @@
  * reads it during the call: it compares, counts, indexes or slices it, or
  * hands it to a parameter that does the same, to print, BuilderAppend or
  * TextCopy. Reads also follow `ifx` arms, string locals that only read
- * it, a callee that hands it back when its result is only read, and a
- * record literal field passed to a callee whose by-value record parameter
- * only reads that field. Returning, storing, aliasing or passing it to a
+ * it, a callee that hands it back when its result is only read, and field
+ * paths: a record literal field, a record copied into a field of a record
+ * local, and a callee whose by-value record parameter only reads the
+ * string at that path. Returning, storing, aliasing or passing it to a
  * foreign or unknown callee keeps the old detached string. The rewrite only moves the
  * call when nothing evaluated before it in the statement can observe the
  * move: literals, locals, and globals when the moved call provably writes
@@ -44,7 +45,8 @@ typedef struct ScopeAnswer {
     unsigned char writes;
 } ScopeAnswer;
 
-/* Where record parameter PARAMETER's string field FIELD goes. */
+/* Where the string at field path FIELD, such as `data.value`, of record
+ * parameter PARAMETER goes. */
 typedef struct FieldAnswer {
     const ZirFunction *fn;
     int parameter;
@@ -62,9 +64,11 @@ typedef struct TextScope {
     /* Set while following a parameter: what flows is a borrowed view, so
      * `=` into a plain string local only rebinds that local. */
     int borrowed;
-    /* String locals being followed, so a local fed from itself, as in
-     * `v = v[1:]`, is not followed again. */
-    struct { const ZirFunction *fn; int s; } walking[16];
+    /* Locals being followed, so a local fed from itself, as in
+     * `v = v[1:]`, is not followed again: a string local declared by S
+     * with no PATH, or the string at PATH in a record local once S stored
+     * it there. */
+    struct { const ZirFunction *fn; int s; const char *path; } walking[16];
     int walking_count;
     int failed;
 } TextScope;
@@ -137,6 +141,13 @@ static int string_array_type(const char *type);
 static int string_local(const ZirFunction *fn, int place);
 static int local_flow(TextScope *scope, const ZirModule *module,
                       const ZirFunction *fn, const Parents *parents, int s);
+static int record_flow(TextScope *scope, const ZirModule *module,
+                       const ZirFunction *fn, const Parents *parents, int node,
+                       const char *path);
+static int local_record_flow(TextScope *scope, const ZirModule *module,
+                             const ZirFunction *fn, const Parents *parents,
+                             const char *name, int decl, int from,
+                             const char *path);
 
 static int pointer_type(const char *type);
 
@@ -167,8 +178,8 @@ reads_slot(const ZirModule *module, const char *type)
     return slot != NULL && slot->is_procedure_type && slot->reads_arguments ? slot : NULL;
 }
 
-/* Where argument ARGUMENT of call CALL goes, or with FIELD, that field of
- * a record argument. A callee that hands the string back passes it on to
+/* Where argument ARGUMENT of call CALL goes, or with FIELD, the string at
+ * that field path of a record argument. A callee that hands the string back passes it on to
  * wherever the call's result goes. */
 static int
 argument_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
@@ -235,7 +246,8 @@ value_flow(TextScope *scope, const ZirModule *module,
             if(local < 0)
                 return FLOW_RETAINED;
             for(int i = 0; i < scope->walking_count; i++)
-                if(scope->walking[i].fn == fn && scope->walking[i].s == local)
+                if(scope->walking[i].fn == fn && scope->walking[i].s == local &&
+                   scope->walking[i].path == NULL)
                     return FLOW_READ;
             return local_flow(scope, module, fn, parents, local);
         }
@@ -275,13 +287,11 @@ value_flow(TextScope *scope, const ZirModule *module,
                 return FLOW_RETAINED;
             return local_flow(scope, module, fn, parents, s);
         }
-        /* A field of a record literal handed straight to a call. */
+        /* A field of a record literal goes where that field of the
+         * record goes. */
         if(!e->name || !*e->name)
             return FLOW_RETAINED;
-        int call = parents->of[record];
-        if(call < 0 || fn->exprs[call].kind != ZIR_EXPR_CALL)
-            return FLOW_RETAINED;
-        return argument_flow(scope, module, fn, parents, call, record, e->name);
+        return record_flow(scope, module, fn, parents, record, e->name);
     }
     default:
         return FLOW_RETAINED;
@@ -363,8 +373,8 @@ flow_state(TextScope *scope, const ZirFunction *fn, int parameter,
 }
 
 /* Where FN's string parameter PARAMETER goes during the call, or with
- * FIELD, that string field of a record parameter passed by value. A
- * recursive query answers retained. */
+ * FIELD, the string at that field path, such as `data.value`, of a record
+ * parameter passed by value. A recursive query answers retained. */
 static int
 parameter_flow(TextScope *scope, const ZirModule *module,
                const ZirFunction *fn, int parameter, const char *field)
@@ -402,24 +412,15 @@ parameter_flow(TextScope *scope, const ZirModule *module,
             scope->failed = 1;
             result = FLOW_RETAINED;
         }
-        for(int x = 0; result && x < fn->expr_count; x++) {
+        /* A record parameter is a local copy holding the field from entry. */
+        if(result && field != NULL)
+            result = local_record_flow(scope, module, fn, &parents, name, -1, -1, field);
+        for(int x = 0; result && field == NULL && x < fn->expr_count; x++) {
             const ZirExpr *e = &fn->exprs[x];
             if(e->kind != ZIR_EXPR_IDENT || e->is_this || !e->name ||
                strcmp(e->name, name) || parents.of[x] == -1)
                 continue;
-            int up = parents.of[x];
-            if(field == NULL)
-                result = combine(result, value_flow(scope, module, fn, &parents, x));
-            else if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_MEMBER &&
-                    fn->exprs[up].left == x)
-                /* Other fields are not this string. */
-                result = strcmp(fn->exprs[up].name, field) ? result :
-                    combine(result, value_flow(scope, module, fn, &parents, up));
-            else if(up >= 0 && fn->exprs[up].kind == ZIR_EXPR_CALL)
-                result = combine(result, argument_flow(scope, module, fn, &parents,
-                                                       up, x, field));
-            else
-                result = FLOW_RETAINED;
+            result = combine(result, value_flow(scope, module, fn, &parents, x));
         }
         free(parents.of);
     }
@@ -823,6 +824,30 @@ scope_text(ZirFunction *fn, int view_node, int call, int s, int *serial)
     ZirExpr *lent = &fn->exprs[view_node];
     lent->name = KeepName("TextView");
     lent->first_child = view;
+    /* Record literal fields holding the view now hold a checked string,
+     * typed as checking `.field = TextView(local)` types them, so checking
+     * saved IR again, where a `:=` declaration types its literal's fields,
+     * finds the same. */
+    for(int node = view_node, found = 1; found;) {
+        found = 0;
+        for(int x = 0; x < fn->expr_count && !found; x++) {
+            ZirExpr *field = &fn->exprs[x];
+            if(field->kind != ZIR_EXPR_FIELD_INIT || field->right != node)
+                continue;
+            if(field->type == NULL || !*field->type)
+                field->type = fn->exprs[node].type;
+            for(int r = 0; r < fn->expr_count && !found; r++) {
+                if(fn->exprs[r].kind != ZIR_EXPR_COMPOUND)
+                    continue;
+                for(int child = fn->exprs[r].first_child; child >= 0 && !found;
+                    child = fn->exprs[child].next_sibling)
+                    if(child == x) {
+                        node = r;
+                        found = 1;
+                    }
+            }
+        }
+    }
     return 1;
 }
 
@@ -1131,6 +1156,7 @@ local_flow(TextScope *scope, const ZirModule *module,
     int walking = scope->walking_count++;
     scope->walking[walking].fn = fn;
     scope->walking[walking].s = s;
+    scope->walking[walking].path = NULL;
     int result = FLOW_READ;
     for(int x = 0; result && x < fn->expr_count; x++) {
         const ZirExpr *e = &fn->exprs[x];
@@ -1184,6 +1210,282 @@ string_local(const ZirFunction *fn, int place)
         found = s;
     }
     return found;
+}
+
+/* The statement opening the innermost block that holds statement S, or -1
+ * at function level, counted as block_end counts them. */
+static int
+enclosing_block(const ZirFunction *fn, int s)
+{
+    int depth = 0;
+    for(int t = s - 1; t >= 0; t--) {
+        ZirStmtKind kind = fn->stmts[t].kind;
+        if(kind == ZIR_STMT_BLOCK_CLOSE) {
+            depth++;
+        } else if(kind == ZIR_STMT_BLOCK_OPEN || kind == ZIR_STMT_IF ||
+                  kind == ZIR_STMT_WHILE || kind == ZIR_STMT_FOR) {
+            if(depth == 0)
+                return t;
+            depth--;
+        }
+    }
+    return -1;
+}
+
+/* Whether NAME is a record local of FN: a record declared once, not
+ * through `using` and not as a pointer, whose declaration goes in DECL, or
+ * a record parameter passed by value that no declaration shadows, with
+ * DECL -1. */
+static int
+record_local(const ZirFunction *fn, const char *name, int *decl)
+{
+    *decl = -1;
+    for(int s = 0; s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->kind != ZIR_STMT_DECL || st->name == NULL || strcmp(st->name, name))
+            continue;
+        if(*decl >= 0 || st->is_using || st->lhs_root >= 0 || st->type == NULL ||
+           !*skip_ws(st->type) || !strcmp(skip_ws(st->type), "string") ||
+           pointer_type(st->type))
+            return 0;
+        *decl = s;
+    }
+    if(*decl >= 0)
+        return 1;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int p = 0; p < parameters->count; p++) {
+        const ZirParameter *item = &parameters->items[p];
+        const char *bound = item->binding_name ? item->binding_name : item->name;
+        const char *type = item->value_type ? item->value_type : item->type;
+        if(bound == NULL || strcmp(bound, name))
+            continue;
+        type = type ? skip_ws(type) : "";
+        return !item->is_using && *type && strcmp(type, "string") && !pointer_type(type);
+    }
+    return 0;
+}
+
+/* Whether PLACE is record local NAME, or a field path of it that holds the
+ * string at PATH, so `=` into PLACE replaces that string. */
+static int
+place_holds(const ZirFunction *fn, int place, const char *name, const char *path)
+{
+    const char *fields[16];
+    int count = 0;
+    while(place >= 0 && fn->exprs[place].kind == ZIR_EXPR_MEMBER) {
+        if(count == 16 || fn->exprs[place].name == NULL)
+            return 0;
+        fields[count++] = fn->exprs[place].name;
+        place = fn->exprs[place].left;
+    }
+    if(place < 0 || fn->exprs[place].kind != ZIR_EXPR_IDENT ||
+       fn->exprs[place].is_global_value || fn->exprs[place].is_this ||
+       fn->exprs[place].name == NULL || strcmp(fn->exprs[place].name, name))
+        return 0;
+    while(count > 0) {
+        const char *field = fields[--count];
+        size_t n = strcspn(path, ".");
+        if(strlen(field) != n || strncmp(field, path, n))
+            return 0;
+        if(!path[n])
+            return count == 0;
+        path += n + 1;
+    }
+    return 1;
+}
+
+/* The first statement after FROM and before END, in FROM's own block, that
+ * replaces the string at PATH in record local NAME with `=`, or -1. Every
+ * way on from FROM runs it unless a break or continue jumps past it. */
+static int
+replacing_statement(const ZirFunction *fn, const char *name, int from, int end,
+                    const char *path)
+{
+    int block = from >= 0 ? enclosing_block(fn, from) : -1;
+    for(int t = from + 1; t < end; t++) {
+        const ZirStmt *st = &fn->stmts[t];
+        if(st->kind == ZIR_STMT_BREAK || st->kind == ZIR_STMT_CONTINUE)
+            return -1;
+        if(st->kind == ZIR_STMT_ASSIGN && !strcmp(st->assignment_op, "=") &&
+           place_holds(fn, st->lhs_root, name, path) && enclosing_block(fn, t) == block)
+            return t;
+    }
+    return -1;
+}
+
+/* Where the string at field path PATH, such as `command.value`, of record
+ * local NAME goes once statement FROM has stored it there. DECL declares
+ * the local, or is -1 for a record parameter, which holds its fields from
+ * entry and whose block is the whole function. Uses after FROM inside the
+ * local's block are followed, and the ones before it too when a loop
+ * around FROM inside that block runs them again. A use of another field
+ * reads no part of the string. A later `=` into the path, or into a
+ * record on it, in FROM's own block replaces the string, so the uses after
+ * it are not followed. A defer may run anywhere in its block, so with one
+ * in the local's block, every use there is followed and nothing replaces
+ * the string. */
+static int
+local_record_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+                  const Parents *parents, const char *name, int decl, int from,
+                  const char *path)
+{
+    for(int i = 0; i < scope->walking_count; i++)
+        if(scope->walking[i].fn == fn && scope->walking[i].s == from &&
+           scope->walking[i].path != NULL && !strcmp(scope->walking[i].path, path))
+            return FLOW_READ;
+    if(scope->walking_count == (int)(sizeof(scope->walking) / sizeof(scope->walking[0])))
+        return FLOW_RETAINED;
+    int end = decl < 0 ? fn->stmt_count : block_end(fn, decl);
+    int deferred = 0;
+    for(int t = decl + 1; t < end && !deferred; t++)
+        deferred = fn->stmts[t].kind == ZIR_STMT_DEFER;
+    int first = from + 1, last = end - 1;
+    int replaced = deferred ? -1 : replacing_statement(fn, name, from, end, path);
+    if(deferred)
+        first = decl + 1;
+    else if(replaced >= 0)
+        last = replaced;
+    else if(from >= 0)
+        for(int b = enclosing_block(fn, from); b > decl; b = enclosing_block(fn, b))
+            if(fn->stmts[b].kind == ZIR_STMT_WHILE || fn->stmts[b].kind == ZIR_STMT_FOR)
+                first = b;
+    int walking = scope->walking_count++;
+    scope->walking[walking].fn = fn;
+    scope->walking[walking].s = from;
+    scope->walking[walking].path = path;
+    int result = FLOW_READ;
+    for(int x = 0; result && x < fn->expr_count; x++) {
+        const ZirExpr *e = &fn->exprs[x];
+        if(e->kind != ZIR_EXPR_IDENT || e->is_this || e->is_function_value ||
+           e->is_global_value || e->name == NULL || strcmp(e->name, name) ||
+           parents->of[x] == -1)
+            continue;
+        int at = statement_of(parents, x);
+        if(at < first || at > last)
+            continue;
+        /* Follow the field path as far as this use names it. */
+        int node = x, other = 0;
+        const char *rest = path;
+        while(*rest) {
+            int up = parents->of[node];
+            if(up < 0 || fn->exprs[up].kind != ZIR_EXPR_MEMBER || fn->exprs[up].left != node)
+                break;
+            size_t n = strcspn(rest, ".");
+            const char *field = fn->exprs[up].name;
+            if(field == NULL || strlen(field) != n || strncmp(field, rest, n)) {
+                other = 1;
+                break;
+            }
+            node = up;
+            rest += rest[n] ? n + 1 : n;
+        }
+        if(other)
+            continue;
+        int up = parents->of[node];
+        if(up < -1 && fn->stmts[-2 - up].lhs_root == node) {
+            /* `=` replaces the string and reads none of it. */
+            const ZirStmt *st = &fn->stmts[-2 - up];
+            if(st->kind != ZIR_STMT_ASSIGN || strcmp(st->assignment_op, "="))
+                result = FLOW_RETAINED;
+            continue;
+        }
+        result = combine(result, *rest ?
+                         record_flow(scope, module, fn, parents, node, rest) :
+                         value_flow(scope, module, fn, parents, node));
+    }
+    scope->walking_count = walking;
+    return result;
+}
+
+/* Where the string at PATH inside the record that statement S assigns
+ * goes: S's place is a record local, or a field path of one reached
+ * without following a pointer, and the string goes where that path of
+ * the local goes after S. */
+static int
+stored_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+            const Parents *parents, int s, const char *path)
+{
+    char full[ZIR_NAME_MAX], joined[ZIR_NAME_MAX];
+    if(snprintf(full, sizeof(full), "%s", path) >= (int)sizeof(full))
+        return FLOW_RETAINED;
+    int place = fn->stmts[s].lhs_root;
+    while(place >= 0 && fn->exprs[place].kind == ZIR_EXPR_MEMBER) {
+        int left = fn->exprs[place].left;
+        if(left < 0 || fn->exprs[place].name == NULL || pointer_type(fn->exprs[left].type) ||
+           snprintf(joined, sizeof(joined), "%s.%s", fn->exprs[place].name, full) >=
+               (int)sizeof(joined))
+            return FLOW_RETAINED;
+        memcpy(full, joined, sizeof(full));
+        place = left;
+    }
+    const ZirExpr *root = place >= 0 ? &fn->exprs[place] : NULL;
+    int decl;
+    if(root == NULL || root->kind != ZIR_EXPR_IDENT || root->is_global_value ||
+       root->is_this || root->name == NULL || !record_local(fn, root->name, &decl) ||
+       (decl >= 0 && (s <= decl || s >= block_end(fn, decl))))
+        return FLOW_RETAINED;
+    return local_record_flow(scope, module, fn, parents, root->name, decl, s,
+                             KeepName(full));
+}
+
+/* Where the string at field path PATH inside the record value NODE goes.
+ * Reading another field of NODE reads none of it. The path is followed
+ * through record literal fields, `ifx` arms, call arguments and record
+ * locals that take the record. */
+static int
+record_flow(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+            const Parents *parents, int node, const char *path)
+{
+    int parent = parents->of[node];
+    if(parent < -1) {
+        int s = -2 - parent;
+        const ZirStmt *st = &fn->stmts[s];
+        int decl;
+        if(st->expr_root != node)
+            return FLOW_RETAINED;
+        if(st->kind == ZIR_STMT_EXPR || st->kind == ZIR_STMT_UNUSED)
+            return FLOW_READ;
+        /* A record local declared from it, as in `request := Request.{...}`. */
+        if(st->kind == ZIR_STMT_DECL && st->name != NULL &&
+           record_local(fn, st->name, &decl) && decl == s)
+            return local_record_flow(scope, module, fn, parents, st->name, s, s, path);
+        /* Stored into a record local declared outside the statement's
+         * block, as in `wrapped.data = command`, only while a parameter is
+         * followed: a fresh Text is freed when that block closes. */
+        if(scope->borrowed && st->kind == ZIR_STMT_ASSIGN &&
+           !strcmp(st->assignment_op, "="))
+            return stored_flow(scope, module, fn, parents, s, path);
+        return FLOW_RETAINED;
+    }
+    if(parent < 0)
+        return FLOW_RETAINED;
+    const ZirExpr *e = &fn->exprs[parent];
+    switch(e->kind) {
+    case ZIR_EXPR_MEMBER: {
+        if(e->left != node || e->name == NULL || pointer_type(fn->exprs[node].type))
+            return FLOW_RETAINED;
+        size_t n = strcspn(path, ".");
+        if(strlen(e->name) != n || strncmp(e->name, path, n))
+            return FLOW_READ;
+        return path[n] ? record_flow(scope, module, fn, parents, parent, path + n + 1) :
+            value_flow(scope, module, fn, parents, parent);
+    }
+    case ZIR_EXPR_CALL:
+        return argument_flow(scope, module, fn, parents, parent, node, path);
+    case ZIR_EXPR_CONDITIONAL:
+        return e->right == node || e->third == node ?
+            record_flow(scope, module, fn, parents, parent, path) : FLOW_RETAINED;
+    case ZIR_EXPR_FIELD_INIT: {
+        int record = parents->of[parent];
+        if(e->right != node || e->name == NULL || !*e->name || record < 0 ||
+           fn->exprs[record].kind != ZIR_EXPR_COMPOUND)
+            return FLOW_RETAINED;
+        return record_flow(scope, module, fn, parents, record,
+                           KeepNameFormat("%s.%s", e->name, path));
+    }
+    default:
+        return FLOW_RETAINED;
+    }
 }
 
 static int
@@ -1322,8 +1624,49 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
     }
 }
 
+/* Whether FN only reads each string field of RECORD, a record parameter P
+ * passed by value or a record it holds by value at field path PREFIX, such
+ * as `wrapped.data`. Otherwise writes the field's path into KEPT. */
+static int
+fields_read_only(TextScope *scope, const ZirModule *owner, const ZirFunction *fn,
+                 int p, const ZirModule *types, const ZirType *record,
+                 const char *prefix, char *kept, size_t size, int depth)
+{
+    if(record->is_enum || record->is_procedure_type || record->is_extern ||
+       record->is_record_template || depth > 8)
+        return 1;
+    size_t offset = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &offset, &field) == 1) {
+        const char *type = skip_ws(field.type);
+        char at[ZIR_NAME_MAX];
+        if(snprintf(at, sizeof(at), "%s.%s", prefix, field.name) >= (int)sizeof(at)) {
+            snprintf(kept, size, "%s", prefix);
+            return 0;
+        }
+        if(!strcmp(type, "string")) {
+            if(p >= 64 || fn->is_extern || fn->is_template ||
+               parameter_flow(scope, owner, fn, p, KeepName(strchr(at, '.') + 1)) !=
+                   FLOW_READ) {
+                snprintf(kept, size, "%s", at);
+                return 0;
+            }
+            continue;
+        }
+        const ZirModule *inner_types = NULL;
+        const ZirType *inner = pointer_type(type) ? NULL :
+            FindType(types, type, &inner_types);
+        if(inner != NULL &&
+           !fields_read_only(scope, owner, fn, p, inner_types ? inner_types : types,
+                             inner, at, kept, size, depth + 1))
+            return 0;
+    }
+    return 1;
+}
+
 /* Which string a procedure FN may keep: a string parameter, or a string
- * field of a record parameter passed by value, that it does not only read.
+ * field of a record parameter passed by value, or of a record it holds by
+ * value, that it does not only read.
  * Writes the name into KEPT and answers 0, or answers 1 when it keeps none. */
 static int
 reads_only(TextScope *scope, const ZirModule *owner, const ZirFunction *fn,
@@ -1347,21 +1690,11 @@ reads_only(TextScope *scope, const ZirModule *owner, const ZirFunction *fn,
             }
             continue;
         }
-        if(pointer_type(type) || (record = FindType(owner, type, &record_owner)) == NULL ||
-           record->is_enum || record->is_procedure_type || record->is_extern ||
-           record->is_record_template)
+        if(pointer_type(type) || (record = FindType(owner, type, &record_owner)) == NULL)
             continue;
-        size_t offset = 0;
-        ZirTypeField field;
-        while(TypeNextField(record, &offset, &field) == 1) {
-            if(strcmp(skip_ws(field.type), "string"))
-                continue;
-            if(p >= 64 || fn->is_extern || fn->is_template ||
-               parameter_flow(scope, owner, fn, p, KeepName(field.name)) != FLOW_READ) {
-                snprintf(kept, size, "%s.%s", name, field.name);
-                return 0;
-            }
-        }
+        if(!fields_read_only(scope, owner, fn, p, record_owner ? record_owner : owner,
+                             record, name, kept, size, 0))
+            return 0;
     }
     return 1;
 }

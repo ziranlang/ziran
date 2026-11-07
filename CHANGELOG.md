@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `#reads` follows strings through field paths: a record parameter copied into
+  a local record's field is followed to its later uses, a later `=` into the
+  field replaces the string, and nested record fields are checked. Fresh Text
+  in a `:=` record local that is only read is freed with its block.
 - A local override whose own manifest gained, lost or changed dependencies
   since `ziran.lock` builds locally: its graph is resolved from the working
   manifests in memory, and the lock is left for `ziran lock`. Packages without

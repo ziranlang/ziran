@@ -1126,10 +1126,17 @@ SelectionPainter :: #type (x: s32, props: TextProps, label: string) -> s32 #read
 
 Each procedure stored in the type, as a slot's value, a record field, an
 argument or a global's initializer, must only read its string parameters
-and the string fields of its record parameters; one that keeps one is an
-error naming that parameter. Text passed through a value of the type is
-then freed like Text passed straight to such a procedure.
-`tests/text_procedure_type_reads.sh` checks it.
+and the string fields of its record parameters, including fields of records
+they hold by value; one that keeps one is an error naming that parameter or
+field path, such as `wrapped.data.value`. A record copied into a field of a
+local record, as in `kept.command = command`, is followed to that local's
+later uses, and `=` into the field path, or a record on it, later in the
+same block replaces the string, so storing the record afterwards keeps
+nothing. A pointer to the record, or a store before the replacement or
+past it in a loop, keeps the string. Text passed through a value of the
+type is then freed like Text passed straight to such a procedure.
+`tests/text_procedure_type_reads.sh` and `tests/text_reads_field_paths.sh`
+check it.
 
 The standard text producers return `Text`: `TextReplace`, `TextJoin`, `TextLower`, `TextHex`, `Float64Repr`, `JsonWrite`, `JsonString`, `JsonKey`, `JsonQuote`, `JsonNumberText`, `JoinPath`, `ResolvePath`, `WorkingDirectory`, `CreateTemporaryDirectory`, `CopyText`, `ReadStandardInput`, `DecodeReplace`, `Lower`, `CaseFold`, `Capitalize` and `Transform`. Existing callers keep
 getting a `string`; `json: Text = JsonWrite(...)` frees the text with `json`.

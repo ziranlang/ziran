@@ -941,10 +941,17 @@ with <code>#reads</code> after its result:</p>
 </code></pre>
 <p>Each procedure stored in the type, as a slot's value, a record field, an
 argument or a global's initializer, must only read its string parameters
-and the string fields of its record parameters; one that keeps one is an
-error naming that parameter. Text passed through a value of the type is
-then freed like Text passed straight to such a procedure.
-<code>tests/text_procedure_type_reads.sh</code> checks it.</p>
+and the string fields of its record parameters, including fields of records
+they hold by value; one that keeps one is an error naming that parameter or
+field path, such as <code>wrapped.data.value</code>. A record copied into a field of a
+local record, as in <code>kept.command = command</code>, is followed to that local's
+later uses, and <code>=</code> into the field path, or a record on it, later in the
+same block replaces the string, so storing the record afterwards keeps
+nothing. A pointer to the record, or a store before the replacement or
+past it in a loop, keeps the string. Text passed through a value of the
+type is then freed like Text passed straight to such a procedure.
+<code>tests/text_procedure_type_reads.sh</code> and <code>tests/text_reads_field_paths.sh</code>
+check it.</p>
 <p>The standard text producers return <code>Text</code>: <code>TextReplace</code>, <code>TextJoin</code>, <code>TextLower</code>, <code>TextHex</code>, <code>Float64Repr</code>, <code>JsonWrite</code>, <code>JsonString</code>, <code>JsonKey</code>, <code>JsonQuote</code>, <code>JsonNumberText</code>, <code>JoinPath</code>, <code>ResolvePath</code>, <code>WorkingDirectory</code>, <code>CreateTemporaryDirectory</code>, <code>CopyText</code>, <code>ReadStandardInput</code>, <code>DecodeReplace</code>, <code>Lower</code>, <code>CaseFold</code>, <code>Capitalize</code> and <code>Transform</code>. Existing callers keep
 getting a <code>string</code>; <code>json: Text = JsonWrite(...)</code> frees the text with <code>json</code>.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:

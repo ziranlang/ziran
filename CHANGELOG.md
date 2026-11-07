@@ -41,6 +41,9 @@
   1080p AV1 decode takes 503 ms, from 697 ms.
 - In C, locals, parameters and globals whose names begin with two
   underscores, which C reserves, are renamed as keywords are.
+- Under TinyCC and unoptimized C builds, checked division, shifts and index
+  reads are right when an operand is named like one of their temporaries,
+  such as `zi__a`.
 - zi2c writes the C for large programs far faster: it works out how each
   module's header includes its imports once, so Breeze's 921 modules lower in
   under a second instead of over two minutes, with the same output.

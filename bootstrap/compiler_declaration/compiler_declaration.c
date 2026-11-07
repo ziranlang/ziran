@@ -7,7 +7,7 @@
 #ifndef ZIRAN_HELPER_ZiShl64
 #define ZIRAN_HELPER_ZiShl64
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
-#define ZiShl64(a, s, w) __extension__ ({ uint64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); (uint64_t)(zi__a << zi__s); })
+#define ZiShl64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint64_t)(__zi_a << __zi_s); })
 #else
 static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {
     if(s >= (uint64_t)w) abort();

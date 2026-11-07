@@ -30,10 +30,10 @@ static inline size_t BoundsCheck(size_t length, uint64_t index,
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
 #undef ZIRAN_INDEX
 #define ZIRAN_INDEX(base, length, index) \
-    ((base)[__extension__ ({ uint64_t zi__index = (uint64_t)(index); \
-        if(zi__index >= (uint64_t)(size_t)(length)) \
-            BoundsCheck((size_t)(length), zi__index, #base); \
-        (size_t)zi__index; })])
+    ((base)[__extension__ ({ uint64_t __zi_index = (uint64_t)(index); \
+        if(__zi_index >= (uint64_t)(size_t)(length)) \
+            BoundsCheck((size_t)(length), __zi_index, #base); \
+        (size_t)__zi_index; })])
 #endif
 
 /* A zero-capacity array has no valid index in any build configuration. */

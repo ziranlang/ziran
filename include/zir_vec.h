@@ -21,10 +21,10 @@ ZirVecIndex(int64_t count, int64_t index)
     ((data)[ZirVecIndex((int64_t)(count), (int64_t)(index))])
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
 #define ZirVecIndex(count, index) __extension__ ({ \
-        int64_t zi__vec_count = (count), zi__vec_index = (index); \
-        if((uint64_t)zi__vec_index >= (uint64_t)zi__vec_count) \
-            (ZirVecIndex)(zi__vec_count, zi__vec_index); \
-        (size_t)zi__vec_index; })
+        int64_t __zi_vec_count = (count), __zi_vec_index = (index); \
+        if((uint64_t)__zi_vec_index >= (uint64_t)__zi_vec_count) \
+            (ZirVecIndex)(__zi_vec_count, __zi_vec_index); \
+        (size_t)__zi_vec_index; })
 #endif
 
 /* Reserve room for `additional` more elements (at least one). A failed

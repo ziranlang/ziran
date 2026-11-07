@@ -24,10 +24,10 @@ SliceIndex(Slice source, int64_t index)
 }
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
 #define SliceIndex(source, index) __extension__ ({ \
-        int64_t zi__slice_index = (index); \
-        if((uint64_t)zi__slice_index >= (uint64_t)(source).length) \
-            (SliceIndex)((source), zi__slice_index); \
-        zi__slice_index; })
+        int64_t __zi_slice_index = (index); \
+        if((uint64_t)__zi_slice_index >= (uint64_t)(source).length) \
+            (SliceIndex)((source), __zi_slice_index); \
+        __zi_slice_index; })
 #endif
 
 static inline Slice

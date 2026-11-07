@@ -1748,7 +1748,7 @@ static const struct {
      * macro that checks in place instead of a call. */
     {"ZiDivS32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiDivS32(a, b, min) __extension__ ({ int32_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? (zi__a == (min) ? zi__a : -zi__a) : zi__a / zi__b; })\n"
+     "#define ZiDivS32(a, b, min) __extension__ ({ int32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline int32_t ZiDivS32(int32_t a, int32_t b, int32_t min) {\n"
      "    if(!b) abort();\n"
@@ -1758,7 +1758,7 @@ static const struct {
      "#endif\n"},
     {"ZiRemS32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiRemS32(a, b) __extension__ ({ int32_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? 0 : zi__a % zi__b; })\n"
+     "#define ZiRemS32(a, b) __extension__ ({ int32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline int32_t ZiRemS32(int32_t a, int32_t b) {\n"
      "    if(!b) abort();\n"
@@ -1767,7 +1767,7 @@ static const struct {
      "#endif\n"},
     {"ZiDivU32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiDivU32(a, b) __extension__ ({ uint32_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__a / zi__b; })\n"
+     "#define ZiDivU32(a, b) __extension__ ({ uint32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline uint32_t ZiDivU32(uint32_t a, uint32_t b) {\n"
      "    if(!b) abort();\n"
@@ -1776,7 +1776,7 @@ static const struct {
      "#endif\n"},
     {"ZiRemU32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiRemU32(a, b) __extension__ ({ uint32_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__a % zi__b; })\n"
+     "#define ZiRemU32(a, b) __extension__ ({ uint32_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline uint32_t ZiRemU32(uint32_t a, uint32_t b) {\n"
      "    if(!b) abort();\n"
@@ -1785,7 +1785,7 @@ static const struct {
      "#endif\n"},
     {"ZiShl32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShl32(a, s, w) __extension__ ({ uint32_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); (uint32_t)(zi__a << zi__s); })\n"
+     "#define ZiShl32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint32_t)(__zi_a << __zi_s); })\n"
      "#else\n"
      "static inline uint32_t ZiShl32(uint32_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"
@@ -1794,7 +1794,7 @@ static const struct {
      "#endif\n"},
     {"ZiShrU32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShrU32(a, s, w) __extension__ ({ uint32_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); zi__a >> zi__s; })\n"
+     "#define ZiShrU32(a, s, w) __extension__ ({ uint32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline uint32_t ZiShrU32(uint32_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"
@@ -1803,7 +1803,7 @@ static const struct {
      "#endif\n"},
     {"ZiShrS32",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShrS32(a, s, w) __extension__ ({ int32_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); zi__a < 0 ? ~(~zi__a >> zi__s) : zi__a >> zi__s; })\n"
+     "#define ZiShrS32(a, s, w) __extension__ ({ int32_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a < 0 ? ~(~__zi_a >> __zi_s) : __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline int32_t ZiShrS32(int32_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"
@@ -1812,7 +1812,7 @@ static const struct {
      "#endif\n"},
     {"ZiDivS64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiDivS64(a, b, min) __extension__ ({ int64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? (zi__a == (min) ? zi__a : -zi__a) : zi__a / zi__b; })\n"
+     "#define ZiDivS64(a, b, min) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {\n"
      "    if(!b) abort();\n"
@@ -1822,7 +1822,7 @@ static const struct {
      "#endif\n"},
     {"ZiRemS64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiRemS64(a, b) __extension__ ({ int64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__b == -1 ? 0 : zi__a % zi__b; })\n"
+     "#define ZiRemS64(a, b) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? 0 : __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline int64_t ZiRemS64(int64_t a, int64_t b) {\n"
      "    if(!b) abort();\n"
@@ -1831,7 +1831,7 @@ static const struct {
      "#endif\n"},
     {"ZiDivU64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiDivU64(a, b) __extension__ ({ uint64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__a / zi__b; })\n"
+     "#define ZiDivU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })\n"
      "#else\n"
      "static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {\n"
      "    if(!b) abort();\n"
@@ -1840,7 +1840,7 @@ static const struct {
      "#endif\n"},
     {"ZiRemU64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiRemU64(a, b) __extension__ ({ uint64_t zi__a = (a), zi__b = (b); if(!zi__b) abort(); zi__a % zi__b; })\n"
+     "#define ZiRemU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a % __zi_b; })\n"
      "#else\n"
      "static inline uint64_t ZiRemU64(uint64_t a, uint64_t b) {\n"
      "    if(!b) abort();\n"
@@ -1849,7 +1849,7 @@ static const struct {
      "#endif\n"},
     {"ZiShl64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShl64(a, s, w) __extension__ ({ uint64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); (uint64_t)(zi__a << zi__s); })\n"
+     "#define ZiShl64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); (uint64_t)(__zi_a << __zi_s); })\n"
      "#else\n"
      "static inline uint64_t ZiShl64(uint64_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"
@@ -1858,7 +1858,7 @@ static const struct {
      "#endif\n"},
     {"ZiShrU64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShrU64(a, s, w) __extension__ ({ uint64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); zi__a >> zi__s; })\n"
+     "#define ZiShrU64(a, s, w) __extension__ ({ uint64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline uint64_t ZiShrU64(uint64_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"
@@ -1867,7 +1867,7 @@ static const struct {
      "#endif\n"},
     {"ZiShrS64",
      "#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))\n"
-     "#define ZiShrS64(a, s, w) __extension__ ({ int64_t zi__a = (a); uint64_t zi__s = (s); if(zi__s >= (uint64_t)(w)) abort(); zi__a < 0 ? ~(~zi__a >> zi__s) : zi__a >> zi__s; })\n"
+     "#define ZiShrS64(a, s, w) __extension__ ({ int64_t __zi_a = (a); uint64_t __zi_s = (s); if(__zi_s >= (uint64_t)(w)) abort(); __zi_a < 0 ? ~(~__zi_a >> __zi_s) : __zi_a >> __zi_s; })\n"
      "#else\n"
      "static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {\n"
      "    if(s >= (uint64_t)w) abort();\n"

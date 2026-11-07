@@ -1369,7 +1369,9 @@ best one the CPU runs, chosen once, so one SSE2 build uses AVX2 where it can.
 <code>ZIRAN_SIMD_TIER=1</code> (SSE2) to <code>4</code> (AVX2) in the environment lowers the
 choice for testing, and <code>#asm</code> variants needing a vector feature beyond that
 tier, such as <code>x86_64+avx2</code> under <code>ZIRAN_SIMD_TIER=3</code>, are passed over. Builds that already enable AVX2, and other targets,
-compile the procedure once. A <code>#target</code> procedure cannot take or return a
+compile the procedure once. Each copy calls its own tier's copy of every
+<code>#inline</code> procedure of the module that uses <code>std/simd</code>, directly or through
+another, so SIMD helpers run with the caller's instructions. A <code>#target</code> procedure cannot take or return a
 256-bit vector by value, or pass one to another procedure, because AVX2 code
 passes those in different registers; use an array or a pointer. It cannot be
 <code>#inline</code> or hold <code>#asm</code> variants. Run <code>sh tests/simd.sh build/bin/ziran</code>

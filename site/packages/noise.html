@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Gradient noise for Ziran, ported from FastNoiseLite and written entirely in Ziran."><title>noise · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/noise"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>noise</h1><p>Gradient noise for Ziran, ported from FastNoiseLite and written entirely in Ziran. Results follow FastNoiseLite's C float32 implementation, so seeds used with FastNoiseLite produce the same values.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/noise">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-fast_noise">fast_noise</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.noise]
+git = "https://github.com/ziranlang/noise.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><pre><code class="language-zi">FastNoise :: #import &quot;noise/fast_noise&quot;;
+
+state := FastNoise.NoiseCreate()
+state.seed = 1337
+state.noise_type = FastNoise.NoiseType.OpenSimplex2S
+state.fractal_type = FastNoise.FractalType.FBm
+state.octaves = 3
+height := FastNoise.Noise2D(*state, x, z)
+density := FastNoise.Noise3D(*state, x, y, z)
+</code></pre>
+<ul>
+<li>Noise types: <code>OpenSimplex2</code>, <code>OpenSimplex2S</code>, <code>Perlin</code>, <code>ValueCubic</code>, <code>Value</code></li>
+<li>Fractals: <code>None</code>, <code>FBm</code>, <code>Ridged</code>, <code>PingPong</code> (<code>octaves</code>, <code>lacunarity</code>,
+  <code>gain</code>, <code>weighted_strength</code>, <code>ping_pong_strength</code>)</li>
+<li>3D rotation: <code>None</code>, <code>ImproveXYPlanes</code>, <code>ImproveXZPlanes</code></li>
+</ul>
+<p><code>NoiseCreate()</code> returns FastNoiseLite's defaults. <code>Noise2D</code> and <code>Noise3D</code> only
+read the state, so one state can be shared between threads.</p>
+<p><code>make test</code> compares 2112 values captured from FastNoiseLite C.</p>
+<p>License: MIT, including the FastNoiseLite notice (see <code>LICENSE</code>).</p></section>
+<section id="module-fast_noise"><p class="eyebrow">noise/src/fast_noise.zi</p><h2>fast_noise</h2><p>FastNoiseLite gradient noise in pure Ziran: OpenSimplex2, OpenSimplex2S, Perlin, ValueCubic and Value, with FBm, Ridged and PingPong fractals. Ported from FastNoiseLite 1.1 (MIT, Copyright (c) 2023 Jordan Peck and contributors, see LICENSE). Every call reads the state only, so one state can be shared between threads. Results follow the C float32 implementation.</p><p>Import with <code>#import "noise/fast_noise"</code>.</p><div class="api-list">
+<div><code>NoiseType :: enum { OpenSimplex2 = 0; OpenSimplex2S = 1; Perlin = 2; ValueCubic = 3; Value = 4; }</code></div>
+<div><code>FractalType :: enum { None = 0; FBm = 1; Ridged = 2; PingPong = 3; }</code></div>
+<div><code>RotationType3D :: enum { None = 0; ImproveXYPlanes = 1; ImproveXZPlanes = 2; }</code></div>
+<div><code>NoiseState :: struct { seed: s32; frequency: float32; noise_type: NoiseType; rotation_type_3d: RotationType3D; fractal_type: FractalType; octaves: s32; lacunarity: float32; gain: float32; weighted_strength: float32; ping_pong_strength: float32; }</code></div>
+<div><code>NoiseCreate :: () -&gt; NoiseState</code><p>FastNoiseLite's defaults: seed 1337, frequency 0.01, OpenSimplex2, no fractal, 3 octaves, lacunarity 2, gain 0.5, ping-pong strength 2.</p></div>
+<div><code>Gradients2D: [256]float32</code></div>
+<div><code>Gradients3D: [256]float32</code></div>
+<div><code>PRIME_X :: 501125321</code></div>
+<div><code>PRIME_Y :: 1136930381</code></div>
+<div><code>PRIME_Z :: 1720413743</code></div>
+<div><code>PRIME_X2 :: 1002250642</code><p>The primes doubled, wrapped to s32 as FastNoiseLite's int shifts do.</p></div>
+<div><code>PRIME_Y2 :: -2021106534</code></div>
+<div><code>PRIME_Z2 :: -854139810</code></div>
+<div><code>Min :: (a: float32, b: float32) -&gt; float32</code></div>
+<div><code>Abs :: (f: float32) -&gt; float32</code></div>
+<div><code>FastFloor :: (f: float32) -&gt; s32</code><p>FastNoiseLite's floor and round: negative integers step down one more, which the generated lattice depends on.</p></div>
+<div><code>FastRound :: (f: float32) -&gt; s32</code></div>
+<div><code>Lerp :: (a: float32, b: float32, t: float32) -&gt; float32</code></div>
+<div><code>InterpHermite :: (t: float32) -&gt; float32</code></div>
+<div><code>InterpQuintic :: (t: float32) -&gt; float32</code></div>
+<div><code>CubicLerp :: (a: float32, b: float32, c: float32, d: float32, t: float32) -&gt; float32</code></div>
+<div><code>PingPong :: (value: float32) -&gt; float32</code></div>
+<div><code>FractalBounding :: (state: *NoiseState) -&gt; float32</code></div>
+<div><code>Hash2D :: (seed: s32, x: s32, y: s32) -&gt; s32</code></div>
+<div><code>Hash3D :: (seed: s32, x: s32, y: s32, z: s32) -&gt; s32</code></div>
+<div><code>ValCoord2D :: (seed: s32, x: s32, y: s32) -&gt; float32</code></div>
+<div><code>ValCoord3D :: (seed: s32, x: s32, y: s32, z: s32) -&gt; float32</code></div>
+<div><code>GradCoord2D :: (seed: s32, x: s32, y: s32, xd: float32, yd: float32) -&gt; float32</code></div>
+<div><code>GradCoord3D :: (seed: s32, x: s32, y: s32, z: s32, xd: float32, yd: float32, zd: float32) -&gt; float32</code></div>
+<div><code>Simplex2D :: (seed: s32, x: float32, y: float32) -&gt; float32</code><p>OpenSimplex2 in 2D is ordinary simplex noise on the skewed coordinates.</p></div>
+<div><code>OpenSimplex23D :: (seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code><p>OpenSimplex2 in 3D: two offset, rotated cube grids.</p></div>
+<div><code>OpenSimplex2S2D :: (seed: s32, x: float32, y: float32) -&gt; float32</code><p>OpenSimplex2S in 2D: a smoother simplex variant with a wider kernel.</p></div>
+<div><code>OpenSimplex2S3D :: (seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code><p>OpenSimplex2S in 3D: two offset, rotated cube grids with a wider kernel.</p></div>
+<div><code>Perlin2D :: (seed: s32, x: float32, y: float32) -&gt; float32</code></div>
+<div><code>Perlin3D :: (seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code></div>
+<div><code>ValueCubicRow2D :: (seed: s32, x0: s32, x1: s32, x2: s32, x3: s32, y: s32, t: float32) -&gt; float32</code></div>
+<div><code>ValueCubic2D :: (seed: s32, x: float32, y: float32) -&gt; float32</code></div>
+<div><code>ValueCubicRow3D :: (seed: s32, x0: s32, x1: s32, x2: s32, x3: s32, y: s32, z: s32, t: float32) -&gt; float32</code></div>
+<div><code>ValueCubicPlane3D :: (seed: s32, x0: s32, x1: s32, x2: s32, x3: s32, y0: s32, y1: s32, y2: s32, y3: s32, z: s32, xs: float32, ys: float32) -&gt; float32</code></div>
+<div><code>ValueCubic3D :: (seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code></div>
+<div><code>Value2D :: (seed: s32, x: float32, y: float32) -&gt; float32</code></div>
+<div><code>Value3D :: (seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code></div>
+<div><code>Single2D :: (state: *NoiseState, seed: s32, x: float32, y: float32) -&gt; float32</code></div>
+<div><code>Single3D :: (state: *NoiseState, seed: s32, x: float32, y: float32, z: float32) -&gt; float32</code></div>
+<div><code>Fractal :: struct { sum: float32; amp: float32; }</code><p>Adds one octave. FastNoiseLite caps the 2D FBm weight at noise + 1 &lt;= 2</p></div>
+<div><code>Octave :: (state: *NoiseState, noise: float32, fractal: *Fractal, capped: bool)</code><p>Adds one octave. FastNoiseLite caps the 2D FBm weight at noise + 1 &lt;= 2 but not the 3D one, so CAPPED selects the 2D form.</p></div>
+<div><code>Noise2D :: (state: *NoiseState, x: float32, y: float32) -&gt; float32</code><p>Noise at (x, y), in about -1 to 1.</p></div>
+<div><code>Noise3D :: (state: *NoiseState, x: float32, y: float32, z: float32) -&gt; float32</code><p>Noise at (x, y, z), in about -1 to 1.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/noise/blob/HEAD/src/fast_noise.zi">Source ↗</a></p></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

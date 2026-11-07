@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Lua is a Ziran package that runs Lua 5.1 code in the LuaJIT dialect."><title>Lua · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/lua"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
+<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Lua</h1><p>Lua is a Ziran package that runs Lua 5.1 code in the LuaJIT dialect. Everything is written in Ziran, with no C code and no native libraries: the lexer and parser, a compiler to register bytecode, the interpreter, a mark-and-sweep collector with weak tables and gc, and the standard libraries. It was written so that Katalis can run Luanti mods from ContentDB.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/lua">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-vm">vm</a><a href="#documents">Documents</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.lua]
+git = "https://github.com/ziranlang/lua.git"
+ref = "master"</code></pre></section>
+<section id="overview" class="prose"><h2>Overview</h2><p>The embedding API follows the Lua C API: a stack, natives as plain Ziran
+procedures, userdata with metatables, registry references, coroutines a
+native can yield from, and limits on memory, call depth and instruction
+count for running untrusted mods. File and environment access is off until
+the host grants it.</p>
+<h2 id="use-it">Use it</h2>
+<pre><code class="language-sh">ziran add https://github.com/ziranlang/lua.git
+</code></pre>
+<pre><code class="language-zi">#import &quot;lua/vm&quot;
+
+state: LuaState;
+
+Add :: (L: *LuaState) -&gt; s32 {
+    a, ok1 := LuaCheckNumber(L, 1)
+    if !ok1 { return LUA_NATIVE_ERROR }
+    b, ok2 := LuaCheckNumber(L, 2)
+    if !ok2 { return LUA_NATIVE_ERROR }
+    LuaPushNumber(L, a + b)
+    return 1
+}
+
+Run :: () -&gt; bool {
+    L := *state
+    LuaOpen(L)
+    LuaRegister(L, &quot;add&quot;, Add)
+    status := LuaDoString(L, &quot;print(add(1, 2))&quot;, &quot;=example&quot;)
+    if status != LUA_OK {
+        message, ok := LuaToString(L, -1)
+        print(&quot;%\n&quot;, message)
+    }
+    LuaClose(L)
+    return status == LUA_OK
+}
+</code></pre>
+<p><a href="https://github.com/ziranlang/lua/blob/HEAD/docs/API.md">docs/API.md</a> describes the whole API and what each library
+supports.</p>
+<h2 id="check-it">Check it</h2>
+<pre><code class="language-sh">make test
+</code></pre>
+<p>This runs the API unit tests, the Lua scripts in <code>tests/lua</code>, and loads
+every <code>.lua</code> file of the Katalis mods (set <code>KATALIS_MODS</code> to another
+folder; it is skipped when missing). <code>make wasm</code> (part of <code>make test</code>) builds
+the VM for wasm32 with Emscripten and runs it in a private headless Chromium;
+set <code>EMCC</code> and <code>CHROMIUM</code> if they are elsewhere (it is skipped without them).</p></section>
+<section id="module-vm"><p class="eyebrow">lua/src/vm.zi</p><h2>vm</h2><p>A Lua 5.1 virtual machine in Ziran, following the LuaJIT dialect that Luanti mods use: lexer, parser, register compiler, interpreter, garbage collector, the standard libraries (base, coroutine, string, table, math, a sandboxed os/io subset, bit, debug) and an embedding API modeled on the C API. docs/API.md documents the embedding API.</p><p>Import with <code>#import "lua/vm"</code>.</p><div class="api-list">
+<div><code>LUA_TNIL :: 0</code><p>Value tags. FALSE and TRUE are separate tags so truthiness is one compare.</p></div>
+<div><code>LUA_TFALSE :: 1</code></div>
+<div><code>LUA_TTRUE :: 2</code></div>
+<div><code>LUA_TNUMBER :: 3</code></div>
+<div><code>LUA_TSTRING :: 4</code></div>
+<div><code>LUA_TTABLE :: 5</code></div>
+<div><code>LUA_TFUNCTION :: 6</code></div>
+<div><code>LUA_TUSERDATA :: 7</code></div>
+<div><code>LUA_TTHREAD :: 8</code></div>
+<div><code>LUA_TLIGHTUSERDATA :: 9</code></div>
+<div><code>LUA_TBOX :: 10</code></div>
+<div><code>LUA_OK :: 0</code><p>Status codes returned by calls and loads.</p></div>
+<div><code>LUA_YIELD :: 1</code></div>
+<div><code>LUA_ERRRUN :: 2</code></div>
+<div><code>LUA_ERRSYNTAX :: 3</code></div>
+<div><code>LUA_ERRMEM :: 4</code></div>
+<div><code>LUA_ERRERR :: 5</code></div>
+<div><code>LUA_ERRFILE :: 6</code></div>
+<div><code>LUA_NATIVE_ERROR :: -1</code><p>A native returns its result count, or one of these.</p></div>
+<div><code>LUA_NATIVE_YIELD :: -2</code></div>
+<div><code>LUA_MULTRET :: -1</code></div>
+<div><code>LuaValue :: struct { n: float64; h: s32; t: u8; }</code></div>
+<div><code>LuaNative :: #type (L: *LuaState) -&gt; s32</code><p>Called every `count` VM checkpoints (calls and backward jumps). Return true to continue, false to raise an error (the message is the value on</p></div>
+<div><code>LuaHook :: #type (L: *LuaState) -&gt; bool</code></div>
+<div><code>LuaFinalizer :: #type (L: *LuaState, data: *void, tag: s64)</code></div>
+<div><code>LuaPrintSink :: #type (context: *void, text: string)</code></div>
+<div><code>LuaLimits :: struct { max_memory: s64; max_native_depth: s32; max_frames: s32; }</code></div>
+<div><code>LuaDefaultLimits :: () -&gt; LuaLimits</code></div>
+<div><code>LuaState :: struct { strings: Vec(LuaString); string_free: Vec(s32); intern: Vec(s32); intern_used: s64; tables: Vec(LuaTable); table_free: Vec(s32); closures: Vec(LuaClosure); closure_free: Vec(s32); protos: Vec(LuaProto); proto_free: Vec(s32); boxes: Vec(LuaBox); box_free: Vec(s32); userdata: Vec(LuaUserdata); userdata_free: Vec(s32); threads: Vec(LuaThread); thread_free: Vec(s32); cur: s32; main: s32; globals: s32; registry: s32; type_meta: [11]s32; tm_names: [20]s32; name_n: s32; name_goto: s32; name_self: s32; name_loaded: s32; next_fn: s32; inext_fn: s32; handler_slack: s32; weak: Vec(s32); error: LuaValue; error_traced: bool; ref_free: Vec(s32); allocated: s64; threshold: s64; gray: Vec(LuaValue); pending_finalize: Vec(s32); collecting: bool; resumers: Vec(s32); native_depth: s32; limits: LuaLimits; open: bool; hook: LuaHook; hook_set: bool; hook_count: s64; hook_left: s64; print_sink: LuaPrintSink; print_sink_set: bool; print_context: *void; file_root: Vec(u8); random_state: u64; clock_start: s64; env_allow: Vec(u8); file_meta: s32; scratch: Vec(u8); scratch2: Vec(u8); host: *void; }</code><p>One Lua universe. The host owns this record (a global or a long-lived local) and passes its address to every API call; LuaOpen initializes it and LuaClose releases everything it holds.</p></div>
+<div><code>LUA_TYPE_NONE :: -1</code><p>Type codes returned by LuaType, matching the C API.</p></div>
+<div><code>LUA_TYPE_NIL :: 0</code></div>
+<div><code>LUA_TYPE_BOOLEAN :: 1</code></div>
+<div><code>LUA_TYPE_LIGHTUSERDATA :: 2</code></div>
+<div><code>LUA_TYPE_NUMBER :: 3</code></div>
+<div><code>LUA_TYPE_STRING :: 4</code></div>
+<div><code>LUA_TYPE_TABLE :: 5</code></div>
+<div><code>LUA_TYPE_FUNCTION :: 6</code></div>
+<div><code>LUA_TYPE_USERDATA :: 7</code></div>
+<div><code>LUA_TYPE_THREAD :: 8</code></div>
+<div><code>LUA_REGISTRYINDEX :: -10000</code><p>Pseudo-indices.</p></div>
+<div><code>LUA_ENVIRONINDEX :: -10001</code></div>
+<div><code>LUA_GLOBALSINDEX :: -10002</code></div>
+<div><code>LUA_REFNIL :: -1</code><p>LuaRef result for nil.</p></div>
+<div><code>LUA_NOREF :: -2</code></div>
+<div><code>LuaUpvalueIndex :: (i: s32) -&gt; s32</code></div>
+<div><code>LuaOpen :: (L: *LuaState) -&gt; bool</code><p>Initialize a state with the standard libraries. Returns false when the record was already open.</p></div>
+<div><code>TagMethodNames :: () -&gt; [20]string</code></div>
+<div><code>LuaClose :: (L: *LuaState)</code><p>Run pending __gc finalizers and host finalizers, then free everything.</p></div>
+<div><code>LuaSetLimits :: (L: *LuaState, limits: LuaLimits)</code></div>
+<div><code>LuaGetLimits :: (L: *LuaState) -&gt; LuaLimits</code></div>
+<div><code>LuaSetHook :: (L: *LuaState, hook: LuaHook, count: s64)</code><p>Call `hook` every `count` checkpoints (Lua calls and loop back-edges). A hook returning false raises an error in the running Lua code; set its message with LuaSetHookMessage first.</p></div>
+<div><code>LuaClearHook :: (L: *LuaState)</code></div>
+<div><code>LuaSetHookMessage :: (L: *LuaState, message: string)</code></div>
+<div><code>LuaSetPrintSink :: (L: *LuaState, sink: LuaPrintSink, context: *void)</code></div>
+<div><code>LuaAllowEnvironment :: (L: *LuaState, prefix: string)</code><p>Let os.getenv read variables whose names start with `prefix` (none by default, so os.getenv returns nil).</p></div>
+<div><code>LuaSetFileRoot :: (L: *LuaState, path: string)</code><p>Directory that dofile/loadfile/io.open may read below; empty (the default) disables Lua-side file access.</p></div>
+<div><code>LuaSetHost :: (L: *LuaState, host: *void)</code></div>
+<div><code>LuaHost :: (L: *LuaState) -&gt; *void</code></div>
+<div><code>LuaCollectGarbage :: (L: *LuaState)</code></div>
+<div><code>LuaMemoryUsed :: (L: *LuaState) -&gt; s64</code><p>Estimated live heap bytes.</p></div>
+<div><code>LuaGetTop :: (L: *LuaState) -&gt; s32</code></div>
+<div><code>LuaSetTop :: (L: *LuaState, index: s32)</code></div>
+<div><code>LuaPop :: (L: *LuaState, n: s32)</code></div>
+<div><code>LuaCheckStack :: (L: *LuaState, extra: s32) -&gt; bool</code></div>
+<div><code>LuaAbsIndex :: (L: *LuaState, index: s32) -&gt; s32</code><p>A positive index for `index`, the same pseudo-index otherwise.</p></div>
+<div><code>LuaPushValue :: (L: *LuaState, index: s32)</code></div>
+<div><code>LuaRemove :: (L: *LuaState, index: s32)</code></div>
+<div><code>LuaInsert :: (L: *LuaState, index: s32)</code></div>
+<div><code>LuaReplace :: (L: *LuaState, index: s32)</code><p>Move the top value into `index` (resolved before the pop, as in C).</p></div>
+<div><code>LuaType :: (L: *LuaState, index: s32) -&gt; s32</code></div>
+<div><code>LuaTypeName :: (L: *LuaState, type: s32) -&gt; string</code></div>
+<div><code>LuaIsNone :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsNil :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsNoneOrNil :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsBoolean :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsTable :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsFunction :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsUserdata :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsNative :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaIsNumber :: (L: *LuaState, index: s32) -&gt; bool</code><p>Numbers and strings convertible to numbers.</p></div>
+<div><code>LuaIsString :: (L: *LuaState, index: s32) -&gt; bool</code><p>Strings and numbers.</p></div>
+<div><code>LuaToNumber :: (L: *LuaState, index: s32) -&gt; float64</code></div>
+<div><code>LuaToNumberChecked :: (L: *LuaState, index: s32) -&gt; (float64, bool)</code></div>
+<div><code>LuaToInteger :: (L: *LuaState, index: s32) -&gt; s64</code><p>The number truncated toward zero; 0 when it is not a number.</p></div>
+<div><code>LuaToBoolean :: (L: *LuaState, index: s32) -&gt; bool</code></div>
+<div><code>LuaToString :: (L: *LuaState, index: s32) -&gt; (string, bool)</code><p>String bytes of a string or number value (numbers are converted in place, as lua_tolstring does). The view lasts while the value stays reachable.</p></div>
+<div><code>LuaObjLen :: (L: *LuaState, index: s32) -&gt; s64</code><p>Raw length: string bytes, table border, 0 otherwise.</p></div>
+<div><code>LuaToUserdata :: (L: *LuaState, index: s32) -&gt; *void</code></div>
+<div><code>LuaUserdataTag :: (L: *LuaState, index: s32) -&gt; s64</code></div>
+<div><code>LuaRawEqual :: (L: *LuaState, a: s32, b: s32) -&gt; bool</code></div>
+<div><code>LuaEqual :: (L: *LuaState, a: s32, b: s32) -&gt; (bool, bool)</code><p>a == b with __eq; ok=false when a metamethod raised an error.</p></div>
+<div><code>LuaLessThan :: (L: *LuaState, a: s32, b: s32) -&gt; (bool, bool)</code></div>
+<div><code>LuaPushNil :: (L: *LuaState)</code></div>
+<div><code>LuaPushNumber :: (L: *LuaState, n: float64)</code></div>
+<div><code>LuaPushInteger :: (L: *LuaState, n: s64)</code></div>
+<div><code>LuaPushBoolean :: (L: *LuaState, b: bool)</code></div>
+<div><code>LuaPushString :: (L: *LuaState, text: string)</code></div>
+<div><code>LuaPushLightUserdata :: (L: *LuaState, data: *void)</code></div>
+<div><code>LuaPushNative :: (L: *LuaState, fn: LuaNative, name: string)</code><p>Push a native function; `name` appears in error messages and tracebacks.</p></div>
+<div><code>LuaPushNativeClosure :: (L: *LuaState, fn: LuaNative, count: s32, name: string)</code><p>Push a native closure taking the top `count` values as upvalues, read back with LuaUpvalueIndex(1..count).</p></div>
+<div><code>LuaNewUserdata :: (L: *LuaState, data: *void, tag: s64)</code><p>Push a full userdata wrapping host data. `tag` identifies the host type.</p></div>
+<div><code>LuaNewUserdataFinalized :: (L: *LuaState, data: *void, tag: s64, finalizer: LuaFinalizer)</code><p>LuaNewUserdata with `finalizer` run when the userdata is collected or the state closes (after any __gc metamethod).</p></div>
+<div><code>LuaPushThreadValue :: (L: *LuaState) -&gt; bool</code></div>
+<div><code>LuaCreateTable :: (L: *LuaState, narr: s32, nrec: s32)</code></div>
+<div><code>LuaNewTable :: (L: *LuaState)</code></div>
+<div><code>LuaGetTable :: (L: *LuaState, index: s32) -&gt; bool</code><p>t[k] with metamethods: pops the key, pushes the value.</p></div>
+<div><code>LuaGetField :: (L: *LuaState, index: s32, name: string) -&gt; bool</code></div>
+<div><code>LuaGetGlobal :: (L: *LuaState, name: string) -&gt; bool</code></div>
+<div><code>LuaSetTable :: (L: *LuaState, index: s32) -&gt; bool</code><p>t[k] = v with metamethods: pops the value and the key.</p></div>
+<div><code>LuaSetField :: (L: *LuaState, index: s32, name: string) -&gt; bool</code><p>t[name] = v: pops the value.</p></div>
+<div><code>LuaSetGlobal :: (L: *LuaState, name: string) -&gt; bool</code></div>
+<div><code>LuaRawGet :: (L: *LuaState, index: s32)</code></div>
+<div><code>LuaRawGetI :: (L: *LuaState, index: s32, n: s64)</code></div>
+<div><code>LuaRawSet :: (L: *LuaState, index: s32) -&gt; bool</code><p>Raw t[k] = v: pops value and key; false for a nil/NaN key or non-table.</p></div>
+<div><code>LuaRawSetI :: (L: *LuaState, index: s32, n: s64)</code></div>
+<div><code>LuaNext :: (L: *LuaState, index: s32) -&gt; s32</code><p>lua_next: pops a key and pushes the next key and value. Returns 1 for a pair, 0 at the end, -1 for an invalid key (error pending).</p></div>
+<div><code>LuaGetMetatable :: (L: *LuaState, index: s32) -&gt; bool</code><p>Push the metatable of a value; false (nothing pushed) when it has none.</p></div>
+<div><code>LuaSetMetatable :: (L: *LuaState, index: s32) -&gt; bool</code><p>Pop a table (or nil) and make it the value's metatable.</p></div>
+<div><code>LuaNewMetatable :: (L: *LuaState, name: string) -&gt; bool</code><p>luaL_newmetatable: registry[name] = new table (pushed); false when it already existed (the existing one is pushed).</p></div>
+<div><code>LuaGetRegistryMetatable :: (L: *LuaState, name: string)</code></div>
+<div><code>LuaTestUserdata :: (L: *LuaState, index: s32, name: string) -&gt; *void</code><p>The data of a userdata whose metatable is registry[name], else null.</p></div>
+<div><code>LuaGetFenv :: (L: *LuaState, index: s32)</code><p>Push the environment table of a function, userdata or thread.</p></div>
+<div><code>LuaSetFenv :: (L: *LuaState, index: s32) -&gt; bool</code><p>Pop a table and make it the environment of the value at index.</p></div>
+<div><code>LuaCall :: (L: *LuaState, nargs: s32, want: s32) -&gt; bool</code><p>Call the function below `nargs` arguments, leaving `want` results (LUA_MULTRET for all). Unprotected: inside a native, return LUA_NATIVE_ERROR when this fails.</p></div>
+<div><code>LuaPCall :: (L: *LuaState, nargs: s32, want: s32, handler: s32) -&gt; s32</code><p>Protected call. `handler` is a stack index of an error function (0 for none). On error the message replaces the function and arguments.</p></div>
+<div><code>LuaLoadBuffer :: (L: *LuaState, text: string, chunkname: string) -&gt; s32</code><p>Compile a chunk and push it as a function (or push the error message).</p></div>
+<div><code>LuaLoadString :: (L: *LuaState, text: string) -&gt; s32</code></div>
+<div><code>LuaDoString :: (L: *LuaState, text: string, chunkname: string) -&gt; s32</code><p>Load and run a chunk; errors carry a traceback. The message stays on the stack when the status is not LUA_OK.</p></div>
+<div><code>CallWithTraceback :: (L: *LuaState, nargs: s32, want: s32) -&gt; s32</code><p>LuaPCall with debug.traceback as the error handler.</p></div>
+<div><code>LuaDoFile :: (L: *LuaState, path: string) -&gt; s32</code><p>Read and run a file from the host file system (not limited by the file root, which only applies to Lua's dofile/loadfile).</p></div>
+<div><code>LuaLoadFile :: (L: *LuaState, path: string) -&gt; s32</code></div>
+<div><code>LuaRaiseError :: (L: *LuaState) -&gt; s32</code><p>Raise the value on top of the stack. Return this from a native.</p></div>
+<div><code>LuaErrorText :: (L: *LuaState, message: string) -&gt; s32</code><p>Raise "chunk:line: message" positioned at the Lua caller of the native.</p></div>
+<div><code>LuaArgError :: (L: *LuaState, n: s32, message: string) -&gt; s32</code><p>"bad argument #n to 'name' (message)".</p></div>
+<div><code>LuaTypeError :: (L: *LuaState, n: s32, expected: string) -&gt; s32</code><p>"bad argument #n to 'name' (expected expected, got actual)".</p></div>
+<div><code>LuaCheckNumber :: (L: *LuaState, n: s32) -&gt; (float64, bool)</code><p>Argument checks for natives: ok=false means an error is pending and the native should return LUA_NATIVE_ERROR.</p></div>
+<div><code>LuaCheckInteger :: (L: *LuaState, n: s32) -&gt; (s64, bool)</code></div>
+<div><code>LuaOptNumber :: (L: *LuaState, n: s32, fallback: float64) -&gt; (float64, bool)</code></div>
+<div><code>LuaOptInteger :: (L: *LuaState, n: s32, fallback: s64) -&gt; (s64, bool)</code></div>
+<div><code>LuaCheckString :: (L: *LuaState, n: s32) -&gt; (string, bool)</code></div>
+<div><code>LuaOptString :: (L: *LuaState, n: s32, fallback: string) -&gt; (string, bool)</code></div>
+<div><code>LuaCheckTable :: (L: *LuaState, n: s32) -&gt; bool</code></div>
+<div><code>LuaCheckAny :: (L: *LuaState, n: s32) -&gt; bool</code></div>
+<div><code>LuaTraceback :: (L: *LuaState, message: string, level: s32)</code><p>Push "message\nstack traceback:..." for the running thread.</p></div>
+<div><code>LuaRef :: (L: *LuaState) -&gt; s32</code><p>Pop the top value into the registry and return a handle for it.</p></div>
+<div><code>LuaUnref :: (L: *LuaState, ref: s32)</code></div>
+<div><code>LuaPushRef :: (L: *LuaState, ref: s32)</code></div>
+<div><code>LuaRegister :: (L: *LuaState, name: string, fn: LuaNative)</code><p>globals[name] = native.</p></div>
+<div><code>LuaSetNative :: (L: *LuaState, index: s32, name: string, fn: LuaNative)</code><p>t[name] = native for the table at index.</p></div>
+<div><code>LuaNewThread :: (L: *LuaState)</code><p>Push a new coroutine running the function on top of the stack (popped).</p></div>
+<div><code>LuaResume :: (L: *LuaState, index: s32, nargs: s32) -&gt; (s32, s32)</code><p>Resume the coroutine at `index` with the top `nargs` values; its results (or error message) replace them. Returns LUA_OK when it finished, LUA_YIELD when it yielded, an error status otherwise.</p></div>
+<div><code>LuaYield :: (L: *LuaState, n: s32) -&gt; s32</code><p>Yield the top `n` values from a native: `return LuaYield(L, n)`. The resume arguments become the native call's results.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/lua/blob/HEAD/src/vm.zi">Source ↗</a></p></section>
+<section id="documents"><h2>Documents</h2><div class="link-list"><a href="https://github.com/ziranlang/lua/blob/HEAD/docs/API.md">API.md<span>GitHub ↗</span></a></div></section>
+</div></div></main>
+<footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

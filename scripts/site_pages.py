@@ -225,6 +225,22 @@ def module_api(ziran, path, root, module_paths):
     while top < len(lines) and lines[top].startswith('//'):
         top += 1
     summary = ' '.join(l[2:].strip() for l in lines[:top])
+    # `#load` pulls declarations in from sibling files; each item reports its
+    # own file and line, so its doc comment is read from that file.
+    loaded = [m.group(1) for m in re.finditer(r'^#load "([^"]+)"', '\n'.join(lines), re.M)]
+    order = {os.path.join(os.path.dirname(source), f): n for n, f in enumerate(loaded, 1)}
+    order[source] = 0
+    file_lines = {source: (lines, top)}
+
+    def declaring_file(item):
+        file = item.get('path', source)
+        if file not in file_lines:
+            text = open(os.path.join(root, file)).read().split('\n')
+            start = 0
+            while start < len(text) and text[start].startswith('//'):
+                start += 1
+            file_lines[file] = (text, start)
+        return file_lines[file]
     entries = []
     uses_host = False
     for kind in ('types', 'constants', 'globals', 'functions'):
@@ -252,8 +268,11 @@ def module_api(ziran, path, root, module_paths):
                 uses_host = True
             if kind == 'functions' and item.get('must_use'):
                 notes.append('result must be used')
-            entries.append((item['line'], signature, doc_comment(lines, item['line'], top), notes))
+            own_lines, own_top = declaring_file(item)
+            entries.append(((order.get(item.get('path', source), len(order)), item['line']), signature,
+                            doc_comment(own_lines, item['line'], own_top), notes))
     entries.sort()
+    entries = [(line, *rest) for (_, line), *rest in entries]
     return summary, entries, uses_host
 
 

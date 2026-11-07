@@ -62,4 +62,33 @@ typedef struct { float v[8]; } zi_f32x8;
 typedef struct { double v[4]; } zi_f64x4;
 #endif
 
+/* Native vectors, such as zi_s16xN: two 128-bit blocks where the build
+ * enables AVX2 and one elsewhere. #target clones use the fixed types. */
+#if ZI_VEC && defined(__AVX2__) && (defined(__x86_64__) || defined(__i386__))
+#define ZI_NATIVE_WIDE 1
+typedef zi_u8x32 zi_u8xN;
+typedef zi_s8x32 zi_s8xN;
+typedef zi_u16x16 zi_u16xN;
+typedef zi_s16x16 zi_s16xN;
+typedef zi_u32x8 zi_u32xN;
+typedef zi_s32x8 zi_s32xN;
+typedef zi_u64x4 zi_u64xN;
+typedef zi_s64x4 zi_s64xN;
+typedef zi_f32x8 zi_f32xN;
+typedef zi_f64x4 zi_f64xN;
+#else
+#define ZI_NATIVE_WIDE 0
+typedef zi_u8x16 zi_u8xN;
+typedef zi_s8x16 zi_s8xN;
+typedef zi_u16x8 zi_u16xN;
+typedef zi_s16x8 zi_s16xN;
+typedef zi_u32x4 zi_u32xN;
+typedef zi_s32x4 zi_s32xN;
+typedef zi_u64x2 zi_u64xN;
+typedef zi_s64x2 zi_s64xN;
+typedef zi_f32x4 zi_f32xN;
+typedef zi_f64x2 zi_f64xN;
+#endif
+#define ZI_NATIVE_BLOCKS (ZI_NATIVE_WIDE + 1)
+
 #endif /* ZIRAN_SIMD_TYPES_H */

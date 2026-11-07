@@ -1617,6 +1617,78 @@ static inline zi_f64x4 zi_shuffle_lanes_f64x4(zi_f64x4 a, int k0, int k1)
 #else
 #define zi_shuffle_f64x4(a, i0, i1) zi_shuffle_lanes_f64x4(a, (i0), (i1))
 #endif
+/* The macros for native vectors, such as zi_shuffle_s16xN. */
+#if ZI_NATIVE_WIDE
+#define zi_align_bytes_s16xN zi_align_bytes_s16x16
+#define zi_align_bytes_s32xN zi_align_bytes_s32x8
+#define zi_align_bytes_s64xN zi_align_bytes_s64x4
+#define zi_align_bytes_s8xN zi_align_bytes_s8x32
+#define zi_align_bytes_u16xN zi_align_bytes_u16x16
+#define zi_align_bytes_u32xN zi_align_bytes_u32x8
+#define zi_align_bytes_u64xN zi_align_bytes_u64x4
+#define zi_align_bytes_u8xN zi_align_bytes_u8x32
+#define zi_shl_bytes_s16xN zi_shl_bytes_s16x16
+#define zi_shl_bytes_s32xN zi_shl_bytes_s32x8
+#define zi_shl_bytes_s64xN zi_shl_bytes_s64x4
+#define zi_shl_bytes_s8xN zi_shl_bytes_s8x32
+#define zi_shl_bytes_u16xN zi_shl_bytes_u16x16
+#define zi_shl_bytes_u32xN zi_shl_bytes_u32x8
+#define zi_shl_bytes_u64xN zi_shl_bytes_u64x4
+#define zi_shl_bytes_u8xN zi_shl_bytes_u8x32
+#define zi_shr_bytes_s16xN zi_shr_bytes_s16x16
+#define zi_shr_bytes_s32xN zi_shr_bytes_s32x8
+#define zi_shr_bytes_s64xN zi_shr_bytes_s64x4
+#define zi_shr_bytes_s8xN zi_shr_bytes_s8x32
+#define zi_shr_bytes_u16xN zi_shr_bytes_u16x16
+#define zi_shr_bytes_u32xN zi_shr_bytes_u32x8
+#define zi_shr_bytes_u64xN zi_shr_bytes_u64x4
+#define zi_shr_bytes_u8xN zi_shr_bytes_u8x32
+#define zi_shuffle_f32xN zi_shuffle_f32x8
+#define zi_shuffle_f64xN zi_shuffle_f64x4
+#define zi_shuffle_s16xN zi_shuffle_s16x16
+#define zi_shuffle_s32xN zi_shuffle_s32x8
+#define zi_shuffle_s64xN zi_shuffle_s64x4
+#define zi_shuffle_s8xN zi_shuffle_s8x32
+#define zi_shuffle_u16xN zi_shuffle_u16x16
+#define zi_shuffle_u32xN zi_shuffle_u32x8
+#define zi_shuffle_u64xN zi_shuffle_u64x4
+#define zi_shuffle_u8xN zi_shuffle_u8x32
+#else
+#define zi_align_bytes_s16xN zi_align_bytes_s16x8
+#define zi_align_bytes_s32xN zi_align_bytes_s32x4
+#define zi_align_bytes_s64xN zi_align_bytes_s64x2
+#define zi_align_bytes_s8xN zi_align_bytes_s8x16
+#define zi_align_bytes_u16xN zi_align_bytes_u16x8
+#define zi_align_bytes_u32xN zi_align_bytes_u32x4
+#define zi_align_bytes_u64xN zi_align_bytes_u64x2
+#define zi_align_bytes_u8xN zi_align_bytes_u8x16
+#define zi_shl_bytes_s16xN zi_shl_bytes_s16x8
+#define zi_shl_bytes_s32xN zi_shl_bytes_s32x4
+#define zi_shl_bytes_s64xN zi_shl_bytes_s64x2
+#define zi_shl_bytes_s8xN zi_shl_bytes_s8x16
+#define zi_shl_bytes_u16xN zi_shl_bytes_u16x8
+#define zi_shl_bytes_u32xN zi_shl_bytes_u32x4
+#define zi_shl_bytes_u64xN zi_shl_bytes_u64x2
+#define zi_shl_bytes_u8xN zi_shl_bytes_u8x16
+#define zi_shr_bytes_s16xN zi_shr_bytes_s16x8
+#define zi_shr_bytes_s32xN zi_shr_bytes_s32x4
+#define zi_shr_bytes_s64xN zi_shr_bytes_s64x2
+#define zi_shr_bytes_s8xN zi_shr_bytes_s8x16
+#define zi_shr_bytes_u16xN zi_shr_bytes_u16x8
+#define zi_shr_bytes_u32xN zi_shr_bytes_u32x4
+#define zi_shr_bytes_u64xN zi_shr_bytes_u64x2
+#define zi_shr_bytes_u8xN zi_shr_bytes_u8x16
+#define zi_shuffle_f32xN zi_shuffle_f32x4
+#define zi_shuffle_f64xN zi_shuffle_f64x2
+#define zi_shuffle_s16xN zi_shuffle_s16x8
+#define zi_shuffle_s32xN zi_shuffle_s32x4
+#define zi_shuffle_s64xN zi_shuffle_s64x2
+#define zi_shuffle_s8xN zi_shuffle_s8x16
+#define zi_shuffle_u16xN zi_shuffle_u16x8
+#define zi_shuffle_u32xN zi_shuffle_u32x4
+#define zi_shuffle_u64xN zi_shuffle_u64x2
+#define zi_shuffle_u8xN zi_shuffle_u8x16
+#endif
 #endif /* ZIRAN_SIMD_OPS_COMMON_H */
 
 /* ---- operations for ZI_TIER ---- */
@@ -36442,5 +36514,2387 @@ ZI_FN zi_f64x4 ZI_N(interleave_high_f64x4)(zi_f64x4 a, zi_f64x4 b)
     return r_;
 #endif
 }
+/*@*/
+#endif
+
+/* ---- native vectors, such as s16xN ---- */
+#if ZI_TIER >= 4
+/*@native_make_u8x32*/
+ZI_FN zi_u8x32 ZI_N(native_make_u8x32)(uint8_t l0, uint8_t l1, uint8_t l2, uint8_t l3, uint8_t l4, uint8_t l5, uint8_t l6, uint8_t l7, uint8_t l8, uint8_t l9, uint8_t l10, uint8_t l11, uint8_t l12, uint8_t l13, uint8_t l14, uint8_t l15)
+{
+    zi_u8x16 b_ = ZI_N(make_u8x16)(l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15);
+    return ZI_N(combine_u8x16)(b_, b_);
+}
+/*@native_load_low_u8x32*/
+ZI_FN zi_u8x32 ZI_N(native_load_low_u8x32)(const void * p)
+{
+    return ZI_N(combine_u8x16)(ZI_N(load_u8x16)(p), ZI_N(zero_u8x16)());
+}
+/*@native_store_low_u8x32*/
+ZI_FN void ZI_N(native_store_low_u8x32)(void * p, zi_u8x32 a)
+{
+    ZI_N(store_u8x16)(p, ZI_N(low_u8x32)(a));
+}
+/*@native_widen_low_u8x32*/
+ZI_FN zi_u16x16 ZI_N(native_widen_low_u8x32)(zi_u8x32 a)
+{
+    return ZI_N(widen_u8x16)(ZI_N(low_u8x32)(a));
+}
+/*@native_mul_wide_low_u8x32*/
+ZI_FN zi_u16x16 ZI_N(native_mul_wide_low_u8x32)(zi_u8x32 a, zi_u8x32 b)
+{
+    return ZI_N(combine_u16x8)(ZI_N(low_u16x16)(ZI_N(mul_wide_low_u8x32)(a, b)),
+        ZI_N(low_u16x16)(ZI_N(mul_wide_high_u8x32)(a, b)));
+}
+/*@native_widen_high_u8x32*/
+ZI_FN zi_u16x16 ZI_N(native_widen_high_u8x32)(zi_u8x32 a)
+{
+    return ZI_N(widen_u8x16)(ZI_N(high_u8x32)(a));
+}
+/*@native_mul_wide_high_u8x32*/
+ZI_FN zi_u16x16 ZI_N(native_mul_wide_high_u8x32)(zi_u8x32 a, zi_u8x32 b)
+{
+    return ZI_N(combine_u16x8)(ZI_N(high_u16x16)(ZI_N(mul_wide_low_u8x32)(a, b)),
+        ZI_N(high_u16x16)(ZI_N(mul_wide_high_u8x32)(a, b)));
+}
+/*@native_make_s8x32*/
+ZI_FN zi_s8x32 ZI_N(native_make_s8x32)(int8_t l0, int8_t l1, int8_t l2, int8_t l3, int8_t l4, int8_t l5, int8_t l6, int8_t l7, int8_t l8, int8_t l9, int8_t l10, int8_t l11, int8_t l12, int8_t l13, int8_t l14, int8_t l15)
+{
+    zi_s8x16 b_ = ZI_N(make_s8x16)(l0, l1, l2, l3, l4, l5, l6, l7, l8, l9, l10, l11, l12, l13, l14, l15);
+    return ZI_N(combine_s8x16)(b_, b_);
+}
+/*@native_load_low_s8x32*/
+ZI_FN zi_s8x32 ZI_N(native_load_low_s8x32)(const void * p)
+{
+    return ZI_N(combine_s8x16)(ZI_N(load_s8x16)(p), ZI_N(zero_s8x16)());
+}
+/*@native_store_low_s8x32*/
+ZI_FN void ZI_N(native_store_low_s8x32)(void * p, zi_s8x32 a)
+{
+    ZI_N(store_s8x16)(p, ZI_N(low_s8x32)(a));
+}
+/*@native_widen_low_s8x32*/
+ZI_FN zi_s16x16 ZI_N(native_widen_low_s8x32)(zi_s8x32 a)
+{
+    return ZI_N(widen_s8x16)(ZI_N(low_s8x32)(a));
+}
+/*@native_mul_wide_low_s8x32*/
+ZI_FN zi_s16x16 ZI_N(native_mul_wide_low_s8x32)(zi_s8x32 a, zi_s8x32 b)
+{
+    return ZI_N(combine_s16x8)(ZI_N(low_s16x16)(ZI_N(mul_wide_low_s8x32)(a, b)),
+        ZI_N(low_s16x16)(ZI_N(mul_wide_high_s8x32)(a, b)));
+}
+/*@native_widen_high_s8x32*/
+ZI_FN zi_s16x16 ZI_N(native_widen_high_s8x32)(zi_s8x32 a)
+{
+    return ZI_N(widen_s8x16)(ZI_N(high_s8x32)(a));
+}
+/*@native_mul_wide_high_s8x32*/
+ZI_FN zi_s16x16 ZI_N(native_mul_wide_high_s8x32)(zi_s8x32 a, zi_s8x32 b)
+{
+    return ZI_N(combine_s16x8)(ZI_N(high_s16x16)(ZI_N(mul_wide_low_s8x32)(a, b)),
+        ZI_N(high_s16x16)(ZI_N(mul_wide_high_s8x32)(a, b)));
+}
+/*@native_make_u16x16*/
+ZI_FN zi_u16x16 ZI_N(native_make_u16x16)(uint16_t l0, uint16_t l1, uint16_t l2, uint16_t l3, uint16_t l4, uint16_t l5, uint16_t l6, uint16_t l7)
+{
+    zi_u16x8 b_ = ZI_N(make_u16x8)(l0, l1, l2, l3, l4, l5, l6, l7);
+    return ZI_N(combine_u16x8)(b_, b_);
+}
+/*@native_load_low_u16x16*/
+ZI_FN zi_u16x16 ZI_N(native_load_low_u16x16)(const void * p)
+{
+    return ZI_N(combine_u16x8)(ZI_N(load_u16x8)(p), ZI_N(zero_u16x8)());
+}
+/*@native_store_low_u16x16*/
+ZI_FN void ZI_N(native_store_low_u16x16)(void * p, zi_u16x16 a)
+{
+    ZI_N(store_u16x8)(p, ZI_N(low_u16x16)(a));
+}
+/*@native_widen_low_u16x16*/
+ZI_FN zi_u32x8 ZI_N(native_widen_low_u16x16)(zi_u16x16 a)
+{
+    return ZI_N(widen_u16x8)(ZI_N(low_u16x16)(a));
+}
+/*@native_mul_wide_low_u16x16*/
+ZI_FN zi_u32x8 ZI_N(native_mul_wide_low_u16x16)(zi_u16x16 a, zi_u16x16 b)
+{
+    return ZI_N(combine_u32x4)(ZI_N(low_u32x8)(ZI_N(mul_wide_low_u16x16)(a, b)),
+        ZI_N(low_u32x8)(ZI_N(mul_wide_high_u16x16)(a, b)));
+}
+/*@native_widen_high_u16x16*/
+ZI_FN zi_u32x8 ZI_N(native_widen_high_u16x16)(zi_u16x16 a)
+{
+    return ZI_N(widen_u16x8)(ZI_N(high_u16x16)(a));
+}
+/*@native_mul_wide_high_u16x16*/
+ZI_FN zi_u32x8 ZI_N(native_mul_wide_high_u16x16)(zi_u16x16 a, zi_u16x16 b)
+{
+    return ZI_N(combine_u32x4)(ZI_N(high_u32x8)(ZI_N(mul_wide_low_u16x16)(a, b)),
+        ZI_N(high_u32x8)(ZI_N(mul_wide_high_u16x16)(a, b)));
+}
+/*@native_make_s16x16*/
+ZI_FN zi_s16x16 ZI_N(native_make_s16x16)(int16_t l0, int16_t l1, int16_t l2, int16_t l3, int16_t l4, int16_t l5, int16_t l6, int16_t l7)
+{
+    zi_s16x8 b_ = ZI_N(make_s16x8)(l0, l1, l2, l3, l4, l5, l6, l7);
+    return ZI_N(combine_s16x8)(b_, b_);
+}
+/*@native_load_low_s16x16*/
+ZI_FN zi_s16x16 ZI_N(native_load_low_s16x16)(const void * p)
+{
+    return ZI_N(combine_s16x8)(ZI_N(load_s16x8)(p), ZI_N(zero_s16x8)());
+}
+/*@native_store_low_s16x16*/
+ZI_FN void ZI_N(native_store_low_s16x16)(void * p, zi_s16x16 a)
+{
+    ZI_N(store_s16x8)(p, ZI_N(low_s16x16)(a));
+}
+/*@native_widen_low_s16x16*/
+ZI_FN zi_s32x8 ZI_N(native_widen_low_s16x16)(zi_s16x16 a)
+{
+    return ZI_N(widen_s16x8)(ZI_N(low_s16x16)(a));
+}
+/*@native_mul_wide_low_s16x16*/
+ZI_FN zi_s32x8 ZI_N(native_mul_wide_low_s16x16)(zi_s16x16 a, zi_s16x16 b)
+{
+    return ZI_N(combine_s32x4)(ZI_N(low_s32x8)(ZI_N(mul_wide_low_s16x16)(a, b)),
+        ZI_N(low_s32x8)(ZI_N(mul_wide_high_s16x16)(a, b)));
+}
+/*@native_widen_high_s16x16*/
+ZI_FN zi_s32x8 ZI_N(native_widen_high_s16x16)(zi_s16x16 a)
+{
+    return ZI_N(widen_s16x8)(ZI_N(high_s16x16)(a));
+}
+/*@native_mul_wide_high_s16x16*/
+ZI_FN zi_s32x8 ZI_N(native_mul_wide_high_s16x16)(zi_s16x16 a, zi_s16x16 b)
+{
+    return ZI_N(combine_s32x4)(ZI_N(high_s32x8)(ZI_N(mul_wide_low_s16x16)(a, b)),
+        ZI_N(high_s32x8)(ZI_N(mul_wide_high_s16x16)(a, b)));
+}
+/*@native_make_u32x8*/
+ZI_FN zi_u32x8 ZI_N(native_make_u32x8)(uint32_t l0, uint32_t l1, uint32_t l2, uint32_t l3)
+{
+    zi_u32x4 b_ = ZI_N(make_u32x4)(l0, l1, l2, l3);
+    return ZI_N(combine_u32x4)(b_, b_);
+}
+/*@native_load_low_u32x8*/
+ZI_FN zi_u32x8 ZI_N(native_load_low_u32x8)(const void * p)
+{
+    return ZI_N(combine_u32x4)(ZI_N(load_u32x4)(p), ZI_N(zero_u32x4)());
+}
+/*@native_store_low_u32x8*/
+ZI_FN void ZI_N(native_store_low_u32x8)(void * p, zi_u32x8 a)
+{
+    ZI_N(store_u32x4)(p, ZI_N(low_u32x8)(a));
+}
+/*@native_widen_low_u32x8*/
+ZI_FN zi_u64x4 ZI_N(native_widen_low_u32x8)(zi_u32x8 a)
+{
+    return ZI_N(widen_u32x4)(ZI_N(low_u32x8)(a));
+}
+/*@native_mul_wide_low_u32x8*/
+ZI_FN zi_u64x4 ZI_N(native_mul_wide_low_u32x8)(zi_u32x8 a, zi_u32x8 b)
+{
+    return ZI_N(combine_u64x2)(ZI_N(low_u64x4)(ZI_N(mul_wide_low_u32x8)(a, b)),
+        ZI_N(low_u64x4)(ZI_N(mul_wide_high_u32x8)(a, b)));
+}
+/*@native_widen_high_u32x8*/
+ZI_FN zi_u64x4 ZI_N(native_widen_high_u32x8)(zi_u32x8 a)
+{
+    return ZI_N(widen_u32x4)(ZI_N(high_u32x8)(a));
+}
+/*@native_mul_wide_high_u32x8*/
+ZI_FN zi_u64x4 ZI_N(native_mul_wide_high_u32x8)(zi_u32x8 a, zi_u32x8 b)
+{
+    return ZI_N(combine_u64x2)(ZI_N(high_u64x4)(ZI_N(mul_wide_low_u32x8)(a, b)),
+        ZI_N(high_u64x4)(ZI_N(mul_wide_high_u32x8)(a, b)));
+}
+/*@native_make_s32x8*/
+ZI_FN zi_s32x8 ZI_N(native_make_s32x8)(int32_t l0, int32_t l1, int32_t l2, int32_t l3)
+{
+    zi_s32x4 b_ = ZI_N(make_s32x4)(l0, l1, l2, l3);
+    return ZI_N(combine_s32x4)(b_, b_);
+}
+/*@native_load_low_s32x8*/
+ZI_FN zi_s32x8 ZI_N(native_load_low_s32x8)(const void * p)
+{
+    return ZI_N(combine_s32x4)(ZI_N(load_s32x4)(p), ZI_N(zero_s32x4)());
+}
+/*@native_store_low_s32x8*/
+ZI_FN void ZI_N(native_store_low_s32x8)(void * p, zi_s32x8 a)
+{
+    ZI_N(store_s32x4)(p, ZI_N(low_s32x8)(a));
+}
+/*@native_widen_low_s32x8*/
+ZI_FN zi_s64x4 ZI_N(native_widen_low_s32x8)(zi_s32x8 a)
+{
+    return ZI_N(widen_s32x4)(ZI_N(low_s32x8)(a));
+}
+/*@native_mul_wide_low_s32x8*/
+ZI_FN zi_s64x4 ZI_N(native_mul_wide_low_s32x8)(zi_s32x8 a, zi_s32x8 b)
+{
+    return ZI_N(combine_s64x2)(ZI_N(low_s64x4)(ZI_N(mul_wide_low_s32x8)(a, b)),
+        ZI_N(low_s64x4)(ZI_N(mul_wide_high_s32x8)(a, b)));
+}
+/*@native_widen_high_s32x8*/
+ZI_FN zi_s64x4 ZI_N(native_widen_high_s32x8)(zi_s32x8 a)
+{
+    return ZI_N(widen_s32x4)(ZI_N(high_s32x8)(a));
+}
+/*@native_mul_wide_high_s32x8*/
+ZI_FN zi_s64x4 ZI_N(native_mul_wide_high_s32x8)(zi_s32x8 a, zi_s32x8 b)
+{
+    return ZI_N(combine_s64x2)(ZI_N(high_s64x4)(ZI_N(mul_wide_low_s32x8)(a, b)),
+        ZI_N(high_s64x4)(ZI_N(mul_wide_high_s32x8)(a, b)));
+}
+/*@native_make_u64x4*/
+ZI_FN zi_u64x4 ZI_N(native_make_u64x4)(uint64_t l0, uint64_t l1)
+{
+    zi_u64x2 b_ = ZI_N(make_u64x2)(l0, l1);
+    return ZI_N(combine_u64x2)(b_, b_);
+}
+/*@native_load_low_u64x4*/
+ZI_FN zi_u64x4 ZI_N(native_load_low_u64x4)(const void * p)
+{
+    return ZI_N(combine_u64x2)(ZI_N(load_u64x2)(p), ZI_N(zero_u64x2)());
+}
+/*@native_store_low_u64x4*/
+ZI_FN void ZI_N(native_store_low_u64x4)(void * p, zi_u64x4 a)
+{
+    ZI_N(store_u64x2)(p, ZI_N(low_u64x4)(a));
+}
+/*@native_make_s64x4*/
+ZI_FN zi_s64x4 ZI_N(native_make_s64x4)(int64_t l0, int64_t l1)
+{
+    zi_s64x2 b_ = ZI_N(make_s64x2)(l0, l1);
+    return ZI_N(combine_s64x2)(b_, b_);
+}
+/*@native_load_low_s64x4*/
+ZI_FN zi_s64x4 ZI_N(native_load_low_s64x4)(const void * p)
+{
+    return ZI_N(combine_s64x2)(ZI_N(load_s64x2)(p), ZI_N(zero_s64x2)());
+}
+/*@native_store_low_s64x4*/
+ZI_FN void ZI_N(native_store_low_s64x4)(void * p, zi_s64x4 a)
+{
+    ZI_N(store_s64x2)(p, ZI_N(low_s64x4)(a));
+}
+/*@native_make_f32x8*/
+ZI_FN zi_f32x8 ZI_N(native_make_f32x8)(float l0, float l1, float l2, float l3)
+{
+    zi_f32x4 b_ = ZI_N(make_f32x4)(l0, l1, l2, l3);
+    return ZI_N(combine_f32x4)(b_, b_);
+}
+/*@native_load_low_f32x8*/
+ZI_FN zi_f32x8 ZI_N(native_load_low_f32x8)(const void * p)
+{
+    return ZI_N(combine_f32x4)(ZI_N(load_f32x4)(p), ZI_N(zero_f32x4)());
+}
+/*@native_store_low_f32x8*/
+ZI_FN void ZI_N(native_store_low_f32x8)(void * p, zi_f32x8 a)
+{
+    ZI_N(store_f32x4)(p, ZI_N(low_f32x8)(a));
+}
+/*@native_make_f64x4*/
+ZI_FN zi_f64x4 ZI_N(native_make_f64x4)(double l0, double l1)
+{
+    zi_f64x2 b_ = ZI_N(make_f64x2)(l0, l1);
+    return ZI_N(combine_f64x2)(b_, b_);
+}
+/*@native_load_low_f64x4*/
+ZI_FN zi_f64x4 ZI_N(native_load_low_f64x4)(const void * p)
+{
+    return ZI_N(combine_f64x2)(ZI_N(load_f64x2)(p), ZI_N(zero_f64x2)());
+}
+/*@native_store_low_f64x4*/
+ZI_FN void ZI_N(native_store_low_f64x4)(void * p, zi_f64x4 a)
+{
+    ZI_N(store_f64x2)(p, ZI_N(low_f64x4)(a));
+}
+/*@native_narrow_u16x16_u8x32*/
+ZI_FN zi_u8x32 ZI_N(native_narrow_u16x16_u8x32)(zi_u16x16 a, zi_u16x16 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_u8x32)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_u16x16_u8x32)(a, b), 0xD8);
+#else
+    return ZI_N(combine_u8x16)(ZI_N(narrow_u16x8_u8x16)(ZI_N(low_u16x16)(a), ZI_N(high_u16x16)(a)),
+        ZI_N(narrow_u16x8_u8x16)(ZI_N(low_u16x16)(b), ZI_N(high_u16x16)(b)));
+#endif
+}
+/*@native_narrow_u16x16_s8x32*/
+ZI_FN zi_s8x32 ZI_N(native_narrow_u16x16_s8x32)(zi_u16x16 a, zi_u16x16 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_s8x32)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_u16x16_s8x32)(a, b), 0xD8);
+#else
+    return ZI_N(combine_s8x16)(ZI_N(narrow_u16x8_s8x16)(ZI_N(low_u16x16)(a), ZI_N(high_u16x16)(a)),
+        ZI_N(narrow_u16x8_s8x16)(ZI_N(low_u16x16)(b), ZI_N(high_u16x16)(b)));
+#endif
+}
+/*@native_narrow_s16x16_u8x32*/
+ZI_FN zi_u8x32 ZI_N(native_narrow_s16x16_u8x32)(zi_s16x16 a, zi_s16x16 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_u8x32)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_s16x16_u8x32)(a, b), 0xD8);
+#else
+    return ZI_N(combine_u8x16)(ZI_N(narrow_s16x8_u8x16)(ZI_N(low_s16x16)(a), ZI_N(high_s16x16)(a)),
+        ZI_N(narrow_s16x8_u8x16)(ZI_N(low_s16x16)(b), ZI_N(high_s16x16)(b)));
+#endif
+}
+/*@native_narrow_s16x16_s8x32*/
+ZI_FN zi_s8x32 ZI_N(native_narrow_s16x16_s8x32)(zi_s16x16 a, zi_s16x16 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_s8x32)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_s16x16_s8x32)(a, b), 0xD8);
+#else
+    return ZI_N(combine_s8x16)(ZI_N(narrow_s16x8_s8x16)(ZI_N(low_s16x16)(a), ZI_N(high_s16x16)(a)),
+        ZI_N(narrow_s16x8_s8x16)(ZI_N(low_s16x16)(b), ZI_N(high_s16x16)(b)));
+#endif
+}
+/*@native_narrow_u32x8_u16x16*/
+ZI_FN zi_u16x16 ZI_N(native_narrow_u32x8_u16x16)(zi_u32x8 a, zi_u32x8 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_u16x16)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_u32x8_u16x16)(a, b), 0xD8);
+#else
+    return ZI_N(combine_u16x8)(ZI_N(narrow_u32x4_u16x8)(ZI_N(low_u32x8)(a), ZI_N(high_u32x8)(a)),
+        ZI_N(narrow_u32x4_u16x8)(ZI_N(low_u32x8)(b), ZI_N(high_u32x8)(b)));
+#endif
+}
+/*@native_narrow_u32x8_s16x16*/
+ZI_FN zi_s16x16 ZI_N(native_narrow_u32x8_s16x16)(zi_u32x8 a, zi_u32x8 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_s16x16)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_u32x8_s16x16)(a, b), 0xD8);
+#else
+    return ZI_N(combine_s16x8)(ZI_N(narrow_u32x4_s16x8)(ZI_N(low_u32x8)(a), ZI_N(high_u32x8)(a)),
+        ZI_N(narrow_u32x4_s16x8)(ZI_N(low_u32x8)(b), ZI_N(high_u32x8)(b)));
+#endif
+}
+/*@native_narrow_s32x8_u16x16*/
+ZI_FN zi_u16x16 ZI_N(native_narrow_s32x8_u16x16)(zi_s32x8 a, zi_s32x8 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_u16x16)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_s32x8_u16x16)(a, b), 0xD8);
+#else
+    return ZI_N(combine_u16x8)(ZI_N(narrow_s32x4_u16x8)(ZI_N(low_s32x8)(a), ZI_N(high_s32x8)(a)),
+        ZI_N(narrow_s32x4_u16x8)(ZI_N(low_s32x8)(b), ZI_N(high_s32x8)(b)));
+#endif
+}
+/*@native_narrow_s32x8_s16x16*/
+ZI_FN zi_s16x16 ZI_N(native_narrow_s32x8_s16x16)(zi_s32x8 a, zi_s32x8 b)
+{
+#if ZI_VEC && ZI_X86
+    return (zi_s16x16)_mm256_permute4x64_epi64((__m256i)ZI_N(narrow_s32x8_s16x16)(a, b), 0xD8);
+#else
+    return ZI_N(combine_s16x8)(ZI_N(narrow_s32x4_s16x8)(ZI_N(low_s32x8)(a), ZI_N(high_s32x8)(a)),
+        ZI_N(narrow_s32x4_s16x8)(ZI_N(low_s32x8)(b), ZI_N(high_s32x8)(b)));
+#endif
+}
+/*@native_narrow_u64x4_u32x8*/
+ZI_FN zi_u32x8 ZI_N(native_narrow_u64x4_u32x8)(zi_u64x4 a, zi_u64x4 b)
+{
+    return ZI_N(combine_u32x4)(ZI_N(narrow_u64x2_u32x4)(ZI_N(low_u64x4)(a), ZI_N(high_u64x4)(a)),
+        ZI_N(narrow_u64x2_u32x4)(ZI_N(low_u64x4)(b), ZI_N(high_u64x4)(b)));
+}
+/*@native_narrow_u64x4_s32x8*/
+ZI_FN zi_s32x8 ZI_N(native_narrow_u64x4_s32x8)(zi_u64x4 a, zi_u64x4 b)
+{
+    return ZI_N(combine_s32x4)(ZI_N(narrow_u64x2_s32x4)(ZI_N(low_u64x4)(a), ZI_N(high_u64x4)(a)),
+        ZI_N(narrow_u64x2_s32x4)(ZI_N(low_u64x4)(b), ZI_N(high_u64x4)(b)));
+}
+/*@native_narrow_s64x4_u32x8*/
+ZI_FN zi_u32x8 ZI_N(native_narrow_s64x4_u32x8)(zi_s64x4 a, zi_s64x4 b)
+{
+    return ZI_N(combine_u32x4)(ZI_N(narrow_s64x2_u32x4)(ZI_N(low_s64x4)(a), ZI_N(high_s64x4)(a)),
+        ZI_N(narrow_s64x2_u32x4)(ZI_N(low_s64x4)(b), ZI_N(high_s64x4)(b)));
+}
+/*@native_narrow_s64x4_s32x8*/
+ZI_FN zi_s32x8 ZI_N(native_narrow_s64x4_s32x8)(zi_s64x4 a, zi_s64x4 b)
+{
+    return ZI_N(combine_s32x4)(ZI_N(narrow_s64x2_s32x4)(ZI_N(low_s64x4)(a), ZI_N(high_s64x4)(a)),
+        ZI_N(narrow_s64x2_s32x4)(ZI_N(low_s64x4)(b), ZI_N(high_s64x4)(b)));
+}
+/*@*/
+#endif
+#if ZI_NS == 1 && ZI_NATIVE_WIDE
+/*@add_u8xN*/
+#define zi_add_u8xN zi_add_u8x32
+/*@add_s8xN*/
+#define zi_add_s8xN zi_add_s8x32
+/*@add_u16xN*/
+#define zi_add_u16xN zi_add_u16x16
+/*@add_s16xN*/
+#define zi_add_s16xN zi_add_s16x16
+/*@add_u32xN*/
+#define zi_add_u32xN zi_add_u32x8
+/*@add_s32xN*/
+#define zi_add_s32xN zi_add_s32x8
+/*@add_u64xN*/
+#define zi_add_u64xN zi_add_u64x4
+/*@add_s64xN*/
+#define zi_add_s64xN zi_add_s64x4
+/*@add_f32xN*/
+#define zi_add_f32xN zi_add_f32x8
+/*@add_f64xN*/
+#define zi_add_f64xN zi_add_f64x4
+/*@sub_u8xN*/
+#define zi_sub_u8xN zi_sub_u8x32
+/*@sub_s8xN*/
+#define zi_sub_s8xN zi_sub_s8x32
+/*@sub_u16xN*/
+#define zi_sub_u16xN zi_sub_u16x16
+/*@sub_s16xN*/
+#define zi_sub_s16xN zi_sub_s16x16
+/*@sub_u32xN*/
+#define zi_sub_u32xN zi_sub_u32x8
+/*@sub_s32xN*/
+#define zi_sub_s32xN zi_sub_s32x8
+/*@sub_u64xN*/
+#define zi_sub_u64xN zi_sub_u64x4
+/*@sub_s64xN*/
+#define zi_sub_s64xN zi_sub_s64x4
+/*@sub_f32xN*/
+#define zi_sub_f32xN zi_sub_f32x8
+/*@sub_f64xN*/
+#define zi_sub_f64xN zi_sub_f64x4
+/*@mul_u8xN*/
+#define zi_mul_u8xN zi_mul_u8x32
+/*@mul_s8xN*/
+#define zi_mul_s8xN zi_mul_s8x32
+/*@mul_u16xN*/
+#define zi_mul_u16xN zi_mul_u16x16
+/*@mul_s16xN*/
+#define zi_mul_s16xN zi_mul_s16x16
+/*@mul_u32xN*/
+#define zi_mul_u32xN zi_mul_u32x8
+/*@mul_s32xN*/
+#define zi_mul_s32xN zi_mul_s32x8
+/*@mul_u64xN*/
+#define zi_mul_u64xN zi_mul_u64x4
+/*@mul_s64xN*/
+#define zi_mul_s64xN zi_mul_s64x4
+/*@mul_f32xN*/
+#define zi_mul_f32xN zi_mul_f32x8
+/*@mul_f64xN*/
+#define zi_mul_f64xN zi_mul_f64x4
+/*@div_f32xN*/
+#define zi_div_f32xN zi_div_f32x8
+/*@div_f64xN*/
+#define zi_div_f64xN zi_div_f64x4
+/*@add_sat_u8xN*/
+#define zi_add_sat_u8xN zi_add_sat_u8x32
+/*@add_sat_s8xN*/
+#define zi_add_sat_s8xN zi_add_sat_s8x32
+/*@add_sat_u16xN*/
+#define zi_add_sat_u16xN zi_add_sat_u16x16
+/*@add_sat_s16xN*/
+#define zi_add_sat_s16xN zi_add_sat_s16x16
+/*@sub_sat_u8xN*/
+#define zi_sub_sat_u8xN zi_sub_sat_u8x32
+/*@sub_sat_s8xN*/
+#define zi_sub_sat_s8xN zi_sub_sat_s8x32
+/*@sub_sat_u16xN*/
+#define zi_sub_sat_u16xN zi_sub_sat_u16x16
+/*@sub_sat_s16xN*/
+#define zi_sub_sat_s16xN zi_sub_sat_s16x16
+/*@min_u8xN*/
+#define zi_min_u8xN zi_min_u8x32
+/*@min_s8xN*/
+#define zi_min_s8xN zi_min_s8x32
+/*@min_u16xN*/
+#define zi_min_u16xN zi_min_u16x16
+/*@min_s16xN*/
+#define zi_min_s16xN zi_min_s16x16
+/*@min_u32xN*/
+#define zi_min_u32xN zi_min_u32x8
+/*@min_s32xN*/
+#define zi_min_s32xN zi_min_s32x8
+/*@min_u64xN*/
+#define zi_min_u64xN zi_min_u64x4
+/*@min_s64xN*/
+#define zi_min_s64xN zi_min_s64x4
+/*@min_f32xN*/
+#define zi_min_f32xN zi_min_f32x8
+/*@min_f64xN*/
+#define zi_min_f64xN zi_min_f64x4
+/*@max_u8xN*/
+#define zi_max_u8xN zi_max_u8x32
+/*@max_s8xN*/
+#define zi_max_s8xN zi_max_s8x32
+/*@max_u16xN*/
+#define zi_max_u16xN zi_max_u16x16
+/*@max_s16xN*/
+#define zi_max_s16xN zi_max_s16x16
+/*@max_u32xN*/
+#define zi_max_u32xN zi_max_u32x8
+/*@max_s32xN*/
+#define zi_max_s32xN zi_max_s32x8
+/*@max_u64xN*/
+#define zi_max_u64xN zi_max_u64x4
+/*@max_s64xN*/
+#define zi_max_s64xN zi_max_s64x4
+/*@max_f32xN*/
+#define zi_max_f32xN zi_max_f32x8
+/*@max_f64xN*/
+#define zi_max_f64xN zi_max_f64x4
+/*@avg_u8xN*/
+#define zi_avg_u8xN zi_avg_u8x32
+/*@avg_u16xN*/
+#define zi_avg_u16xN zi_avg_u16x16
+/*@mul_high_u16xN*/
+#define zi_mul_high_u16xN zi_mul_high_u16x16
+/*@mul_high_s16xN*/
+#define zi_mul_high_s16xN zi_mul_high_s16x16
+/*@mul_high_round_s16xN*/
+#define zi_mul_high_round_s16xN zi_mul_high_round_s16x16
+/*@and_u8xN*/
+#define zi_and_u8xN zi_and_u8x32
+/*@and_s8xN*/
+#define zi_and_s8xN zi_and_s8x32
+/*@and_u16xN*/
+#define zi_and_u16xN zi_and_u16x16
+/*@and_s16xN*/
+#define zi_and_s16xN zi_and_s16x16
+/*@and_u32xN*/
+#define zi_and_u32xN zi_and_u32x8
+/*@and_s32xN*/
+#define zi_and_s32xN zi_and_s32x8
+/*@and_u64xN*/
+#define zi_and_u64xN zi_and_u64x4
+/*@and_s64xN*/
+#define zi_and_s64xN zi_and_s64x4
+/*@or_u8xN*/
+#define zi_or_u8xN zi_or_u8x32
+/*@or_s8xN*/
+#define zi_or_s8xN zi_or_s8x32
+/*@or_u16xN*/
+#define zi_or_u16xN zi_or_u16x16
+/*@or_s16xN*/
+#define zi_or_s16xN zi_or_s16x16
+/*@or_u32xN*/
+#define zi_or_u32xN zi_or_u32x8
+/*@or_s32xN*/
+#define zi_or_s32xN zi_or_s32x8
+/*@or_u64xN*/
+#define zi_or_u64xN zi_or_u64x4
+/*@or_s64xN*/
+#define zi_or_s64xN zi_or_s64x4
+/*@xor_u8xN*/
+#define zi_xor_u8xN zi_xor_u8x32
+/*@xor_s8xN*/
+#define zi_xor_s8xN zi_xor_s8x32
+/*@xor_u16xN*/
+#define zi_xor_u16xN zi_xor_u16x16
+/*@xor_s16xN*/
+#define zi_xor_s16xN zi_xor_s16x16
+/*@xor_u32xN*/
+#define zi_xor_u32xN zi_xor_u32x8
+/*@xor_s32xN*/
+#define zi_xor_s32xN zi_xor_s32x8
+/*@xor_u64xN*/
+#define zi_xor_u64xN zi_xor_u64x4
+/*@xor_s64xN*/
+#define zi_xor_s64xN zi_xor_s64x4
+/*@and_not_u8xN*/
+#define zi_and_not_u8xN zi_and_not_u8x32
+/*@and_not_s8xN*/
+#define zi_and_not_s8xN zi_and_not_s8x32
+/*@and_not_u16xN*/
+#define zi_and_not_u16xN zi_and_not_u16x16
+/*@and_not_s16xN*/
+#define zi_and_not_s16xN zi_and_not_s16x16
+/*@and_not_u32xN*/
+#define zi_and_not_u32xN zi_and_not_u32x8
+/*@and_not_s32xN*/
+#define zi_and_not_s32xN zi_and_not_s32x8
+/*@and_not_u64xN*/
+#define zi_and_not_u64xN zi_and_not_u64x4
+/*@and_not_s64xN*/
+#define zi_and_not_s64xN zi_and_not_s64x4
+/*@not_u8xN*/
+#define zi_not_u8xN zi_not_u8x32
+/*@not_s8xN*/
+#define zi_not_s8xN zi_not_s8x32
+/*@not_u16xN*/
+#define zi_not_u16xN zi_not_u16x16
+/*@not_s16xN*/
+#define zi_not_s16xN zi_not_s16x16
+/*@not_u32xN*/
+#define zi_not_u32xN zi_not_u32x8
+/*@not_s32xN*/
+#define zi_not_s32xN zi_not_s32x8
+/*@not_u64xN*/
+#define zi_not_u64xN zi_not_u64x4
+/*@not_s64xN*/
+#define zi_not_s64xN zi_not_s64x4
+/*@abs_s8xN*/
+#define zi_abs_s8xN zi_abs_s8x32
+/*@abs_s16xN*/
+#define zi_abs_s16xN zi_abs_s16x16
+/*@abs_s32xN*/
+#define zi_abs_s32xN zi_abs_s32x8
+/*@abs_s64xN*/
+#define zi_abs_s64xN zi_abs_s64x4
+/*@abs_f32xN*/
+#define zi_abs_f32xN zi_abs_f32x8
+/*@abs_f64xN*/
+#define zi_abs_f64xN zi_abs_f64x4
+/*@neg_u8xN*/
+#define zi_neg_u8xN zi_neg_u8x32
+/*@neg_s8xN*/
+#define zi_neg_s8xN zi_neg_s8x32
+/*@neg_u16xN*/
+#define zi_neg_u16xN zi_neg_u16x16
+/*@neg_s16xN*/
+#define zi_neg_s16xN zi_neg_s16x16
+/*@neg_u32xN*/
+#define zi_neg_u32xN zi_neg_u32x8
+/*@neg_s32xN*/
+#define zi_neg_s32xN zi_neg_s32x8
+/*@neg_u64xN*/
+#define zi_neg_u64xN zi_neg_u64x4
+/*@neg_s64xN*/
+#define zi_neg_s64xN zi_neg_s64x4
+/*@neg_f32xN*/
+#define zi_neg_f32xN zi_neg_f32x8
+/*@neg_f64xN*/
+#define zi_neg_f64xN zi_neg_f64x4
+/*@sign_s8xN*/
+#define zi_sign_s8xN zi_sign_s8x32
+/*@sign_s16xN*/
+#define zi_sign_s16xN zi_sign_s16x16
+/*@sign_s32xN*/
+#define zi_sign_s32xN zi_sign_s32x8
+/*@sign_s64xN*/
+#define zi_sign_s64xN zi_sign_s64x4
+/*@abs_diff_u8xN*/
+#define zi_abs_diff_u8xN zi_abs_diff_u8x32
+/*@abs_diff_s8xN*/
+#define zi_abs_diff_s8xN zi_abs_diff_s8x32
+/*@abs_diff_u16xN*/
+#define zi_abs_diff_u16xN zi_abs_diff_u16x16
+/*@abs_diff_s16xN*/
+#define zi_abs_diff_s16xN zi_abs_diff_s16x16
+/*@abs_diff_u32xN*/
+#define zi_abs_diff_u32xN zi_abs_diff_u32x8
+/*@abs_diff_s32xN*/
+#define zi_abs_diff_s32xN zi_abs_diff_s32x8
+/*@abs_diff_u64xN*/
+#define zi_abs_diff_u64xN zi_abs_diff_u64x4
+/*@abs_diff_s64xN*/
+#define zi_abs_diff_s64xN zi_abs_diff_s64x4
+/*@eq_u8xN*/
+#define zi_eq_u8xN zi_eq_u8x32
+/*@eq_s8xN*/
+#define zi_eq_s8xN zi_eq_s8x32
+/*@eq_u16xN*/
+#define zi_eq_u16xN zi_eq_u16x16
+/*@eq_s16xN*/
+#define zi_eq_s16xN zi_eq_s16x16
+/*@eq_u32xN*/
+#define zi_eq_u32xN zi_eq_u32x8
+/*@eq_s32xN*/
+#define zi_eq_s32xN zi_eq_s32x8
+/*@eq_u64xN*/
+#define zi_eq_u64xN zi_eq_u64x4
+/*@eq_s64xN*/
+#define zi_eq_s64xN zi_eq_s64x4
+/*@eq_f32xN*/
+#define zi_eq_f32xN zi_eq_f32x8
+/*@eq_f64xN*/
+#define zi_eq_f64xN zi_eq_f64x4
+/*@lt_u8xN*/
+#define zi_lt_u8xN zi_lt_u8x32
+/*@lt_s8xN*/
+#define zi_lt_s8xN zi_lt_s8x32
+/*@lt_u16xN*/
+#define zi_lt_u16xN zi_lt_u16x16
+/*@lt_s16xN*/
+#define zi_lt_s16xN zi_lt_s16x16
+/*@lt_u32xN*/
+#define zi_lt_u32xN zi_lt_u32x8
+/*@lt_s32xN*/
+#define zi_lt_s32xN zi_lt_s32x8
+/*@lt_u64xN*/
+#define zi_lt_u64xN zi_lt_u64x4
+/*@lt_s64xN*/
+#define zi_lt_s64xN zi_lt_s64x4
+/*@lt_f32xN*/
+#define zi_lt_f32xN zi_lt_f32x8
+/*@lt_f64xN*/
+#define zi_lt_f64xN zi_lt_f64x4
+/*@gt_u8xN*/
+#define zi_gt_u8xN zi_gt_u8x32
+/*@gt_s8xN*/
+#define zi_gt_s8xN zi_gt_s8x32
+/*@gt_u16xN*/
+#define zi_gt_u16xN zi_gt_u16x16
+/*@gt_s16xN*/
+#define zi_gt_s16xN zi_gt_s16x16
+/*@gt_u32xN*/
+#define zi_gt_u32xN zi_gt_u32x8
+/*@gt_s32xN*/
+#define zi_gt_s32xN zi_gt_s32x8
+/*@gt_u64xN*/
+#define zi_gt_u64xN zi_gt_u64x4
+/*@gt_s64xN*/
+#define zi_gt_s64xN zi_gt_s64x4
+/*@gt_f32xN*/
+#define zi_gt_f32xN zi_gt_f32x8
+/*@gt_f64xN*/
+#define zi_gt_f64xN zi_gt_f64x4
+/*@select_u8xN*/
+#define zi_select_u8xN zi_select_u8x32
+/*@select_s8xN*/
+#define zi_select_s8xN zi_select_s8x32
+/*@select_u16xN*/
+#define zi_select_u16xN zi_select_u16x16
+/*@select_s16xN*/
+#define zi_select_s16xN zi_select_s16x16
+/*@select_u32xN*/
+#define zi_select_u32xN zi_select_u32x8
+/*@select_s32xN*/
+#define zi_select_s32xN zi_select_s32x8
+/*@select_u64xN*/
+#define zi_select_u64xN zi_select_u64x4
+/*@select_s64xN*/
+#define zi_select_s64xN zi_select_s64x4
+/*@select_f32xN*/
+#define zi_select_f32xN zi_select_f32x8
+/*@select_f64xN*/
+#define zi_select_f64xN zi_select_f64x4
+/*@shl_u8xN*/
+#define zi_shl_u8xN zi_shl_u8x32
+/*@shl_s8xN*/
+#define zi_shl_s8xN zi_shl_s8x32
+/*@shl_u16xN*/
+#define zi_shl_u16xN zi_shl_u16x16
+/*@shl_s16xN*/
+#define zi_shl_s16xN zi_shl_s16x16
+/*@shl_u32xN*/
+#define zi_shl_u32xN zi_shl_u32x8
+/*@shl_s32xN*/
+#define zi_shl_s32xN zi_shl_s32x8
+/*@shl_u64xN*/
+#define zi_shl_u64xN zi_shl_u64x4
+/*@shl_s64xN*/
+#define zi_shl_s64xN zi_shl_s64x4
+/*@shr_u8xN*/
+#define zi_shr_u8xN zi_shr_u8x32
+/*@shr_s8xN*/
+#define zi_shr_s8xN zi_shr_s8x32
+/*@shr_u16xN*/
+#define zi_shr_u16xN zi_shr_u16x16
+/*@shr_s16xN*/
+#define zi_shr_s16xN zi_shr_s16x16
+/*@shr_u32xN*/
+#define zi_shr_u32xN zi_shr_u32x8
+/*@shr_s32xN*/
+#define zi_shr_s32xN zi_shr_s32x8
+/*@shr_u64xN*/
+#define zi_shr_u64xN zi_shr_u64x4
+/*@shr_s64xN*/
+#define zi_shr_s64xN zi_shr_s64x4
+/*@shr_round_u8xN*/
+#define zi_shr_round_u8xN zi_shr_round_u8x32
+/*@shr_round_s8xN*/
+#define zi_shr_round_s8xN zi_shr_round_s8x32
+/*@shr_round_u16xN*/
+#define zi_shr_round_u16xN zi_shr_round_u16x16
+/*@shr_round_s16xN*/
+#define zi_shr_round_s16xN zi_shr_round_s16x16
+/*@shr_round_u32xN*/
+#define zi_shr_round_u32xN zi_shr_round_u32x8
+/*@shr_round_s32xN*/
+#define zi_shr_round_s32xN zi_shr_round_s32x8
+/*@shr_round_u64xN*/
+#define zi_shr_round_u64xN zi_shr_round_u64x4
+/*@shr_round_s64xN*/
+#define zi_shr_round_s64xN zi_shr_round_s64x4
+/*@shl_lanes_u8xN*/
+#define zi_shl_lanes_u8xN zi_shl_lanes_u8x32
+/*@shl_lanes_s8xN*/
+#define zi_shl_lanes_s8xN zi_shl_lanes_s8x32
+/*@shl_lanes_u16xN*/
+#define zi_shl_lanes_u16xN zi_shl_lanes_u16x16
+/*@shl_lanes_s16xN*/
+#define zi_shl_lanes_s16xN zi_shl_lanes_s16x16
+/*@shl_lanes_u32xN*/
+#define zi_shl_lanes_u32xN zi_shl_lanes_u32x8
+/*@shl_lanes_s32xN*/
+#define zi_shl_lanes_s32xN zi_shl_lanes_s32x8
+/*@shl_lanes_u64xN*/
+#define zi_shl_lanes_u64xN zi_shl_lanes_u64x4
+/*@shl_lanes_s64xN*/
+#define zi_shl_lanes_s64xN zi_shl_lanes_s64x4
+/*@shr_lanes_u8xN*/
+#define zi_shr_lanes_u8xN zi_shr_lanes_u8x32
+/*@shr_lanes_s8xN*/
+#define zi_shr_lanes_s8xN zi_shr_lanes_s8x32
+/*@shr_lanes_u16xN*/
+#define zi_shr_lanes_u16xN zi_shr_lanes_u16x16
+/*@shr_lanes_s16xN*/
+#define zi_shr_lanes_s16xN zi_shr_lanes_s16x16
+/*@shr_lanes_u32xN*/
+#define zi_shr_lanes_u32xN zi_shr_lanes_u32x8
+/*@shr_lanes_s32xN*/
+#define zi_shr_lanes_s32xN zi_shr_lanes_s32x8
+/*@shr_lanes_u64xN*/
+#define zi_shr_lanes_u64xN zi_shr_lanes_u64x4
+/*@shr_lanes_s64xN*/
+#define zi_shr_lanes_s64xN zi_shr_lanes_s64x4
+/*@make_u8xN*/
+#define zi_make_u8xN zi_native_make_u8x32
+/*@make_s8xN*/
+#define zi_make_s8xN zi_native_make_s8x32
+/*@make_u16xN*/
+#define zi_make_u16xN zi_native_make_u16x16
+/*@make_s16xN*/
+#define zi_make_s16xN zi_native_make_s16x16
+/*@make_u32xN*/
+#define zi_make_u32xN zi_native_make_u32x8
+/*@make_s32xN*/
+#define zi_make_s32xN zi_native_make_s32x8
+/*@make_u64xN*/
+#define zi_make_u64xN zi_native_make_u64x4
+/*@make_s64xN*/
+#define zi_make_s64xN zi_native_make_s64x4
+/*@make_f32xN*/
+#define zi_make_f32xN zi_native_make_f32x8
+/*@make_f64xN*/
+#define zi_make_f64xN zi_native_make_f64x4
+/*@splat_u8xN*/
+#define zi_splat_u8xN zi_splat_u8x32
+/*@splat_s8xN*/
+#define zi_splat_s8xN zi_splat_s8x32
+/*@splat_u16xN*/
+#define zi_splat_u16xN zi_splat_u16x16
+/*@splat_s16xN*/
+#define zi_splat_s16xN zi_splat_s16x16
+/*@splat_u32xN*/
+#define zi_splat_u32xN zi_splat_u32x8
+/*@splat_s32xN*/
+#define zi_splat_s32xN zi_splat_s32x8
+/*@splat_u64xN*/
+#define zi_splat_u64xN zi_splat_u64x4
+/*@splat_s64xN*/
+#define zi_splat_s64xN zi_splat_s64x4
+/*@splat_f32xN*/
+#define zi_splat_f32xN zi_splat_f32x8
+/*@splat_f64xN*/
+#define zi_splat_f64xN zi_splat_f64x4
+/*@zero_u8xN*/
+#define zi_zero_u8xN zi_zero_u8x32
+/*@zero_s8xN*/
+#define zi_zero_s8xN zi_zero_s8x32
+/*@zero_u16xN*/
+#define zi_zero_u16xN zi_zero_u16x16
+/*@zero_s16xN*/
+#define zi_zero_s16xN zi_zero_s16x16
+/*@zero_u32xN*/
+#define zi_zero_u32xN zi_zero_u32x8
+/*@zero_s32xN*/
+#define zi_zero_s32xN zi_zero_s32x8
+/*@zero_u64xN*/
+#define zi_zero_u64xN zi_zero_u64x4
+/*@zero_s64xN*/
+#define zi_zero_s64xN zi_zero_s64x4
+/*@zero_f32xN*/
+#define zi_zero_f32xN zi_zero_f32x8
+/*@zero_f64xN*/
+#define zi_zero_f64xN zi_zero_f64x4
+/*@load_u8xN*/
+#define zi_load_u8xN zi_load_u8x32
+/*@load_s8xN*/
+#define zi_load_s8xN zi_load_s8x32
+/*@load_u16xN*/
+#define zi_load_u16xN zi_load_u16x16
+/*@load_s16xN*/
+#define zi_load_s16xN zi_load_s16x16
+/*@load_u32xN*/
+#define zi_load_u32xN zi_load_u32x8
+/*@load_s32xN*/
+#define zi_load_s32xN zi_load_s32x8
+/*@load_u64xN*/
+#define zi_load_u64xN zi_load_u64x4
+/*@load_s64xN*/
+#define zi_load_s64xN zi_load_s64x4
+/*@load_f32xN*/
+#define zi_load_f32xN zi_load_f32x8
+/*@load_f64xN*/
+#define zi_load_f64xN zi_load_f64x4
+/*@load_low_u8xN*/
+#define zi_load_low_u8xN zi_native_load_low_u8x32
+/*@load_low_s8xN*/
+#define zi_load_low_s8xN zi_native_load_low_s8x32
+/*@load_low_u16xN*/
+#define zi_load_low_u16xN zi_native_load_low_u16x16
+/*@load_low_s16xN*/
+#define zi_load_low_s16xN zi_native_load_low_s16x16
+/*@load_low_u32xN*/
+#define zi_load_low_u32xN zi_native_load_low_u32x8
+/*@load_low_s32xN*/
+#define zi_load_low_s32xN zi_native_load_low_s32x8
+/*@load_low_u64xN*/
+#define zi_load_low_u64xN zi_native_load_low_u64x4
+/*@load_low_s64xN*/
+#define zi_load_low_s64xN zi_native_load_low_s64x4
+/*@load_low_f32xN*/
+#define zi_load_low_f32xN zi_native_load_low_f32x8
+/*@load_low_f64xN*/
+#define zi_load_low_f64xN zi_native_load_low_f64x4
+/*@store_u8xN*/
+#define zi_store_u8xN zi_store_u8x32
+/*@store_s8xN*/
+#define zi_store_s8xN zi_store_s8x32
+/*@store_u16xN*/
+#define zi_store_u16xN zi_store_u16x16
+/*@store_s16xN*/
+#define zi_store_s16xN zi_store_s16x16
+/*@store_u32xN*/
+#define zi_store_u32xN zi_store_u32x8
+/*@store_s32xN*/
+#define zi_store_s32xN zi_store_s32x8
+/*@store_u64xN*/
+#define zi_store_u64xN zi_store_u64x4
+/*@store_s64xN*/
+#define zi_store_s64xN zi_store_s64x4
+/*@store_f32xN*/
+#define zi_store_f32xN zi_store_f32x8
+/*@store_f64xN*/
+#define zi_store_f64xN zi_store_f64x4
+/*@store_low_u8xN*/
+#define zi_store_low_u8xN zi_native_store_low_u8x32
+/*@store_low_s8xN*/
+#define zi_store_low_s8xN zi_native_store_low_s8x32
+/*@store_low_u16xN*/
+#define zi_store_low_u16xN zi_native_store_low_u16x16
+/*@store_low_s16xN*/
+#define zi_store_low_s16xN zi_native_store_low_s16x16
+/*@store_low_u32xN*/
+#define zi_store_low_u32xN zi_native_store_low_u32x8
+/*@store_low_s32xN*/
+#define zi_store_low_s32xN zi_native_store_low_s32x8
+/*@store_low_u64xN*/
+#define zi_store_low_u64xN zi_native_store_low_u64x4
+/*@store_low_s64xN*/
+#define zi_store_low_s64xN zi_native_store_low_s64x4
+/*@store_low_f32xN*/
+#define zi_store_low_f32xN zi_native_store_low_f32x8
+/*@store_low_f64xN*/
+#define zi_store_low_f64xN zi_native_store_low_f64x4
+/*@gather_u32xN_u32xN*/
+#define zi_gather_u32xN_u32xN zi_gather_u32x8_u32x8
+/*@gather_u32xN_s32xN*/
+#define zi_gather_u32xN_s32xN zi_gather_u32x8_s32x8
+/*@gather_u32xN_f32xN*/
+#define zi_gather_u32xN_f32xN zi_gather_u32x8_f32x8
+/*@gather_s32xN_u32xN*/
+#define zi_gather_s32xN_u32xN zi_gather_s32x8_u32x8
+/*@gather_s32xN_s32xN*/
+#define zi_gather_s32xN_s32xN zi_gather_s32x8_s32x8
+/*@gather_s32xN_f32xN*/
+#define zi_gather_s32xN_f32xN zi_gather_s32x8_f32x8
+/*@widen_low_u8xN*/
+#define zi_widen_low_u8xN zi_native_widen_low_u8x32
+/*@widen_low_s8xN*/
+#define zi_widen_low_s8xN zi_native_widen_low_s8x32
+/*@widen_low_u16xN*/
+#define zi_widen_low_u16xN zi_native_widen_low_u16x16
+/*@widen_low_s16xN*/
+#define zi_widen_low_s16xN zi_native_widen_low_s16x16
+/*@widen_low_u32xN*/
+#define zi_widen_low_u32xN zi_native_widen_low_u32x8
+/*@widen_low_s32xN*/
+#define zi_widen_low_s32xN zi_native_widen_low_s32x8
+/*@widen_high_u8xN*/
+#define zi_widen_high_u8xN zi_native_widen_high_u8x32
+/*@widen_high_s8xN*/
+#define zi_widen_high_s8xN zi_native_widen_high_s8x32
+/*@widen_high_u16xN*/
+#define zi_widen_high_u16xN zi_native_widen_high_u16x16
+/*@widen_high_s16xN*/
+#define zi_widen_high_s16xN zi_native_widen_high_s16x16
+/*@widen_high_u32xN*/
+#define zi_widen_high_u32xN zi_native_widen_high_u32x8
+/*@widen_high_s32xN*/
+#define zi_widen_high_s32xN zi_native_widen_high_s32x8
+/*@narrow_u16xN_u8xN*/
+#define zi_narrow_u16xN_u8xN zi_native_narrow_u16x16_u8x32
+/*@narrow_u16xN_s8xN*/
+#define zi_narrow_u16xN_s8xN zi_native_narrow_u16x16_s8x32
+/*@narrow_s16xN_u8xN*/
+#define zi_narrow_s16xN_u8xN zi_native_narrow_s16x16_u8x32
+/*@narrow_s16xN_s8xN*/
+#define zi_narrow_s16xN_s8xN zi_native_narrow_s16x16_s8x32
+/*@narrow_u32xN_u16xN*/
+#define zi_narrow_u32xN_u16xN zi_native_narrow_u32x8_u16x16
+/*@narrow_u32xN_s16xN*/
+#define zi_narrow_u32xN_s16xN zi_native_narrow_u32x8_s16x16
+/*@narrow_s32xN_u16xN*/
+#define zi_narrow_s32xN_u16xN zi_native_narrow_s32x8_u16x16
+/*@narrow_s32xN_s16xN*/
+#define zi_narrow_s32xN_s16xN zi_native_narrow_s32x8_s16x16
+/*@narrow_u64xN_u32xN*/
+#define zi_narrow_u64xN_u32xN zi_native_narrow_u64x4_u32x8
+/*@narrow_u64xN_s32xN*/
+#define zi_narrow_u64xN_s32xN zi_native_narrow_u64x4_s32x8
+/*@narrow_s64xN_u32xN*/
+#define zi_narrow_s64xN_u32xN zi_native_narrow_s64x4_u32x8
+/*@narrow_s64xN_s32xN*/
+#define zi_narrow_s64xN_s32xN zi_native_narrow_s64x4_s32x8
+/*@mul_wide_low_u8xN*/
+#define zi_mul_wide_low_u8xN zi_native_mul_wide_low_u8x32
+/*@mul_wide_low_s8xN*/
+#define zi_mul_wide_low_s8xN zi_native_mul_wide_low_s8x32
+/*@mul_wide_low_u16xN*/
+#define zi_mul_wide_low_u16xN zi_native_mul_wide_low_u16x16
+/*@mul_wide_low_s16xN*/
+#define zi_mul_wide_low_s16xN zi_native_mul_wide_low_s16x16
+/*@mul_wide_low_u32xN*/
+#define zi_mul_wide_low_u32xN zi_native_mul_wide_low_u32x8
+/*@mul_wide_low_s32xN*/
+#define zi_mul_wide_low_s32xN zi_native_mul_wide_low_s32x8
+/*@mul_wide_high_u8xN*/
+#define zi_mul_wide_high_u8xN zi_native_mul_wide_high_u8x32
+/*@mul_wide_high_s8xN*/
+#define zi_mul_wide_high_s8xN zi_native_mul_wide_high_s8x32
+/*@mul_wide_high_u16xN*/
+#define zi_mul_wide_high_u16xN zi_native_mul_wide_high_u16x16
+/*@mul_wide_high_s16xN*/
+#define zi_mul_wide_high_s16xN zi_native_mul_wide_high_s16x16
+/*@mul_wide_high_u32xN*/
+#define zi_mul_wide_high_u32xN zi_native_mul_wide_high_u32x8
+/*@mul_wide_high_s32xN*/
+#define zi_mul_wide_high_s32xN zi_native_mul_wide_high_s32x8
+/*@madd_s16xN*/
+#define zi_madd_s16xN zi_madd_s16x16
+/*@madd_sat_u8xN*/
+#define zi_madd_sat_u8xN zi_madd_sat_u8x32
+/*@add_pairs_u8xN*/
+#define zi_add_pairs_u8xN zi_add_pairs_u8x32
+/*@add_pairs_s8xN*/
+#define zi_add_pairs_s8xN zi_add_pairs_s8x32
+/*@add_pairs_u16xN*/
+#define zi_add_pairs_u16xN zi_add_pairs_u16x16
+/*@add_pairs_s16xN*/
+#define zi_add_pairs_s16xN zi_add_pairs_s16x16
+/*@add_pairs_u32xN*/
+#define zi_add_pairs_u32xN zi_add_pairs_u32x8
+/*@add_pairs_s32xN*/
+#define zi_add_pairs_s32xN zi_add_pairs_s32x8
+/*@sad_u8xN*/
+#define zi_sad_u8xN zi_sad_u8x32
+/*@reduce_add_u8xN*/
+#define zi_reduce_add_u8xN zi_reduce_add_u8x32
+/*@reduce_add_s8xN*/
+#define zi_reduce_add_s8xN zi_reduce_add_s8x32
+/*@reduce_add_u16xN*/
+#define zi_reduce_add_u16xN zi_reduce_add_u16x16
+/*@reduce_add_s16xN*/
+#define zi_reduce_add_s16xN zi_reduce_add_s16x16
+/*@reduce_add_u32xN*/
+#define zi_reduce_add_u32xN zi_reduce_add_u32x8
+/*@reduce_add_s32xN*/
+#define zi_reduce_add_s32xN zi_reduce_add_s32x8
+/*@reduce_add_u64xN*/
+#define zi_reduce_add_u64xN zi_reduce_add_u64x4
+/*@reduce_add_s64xN*/
+#define zi_reduce_add_s64xN zi_reduce_add_s64x4
+/*@reduce_min_u8xN*/
+#define zi_reduce_min_u8xN zi_reduce_min_u8x32
+/*@reduce_min_s8xN*/
+#define zi_reduce_min_s8xN zi_reduce_min_s8x32
+/*@reduce_min_u16xN*/
+#define zi_reduce_min_u16xN zi_reduce_min_u16x16
+/*@reduce_min_s16xN*/
+#define zi_reduce_min_s16xN zi_reduce_min_s16x16
+/*@reduce_min_u32xN*/
+#define zi_reduce_min_u32xN zi_reduce_min_u32x8
+/*@reduce_min_s32xN*/
+#define zi_reduce_min_s32xN zi_reduce_min_s32x8
+/*@reduce_min_u64xN*/
+#define zi_reduce_min_u64xN zi_reduce_min_u64x4
+/*@reduce_min_s64xN*/
+#define zi_reduce_min_s64xN zi_reduce_min_s64x4
+/*@reduce_max_u8xN*/
+#define zi_reduce_max_u8xN zi_reduce_max_u8x32
+/*@reduce_max_s8xN*/
+#define zi_reduce_max_s8xN zi_reduce_max_s8x32
+/*@reduce_max_u16xN*/
+#define zi_reduce_max_u16xN zi_reduce_max_u16x16
+/*@reduce_max_s16xN*/
+#define zi_reduce_max_s16xN zi_reduce_max_s16x16
+/*@reduce_max_u32xN*/
+#define zi_reduce_max_u32xN zi_reduce_max_u32x8
+/*@reduce_max_s32xN*/
+#define zi_reduce_max_s32xN zi_reduce_max_s32x8
+/*@reduce_max_u64xN*/
+#define zi_reduce_max_u64xN zi_reduce_max_u64x4
+/*@reduce_max_s64xN*/
+#define zi_reduce_max_s64xN zi_reduce_max_s64x4
+/*@reduce_max_index_u8xN*/
+#define zi_reduce_max_index_u8xN zi_reduce_max_index_u8x32
+/*@reduce_max_index_s8xN*/
+#define zi_reduce_max_index_s8xN zi_reduce_max_index_s8x32
+/*@reduce_max_index_u16xN*/
+#define zi_reduce_max_index_u16xN zi_reduce_max_index_u16x16
+/*@reduce_max_index_s16xN*/
+#define zi_reduce_max_index_s16xN zi_reduce_max_index_s16x16
+/*@reduce_max_index_u32xN*/
+#define zi_reduce_max_index_u32xN zi_reduce_max_index_u32x8
+/*@reduce_max_index_s32xN*/
+#define zi_reduce_max_index_s32xN zi_reduce_max_index_s32x8
+/*@reduce_max_index_u64xN*/
+#define zi_reduce_max_index_u64xN zi_reduce_max_index_u64x4
+/*@reduce_max_index_s64xN*/
+#define zi_reduce_max_index_s64xN zi_reduce_max_index_s64x4
+/*@all_zero_u8xN*/
+#define zi_all_zero_u8xN zi_all_zero_u8x32
+/*@all_zero_s8xN*/
+#define zi_all_zero_s8xN zi_all_zero_s8x32
+/*@all_zero_u16xN*/
+#define zi_all_zero_u16xN zi_all_zero_u16x16
+/*@all_zero_s16xN*/
+#define zi_all_zero_s16xN zi_all_zero_s16x16
+/*@all_zero_u32xN*/
+#define zi_all_zero_u32xN zi_all_zero_u32x8
+/*@all_zero_s32xN*/
+#define zi_all_zero_s32xN zi_all_zero_s32x8
+/*@all_zero_u64xN*/
+#define zi_all_zero_u64xN zi_all_zero_u64x4
+/*@all_zero_s64xN*/
+#define zi_all_zero_s64xN zi_all_zero_s64x4
+/*@byte_shuffle_u8xN*/
+#define zi_byte_shuffle_u8xN zi_byte_shuffle_u8x32
+/*@byte_shuffle_s8xN*/
+#define zi_byte_shuffle_s8xN zi_byte_shuffle_s8x32
+/*@reinterpret_u8xN_s8xN*/
+#define zi_reinterpret_u8xN_s8xN zi_reinterpret_u8x32_s8x32
+/*@reinterpret_u8xN_u16xN*/
+#define zi_reinterpret_u8xN_u16xN zi_reinterpret_u8x32_u16x16
+/*@reinterpret_u8xN_s16xN*/
+#define zi_reinterpret_u8xN_s16xN zi_reinterpret_u8x32_s16x16
+/*@reinterpret_u8xN_u32xN*/
+#define zi_reinterpret_u8xN_u32xN zi_reinterpret_u8x32_u32x8
+/*@reinterpret_u8xN_s32xN*/
+#define zi_reinterpret_u8xN_s32xN zi_reinterpret_u8x32_s32x8
+/*@reinterpret_u8xN_u64xN*/
+#define zi_reinterpret_u8xN_u64xN zi_reinterpret_u8x32_u64x4
+/*@reinterpret_u8xN_s64xN*/
+#define zi_reinterpret_u8xN_s64xN zi_reinterpret_u8x32_s64x4
+/*@reinterpret_u8xN_f32xN*/
+#define zi_reinterpret_u8xN_f32xN zi_reinterpret_u8x32_f32x8
+/*@reinterpret_u8xN_f64xN*/
+#define zi_reinterpret_u8xN_f64xN zi_reinterpret_u8x32_f64x4
+/*@reinterpret_s8xN_u8xN*/
+#define zi_reinterpret_s8xN_u8xN zi_reinterpret_s8x32_u8x32
+/*@reinterpret_s8xN_u16xN*/
+#define zi_reinterpret_s8xN_u16xN zi_reinterpret_s8x32_u16x16
+/*@reinterpret_s8xN_s16xN*/
+#define zi_reinterpret_s8xN_s16xN zi_reinterpret_s8x32_s16x16
+/*@reinterpret_s8xN_u32xN*/
+#define zi_reinterpret_s8xN_u32xN zi_reinterpret_s8x32_u32x8
+/*@reinterpret_s8xN_s32xN*/
+#define zi_reinterpret_s8xN_s32xN zi_reinterpret_s8x32_s32x8
+/*@reinterpret_s8xN_u64xN*/
+#define zi_reinterpret_s8xN_u64xN zi_reinterpret_s8x32_u64x4
+/*@reinterpret_s8xN_s64xN*/
+#define zi_reinterpret_s8xN_s64xN zi_reinterpret_s8x32_s64x4
+/*@reinterpret_s8xN_f32xN*/
+#define zi_reinterpret_s8xN_f32xN zi_reinterpret_s8x32_f32x8
+/*@reinterpret_s8xN_f64xN*/
+#define zi_reinterpret_s8xN_f64xN zi_reinterpret_s8x32_f64x4
+/*@reinterpret_u16xN_u8xN*/
+#define zi_reinterpret_u16xN_u8xN zi_reinterpret_u16x16_u8x32
+/*@reinterpret_u16xN_s8xN*/
+#define zi_reinterpret_u16xN_s8xN zi_reinterpret_u16x16_s8x32
+/*@reinterpret_u16xN_s16xN*/
+#define zi_reinterpret_u16xN_s16xN zi_reinterpret_u16x16_s16x16
+/*@reinterpret_u16xN_u32xN*/
+#define zi_reinterpret_u16xN_u32xN zi_reinterpret_u16x16_u32x8
+/*@reinterpret_u16xN_s32xN*/
+#define zi_reinterpret_u16xN_s32xN zi_reinterpret_u16x16_s32x8
+/*@reinterpret_u16xN_u64xN*/
+#define zi_reinterpret_u16xN_u64xN zi_reinterpret_u16x16_u64x4
+/*@reinterpret_u16xN_s64xN*/
+#define zi_reinterpret_u16xN_s64xN zi_reinterpret_u16x16_s64x4
+/*@reinterpret_u16xN_f32xN*/
+#define zi_reinterpret_u16xN_f32xN zi_reinterpret_u16x16_f32x8
+/*@reinterpret_u16xN_f64xN*/
+#define zi_reinterpret_u16xN_f64xN zi_reinterpret_u16x16_f64x4
+/*@reinterpret_s16xN_u8xN*/
+#define zi_reinterpret_s16xN_u8xN zi_reinterpret_s16x16_u8x32
+/*@reinterpret_s16xN_s8xN*/
+#define zi_reinterpret_s16xN_s8xN zi_reinterpret_s16x16_s8x32
+/*@reinterpret_s16xN_u16xN*/
+#define zi_reinterpret_s16xN_u16xN zi_reinterpret_s16x16_u16x16
+/*@reinterpret_s16xN_u32xN*/
+#define zi_reinterpret_s16xN_u32xN zi_reinterpret_s16x16_u32x8
+/*@reinterpret_s16xN_s32xN*/
+#define zi_reinterpret_s16xN_s32xN zi_reinterpret_s16x16_s32x8
+/*@reinterpret_s16xN_u64xN*/
+#define zi_reinterpret_s16xN_u64xN zi_reinterpret_s16x16_u64x4
+/*@reinterpret_s16xN_s64xN*/
+#define zi_reinterpret_s16xN_s64xN zi_reinterpret_s16x16_s64x4
+/*@reinterpret_s16xN_f32xN*/
+#define zi_reinterpret_s16xN_f32xN zi_reinterpret_s16x16_f32x8
+/*@reinterpret_s16xN_f64xN*/
+#define zi_reinterpret_s16xN_f64xN zi_reinterpret_s16x16_f64x4
+/*@reinterpret_u32xN_u8xN*/
+#define zi_reinterpret_u32xN_u8xN zi_reinterpret_u32x8_u8x32
+/*@reinterpret_u32xN_s8xN*/
+#define zi_reinterpret_u32xN_s8xN zi_reinterpret_u32x8_s8x32
+/*@reinterpret_u32xN_u16xN*/
+#define zi_reinterpret_u32xN_u16xN zi_reinterpret_u32x8_u16x16
+/*@reinterpret_u32xN_s16xN*/
+#define zi_reinterpret_u32xN_s16xN zi_reinterpret_u32x8_s16x16
+/*@reinterpret_u32xN_s32xN*/
+#define zi_reinterpret_u32xN_s32xN zi_reinterpret_u32x8_s32x8
+/*@reinterpret_u32xN_u64xN*/
+#define zi_reinterpret_u32xN_u64xN zi_reinterpret_u32x8_u64x4
+/*@reinterpret_u32xN_s64xN*/
+#define zi_reinterpret_u32xN_s64xN zi_reinterpret_u32x8_s64x4
+/*@reinterpret_u32xN_f32xN*/
+#define zi_reinterpret_u32xN_f32xN zi_reinterpret_u32x8_f32x8
+/*@reinterpret_u32xN_f64xN*/
+#define zi_reinterpret_u32xN_f64xN zi_reinterpret_u32x8_f64x4
+/*@reinterpret_s32xN_u8xN*/
+#define zi_reinterpret_s32xN_u8xN zi_reinterpret_s32x8_u8x32
+/*@reinterpret_s32xN_s8xN*/
+#define zi_reinterpret_s32xN_s8xN zi_reinterpret_s32x8_s8x32
+/*@reinterpret_s32xN_u16xN*/
+#define zi_reinterpret_s32xN_u16xN zi_reinterpret_s32x8_u16x16
+/*@reinterpret_s32xN_s16xN*/
+#define zi_reinterpret_s32xN_s16xN zi_reinterpret_s32x8_s16x16
+/*@reinterpret_s32xN_u32xN*/
+#define zi_reinterpret_s32xN_u32xN zi_reinterpret_s32x8_u32x8
+/*@reinterpret_s32xN_u64xN*/
+#define zi_reinterpret_s32xN_u64xN zi_reinterpret_s32x8_u64x4
+/*@reinterpret_s32xN_s64xN*/
+#define zi_reinterpret_s32xN_s64xN zi_reinterpret_s32x8_s64x4
+/*@reinterpret_s32xN_f32xN*/
+#define zi_reinterpret_s32xN_f32xN zi_reinterpret_s32x8_f32x8
+/*@reinterpret_s32xN_f64xN*/
+#define zi_reinterpret_s32xN_f64xN zi_reinterpret_s32x8_f64x4
+/*@reinterpret_u64xN_u8xN*/
+#define zi_reinterpret_u64xN_u8xN zi_reinterpret_u64x4_u8x32
+/*@reinterpret_u64xN_s8xN*/
+#define zi_reinterpret_u64xN_s8xN zi_reinterpret_u64x4_s8x32
+/*@reinterpret_u64xN_u16xN*/
+#define zi_reinterpret_u64xN_u16xN zi_reinterpret_u64x4_u16x16
+/*@reinterpret_u64xN_s16xN*/
+#define zi_reinterpret_u64xN_s16xN zi_reinterpret_u64x4_s16x16
+/*@reinterpret_u64xN_u32xN*/
+#define zi_reinterpret_u64xN_u32xN zi_reinterpret_u64x4_u32x8
+/*@reinterpret_u64xN_s32xN*/
+#define zi_reinterpret_u64xN_s32xN zi_reinterpret_u64x4_s32x8
+/*@reinterpret_u64xN_s64xN*/
+#define zi_reinterpret_u64xN_s64xN zi_reinterpret_u64x4_s64x4
+/*@reinterpret_u64xN_f32xN*/
+#define zi_reinterpret_u64xN_f32xN zi_reinterpret_u64x4_f32x8
+/*@reinterpret_u64xN_f64xN*/
+#define zi_reinterpret_u64xN_f64xN zi_reinterpret_u64x4_f64x4
+/*@reinterpret_s64xN_u8xN*/
+#define zi_reinterpret_s64xN_u8xN zi_reinterpret_s64x4_u8x32
+/*@reinterpret_s64xN_s8xN*/
+#define zi_reinterpret_s64xN_s8xN zi_reinterpret_s64x4_s8x32
+/*@reinterpret_s64xN_u16xN*/
+#define zi_reinterpret_s64xN_u16xN zi_reinterpret_s64x4_u16x16
+/*@reinterpret_s64xN_s16xN*/
+#define zi_reinterpret_s64xN_s16xN zi_reinterpret_s64x4_s16x16
+/*@reinterpret_s64xN_u32xN*/
+#define zi_reinterpret_s64xN_u32xN zi_reinterpret_s64x4_u32x8
+/*@reinterpret_s64xN_s32xN*/
+#define zi_reinterpret_s64xN_s32xN zi_reinterpret_s64x4_s32x8
+/*@reinterpret_s64xN_u64xN*/
+#define zi_reinterpret_s64xN_u64xN zi_reinterpret_s64x4_u64x4
+/*@reinterpret_s64xN_f32xN*/
+#define zi_reinterpret_s64xN_f32xN zi_reinterpret_s64x4_f32x8
+/*@reinterpret_s64xN_f64xN*/
+#define zi_reinterpret_s64xN_f64xN zi_reinterpret_s64x4_f64x4
+/*@reinterpret_f32xN_u8xN*/
+#define zi_reinterpret_f32xN_u8xN zi_reinterpret_f32x8_u8x32
+/*@reinterpret_f32xN_s8xN*/
+#define zi_reinterpret_f32xN_s8xN zi_reinterpret_f32x8_s8x32
+/*@reinterpret_f32xN_u16xN*/
+#define zi_reinterpret_f32xN_u16xN zi_reinterpret_f32x8_u16x16
+/*@reinterpret_f32xN_s16xN*/
+#define zi_reinterpret_f32xN_s16xN zi_reinterpret_f32x8_s16x16
+/*@reinterpret_f32xN_u32xN*/
+#define zi_reinterpret_f32xN_u32xN zi_reinterpret_f32x8_u32x8
+/*@reinterpret_f32xN_s32xN*/
+#define zi_reinterpret_f32xN_s32xN zi_reinterpret_f32x8_s32x8
+/*@reinterpret_f32xN_u64xN*/
+#define zi_reinterpret_f32xN_u64xN zi_reinterpret_f32x8_u64x4
+/*@reinterpret_f32xN_s64xN*/
+#define zi_reinterpret_f32xN_s64xN zi_reinterpret_f32x8_s64x4
+/*@reinterpret_f32xN_f64xN*/
+#define zi_reinterpret_f32xN_f64xN zi_reinterpret_f32x8_f64x4
+/*@reinterpret_f64xN_u8xN*/
+#define zi_reinterpret_f64xN_u8xN zi_reinterpret_f64x4_u8x32
+/*@reinterpret_f64xN_s8xN*/
+#define zi_reinterpret_f64xN_s8xN zi_reinterpret_f64x4_s8x32
+/*@reinterpret_f64xN_u16xN*/
+#define zi_reinterpret_f64xN_u16xN zi_reinterpret_f64x4_u16x16
+/*@reinterpret_f64xN_s16xN*/
+#define zi_reinterpret_f64xN_s16xN zi_reinterpret_f64x4_s16x16
+/*@reinterpret_f64xN_u32xN*/
+#define zi_reinterpret_f64xN_u32xN zi_reinterpret_f64x4_u32x8
+/*@reinterpret_f64xN_s32xN*/
+#define zi_reinterpret_f64xN_s32xN zi_reinterpret_f64x4_s32x8
+/*@reinterpret_f64xN_u64xN*/
+#define zi_reinterpret_f64xN_u64xN zi_reinterpret_f64x4_u64x4
+/*@reinterpret_f64xN_s64xN*/
+#define zi_reinterpret_f64xN_s64xN zi_reinterpret_f64x4_s64x4
+/*@reinterpret_f64xN_f32xN*/
+#define zi_reinterpret_f64xN_f32xN zi_reinterpret_f64x4_f32x8
+/*@convert_u32xN_f32xN*/
+#define zi_convert_u32xN_f32xN zi_convert_u32x8_f32x8
+/*@convert_s32xN_f32xN*/
+#define zi_convert_s32xN_f32xN zi_convert_s32x8_f32x8
+/*@convert_u64xN_f64xN*/
+#define zi_convert_u64xN_f64xN zi_convert_u64x4_f64x4
+/*@convert_s64xN_f64xN*/
+#define zi_convert_s64xN_f64xN zi_convert_s64x4_f64x4
+/*@convert_f32xN_u32xN*/
+#define zi_convert_f32xN_u32xN zi_convert_f32x8_u32x8
+/*@convert_f32xN_s32xN*/
+#define zi_convert_f32xN_s32xN zi_convert_f32x8_s32x8
+/*@convert_f64xN_u64xN*/
+#define zi_convert_f64xN_u64xN zi_convert_f64x4_u64x4
+/*@convert_f64xN_s64xN*/
+#define zi_convert_f64xN_s64xN zi_convert_f64x4_s64x4
+/*@interleave_low_u8xN*/
+#define zi_interleave_low_u8xN zi_interleave_low_u8x32
+/*@interleave_low_s8xN*/
+#define zi_interleave_low_s8xN zi_interleave_low_s8x32
+/*@interleave_low_u16xN*/
+#define zi_interleave_low_u16xN zi_interleave_low_u16x16
+/*@interleave_low_s16xN*/
+#define zi_interleave_low_s16xN zi_interleave_low_s16x16
+/*@interleave_low_u32xN*/
+#define zi_interleave_low_u32xN zi_interleave_low_u32x8
+/*@interleave_low_s32xN*/
+#define zi_interleave_low_s32xN zi_interleave_low_s32x8
+/*@interleave_low_u64xN*/
+#define zi_interleave_low_u64xN zi_interleave_low_u64x4
+/*@interleave_low_s64xN*/
+#define zi_interleave_low_s64xN zi_interleave_low_s64x4
+/*@interleave_low_f32xN*/
+#define zi_interleave_low_f32xN zi_interleave_low_f32x8
+/*@interleave_low_f64xN*/
+#define zi_interleave_low_f64xN zi_interleave_low_f64x4
+/*@interleave_high_u8xN*/
+#define zi_interleave_high_u8xN zi_interleave_high_u8x32
+/*@interleave_high_s8xN*/
+#define zi_interleave_high_s8xN zi_interleave_high_s8x32
+/*@interleave_high_u16xN*/
+#define zi_interleave_high_u16xN zi_interleave_high_u16x16
+/*@interleave_high_s16xN*/
+#define zi_interleave_high_s16xN zi_interleave_high_s16x16
+/*@interleave_high_u32xN*/
+#define zi_interleave_high_u32xN zi_interleave_high_u32x8
+/*@interleave_high_s32xN*/
+#define zi_interleave_high_s32xN zi_interleave_high_s32x8
+/*@interleave_high_u64xN*/
+#define zi_interleave_high_u64xN zi_interleave_high_u64x4
+/*@interleave_high_s64xN*/
+#define zi_interleave_high_s64xN zi_interleave_high_s64x4
+/*@interleave_high_f32xN*/
+#define zi_interleave_high_f32xN zi_interleave_high_f32x8
+/*@interleave_high_f64xN*/
+#define zi_interleave_high_f64xN zi_interleave_high_f64x4
+/*@*/
+#elif ZI_NS == 1
+/*@add_u8xN*/
+#define zi_add_u8xN zi_add_u8x16
+/*@add_s8xN*/
+#define zi_add_s8xN zi_add_s8x16
+/*@add_u16xN*/
+#define zi_add_u16xN zi_add_u16x8
+/*@add_s16xN*/
+#define zi_add_s16xN zi_add_s16x8
+/*@add_u32xN*/
+#define zi_add_u32xN zi_add_u32x4
+/*@add_s32xN*/
+#define zi_add_s32xN zi_add_s32x4
+/*@add_u64xN*/
+#define zi_add_u64xN zi_add_u64x2
+/*@add_s64xN*/
+#define zi_add_s64xN zi_add_s64x2
+/*@add_f32xN*/
+#define zi_add_f32xN zi_add_f32x4
+/*@add_f64xN*/
+#define zi_add_f64xN zi_add_f64x2
+/*@sub_u8xN*/
+#define zi_sub_u8xN zi_sub_u8x16
+/*@sub_s8xN*/
+#define zi_sub_s8xN zi_sub_s8x16
+/*@sub_u16xN*/
+#define zi_sub_u16xN zi_sub_u16x8
+/*@sub_s16xN*/
+#define zi_sub_s16xN zi_sub_s16x8
+/*@sub_u32xN*/
+#define zi_sub_u32xN zi_sub_u32x4
+/*@sub_s32xN*/
+#define zi_sub_s32xN zi_sub_s32x4
+/*@sub_u64xN*/
+#define zi_sub_u64xN zi_sub_u64x2
+/*@sub_s64xN*/
+#define zi_sub_s64xN zi_sub_s64x2
+/*@sub_f32xN*/
+#define zi_sub_f32xN zi_sub_f32x4
+/*@sub_f64xN*/
+#define zi_sub_f64xN zi_sub_f64x2
+/*@mul_u8xN*/
+#define zi_mul_u8xN zi_mul_u8x16
+/*@mul_s8xN*/
+#define zi_mul_s8xN zi_mul_s8x16
+/*@mul_u16xN*/
+#define zi_mul_u16xN zi_mul_u16x8
+/*@mul_s16xN*/
+#define zi_mul_s16xN zi_mul_s16x8
+/*@mul_u32xN*/
+#define zi_mul_u32xN zi_mul_u32x4
+/*@mul_s32xN*/
+#define zi_mul_s32xN zi_mul_s32x4
+/*@mul_u64xN*/
+#define zi_mul_u64xN zi_mul_u64x2
+/*@mul_s64xN*/
+#define zi_mul_s64xN zi_mul_s64x2
+/*@mul_f32xN*/
+#define zi_mul_f32xN zi_mul_f32x4
+/*@mul_f64xN*/
+#define zi_mul_f64xN zi_mul_f64x2
+/*@div_f32xN*/
+#define zi_div_f32xN zi_div_f32x4
+/*@div_f64xN*/
+#define zi_div_f64xN zi_div_f64x2
+/*@add_sat_u8xN*/
+#define zi_add_sat_u8xN zi_add_sat_u8x16
+/*@add_sat_s8xN*/
+#define zi_add_sat_s8xN zi_add_sat_s8x16
+/*@add_sat_u16xN*/
+#define zi_add_sat_u16xN zi_add_sat_u16x8
+/*@add_sat_s16xN*/
+#define zi_add_sat_s16xN zi_add_sat_s16x8
+/*@sub_sat_u8xN*/
+#define zi_sub_sat_u8xN zi_sub_sat_u8x16
+/*@sub_sat_s8xN*/
+#define zi_sub_sat_s8xN zi_sub_sat_s8x16
+/*@sub_sat_u16xN*/
+#define zi_sub_sat_u16xN zi_sub_sat_u16x8
+/*@sub_sat_s16xN*/
+#define zi_sub_sat_s16xN zi_sub_sat_s16x8
+/*@min_u8xN*/
+#define zi_min_u8xN zi_min_u8x16
+/*@min_s8xN*/
+#define zi_min_s8xN zi_min_s8x16
+/*@min_u16xN*/
+#define zi_min_u16xN zi_min_u16x8
+/*@min_s16xN*/
+#define zi_min_s16xN zi_min_s16x8
+/*@min_u32xN*/
+#define zi_min_u32xN zi_min_u32x4
+/*@min_s32xN*/
+#define zi_min_s32xN zi_min_s32x4
+/*@min_u64xN*/
+#define zi_min_u64xN zi_min_u64x2
+/*@min_s64xN*/
+#define zi_min_s64xN zi_min_s64x2
+/*@min_f32xN*/
+#define zi_min_f32xN zi_min_f32x4
+/*@min_f64xN*/
+#define zi_min_f64xN zi_min_f64x2
+/*@max_u8xN*/
+#define zi_max_u8xN zi_max_u8x16
+/*@max_s8xN*/
+#define zi_max_s8xN zi_max_s8x16
+/*@max_u16xN*/
+#define zi_max_u16xN zi_max_u16x8
+/*@max_s16xN*/
+#define zi_max_s16xN zi_max_s16x8
+/*@max_u32xN*/
+#define zi_max_u32xN zi_max_u32x4
+/*@max_s32xN*/
+#define zi_max_s32xN zi_max_s32x4
+/*@max_u64xN*/
+#define zi_max_u64xN zi_max_u64x2
+/*@max_s64xN*/
+#define zi_max_s64xN zi_max_s64x2
+/*@max_f32xN*/
+#define zi_max_f32xN zi_max_f32x4
+/*@max_f64xN*/
+#define zi_max_f64xN zi_max_f64x2
+/*@avg_u8xN*/
+#define zi_avg_u8xN zi_avg_u8x16
+/*@avg_u16xN*/
+#define zi_avg_u16xN zi_avg_u16x8
+/*@mul_high_u16xN*/
+#define zi_mul_high_u16xN zi_mul_high_u16x8
+/*@mul_high_s16xN*/
+#define zi_mul_high_s16xN zi_mul_high_s16x8
+/*@mul_high_round_s16xN*/
+#define zi_mul_high_round_s16xN zi_mul_high_round_s16x8
+/*@and_u8xN*/
+#define zi_and_u8xN zi_and_u8x16
+/*@and_s8xN*/
+#define zi_and_s8xN zi_and_s8x16
+/*@and_u16xN*/
+#define zi_and_u16xN zi_and_u16x8
+/*@and_s16xN*/
+#define zi_and_s16xN zi_and_s16x8
+/*@and_u32xN*/
+#define zi_and_u32xN zi_and_u32x4
+/*@and_s32xN*/
+#define zi_and_s32xN zi_and_s32x4
+/*@and_u64xN*/
+#define zi_and_u64xN zi_and_u64x2
+/*@and_s64xN*/
+#define zi_and_s64xN zi_and_s64x2
+/*@or_u8xN*/
+#define zi_or_u8xN zi_or_u8x16
+/*@or_s8xN*/
+#define zi_or_s8xN zi_or_s8x16
+/*@or_u16xN*/
+#define zi_or_u16xN zi_or_u16x8
+/*@or_s16xN*/
+#define zi_or_s16xN zi_or_s16x8
+/*@or_u32xN*/
+#define zi_or_u32xN zi_or_u32x4
+/*@or_s32xN*/
+#define zi_or_s32xN zi_or_s32x4
+/*@or_u64xN*/
+#define zi_or_u64xN zi_or_u64x2
+/*@or_s64xN*/
+#define zi_or_s64xN zi_or_s64x2
+/*@xor_u8xN*/
+#define zi_xor_u8xN zi_xor_u8x16
+/*@xor_s8xN*/
+#define zi_xor_s8xN zi_xor_s8x16
+/*@xor_u16xN*/
+#define zi_xor_u16xN zi_xor_u16x8
+/*@xor_s16xN*/
+#define zi_xor_s16xN zi_xor_s16x8
+/*@xor_u32xN*/
+#define zi_xor_u32xN zi_xor_u32x4
+/*@xor_s32xN*/
+#define zi_xor_s32xN zi_xor_s32x4
+/*@xor_u64xN*/
+#define zi_xor_u64xN zi_xor_u64x2
+/*@xor_s64xN*/
+#define zi_xor_s64xN zi_xor_s64x2
+/*@and_not_u8xN*/
+#define zi_and_not_u8xN zi_and_not_u8x16
+/*@and_not_s8xN*/
+#define zi_and_not_s8xN zi_and_not_s8x16
+/*@and_not_u16xN*/
+#define zi_and_not_u16xN zi_and_not_u16x8
+/*@and_not_s16xN*/
+#define zi_and_not_s16xN zi_and_not_s16x8
+/*@and_not_u32xN*/
+#define zi_and_not_u32xN zi_and_not_u32x4
+/*@and_not_s32xN*/
+#define zi_and_not_s32xN zi_and_not_s32x4
+/*@and_not_u64xN*/
+#define zi_and_not_u64xN zi_and_not_u64x2
+/*@and_not_s64xN*/
+#define zi_and_not_s64xN zi_and_not_s64x2
+/*@not_u8xN*/
+#define zi_not_u8xN zi_not_u8x16
+/*@not_s8xN*/
+#define zi_not_s8xN zi_not_s8x16
+/*@not_u16xN*/
+#define zi_not_u16xN zi_not_u16x8
+/*@not_s16xN*/
+#define zi_not_s16xN zi_not_s16x8
+/*@not_u32xN*/
+#define zi_not_u32xN zi_not_u32x4
+/*@not_s32xN*/
+#define zi_not_s32xN zi_not_s32x4
+/*@not_u64xN*/
+#define zi_not_u64xN zi_not_u64x2
+/*@not_s64xN*/
+#define zi_not_s64xN zi_not_s64x2
+/*@abs_s8xN*/
+#define zi_abs_s8xN zi_abs_s8x16
+/*@abs_s16xN*/
+#define zi_abs_s16xN zi_abs_s16x8
+/*@abs_s32xN*/
+#define zi_abs_s32xN zi_abs_s32x4
+/*@abs_s64xN*/
+#define zi_abs_s64xN zi_abs_s64x2
+/*@abs_f32xN*/
+#define zi_abs_f32xN zi_abs_f32x4
+/*@abs_f64xN*/
+#define zi_abs_f64xN zi_abs_f64x2
+/*@neg_u8xN*/
+#define zi_neg_u8xN zi_neg_u8x16
+/*@neg_s8xN*/
+#define zi_neg_s8xN zi_neg_s8x16
+/*@neg_u16xN*/
+#define zi_neg_u16xN zi_neg_u16x8
+/*@neg_s16xN*/
+#define zi_neg_s16xN zi_neg_s16x8
+/*@neg_u32xN*/
+#define zi_neg_u32xN zi_neg_u32x4
+/*@neg_s32xN*/
+#define zi_neg_s32xN zi_neg_s32x4
+/*@neg_u64xN*/
+#define zi_neg_u64xN zi_neg_u64x2
+/*@neg_s64xN*/
+#define zi_neg_s64xN zi_neg_s64x2
+/*@neg_f32xN*/
+#define zi_neg_f32xN zi_neg_f32x4
+/*@neg_f64xN*/
+#define zi_neg_f64xN zi_neg_f64x2
+/*@sign_s8xN*/
+#define zi_sign_s8xN zi_sign_s8x16
+/*@sign_s16xN*/
+#define zi_sign_s16xN zi_sign_s16x8
+/*@sign_s32xN*/
+#define zi_sign_s32xN zi_sign_s32x4
+/*@sign_s64xN*/
+#define zi_sign_s64xN zi_sign_s64x2
+/*@abs_diff_u8xN*/
+#define zi_abs_diff_u8xN zi_abs_diff_u8x16
+/*@abs_diff_s8xN*/
+#define zi_abs_diff_s8xN zi_abs_diff_s8x16
+/*@abs_diff_u16xN*/
+#define zi_abs_diff_u16xN zi_abs_diff_u16x8
+/*@abs_diff_s16xN*/
+#define zi_abs_diff_s16xN zi_abs_diff_s16x8
+/*@abs_diff_u32xN*/
+#define zi_abs_diff_u32xN zi_abs_diff_u32x4
+/*@abs_diff_s32xN*/
+#define zi_abs_diff_s32xN zi_abs_diff_s32x4
+/*@abs_diff_u64xN*/
+#define zi_abs_diff_u64xN zi_abs_diff_u64x2
+/*@abs_diff_s64xN*/
+#define zi_abs_diff_s64xN zi_abs_diff_s64x2
+/*@eq_u8xN*/
+#define zi_eq_u8xN zi_eq_u8x16
+/*@eq_s8xN*/
+#define zi_eq_s8xN zi_eq_s8x16
+/*@eq_u16xN*/
+#define zi_eq_u16xN zi_eq_u16x8
+/*@eq_s16xN*/
+#define zi_eq_s16xN zi_eq_s16x8
+/*@eq_u32xN*/
+#define zi_eq_u32xN zi_eq_u32x4
+/*@eq_s32xN*/
+#define zi_eq_s32xN zi_eq_s32x4
+/*@eq_u64xN*/
+#define zi_eq_u64xN zi_eq_u64x2
+/*@eq_s64xN*/
+#define zi_eq_s64xN zi_eq_s64x2
+/*@eq_f32xN*/
+#define zi_eq_f32xN zi_eq_f32x4
+/*@eq_f64xN*/
+#define zi_eq_f64xN zi_eq_f64x2
+/*@lt_u8xN*/
+#define zi_lt_u8xN zi_lt_u8x16
+/*@lt_s8xN*/
+#define zi_lt_s8xN zi_lt_s8x16
+/*@lt_u16xN*/
+#define zi_lt_u16xN zi_lt_u16x8
+/*@lt_s16xN*/
+#define zi_lt_s16xN zi_lt_s16x8
+/*@lt_u32xN*/
+#define zi_lt_u32xN zi_lt_u32x4
+/*@lt_s32xN*/
+#define zi_lt_s32xN zi_lt_s32x4
+/*@lt_u64xN*/
+#define zi_lt_u64xN zi_lt_u64x2
+/*@lt_s64xN*/
+#define zi_lt_s64xN zi_lt_s64x2
+/*@lt_f32xN*/
+#define zi_lt_f32xN zi_lt_f32x4
+/*@lt_f64xN*/
+#define zi_lt_f64xN zi_lt_f64x2
+/*@gt_u8xN*/
+#define zi_gt_u8xN zi_gt_u8x16
+/*@gt_s8xN*/
+#define zi_gt_s8xN zi_gt_s8x16
+/*@gt_u16xN*/
+#define zi_gt_u16xN zi_gt_u16x8
+/*@gt_s16xN*/
+#define zi_gt_s16xN zi_gt_s16x8
+/*@gt_u32xN*/
+#define zi_gt_u32xN zi_gt_u32x4
+/*@gt_s32xN*/
+#define zi_gt_s32xN zi_gt_s32x4
+/*@gt_u64xN*/
+#define zi_gt_u64xN zi_gt_u64x2
+/*@gt_s64xN*/
+#define zi_gt_s64xN zi_gt_s64x2
+/*@gt_f32xN*/
+#define zi_gt_f32xN zi_gt_f32x4
+/*@gt_f64xN*/
+#define zi_gt_f64xN zi_gt_f64x2
+/*@select_u8xN*/
+#define zi_select_u8xN zi_select_u8x16
+/*@select_s8xN*/
+#define zi_select_s8xN zi_select_s8x16
+/*@select_u16xN*/
+#define zi_select_u16xN zi_select_u16x8
+/*@select_s16xN*/
+#define zi_select_s16xN zi_select_s16x8
+/*@select_u32xN*/
+#define zi_select_u32xN zi_select_u32x4
+/*@select_s32xN*/
+#define zi_select_s32xN zi_select_s32x4
+/*@select_u64xN*/
+#define zi_select_u64xN zi_select_u64x2
+/*@select_s64xN*/
+#define zi_select_s64xN zi_select_s64x2
+/*@select_f32xN*/
+#define zi_select_f32xN zi_select_f32x4
+/*@select_f64xN*/
+#define zi_select_f64xN zi_select_f64x2
+/*@shl_u8xN*/
+#define zi_shl_u8xN zi_shl_u8x16
+/*@shl_s8xN*/
+#define zi_shl_s8xN zi_shl_s8x16
+/*@shl_u16xN*/
+#define zi_shl_u16xN zi_shl_u16x8
+/*@shl_s16xN*/
+#define zi_shl_s16xN zi_shl_s16x8
+/*@shl_u32xN*/
+#define zi_shl_u32xN zi_shl_u32x4
+/*@shl_s32xN*/
+#define zi_shl_s32xN zi_shl_s32x4
+/*@shl_u64xN*/
+#define zi_shl_u64xN zi_shl_u64x2
+/*@shl_s64xN*/
+#define zi_shl_s64xN zi_shl_s64x2
+/*@shr_u8xN*/
+#define zi_shr_u8xN zi_shr_u8x16
+/*@shr_s8xN*/
+#define zi_shr_s8xN zi_shr_s8x16
+/*@shr_u16xN*/
+#define zi_shr_u16xN zi_shr_u16x8
+/*@shr_s16xN*/
+#define zi_shr_s16xN zi_shr_s16x8
+/*@shr_u32xN*/
+#define zi_shr_u32xN zi_shr_u32x4
+/*@shr_s32xN*/
+#define zi_shr_s32xN zi_shr_s32x4
+/*@shr_u64xN*/
+#define zi_shr_u64xN zi_shr_u64x2
+/*@shr_s64xN*/
+#define zi_shr_s64xN zi_shr_s64x2
+/*@shr_round_u8xN*/
+#define zi_shr_round_u8xN zi_shr_round_u8x16
+/*@shr_round_s8xN*/
+#define zi_shr_round_s8xN zi_shr_round_s8x16
+/*@shr_round_u16xN*/
+#define zi_shr_round_u16xN zi_shr_round_u16x8
+/*@shr_round_s16xN*/
+#define zi_shr_round_s16xN zi_shr_round_s16x8
+/*@shr_round_u32xN*/
+#define zi_shr_round_u32xN zi_shr_round_u32x4
+/*@shr_round_s32xN*/
+#define zi_shr_round_s32xN zi_shr_round_s32x4
+/*@shr_round_u64xN*/
+#define zi_shr_round_u64xN zi_shr_round_u64x2
+/*@shr_round_s64xN*/
+#define zi_shr_round_s64xN zi_shr_round_s64x2
+/*@shl_lanes_u8xN*/
+#define zi_shl_lanes_u8xN zi_shl_lanes_u8x16
+/*@shl_lanes_s8xN*/
+#define zi_shl_lanes_s8xN zi_shl_lanes_s8x16
+/*@shl_lanes_u16xN*/
+#define zi_shl_lanes_u16xN zi_shl_lanes_u16x8
+/*@shl_lanes_s16xN*/
+#define zi_shl_lanes_s16xN zi_shl_lanes_s16x8
+/*@shl_lanes_u32xN*/
+#define zi_shl_lanes_u32xN zi_shl_lanes_u32x4
+/*@shl_lanes_s32xN*/
+#define zi_shl_lanes_s32xN zi_shl_lanes_s32x4
+/*@shl_lanes_u64xN*/
+#define zi_shl_lanes_u64xN zi_shl_lanes_u64x2
+/*@shl_lanes_s64xN*/
+#define zi_shl_lanes_s64xN zi_shl_lanes_s64x2
+/*@shr_lanes_u8xN*/
+#define zi_shr_lanes_u8xN zi_shr_lanes_u8x16
+/*@shr_lanes_s8xN*/
+#define zi_shr_lanes_s8xN zi_shr_lanes_s8x16
+/*@shr_lanes_u16xN*/
+#define zi_shr_lanes_u16xN zi_shr_lanes_u16x8
+/*@shr_lanes_s16xN*/
+#define zi_shr_lanes_s16xN zi_shr_lanes_s16x8
+/*@shr_lanes_u32xN*/
+#define zi_shr_lanes_u32xN zi_shr_lanes_u32x4
+/*@shr_lanes_s32xN*/
+#define zi_shr_lanes_s32xN zi_shr_lanes_s32x4
+/*@shr_lanes_u64xN*/
+#define zi_shr_lanes_u64xN zi_shr_lanes_u64x2
+/*@shr_lanes_s64xN*/
+#define zi_shr_lanes_s64xN zi_shr_lanes_s64x2
+/*@make_u8xN*/
+#define zi_make_u8xN zi_make_u8x16
+/*@make_s8xN*/
+#define zi_make_s8xN zi_make_s8x16
+/*@make_u16xN*/
+#define zi_make_u16xN zi_make_u16x8
+/*@make_s16xN*/
+#define zi_make_s16xN zi_make_s16x8
+/*@make_u32xN*/
+#define zi_make_u32xN zi_make_u32x4
+/*@make_s32xN*/
+#define zi_make_s32xN zi_make_s32x4
+/*@make_u64xN*/
+#define zi_make_u64xN zi_make_u64x2
+/*@make_s64xN*/
+#define zi_make_s64xN zi_make_s64x2
+/*@make_f32xN*/
+#define zi_make_f32xN zi_make_f32x4
+/*@make_f64xN*/
+#define zi_make_f64xN zi_make_f64x2
+/*@splat_u8xN*/
+#define zi_splat_u8xN zi_splat_u8x16
+/*@splat_s8xN*/
+#define zi_splat_s8xN zi_splat_s8x16
+/*@splat_u16xN*/
+#define zi_splat_u16xN zi_splat_u16x8
+/*@splat_s16xN*/
+#define zi_splat_s16xN zi_splat_s16x8
+/*@splat_u32xN*/
+#define zi_splat_u32xN zi_splat_u32x4
+/*@splat_s32xN*/
+#define zi_splat_s32xN zi_splat_s32x4
+/*@splat_u64xN*/
+#define zi_splat_u64xN zi_splat_u64x2
+/*@splat_s64xN*/
+#define zi_splat_s64xN zi_splat_s64x2
+/*@splat_f32xN*/
+#define zi_splat_f32xN zi_splat_f32x4
+/*@splat_f64xN*/
+#define zi_splat_f64xN zi_splat_f64x2
+/*@zero_u8xN*/
+#define zi_zero_u8xN zi_zero_u8x16
+/*@zero_s8xN*/
+#define zi_zero_s8xN zi_zero_s8x16
+/*@zero_u16xN*/
+#define zi_zero_u16xN zi_zero_u16x8
+/*@zero_s16xN*/
+#define zi_zero_s16xN zi_zero_s16x8
+/*@zero_u32xN*/
+#define zi_zero_u32xN zi_zero_u32x4
+/*@zero_s32xN*/
+#define zi_zero_s32xN zi_zero_s32x4
+/*@zero_u64xN*/
+#define zi_zero_u64xN zi_zero_u64x2
+/*@zero_s64xN*/
+#define zi_zero_s64xN zi_zero_s64x2
+/*@zero_f32xN*/
+#define zi_zero_f32xN zi_zero_f32x4
+/*@zero_f64xN*/
+#define zi_zero_f64xN zi_zero_f64x2
+/*@load_u8xN*/
+#define zi_load_u8xN zi_load_u8x16
+/*@load_s8xN*/
+#define zi_load_s8xN zi_load_s8x16
+/*@load_u16xN*/
+#define zi_load_u16xN zi_load_u16x8
+/*@load_s16xN*/
+#define zi_load_s16xN zi_load_s16x8
+/*@load_u32xN*/
+#define zi_load_u32xN zi_load_u32x4
+/*@load_s32xN*/
+#define zi_load_s32xN zi_load_s32x4
+/*@load_u64xN*/
+#define zi_load_u64xN zi_load_u64x2
+/*@load_s64xN*/
+#define zi_load_s64xN zi_load_s64x2
+/*@load_f32xN*/
+#define zi_load_f32xN zi_load_f32x4
+/*@load_f64xN*/
+#define zi_load_f64xN zi_load_f64x2
+/*@load_low_u8xN*/
+#define zi_load_low_u8xN zi_load_low_u8x16
+/*@load_low_s8xN*/
+#define zi_load_low_s8xN zi_load_low_s8x16
+/*@load_low_u16xN*/
+#define zi_load_low_u16xN zi_load_low_u16x8
+/*@load_low_s16xN*/
+#define zi_load_low_s16xN zi_load_low_s16x8
+/*@load_low_u32xN*/
+#define zi_load_low_u32xN zi_load_low_u32x4
+/*@load_low_s32xN*/
+#define zi_load_low_s32xN zi_load_low_s32x4
+/*@load_low_u64xN*/
+#define zi_load_low_u64xN zi_load_low_u64x2
+/*@load_low_s64xN*/
+#define zi_load_low_s64xN zi_load_low_s64x2
+/*@load_low_f32xN*/
+#define zi_load_low_f32xN zi_load_low_f32x4
+/*@load_low_f64xN*/
+#define zi_load_low_f64xN zi_load_low_f64x2
+/*@store_u8xN*/
+#define zi_store_u8xN zi_store_u8x16
+/*@store_s8xN*/
+#define zi_store_s8xN zi_store_s8x16
+/*@store_u16xN*/
+#define zi_store_u16xN zi_store_u16x8
+/*@store_s16xN*/
+#define zi_store_s16xN zi_store_s16x8
+/*@store_u32xN*/
+#define zi_store_u32xN zi_store_u32x4
+/*@store_s32xN*/
+#define zi_store_s32xN zi_store_s32x4
+/*@store_u64xN*/
+#define zi_store_u64xN zi_store_u64x2
+/*@store_s64xN*/
+#define zi_store_s64xN zi_store_s64x2
+/*@store_f32xN*/
+#define zi_store_f32xN zi_store_f32x4
+/*@store_f64xN*/
+#define zi_store_f64xN zi_store_f64x2
+/*@store_low_u8xN*/
+#define zi_store_low_u8xN zi_store_low_u8x16
+/*@store_low_s8xN*/
+#define zi_store_low_s8xN zi_store_low_s8x16
+/*@store_low_u16xN*/
+#define zi_store_low_u16xN zi_store_low_u16x8
+/*@store_low_s16xN*/
+#define zi_store_low_s16xN zi_store_low_s16x8
+/*@store_low_u32xN*/
+#define zi_store_low_u32xN zi_store_low_u32x4
+/*@store_low_s32xN*/
+#define zi_store_low_s32xN zi_store_low_s32x4
+/*@store_low_u64xN*/
+#define zi_store_low_u64xN zi_store_low_u64x2
+/*@store_low_s64xN*/
+#define zi_store_low_s64xN zi_store_low_s64x2
+/*@store_low_f32xN*/
+#define zi_store_low_f32xN zi_store_low_f32x4
+/*@store_low_f64xN*/
+#define zi_store_low_f64xN zi_store_low_f64x2
+/*@gather_u32xN_u32xN*/
+#define zi_gather_u32xN_u32xN zi_gather_u32x4_u32x4
+/*@gather_u32xN_s32xN*/
+#define zi_gather_u32xN_s32xN zi_gather_u32x4_s32x4
+/*@gather_u32xN_f32xN*/
+#define zi_gather_u32xN_f32xN zi_gather_u32x4_f32x4
+/*@gather_s32xN_u32xN*/
+#define zi_gather_s32xN_u32xN zi_gather_s32x4_u32x4
+/*@gather_s32xN_s32xN*/
+#define zi_gather_s32xN_s32xN zi_gather_s32x4_s32x4
+/*@gather_s32xN_f32xN*/
+#define zi_gather_s32xN_f32xN zi_gather_s32x4_f32x4
+/*@widen_low_u8xN*/
+#define zi_widen_low_u8xN zi_widen_low_u8x16
+/*@widen_low_s8xN*/
+#define zi_widen_low_s8xN zi_widen_low_s8x16
+/*@widen_low_u16xN*/
+#define zi_widen_low_u16xN zi_widen_low_u16x8
+/*@widen_low_s16xN*/
+#define zi_widen_low_s16xN zi_widen_low_s16x8
+/*@widen_low_u32xN*/
+#define zi_widen_low_u32xN zi_widen_low_u32x4
+/*@widen_low_s32xN*/
+#define zi_widen_low_s32xN zi_widen_low_s32x4
+/*@widen_high_u8xN*/
+#define zi_widen_high_u8xN zi_widen_high_u8x16
+/*@widen_high_s8xN*/
+#define zi_widen_high_s8xN zi_widen_high_s8x16
+/*@widen_high_u16xN*/
+#define zi_widen_high_u16xN zi_widen_high_u16x8
+/*@widen_high_s16xN*/
+#define zi_widen_high_s16xN zi_widen_high_s16x8
+/*@widen_high_u32xN*/
+#define zi_widen_high_u32xN zi_widen_high_u32x4
+/*@widen_high_s32xN*/
+#define zi_widen_high_s32xN zi_widen_high_s32x4
+/*@narrow_u16xN_u8xN*/
+#define zi_narrow_u16xN_u8xN zi_narrow_u16x8_u8x16
+/*@narrow_u16xN_s8xN*/
+#define zi_narrow_u16xN_s8xN zi_narrow_u16x8_s8x16
+/*@narrow_s16xN_u8xN*/
+#define zi_narrow_s16xN_u8xN zi_narrow_s16x8_u8x16
+/*@narrow_s16xN_s8xN*/
+#define zi_narrow_s16xN_s8xN zi_narrow_s16x8_s8x16
+/*@narrow_u32xN_u16xN*/
+#define zi_narrow_u32xN_u16xN zi_narrow_u32x4_u16x8
+/*@narrow_u32xN_s16xN*/
+#define zi_narrow_u32xN_s16xN zi_narrow_u32x4_s16x8
+/*@narrow_s32xN_u16xN*/
+#define zi_narrow_s32xN_u16xN zi_narrow_s32x4_u16x8
+/*@narrow_s32xN_s16xN*/
+#define zi_narrow_s32xN_s16xN zi_narrow_s32x4_s16x8
+/*@narrow_u64xN_u32xN*/
+#define zi_narrow_u64xN_u32xN zi_narrow_u64x2_u32x4
+/*@narrow_u64xN_s32xN*/
+#define zi_narrow_u64xN_s32xN zi_narrow_u64x2_s32x4
+/*@narrow_s64xN_u32xN*/
+#define zi_narrow_s64xN_u32xN zi_narrow_s64x2_u32x4
+/*@narrow_s64xN_s32xN*/
+#define zi_narrow_s64xN_s32xN zi_narrow_s64x2_s32x4
+/*@mul_wide_low_u8xN*/
+#define zi_mul_wide_low_u8xN zi_mul_wide_low_u8x16
+/*@mul_wide_low_s8xN*/
+#define zi_mul_wide_low_s8xN zi_mul_wide_low_s8x16
+/*@mul_wide_low_u16xN*/
+#define zi_mul_wide_low_u16xN zi_mul_wide_low_u16x8
+/*@mul_wide_low_s16xN*/
+#define zi_mul_wide_low_s16xN zi_mul_wide_low_s16x8
+/*@mul_wide_low_u32xN*/
+#define zi_mul_wide_low_u32xN zi_mul_wide_low_u32x4
+/*@mul_wide_low_s32xN*/
+#define zi_mul_wide_low_s32xN zi_mul_wide_low_s32x4
+/*@mul_wide_high_u8xN*/
+#define zi_mul_wide_high_u8xN zi_mul_wide_high_u8x16
+/*@mul_wide_high_s8xN*/
+#define zi_mul_wide_high_s8xN zi_mul_wide_high_s8x16
+/*@mul_wide_high_u16xN*/
+#define zi_mul_wide_high_u16xN zi_mul_wide_high_u16x8
+/*@mul_wide_high_s16xN*/
+#define zi_mul_wide_high_s16xN zi_mul_wide_high_s16x8
+/*@mul_wide_high_u32xN*/
+#define zi_mul_wide_high_u32xN zi_mul_wide_high_u32x4
+/*@mul_wide_high_s32xN*/
+#define zi_mul_wide_high_s32xN zi_mul_wide_high_s32x4
+/*@madd_s16xN*/
+#define zi_madd_s16xN zi_madd_s16x8
+/*@madd_sat_u8xN*/
+#define zi_madd_sat_u8xN zi_madd_sat_u8x16
+/*@add_pairs_u8xN*/
+#define zi_add_pairs_u8xN zi_add_pairs_u8x16
+/*@add_pairs_s8xN*/
+#define zi_add_pairs_s8xN zi_add_pairs_s8x16
+/*@add_pairs_u16xN*/
+#define zi_add_pairs_u16xN zi_add_pairs_u16x8
+/*@add_pairs_s16xN*/
+#define zi_add_pairs_s16xN zi_add_pairs_s16x8
+/*@add_pairs_u32xN*/
+#define zi_add_pairs_u32xN zi_add_pairs_u32x4
+/*@add_pairs_s32xN*/
+#define zi_add_pairs_s32xN zi_add_pairs_s32x4
+/*@sad_u8xN*/
+#define zi_sad_u8xN zi_sad_u8x16
+/*@reduce_add_u8xN*/
+#define zi_reduce_add_u8xN zi_reduce_add_u8x16
+/*@reduce_add_s8xN*/
+#define zi_reduce_add_s8xN zi_reduce_add_s8x16
+/*@reduce_add_u16xN*/
+#define zi_reduce_add_u16xN zi_reduce_add_u16x8
+/*@reduce_add_s16xN*/
+#define zi_reduce_add_s16xN zi_reduce_add_s16x8
+/*@reduce_add_u32xN*/
+#define zi_reduce_add_u32xN zi_reduce_add_u32x4
+/*@reduce_add_s32xN*/
+#define zi_reduce_add_s32xN zi_reduce_add_s32x4
+/*@reduce_add_u64xN*/
+#define zi_reduce_add_u64xN zi_reduce_add_u64x2
+/*@reduce_add_s64xN*/
+#define zi_reduce_add_s64xN zi_reduce_add_s64x2
+/*@reduce_min_u8xN*/
+#define zi_reduce_min_u8xN zi_reduce_min_u8x16
+/*@reduce_min_s8xN*/
+#define zi_reduce_min_s8xN zi_reduce_min_s8x16
+/*@reduce_min_u16xN*/
+#define zi_reduce_min_u16xN zi_reduce_min_u16x8
+/*@reduce_min_s16xN*/
+#define zi_reduce_min_s16xN zi_reduce_min_s16x8
+/*@reduce_min_u32xN*/
+#define zi_reduce_min_u32xN zi_reduce_min_u32x4
+/*@reduce_min_s32xN*/
+#define zi_reduce_min_s32xN zi_reduce_min_s32x4
+/*@reduce_min_u64xN*/
+#define zi_reduce_min_u64xN zi_reduce_min_u64x2
+/*@reduce_min_s64xN*/
+#define zi_reduce_min_s64xN zi_reduce_min_s64x2
+/*@reduce_max_u8xN*/
+#define zi_reduce_max_u8xN zi_reduce_max_u8x16
+/*@reduce_max_s8xN*/
+#define zi_reduce_max_s8xN zi_reduce_max_s8x16
+/*@reduce_max_u16xN*/
+#define zi_reduce_max_u16xN zi_reduce_max_u16x8
+/*@reduce_max_s16xN*/
+#define zi_reduce_max_s16xN zi_reduce_max_s16x8
+/*@reduce_max_u32xN*/
+#define zi_reduce_max_u32xN zi_reduce_max_u32x4
+/*@reduce_max_s32xN*/
+#define zi_reduce_max_s32xN zi_reduce_max_s32x4
+/*@reduce_max_u64xN*/
+#define zi_reduce_max_u64xN zi_reduce_max_u64x2
+/*@reduce_max_s64xN*/
+#define zi_reduce_max_s64xN zi_reduce_max_s64x2
+/*@reduce_max_index_u8xN*/
+#define zi_reduce_max_index_u8xN zi_reduce_max_index_u8x16
+/*@reduce_max_index_s8xN*/
+#define zi_reduce_max_index_s8xN zi_reduce_max_index_s8x16
+/*@reduce_max_index_u16xN*/
+#define zi_reduce_max_index_u16xN zi_reduce_max_index_u16x8
+/*@reduce_max_index_s16xN*/
+#define zi_reduce_max_index_s16xN zi_reduce_max_index_s16x8
+/*@reduce_max_index_u32xN*/
+#define zi_reduce_max_index_u32xN zi_reduce_max_index_u32x4
+/*@reduce_max_index_s32xN*/
+#define zi_reduce_max_index_s32xN zi_reduce_max_index_s32x4
+/*@reduce_max_index_u64xN*/
+#define zi_reduce_max_index_u64xN zi_reduce_max_index_u64x2
+/*@reduce_max_index_s64xN*/
+#define zi_reduce_max_index_s64xN zi_reduce_max_index_s64x2
+/*@all_zero_u8xN*/
+#define zi_all_zero_u8xN zi_all_zero_u8x16
+/*@all_zero_s8xN*/
+#define zi_all_zero_s8xN zi_all_zero_s8x16
+/*@all_zero_u16xN*/
+#define zi_all_zero_u16xN zi_all_zero_u16x8
+/*@all_zero_s16xN*/
+#define zi_all_zero_s16xN zi_all_zero_s16x8
+/*@all_zero_u32xN*/
+#define zi_all_zero_u32xN zi_all_zero_u32x4
+/*@all_zero_s32xN*/
+#define zi_all_zero_s32xN zi_all_zero_s32x4
+/*@all_zero_u64xN*/
+#define zi_all_zero_u64xN zi_all_zero_u64x2
+/*@all_zero_s64xN*/
+#define zi_all_zero_s64xN zi_all_zero_s64x2
+/*@byte_shuffle_u8xN*/
+#define zi_byte_shuffle_u8xN zi_byte_shuffle_u8x16
+/*@byte_shuffle_s8xN*/
+#define zi_byte_shuffle_s8xN zi_byte_shuffle_s8x16
+/*@reinterpret_u8xN_s8xN*/
+#define zi_reinterpret_u8xN_s8xN zi_reinterpret_u8x16_s8x16
+/*@reinterpret_u8xN_u16xN*/
+#define zi_reinterpret_u8xN_u16xN zi_reinterpret_u8x16_u16x8
+/*@reinterpret_u8xN_s16xN*/
+#define zi_reinterpret_u8xN_s16xN zi_reinterpret_u8x16_s16x8
+/*@reinterpret_u8xN_u32xN*/
+#define zi_reinterpret_u8xN_u32xN zi_reinterpret_u8x16_u32x4
+/*@reinterpret_u8xN_s32xN*/
+#define zi_reinterpret_u8xN_s32xN zi_reinterpret_u8x16_s32x4
+/*@reinterpret_u8xN_u64xN*/
+#define zi_reinterpret_u8xN_u64xN zi_reinterpret_u8x16_u64x2
+/*@reinterpret_u8xN_s64xN*/
+#define zi_reinterpret_u8xN_s64xN zi_reinterpret_u8x16_s64x2
+/*@reinterpret_u8xN_f32xN*/
+#define zi_reinterpret_u8xN_f32xN zi_reinterpret_u8x16_f32x4
+/*@reinterpret_u8xN_f64xN*/
+#define zi_reinterpret_u8xN_f64xN zi_reinterpret_u8x16_f64x2
+/*@reinterpret_s8xN_u8xN*/
+#define zi_reinterpret_s8xN_u8xN zi_reinterpret_s8x16_u8x16
+/*@reinterpret_s8xN_u16xN*/
+#define zi_reinterpret_s8xN_u16xN zi_reinterpret_s8x16_u16x8
+/*@reinterpret_s8xN_s16xN*/
+#define zi_reinterpret_s8xN_s16xN zi_reinterpret_s8x16_s16x8
+/*@reinterpret_s8xN_u32xN*/
+#define zi_reinterpret_s8xN_u32xN zi_reinterpret_s8x16_u32x4
+/*@reinterpret_s8xN_s32xN*/
+#define zi_reinterpret_s8xN_s32xN zi_reinterpret_s8x16_s32x4
+/*@reinterpret_s8xN_u64xN*/
+#define zi_reinterpret_s8xN_u64xN zi_reinterpret_s8x16_u64x2
+/*@reinterpret_s8xN_s64xN*/
+#define zi_reinterpret_s8xN_s64xN zi_reinterpret_s8x16_s64x2
+/*@reinterpret_s8xN_f32xN*/
+#define zi_reinterpret_s8xN_f32xN zi_reinterpret_s8x16_f32x4
+/*@reinterpret_s8xN_f64xN*/
+#define zi_reinterpret_s8xN_f64xN zi_reinterpret_s8x16_f64x2
+/*@reinterpret_u16xN_u8xN*/
+#define zi_reinterpret_u16xN_u8xN zi_reinterpret_u16x8_u8x16
+/*@reinterpret_u16xN_s8xN*/
+#define zi_reinterpret_u16xN_s8xN zi_reinterpret_u16x8_s8x16
+/*@reinterpret_u16xN_s16xN*/
+#define zi_reinterpret_u16xN_s16xN zi_reinterpret_u16x8_s16x8
+/*@reinterpret_u16xN_u32xN*/
+#define zi_reinterpret_u16xN_u32xN zi_reinterpret_u16x8_u32x4
+/*@reinterpret_u16xN_s32xN*/
+#define zi_reinterpret_u16xN_s32xN zi_reinterpret_u16x8_s32x4
+/*@reinterpret_u16xN_u64xN*/
+#define zi_reinterpret_u16xN_u64xN zi_reinterpret_u16x8_u64x2
+/*@reinterpret_u16xN_s64xN*/
+#define zi_reinterpret_u16xN_s64xN zi_reinterpret_u16x8_s64x2
+/*@reinterpret_u16xN_f32xN*/
+#define zi_reinterpret_u16xN_f32xN zi_reinterpret_u16x8_f32x4
+/*@reinterpret_u16xN_f64xN*/
+#define zi_reinterpret_u16xN_f64xN zi_reinterpret_u16x8_f64x2
+/*@reinterpret_s16xN_u8xN*/
+#define zi_reinterpret_s16xN_u8xN zi_reinterpret_s16x8_u8x16
+/*@reinterpret_s16xN_s8xN*/
+#define zi_reinterpret_s16xN_s8xN zi_reinterpret_s16x8_s8x16
+/*@reinterpret_s16xN_u16xN*/
+#define zi_reinterpret_s16xN_u16xN zi_reinterpret_s16x8_u16x8
+/*@reinterpret_s16xN_u32xN*/
+#define zi_reinterpret_s16xN_u32xN zi_reinterpret_s16x8_u32x4
+/*@reinterpret_s16xN_s32xN*/
+#define zi_reinterpret_s16xN_s32xN zi_reinterpret_s16x8_s32x4
+/*@reinterpret_s16xN_u64xN*/
+#define zi_reinterpret_s16xN_u64xN zi_reinterpret_s16x8_u64x2
+/*@reinterpret_s16xN_s64xN*/
+#define zi_reinterpret_s16xN_s64xN zi_reinterpret_s16x8_s64x2
+/*@reinterpret_s16xN_f32xN*/
+#define zi_reinterpret_s16xN_f32xN zi_reinterpret_s16x8_f32x4
+/*@reinterpret_s16xN_f64xN*/
+#define zi_reinterpret_s16xN_f64xN zi_reinterpret_s16x8_f64x2
+/*@reinterpret_u32xN_u8xN*/
+#define zi_reinterpret_u32xN_u8xN zi_reinterpret_u32x4_u8x16
+/*@reinterpret_u32xN_s8xN*/
+#define zi_reinterpret_u32xN_s8xN zi_reinterpret_u32x4_s8x16
+/*@reinterpret_u32xN_u16xN*/
+#define zi_reinterpret_u32xN_u16xN zi_reinterpret_u32x4_u16x8
+/*@reinterpret_u32xN_s16xN*/
+#define zi_reinterpret_u32xN_s16xN zi_reinterpret_u32x4_s16x8
+/*@reinterpret_u32xN_s32xN*/
+#define zi_reinterpret_u32xN_s32xN zi_reinterpret_u32x4_s32x4
+/*@reinterpret_u32xN_u64xN*/
+#define zi_reinterpret_u32xN_u64xN zi_reinterpret_u32x4_u64x2
+/*@reinterpret_u32xN_s64xN*/
+#define zi_reinterpret_u32xN_s64xN zi_reinterpret_u32x4_s64x2
+/*@reinterpret_u32xN_f32xN*/
+#define zi_reinterpret_u32xN_f32xN zi_reinterpret_u32x4_f32x4
+/*@reinterpret_u32xN_f64xN*/
+#define zi_reinterpret_u32xN_f64xN zi_reinterpret_u32x4_f64x2
+/*@reinterpret_s32xN_u8xN*/
+#define zi_reinterpret_s32xN_u8xN zi_reinterpret_s32x4_u8x16
+/*@reinterpret_s32xN_s8xN*/
+#define zi_reinterpret_s32xN_s8xN zi_reinterpret_s32x4_s8x16
+/*@reinterpret_s32xN_u16xN*/
+#define zi_reinterpret_s32xN_u16xN zi_reinterpret_s32x4_u16x8
+/*@reinterpret_s32xN_s16xN*/
+#define zi_reinterpret_s32xN_s16xN zi_reinterpret_s32x4_s16x8
+/*@reinterpret_s32xN_u32xN*/
+#define zi_reinterpret_s32xN_u32xN zi_reinterpret_s32x4_u32x4
+/*@reinterpret_s32xN_u64xN*/
+#define zi_reinterpret_s32xN_u64xN zi_reinterpret_s32x4_u64x2
+/*@reinterpret_s32xN_s64xN*/
+#define zi_reinterpret_s32xN_s64xN zi_reinterpret_s32x4_s64x2
+/*@reinterpret_s32xN_f32xN*/
+#define zi_reinterpret_s32xN_f32xN zi_reinterpret_s32x4_f32x4
+/*@reinterpret_s32xN_f64xN*/
+#define zi_reinterpret_s32xN_f64xN zi_reinterpret_s32x4_f64x2
+/*@reinterpret_u64xN_u8xN*/
+#define zi_reinterpret_u64xN_u8xN zi_reinterpret_u64x2_u8x16
+/*@reinterpret_u64xN_s8xN*/
+#define zi_reinterpret_u64xN_s8xN zi_reinterpret_u64x2_s8x16
+/*@reinterpret_u64xN_u16xN*/
+#define zi_reinterpret_u64xN_u16xN zi_reinterpret_u64x2_u16x8
+/*@reinterpret_u64xN_s16xN*/
+#define zi_reinterpret_u64xN_s16xN zi_reinterpret_u64x2_s16x8
+/*@reinterpret_u64xN_u32xN*/
+#define zi_reinterpret_u64xN_u32xN zi_reinterpret_u64x2_u32x4
+/*@reinterpret_u64xN_s32xN*/
+#define zi_reinterpret_u64xN_s32xN zi_reinterpret_u64x2_s32x4
+/*@reinterpret_u64xN_s64xN*/
+#define zi_reinterpret_u64xN_s64xN zi_reinterpret_u64x2_s64x2
+/*@reinterpret_u64xN_f32xN*/
+#define zi_reinterpret_u64xN_f32xN zi_reinterpret_u64x2_f32x4
+/*@reinterpret_u64xN_f64xN*/
+#define zi_reinterpret_u64xN_f64xN zi_reinterpret_u64x2_f64x2
+/*@reinterpret_s64xN_u8xN*/
+#define zi_reinterpret_s64xN_u8xN zi_reinterpret_s64x2_u8x16
+/*@reinterpret_s64xN_s8xN*/
+#define zi_reinterpret_s64xN_s8xN zi_reinterpret_s64x2_s8x16
+/*@reinterpret_s64xN_u16xN*/
+#define zi_reinterpret_s64xN_u16xN zi_reinterpret_s64x2_u16x8
+/*@reinterpret_s64xN_s16xN*/
+#define zi_reinterpret_s64xN_s16xN zi_reinterpret_s64x2_s16x8
+/*@reinterpret_s64xN_u32xN*/
+#define zi_reinterpret_s64xN_u32xN zi_reinterpret_s64x2_u32x4
+/*@reinterpret_s64xN_s32xN*/
+#define zi_reinterpret_s64xN_s32xN zi_reinterpret_s64x2_s32x4
+/*@reinterpret_s64xN_u64xN*/
+#define zi_reinterpret_s64xN_u64xN zi_reinterpret_s64x2_u64x2
+/*@reinterpret_s64xN_f32xN*/
+#define zi_reinterpret_s64xN_f32xN zi_reinterpret_s64x2_f32x4
+/*@reinterpret_s64xN_f64xN*/
+#define zi_reinterpret_s64xN_f64xN zi_reinterpret_s64x2_f64x2
+/*@reinterpret_f32xN_u8xN*/
+#define zi_reinterpret_f32xN_u8xN zi_reinterpret_f32x4_u8x16
+/*@reinterpret_f32xN_s8xN*/
+#define zi_reinterpret_f32xN_s8xN zi_reinterpret_f32x4_s8x16
+/*@reinterpret_f32xN_u16xN*/
+#define zi_reinterpret_f32xN_u16xN zi_reinterpret_f32x4_u16x8
+/*@reinterpret_f32xN_s16xN*/
+#define zi_reinterpret_f32xN_s16xN zi_reinterpret_f32x4_s16x8
+/*@reinterpret_f32xN_u32xN*/
+#define zi_reinterpret_f32xN_u32xN zi_reinterpret_f32x4_u32x4
+/*@reinterpret_f32xN_s32xN*/
+#define zi_reinterpret_f32xN_s32xN zi_reinterpret_f32x4_s32x4
+/*@reinterpret_f32xN_u64xN*/
+#define zi_reinterpret_f32xN_u64xN zi_reinterpret_f32x4_u64x2
+/*@reinterpret_f32xN_s64xN*/
+#define zi_reinterpret_f32xN_s64xN zi_reinterpret_f32x4_s64x2
+/*@reinterpret_f32xN_f64xN*/
+#define zi_reinterpret_f32xN_f64xN zi_reinterpret_f32x4_f64x2
+/*@reinterpret_f64xN_u8xN*/
+#define zi_reinterpret_f64xN_u8xN zi_reinterpret_f64x2_u8x16
+/*@reinterpret_f64xN_s8xN*/
+#define zi_reinterpret_f64xN_s8xN zi_reinterpret_f64x2_s8x16
+/*@reinterpret_f64xN_u16xN*/
+#define zi_reinterpret_f64xN_u16xN zi_reinterpret_f64x2_u16x8
+/*@reinterpret_f64xN_s16xN*/
+#define zi_reinterpret_f64xN_s16xN zi_reinterpret_f64x2_s16x8
+/*@reinterpret_f64xN_u32xN*/
+#define zi_reinterpret_f64xN_u32xN zi_reinterpret_f64x2_u32x4
+/*@reinterpret_f64xN_s32xN*/
+#define zi_reinterpret_f64xN_s32xN zi_reinterpret_f64x2_s32x4
+/*@reinterpret_f64xN_u64xN*/
+#define zi_reinterpret_f64xN_u64xN zi_reinterpret_f64x2_u64x2
+/*@reinterpret_f64xN_s64xN*/
+#define zi_reinterpret_f64xN_s64xN zi_reinterpret_f64x2_s64x2
+/*@reinterpret_f64xN_f32xN*/
+#define zi_reinterpret_f64xN_f32xN zi_reinterpret_f64x2_f32x4
+/*@convert_u32xN_f32xN*/
+#define zi_convert_u32xN_f32xN zi_convert_u32x4_f32x4
+/*@convert_s32xN_f32xN*/
+#define zi_convert_s32xN_f32xN zi_convert_s32x4_f32x4
+/*@convert_u64xN_f64xN*/
+#define zi_convert_u64xN_f64xN zi_convert_u64x2_f64x2
+/*@convert_s64xN_f64xN*/
+#define zi_convert_s64xN_f64xN zi_convert_s64x2_f64x2
+/*@convert_f32xN_u32xN*/
+#define zi_convert_f32xN_u32xN zi_convert_f32x4_u32x4
+/*@convert_f32xN_s32xN*/
+#define zi_convert_f32xN_s32xN zi_convert_f32x4_s32x4
+/*@convert_f64xN_u64xN*/
+#define zi_convert_f64xN_u64xN zi_convert_f64x2_u64x2
+/*@convert_f64xN_s64xN*/
+#define zi_convert_f64xN_s64xN zi_convert_f64x2_s64x2
+/*@interleave_low_u8xN*/
+#define zi_interleave_low_u8xN zi_interleave_low_u8x16
+/*@interleave_low_s8xN*/
+#define zi_interleave_low_s8xN zi_interleave_low_s8x16
+/*@interleave_low_u16xN*/
+#define zi_interleave_low_u16xN zi_interleave_low_u16x8
+/*@interleave_low_s16xN*/
+#define zi_interleave_low_s16xN zi_interleave_low_s16x8
+/*@interleave_low_u32xN*/
+#define zi_interleave_low_u32xN zi_interleave_low_u32x4
+/*@interleave_low_s32xN*/
+#define zi_interleave_low_s32xN zi_interleave_low_s32x4
+/*@interleave_low_u64xN*/
+#define zi_interleave_low_u64xN zi_interleave_low_u64x2
+/*@interleave_low_s64xN*/
+#define zi_interleave_low_s64xN zi_interleave_low_s64x2
+/*@interleave_low_f32xN*/
+#define zi_interleave_low_f32xN zi_interleave_low_f32x4
+/*@interleave_low_f64xN*/
+#define zi_interleave_low_f64xN zi_interleave_low_f64x2
+/*@interleave_high_u8xN*/
+#define zi_interleave_high_u8xN zi_interleave_high_u8x16
+/*@interleave_high_s8xN*/
+#define zi_interleave_high_s8xN zi_interleave_high_s8x16
+/*@interleave_high_u16xN*/
+#define zi_interleave_high_u16xN zi_interleave_high_u16x8
+/*@interleave_high_s16xN*/
+#define zi_interleave_high_s16xN zi_interleave_high_s16x8
+/*@interleave_high_u32xN*/
+#define zi_interleave_high_u32xN zi_interleave_high_u32x4
+/*@interleave_high_s32xN*/
+#define zi_interleave_high_s32xN zi_interleave_high_s32x4
+/*@interleave_high_u64xN*/
+#define zi_interleave_high_u64xN zi_interleave_high_u64x2
+/*@interleave_high_s64xN*/
+#define zi_interleave_high_s64xN zi_interleave_high_s64x2
+/*@interleave_high_f32xN*/
+#define zi_interleave_high_f32xN zi_interleave_high_f32x4
+/*@interleave_high_f64xN*/
+#define zi_interleave_high_f64xN zi_interleave_high_f64x2
 /*@*/
 #endif

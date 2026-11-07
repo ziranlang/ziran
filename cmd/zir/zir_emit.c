@@ -206,7 +206,7 @@ mentions_vector(const char *text)
         while(isalnum((unsigned char)*p) || *p == '_') p++;
         char name[8];
         size_t length = (size_t)(p - start);
-        if(length >= 5 && length < sizeof(name)) {
+        if(length >= 4 && length < sizeof(name)) {
             memcpy(name, start, length);
             name[length] = '\0';
             if(VectorType(name, NULL)) return 1;
@@ -1882,13 +1882,13 @@ enum {
     NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32, NATIVE_SIMD_TYPES = 64
 };
 
-/* SIMD names: NATIVE_SIMD_TYPES for a vector type alone (zi_s16x8), and
- * NATIVE_SIMD for its helpers (zi_add_s16x8, zi_narrow_s16x8_u8x16) and
+/* SIMD names: NATIVE_SIMD_TYPES for a vector type alone (zi_s16x8, zi_u8xN),
+ * and NATIVE_SIMD for its helpers (zi_add_s16x8, zi_narrow_s16x8_u8x16) and
  * the access checks, which need every operation's definition. */
 static unsigned
 simd_identifier(const char *start, size_t length)
 {
-    if(length < 8 || memcmp(start, "zi_", 3)) return 0;
+    if(length < 7 || memcmp(start, "zi_", 3)) return 0;
     if((length == 10 && !memcmp(start, "zi_simd_at", 10)) ||
        (length == 20 && !memcmp(start, "zi_simd_gather_check", 20)))
         return NATIVE_SIMD;
@@ -1929,7 +1929,8 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirS
         RUNTIME_USE("print_float", NATIVE_STRING),
         RUNTIME_USE("printf", NATIVE_STDIO), RUNTIME_USE("fwrite", NATIVE_STDIO), RUNTIME_USE("stdout", NATIVE_STDIO),
         RUNTIME_USE("calloc", NATIVE_STDLIB), RUNTIME_USE("free", NATIVE_STDLIB), RUNTIME_USE("abort", NATIVE_STDLIB),
-        RUNTIME_USE("memcpy", NATIVE_MEMORY), RUNTIME_USE("memmove", NATIVE_MEMORY)
+        RUNTIME_USE("memcpy", NATIVE_MEMORY), RUNTIME_USE("memmove", NATIVE_MEMORY),
+        RUNTIME_USE("ZI_NATIVE_BLOCKS", NATIVE_SIMD_TYPES)
     };
 #undef RUNTIME_USE
     size_t helper_lengths[C_NUMBER_HELPER_COUNT];

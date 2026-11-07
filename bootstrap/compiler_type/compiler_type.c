@@ -2,6 +2,18 @@
 #include "zir_bounds.h"
 #include "zir_string.h"
 #include "compiler_type.h"
+#ifndef ZIRAN_HELPER_ZiDivS64
+#define ZIRAN_HELPER_ZiDivS64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiDivS64(a, b, min) __extension__ ({ int64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_b == -1 ? (__zi_a == (min) ? __zi_a : -__zi_a) : __zi_a / __zi_b; })
+#else
+static inline int64_t ZiDivS64(int64_t a, int64_t b, int64_t min) {
+    if(!b) abort();
+    if(b == -1) return a == min ? a : -a;
+    return a / b;
+}
+#endif
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -364,13 +376,14 @@ compiler_type_ArrayElement(String type)
 VectorShape
 compiler_type_VectorType(String name)
 {
-    if ((int64_t)(name).length < 5LL || (int64_t)(name).length > 6LL) {
+    if ((int64_t)(name).length < 4LL || (int64_t)(name).length > 6LL) {
         return (VectorShape){0};
     }
     int64_t x = compiler_type_Find(name, 120, 2LL);
     if (x < 0LL || x > 3LL || (int64_t)((uint64_t)x + UINT64_C(1)) >= (int64_t)(name).length || (uint8_t)ZIRAN_INDEX(name.data, name.length, ((int64_t)((uint64_t)x + UINT64_C(1)))) == 48) {
         return (VectorShape){0};
     }
+    bool native = (int64_t)((uint64_t)x + UINT64_C(2)) == (int64_t)(name).length && (uint8_t)name.data[((int64_t)((uint64_t)x + UINT64_C(1)))] == 78;
     String prefix = StringRange(name, (int64_t)0LL, (int64_t)x);
     String lane = StringLiteral("");
     int64_t bits = 0LL;
@@ -395,20 +408,23 @@ compiler_type_VectorType(String name)
     } else {
         return (VectorShape){0};
     }
+    if (native) {
+        return (VectorShape){.lanes = (int32_t)((ZiDivS64(128LL, bits, INT64_MIN))), .lane = lane};
+    }
     int64_t count = 0LL;
     {
         String value_0 = StringRange(name, (int64_t)((int64_t)((uint64_t)x + UINT64_C(1))), (int64_t)name.length);
-        String loop_view_38 = StringRange(value_0, (int64_t)0, (int64_t)value_0.length);
-        int64_t loop_count_38 = (int64_t)(loop_view_38).length;
-        int64_t loop_cursor_38 = 0LL;
-        while (loop_cursor_38 < loop_count_38) {
-            int64_t loop_index_38 = loop_cursor_38;
-            uint8_t byte = (uint8_t)loop_view_38.data[loop_index_38];
+        String loop_view_42 = StringRange(value_0, (int64_t)0, (int64_t)value_0.length);
+        int64_t loop_count_42 = (int64_t)(loop_view_42).length;
+        int64_t loop_cursor_42 = 0LL;
+        while (loop_cursor_42 < loop_count_42) {
+            int64_t loop_index_42 = loop_cursor_42;
+            uint8_t byte = (uint8_t)loop_view_42.data[loop_index_42];
             if (byte < 48 || byte > 57) {
                 return (VectorShape){0};
             }
             count = (int64_t)(((uint64_t)count * UINT64_C(10)) + (uint64_t)(((uint8_t)((uint32_t)byte - 48u))));
-            loop_cursor_38 = (int64_t)((uint64_t)loop_cursor_38 + UINT64_C(1));
+            loop_cursor_42 = (int64_t)((uint64_t)loop_cursor_42 + UINT64_C(1));
         }
     }
     if ((int64_t)((uint64_t)count * (uint64_t)bits) != 128LL && (int64_t)((uint64_t)count * (uint64_t)bits) != 256LL) {

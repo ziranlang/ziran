@@ -1,6 +1,8 @@
 /* Checking std/simd operation calls; see zir_simd.h. */
 #include "zir_check_internal.h"
 #include "zir_simd.h"
+#define ZIRAN_SIMD_REF_ONLY 1
+#include "ziran_simd.h"
 
 #include <stdio.h>
 
@@ -96,6 +98,53 @@ fold_constant(Checker *c, int child, int64_t value)
     operand->type = KeepName("s64");
 }
 
+/* Lanes(T) and Blocks(T). A fixed vector type's counts fold to constants.
+ * A native one's depend on the instruction set the code is built for, so
+ * the checked call stays: Lanes with the lanes of one block, Blocks with
+ * no operand. */
+static int
+check_simd_count(Checker *c, int index, const SimdOp *op, const int *children,
+                 int count, int checked, const char *display, const char **result_type)
+{
+    ZirExpr *e = &c->fn->exprs[index];
+    if(checked) {
+        SimdOperand operand = {.type = "s64"};
+        const ZirExpr *lanes = count == 1 ? &c->fn->exprs[children[0]] : NULL;
+        if(lanes != NULL && lanes->kind == ZIR_EXPR_INT) {
+            operand.is_constant = 1;
+            operand.value = strtoll(lanes->text, NULL, 10);
+        }
+        const char *message = "";
+        if(SimdSignature(op, NULL, &operand, count, &message) == NULL ||
+           (lanes != NULL && !operand.is_constant) || strcmp(e->type, "s64")) {
+            error(c, e->span, "invalid SIMD operation", display);
+            return 1;
+        }
+        *result_type = e->type;
+        return 1;
+    }
+    ZirVector vector;
+    const ZirExpr *named = count == 1 ? &c->fn->exprs[children[0]] : NULL;
+    if(named == NULL || named->kind != ZIR_EXPR_IDENT || *lookup_lexical(c, named->name) ||
+       !VectorType(named->name, &vector)) {
+        error(c, e->span, "takes one vector type, such as s16xN", display);
+        return 1;
+    }
+    if(!c->inference_only) {
+        if(!vector.is_native)
+            fold_constant(c, index, op->id == ZI_OP_LANES ? vector.lanes : vector.bytes / 16);
+        else if(op->id == ZI_OP_LANES)
+            fold_constant(c, children[0], vector.lanes);
+        else
+            e->first_child = -1;
+        e = &c->fn->exprs[index];
+        if(vector.is_native) e->name = KeepName(op->checked);
+    }
+    e->type = KeepName("s64");
+    *result_type = e->type;
+    return 1;
+}
+
 int
 check_simd_call(Checker *c, int index, const char **result_type)
 {
@@ -119,6 +168,8 @@ check_simd_call(Checker *c, int index, const char **result_type)
         }
         children[count++] = child;
     }
+    if(op->shape == SIMD_COUNT)
+        return check_simd_count(c, index, op, children, count, checked, display, result_type);
 
     /* The result type comes first in source and is the call's type once
      * checked. */
@@ -227,11 +278,57 @@ holds_wide_vector(const ZirModule *module, const char *type, int depth)
     return 0;
 }
 
+static int
+native_vector(const char *type)
+{
+    ZirVector vector;
+    return type != NULL && VectorType(type, &vector) && vector.is_native;
+}
+
+/* A native vector's size depends on the instruction set of the code that
+ * holds it, so it is only ever a plain value: a local, parameter or result,
+ * never part of an array, record, pointer, slice or procedure type. Nor
+ * does it cross into code built elsewhere: #foreign and #program_export
+ * procedures and the dispatcher of a #target one take none. */
+static void
+check_native_vectors(Checker *c, ZirFunction *fn)
+{
+    static const char inside[] = "a native vector, such as s16xN, is a plain value: "
+                                 "it cannot be part of an array, record, pointer, slice or procedure type";
+    int boundary = fn->is_extern || fn->exported || fn->simd_target;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    for(int i = 0; i < parameters->count; i++) {
+        const char *type = parameters->items[i].type;
+        if(HoldsNativeVector(type))
+            error(c, fn->span, inside, type);
+        else if(boundary && native_vector(type))
+            error(c, fn->span, fn->simd_target ? "a #target procedure cannot take a native vector" :
+                  "a #foreign or #program_export procedure cannot take a native vector",
+                  parameters->items[i].name);
+    }
+    if(HoldsNativeVector(fn->return_type))
+        error(c, fn->span, inside, fn->return_type);
+    else if(boundary && native_vector(fn->return_type))
+        error(c, fn->span, fn->simd_target ? "a #target procedure cannot return a native vector" :
+              "a #foreign or #program_export procedure cannot return a native vector", fn->name);
+    for(int i = 0; i < fn->stmt_count; i++)
+        if(HoldsNativeVector(fn->stmts[i].type)) {
+            error(c, fn->stmts[i].span, inside, fn->stmts[i].type);
+            return;
+        }
+    for(int x = 0; x < fn->expr_count; x++)
+        if(HoldsNativeVector(fn->exprs[x].type)) {
+            error(c, fn->exprs[x].span, inside, fn->exprs[x].type);
+            return;
+        }
+}
+
 /* #target procedures get one C clone per x86-64 tier behind a dispatcher,
  * which forwards its arguments as they came. */
 void
-check_simd_target(Checker *c, ZirFunction *fn)
+check_simd_procedure(Checker *c, ZirFunction *fn)
 {
+    check_native_vectors(c, fn);
     if(!fn->simd_target) return;
     if(fn->inlining == ZIR_INLINE_ALWAYS)
         error(c, fn->span, "a #target procedure cannot be #inline", fn->name);
@@ -254,11 +351,17 @@ check_simd_target(Checker *c, ZirFunction *fn)
         if(call->kind != ZIR_EXPR_CALL || call->name == NULL || SimdOpChecked(call->name) != NULL)
             continue;
         int wide = holds_wide_vector(c->module, call->type, 0);
-        for(int child = call->first_child; child >= 0 && !wide;
-            child = fn->exprs[child].next_sibling)
+        int native = native_vector(call->type);
+        for(int child = call->first_child; child >= 0 && !wide && !native;
+            child = fn->exprs[child].next_sibling) {
             wide = holds_wide_vector(c->module, fn->exprs[child].type, 0);
+            native = native_vector(fn->exprs[child].type);
+        }
         if(wide)
             error(c, call->span, "a #target procedure cannot pass a 256-bit vector by value "
                   "to another procedure", call->name);
+        else if(native)
+            error(c, call->span, "a #target procedure cannot pass a native vector to another "
+                  "procedure, which holds fewer blocks than its AVX2 clone", call->name);
     }
 }

@@ -85,6 +85,8 @@ static const SimdOp ops[] = {
     OP(COMBINE, "Combine", "combine", SIMD_COMBINE, ANY, 0),
     OP(INTERLEAVE_LOW, "InterleaveLow", "interleave_low", SIMD_BINARY, ANY, 0),
     OP(INTERLEAVE_HIGH, "InterleaveHigh", "interleave_high", SIMD_BINARY, ANY, 0),
+    OP(LANES, "Lanes", "lanes", SIMD_COUNT, ANY, 1),
+    OP(BLOCKS, "Blocks", "blocks", SIMD_COUNT, ANY, 1),
 };
 #undef OP
 #define OP_COUNT (sizeof(ops) / sizeof(*ops))
@@ -137,6 +139,19 @@ int
 SimdBlockLanes(const ZirVector *vector)
 {
     return vector->bytes > 16 ? vector->lanes / 2 : vector->lanes;
+}
+
+int
+SimdNativeHelper(const SimdOp *op)
+{
+    switch(op->id) {
+    case ZI_OP_WIDEN_LOW: case ZI_OP_WIDEN_HIGH: case ZI_OP_MUL_WIDE_LOW:
+    case ZI_OP_MUL_WIDE_HIGH: case ZI_OP_NARROW: case ZI_OP_MAKE: case ZI_OP_LOAD_LOW:
+    case ZI_OP_STORE_LOW:
+        return 1;
+    default:
+        return 0;
+    }
 }
 
 int
@@ -211,15 +226,15 @@ fail(const char **message, const char *text)
     return NULL;
 }
 
-const char *
-SimdSignature(const SimdOp *op, const char *result, const SimdOperand *operands,
-              int count, const char **message)
+static const char *
+signature(const SimdOp *op, const char *result, const SimdOperand *operands,
+          int count, const char **message)
 {
     ZirVector a, b, r;
     char element[ZIR_NAME_MAX];
     static const char unsupported[] = "does not take this vector type";
     *message = "";
-    if(op->type_argument && (result == NULL || !VectorType(result, &r)))
+    if(op->type_argument && op->shape != SIMD_COUNT && (result == NULL || !VectorType(result, &r)))
         return fail(message, "takes a vector type first, such as s16x8");
     switch(op->shape) {
     case SIMD_BINARY:
@@ -381,8 +396,53 @@ SimdSignature(const SimdOp *op, const char *result, const SimdOperand *operands,
            strcmp(operands[0].type, operands[1].type))
             return fail(message, "takes two 128-bit vectors of one type");
         return VectorTypeName(a.lane, a.lanes * 2);
+    case SIMD_COUNT:
+        /* Checking folds the counts of a fixed vector type; a native one's
+         * checked call keeps the lanes of one block, or none for Blocks. */
+        if(count != (op->id == ZI_OP_LANES) ||
+           (count == 1 && (!operands[0].is_constant || operands[0].value < 1 || operands[0].value > 16)))
+            return fail(message, "takes one vector type, such as s16xN");
+        return "s64";
     }
     return fail(message, unsupported);
+}
+
+/* Native vectors check as their 128-bit blocks, and the vector a signature
+ * gives them is native too. Operations whose lanes are numbered across the
+ * whole vector take none. */
+const char *
+SimdSignature(const SimdOp *op, const char *result, const SimdOperand *operands,
+              int count, const char **message)
+{
+    ZirVector vector;
+    int vectors = 0, natives = 0;
+    if(op->shape != SIMD_COUNT && result != NULL && VectorType(result, &vector)) {
+        vectors++;
+        natives += vector.is_native;
+    }
+    for(int i = 0; i < count; i++)
+        if(VectorType(operands[i].type, &vector)) {
+            vectors++;
+            natives += vector.is_native;
+        }
+    if(natives == 0)
+        return signature(op, result, operands, count, message);
+    *message = "";
+    if(natives != vectors)
+        return fail(message, "takes native vectors, such as s16xN, only with other native vectors");
+    if(op->shape == SIMD_LANE || op->shape == SIMD_WITH_LANE || op->shape == SIMD_WIDEN ||
+       op->shape == SIMD_HALF || op->shape == SIMD_COMBINE)
+        return fail(message, "does not take native vectors, whose lane count the instruction set picks");
+    SimdOperand blocks[40];
+    if(count > 40) return fail(message, "takes too many operands");
+    for(int i = 0; i < count; i++) {
+        blocks[i] = operands[i];
+        if(VectorType(operands[i].type, &vector)) blocks[i].type = vector.block;
+    }
+    if(result != NULL && VectorType(result, &vector)) result = vector.block;
+    const char *type = signature(op, result, blocks, count, message);
+    if(type == NULL || !VectorType(type, &vector)) return type;
+    return NativeVectorName(vector.lane);
 }
 
 /* ---- Helper names ---- */

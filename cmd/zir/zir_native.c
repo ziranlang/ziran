@@ -63,6 +63,21 @@ PrepareNativeNames(ZirProgram **programs, int count)
     return 1;
 }
 
+int zir_native_blocks;
+
+const char *
+VectorTypeHere(const char *type, ZirTarget target)
+{
+    ZirVector vector;
+    if(!VectorType(type, &vector) || !vector.is_native)
+        return type;
+    if(target != ZIR_C || zir_native_blocks == 1)
+        return vector.block;
+    if(zir_native_blocks == 2)
+        return VectorTypeName(vector.lane, vector.lanes * 2);
+    return vector.name;
+}
+
 const char *
 TargetType(const char *type, ZirTarget target)
 {
@@ -77,27 +92,29 @@ TargetType(const char *type, ZirTarget target)
         {"char", "char", "byte"},
         {"string", "String", "string"}, {NULL, NULL, NULL}
     };
-    /* Vectors are value types: a native vector in C (see ziran_simd.h) and
-     * a lane array in Go. */
-    static const char *const go_vectors[][2] = {
-        {"u8x16", "[16]uint8"}, {"s8x16", "[16]int8"}, {"u16x8", "[8]uint16"},
-        {"s16x8", "[8]int16"}, {"u32x4", "[4]uint32"}, {"s32x4", "[4]int32"},
-        {"u64x2", "[2]uint64"}, {"s64x2", "[2]int64"}, {"f32x4", "[4]float32"},
-        {"f64x2", "[2]float64"}, {"u8x32", "[32]uint8"}, {"s8x32", "[32]int8"},
-        {"u16x16", "[16]uint16"}, {"s16x16", "[16]int16"}, {"u32x8", "[8]uint32"},
-        {"s32x8", "[8]int32"}, {"u64x4", "[4]uint64"}, {"s64x4", "[4]int64"},
-        {"f32x8", "[8]float32"}, {"f64x4", "[4]float64"}
-    };
+    /* Vectors are value types: a compiler vector in C (see ziran_simd.h) and
+     * a lane array in Go. A native vector, such as s16xN, is the type
+     * VectorTypeHere gives, which in Go is always a fixed one. */
     static const char *const c_vectors[] = {
         "zi_u8x16", "zi_s8x16", "zi_u16x8", "zi_s16x8", "zi_u32x4", "zi_s32x4",
         "zi_u64x2", "zi_s64x2", "zi_f32x4", "zi_f64x2", "zi_u8x32", "zi_s8x32",
         "zi_u16x16", "zi_s16x16", "zi_u32x8", "zi_s32x8", "zi_u64x4", "zi_s64x4",
-        "zi_f32x8", "zi_f64x4"
+        "zi_f32x8", "zi_f64x4", "zi_u8xN", "zi_s8xN", "zi_u16xN", "zi_s16xN", "zi_u32xN",
+        "zi_s32xN", "zi_u64xN", "zi_s64xN", "zi_f32xN", "zi_f64xN"
     };
-    if(VectorType(type, NULL))
+    static const char *const go_vectors[] = {
+        "[16]uint8", "[16]int8", "[8]uint16", "[8]int16", "[4]uint32", "[4]int32",
+        "[2]uint64", "[2]int64", "[4]float32", "[2]float64", "[32]uint8", "[32]int8",
+        "[16]uint16", "[16]int16", "[8]uint32", "[8]int32", "[4]uint64", "[4]int64",
+        "[8]float32", "[4]float64"
+    };
+    if(VectorType(type, NULL)) {
+        type = VectorTypeHere(type, target);
         for(size_t i = 0; i < sizeof(c_vectors) / sizeof(*c_vectors); i++)
-            if(!strcmp(type, go_vectors[i][0]))
-                return target == ZIR_GO ? go_vectors[i][1] : c_vectors[i];
+            if(!strcmp(type, c_vectors[i] + 3))
+                return target == ZIR_C ? c_vectors[i] :
+                    i < sizeof(go_vectors) / sizeof(*go_vectors) ? go_vectors[i] : NULL;
+    }
     const char *scalar = ScalarType(type);
     if(!strcmp(type, "integer")) type = "s64";
     else if(!strcmp(type, "real")) type = "float64";

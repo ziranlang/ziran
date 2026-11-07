@@ -18,7 +18,7 @@ typedef enum SimdShape {
     SIMD_WIDEN_HALF, SIMD_WIDEN, SIMD_NARROW, SIMD_MUL_WIDE, SIMD_MADD,
     SIMD_MADD_SAT, SIMD_ADD_PAIRS, SIMD_SAD, SIMD_REDUCE, SIMD_ALL_ZERO,
     SIMD_BYTE_SHUFFLE, SIMD_SHUFFLE, SIMD_REINTERPRET, SIMD_CONVERT,
-    SIMD_HALF, SIMD_COMBINE
+    SIMD_HALF, SIMD_COMBINE, SIMD_COUNT
 } SimdShape;
 
 typedef struct SimdOp {
@@ -65,6 +65,13 @@ int SimdMemory(const char *type, char *element, size_t size, int *capacity);
 
 /* Lanes of `type` in one 128-bit block. */
 int SimdBlockLanes(const ZirVector *vector);
+
+/* Whether a native vector of two blocks has its own helper for `op`,
+ * zi_native_<helper>: the 256-bit WidenLow, WidenHigh, MulWideLow,
+ * MulWideHigh and Narrow work block by block, while a native vector's lanes
+ * run in order through both blocks; its Make takes one block's lanes, and
+ * its LoadLow and StoreLow move half the vector rather than 64 bits. */
+int SimdNativeHelper(const SimdOp *op);
 
 /* Names the table borrows, in open-addressed slots that hold an entry's
  * index + 1. Zero-initialized. */

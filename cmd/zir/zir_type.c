@@ -2,6 +2,7 @@
 #include "zir.h"
 #include "zir_thread.h"
 #include "compiler_type.h"
+#include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdatomic.h>
@@ -292,8 +293,14 @@ static const struct VectorSpelling {
     {"f64x2", "float64", 2, 64}, {"u8x32", "u8", 32, 8}, {"s8x32", "s8", 32, 8},
     {"u16x16", "u16", 16, 16}, {"s16x16", "s16", 16, 16}, {"u32x8", "u32", 8, 32},
     {"s32x8", "s32", 8, 32}, {"u64x4", "u64", 4, 64}, {"s64x4", "s64", 4, 64},
-    {"f32x8", "float32", 8, 32}, {"f64x4", "float64", 4, 64}
+    {"f32x8", "float32", 8, 32}, {"f64x4", "float64", 4, 64},
+    /* Native vectors, with one block's lanes. */
+    {"u8xN", "u8", 16, 8}, {"s8xN", "s8", 16, 8}, {"u16xN", "u16", 8, 16},
+    {"s16xN", "s16", 8, 16}, {"u32xN", "u32", 4, 32}, {"s32xN", "s32", 4, 32},
+    {"u64xN", "u64", 2, 64}, {"s64xN", "s64", 2, 64}, {"f32xN", "float32", 4, 32},
+    {"f64xN", "float64", 2, 64}
 };
+enum { FIXED_VECTOR_TYPES = 20 };
 
 int VectorType(const char *type, ZirVector *vector)
 {
@@ -303,11 +310,14 @@ int VectorType(const char *type, ZirVector *vector)
         const struct VectorSpelling *spelling = &vector_types[i];
         if(spelling->name[1] != type[1] || strcmp(type, spelling->name))
             continue;
+        int native = i >= FIXED_VECTOR_TYPES;
         if(vector != NULL)
             *vector = (ZirVector){.name = spelling->name, .lane = spelling->lane,
                 .lanes = spelling->lanes, .lane_bits = spelling->lane_bits,
                 .bytes = spelling->lanes * spelling->lane_bits / 8,
-                .is_signed = spelling->lane[0] == 's', .is_float = spelling->lane[0] == 'f'};
+                .is_signed = spelling->lane[0] == 's', .is_float = spelling->lane[0] == 'f',
+                .is_native = native,
+                .block = native ? vector_types[i - FIXED_VECTOR_TYPES].name : spelling->name};
         return 1;
     }
     return 0;
@@ -315,10 +325,36 @@ int VectorType(const char *type, ZirVector *vector)
 
 const char *VectorTypeName(const char *lane, int lanes)
 {
-    for(size_t i = 0; lane != NULL && i < sizeof(vector_types) / sizeof(*vector_types); i++)
+    for(size_t i = 0; lane != NULL && i < FIXED_VECTOR_TYPES; i++)
         if(vector_types[i].lanes == lanes && !strcmp(vector_types[i].lane, lane))
             return vector_types[i].name;
     return NULL;
+}
+
+const char *NativeVectorName(const char *lane)
+{
+    for(size_t i = FIXED_VECTOR_TYPES; lane != NULL && i < sizeof(vector_types) / sizeof(*vector_types); i++)
+        if(!strcmp(vector_types[i].lane, lane))
+            return vector_types[i].name;
+    return NULL;
+}
+
+int HoldsNativeVector(const char *type)
+{
+    if(type == NULL || VectorType(type, NULL)) return 0;
+    for(const char *at = strstr(type, "xN"); at != NULL; at = strstr(at + 2, "xN")) {
+        if(isalnum((unsigned char)at[2]) || at[2] == '_') continue;
+        const char *start = at;
+        while(start > type && (isalnum((unsigned char)start[-1]) || start[-1] == '_')) start--;
+        char name[8];
+        size_t length = (size_t)(at + 2 - start);
+        if(length < sizeof(name)) {
+            memcpy(name, start, length);
+            name[length] = '\0';
+            if(VectorType(name, NULL)) return 1;
+        }
+    }
+    return 0;
 }
 
 int BuiltinTypeName(const char *name)

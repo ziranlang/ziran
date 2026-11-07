@@ -634,10 +634,19 @@ typedef struct ZirVector {
     const char *name; /* canonical spelling */
     const char *lane; /* u8, s8 ... s64, float32 or float64 */
     int lanes, lane_bits, bytes, is_signed, is_float;
+    /* A native vector, such as s16xN: one 128-bit block of `lanes` lanes
+     * outside AVX2 code and two in it. `block` is the 128-bit type. */
+    int is_native;
+    const char *block;
 } ZirVector;
 int VectorType(const char *type, ZirVector *vector);
 /* The vector with lane type `lane` and `lanes` lanes, or NULL. */
 const char *VectorTypeName(const char *lane, int lanes);
+/* The native vector with lane type `lane`, such as s16xN, or NULL. */
+const char *NativeVectorName(const char *lane);
+/* Whether `type` spells a native vector inside another type, as in
+ * [4]s16xN or *u8xN, rather than being one. */
+int HoldsNativeVector(const char *type);
 int UnionScalarFields(const ZirModule *module, const ZirType *record);
 int MapTypeParts(const ZirModule *module, const char *name,
                  char *key, size_t key_size, char *value, size_t value_size);

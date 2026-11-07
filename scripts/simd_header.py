@@ -2178,11 +2178,12 @@ def split_macros(out, items, mark):
     out.append('#endif')
 
 
-def function(out, ret, name, params, bodies):
-    """bodies: [(condition or None, lines)] in order; None is the final #else."""
+def function(out, ret, name, params, bodies, split=True):
+    """bodies: [(condition or None, lines)] in order; None is the final #else.
+    split: below AVX2, 256-bit operands arrive through pointers."""
     ret_c = ret.c if isinstance(ret, T) else ret
     plist = ', '.join('%s %s' % p for p in params) or 'void'
-    if wide_params(params):
+    if split and wide_params(params):
         out.append('#if %s' % SPLIT_ABI)
         out.append('ZI_FN %s ZI_N(%s_p_)(%s)\n{' % (ret_c, name, pointer_params(params)))
         for c, n in params:
@@ -2421,6 +2422,21 @@ def types_header():
         out.append('typedef struct { %s v[%d]; } %s;' % (t.ctype, t.lanes, t.c))
     out.append('#endif')
     out.append('')
+    out.append('/* Native vectors, such as zi_s16xN: two 128-bit blocks where the build')
+    out.append(' * enables AVX2 and one elsewhere. #target clones use the fixed types. */')
+    out.append('#if ZI_VEC && defined(__AVX2__) && (defined(__x86_64__) || defined(__i386__))')
+    out.append('#define ZI_NATIVE_WIDE 1')
+    for t in TYPES:
+        if t.wide:
+            out.append('typedef %s %s;' % (t.c, native_c(t)))
+    out.append('#else')
+    out.append('#define ZI_NATIVE_WIDE 0')
+    for t in TYPES:
+        if not t.wide:
+            out.append('typedef %s %s;' % (t.c, native_c(t)))
+    out.append('#endif')
+    out.append('#define ZI_NATIVE_BLOCKS (ZI_NATIVE_WIDE + 1)')
+    out.append('')
     out.append('#endif /* ZIRAN_SIMD_TYPES_H */')
     return '\n'.join(out) + '\n'
 
@@ -2472,7 +2488,137 @@ def common(out):
     out.append('/* Byte i of block `block` in AlignBytes: from low:high shifted by n. */')
     out.append('#define ZI_BYTE_FROM(block, i, size, n) ((i) + (n) < 16 ? (block) * 16 + (i) + (n) : (size) + (block) * 16 + (i) + (n) - 16)')
     macros(out)
+    native_macros(out)
     out.append('#endif /* ZIRAN_SIMD_OPS_COMMON_H */')
+
+
+# ---------------------------------------------------------------- native
+
+def native_name(t):
+    """The native vector of t's lane type, such as s16xN."""
+    return t.name[:t.name.index('x')] + 'xN'
+
+
+def native_c(t):
+    return 'zi_' + native_name(t)
+
+
+# Helpers whose 256-bit forms number lanes block by block, or move 64 bits,
+# where a native vector of two blocks numbers them in order through both
+# blocks and moves half of itself; Make takes one block's lanes.
+# zir_simd.c's SimdNativeHelper names the same operations.
+NATIVE_OWN = ('widen_low', 'widen_high', 'mul_wide_low', 'mul_wide_high', 'narrow', 'make',
+              'load_low', 'store_low')
+
+
+def native_helpers():
+    """(return, name, params, bodies) for native vectors of two blocks, made
+    of the fixed helpers."""
+    out = []
+    for t in TYPES:
+        if not t.wide:
+            continue
+        h = t.half
+        lanes = [(t.ctype, 'l%d' % i) for i in range(t.block)]
+        out.append((t, 'native_make_%s' % t.name, lanes, [(None,
+                    '%s b_ = ZI_N(make_%s)(%s);\n    return ZI_N(combine_%s)(b_, b_);' %
+                    (h.c, h.name, ', '.join(n for _c, n in lanes), h.name))]))
+        out.append((t, 'native_load_low_%s' % t.name, [('const void *', 'p')], [(None,
+                    'return ZI_N(combine_%s)(ZI_N(load_%s)(p), ZI_N(zero_%s)());' %
+                    (h.name, h.name, h.name))]))
+        out.append(('void', 'native_store_low_%s' % t.name, [('void *', 'p'), (t.c, 'a')], [(None,
+                    'ZI_N(store_%s)(p, ZI_N(low_%s)(a));' % (h.name, t.name))]))
+        if t.float or t.bits == 64:
+            continue
+        r = BY_NAME['%s%dx%d' % ('s' if t.signed else 'u', t.bits * 2, t.lanes // 2)]
+        for half in ('low', 'high'):
+            out.append((r, 'native_widen_%s_%s' % (half, t.name), [(t.c, 'a')], [(None,
+                        'return ZI_N(widen_%s)(ZI_N(%s_%s)(a));' % (h.name, half, t.name))]))
+            out.append((r, 'native_mul_wide_%s_%s' % (half, t.name), [(t.c, 'a'), (t.c, 'b')], [(None,
+                        'return ZI_N(combine_%s)(ZI_N(%s_%s)(ZI_N(mul_wide_low_%s)(a, b)),\n'
+                        '        ZI_N(%s_%s)(ZI_N(mul_wide_high_%s)(a, b)));' %
+                        (r.half.name, half, r.name, t.name, half, r.name, t.name))]))
+    for t, r in narrow_pairs():
+        if not t.wide:
+            continue
+        h = 'narrow_%s_%s' % (t.half.name, r.half.name)
+        bodies = []
+        if t.bits < 64:
+            # The block-by-block narrow holds a's low block, b's low block,
+            # a's high block and b's high block, a quarter each.
+            bodies.append(('ZI_VEC && ZI_X86', 'return (%s)_mm256_permute4x64_epi64('
+                           '(__m256i)ZI_N(narrow_%s_%s)(a, b), 0xD8);' % (r.c, t.name, r.name)))
+        bodies.append((None, 'return ZI_N(combine_%s)(ZI_N(%s)(ZI_N(low_%s)(a), ZI_N(high_%s)(a)),\n'
+                       '        ZI_N(%s)(ZI_N(low_%s)(b), ZI_N(high_%s)(b)));' %
+                       (r.half.name, h, t.name, t.name, h, t.name, t.name)))
+        out.append((r, 'native_narrow_%s_%s' % (t.name, r.name), [(t.c, 'a'), (t.c, 'b')], bodies))
+    return out
+
+
+def native_aliases(names):
+    """{native helper: (128-bit helper, two-block helper)}, such as
+    add_s16xN: (add_s16x8, add_s16x16), for every helper with both."""
+    one, two = {}, {}
+    for name in names:
+        words = name.split('_')
+        vectors = [BY_NAME[w] for w in words if w in BY_NAME]
+        if not vectors or name.startswith(('lane_', 'with_lane_')):
+            continue
+        wide = set(t.wide for t in vectors)
+        if len(wide) != 1:
+            continue
+        native = '_'.join(native_name(BY_NAME[w]) if w in BY_NAME else w for w in words)
+        (two if wide.pop() else one)[native] = name
+    out = {}
+    for native, name in one.items():
+        if native in two:
+            wide = two[native]
+            if wide.startswith(NATIVE_OWN):
+                wide = 'native_' + wide
+            out[native] = (name, wide)
+    return out
+
+
+def native_macros(out):
+    """Native vectors' names for the constant-operand macros."""
+    names = ['align_bytes_%s' % t.name for t in INT] + ['shr_bytes_%s' % t.name for t in INT] + \
+        ['shl_bytes_%s' % t.name for t in INT] + ['shuffle_%s' % t.name for t in TYPES]
+    aliases = native_aliases(names)
+    out.append('/* The macros for native vectors, such as zi_shuffle_s16xN. */')
+    out.append('#if ZI_NATIVE_WIDE')
+    for native, (_one, two) in sorted(aliases.items()):
+        out.append('#define zi_%s zi_%s' % (native, two))
+    out.append('#else')
+    for native, (one, _two) in sorted(aliases.items()):
+        out.append('#define zi_%s zi_%s' % (native, one))
+    out.append('#endif')
+
+
+def native_section(out, items, mark):
+    """The helpers of native vectors of two blocks, wherever AVX2 code holds
+    them, and the build's own names for every native helper, such as
+    zi_add_s16xN; #target clones name the fixed helpers themselves."""
+    mark('')
+    out.append('/* ---- native vectors, such as s16xN ---- */')
+    out.append('#if ZI_TIER >= 4')
+    own = native_helpers()
+    for ret, name, params, bodies in own:
+        mark(name)
+        function(out, ret, name, params, bodies, split=False)
+    mark('')
+    out.append('#endif')
+    aliases = native_aliases([item[3] for item in items])
+    for i, wide in enumerate((1, 0)):
+        mark('')
+        out.append('#if ZI_NS == 1 && ZI_NATIVE_WIDE' if wide else '#elif ZI_NS == 1')
+        for native, pair in aliases.items():
+            mark(native)
+            out.append('#define zi_%s zi_%s' % (native, pair[0 if not wide else 1]))
+    mark('')
+    out.append('#endif')
+    missing = [name for _r, name, _p, _b in own if not any(two == name for _o, two in aliases.values())]
+    if missing:
+        raise SystemExit('native helpers without a name: %s' % ', '.join(missing))
 
 
 def header():
@@ -2528,6 +2674,8 @@ def header():
     out.append('')
     unless_tcc_macro(out, items, guards, mark, lambda op, t, ret, name, params, bodies:
                      function(out, ret, name, params, bodies))
+    out.append('')
+    native_section(out, items, mark)
     return '\n'.join(out) + '\n'
 
 

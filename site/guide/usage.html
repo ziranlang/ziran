@@ -1378,6 +1378,31 @@ wasmtime command, <code>tests/simd.sh</code> also runs its wasm32 modules; with
 <code>ANDROID_NDK_HOME</code> it builds AArch64 and ARMv7, and runs them under
 <code>QEMU_AARCH64</code> and <code>QEMU_ARM</code> or on the ARMv7 device <code>ARMV7_ADB_SERIAL</code>
 names.</p>
+<p>Native vectors (<code>u8xN</code>, <code>s8xN</code>, <code>u16xN</code>, <code>s16xN</code>, <code>u32xN</code>, <code>s32xN</code>,
+<code>u64xN</code>, <code>s64xN</code>, <code>f32xN</code> and <code>f64xN</code>) are as wide as the code running
+them handles well: two 128-bit blocks in a <code>#target</code> procedure's AVX2 copy
+and in builds that enable AVX2, one elsewhere, Go and the VM included.
+<code>Simd.Lanes(T)</code> and <code>Simd.Blocks(T)</code> give the count, which is a constant
+for fixed vectors, so a loop steps by it:</p>
+<pre><code class="language-jai">Brighten :: (row: []u8) #target {
+    i := 0
+    while i + Simd.Lanes(u8xN) &lt;= row.count {
+        Simd.Store(row, i, Simd.AddSat(Simd.Load(u8xN, row, i), Simd.Splat(u8xN, 8)))
+        i += Simd.Lanes(u8xN)
+    }
+}
+</code></pre>
+<p>They take the operations fixed vectors take. <code>Make</code>, <code>Splat</code> and <code>Shuffle</code>
+name one block's lanes, which repeat; <code>Shuffle</code>, <code>ByteShuffle</code>,
+<code>AlignBytes</code>, <code>ShiftBytesLeft</code>, <code>ShiftBytesRight</code>, <code>InterleaveLow</code> and
+<code>InterleaveHigh</code> work on each block; <code>WidenLow</code>, <code>WidenHigh</code>, <code>MulWideLow</code>,
+<code>MulWideHigh</code> and <code>Narrow</code> count lanes across the whole vector; <code>LoadLow</code>
+and <code>StoreLow</code> move half of it. <code>Lane</code>, <code>WithLane</code>, <code>Widen</code>, <code>Low</code>, <code>High</code>
+and <code>Combine</code> take no native vectors, and native and fixed vectors do not
+mix. A native vector is a plain local, parameter or result: no global,
+record field, array, pointer, slice, <code>size_of</code> or <code>#foreign</code> signature holds
+one, and a <code>#target</code> procedure does not take, return or pass one. Run
+<code>sh tests/simd_native.sh build/bin/ziran</code>.</p>
 <h3 id="http-and-process-capabilities">HTTP and process capabilities</h3>
 <p><code>std/net_http.zi</code> defines an explicit request/response host capability. A
 platform adapter supplies transport and TLS; checked Ziran code owns request

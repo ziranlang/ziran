@@ -185,6 +185,7 @@ int EmitBody(FILE *out, const ZirModule *module, const ZirFunction *fn,
  * bound so single-use temporaries fold without a readability cap. Default off. */
 void EmitUseMinifiedOutput(int enabled);
 /* C bodies emitted until the next call name their std/simd helpers for this
- * x86-64 tier ("ssse3", "sse41" or "avx2"); NULL for the build's own. */
-void EmitUseSimdTier(const char *tier);
+ * x86-64 tier ("ssse3", "sse41" or "avx2"), whose native vectors hold
+ * native_blocks 128-bit blocks; NULL for the build's own. */
+void EmitUseSimdTier(const char *tier, int native_blocks);
 #endif

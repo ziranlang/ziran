@@ -117,7 +117,13 @@ vm_vector(const char *type)
         {"u16x8", "u16", ARRAY_U16, 8, 2}, {"s16x8", "s16", ARRAY_S16, 8, 2},
         {"u32x4", "u32", ARRAY_U32, 4, 4}, {"s32x4", "s32", ARRAY_S32, 4, 4},
         {"u64x2", "u64", ARRAY_U64, 2, 8}, {"s64x2", "s64", ARRAY_S64, 2, 8},
-        {"f32x4", "float32", ARRAY_F32, 4, 4}, {"f64x2", "float64", ARRAY_F64, 2, 8}
+        {"f32x4", "float32", ARRAY_F32, 4, 4}, {"f64x2", "float64", ARRAY_F64, 2, 8},
+        /* Native vectors hold one 128-bit block here. */
+        {"u8xN", "u8", ARRAY_U8, 16, 1}, {"s8xN", "s8", ARRAY_S8, 16, 1},
+        {"u16xN", "u16", ARRAY_U16, 8, 2}, {"s16xN", "s16", ARRAY_S16, 8, 2},
+        {"u32xN", "u32", ARRAY_U32, 4, 4}, {"s32xN", "s32", ARRAY_S32, 4, 4},
+        {"u64xN", "u64", ARRAY_U64, 2, 8}, {"s64xN", "s64", ARRAY_S64, 2, 8},
+        {"f32xN", "float32", ARRAY_F32, 4, 4}, {"f64xN", "float64", ARRAY_F64, 2, 8}
     };
     if(type == NULL || (type[0] != 'u' && type[0] != 's' && type[0] != 'f') ||
        type[1] < '0' || type[1] > '9')

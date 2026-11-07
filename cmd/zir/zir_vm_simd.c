@@ -177,6 +177,8 @@ prepare_site(const ZirFunction *function, const ZirExpr *expression, VmSimdSite 
             site->op = NULL;
             return;
         }
+    if(op->shape == SIMD_COUNT)
+        return;
     if(site->count == 0) {
         if(site->memory || !prepare_value(function, expression, site))
             site->op = NULL;
@@ -654,7 +656,10 @@ vm_simd_call(Frame *frame, const ZirExpr *expression, int depth)
         roots.count = ++count;
     }
     Value result = {0};
-    if(!vm->failed)
+    /* A native vector here is one block: Lanes is its lanes, Blocks 1. */
+    if(!vm->failed && site->op->shape == SIMD_COUNT)
+        result = int_value(count == 1 ? (int64_t)integer_bits(values[0]) : 1);
+    else if(!vm->failed)
         result = site->memory ? memory_operation(frame, site, values) :
             value_operation(frame, site, values);
     vm->evaluation_roots = roots.previous;

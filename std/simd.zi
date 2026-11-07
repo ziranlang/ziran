@@ -45,3 +45,12 @@
 // integer and float lanes of the same width (float to integer truncates
 // and saturates; NaN gives 0), Low, High and Combine split and join
 // 256-bit vectors, InterleaveLow and InterleaveHigh merge lanes.
+// Native vectors u8xN .. f64xN hold two 128-bit blocks in AVX2 code (a
+// #target procedure's AVX2 copy or an AVX2 build) and one elsewhere.
+// Lanes(T) and Blocks(T) give the count, a constant for fixed vectors.
+// Make, Splat and Shuffle name one block's lanes; WidenLow, WidenHigh,
+// MulWideLow, MulWideHigh and Narrow count lanes across the whole vector;
+// LoadLow and StoreLow move half. Lane, WithLane, Widen, Low, High and
+// Combine take none. A native vector is a plain local, parameter or
+// result, never stored in a global, field, array, pointer or slice, and
+// never passed into or out of a #target or #foreign procedure.

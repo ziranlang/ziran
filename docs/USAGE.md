@@ -1618,6 +1618,35 @@ wasmtime command, `tests/simd.sh` also runs its wasm32 modules; with
 `QEMU_AARCH64` and `QEMU_ARM` or on the ARMv7 device `ARMV7_ADB_SERIAL`
 names.
 
+Native vectors (`u8xN`, `s8xN`, `u16xN`, `s16xN`, `u32xN`, `s32xN`,
+`u64xN`, `s64xN`, `f32xN` and `f64xN`) are as wide as the code running
+them handles well: two 128-bit blocks in a `#target` procedure's AVX2 copy
+and in builds that enable AVX2, one elsewhere, Go and the VM included.
+`Simd.Lanes(T)` and `Simd.Blocks(T)` give the count, which is a constant
+for fixed vectors, so a loop steps by it:
+
+```jai
+Brighten :: (row: []u8) #target {
+    i := 0
+    while i + Simd.Lanes(u8xN) <= row.count {
+        Simd.Store(row, i, Simd.AddSat(Simd.Load(u8xN, row, i), Simd.Splat(u8xN, 8)))
+        i += Simd.Lanes(u8xN)
+    }
+}
+```
+
+They take the operations fixed vectors take. `Make`, `Splat` and `Shuffle`
+name one block's lanes, which repeat; `Shuffle`, `ByteShuffle`,
+`AlignBytes`, `ShiftBytesLeft`, `ShiftBytesRight`, `InterleaveLow` and
+`InterleaveHigh` work on each block; `WidenLow`, `WidenHigh`, `MulWideLow`,
+`MulWideHigh` and `Narrow` count lanes across the whole vector; `LoadLow`
+and `StoreLow` move half of it. `Lane`, `WithLane`, `Widen`, `Low`, `High`
+and `Combine` take no native vectors, and native and fixed vectors do not
+mix. A native vector is a plain local, parameter or result: no global,
+record field, array, pointer, slice, `size_of` or `#foreign` signature holds
+one, and a `#target` procedure does not take, return or pass one. Run
+`sh tests/simd_native.sh build/bin/ziran`.
+
 ### HTTP and process capabilities
 
 `std/net_http.zi` defines an explicit request/response host capability. A

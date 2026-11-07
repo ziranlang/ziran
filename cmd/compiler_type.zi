@@ -130,14 +130,17 @@ ArrayElement :: (type: string) -> ElementType {
 }
 
 // Fixed-width SIMD vectors spell their lane type and lane count, such as
-// u8x16 or f32x8, and hold 128 or 256 bits. Float lanes are float32 and
-// float64. An invalid spelling has zero lanes.
+// u8x16 or f32x8, and hold 128 or 256 bits. Native vectors, such as s16xN,
+// hold as many 128-bit blocks as the code's instruction set has; their
+// lanes are one block's. Float lanes are float32 and float64. An invalid
+// spelling has zero lanes.
 VectorShape :: struct { lanes: s32; lane: string }
 
 VectorType :: (name: string) -> VectorShape {
-    if name.count < 5 || name.count > 6 { return .{} }
+    if name.count < 4 || name.count > 6 { return .{} }
     x := Find(name, #char "x", 2)
     if x < 0 || x > 3 || x + 1 >= name.count || name[x + 1] == #char "0" { return .{} }
+    native := x + 2 == name.count && name[x + 1] == #char "N"
     prefix := name[0:x]
     lane := ""
     bits: s64 = 0
@@ -148,6 +151,7 @@ VectorType :: (name: string) -> VectorShape {
     else if prefix == "f32" { lane = "float32"; bits = 32 }
     else if prefix == "f64" { lane = "float64"; bits = 64 }
     else { return .{} }
+    if native { return .{cast(s32)(128 / bits), lane} }
     count: s64 = 0
     for byte: name[x + 1:] {
         if byte < #char "0" || byte > #char "9" { return .{} }

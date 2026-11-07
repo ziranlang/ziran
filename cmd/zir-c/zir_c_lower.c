@@ -967,9 +967,10 @@ emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
                     cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
         if(EmitRunGuardsEnabled())
             fputs("    ZIR_BUDGET();\n", c);
-        EmitUseSimdTier(simd_tiers[t].name);
+        /* AVX2 clones hold native vectors in two 128-bit blocks. */
+        EmitUseSimdTier(simd_tiers[t].name, simd_tiers[t].tier >= 4 ? 2 : 1);
         lower_body(c, m, restab, restab_count, fn);
-        EmitUseSimdTier(NULL);
+        EmitUseSimdTier(NULL, 0);
         fputs("}\n", c);
         if(split) fputs("#endif\n", c);
         if(simd_tiers[t].tier < 4) fputs("#endif\n", c);

@@ -21,6 +21,59 @@ typedef struct CheckProgramsBuffers {
 int CheckPrograms(ZirProgram **programs, int count);
 
 static int
+native_type(const char *type)
+{
+    ZirVector vector;
+    return HoldsNativeVector(type) || (VectorType(type, &vector) && vector.is_native);
+}
+
+/* Native vectors, such as s16xN, are as wide as the code holding them,
+ * so no global or record field, whose layout is fixed, holds one, and no
+ * #foreign procedure, built elsewhere, takes or returns one. */
+static int
+check_native_storage(const ZirModule *module)
+{
+    static const char message[] = "a native vector, such as s16xN, is a plain value: "
+                                  "a global or record field cannot hold one";
+    for(int g = 0; g < module->global_count; g++) {
+        const ZirGlobal *global = &module->globals[g];
+        if(native_type(global->type)) {
+            Diagnostic(global->span, "check.storage", "%s: %s", message, global->name);
+            return 0;
+        }
+    }
+    for(int t = 0; t < module->type_count; t++) {
+        const ZirType *record = &module->types[t];
+        if(record->is_enum || record->is_procedure_type || record->is_record_template ||
+           record->is_extern)
+            continue;
+        size_t offset = 0;
+        const ZirTypeField *field;
+        while(TypeNextFieldShared(record, &offset, &field) == 1)
+            if(native_type(field->type)) {
+                Diagnostic(record->span, "check.storage", "%s: %s.%s", message,
+                           record->name, field->name);
+                return 0;
+            }
+    }
+    for(int i = 0; i < module->import_count; i++) {
+        const ZirImport *import = &module->imports[i];
+        if(import->kind != ZIR_IMPORT_EXTERN) continue;
+        int crosses = native_type(import->return_type);
+        const ZirParameters *parameters = ParametersOf(import->args);
+        for(int a = 0; a < parameters->count && !crosses; a++)
+            crosses = native_type(parameters->items[a].type);
+        if(crosses) {
+            Diagnostic(import->span, "check.foreign",
+                       "a #foreign procedure cannot take or return a native vector, such as s16xN: %s",
+                       import->name);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+static int
 CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffers *buffers)
 {
     memset(&buffers->c, 0, sizeof(buffers->c));
@@ -54,6 +107,8 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       buffers->saved_path);
             SymbolLookupsChanged();
+            if(!check_native_storage(module))
+                return 0;
             for(int g = 0; g < module->global_count; g++) {
                 size_t init_capacity;
                 char *init_edit = TextEditBegin(module->globals[g].init, &init_capacity);

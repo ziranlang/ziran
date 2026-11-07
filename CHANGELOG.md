@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
+  code running them handles: two in a `#target` procedure's AVX2 copy and
+  in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and
+  every width gives the same results.
 - Generated C gets a copy of `ziran_simd_ops.h` holding only the SIMD
   helpers the program calls, with the same object code. TinyCC compiles
   the AV1 decoder's modules a third faster, which starts an uncached ZX

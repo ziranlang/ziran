@@ -3,7 +3,7 @@
 # one shared read-only table: a module-level static const in C, a package
 # var in Go and a value the VM builds once. Go also declares a copy or
 # passes the table by value straight from that var. Copies keep value
-# semantics.
+# semantics. Uses carry the value, so no header names a table in a macro.
 # A function may read one table in many loops, beside widening casts and
 # .count, without running out of room to bind it.
 set -eu
@@ -140,6 +140,11 @@ C
     "$output/app"
     if "$output/app" outside 2> /dev/null; then
         echo 'an out-of-range constant table index was accepted' >&2
+        exit 1
+    fi
+    if grep -q '^#define .*\.[[{]' "$output"/*.h; then
+        echo 'a header defines a constant table in Ziran spelling:' >&2
+        grep -n '^#define .*\.[[{]' "$output"/*.h | cut -c 1-160 >&2
         exit 1
     fi
     # One file-scope table per distinct constant, read without a copy.

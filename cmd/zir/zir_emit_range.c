@@ -1,4 +1,6 @@
 #include "zir_emit_internal.h"
+#include "zir_simd.h"
+#include "ziran_simd.h"
 
 /* Index range proofs for generated C. An index whose value provably lies
  * inside its array, slice or string needs no bounds check, so C can index
@@ -2405,4 +2407,478 @@ IndexBelowCount(const Emitter *e, int index, int base)
     poly_atom(&limit, f->bindings + view);
     e->ranges->budget = POLY_BUDGET;
     return poly_index_below(f, index, &limit);
+}
+
+/* Definite initialization. Ziran fills a local declared with no value with
+ * zeros; generated C need not when every element is provably stored before
+ * anything can read it. The statements after the declaration run here on the
+ * values known exactly: integer locals set from constants, so counted loops
+ * with constant bounds run their real iterations. Each store into the local
+ * marks the elements it writes, at constant positions only:
+ *
+ * - local = value, local.field = value and local.array[k] = value;
+ * - Simd.Store(local.array[:], k, vector) of a fixed vector.
+ *
+ * Coverage counts only if it completes before any statement names the local
+ * otherwise, which covers every read and every address taken, and before
+ * control could leave the block or run a branch or loop not known here. Such
+ * a branch or loop is passed over only when it names nothing of the local
+ * and cannot jump out. Only arrays and records whose leaves are scalars or
+ * fixed vectors of one size count: their C object has no padding left unset,
+ * and no field owns storage that a store would release first. */
+
+enum { FILL_SLOTS = 1 << 14, FILL_STEPS = 1 << 14, FILL_DEPTH = 16 };
+enum { FILL_FAIL, FILL_NEXT, FILL_DONE, FILL_BREAK, FILL_CONTINUE };
+
+typedef struct Fill {
+    const RangeFacts *f;
+    const ZirModule *module;
+    int binding;            /* the declaration */
+    int slots, left;        /* leaf elements, and those not written yet */
+    size_t leaf_bytes;      /* the one size of every leaf */
+    unsigned char *written; /* per slot */
+    unsigned char *known;   /* per binding: value holds its exact value */
+    int64_t *value;
+    int *pending;           /* expression walks */
+    int steps;              /* statements run, bounded by FILL_STEPS */
+    int jump;               /* loop_id a FILL_BREAK or FILL_CONTINUE leaves, 0 innermost */
+} Fill;
+
+/* The plain record whose C struct holds exactly its fields, or NULL. */
+static const ZirType *
+fill_record(const Fill *w, const char *type)
+{
+    const ZirType *record = FindType(w->module, type, NULL);
+    if(record == NULL || record->is_enum || record->is_union || record->is_procedure_type ||
+       record->foreign_target[0] || record->is_map || record->is_extern ||
+       record->is_abi_incomplete || record->is_owned_vec || record->is_record_template ||
+       record->is_type_instance || record->is_go_anonymous)
+        return NULL;
+    return record;
+}
+
+/* Leaf elements of a value of type, every one leaf_bytes wide, or -1. */
+static int
+fill_slots(Fill *w, const char *type, int depth)
+{
+    char element[ZIR_NAME_MAX];
+    int capacity = 0, total = 0, each, status;
+    size_t bytes, offset = 0;
+    ZirVector vector;
+    const ZirType *record;
+    const ZirTypeField *field;
+    if(type == NULL || depth > FILL_DEPTH || type[0] == '*')
+        return -1;
+    type = canonical(type);
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        if(capacity <= 0 || (each = fill_slots(w, element, depth + 1)) <= 0 ||
+           (int64_t)capacity * each > FILL_SLOTS)
+            return -1;
+        return capacity * each;
+    }
+    if(VectorType(type, &vector))
+        bytes = vector.is_native ? 0 : (size_t)vector.bytes;
+    else
+        bytes = ScalarByteWidth(type);
+    if(bytes > 0) {
+        if(w->leaf_bytes == 0)
+            w->leaf_bytes = bytes;
+        return w->leaf_bytes == bytes ? 1 : -1;
+    }
+    if((record = fill_record(w, type)) == NULL)
+        return -1;
+    while((status = TypeNextFieldShared(record, &offset, &field)) > 0) {
+        if(field->c_type[0] || (each = fill_slots(w, field->type, depth + 1)) <= 0 ||
+           (total += each) > FILL_SLOTS)
+            return -1;
+    }
+    return status == 0 && total > 0 ? total : -1;
+}
+
+static int
+fill_mentions(Fill *w, int root)
+{
+    ZirExprWalk walk = {w->f->fn, w->pending, 0};
+    for(int x = ExprWalkFirst(&walk, root); x >= 0; x = ExprWalkNext(&walk))
+        if(w->f->binding_of[x] == w->binding)
+            return 1;
+    return 0;
+}
+
+/* Whether value is one a value of type can hold; no wrap is followed. */
+static int
+fill_fits(const char *type, int64_t value)
+{
+    Range range;
+    if(type == NULL)
+        return 0;
+    if(!strcmp(canonical(type), "bool"))
+        return value == 0 || value == 1;
+    if(!strcmp(canonical(type), "u64"))
+        return value >= 0;
+    return type_range(type, &range) && value >= range.low && value <= range.high;
+}
+
+/* The exact value of an integer or bool expression, from literals and
+ * known locals. */
+static int
+fill_eval(Fill *w, int index, int64_t *out, int depth)
+{
+    const RangeFacts *f = w->f;
+    const ZirExpr *expr;
+    int64_t a, b;
+    if(index < 0 || depth > POLY_DEPTH)
+        return 0;
+    expr = &f->fn->exprs[index];
+    switch(expr->kind) {
+    case ZIR_EXPR_INT:
+        if(!literal_value(expr->text, out))
+            return 0;
+        break;
+    case ZIR_EXPR_IDENT: {
+        int binding = f->binding_of[index];
+        if(binding < 0 || f->unknown[binding] || !w->known[binding])
+            return 0;
+        *out = w->value[binding];
+        break;
+    }
+    case ZIR_EXPR_CAST:
+        if(!fill_eval(w, expr->right, out, depth + 1))
+            return 0;
+        break;
+    case ZIR_EXPR_UNARY:
+        if(!fill_eval(w, expr->right, &a, depth + 1))
+            return 0;
+        if(!strcmp(expr->op, "!"))
+            *out = !a;
+        else if(!strcmp(expr->op, "-") && a != INT64_MIN)
+            *out = -a;
+        else
+            return 0;
+        break;
+    case ZIR_EXPR_BINARY: {
+        const char *op = expr->op;
+        if(!fill_eval(w, expr->left, &a, depth + 1))
+            return 0;
+        if((!strcmp(op, "&&") && !a) || (!strcmp(op, "||") && a)) {
+            *out = a;
+            break;
+        }
+        if(!fill_eval(w, expr->right, &b, depth + 1))
+            return 0;
+        if(!strcmp(op, "&&") || !strcmp(op, "||")) *out = b != 0;
+        else if(!strcmp(op, "<")) *out = a < b;
+        else if(!strcmp(op, "<=")) *out = a <= b;
+        else if(!strcmp(op, ">")) *out = a > b;
+        else if(!strcmp(op, ">=")) *out = a >= b;
+        else if(!strcmp(op, "==")) *out = a == b;
+        else if(!strcmp(op, "!=")) *out = a != b;
+        else if(!strcmp(op, "+")) { if(!add_checked(a, b, out)) return 0; }
+        else if(!strcmp(op, "-")) { if(!subtract_checked(a, b, out)) return 0; }
+        else if(!strcmp(op, "*")) { if(!mul_checked(a, b, out)) return 0; }
+        else if(a < 0 || b < 0) return 0;
+        else if(!strcmp(op, "/") && b > 0) *out = a / b;
+        else if(!strcmp(op, "%") && b > 0) *out = a % b;
+        else if(!strcmp(op, ">>") && b < 63) *out = a >> b;
+        else if(!strcmp(op, "<<") && b < 62 && a <= (INT64_MAX >> b)) *out = a << b;
+        else if(!strcmp(op, "&")) *out = a & b;
+        else if(!strcmp(op, "|")) *out = a | b;
+        else if(!strcmp(op, "^")) *out = a ^ b;
+        else return 0;
+        break;
+    }
+    default:
+        return 0;
+    }
+    return fill_fits(expr->type, *out);
+}
+
+/* The slots destination index names in the local: the local itself, one
+ * of its fields or an element at a known position. */
+static int
+fill_path(Fill *w, int index, int *first, int *count, int depth)
+{
+    const ZirExpr *expr;
+    if(index < 0 || depth > FILL_DEPTH)
+        return 0;
+    expr = &w->f->fn->exprs[index];
+    if(expr->kind == ZIR_EXPR_IDENT) {
+        if(w->f->binding_of[index] != w->binding)
+            return 0;
+        *first = 0;
+        *count = w->slots;
+        return 1;
+    }
+    if(expr->kind == ZIR_EXPR_MEMBER && expr->name != NULL) {
+        const ZirType *record;
+        const ZirTypeField *field;
+        size_t offset = 0;
+        int skip = 0, each;
+        if(!fill_path(w, expr->left, first, count, depth + 1) ||
+           w->f->fn->exprs[expr->left].type == NULL ||
+           (record = fill_record(w, canonical(w->f->fn->exprs[expr->left].type))) == NULL)
+            return 0;
+        while(TypeNextFieldShared(record, &offset, &field) > 0) {
+            if((each = fill_slots(w, field->type, 0)) <= 0)
+                return 0;
+            if(!strcmp(field->name, expr->name)) {
+                *first += skip;
+                *count = each;
+                return 1;
+            }
+            skip += each;
+        }
+        return 0;
+    }
+    if(expr->kind == ZIR_EXPR_INDEX) {
+        int capacity = 0;
+        int64_t at;
+        if(!fill_path(w, expr->left, first, count, depth + 1) ||
+           w->f->fn->exprs[expr->left].type == NULL ||
+           !ArrayElementType(canonical(w->f->fn->exprs[expr->left].type), NULL, 0, &capacity) ||
+           capacity <= 0 || !fill_eval(w, expr->right, &at, 0) || at < 0 || at >= capacity)
+            return 0;
+        *count /= capacity;
+        *first += (int)at * *count;
+        return 1;
+    }
+    return 0;
+}
+
+/* Simd.Store into an array of the local at a known position: its lanes. */
+static int
+fill_store(Fill *w, int root, int *first, int *count)
+{
+    const ZirFunction *fn = w->f->fn;
+    const ZirExpr *call = &fn->exprs[root];
+    const SimdOp *op;
+    char element[ZIR_NAME_MAX];
+    int children[3], n = 0, memory, capacity = 0;
+    int64_t at;
+    ZirVector vector;
+    if(call->kind != ZIR_EXPR_CALL || call->name == NULL ||
+       (op = SimdOpChecked(call->name)) == NULL || op->id != ZI_OP_STORE)
+        return 0;
+    for(int child = call->first_child; child >= 0; child = fn->exprs[child].next_sibling) {
+        if(n == 3)
+            return 0;
+        children[n++] = child;
+    }
+    if(n != 3 || fill_mentions(w, children[1]) || fill_mentions(w, children[2]))
+        return 0;
+    memory = children[0];
+    /* A whole slice of an array, a[:], stores into the array itself. */
+    if(fn->exprs[memory].kind == ZIR_EXPR_SLICE) {
+        if(fn->exprs[memory].right >= 0 || fn->exprs[memory].third >= 0)
+            return 0;
+        memory = fn->exprs[memory].left;
+    }
+    if(fn->exprs[children[2]].type == NULL || fn->exprs[memory].type == NULL ||
+       !VectorType(fn->exprs[children[2]].type, &vector) || vector.is_native ||
+       !fill_path(w, memory, first, count, 0) ||
+       !ArrayElementType(canonical(fn->exprs[memory].type), element, sizeof(element), &capacity) ||
+       capacity != *count || ScalarByteWidth(canonical(element)) == 0 ||
+       ScalarByteWidth(canonical(element)) != ScalarByteWidth(canonical(vector.lane)) ||
+       !fill_eval(w, children[1], &at, 0) || at < 0 || at > capacity - vector.lanes)
+        return 0;
+    *first += (int)at;
+    *count = vector.lanes;
+    return 1;
+}
+
+static int
+fill_mark(Fill *w, int first, int count)
+{
+    for(int slot = first; slot < first + count; slot++)
+        if(!w->written[slot]) {
+            w->written[slot] = 1;
+            w->left--;
+        }
+    return w->left == 0 ? FILL_DONE : FILL_NEXT;
+}
+
+/* Statements from..to-1 passed over unrun: none names the local or can
+ * jump out, so control reaches their end or never leaves them. Locals they
+ * set are no longer known. */
+static int
+fill_skip(Fill *w, int from, int to)
+{
+    const RangeFacts *f = w->f;
+    for(int s = from; s < to; s++) {
+        const ZirStmt *st = &f->fn->stmts[s];
+        int lhs = st->lhs_root;
+        switch(st->kind) {
+        case ZIR_STMT_BLOCK_OPEN: case ZIR_STMT_BLOCK_CLOSE: case ZIR_STMT_DECL:
+        case ZIR_STMT_ASSIGN: case ZIR_STMT_EXPR: case ZIR_STMT_IF: case ZIR_STMT_WHILE:
+        case ZIR_STMT_UNUSED:
+            break;
+        default:
+            return 0;
+        }
+        if(fill_mentions(w, st->expr_root) || fill_mentions(w, lhs))
+            return 0;
+        if(st->kind == ZIR_STMT_DECL)
+            w->known[s] = 0;
+        if(lhs >= 0 && f->fn->exprs[lhs].kind == ZIR_EXPR_IDENT && f->binding_of[lhs] >= 0)
+            w->known[f->binding_of[lhs]] = 0;
+    }
+    return 1;
+}
+
+/* Run statements from..to-1: FILL_DONE once every slot is written. */
+static int
+fill_run(Fill *w, int from, int to)
+{
+    const RangeFacts *f = w->f;
+    const ZirFunction *fn = f->fn;
+    int s = from;
+    while(s < to) {
+        const ZirStmt *st = &fn->stmts[s];
+        int first, count, close, result, lhs = st->lhs_root;
+        int64_t value;
+        if(++w->steps > FILL_STEPS)
+            return FILL_FAIL;
+        switch(st->kind) {
+        case ZIR_STMT_BLOCK_OPEN: case ZIR_STMT_BLOCK_CLOSE:
+            s++;
+            break;
+        case ZIR_STMT_DECL:
+            if(fill_mentions(w, st->expr_root))
+                return FILL_FAIL;
+            w->value[s] = 0;
+            w->known[s] = integer_type(st->type) &&
+                (st->expr_root < 0 || fill_eval(w, st->expr_root, &w->value[s], 0));
+            s++;
+            break;
+        case ZIR_STMT_ASSIGN:
+            if(lhs < 0 || fill_mentions(w, st->expr_root))
+                return FILL_FAIL;
+            if(root_binding(f, lhs, 1) == w->binding) {
+                if(strcmp(st->assignment_op, "=") || !fill_path(w, lhs, &first, &count, 0))
+                    return FILL_FAIL;
+                if(fill_mark(w, first, count) == FILL_DONE)
+                    return FILL_DONE;
+            } else if(fill_mentions(w, lhs)) {
+                return FILL_FAIL;
+            } else if(fn->exprs[lhs].kind == ZIR_EXPR_IDENT && f->binding_of[lhs] >= 0) {
+                int binding = f->binding_of[lhs];
+                int known = fill_eval(w, st->expr_root, &value, 0);
+                if(known && strcmp(st->assignment_op, "=")) {
+                    if(!w->known[binding])
+                        known = 0;
+                    else if(!strcmp(st->assignment_op, "+="))
+                        known = add_checked(w->value[binding], value, &value);
+                    else if(!strcmp(st->assignment_op, "-="))
+                        known = subtract_checked(w->value[binding], value, &value);
+                    else
+                        known = 0;
+                }
+                w->known[binding] = known && integer_type(f->binding_type[binding]) &&
+                                    fill_fits(f->binding_type[binding], value);
+                w->value[binding] = value;
+            }
+            s++;
+            break;
+        case ZIR_STMT_EXPR:
+            if(st->expr_root >= 0 && fill_store(w, st->expr_root, &first, &count)) {
+                if(fill_mark(w, first, count) == FILL_DONE)
+                    return FILL_DONE;
+            } else if(fill_mentions(w, st->expr_root)) {
+                return FILL_FAIL;
+            }
+            s++;
+            break;
+        case ZIR_STMT_UNUSED:
+            if(fill_mentions(w, st->expr_root))
+                return FILL_FAIL;
+            s++;
+            break;
+        case ZIR_STMT_IF:
+            close = f->block_end[s];
+            if(close <= s || close >= to || fill_mentions(w, st->expr_root))
+                return FILL_FAIL;
+            if(st->expr_root >= 0 && !fill_eval(w, st->expr_root, &value, 0)) {
+                /* No branch is known to run: pass over the whole chain. */
+                do {
+                    if(fill_mentions(w, fn->stmts[s].expr_root) ||
+                       !fill_skip(w, s + 1, f->block_end[s]))
+                        return FILL_FAIL;
+                    s = f->block_end[s] + 1;
+                } while(s < to && fn->stmts[s].kind == ZIR_STMT_IF && fn->stmts[s].is_else);
+                break;
+            }
+            if(st->expr_root >= 0 && !value) {
+                s = close + 1;
+                break;
+            }
+            if((result = fill_run(w, s + 1, close)) != FILL_NEXT)
+                return result;
+            for(s = close + 1; s < to && fn->stmts[s].kind == ZIR_STMT_IF && fn->stmts[s].is_else;)
+                s = f->block_end[s] + 1;
+            break;
+        case ZIR_STMT_WHILE:
+            close = f->block_end[s];
+            if(close <= s || close >= to || fill_mentions(w, st->expr_root))
+                return FILL_FAIL;
+            for(int round = 0;; round++) {
+                if(!fill_eval(w, st->expr_root, &value, 0)) {
+                    /* A loop not known to run is passed over whole. */
+                    if(round > 0 || !fill_skip(w, s + 1, close))
+                        return FILL_FAIL;
+                    break;
+                }
+                if(!value)
+                    break;
+                result = fill_run(w, s + 1, close);
+                if((result == FILL_BREAK || result == FILL_CONTINUE) &&
+                   (w->jump == 0 || w->jump == st->loop_id)) {
+                    if(result == FILL_BREAK)
+                        break;
+                } else if(result != FILL_NEXT) {
+                    return result;
+                }
+            }
+            s = close + 1;
+            break;
+        case ZIR_STMT_BREAK: case ZIR_STMT_CONTINUE:
+            w->jump = st->target_id;
+            return st->kind == ZIR_STMT_BREAK ? FILL_BREAK : FILL_CONTINUE;
+        default:
+            return FILL_FAIL;
+        }
+    }
+    return FILL_NEXT;
+}
+
+int
+WrittenBeforeRead(const Emitter *e, int declaration)
+{
+    const RangeFacts *f = e->ranges;
+    const ZirStmt *st;
+    Fill w = {0};
+    int parent, result = FILL_FAIL;
+    if(f == NULL || f->fn != e->fn || declaration < 0 || declaration >= f->statements)
+        return 0;
+    st = &f->fn->stmts[declaration];
+    if(st->kind != ZIR_STMT_DECL || st->expr_root >= 0 || st->type == NULL ||
+       (!ArrayElementType(st->type, NULL, 0, NULL) && !record_type(e->module, st->type)))
+        return 0;
+    w.f = f;
+    w.module = e->module;
+    w.binding = declaration;
+    if((w.slots = fill_slots(&w, st->type, 0)) <= 0)
+        return 0;
+    w.left = w.slots;
+    w.written = calloc((size_t)w.slots, 1);
+    w.known = calloc((size_t)f->bindings, 1);
+    w.value = calloc((size_t)f->bindings, sizeof(int64_t));
+    w.pending = malloc((size_t)f->fn->expr_count * sizeof(int));
+    parent = f->parent_of[declaration];
+    if(w.written != NULL && w.known != NULL && w.value != NULL && w.pending != NULL)
+        result = fill_run(&w, declaration + 1, parent >= 0 ? f->block_end[parent] : f->statements);
+    free(w.written);
+    free(w.known);
+    free(w.value);
+    free(w.pending);
+    return result == FILL_DONE;
 }

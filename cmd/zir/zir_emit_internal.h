@@ -258,6 +258,10 @@ int IndexInRange(const Emitter *e, int index, int64_t count);
 /* Whether index provably lies below the count of the slice or string that
  * identifier base names. */
 int IndexBelowCount(const Emitter *e, int index, int base);
+/* Whether every element of the local that declaration, with no value,
+ * declares is provably stored before anything can read it, so C need not
+ * fill it with zeros first. */
+int WrittenBeforeRead(const Emitter *e, int declaration);
 int expression_calls(const ZirFunction *fn, int index);
 /* Emit call, a call of a small procedure of this module, as that
  * procedure's body in place, leaving the result's C text in out. Returns 0,

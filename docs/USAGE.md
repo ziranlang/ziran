@@ -437,6 +437,19 @@ its check. A record parameter's fields, such as `shape.width` for
 `shape: Shape`, change only with the parameter. Run
 `sh tests/field_guard_ranges.sh build/bin/ziran`.
 
+A local declared without a value starts at zero, and generated C leaves
+the fill out when every element is stored before anything could read it.
+For `block: Block` with `samples: [64]u16`, the loop
+`for i: 0..7 { Simd.Store(block.samples[:], i * 8, row) }` writes every
+lane, so C declares `Block block;`. Stores count at constant positions, in
+loops with constant bounds, one field at a time or whole; a branch or loop
+that names nothing of the local is passed over. The fill stays when a store
+may be missing or late: a loop that stops or skips early, a store or break
+under a condition not known there, any earlier use of the local such as a
+read, a view or a `using` field, an index not known or one that wraps, and
+records whose fields differ in size. Run
+`sh tests/definite_initialization.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

@@ -8,6 +8,7 @@
 #include "zir_scratch.h"
 #include "zir_text.h"
 #include "zir_emit.h"
+#include "zir_expr.h"
 #include "zir_runtime.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
@@ -2135,6 +2136,10 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     for(i = 0; i < m->define_count; i++) {
         const ZirDefine *d = &m->defines[i];
         char name[LOWER_NAME_MAX];
+        /* Checked uses carry a record or array value itself; its Ziran
+         * spelling is no C a macro could hold. */
+        if(!one_string_literal(d->value) && DefineIsAggregate(m, d))
+            continue;
         TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
         if(!d->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
         if(one_string_literal(d->value)) {

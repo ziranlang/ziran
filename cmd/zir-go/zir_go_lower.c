@@ -2119,7 +2119,6 @@ typedef struct GoLowerBuffers {
     char imports[64][ZIR_PATH_MAX + ZIR_GO_NAME_MAX + 8];
     char val[ZIR_GO_TEXT_MAX];
     char cval[ZIR_GO_TEXT_MAX];
-    ZirFunction probe;
     char ginit[ZIR_GO_TEXT_MAX];
     char stem_2[ZIR_PATH_MAX];
     char buffer[8192];
@@ -2534,13 +2533,7 @@ go_lower_with_buffers(const ZirProgram *const *progs, int prog_count,
                     fprintf(f, "type %s %s\n", cname, aliased);
                     continue;
                 }
-                memset(&buffers->probe, 0, sizeof(buffers->probe));
-                int root = ParseExpr(&buffers->probe, m, value,
-                                     m->defines[i].span);
-                int aggregate = root >= 0 &&
-                    buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND;
-                free(buffers->probe.exprs);
-                if(aggregate) {
+                if(DefineIsAggregate(m, &m->defines[i])) {
                     /* The checker embeds aggregate values in checked uses
                      * and lowers direct global initializers to literals. */
                     continue;

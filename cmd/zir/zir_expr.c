@@ -794,6 +794,16 @@ ParseExpr(ZirFunction *fn, const ZirModule *module, const char *text,
 }
 
 int
+DefineIsAggregate(const ZirModule *module, const ZirDefine *define)
+{
+    ZirFunction probe = {0};
+    int root = ParseExpr(&probe, module, define->value, define->span);
+    int aggregate = root >= 0 && probe.exprs[root].kind == ZIR_EXPR_COMPOUND;
+    free(probe.exprs);
+    return aggregate;
+}
+
+int
 ParseExprNoDefaults(ZirFunction *fn, const ZirModule *module,
                     const char *text, ZirSourceSpan span)
 {

@@ -1678,6 +1678,23 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 track_local(e, st->name, st->type);
                 break;
             }
+            if(st->expr_root < 0 && e->target == ZIR_C && WrittenBeforeRead(e, i)) {
+                /* Every element is stored before anything can read it. */
+                char binding[ZIR_NAME_MAX], element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+                alias_shadowed_local(e, st->name);
+                TargetBindingName(e->fn, e->target, st->name, binding, sizeof(binding));
+                if(ArrayElementType(st->type, NULL, 0, NULL)) {
+                    array_target_type(e, st->type, element, sizeof(element), bounds, sizeof(bounds));
+                    line(e, "%s %s%s;", element, binding, bounds);
+                } else {
+                    e->resolve(e->context, st->type, element, sizeof(element));
+                    line(e, "%s %s;", element, binding);
+                }
+                if(c_binding_unread(e->fn, st->name))
+                    line(e, "(void)%s;", binding);
+                track_local(e, st->name, st->type);
+                break;
+            }
             if(st->expr_root>=0) {
                 e->call_in_place = 1;
                 e->braced_initializer =

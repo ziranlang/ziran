@@ -40,6 +40,8 @@
 - Generated C skips the zero fill of a local declared without a value when
   every element is provably stored before anything reads it, such as a
   block filled row by row with `Simd.Store` in `for i: 0..7`.
+- Generated C headers no longer define record and array constants as
+  macros in Ziran spelling; uses carry the value, as in Go.
 - Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
   code running them handles: two in a `#target` procedure's AVX2 copy and
   in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and

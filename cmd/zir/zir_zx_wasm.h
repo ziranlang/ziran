@@ -11,16 +11,15 @@
  * other out-of-subset constructs fail here and the caller falls back to
  * the portable VM, so the engine never guesses. */
 typedef struct ZxWasm ZxWasm;
+struct Capability;
 
-/* Lower and instantiate one instance. Capability names are accepted for
+/* Lower and instantiate one instance. Capabilities are accepted for
  * signature parity with the native engine; a bundle that needs any host
  * binding is outside the scalar subset and fails with a diagnostic.
  * Returns NULL when no provider is installed, lowering fails, or the
  * provider rejects the module. */
 ZxWasm *ZxWasmOpen(const ZirProgram *program, const ZirModule *entry_owner,
-                   const ZirFunction *entry,
-                   const char *const *capability_modules,
-                   const char *const *capability_functions,
+                   const ZirFunction *entry, const struct Capability *capabilities,
                    size_t capability_count);
 int ZxWasmRun(ZxWasm *wasm, long long *result, int *has_result);
 void ZxWasmLimitSteps(ZxWasm *wasm, int max_steps);

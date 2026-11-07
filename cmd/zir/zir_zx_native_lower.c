@@ -9,6 +9,7 @@
 #include "zir_zx_native_internal.h"
 #include "zir_zx_host.h"
 #include "zir_bundle.h"
+#include "compiler_bundle.h"
 #include "zir_check.h"
 #include "zir_emit.h"
 #include "zir_native.h"
@@ -188,15 +189,15 @@ duplicate_functions(const ZirCModuleSyms *symbols, int count)
 }
 
 /* Generated headers, read back for their #include "..." lines. */
-typedef struct Header {
+typedef struct GeneratedHeader {
     char *path; /* relative to the build directory */
     int *includes;
     int include_count;
     int depth; /* 0 unvisited, -1 visiting */
-} Header;
+} GeneratedHeader;
 
 typedef struct HeaderSet {
-    Header *items;
+    GeneratedHeader *items;
     int count;
     int capacity;
     size_t root_length;
@@ -217,7 +218,7 @@ collect_header(const char *path, const struct stat *status, int flag, struct FTW
         return 0;
     if(set->count == set->capacity) {
         int capacity = set->capacity ? set->capacity * 2 : 64;
-        Header *grown = realloc(set->items, (size_t)capacity * sizeof(*grown));
+        GeneratedHeader *grown = realloc(set->items, (size_t)capacity * sizeof(*grown));
         if(grown == NULL) {
             set->failed = 1;
             return 1;
@@ -225,7 +226,7 @@ collect_header(const char *path, const struct stat *status, int flag, struct FTW
         set->items = grown;
         set->capacity = capacity;
     }
-    Header *header = &set->items[set->count];
+    GeneratedHeader *header = &set->items[set->count];
     memset(header, 0, sizeof(*header));
     header->path = strdup(path + set->root_length + 1);
     if(header->path == NULL) {
@@ -249,7 +250,7 @@ find_header(const HeaderSet *set, const char *path)
 static void
 read_includes(HeaderSet *set, int index, const char *directory)
 {
-    Header *header = &set->items[index];
+    GeneratedHeader *header = &set->items[index];
     char path[ZIR_PATH_MAX], line[ZIR_PATH_MAX], candidate[ZIR_PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", directory, header->path);
     FILE *file = fopen(path, "rb");
@@ -290,7 +291,7 @@ read_includes(HeaderSet *set, int index, const char *directory)
 static int
 include_depth(HeaderSet *set, int index, int *order, int *ordered)
 {
-    Header *header = &set->items[index];
+    GeneratedHeader *header = &set->items[index];
     if(header->depth != 0)
         return header->depth < 0 ? 0 : header->depth;
     header->depth = -1; /* include guards stop cycles */
@@ -313,7 +314,7 @@ include_depth(HeaderSet *set, int index, int *order, int *ordered)
 enum { INCLUDE_DEPTH_LIMIT = 24 };
 
 static int
-append_header(FILE *out, const HeaderSet *set, const Header *header, const char *directory)
+append_header(FILE *out, const HeaderSet *set, const GeneratedHeader *header, const char *directory)
 {
     char path[ZIR_PATH_MAX], line[ZIR_PATH_MAX];
     snprintf(path, sizeof(path), "%s/%s", directory, header->path);
@@ -479,8 +480,8 @@ write_guard(const char *include, const char *text, int native_assembly)
  * be pruned to its entry. */
 static int
 lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *entry,
-              const char *const *capability_modules, const char *const *capability_functions,
-              size_t capability_count, ZxNativeTarget target, int native_assembly,
+              const Capability *capabilities, size_t capability_count,
+              ZxNativeTarget target, int native_assembly,
               const unsigned char identity[32],
               const char *directory, int pruned, ZxNativeBuild *build)
 {
@@ -523,8 +524,8 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
     if(!lowered || !write_header_order(build, directory))
         goto done;
     for(size_t i = 0; i < capability_count; i++) {
-        names[i].module = capability_modules[i];
-        names[i].function = capability_functions[i];
+        names[i].module = capabilities[i].module.data;
+        names[i].function = capabilities[i].function.data;
     }
     char path[ZIR_PATH_MAX];
     snprintf(path, sizeof(path), "%s/zx_native_host.c", directory);
@@ -582,17 +583,16 @@ free_program(const ZirProgram *context, ZirProgram *program)
  * the entry's linked program leaves out. */
 int
 ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
-              const ZirFunction *entry, const char *const *capability_modules,
-              const char *const *capability_functions, size_t capability_count,
+              const ZirFunction *entry, const Capability *capabilities, size_t capability_count,
               ZxNativeTarget target, int native_assembly, const unsigned char identity[32],
               const char *directory, ZxNativeBuild *build)
 {
     if(target == ZX_NATIVE_LINKED && identity == NULL)
         return 0;
     ZirProgram *linked = NULL;
-    int ok = lower_program((ZirProgram *)program, entry_owner, entry, capability_modules,
-                           capability_functions, capability_count, target, native_assembly, identity,
-                           directory, 0, build);
+    int ok = lower_program((ZirProgram *)program, entry_owner, entry, capabilities,
+                           capability_count, target, native_assembly, identity, directory, 0,
+                           build);
     if(ok < 0) {
         ZxNativeRemoveTree(directory);
         mkdir(directory, 0700);
@@ -611,8 +611,8 @@ ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
                 }
         build->pruned = 1;
         ok = function != NULL &&
-             lower_program(linked, owner, function, capability_modules, capability_functions,
-                           capability_count, target, native_assembly, identity, directory, 1, build) > 0;
+             lower_program(linked, owner, function, capabilities, capability_count, target,
+                           native_assembly, identity, directory, 1, build) > 0;
         if(function == NULL)
             snprintf(build->error, sizeof(build->error), "cannot link entry %s", entry->name);
     }
@@ -682,13 +682,12 @@ manifest_source(const char *path, const struct stat *status, int flag, struct FT
 int
 ZxNativeWriteLinked(const ZirProgram *program, const ZirModule *entry_owner,
                     const ZirFunction *entry, const unsigned char identity[32],
-                    const char *const *capability_modules,
-                    const char *const *capability_functions, size_t capability_count,
+                    const Capability *capabilities, size_t capability_count,
                     const char *directory, char *error, size_t error_size)
 {
     ZxNativeBuild build = {0};
-    int ok = ZxNativeLower(program, entry_owner, entry, capability_modules, capability_functions,
-                           capability_count, ZX_NATIVE_LINKED, 0, identity, directory, &build);
+    int ok = ZxNativeLower(program, entry_owner, entry, capabilities, capability_count,
+                           ZX_NATIVE_LINKED, 0, identity, directory, &build);
     char path[ZIR_PATH_MAX];
     snprintf(path, sizeof(path), "%s/zx_native.json", directory);
     FILE *out = ok ? fopen(path, "wb") : NULL;

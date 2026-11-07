@@ -36,43 +36,12 @@ usage(void)
 }
 
 static int
-asset_order(const void *left, const void *right)
-{
-    return strcmp(((const ZxAsset *)left)->name, ((const ZxAsset *)right)->name);
-}
-
-static int
 include_library_assets(ZxAssets *assets, const Bundle *library)
 {
-    for(size_t i = 0; i < BundleAssetCount(library); i++) {
-        const char *name = BundleAssetName(library, i);
-        size_t size = BundleAssetSize(library, i);
-        for(size_t j = 0; j < assets->count; j++)
-            if(strcmp(assets->items[j].name, name) == 0)
-                return 0;
-        if(size > UINT32_MAX || assets->count >= SIZE_MAX / sizeof(*assets->items))
+    for(size_t i = 0; i < BundleAssetCount(library); i++)
+        if(!ZxAssetsAdd(assets, BundleAssetName(library, i), BundleAssetData(library, i),
+                        BundleAssetSize(library, i)))
             return 0;
-        ZxAsset item = {0};
-        item.name = strdup(name);
-        item.data = malloc(size ? size : 1);
-        item.size = (uint32_t)size;
-        if(item.name == NULL || item.data == NULL) {
-            free(item.name);
-            free(item.data);
-            return 0;
-        }
-        memcpy(item.data, BundleAssetData(library, i), size);
-        ZxAsset *items = realloc(assets->items, (assets->count + 1) * sizeof(*items));
-        if(items == NULL) {
-            free(item.name);
-            free(item.data);
-            return 0;
-        }
-        assets->items = items;
-        items[assets->count++] = item;
-    }
-    if(assets->count > 1)
-        qsort(assets->items, assets->count, sizeof(*assets->items), asset_order);
     return 1;
 }
 

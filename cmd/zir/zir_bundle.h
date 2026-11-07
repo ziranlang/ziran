@@ -2,6 +2,12 @@
 #define ZIRAN_ZIR_BUNDLE_H
 
 #include "zir.h"
+#include "zir_string_types.h"
+
+/* Records of the .zx format, defined in the generated compiler_bundle.h. */
+struct Capability;
+struct Law;
+struct Waiver;
 
 /* Linked portable program and certificates. The reader owns the returned IR. */
 ZirProgram *BundleLink(const ZirProgram *program, const char *entry_module,
@@ -21,8 +27,8 @@ typedef struct ZxAsset {
     uint32_t size;
 } ZxAsset;
 
-/* Assets read from a bundle share one STORAGE block; collected ones own
- * their data. */
+/* Assets read from a bundle, names and data, share one STORAGE block;
+ * collected ones own theirs. */
 typedef struct ZxAssets {
     ZxAsset *items;
     size_t count;
@@ -31,6 +37,9 @@ typedef struct ZxAssets {
 
 void ZxAssetsFree(ZxAssets *assets);
 int ZxAssetsCollect(ZxAssets *assets, const char *spec);
+/* Adds a copy of an asset in name order, as a bundle stores them; 0 when
+ * its name is taken or it is too large. */
+int ZxAssetsAdd(ZxAssets *assets, const char *name, const void *data, size_t size);
 /* Serialize an immutable checked program's portable view directly to OUT.
  * Native templates stay in the source graph; no seeking or temporary payload
  * stream is needed. The program must remain unchanged during measurement/write. */
@@ -50,29 +59,18 @@ ZirProgram *BundleComposeLibraries(const ZirProgram *program,
 int BundleWriteInContext(FILE *out, const ZirProgram *program,
                 const ZirProgram *context, const char *entry_module,
                 const char *entry_function, const ZxAssets *assets);
-typedef struct ZxLawRecord {
-    char module[ZIR_NAME_MAX];
-    char name[ZIR_NAME_MAX];
-    char kind[16];
-    char status[16];
-    char detail[ZIR_TEXT_MAX];
-    ZirLawEvidence evidence;
-} ZxLawRecord;
-
-typedef struct ZxLawWaiverRecord {
-    char module[ZIR_NAME_MAX];
-    char name[ZIR_NAME_MAX];
-    char reason[ZIR_TEXT_MAX];
-} ZxLawWaiverRecord;
-
+/* A bundle's own law and waiver tables. TEXT holds their strings, each
+ * followed by a NUL, so hosts read them as C strings. */
 typedef struct ZxLawTable {
-    ZxLawRecord *laws;
+    struct Law *laws;
     int law_count;
-    ZxLawWaiverRecord *waivers;
+    struct Waiver *waivers;
     int waiver_count;
+    char *text;
 } ZxLawTable;
 
 void ZxLawTableFree(ZxLawTable *table);
+/* Reads the rest of IN, a seekable stream, as one bundle. */
 ZirProgram *BundleRead(FILE *in, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
@@ -83,17 +81,27 @@ ZirProgram *BundleRead(FILE *in, const char *path,
  * bytes before: semantic checking and law evaluation are skipped, and on any
  * failure *trusted is cleared without a diagnostic, so the caller can read
  * the bytes again with checking. */
-ZirProgram *BundleReadInContext(FILE *in, const char *path,
+ZirProgram *BundleReadInContext(const unsigned char *bytes, size_t size, const char *path,
                           char *entry_module, size_t module_size,
                           char *entry_function, size_t function_size,
                           ZxLawTable *laws, ZxAssets *assets,
                           const ZirProgram *const *libraries, size_t count,
-                          int *own_module_count, size_t *own_capability_count,
-                          int *trusted);
+                          int *own_module_count, int *trusted);
 /* The offset just past a bundle's program: the code it compiles to depends on
- * those bytes alone, not on the assets after them. Leaves the stream where it
- * was; -1 when the header is malformed. */
-long BundleProgramEnd(FILE *in);
+ * those bytes alone, not on the assets after them. 0 for a malformed or
+ * truncated header. */
+size_t BundleProgramEnd(const unsigned char *bytes, size_t size);
+/* The rest of IN, a seekable stream, in one block; NULL when it cannot be
+ * read. */
+unsigned char *BundleReadStream(FILE *in, size_t *size);
+/* The host capabilities the first MODULE_COUNT modules of PROGRAM call, in
+ * bundle order: called externs that no Ziran provider implements. OWN looks
+ * only at a composed module's own declarations, not its library's. The
+ * names borrow the program and end in a NUL. */
+struct Capability *BundleLinkedCapabilities(const ZirProgram *program, int module_count,
+                                            int own, size_t *count);
+/* Copies TEXT to *NEXT with a NUL after it and moves *NEXT past both. */
+String BundleKeepText(char **next, String text);
 /* Runs the checks a trusted read skipped, on a program without libraries. */
 int BundleCheckTrusted(ZirProgram **program, int own_module_count, const ZxLawTable *laws);
 typedef struct Bundle Bundle;

@@ -278,9 +278,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   | Borrows, laws, proofs | `zir_borrow.c` 2005, `zir_law.c` 2117, `zir_proof.c` 781 | C; `zir_proof.c` turns checked IR into terms for the Ziran proof kernel |
   | C and Go output | `zir_emit.c` 2053, `zir_emit_expr.c` 2144, `zir_emit_statement.c` 2096, `zir_emit_range.c` 2417, `zir_emit_value.c` 1316, `zir_emit_call.c` 1234, `zir_emit_simd_go.c` 1261, `zir_emit_gpu.c` 843, `zir_emit_simd.c` 458, `zir_asm.c` 1996, `zir_simd.c` 562, `zir_runtime.c` 274 | C |
   | IR, loading, storage | `zir.c` 2392, `zir_serial.c` 1811, `zir_load.c` 1285, `zir_storage.c` 474, `zir_edit.c` 338, `zir_body.c` 286, `zir_packages.c` 275, `zir_sha256.c` 258, `zir_diagnostic.c` 236, `zir_profile.c` 229, `zir_context.c` 166, `zir_files.c` 154, `zir_memory.c` 131, `zir_native.c` 127, `zir_document.c` 120, `zir_overlay.c` 43, `zir_semantic.c` 29 | C |
-  | Bundles | `zir_bundle.c` 3037, `zir_bundle_assets.c` 107 | Boundary for the `.zx` format; IR linking, pruning and the law and capability checks are C |
+  | Bundles | `zir_bundle.c` 2986, `zir_bundle_assets.c` 103 | Boundary for the `.zx` format and its table checks; IR linking, pruning, law evaluation and capability discovery are C |
   | VM | `zir_vm_eval.c` 3697, `zir_vm_run.c` 2079, `zir_vm_verify.c` 1442, `zir_vm.c` 1352, `zir_vm_simd.c` 667 | C |
-  | Bundle hosts | `zir_host.c` 934, `zir_zx_host.c` 783, `zir_zx_native_run.c` 899, `zir_zx_native_lower.c` 704, `zir_zx_native.c` 510, `zir_zx_wasm.c` 152, `zir_zx_wasm_web.c` 136 | C platform glue |
+  | Bundle hosts | `zir_host.c` 844, `zir_zx_host.c` 783, `zir_zx_native_run.c` 896, `zir_zx_native_lower.c` 721, `zir_zx_native.c` 506, `zir_zx_wasm.c` 149, `zir_zx_wasm_web.c` 136 | C platform glue |
 
   The parser, checker, backends and runtime still contain C, so the compiler
   is not yet self-hosted.

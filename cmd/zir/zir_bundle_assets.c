@@ -13,9 +13,9 @@ void
 ZxAssetsFree(ZxAssets *assets)
 {
     if(assets == NULL) return;
-    for(size_t i = 0; i < assets->count; i++) {
+    for(size_t i = 0; assets->storage == NULL && i < assets->count; i++) {
         free(assets->items[i].name);
-        if(assets->storage == NULL) free(assets->items[i].data);
+        free(assets->items[i].data);
     }
     free(assets->storage);
     free(assets->items);
@@ -34,6 +34,29 @@ join_path(const char *left, const char *right)
         memcpy(result + a + 1, right, b + 1);
     }
     return result;
+}
+
+int
+ZxAssetsAdd(ZxAssets *assets, const char *name, const void *data, size_t size)
+{
+    size_t low = 0, high = assets->count;
+    while(low < high) {
+        size_t middle = low + (high - low) / 2;
+        int order = strcmp(assets->items[middle].name, name);
+        if(order == 0) return 0;
+        if(order < 0) low = middle + 1; else high = middle;
+    }
+    if(size > UINT32_MAX || assets->count >= SIZE_MAX / sizeof(*assets->items) - 1) return 0;
+    ZxAsset item = {strdup(name), malloc(size ? size : 1), (uint32_t)size};
+    ZxAsset *items = item.name != NULL && item.data != NULL ?
+        realloc(assets->items, (assets->count + 1) * sizeof(*items)) : NULL;
+    if(items == NULL) { free(item.name); free(item.data); return 0; }
+    if(size) memcpy(item.data, data, size);
+    memmove(items + low + 1, items + low, (assets->count - low) * sizeof(*items));
+    items[low] = item;
+    assets->items = items;
+    assets->count++;
+    return 1;
 }
 
 static int
@@ -59,30 +82,13 @@ collect_path(ZxAssets *assets, const char *name, const char *path)
         if(closedir(dir) != 0) ok = 0;
         return ok;
     }
-    if(!S_ISREG(stat.st_mode) || stat.st_size < 0 ||
-       (uint64_t)stat.st_size > UINT32_MAX ||
-       assets->count >= SIZE_MAX / sizeof(*assets->items)) return 0;
-    ZxAsset item = {0};
-    item.name = strdup(name);
-    item.size = (uint32_t)stat.st_size;
-    item.data = malloc(item.size ? item.size : 1);
-    FILE *input = fopen(path, "rb");
-    int ok = item.name != NULL && item.data != NULL && input != NULL &&
-        fread(item.data, 1, item.size, input) == item.size &&
-        fgetc(input) == EOF && !ferror(input);
+    size_t size = 0;
+    FILE *input = S_ISREG(stat.st_mode) ? fopen(path, "rb") : NULL;
+    unsigned char *data = input != NULL ? BundleReadStream(input, &size) : NULL;
+    int ok = data != NULL && ZxAssetsAdd(assets, name, data, size);
     if(input != NULL && fclose(input) != 0) ok = 0;
-    ZxAsset *items = ok ? realloc(assets->items,
-        (assets->count + 1) * sizeof(*items)) : NULL;
-    if(items == NULL) { free(item.name); free(item.data); return 0; }
-    assets->items = items;
-    assets->items[assets->count++] = item;
-    return 1;
-}
-
-static int
-compare_asset(const void *left, const void *right)
-{
-    return strcmp(((const ZxAsset *)left)->name, ((const ZxAsset *)right)->name);
+    free(data);
+    return ok;
 }
 
 int
@@ -90,18 +96,8 @@ ZxAssetsCollect(ZxAssets *assets, const char *spec)
 {
     const char *separator = spec ? strchr(spec, '=') : NULL;
     if(separator == NULL || separator == spec || separator[1] == '\0') return 0;
-    size_t n = (size_t)(separator - spec);
-    char *name = malloc(n + 1);
-    if(name == NULL) return 0;
-    memcpy(name, spec, n);
-    name[n] = '\0';
-    int ok = collect_path(assets, name, separator + 1);
+    char *name = DuplicatePrefix(spec, (size_t)(separator - spec));
+    int ok = name != NULL && collect_path(assets, name, separator + 1);
     free(name);
-    if(ok) {
-        if(assets->count > 1)
-            qsort(assets->items, assets->count, sizeof(*assets->items), compare_asset);
-        for(size_t i = 1; i < assets->count; i++)
-            if(!strcmp(assets->items[i - 1].name, assets->items[i].name)) return 0;
-    }
     return ok;
 }

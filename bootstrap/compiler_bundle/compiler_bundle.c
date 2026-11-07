@@ -1155,6 +1155,72 @@ compiler_bundle_ProgramEnd(String bytes)
     return -1LL;
 }
 
+Problem
+compiler_bundle_Differs(Header expected, Header found)
+{
+    if ((int64_t)(expected.capabilities).length != (int64_t)(found.capabilities).length) {
+        return Problem_CapabilityList;
+    }
+    {
+        Slice value_0 = expected.capabilities;
+        Slice loop_view_3 = value_0;
+        int64_t loop_count_3 = (int64_t)(loop_view_3).length;
+        int64_t loop_cursor_3 = 0LL;
+        while (loop_cursor_3 < loop_count_3) {
+            int64_t loop_index_3 = loop_cursor_3;
+            Capability row = ((Capability *)loop_view_3.data)[loop_index_3];
+            int64_t index = loop_index_3;
+            Capability other = ((Capability *)found.capabilities.data)[SliceIndex(found.capabilities, (int64_t)index)];
+            if (!StringEqual(row.module, other.module) || !StringEqual(row.function, other.function)) {
+                return Problem_CapabilityList;
+            }
+            loop_cursor_3 = (int64_t)((uint64_t)loop_cursor_3 + UINT64_C(1));
+        }
+    }
+    if ((int64_t)(expected.laws).length != (int64_t)(found.laws).length) {
+        return Problem_LawTable;
+    }
+    {
+        Slice value_1 = expected.laws;
+        Slice loop_view_12 = value_1;
+        int64_t loop_count_12 = (int64_t)(loop_view_12).length;
+        int64_t loop_cursor_12 = 0LL;
+        while (loop_cursor_12 < loop_count_12) {
+            int64_t loop_index_12 = loop_cursor_12;
+            Law row = ((Law *)loop_view_12.data)[loop_index_12];
+            int64_t index = loop_index_12;
+            Law other = ((Law *)found.laws.data)[SliceIndex(found.laws, (int64_t)index)];
+            bool value_2 = !StringEqual(row.module, other.module) || !StringEqual(row.name, other.name) || !StringEqual(row.kind, other.kind);
+            bool value_3 = value_2 || !StringEqual(row.status, other.status) || !StringEqual(row.detail, other.detail) || !StringEqual(row.method, other.method);
+            bool value_4 = value_3 || !StringEqual(row.domain, other.domain) || row.cases != other.cases || !StringEqual(row.counterexample, other.counterexample);
+            if (value_4 || row.waived != other.waived) {
+                return Problem_LawTable;
+            }
+            loop_cursor_12 = (int64_t)((uint64_t)loop_cursor_12 + UINT64_C(1));
+        }
+    }
+    if ((int64_t)(expected.waivers).length != (int64_t)(found.waivers).length) {
+        return Problem_WaiverTable;
+    }
+    {
+        Slice value_5 = expected.waivers;
+        Slice loop_view_21 = value_5;
+        int64_t loop_count_21 = (int64_t)(loop_view_21).length;
+        int64_t loop_cursor_21 = 0LL;
+        while (loop_cursor_21 < loop_count_21) {
+            int64_t loop_index_21 = loop_cursor_21;
+            Waiver row = ((Waiver *)loop_view_21.data)[loop_index_21];
+            int64_t index = loop_index_21;
+            Waiver other = ((Waiver *)found.waivers.data)[SliceIndex(found.waivers, (int64_t)index)];
+            if (!StringEqual(row.module, other.module) || !StringEqual(row.name, other.name) || !StringEqual(row.reason, other.reason)) {
+                return Problem_WaiverTable;
+            }
+            loop_cursor_21 = (int64_t)((uint64_t)loop_cursor_21 + UINT64_C(1));
+        }
+    }
+    return Problem_None;
+}
+
 String
 compiler_bundle_Message(Problem problem)
 {
@@ -1163,6 +1229,15 @@ compiler_bundle_Message(Problem problem)
     }
     if (problem == Problem_Capabilities) {
         return StringLiteral("bundle has too many host capabilities");
+    }
+    if (problem == Problem_CapabilityList) {
+        return StringLiteral("bundle capability list differs from linked IR");
+    }
+    if (problem == Problem_LawTable) {
+        return StringLiteral("bundle law table differs from checked IR");
+    }
+    if (problem == Problem_WaiverTable) {
+        return StringLiteral("bundle waiver table differs from checked IR");
     }
     return StringLiteral("invalid or truncated bundle");
 }

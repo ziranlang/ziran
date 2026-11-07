@@ -9,6 +9,7 @@
  * unusable, as in the VM. */
 #include "zir_zx_native_internal.h"
 #include "zir_diagnostic.h"
+#include "compiler_bundle.h"
 
 #include <pthread.h>
 #include <setjmp.h>
@@ -151,8 +152,8 @@ ZxNativeHost(int capability, VmHostValue *args, int count, VmHostValue *result)
     ZxNative *native = current;
     if(capability < 0 || (size_t)capability >= native->capability_count)
         native_fail("unknown host capability %d", capability);
-    const char *module = native->capability_modules[capability];
-    const char *function = native->capability_functions[capability];
+    const char *module = native->capabilities[capability].module.data;
+    const char *function = native->capabilities[capability].function.data;
     if(!native->host(native->context, module, function, args, count, result))
         native_fail("host capability %s:%s failed", module, function);
 }
@@ -657,17 +658,15 @@ arm_guards(ZxNative *native)
 }
 
 ZxNative *
-ZxNativeNew(const ZirFunction *entry, const char *const *capability_modules,
-            const char *const *capability_functions, size_t capability_count,
-            VmHostCall host, void *context)
+ZxNativeNew(const ZirFunction *entry, const struct Capability *capabilities,
+            size_t capability_count, VmHostCall host, void *context)
 {
     ZxNative *native = calloc(1, sizeof(*native));
     if(native == NULL)
         return NULL;
     native->host = host;
     native->context = context;
-    native->capability_modules = capability_modules;
-    native->capability_functions = capability_functions;
+    native->capabilities = capabilities;
     native->capability_count = capability_count;
     snprintf(native->entry_name, sizeof(native->entry_name), "%s", entry->name);
     native->entry_span = entry->span;
@@ -853,8 +852,7 @@ release_linked(void *code)
 
 ZxNative *
 ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
-                   const char *const *capability_modules,
-                   const char *const *capability_functions, size_t capability_count,
+                   const struct Capability *capabilities, size_t capability_count,
                    VmHostCall host, void *context, int *busy)
 {
     *busy = 0;
@@ -873,8 +871,7 @@ ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
     } else if(program->data_size > 0) {
         memcpy(program->data, program->initial, program->data_size);
     }
-    ZxNative *native = ZxNativeNew(entry, capability_modules, capability_functions,
-                                   capability_count, host, context);
+    ZxNative *native = ZxNativeNew(entry, capabilities, capability_count, host, context);
     if(native == NULL)
         return NULL;
     program->live = 1;

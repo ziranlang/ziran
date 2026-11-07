@@ -7,16 +7,8 @@
 
 Capability :: struct { module: string; function: string }
 Law :: struct {
-    module: string
-    name: string
-    kind: string
-    status: string
-    detail: string
-    method: string
-    domain: string
-    cases: u64
-    counterexample: string
-    waived: bool
+    module: string; name: string; kind: string; status: string; detail: string
+    method: string; domain: string; cases: u64; counterexample: string; waived: bool
 }
 Waiver :: struct { module: string; name: string; reason: string }
 Asset :: struct { name: string; data: string }
@@ -24,28 +16,17 @@ Asset :: struct { name: string; data: string }
 // declarations into a module its library already provides; readers before
 // 27 cannot do that, so writers use it only for such add-ons.
 Header :: struct {
-    partial: bool
-    entry_module: string
-    entry_function: string
-    capabilities: []Capability
-    laws: []Law
-    waivers: []Waiver
-    program: s64
+    partial: bool; entry_module: string; entry_function: string
+    capabilities: []Capability; laws: []Law; waivers: []Waiver; program: s64
 }
-Problem :: enum s32 { None; Invalid; Version; Capabilities }
+// What a reader rejects. The last three name the table that differs from
+// the program a bundle links.
+Problem :: enum s32 { None; Invalid; Version; Capabilities; CapabilityList; LawTable; WaiverTable }
 // A decoded bundle. The IR is bytes[program:program_end]; the counts are
 // those of the bundle, and a table is filled when its storage holds it.
 Layout :: struct {
-    problem: Problem
-    partial: bool
-    entry_module: string
-    entry_function: string
-    capabilities: s64
-    laws: s64
-    waivers: s64
-    assets: s64
-    program: s64
-    program_end: s64
+    problem: Problem; partial: bool; entry_module: string; entry_function: string
+    capabilities: s64; laws: s64; waivers: s64; assets: s64; program: s64; program_end: s64
 }
 
 #scope_file
@@ -81,15 +62,7 @@ Before :: (left: string, right: string) -> bool {
 // reader finds. Writing measures first, then stores once the output holds
 // every byte; reading takes views of the input. A reader that ran out of
 // bytes has ended: the bundle may continue.
-Codec :: struct {
-    input: string
-    output: []u8
-    at: s64
-    reading: bool
-    write: bool
-    valid: bool
-    ended: bool
-}
+Codec :: struct { input: string; output: []u8; at: s64; reading: bool; write: bool; valid: bool; ended: bool }
 Fail :: (codec: *Codec, ended: bool) {
     if codec.valid { codec.ended = ended }
     codec.valid = false
@@ -303,8 +276,35 @@ ProgramEnd :: (bytes: string) -> s64 {
     return -1
 }
 
+// The first table of FOUND that differs from EXPECTED, as a reader checks a
+// bundle against the program it links.
+Differs :: (expected: Header, found: Header) -> Problem {
+    if expected.capabilities.count != found.capabilities.count { return .CapabilityList }
+    for row, index: expected.capabilities {
+        other := found.capabilities[index]
+        if row.module != other.module || row.function != other.function { return .CapabilityList }
+    }
+    if expected.laws.count != found.laws.count { return .LawTable }
+    for row, index: expected.laws {
+        other := found.laws[index]
+        if row.module != other.module || row.name != other.name || row.kind != other.kind ||
+            row.status != other.status || row.detail != other.detail || row.method != other.method ||
+            row.domain != other.domain || row.cases != other.cases ||
+            row.counterexample != other.counterexample || row.waived != other.waived { return .LawTable }
+    }
+    if expected.waivers.count != found.waivers.count { return .WaiverTable }
+    for row, index: expected.waivers {
+        other := found.waivers[index]
+        if row.module != other.module || row.name != other.name || row.reason != other.reason { return .WaiverTable }
+    }
+    return .None
+}
+
 Message :: (problem: Problem) -> string {
     if problem == .Version { return "unsupported ZX version" }
     if problem == .Capabilities { return "bundle has too many host capabilities" }
+    if problem == .CapabilityList { return "bundle capability list differs from linked IR" }
+    if problem == .LawTable { return "bundle law table differs from checked IR" }
+    if problem == .WaiverTable { return "bundle waiver table differs from checked IR" }
     return "invalid or truncated bundle"
 }

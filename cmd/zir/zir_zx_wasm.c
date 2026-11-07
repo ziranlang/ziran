@@ -59,13 +59,10 @@ ZxWasmPlatformActive(void)
 
 ZxWasm *
 ZxWasmOpen(const ZirProgram *program, const ZirModule *entry_owner,
-           const ZirFunction *entry,
-           const char *const *capability_modules,
-           const char *const *capability_functions,
+           const ZirFunction *entry, const struct Capability *capabilities,
            size_t capability_count)
 {
-    (void)capability_modules;
-    (void)capability_functions;
+    (void)capabilities;
     if(!platform_installed)
         return NULL;
     if(capability_count != 0) {

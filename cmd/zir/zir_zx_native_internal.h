@@ -23,8 +23,7 @@ struct ZxNative {
     void (*release)(void *code);
     VmHostCall host;
     void *context;
-    const char *const *capability_modules;
-    const char *const *capability_functions;
+    const struct Capability *capabilities;
     size_t capability_count;
     /* Copied: a bundle checked after this instance opened may move its
      * functions. */
@@ -83,9 +82,8 @@ void ZxNativeParallel(void (*worker)(int64_t low, int64_t high, void *context),
                       int64_t start, int64_t end, void *context);
 
 /* A new instance of `entry` with nothing compiled yet. */
-ZxNative *ZxNativeNew(const ZirFunction *entry, const char *const *capability_modules,
-                      const char *const *capability_functions, size_t capability_count,
-                      VmHostCall host, void *context);
+ZxNative *ZxNativeNew(const ZirFunction *entry, const struct Capability *capabilities,
+                      size_t capability_count, VmHostCall host, void *context);
 /* Run the module initializers; 0 after a failure, with its message. */
 int ZxNativeStart(ZxNative *native);
 int ZxNativeEnvironmentSet(const char *name);
@@ -118,9 +116,8 @@ typedef struct ZxNativeBuild {
  * `identity`. Procedures' #asm variants compile only with
  * `native_assembly`; otherwise every procedure runs its portable body. */
 int ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
-                  const ZirFunction *entry, const char *const *capability_modules,
-                  const char *const *capability_functions, size_t capability_count,
-                  ZxNativeTarget target, int native_assembly,
+                  const ZirFunction *entry, const struct Capability *capabilities,
+                  size_t capability_count, ZxNativeTarget target, int native_assembly,
                   const unsigned char identity[32],
                   const char *directory, ZxNativeBuild *build);
 void ZxNativeBuildFree(ZxNativeBuild *build);

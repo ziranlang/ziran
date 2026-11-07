@@ -5,6 +5,9 @@
 # on hosts without a TinyCC code generator, run on the portable VM.
 NATIVE_ZX_MACHINE := $(if $(filter wasm%,$(TARGET_MACHINE)),,$(if $(DARWIN_TARGET),,$(if $(findstring mingw,$(TARGET_MACHINE)),,$(filter x86_64% arm% aarch64%,$(TARGET_MACHINE)))))
 NATIVE_ZX ?= $(if $(NATIVE_ZX_MACHINE),1,0)
+# Bundle hosts and the native engine include the generated compiler_bundle.h.
+$(call obj,cmd/zir/zir_host.c cmd/zir/zir_zx_native_run.c cmd/zir/zir_zx_native_lower.c): \
+    $(BUNDLE_READY)
 
 ifeq ($(NATIVE_ZX),1)
 NATIVE_ZX_HEADERS := $(wildcard cmd/zir/zx_native_include/*.h) third_party/tinycc/include/tccdefs.h
@@ -68,7 +71,8 @@ endif
 ZIRAN_VM_HOST_OBJECT := $(BUILD_DIR)/obj/zir_host_vm.o
 ZIRAN_VM_LIB_OBJECTS := $(filter-out $(call obj,cmd/zir/zir_host.c) $(NATIVE_ZX_OBJECTS),$(LIB_OBJECTS)) \
     $(ZIRAN_VM_HOST_OBJECT)
-$(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-zx.mk $(IR_READY)
+$(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-zx.mk $(IR_READY) \
+    $(BUNDLE_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk

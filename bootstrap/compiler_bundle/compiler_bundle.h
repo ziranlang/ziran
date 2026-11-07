@@ -96,6 +96,9 @@ enum {
     Problem_Invalid = 1,
     Problem_Version = 2,
     Problem_Capabilities = 3,
+    Problem_CapabilityList = 4,
+    Problem_LawTable = 5,
+    Problem_WaiverTable = 6,
 };
 
 struct Layout {
@@ -127,6 +130,7 @@ int64_t compiler_bundle_EncodeHeader(Slice output, Header header);
 int64_t compiler_bundle_EncodeAssets(Slice output, Slice assets);
 Layout compiler_bundle_Decode(String bytes, Slice capabilities, Slice laws, Slice waivers, Slice assets);
 int64_t compiler_bundle_ProgramEnd(String bytes);
+Problem compiler_bundle_Differs(Header expected, Header found);
 String compiler_bundle_Message(Problem problem);
 
 #ifdef __cplusplus

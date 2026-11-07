@@ -1,6 +1,7 @@
 #include "zir_memory.h"
 #include "ziran_host.h"
 #include "zir_bundle.h"
+#include "compiler_bundle.h"
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
 #include "zir_check.h"
@@ -15,16 +16,9 @@
 #include "zir_zx_wasm.h"
 #include "zir_zx_wasm_platform.h"
 
-#include "zir_stream.h"
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-typedef struct Capability {
-    const char *module;
-    const char *function;
-} Capability;
 
 struct Bundle {
     ZirProgram *program;
@@ -108,90 +102,57 @@ share_library_functions(Bundle *bundle)
     return LinkImports(&bundle->program, 1);
 }
 
+/* Library assets follow the bundle's own, borrowing the library's storage. */
 static int
 share_library_assets(Bundle *bundle)
 {
-    for(size_t i = 0; i < bundle->library_count; i++) {
-        const ZxAssets *assets = &bundle->libraries[i]->assets;
-        for(size_t a = 0; a < assets->count; a++) {
-            const ZxAsset *asset = &assets->items[a];
-            for(size_t b = 0; b < bundle->assets.count; b++) {
-                if(strcmp(asset->name, bundle->assets.items[b].name) == 0)
-                    return 0;
-            }
-            if(bundle->assets.count >= SIZE_MAX / sizeof(*bundle->assets.items))
-                return 0;
-            ZxAsset *items = realloc(bundle->assets.items,
-                (bundle->assets.count + 1) * sizeof(*items));
-            if(items == NULL)
-                return 0;
-            bundle->assets.items = items;
-            items[bundle->assets.count++] = *asset;
+    ZxAssets *own = &bundle->assets;
+    for(size_t i = 0; i < bundle->library_count; i++)
+        for(size_t a = 0; a < bundle->libraries[i]->assets.count; a++) {
+            const ZxAsset *asset = &bundle->libraries[i]->assets.items[a];
+            for(size_t b = 0; b < own->count; b++)
+                if(strcmp(asset->name, own->items[b].name) == 0) return 0;
+            ZxAsset *items = own->count < SIZE_MAX / sizeof(*items) - 1 ?
+                realloc(own->items, (own->count + 1) * sizeof(*items)) : NULL;
+            if(items == NULL) return 0;
+            own->items = items;
+            items[own->count++] = *asset;
         }
-    }
     return 1;
 }
 
-/* Mirrors the linker's rule: externs kept only for laws demand no binding. */
-static int
-capability_import(const ZirModule *module, const ZirImport *import)
-{
-    if(import->kind != ZIR_IMPORT_EXTERN ||
-       (import->extern_kind == ZIR_EXTERN_HOST &&
-        strncmp(import->target, "ziran:", 6) == 0))
-        return 0;
-    for(int f = 0; f < module->function_count; f++) {
-        const ZirFunction *fn = &module->functions[f];
-        for(int e = 0; e < fn->expr_count; e++)
-            if(fn->exprs[e].kind == ZIR_EXPR_CALL &&
-               fn->exprs[e].slot_type[0] == '\0' &&
-               strcmp(fn->exprs[e].name, import->name) == 0)
-                return 1;
-    }
-    return 0;
-}
-
 /* The final graph is immutable. Retain only borrowed names in its enumeration
- * order, rather than rescanning every function for each count/index query. */
+ * order, rather than rescanning every function for each count/index query.
+ * A capability keeps its module/function identity even when both an owned
+ * declaration and library code call it. */
 static int
-cache_capabilities(Bundle **slot, size_t count)
+cache_capabilities(Bundle **slot)
 {
     Bundle *bundle = *slot;
-    if(count == 0)
-        return 1;
-    if(count > (SIZE_MAX - sizeof(*bundle)) / sizeof(Capability))
+    size_t count = 0, text = 0;
+    Capability *list = BundleLinkedCapabilities(bundle->program,
+        bundle->program->module_count, 0, &count);
+    Bundle *grown = list != NULL && count <= (SIZE_MAX - sizeof(*bundle)) / sizeof(*list) ?
+        realloc(bundle, sizeof(*bundle) + count * sizeof(*list)) : NULL;
+    if(grown == NULL) {
+        free(list);
         return 0;
-    if(count != 0) {
-        Bundle *grown = realloc(bundle, sizeof(*bundle) + count * sizeof(Capability));
-        if(grown == NULL)
-            return 0;
-        *slot = bundle = grown;
     }
+    *slot = bundle = grown;
     bundle->capability_count = count;
-    size_t next = 0, text = 0;
-    for(int m = 0; m < bundle->program->module_count; m++) {
-        const ZirModule *module = &bundle->program->modules[m];
-        for(int i = 0; i < module->import_count; i++)
-            if(capability_import(module, &module->imports[i])) {
-                if(next == count)
-                    return 0;
-                bundle->capabilities[next++] = (Capability){module->name, module->imports[i].name};
-                text += strlen(module->name) + strlen(module->imports[i].name) + 2;
-            }
-    }
-    if(next != count)
-        return 0;
+    memcpy(bundle->capabilities, list, count * sizeof(*list));
+    free(list);
+    /* Checking an unchecked bundle later may move the imports. */
     if(bundle->unchecked == 1) {
-        char *copy = bundle->capability_text = malloc(text);
+        for(size_t i = 0; i < count; i++)
+            text += (size_t)(bundle->capabilities[i].module.length +
+                             bundle->capabilities[i].function.length) + 2;
+        char *copy = bundle->capability_text = malloc(text ? text : 1);
         if(copy == NULL)
             return 0;
-        for(size_t i = 0; i < count; i++) {
-            size_t module = strlen(bundle->capabilities[i].module) + 1;
-            size_t function = strlen(bundle->capabilities[i].function) + 1;
-            memcpy(copy, bundle->capabilities[i].module, module);
-            memcpy(copy + module, bundle->capabilities[i].function, function);
-            bundle->capabilities[i] = (Capability){copy, copy + module};
-            copy += module + function;
+        for(Capability *row = bundle->capabilities; row < bundle->capabilities + count; row++) {
+            row->module = BundleKeepText(&copy, row->module);
+            row->function = BundleKeepText(&copy, row->function);
         }
     }
     return 1;
@@ -270,19 +231,13 @@ check_unchecked(Bundle *bundle)
         int ok = BundleCheckTrusted(&bundle->program, bundle->own_module_count, &bundle->laws) &&
                  VmVerify(bundle->program, module, function) &&
                  find_entry(bundle, module, function);
-        size_t next = 0;
-        for(int m = 0; ok && m < bundle->program->module_count; m++) {
-            const ZirModule *owner = &bundle->program->modules[m];
-            for(int i = 0; ok && i < owner->import_count; i++)
-                if(capability_import(owner, &owner->imports[i])) {
-                    ok = next < bundle->capability_count &&
-                         strcmp(bundle->capabilities[next].module, owner->name) == 0 &&
-                         strcmp(bundle->capabilities[next].function, owner->imports[i].name) == 0;
-                    next++;
-                }
-        }
-        if(ok && next != bundle->capability_count)
-            ok = 0;
+        size_t count = 0;
+        Capability *list = ok ? BundleLinkedCapabilities(bundle->program,
+            bundle->program->module_count, 0, &count) : NULL;
+        Header found = {.capabilities = {bundle->capabilities, (int64_t)bundle->capability_count}};
+        ok = list != NULL && compiler_bundle_Differs(
+            (Header){.capabilities = {list, (int64_t)count}}, found) == Problem_None;
+        free(list);
         if(!ok)
             Diagnostic(Span("<bundle>", 1, 1), "zx.invalid",
                        "bundle opened on cached native code failed checking");
@@ -322,68 +277,55 @@ BundleWriteLinked(const Bundle *bundle, const char *directory, unsigned char ide
     if(bundle == NULL || !check_unchecked((Bundle *)bundle))
         return 0;
     bundle_identity(bundle, identity);
-    size_t count = bundle->capability_count;
-    const char **names = calloc(count * 2 + 1, sizeof(*names));
-    if(names == NULL)
-        return 0;
-    for(size_t i = 0; i < count; i++) {
-        names[i] = bundle->capabilities[i].module;
-        names[count + i] = bundle->capabilities[i].function;
-    }
     char error[2048];
     int ok = ZxNativeWriteLinked(bundle->program, bundle->entry_owner, bundle->entry, identity,
-                                 names, names + count, count, directory, error, sizeof(error));
+                                 bundle->capabilities, bundle->capability_count, directory,
+                                 error, sizeof(error));
     if(!ok)
         Diagnostic(bundle->entry->span, "zx.native", "cannot write linked code: %s", error);
-    free(names);
     return ok;
 }
 #endif
 
 static Bundle *
-open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
-                   Bundle *const *libraries, size_t count)
+open_bundle(const unsigned char *bytes, size_t size, const char *name,
+            Bundle *const *libraries, size_t count)
 {
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
+    const ZirProgram *programs[64];
     Bundle *bundle = calloc(1, sizeof(*bundle));
     if(bundle == NULL)
         return NULL;
     bundle->references = 1;
-    if(digest != NULL)
-        memcpy(bundle->digest, digest, sizeof(bundle->digest));
-    if(count > 64 || (count != 0 && libraries == NULL)) {
-        BundleClose(bundle);
-        return NULL;
-    }
-    const ZirProgram *programs[64];
-    if(count != 0) {
-        bundle->libraries = calloc(count, sizeof(*bundle->libraries));
-        if(bundle->libraries == NULL) {
-            BundleClose(bundle);
-            return NULL;
-        }
-    }
+    if(count > 64 || (count != 0 && libraries == NULL) ||
+       (count != 0 && (bundle->libraries = calloc(count, sizeof(*bundle->libraries))) == NULL))
+        goto failed;
     for(size_t i = 0; i < count; i++) {
         if(libraries[i] == NULL || libraries[i]->references == SIZE_MAX
 #ifdef ZIRAN_COMPILED_ZX
            || !check_unchecked(libraries[i])
 #endif
-           ) {
-            BundleClose(bundle);
-            return NULL;
-        }
+           )
+            goto failed;
         libraries[i]->references++;
         bundle->libraries[bundle->library_count++] = libraries[i];
         programs[i] = libraries[i]->program;
     }
-    size_t capability_count = 0;
     int trusted = 0;
 #ifdef ZIRAN_COMPILED_ZX
-    /* Compiled code cached or linked for these exact bytes means this
-     * compiler checked them before, so they open without checking until
-     * something needs the checked program. A read that trust does not
-     * settle reads again. */
-    if(digest != NULL && count == 0 && !portable_vm) {
+    /* Native code caches are keyed by the bytes that code depends on:
+     * everything before the assets. Compiled code cached or linked for
+     * these exact bytes means this compiler checked them before, so they
+     * open without checking until something needs the checked program. A
+     * read that trust does not settle reads again. */
+    size_t end = BundleProgramEnd(bytes, size);
+    if(end > 0) {
+        Sha256 hash;
+        Sha256Begin(&hash);
+        Sha256Add(&hash, bytes, end);
+        Sha256End(&hash, bundle->digest);
+    }
+    if(end > 0 && count == 0 && !portable_vm) {
         unsigned char identity[32];
         bundle_identity(bundle, identity);
 #ifdef ZIRAN_NATIVE_ZX
@@ -395,15 +337,12 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
 #endif
     int attempts = trusted ? 2 : 1;
     for(int attempt = 0; attempt < attempts && bundle->program == NULL; attempt++) {
-        if(attempt > 0 && fseek(file, 0, SEEK_SET) != 0)
-            break;
         ZxLawTableFree(&bundle->laws);
-        bundle->program = BundleReadInContext(file, name, entry_module,
+        bundle->program = BundleReadInContext(bytes, size, name, entry_module,
                                      sizeof(entry_module), entry_function,
                                      sizeof(entry_function),
                                      &bundle->laws, &bundle->assets, programs,
-                                     count, &bundle->own_module_count, &capability_count,
-                                     &trusted);
+                                     count, &bundle->own_module_count, &trusted);
     }
     bundle->own_asset_count = bundle->assets.count;
     bundle->unchecked = trusted;
@@ -418,23 +357,13 @@ open_bundle_stream(FILE *file, const char *name, const unsigned char digest[32],
 #endif
     if(bundle->program == NULL || !share_library_functions(bundle) ||
        !share_library_assets(bundle) ||
-       (!trusted && !VmVerify(bundle->program, entry_module, entry_function))) {
-        BundleClose(bundle);
-        return NULL;
-    }
-    find_entry(bundle, entry_module, entry_function);
-    /* A capability keeps its module/function identity even when both an
-     * owned declaration and library code call it. Enumerate that union once. */
-    capability_count = 0;
-    for(int m = 0; m < bundle->program->module_count; m++)
-        for(int i = 0; i < bundle->program->modules[m].import_count; i++)
-            capability_count += capability_import(&bundle->program->modules[m],
-                                        &bundle->program->modules[m].imports[i]);
-    if(bundle->entry == NULL || !cache_capabilities(&bundle, capability_count)) {
-        BundleClose(bundle);
-        return NULL;
-    }
+       (!trusted && !VmVerify(bundle->program, entry_module, entry_function)) ||
+       !find_entry(bundle, entry_module, entry_function) || !cache_capabilities(&bundle))
+        goto failed;
     return bundle;
+failed:
+    BundleClose(bundle);
+    return NULL;
 }
 
 Bundle *
@@ -449,32 +378,16 @@ BundleOpenWithLibraries(const char *path, Bundle *const *libraries, size_t count
     if(path == NULL)
         return NULL;
     FILE *file = fopen(path, "rb");
-    if(file == NULL) {
+    size_t size = 0;
+    unsigned char *bytes = file != NULL ? BundleReadStream(file, &size) : NULL;
+    if(file != NULL)
+        fclose(file);
+    if(bytes == NULL) {
         Diagnostic(Span(path, 1, 1), "zx.input", "cannot open bundle");
         return NULL;
     }
-    unsigned char *digest = NULL;
-#ifdef ZIRAN_COMPILED_ZX
-    /* Native code caches are keyed by the bytes that code depends on:
-     * everything before the assets. */
-    unsigned char program_digest[32];
-    unsigned char buffer[4096];
-    long left = BundleProgramEnd(file);
-    Sha256 hash;
-    Sha256Begin(&hash);
-    while(left > 0) {
-        size_t want = left < (long)sizeof(buffer) ? (size_t)left : sizeof(buffer);
-        if(fread(buffer, 1, want, file) != want)
-            break;
-        Sha256Add(&hash, buffer, want);
-        left -= (long)want;
-    }
-    Sha256End(&hash, program_digest);
-    if(left == 0 && fseek(file, 0, SEEK_SET) == 0)
-        digest = program_digest;
-#endif
-    Bundle *bundle = open_bundle_stream(file, path, digest, libraries, count);
-    fclose(file);
+    Bundle *bundle = open_bundle(bytes, size, path, libraries, count);
+    free(bytes);
     return bundle;
 }
 
@@ -490,24 +403,7 @@ BundleOpenBytesWithLibraries(const unsigned char *data, size_t size,
 {
     if(data == NULL || size == 0)
         return NULL;
-    FILE *file = ZirReadMemory(data, size);
-    if(file == NULL)
-        return NULL;
-    unsigned char *digest = NULL;
-#ifdef ZIRAN_COMPILED_ZX
-    unsigned char program_digest[32];
-    long end = BundleProgramEnd(file);
-    if(end > 0 && (size_t)end <= size) {
-        Sha256 hash;
-        Sha256Begin(&hash);
-        Sha256Add(&hash, data, (size_t)end);
-        Sha256End(&hash, program_digest);
-        digest = program_digest;
-    }
-#endif
-    Bundle *bundle = open_bundle_stream(file, "<embedded bundle>", digest, libraries, count);
-    fclose(file);
-    return bundle;
+    return open_bundle(data, size, "<embedded bundle>", libraries, count);
 }
 
 void
@@ -571,14 +467,14 @@ const char *
 BundleCapabilityModule(const Bundle *bundle, size_t index)
 {
     return bundle != NULL && index < bundle->capability_count ?
-        bundle->capabilities[index].module : NULL;
+        bundle->capabilities[index].module.data : NULL;
 }
 
 const char *
 BundleCapabilityFunction(const Bundle *bundle, size_t index)
 {
     return bundle != NULL && index < bundle->capability_count ?
-        bundle->capabilities[index].function : NULL;
+        bundle->capabilities[index].function.data : NULL;
 }
 
 typedef struct BindingSet {
@@ -591,7 +487,6 @@ struct BundleInstance {
     HostBinding *owned_bindings;
 #ifdef ZIRAN_COMPILED_ZX
     ZxNative *native;
-    const char **capability_names;
 #endif
     VmInstance *vm;
     /* Present when a wasm provider is installed and the bundle lowered;
@@ -714,16 +609,6 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
 #ifdef ZIRAN_COMPILED_ZX
     unsigned char identity[32];
     bundle_identity(bundle, identity);
-    size_t count = bundle->capability_count;
-    instance->capability_names = calloc(count * 2 + 1, sizeof(*instance->capability_names));
-    if(instance->capability_names == NULL) {
-        BundleInstanceClose(instance);
-        return NULL;
-    }
-    for(size_t i = 0; i < count; i++) {
-        instance->capability_names[i] = bundle->capabilities[i].module;
-        instance->capability_names[count + i] = bundle->capabilities[i].function;
-    }
     ZirFunction entry;
     int unchecked = unchecked_entry(bundle, &entry);
 #endif
@@ -736,15 +621,14 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         int missing = 1;
         native_identity(bundle, identity);
         if(unchecked)
-            instance->native = ZxNativeOpenCached(&entry, identity,
-                                                  instance->capability_names,
-                                                  instance->capability_names + count, count,
-                                                  dispatch, &instance->set, &missing);
+            instance->native = ZxNativeOpenCached(&entry, identity, bundle->capabilities,
+                                                  bundle->capability_count, dispatch,
+                                                  &instance->set, &missing);
         if(instance->native == NULL && missing && check_unchecked((Bundle *)bundle))
             instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
-                                            identity, instance->capability_names,
-                                            instance->capability_names + count, count,
-                                            dispatch, &instance->set, bundle->native_assembly);
+                                            identity, bundle->capabilities,
+                                            bundle->capability_count, dispatch, &instance->set,
+                                            bundle->native_assembly);
         if(instance->native == NULL) {
             BundleInstanceClose(instance);
             return NULL;
@@ -758,8 +642,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
     int busy = 0;
     if(!portable_vm && ZxNativeLinked(identity)) {
         instance->native = ZxNativeOpenLinked(unchecked ? &entry : bundle->entry, identity,
-                                              instance->capability_names,
-                                              instance->capability_names + count, count,
+                                              bundle->capabilities, bundle->capability_count,
                                               dispatch, &instance->set, &busy);
         if(instance->native != NULL)
             return instance;
@@ -781,7 +664,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
      * bundle runs on the VM exactly as before. */
     if(ZxWasmPlatformActive() != NULL) {
         instance->wasm = ZxWasmOpen(bundle->program, bundle->entry_owner,
-                                    bundle->entry, NULL, NULL,
+                                    bundle->entry, bundle->capabilities,
                                     bundle->capability_count);
         if(instance->wasm != NULL)
             return instance;
@@ -853,7 +736,6 @@ BundleInstanceClose(BundleInstance *instance)
         return;
 #ifdef ZIRAN_COMPILED_ZX
     ZxNativeClose(instance->native);
-    free(instance->capability_names);
 #endif
     ZxWasmClose(instance->wasm);
     VmInstanceClose(instance->vm);
@@ -886,7 +768,7 @@ BundleLawCount(const Bundle *bundle)
     return count;
 }
 
-static const ZxLawRecord *
+static const Law *
 law_at(const Bundle *bundle, size_t index)
 {
     if(bundle == NULL) return NULL;
@@ -904,22 +786,22 @@ law_at(const Bundle *bundle, size_t index)
 const char *
 BundleLawModule(const Bundle *bundle, size_t index)
 {
-    const ZxLawRecord *law = law_at(bundle, index);
-    return law != NULL ? law->module : NULL;
+    const Law *law = law_at(bundle, index);
+    return law != NULL ? law->module.data : NULL;
 }
 
 const char *
 BundleLawName(const Bundle *bundle, size_t index)
 {
-    const ZxLawRecord *law = law_at(bundle, index);
-    return law != NULL ? law->name : NULL;
+    const Law *law = law_at(bundle, index);
+    return law != NULL ? law->name.data : NULL;
 }
 
 const char *
 BundleLawStatus(const Bundle *bundle, size_t index)
 {
-    const ZxLawRecord *law = law_at(bundle, index);
-    return law != NULL ? law->status : NULL;
+    const Law *law = law_at(bundle, index);
+    return law != NULL ? law->status.data : NULL;
 }
 
 size_t
@@ -932,7 +814,7 @@ BundleLawWaiverCount(const Bundle *bundle)
     return count;
 }
 
-static const ZxLawWaiverRecord *
+static const Waiver *
 waiver_at(const Bundle *bundle, size_t index)
 {
     if(bundle == NULL) return NULL;
@@ -950,13 +832,13 @@ waiver_at(const Bundle *bundle, size_t index)
 const char *
 BundleLawWaiverName(const Bundle *bundle, size_t index)
 {
-    const ZxLawWaiverRecord *waiver = waiver_at(bundle, index);
-    return waiver != NULL ? waiver->name : NULL;
+    const Waiver *waiver = waiver_at(bundle, index);
+    return waiver != NULL ? waiver->name.data : NULL;
 }
 
 const char *
 BundleLawWaiverReason(const Bundle *bundle, size_t index)
 {
-    const ZxLawWaiverRecord *waiver = waiver_at(bundle, index);
-    return waiver != NULL ? waiver->reason : NULL;
+    const Waiver *waiver = waiver_at(bundle, index);
+    return waiver != NULL ? waiver->reason.data : NULL;
 }

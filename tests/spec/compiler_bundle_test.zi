@@ -238,6 +238,40 @@ Words :: () -> bool {
     return ProgramEnd(TextView(bytes[0:size])) == size + 1 && ProgramEnd("") == 0
 }
 
+// A bundle's tables match its program only row for row, every field alike.
+Tables :: () -> bool {
+    bytes: [512]u8
+    size := Sample(bytes[:])
+    capabilities: [2]Capability
+    laws: [1]Law
+    waivers: [1]Waiver
+    assets: [2]Asset
+    layout := Decode(TextView(bytes[0:size]), capabilities[:], laws[:], waivers[:], assets[:])
+    if layout.problem != Problem.None { return false }
+    expected := Header.{false, "app", "main", capabilities[:], laws[:], waivers[:], 3}
+    if Differs(expected, expected) != Problem.None { return false }
+    other_capabilities := capabilities
+    other_capabilities[1].function = "Clocks"
+    found := expected
+    found.capabilities = other_capabilities[:]
+    if Differs(expected, found) != Problem.CapabilityList { return false }
+    found.capabilities = capabilities[0:1]
+    if Differs(expected, found) != Problem.CapabilityList { return false }
+    other_laws := laws
+    other_laws[0].cases = 3
+    found = expected
+    found.laws = other_laws[:]
+    if Differs(expected, found) != Problem.LawTable { return false }
+    other_waivers := waivers
+    other_waivers[0].reason = "guessed"
+    found = expected
+    found.waivers = other_waivers[:]
+    if Differs(expected, found) != Problem.WaiverTable { return false }
+    found.waivers = waivers[0:0]
+    return Differs(expected, found) == Problem.WaiverTable &&
+        Message(Problem.WaiverTable) == "bundle waiver table differs from checked IR"
+}
+
 #program_export
 Answer :: () -> s32 {
     if !Format() { return 1 }
@@ -246,6 +280,7 @@ Answer :: () -> s32 {
     if !Names() { return 4 }
     if !Limits() { return 5 }
     if !Words() { return 6 }
+    if !Tables() { return 7 }
     return 42
 }
 

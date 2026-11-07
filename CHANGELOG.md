@@ -4,9 +4,9 @@
 
 - The scalar proof kernel behind `#proof` is written in Ziran instead of C,
   with the same proof results, diagnostics and step budget.
-- The `.zx` container (header, law and waiver tables, assets and their
-  limits) is written and read by Ziran code instead of C; bundles keep the
-  same bytes.
+- The `.zx` container (header, capability, law and waiver tables, assets
+  and their limits) is written, read and checked against its program by
+  Ziran code instead of C; bundles keep the same bytes.
 - Record fields and enums take `#c "SPELLING"` so a generated C header
   matches C code that shares the records: `const char *` or `char name[N]`
   fields, and enum constants with a prefix such as `ZIR_EXPR_`. Saved IR is

@@ -10,6 +10,9 @@
  * C, compiled in memory by TinyCC and called directly. Host capabilities
  * reach `host` with the same values the portable VM passes. */
 typedef struct ZxNative ZxNative;
+/* A host capability, defined in the generated compiler_bundle.h. Its names
+ * end in a NUL. */
+struct Capability;
 
 /* Headers natively compiled bundles include, embedded in the library. */
 typedef struct ZxNativeHeader {
@@ -28,10 +31,8 @@ extern const ZxNativeHeader ZxNativeHeaders[];
  * initializers fail. */
 ZxNative *ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
                        const ZirFunction *entry, const unsigned char identity[32],
-                       const char *const *capability_modules,
-                       const char *const *capability_functions,
-                       size_t capability_count, VmHostCall host, void *context,
-                       int native_assembly);
+                       const struct Capability *capabilities, size_t capability_count,
+                       VmHostCall host, void *context, int native_assembly);
 /* Whether compiled code for `identity` is cached. Only this compiler writes
  * it, from a checked program, so a host may open those bytes unchecked. */
 int ZxNativeCached(const unsigned char identity[32]);
@@ -39,10 +40,8 @@ int ZxNativeCached(const unsigned char identity[32]);
  * Returns NULL with *missing set and no diagnostic when no cached code
  * links; the host then checks the program and calls ZxNativeOpen. */
 ZxNative *ZxNativeOpenCached(const ZirFunction *entry, const unsigned char identity[32],
-                             const char *const *capability_modules,
-                             const char *const *capability_functions,
-                             size_t capability_count, VmHostCall host, void *context,
-                             int *missing);
+                             const struct Capability *capabilities, size_t capability_count,
+                             VmHostCall host, void *context, int *missing);
 int ZxNativeRun(ZxNative *native, long long *result, int *has_result);
 void ZxNativeLimitSteps(ZxNative *native, int max_steps);
 void ZxNativeMatchFieldsByName(ZxNative *native, int enabled);
@@ -61,17 +60,14 @@ int ZxNativeLinked(const unsigned char identity[32]);
  * it at a time: while another is open this returns NULL with *busy set,
  * without a diagnostic, and the host runs the portable VM instead. */
 ZxNative *ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
-                             const char *const *capability_modules,
-                             const char *const *capability_functions,
-                             size_t capability_count, VmHostCall host, void *context,
-                             int *busy);
+                             const struct Capability *capabilities, size_t capability_count,
+                             VmHostCall host, void *context, int *busy);
 /* Write a verified program's C for linking in `directory` (existing and
  * empty), with zx_native.json naming its sources and their compile flags.
  * Built where the native engine is. */
 int ZxNativeWriteLinked(const ZirProgram *program, const ZirModule *entry_owner,
                         const ZirFunction *entry, const unsigned char identity[32],
-                        const char *const *capability_modules,
-                        const char *const *capability_functions, size_t capability_count,
+                        const struct Capability *capabilities, size_t capability_count,
                         const char *directory, char *error, size_t error_size);
 
 #endif

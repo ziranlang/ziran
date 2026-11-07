@@ -114,9 +114,12 @@
   fewer instructions.
 - On 32-bit ARM, `f32` vector arithmetic keeps tiny values instead of
   flushing them to zero, and byte shifts of 256-bit vectors are correct.
-- `std/resample`'s x86-64 kernels use `std/simd` instead of assembly. They
-  make the same bytes and run at least as fast with AVX2, about 20% faster
-  on large downscales.
+- `std/resample`'s kernels use `std/simd` instead of assembly. They make the
+  same bytes and run faster: at least as fast with AVX2 and about 20% faster
+  on large downscales, 3 to 10% faster with NEON on a Cortex-A53, and about
+  twice as fast with WebAssembly SIMD128.
+- On 32-bit ARM, Clang builds `Simd.LoadLow` as one load instead of copying
+  the bytes through the stack.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its
   owner. `TextView(text)` borrows it, a `Text` passed where a `string` is
   expected lends the same view, and `TextCopy` copies a string into one.

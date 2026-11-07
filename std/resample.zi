@@ -1,6 +1,6 @@
 // Pillow's separable resampling of 8-bit RGBA as allocation-free row
-// kernels, with x86-64 (std/simd, SSE2 to AVX2), NEON (AArch64 and ARMv7)
-// and WebAssembly SIMD128 versions that make the same bytes.
+// kernels, with std/simd versions for x86-64 (SSE2 to AVX2), NEON (AArch64
+// and ARMv7) and WebAssembly SIMD128 that make the same bytes.
 //
 //     axis: ResampleAxis
 //     ResampleAxisInto(*axis, 640, 853, RESAMPLE_LANCZOS)  // weights once
@@ -232,8 +232,9 @@ HorizontalOdd :: (source: *u8, pixel: s64, packed: *u32, w: s64, alone: bool, lo
     high.* = Simd.Add(high.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w + 1]))))
 }
 
-HorizontalFinish :: (target: *u8, to: s64, low: s32x4, high: s32x4) #inline {
-    sum := Simd.ShiftRight(Simd.Add(low, Simd.ShiftLeft(high, 16)), 22)
+// One pixel's four channel sums, before the shift, as bytes of TARGET.
+HorizontalStore :: (target: *u8, to: s64, sums: s32x4) #inline {
+    sum := Simd.ShiftRight(sums, 22)
     halves := Simd.Narrow(s16x8, sum, sum)
     out := Simd.Lane(Simd.Reinterpret(u32x4, Simd.Narrow(u8x16, halves, halves)), 0)
     target[to] = cast(u8)out
@@ -270,13 +271,13 @@ HorizontalTyped :: (source: *u8, packed: *u32, entry: s64, output: s64, target: 
             w += 4
             quads -= 1
         }
-        if count % 4 >= 2 {
+        if (count & 2) != 0 {
             HorizontalStep(source, pixel, packed, w, *low, *high)
             pixel += 8
             w += 2
         }
         if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, count == 1, *low, *high) }
-        HorizontalFinish(target, x * 4, low, high)
+        HorizontalStore(target, x * 4, Simd.Add(low, Simd.ShiftLeft(high, 16)))
         at += entry
         x += 1
     }
@@ -325,13 +326,13 @@ HorizontalTypedWide :: (source: *u8, packed: *u32, entry: s64, output: s64, targ
             low = Simd.Add(Simd.Low(low8), Simd.High(low8))
             high = Simd.Add(Simd.Low(high8), Simd.High(high8))
         }
-        if count % 4 >= 2 {
+        if (count & 2) != 0 {
             HorizontalStep(source, pixel, packed, w, *low, *high)
             pixel += 8
             w += 2
         }
         if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, count == 1, *low, *high) }
-        HorizontalFinish(target, x * 4, low, high)
+        HorizontalStore(target, x * 4, Simd.Add(low, Simd.ShiftLeft(high, 16)))
         at += entry
         x += 1
     }
@@ -430,422 +431,94 @@ VerticalTyped :: (rows: *u8, stride: s64, pairs: *u32, count: s64, target: *u8, 
     }
 }
 
-// A32 has too few registers for every argument as an operand, so the ARMv7
-// kernels read theirs from one of these.
-ArmRow :: struct {
-    source: *u8
-    bounds: *s32
-    weights: *s32
-    // Bytes from one output position's weights to the next.
-    step: s32
-    output: s32
-    target: *u8
-}
-ArmColumns :: struct {
-    rows: *u8
-    stride: s32
-    weights: *s32
-    count: s32
-    target: *u8
-    bytes: s32
-}
+// The NEON and SIMD128 kernels, in std/simd. These instruction sets multiply
+// 32-bit lanes in one step, so each tap's bytes widen to 32 bits and take
+// its whole weight, rather than MulAddPairs' 16-bit halves. On ARMv7 they
+// are fast in builds with NEON, as Android's armeabi-v7a is.
 
-HorizontalNeon :: (source: *u8, bounds: *s32, weights: *s32, size: s64, output: s64, target: *u8, axis: *ResampleAxis) #asm("aarch64", "mov w9, #0x200000
-        dup v31.4s, w9
-        mov x10, %[bounds]
-        mov x11, %[weights]
-        mov x12, %[target]
-        mov x13, %[output]
-        lsl x14, %[size], #2
-        cbz x13, 9f
-    1:
-        ldpsw x15, x16, [x10], #8
-        add x15, %[source], x15, lsl #2
-        mov x17, x11
-        mov v16.16b, v31.16b
-        movi v17.4s, #0
-        lsr x9, x16, #1
-        cbz x9, 3f
-    2:
-        ldr d0, [x15], #8
-        ldr d1, [x17], #8
-        uxtl v0.8h, v0.8b
-        uxtl v2.4s, v0.4h
-        uxtl2 v3.4s, v0.8h
-        mla v16.4s, v2.4s, v1.s[0]
-        mla v17.4s, v3.4s, v1.s[1]
-        subs x9, x9, #1
-        b.ne 2b
-    3:
-        tbz x16, #0, 4f
-        ldr s0, [x15]
-        ldr s1, [x17]
-        uxtl v0.8h, v0.8b
-        uxtl v2.4s, v0.4h
-        mla v16.4s, v2.4s, v1.s[0]
-    4:
-        add v16.4s, v16.4s, v17.4s
-        sshr v16.4s, v16.4s, #22
-        sqxtn v16.4h, v16.4s
-        sqxtun v16.8b, v16.8h
-        str s16, [x12], #4
-        add x11, x11, x14
-        subs x13, x13, #1
-        b.ne 1b
-    9:",
-        "", "r;r;r;r;r;r;g", "x9;x10;x11;x12;x13;x14;x15;x16;x17;v0;v1;v2;v3;v16;v17;v31;cc;memory", "volatile") {
-    HorizontalScalar(axis, source, target)
-}
-
-HorizontalArm :: (row: *ArmRow, axis: *ResampleAxis) #asm("arm+neon", "ldr r1, [%[row]]
-        ldr r2, [%[row], #4]
-        ldr r3, [%[row], #8]
-        ldr r4, [%[row], #12]
-        ldr r5, [%[row], #16]
-        ldr r6, [%[row], #20]
-        cmp r5, #0
-        beq 9f
-    1:
-        ldr r8, [r2], #4
-        ldr r10, [r2], #4
-        add r8, r1, r8, lsl #2
-        mov r12, r3
-        vmov.i32 q8, #0x200000
-        vmov.i32 q9, #0
-    2:
-        cmp r10, #2
-        blt 3f
-        vld1.8 {d0}, [r8]!
-        vld1.32 {d2}, [r12]!
-        vmovl.u8 q2, d0
-        vmovl.u16 q3, d4
-        vmovl.u16 q10, d5
-        vmla.i32 q8, q3, d2[0]
-        vmla.i32 q9, q10, d2[1]
-        sub r10, r10, #2
-        b 2b
-    3:
-        cmp r10, #0
-        beq 4f
-        vld1.32 {d0[0]}, [r8]
-        vld1.32 {d2[0]}, [r12]
-        vmovl.u8 q2, d0
-        vmovl.u16 q3, d4
-        vmla.i32 q8, q3, d2[0]
-    4:
-        vadd.i32 q8, q8, q9
-        vshr.s32 q8, q8, #22
-        vqmovn.s32 d22, q8
-        vqmovun.s16 d24, q11
-        vst1.32 {d24[0]}, [r6]!
-        add r3, r3, r4
-        subs r5, r5, #1
-        bne 1b
-    9:",
-        "", "r;g", "r1;r2;r3;r4;r5;r6;r8;r10;r12;lr;d0;d2;d4;d5;d6;d7;d16;d17;d18;d19;d20;d21;d22;d23;d24;cc;memory", "volatile") {
-    HorizontalScalar(axis, row.source, row.target)
-}
-
-VerticalNeon :: (rows: *u8, stride: s64, weights: *s32, count: s64, target: *u8, bytes: s64) #asm("aarch64", "mov w9, #0x200000
-        dup v31.4s, w9
-        mov x10, #0
-        cmp x10, %[bytes]
-        b.ge 9f
-    1:
-        mov v16.16b, v31.16b
-        mov v17.16b, v31.16b
-        mov v18.16b, v31.16b
-        mov v19.16b, v31.16b
-        add x11, %[rows], x10
-        mov x12, %[weights]
-        mov x13, %[count]
-    2:
-        ldr q0, [x11]
-        ld1r {v1.4s}, [x12], #4
-        uxtl v2.8h, v0.8b
-        uxtl2 v3.8h, v0.16b
-        uxtl v4.4s, v2.4h
-        uxtl2 v5.4s, v2.8h
-        uxtl v6.4s, v3.4h
-        uxtl2 v7.4s, v3.8h
-        mla v16.4s, v4.4s, v1.4s
-        mla v17.4s, v5.4s, v1.4s
-        mla v18.4s, v6.4s, v1.4s
-        mla v19.4s, v7.4s, v1.4s
-        add x11, x11, %[stride]
-        subs x13, x13, #1
-        b.ne 2b
-        sshr v16.4s, v16.4s, #22
-        sshr v17.4s, v17.4s, #22
-        sshr v18.4s, v18.4s, #22
-        sshr v19.4s, v19.4s, #22
-        sqxtn v20.4h, v16.4s
-        sqxtn2 v20.8h, v17.4s
-        sqxtn v21.4h, v18.4s
-        sqxtn2 v21.8h, v19.4s
-        sqxtun v22.8b, v20.8h
-        sqxtun2 v22.16b, v21.8h
-        str q22, [%[target], x10]
-        add x10, x10, #16
-        cmp x10, %[bytes]
-        b.lt 1b
-    9:",
-        "", "r;r;r;r;r;r", "x9;x10;x11;x12;x13;v0;v1;v2;v3;v4;v5;v6;v7;v16;v17;v18;v19;v20;v21;v22;v31;cc;memory", "volatile") {
-    VerticalScalar(rows, stride, weights, count, true, target, 0, bytes)
-}
-
-VerticalArm :: (columns: *ArmColumns) #asm("arm+neon", "ldr r2, [%[columns], #4]
-        mov r8, #0
-        ldr r1, [%[columns], #20]
-        cmp r8, r1
-        bge 9f
-    1:
-        vmov.i32 q8, #0x200000
-        vmov.i32 q9, #0x200000
-        vmov.i32 q10, #0x200000
-        vmov.i32 q11, #0x200000
-        ldr r10, [%[columns]]
-        add r10, r10, r8
-        ldr r12, [%[columns], #8]
-        ldr lr, [%[columns], #12]
-    2:
-        vld1.8 {d0, d1}, [r10], r2
-        vld1.32 {d2[0]}, [r12]!
-        vmovl.u8 q2, d0
-        vmovl.u16 q12, d4
-        vmovl.u16 q13, d5
-        vmla.i32 q8, q12, d2[0]
-        vmla.i32 q9, q13, d2[0]
-        vmovl.u8 q2, d1
-        vmovl.u16 q12, d4
-        vmovl.u16 q13, d5
-        vmla.i32 q10, q12, d2[0]
-        vmla.i32 q11, q13, d2[0]
-        subs lr, lr, #1
-        bne 2b
-        vshr.s32 q8, q8, #22
-        vshr.s32 q9, q9, #22
-        vshr.s32 q10, q10, #22
-        vshr.s32 q11, q11, #22
-        vqmovn.s32 d24, q8
-        vqmovn.s32 d25, q9
-        vqmovn.s32 d26, q10
-        vqmovn.s32 d27, q11
-        vqmovun.s16 d0, q12
-        vqmovun.s16 d1, q13
-        ldr r1, [%[columns], #16]
-        add r1, r1, r8
-        vst1.8 {d0, d1}, [r1]
-        add r8, r8, #16
-        ldr r1, [%[columns], #20]
-        cmp r8, r1
-        blt 1b
-    9:",
-        "", "r", "r1;r2;r8;r10;r12;lr;d0;d1;d2;d4;d5;d16;d17;d18;d19;d20;d21;d22;d23;d24;d25;d26;d27;cc;memory", "volatile") {
-    VerticalScalar(columns.rows, cast(s64)columns.stride, columns.weights, cast(s64)columns.count, true,
-        columns.target, 0, cast(s64)columns.bytes)
-}
-
-// WebAssembly SIMD128. A v128 cannot be an operand, so each output keeps one
-// i32x4 sum on the operand stack through typed blocks (Clang 19 or later):
-// one pixel's four channels horizontally, four bytes of a row vertically.
-// The counts and strides are 32-bit, like wasm32 pointers.
-HorizontalSimd128 :: (source: *u8, bounds: *s32, weights: *s32, step: s32, output: s32,
-    target: *u8, axis: *ResampleAxis) {
-    entry: *s32 = bounds
-    row: *s32 = weights
-    to: *u8 = target
-    left: s32 = output
-    at: *u8 = source
-    weight: *s32 = weights
-    taps: s32 = 0
-    pixel: s32 = 0
-    #asm("wasm32+simd128", "local.get %[bounds]
-        local.set %[entry]
-        local.get %[weights]
-        local.set %[row]
-        local.get %[target]
-        local.set %[to]
-        local.get %[output]
-        local.set %[left]
-        block
-        local.get %[left]
-        i32.eqz
-        br_if 0
-        loop
-        local.get %[source]
-        local.get %[entry]
-        i32.load 0:p2align=2
-        i32.const 2
-        i32.shl
-        i32.add
-        local.set %[at]
-        local.get %[entry]
-        i32.load 4:p2align=2
-        local.set %[taps]
-        local.get %[row]
-        local.set %[weight]
-        i32.const 2097152
-        i32x4.splat
-        block (v128) -> (v128)
-        local.get %[taps]
-        i32.const 2
-        i32.lt_s
-        br_if 0
-        loop (v128) -> (v128)
-        local.get %[at]
-        v128.load64_zero 0:p2align=0
-        i16x8.extend_low_i8x16_u
-        i32x4.extend_low_i16x8_u
-        local.get %[weight]
-        v128.load32_splat 0:p2align=2
-        i32x4.mul
-        i32x4.add
-        local.get %[at]
-        v128.load32_zero 4:p2align=0
-        i16x8.extend_low_i8x16_u
-        i32x4.extend_low_i16x8_u
-        local.get %[weight]
-        v128.load32_splat 4:p2align=2
-        i32x4.mul
-        i32x4.add
-        local.get %[at]
-        i32.const 8
-        i32.add
-        local.set %[at]
-        local.get %[weight]
-        i32.const 8
-        i32.add
-        local.set %[weight]
-        local.get %[taps]
-        i32.const 2
-        i32.sub
-        local.tee %[taps]
-        i32.const 2
-        i32.ge_s
-        br_if 0
-        end_loop
-        end_block
-        block (v128) -> (v128)
-        local.get %[taps]
-        i32.eqz
-        br_if 0
-        local.get %[at]
-        v128.load32_zero 0:p2align=0
-        i16x8.extend_low_i8x16_u
-        i32x4.extend_low_i16x8_u
-        local.get %[weight]
-        v128.load32_splat 0:p2align=2
-        i32x4.mul
-        i32x4.add
-        end_block
-        i32.const 22
-        i32x4.shr_s
-        v128.const 0, 0, 0, 0
-        i16x8.narrow_i32x4_s
-        v128.const 0, 0, 0, 0
-        i8x16.narrow_i16x8_u
-        i32x4.extract_lane 0
-        local.set %[pixel]
-        local.get %[to]
-        local.get %[pixel]
-        i32.store 0:p2align=0
-        local.get %[to]
-        i32.const 4
-        i32.add
-        local.set %[to]
-        local.get %[entry]
-        i32.const 8
-        i32.add
-        local.set %[entry]
-        local.get %[row]
-        local.get %[step]
-        i32.add
-        local.set %[row]
-        local.get %[left]
-        i32.const 1
-        i32.sub
-        local.tee %[left]
-        br_if 0
-        end_loop
-        end_block",
-        "=&r:entry;=&r:row;=&r:to;=&r:left;=&r:at;=&r:weight;=&r:taps;=&r:pixel",
-        "r:source;r:bounds;r:weights;r:step;r:output;r:target", "memory", "volatile") {
-        HorizontalScalar(axis, source, target)
+// OUTPUT pixels of TARGET, from the weights SIZE apart per output position:
+// four taps a step, then two, then an odd last one.
+// The loops walk pointers with 32-bit counts, which ARMv7 and wasm32, whose
+// registers are 32-bit, keep in one register each.
+HorizontalLanes :: (source: *u8, bounds: *s32, weights: *s32, size: s32, output: s32, target: *u8) {
+    bound := bounds
+    row := weights
+    to := target
+    left := output
+    while left > 0 {
+        at := *source[cast(s64)bound[0] * 4]
+        count := bound[1]
+        weight := row
+        even := Simd.Splat(s32x4, ROUND)
+        odd := Simd.Zero(s32x4)
+        quads := count / 4
+        while quads > 0 {
+            pixels := Simd.Load(u8x16, at, 0)
+            four := Simd.Load(s32x4, weight, 0)
+            low := Simd.WidenLow(pixels)
+            high := Simd.WidenHigh(pixels)
+            even = Simd.Add(even, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenLow(low)), Simd.Shuffle(four, 0, 0, 0, 0)))
+            odd = Simd.Add(odd, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenHigh(low)), Simd.Shuffle(four, 1, 1, 1, 1)))
+            even = Simd.Add(even, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenLow(high)), Simd.Shuffle(four, 2, 2, 2, 2)))
+            odd = Simd.Add(odd, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenHigh(high)), Simd.Shuffle(four, 3, 3, 3, 3)))
+            at = *at[16]
+            weight = *weight[4]
+            quads -= 1
+        }
+        if (count & 2) != 0 {
+            taps := Simd.WidenLow(Simd.LoadLow(u8x16, at, 0))
+            both := Simd.LoadLow(s32x4, weight, 0)
+            even = Simd.Add(even, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenLow(taps)), Simd.Shuffle(both, 0, 0, 0, 0)))
+            odd = Simd.Add(odd, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenHigh(taps)), Simd.Shuffle(both, 1, 1, 1, 1)))
+            at = *at[8]
+            weight = *weight[2]
+        }
+        if (count & 1) != 0 {
+            // Four byte reads, which compilers merge into one 32-bit load.
+            word := cast(u32)at[0] | (cast(u32)at[1] << 8) | (cast(u32)at[2] << 16) | (cast(u32)at[3] << 24)
+            tap := Simd.WidenLow(Simd.WidenLow(Simd.Reinterpret(u8x16, Simd.WithLane(Simd.Zero(u32x4), 0, word))))
+            even = Simd.Add(even, Simd.Mul(Simd.Reinterpret(s32x4, tap), Simd.Splat(s32x4, weight[0])))
+        }
+        HorizontalStore(to, 0, Simd.Add(even, odd))
+        bound = *bound[2]
+        row = *row[size]
+        to = *to[4]
+        left -= 1
     }
 }
 
-VerticalSimd128 :: (rows: *u8, stride: s32, weights: *s32, count: s32, target: *u8, bytes: s32) {
-    offset: s32 = 0
-    at: *u8 = rows
-    weight: *s32 = weights
-    taps: s32 = 0
-    pixel: s32 = 0
-    #asm("wasm32+simd128", "i32.const 0
-        local.set %[offset]
-        block
-        local.get %[bytes]
-        i32.eqz
-        br_if 0
-        loop
-        local.get %[rows]
-        local.get %[offset]
-        i32.add
-        local.set %[at]
-        local.get %[weights]
-        local.set %[weight]
-        local.get %[count]
-        local.set %[taps]
-        i32.const 2097152
-        i32x4.splat
-        loop (v128) -> (v128)
-        local.get %[at]
-        v128.load32_zero 0:p2align=0
-        i16x8.extend_low_i8x16_u
-        i32x4.extend_low_i16x8_u
-        local.get %[weight]
-        v128.load32_splat 0:p2align=2
-        i32x4.mul
-        i32x4.add
-        local.get %[at]
-        local.get %[stride]
-        i32.add
-        local.set %[at]
-        local.get %[weight]
-        i32.const 4
-        i32.add
-        local.set %[weight]
-        local.get %[taps]
-        i32.const 1
-        i32.sub
-        local.tee %[taps]
-        br_if 0
-        end_loop
-        i32.const 22
-        i32x4.shr_s
-        v128.const 0, 0, 0, 0
-        i16x8.narrow_i32x4_s
-        v128.const 0, 0, 0, 0
-        i8x16.narrow_i16x8_u
-        i32x4.extract_lane 0
-        local.set %[pixel]
-        local.get %[target]
-        local.get %[offset]
-        i32.add
-        local.get %[pixel]
-        i32.store 0:p2align=0
-        local.get %[offset]
-        i32.const 4
-        i32.add
-        local.tee %[offset]
-        local.get %[bytes]
-        i32.lt_u
-        br_if 0
-        end_loop
-        end_block",
-        "=&r:offset;=&r:at;=&r:weight;=&r:taps;=&r:pixel",
-        "r:rows;r:stride;r:weights;r:count;r:target;r:bytes", "memory", "volatile") {
-        VerticalScalar(rows, cast(s64)stride, weights, cast(s64)count, true, target, 0, cast(s64)bytes)
+// BYTES bytes of one output row, a multiple of 16, from COUNT source rows
+// STRIDE bytes apart, one row a step.
+VerticalLanes :: (rows: *u8, stride: s64, weights: *s32, count: s64, target: *u8, bytes: s64) {
+    taps := cast(s32)count
+    i: s64 = 0
+    while i + 16 <= bytes {
+        a0 := Simd.Splat(s32x4, ROUND)
+        a1 := a0
+        a2 := a0
+        a3 := a0
+        at := *rows[i]
+        weight := weights
+        left := taps
+        while left > 0 {
+            factor := Simd.Splat(s32x4, weight[0])
+            pixels := Simd.Load(u8x16, at, 0)
+            low := Simd.WidenLow(pixels)
+            high := Simd.WidenHigh(pixels)
+            a0 = Simd.Add(a0, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenLow(low)), factor))
+            a1 = Simd.Add(a1, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenHigh(low)), factor))
+            a2 = Simd.Add(a2, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenLow(high)), factor))
+            a3 = Simd.Add(a3, Simd.Mul(Simd.Reinterpret(s32x4, Simd.WidenHigh(high)), factor))
+            at = *at[stride]
+            weight = *weight[1]
+            left -= 1
+        }
+        r0 := Simd.ShiftRight(a0, 22)
+        r1 := Simd.ShiftRight(a1, 22)
+        r2 := Simd.ShiftRight(a2, 22)
+        r3 := Simd.ShiftRight(a3, 22)
+        Simd.Store(target, i, Simd.Narrow(u8x16, Simd.Narrow(s16x8, r0, r1), Simd.Narrow(s16x8, r2, r3)))
+        i += 16
     }
 }
 
@@ -977,13 +650,8 @@ ResampleRowHorizontal :: (axis: *ResampleAxis, source: *u8, target: *u8) {
         HorizontalTypedWide(source, *axis.packed[0], cast(s64)axis.entry, cast(s64)axis.output, target)
     } else if axis.exact && level == RESAMPLE_SSE2 {
         HorizontalTyped(source, *axis.packed[0], cast(s64)axis.entry, cast(s64)axis.output, target)
-    } else if axis.exact && level == RESAMPLE_NEON && HasNeon() != 0 {
-        HorizontalNeon(source, *axis.bounds[0], *axis.weights[0], cast(s64)axis.size, cast(s64)axis.output, target, axis)
-    } else if axis.exact && level == RESAMPLE_NEON {
-        row := ArmRow.{source, *axis.bounds[0], *axis.weights[0], axis.size * 4, axis.output, target}
-        HorizontalArm(*row, axis)
-    } else if axis.exact && level == RESAMPLE_SIMD128 {
-        HorizontalSimd128(source, *axis.bounds[0], *axis.weights[0], axis.size * 4, axis.output, target, axis)
+    } else if axis.exact && (level == RESAMPLE_NEON || level == RESAMPLE_SIMD128) {
+        HorizontalLanes(source, *axis.bounds[0], *axis.weights[0], axis.size, axis.output, target)
     } else {
         HorizontalScalar(axis, source, target)
     }
@@ -1006,18 +674,9 @@ ResampleRowVertical :: (axis: *ResampleAxis, row: s32, source: *u8, stride: s64,
             done = bytes - bytes % 16
             if done > 0 { VerticalTyped(rows, stride, pairs, count, target, done, level == RESAMPLE_AVX2) }
         }
-        if level == RESAMPLE_NEON {
+        if level == RESAMPLE_NEON || level == RESAMPLE_SIMD128 {
             done = bytes - bytes % 16
-            if done > 0 && HasNeon() != 0 {
-                VerticalNeon(rows, stride, weights, count, target, done)
-            } else if done > 0 {
-                columns := ArmColumns.{rows, cast(s32)stride, weights, cast(s32)count, target, cast(s32)done}
-                VerticalArm(*columns)
-            }
-        }
-        if level == RESAMPLE_SIMD128 {
-            VerticalSimd128(rows, cast(s32)stride, weights, cast(s32)count, target, cast(s32)bytes)
-            done = bytes
+            if done > 0 { VerticalLanes(rows, stride, weights, count, target, done) }
         }
     }
     if done < bytes { VerticalScalar(rows, stride, weights, count, axis.exact, target, done, bytes) }

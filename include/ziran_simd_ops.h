@@ -20299,7 +20299,7 @@ ZI_FN zi_u8x16 ZI_N(load_low_u8x16)(const void * p)
 #if ZI_X86
     return (zi_u8x16)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_u8x16)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_u8x16)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_u8x16)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20318,7 +20318,7 @@ ZI_FN zi_s8x16 ZI_N(load_low_s8x16)(const void * p)
 #if ZI_X86
     return (zi_s8x16)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_s8x16)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_s8x16)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_s8x16)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20337,7 +20337,7 @@ ZI_FN zi_u16x8 ZI_N(load_low_u16x8)(const void * p)
 #if ZI_X86
     return (zi_u16x8)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_u16x8)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_u16x8)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_u16x8)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20356,7 +20356,7 @@ ZI_FN zi_s16x8 ZI_N(load_low_s16x8)(const void * p)
 #if ZI_X86
     return (zi_s16x8)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_s16x8)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_s16x8)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_s16x8)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20375,7 +20375,7 @@ ZI_FN zi_u32x4 ZI_N(load_low_u32x4)(const void * p)
 #if ZI_X86
     return (zi_u32x4)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_u32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_u32x4)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_u32x4)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20394,7 +20394,7 @@ ZI_FN zi_s32x4 ZI_N(load_low_s32x4)(const void * p)
 #if ZI_X86
     return (zi_s32x4)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_s32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_s32x4)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_s32x4)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20413,7 +20413,7 @@ ZI_FN zi_u64x2 ZI_N(load_low_u64x2)(const void * p)
 #if ZI_X86
     return (zi_u64x2)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_u64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_u64x2)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_u64x2)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20432,7 +20432,7 @@ ZI_FN zi_s64x2 ZI_N(load_low_s64x2)(const void * p)
 #if ZI_X86
     return (zi_s64x2)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_s64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_s64x2)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_s64x2)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20451,7 +20451,7 @@ ZI_FN zi_f32x4 ZI_N(load_low_f32x4)(const void * p)
 #if ZI_X86
     return (zi_f32x4)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_f32x4)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_f32x4)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_f32x4)wasm_v128_load64_zero(p);
 #elif ZI_VEC
@@ -20470,7 +20470,7 @@ ZI_FN zi_f64x2 ZI_N(load_low_f64x2)(const void * p)
 #if ZI_X86
     return (zi_f64x2)_mm_loadl_epi64((const __m128i *)p);
 #elif ZI_NEON
-    return (zi_f64x2)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));
+    return (zi_f64x2)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));
 #elif ZI_WASM
     return (zi_f64x2)wasm_v128_load64_zero(p);
 #elif ZI_VEC

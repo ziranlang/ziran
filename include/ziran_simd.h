@@ -483,6 +483,20 @@ zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
 #else
 #define ZI_BASE_TIER 0
 #endif
+#if ZI_NEON
+/* The 8 bytes at P. Clang's ARMv7 backend copies an unaligned 8-byte load
+ * that it can merge into a widening through the stack; leaving the loaded
+ * register as it is keeps the load one vld1. */
+ZI_INLINE uint8x8_t
+zi_neon_load64(const void *p)
+{
+    uint8x8_t v = vld1_u8((const uint8_t *)p);
+#if !ZI_A64 && defined(__clang__)
+    __asm__("" : "+w"(v));
+#endif
+    return v;
+}
+#endif
 #define ZI_TIER ZI_BASE_TIER
 #define ZI_FN ZI_INLINE
 #define ZI_N(name) zi_##name

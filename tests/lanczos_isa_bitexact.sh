@@ -10,8 +10,9 @@
 # device ARMV7_ADB_SERIAL names. Static Bionic binaries need an NDK that
 # aligns arm64 TLS to 64 bytes and, on 32-bit ARM, host PIDs up to 65535, so
 # the runs are opt-in. So is WebAssembly: with WASM_RUN, a command given an
-# Emscripten module's .js that prints its output (such as node), it builds
-# with emcc (EMCC, or ~/emsdk's) with and without -msimd128 and runs each.
+# Emscripten module's .js that prints its output (such as node), or WASI_RUN,
+# one given a standalone .wasm (such as wasmtime run), it builds with emcc
+# (EMCC, or ~/emsdk's) with and without -msimd128 and runs each.
 set -eu
 
 ziran=$1
@@ -230,20 +231,28 @@ if test -n "${ANDROID_NDK_HOME:-}"; then
 fi
 
 # SIMD128 is chosen when the module is built: the -msimd128 module must run
-# the SIMD128 kernels, and the other two only the scalar ones. The kernels
-# carry their sums through typed blocks, which need Clang 19 or later.
+# the SIMD128 kernels, and the other two only the scalar ones. WASI_RUN, a
+# command given a standalone module (such as wasmtime run), runs them
+# without JavaScript; standalone memory cannot grow, so it starts at 256 MB.
 emcc=${EMCC:-$HOME/emsdk/upstream/emscripten/emcc}
 run=${WASM_RUN:-}
-if test -n "$run" && command -v "$emcc" >/dev/null 2>&1; then
+wasi=${WASI_RUN:-}
+if test -n "$run$wasi" && command -v "$emcc" >/dev/null 2>&1; then
     "$ziran" build --target=c --define PLATFORM_WEB --entry lanczos_isa:main --root "$work" \
         --module-path "$root/std" -o "$work/web-c" "$work/lanczos_isa.zi"
     mkdir -p "$work/web"
     wasm_build() {
         name=$1; shift
-        "$emcc" -std=c99 -O2 -Wno-parentheses-equality -I"$root/include" -I"$work/web-c" "$@" -sEXIT_RUNTIME=1 \
-            -sALLOW_MEMORY_GROWTH=1 -sENVIRONMENT=web,node "$work/web-c"/*.c -o "$work/web/$name.js"
-        # Unquoted on purpose: the runner may carry options.
-        $run "$work/web/$name.js" > "$work/web/$name.out"
+        # Unquoted on purpose: the runners may carry options.
+        if test -n "$wasi"; then
+            "$emcc" -std=c99 -O2 -Wno-parentheses-equality -I"$root/include" -I"$work/web-c" "$@" -sSTANDALONE_WASM \
+                -sINITIAL_MEMORY=268435456 "$work/web-c"/*.c -o "$work/web/$name.wasm"
+            $wasi "$work/web/$name.wasm" > "$work/web/$name.out"
+        else
+            "$emcc" -std=c99 -O2 -Wno-parentheses-equality -I"$root/include" -I"$work/web-c" "$@" -sEXIT_RUNTIME=1 \
+                -sALLOW_MEMORY_GROWTH=1 -sENVIRONMENT=web,node "$work/web-c"/*.c -o "$work/web/$name.js"
+            $run "$work/web/$name.js" > "$work/web/$name.out"
+        fi
         sed "s/^/wasm $name: /" "$work/web/$name.out"
     }
     wasm_build simd128 -msimd128
@@ -255,9 +264,9 @@ if test -n "$run" && command -v "$emcc" >/dev/null 2>&1; then
     wasm_build portable -msimd128 -DZIRAN_NO_ASM
     grep -qx 'levels: scalar' "$work/web/portable.out"
     grep -qx 'best: scalar' "$work/web/portable.out"
-elif test -n "$run"; then
-    echo "lanczos-isa: WASM_RUN needs emcc; none at $emcc" >&2
+elif test -n "$run$wasi"; then
+    echo "lanczos-isa: WASM_RUN and WASI_RUN need emcc; none at $emcc" >&2
     exit 1
 else
-    echo "WebAssembly skipped; set WASM_RUN to run it"
+    echo "WebAssembly skipped; set WASM_RUN or WASI_RUN to run it"
 fi

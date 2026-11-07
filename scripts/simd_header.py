@@ -720,7 +720,7 @@ class Memory(Op):
         if self.low:
             # A 64-bit load into a zeroed vector.
             return [(X86, 'return (%s)_mm_loadl_epi64((const __m128i *)p);' % t.c),
-                    (NEON, 'return (%s)vcombine_u8(vld1_u8((const uint8_t *)p), vdup_n_u8(0));' % t.c),
+                    (NEON, 'return (%s)vcombine_u8(zi_neon_load64(p), vdup_n_u8(0));' % t.c),
                     (WASM, 'return (%s)wasm_v128_load64_zero(p);' % t.c)]
         return [(X86, 'return (%s)_mm_loadu_si128((const __m128i *)p);' % t.c),
                 (NEON, 'return (%s)vld1q_u8((const uint8_t *)p);' % t.c),

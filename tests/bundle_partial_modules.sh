@@ -108,12 +108,12 @@ C
     "${CC:-cc}" ${VM_CFLAGS:-} -I"$repo/include" -I"$work/c-$input" "$work/c-$input"/*.c -o "$work/native"
     "$work/native"
 done
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/bundle_partial_modules_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread -o "$work/test"
 "$work/test" "$work/base-source.zx" "$work/thin-source.zx" "$work/standalone-source.zx" "$work/included-source.zx"
 # The same composition executes on the independent portable VM library.
 if [ -f "${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}" ]; then
-    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" \
+    "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
         "$repo/tests/bundle_partial_modules_test.c" "${ZIRAN_VM_LIB:-$repo/build/libziran-vm.a}" -lm -pthread -o "$work/test"
     "$work/test" "$work/base-source.zx" "$work/thin-source.zx" "$work/standalone-source.zx" "$work/included-source.zx"
 fi

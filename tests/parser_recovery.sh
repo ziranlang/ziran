@@ -19,7 +19,7 @@ Answer :: () -> s32 {
 ZI
 "$ziran" ir --root "$work" -o "$work/saved-imports" "$work/library.zi"
 cp "$work/imports.zi" "$work/saved-imports/imports.zi"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/parser_recovery_test.c" "${ZIRAN_LIB:-$(dirname "$ziran")/../libziran.a}" \
     -lm -pthread -o "$work/test"
 python3 - "$work/test" "$work/bad.zi" "$work" <<'PY'

@@ -9,7 +9,7 @@ ${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$(dirname "
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-text" \
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-source" \
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-scan" \
-    -I"$repo/cmd/zir" \
+    -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/compiler_statement_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -o "$work/statement-boundary"
 "$work/statement-boundary"

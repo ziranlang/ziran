@@ -7,7 +7,7 @@ set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-"${CC:-cc}" ${VM_CFLAGS:-} -O2 -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -O2 -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/sha256_test.c" "$repo/cmd/zir/zir_sha256.c" -o "$work/sha256"
 "$work/sha256"
 ZIRAN_SHA256_PORTABLE=1 "$work/sha256"

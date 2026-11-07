@@ -10,7 +10,7 @@ mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 source=$repo/tests/spec/vm_deep_marking_test.zi
 "$ziran" ir --root "$repo/tests/spec" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/vm_deep_marking_test.c" "$repo"/cmd/zir/zir_vm*.c \
     "$library" -Wl,--wrap=malloc -Wl,--wrap=realloc -lm -pthread -o "$work/test"
 for form in source saved; do

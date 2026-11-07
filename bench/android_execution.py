@@ -115,7 +115,7 @@ func benchKernel(n int64, seed uint64) uint64 {
              'AR='+str(ndk/'llvm-ar'), 'OBJCOPY='+str(ndk/'llvm-objcopy'),
              'CFLAGS=-O2 -fPIC', library], env, cwd=ROOT)
     execute([cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I'+str(ROOT/'include'),
-             '-I'+str(ROOT/'cmd/zir'), ROOT/'bench/vm_startup.c', library, '-lm', '-pthread',
+             '-I'+str(ROOT/'cmd/zir'), '-I'+str(ROOT/'bootstrap/compiler_ir'), ROOT/'bench/vm_startup.c', library, '-lm', '-pthread',
              '-o', out/'vm-runner'], env)
     data = dict(schema=1, created_utc=time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),
                 abi=args.abi, small=args.small, large=args.large, seed=SEED,

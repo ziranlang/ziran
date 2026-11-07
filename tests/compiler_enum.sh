@@ -7,7 +7,7 @@ module=compiler_enum_test
 
 ${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-enum" \
     -I"$(dirname "${ZIRAN_LIB:-$repo/build/libziran.a}")/compiler-text" \
-    -I"$repo/cmd/zir" \
+    -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/compiler_enum_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -pthread -o "$work/source-boundary"
 "$work/source-boundary"

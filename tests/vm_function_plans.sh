@@ -24,7 +24,7 @@ cp "$repo/tests/spec/vm_function_plans_test.zi" "$source"
     echo '}'
 } >> "$source"
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/vm_function_plans_test.c" "$repo/cmd/zir/zir_vm.c" \
     "$repo/cmd/zir/zir_vm_verify.c" "$repo/cmd/zir/zir_vm_simd.c" \
     "$library" -lm -pthread -o "$work/test"

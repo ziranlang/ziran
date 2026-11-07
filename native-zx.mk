@@ -40,7 +40,7 @@ $(BUILD_DIR)/zx_native_headers.c: scripts/embed_headers.sh $(NATIVE_ZX_HEADERS) 
 	    sed -e 's/"zir_runtime.h"/"zir_zx_native.h"/' \
 	        -e 's/const ZirRuntimeHeader ZirRuntimeHeaders/const ZxNativeHeader ZxNativeHeaders/' > $@
 
-$(BUILD_DIR)/obj/zx_native_headers.o: $(BUILD_DIR)/zx_native_headers.c $(BUILD_DIR)/.compiler-flags
+$(BUILD_DIR)/obj/zx_native_headers.o: $(BUILD_DIR)/zx_native_headers.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -68,7 +68,7 @@ endif
 ZIRAN_VM_HOST_OBJECT := $(BUILD_DIR)/obj/zir_host_vm.o
 ZIRAN_VM_LIB_OBJECTS := $(filter-out $(call obj,cmd/zir/zir_host.c) $(NATIVE_ZX_OBJECTS),$(LIB_OBJECTS)) \
     $(ZIRAN_VM_HOST_OBJECT)
-$(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-zx.mk
+$(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-zx.mk $(IR_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk

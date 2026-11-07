@@ -11,6 +11,9 @@
   matches C code that shares the records: `const char *` or `char name[N]`
   fields, and enum constants with a prefix such as `ZIR_EXPR_`. Saved IR is
   version 63.
+- The compiler's IR records (modules, functions, statements, expressions,
+  types, laws and proofs) are defined once in Ziran; C includes the header
+  generated from them.
 - A record whose array size names a constant, such as `[NAME_MAX]u8`, keeps
   its fields' `#go_tag` and `#c` spellings; Go dropped the tags before.
 - `#if`, `#ifx`, `#assert` and `#run` share one compile-time evaluator, and

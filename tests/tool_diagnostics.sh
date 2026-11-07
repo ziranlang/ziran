@@ -98,7 +98,8 @@ int main(void) {
     return 1;
 }
 ''')
-subprocess.run(['cc', '-std=c11', '-I' + str(repo / 'cmd/zir'), str(probe),
+subprocess.run(['cc', '-std=c11', '-I' + str(repo / 'include'), '-I' + str(repo / 'cmd/zir'),
+                '-I' + str(repo / 'bootstrap/compiler_ir'), str(probe),
                 str(repo / 'cmd/zir/zir_diagnostic.c'), str(repo / 'cmd/zir/zir_memory.c'), '-o', str(work / 'probe')], check=True)
 items = diagnostics([work / 'probe'], 'compiler.memory')
 assert items[0]['message'].startswith('🙂ÿ'), items

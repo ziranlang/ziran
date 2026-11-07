@@ -16,7 +16,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 "${CC:-cc}" -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror \
-    -I"$root/cmd/zir" "$root/tests/compiler_files_portable.c" \
+    -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" "$root/tests/compiler_files_portable.c" \
     "$root/cmd/zir/zir_files.c" "$root/cmd/zir/zir_memory.c" -o "$work/files"
 mkdir "$work/native"
 (cd "$work/native" && "$work/files")
@@ -30,7 +30,7 @@ if ! command -v "$cc" >/dev/null 2>&1; then
     echo "compiler_files_portable: native passed; $cc unavailable"
     exit 0
 fi
-"$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/cmd/zir" \
+"$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
     "$root/tests/compiler_files_portable.c" "$root/cmd/zir/zir_files.c" "$root/cmd/zir/zir_memory.c" \
     "$@" -o "$work/files.exe"
 

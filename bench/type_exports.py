@@ -38,7 +38,7 @@ def main():
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     libraries = dict(before=args.before_lib.resolve(),current=args.library.resolve())
     for label,library in libraries.items():
-        common=['cc','-O2','-std=c11','-D_GNU_SOURCE','-Iinclude','-Icmd/zir','bench/type_exports.c',library,'-lm','-pthread']
+        common=['cc','-O2','-std=c11','-D_GNU_SOURCE','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','bench/type_exports.c',library,'-lm','-pthread']
         subprocess.run([*common,'-o',out/label],cwd=ROOT,env=env,check=True)
         subprocess.run([*common,'-DTYPE_ALLOCATIONS','-Wl,--wrap=malloc,--wrap=calloc,--wrap=realloc','-o',out/(label+'-alloc')],cwd=ROOT,env=env,check=True)
     meta=dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,measurement_launcher=timer,

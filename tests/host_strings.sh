@@ -8,7 +8,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 source=$repo/tests/spec/host_strings.zi
 "$ziran" ir --root "$repo/tests/spec" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/host_strings_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/test"
 for form in source saved; do

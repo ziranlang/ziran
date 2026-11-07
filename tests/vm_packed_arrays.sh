@@ -12,7 +12,7 @@ mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 source="$repo/tests/spec/vm_packed_arrays_test.zi"
 "$ziran" ir --root "$repo/tests/spec" --module-path "$repo/std" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/vm_packed_arrays_test.c" "$library" -lm -pthread -o "$work/vm-test"
 for form in source saved; do
     module=$source; root="$repo/tests/spec"

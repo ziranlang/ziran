@@ -261,6 +261,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   | `compiler_statement.zi` | Loop and control headers, `then`/`else`, `#if` headers, name references |
   | `compiler_proof_kernel.zi` | Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget |
   | `compiler_bundle.zi` | The `.zx` container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk |
+  | `compiler_ir.zi` | The IR records C shares: modules, functions, statements, expressions, types, laws and proofs, their kinds and buffer sizes. `zir.h` includes the generated header, spelled for C with `#c` |
 
   C files in `cmd/zir`, with line counts on 2026-11-07. *Boundary* means the
   rules live in Ziran and C keeps storage, spans and diagnostics. *C* means

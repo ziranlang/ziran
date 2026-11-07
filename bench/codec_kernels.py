@@ -508,7 +508,8 @@ def main():
     metadata['input_hashes'] = {str(path.relative_to(ROOT)): digest(path) for path in inputs}
     # Capture compiler/library source identity without loading source contents.
     metadata['compiler_source_hashes'] = {str(path.relative_to(ROOT)): digest(path)
-                                          for folder in ['cmd', 'include'] for path in (ROOT / folder).rglob('*')
+                                          for folder in ['cmd', 'include', 'bootstrap/compiler_ir']
+                                          for path in (ROOT / folder).rglob('*')
                                           if path.is_file() and path.suffix in ['.c', '.h']}
     write_json(out / 'metadata.json', metadata)
     write_json(out / 'capabilities.json', capabilities)
@@ -538,7 +539,7 @@ def main():
         raise RuntimeError(f'logical TypeLayout audit needs {library}; build toolchain first')
     # A sanitized libziran.a (make sanitize) needs its instrumentation flags.
     library_flags = os.environ.get('VM_CFLAGS', '').split()
-    invoke([cc, *cflags, *library_flags, '-I', ROOT / 'cmd/zir', '-I', ROOT / 'include',
+    invoke([cc, *cflags, *library_flags, '-I', ROOT / 'cmd/zir', '-I', ROOT / 'bootstrap/compiler_ir', '-I', ROOT / 'include',
             out / 'logical-layout.c', library, '-lm', '-pthread', '-o', out / 'logical-layout'], 'compile', 'logical TypeLayout probe')
     logical = json.loads(invoke([out / 'logical-layout', FIXTURES, layout_source], 'audit', 'logical TypeLayout source')[0])
     if [(r['size'], r['alignment']) for r in logical] != [(8, 8), (8, 8), (16, 8), (24, 8)]:
@@ -775,7 +776,8 @@ def main():
     # recorded. What was built and measured must stay unchanged: the hashed
     # tools and inputs, and the headers the C builds above include.
     built_headers = [name for name in metadata['compiler_sources_changed_during_run']
-                     if name.endswith('.h') and (name.startswith('include/') or Path(name).parent == Path('cmd/zir'))]
+                     if name.endswith('.h') and (name.startswith('include/') or
+                         Path(name).parent in (Path('cmd/zir'), Path('bootstrap/compiler_ir')))]
     if built_headers:
         raise RuntimeError('headers the benchmark built against changed during run: '
                            + ', '.join(built_headers) + '; rerun on stable sources')

@@ -8,14 +8,14 @@ build=$(CDPATH= cd -- "$(dirname -- "$library")" && pwd)
 work=$build/tests/symbol-lookup
 mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/symbol_lookup_test.c" \
     "$library" -lm -pthread -o "$work/test"
 ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/test"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/reachable_types_test.c" "$library" -lm -pthread -o "$work/reachable"
 ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/reachable"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/type_exports_test.c" "$library" -lm -pthread -o "$work/exports"
 ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/exports"
 echo 'Type, procedure and constant resolution preserve file scopes, imports, ambiguity, mutation and independent concurrent programs'

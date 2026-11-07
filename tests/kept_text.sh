@@ -7,6 +7,6 @@ build=$(CDPATH= cd -- "$(dirname -- "$library")" && pwd)
 work=$build/tests/kept-text
 mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ZIRAN_PROFILE ZIRAN_VM_PROFILE
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/kept_text_test.c" "$library" -lm -pthread -o "$work/test"
 "$work/test"

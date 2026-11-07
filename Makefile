@@ -79,6 +79,8 @@ PROOF_KERNEL_C := bootstrap/compiler_proof_kernel
 PROOF_KERNEL_READY := $(PROOF_KERNEL_C)/compiler_proof_kernel.c $(PROOF_KERNEL_C)/compiler_proof_kernel.h $(PROOF_KERNEL_C)/vec.h
 BUNDLE_C := bootstrap/compiler_bundle
 BUNDLE_READY := $(BUNDLE_C)/compiler_bundle.c $(BUNDLE_C)/compiler_bundle.h
+IR_C := bootstrap/compiler_ir
+IR_READY := $(IR_C)/compiler_ir.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
@@ -100,8 +102,10 @@ PROOF_KERNEL_C := $(BUILD_DIR)/compiler-proof-kernel
 PROOF_KERNEL_READY := $(PROOF_KERNEL_C)/.generated
 BUNDLE_C := $(BUILD_DIR)/compiler-bundle
 BUNDLE_READY := $(BUNDLE_C)/.generated
+IR_C := $(BUILD_DIR)/compiler-ir
+IR_READY := $(IR_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(BUNDLE_C)
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(BUNDLE_C) -I$(IR_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_native.c cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
@@ -179,7 +183,8 @@ $(BUILD_DIR)/.compiler-flags: force-compiler-flags
 
 force-compiler-flags:
 
-$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags
+# zir.h includes the IR records generated from cmd/compiler_ir.zi.
+$(BUILD_DIR)/obj/%.o: %.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -234,7 +239,7 @@ $(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
 
-$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
+$(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags $(IR_READY)
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(DEPFLAGS) -c -o $@ $<
 
@@ -415,7 +420,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_statement/compiler_statement.c bootstrap/compiler_statement/compiler_statement.h \
     bootstrap/compiler_proof_kernel/compiler_proof_kernel.c bootstrap/compiler_proof_kernel/compiler_proof_kernel.h \
     bootstrap/compiler_proof_kernel/vec.h \
-    bootstrap/compiler_bundle/compiler_bundle.c bootstrap/compiler_bundle/compiler_bundle.h Makefile
+    bootstrap/compiler_bundle/compiler_bundle.c bootstrap/compiler_bundle/compiler_bundle.h \
+    bootstrap/compiler_ir/compiler_ir.c bootstrap/compiler_ir/compiler_ir.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -470,11 +476,16 @@ $(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	    -o $(BUNDLE_C) cmd/compiler_bundle.zi
 	touch $@
 
+$(IR_C)/.generated: cmd/compiler_ir.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(IR_C) cmd/compiler_ir.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel bundle
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel bundle ir
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 check-bootstrap: $(BIN_DIR)/zi2c
@@ -509,22 +520,22 @@ $(BIN_DIR)/record-fields-by-name-test: tests/record_fields_by_name_test.c $(BUIL
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/record_fields_by_name_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/zx-wasm-engine-test: tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 	    tests/zx_wasm_engine_test.c $(BUILD_DIR)/libziran-vm.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/array-host-test: tests/host_array_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_array_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/startup-graph-test: tests/startup_graph_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 		tests/startup_graph_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/vm-vec-scope-test: tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/vm-locale-test: tests/vm_locale_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -o $@ \
+	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 		tests/vm_locale_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)

@@ -6,7 +6,7 @@ work="$repo/build/tests/diagnostic-bounds"
 mkdir -p "$work/tmp"
 export TMPDIR="$work/tmp"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/diagnostic_bounds.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/bounds"
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" "$repo/tests/diagnostic_bounds.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/bounds"
 (cd "$work" && ./bounds) 2> "$work/out.jsonl"
 python3 - "$work/out.jsonl" <<'PY'
 import json,pathlib,sys

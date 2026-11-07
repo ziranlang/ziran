@@ -161,7 +161,7 @@ done
 
 # Exercise the actual C frontend boundary, including truncation, borrowed
 # source lifetime, lookahead copies, null input, and interned source spans.
-${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/compiler_scan_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -o "$work/lexer"
 "$work/lexer"

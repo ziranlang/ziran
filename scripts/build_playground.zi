@@ -83,7 +83,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "FRAMEFLAGS=-Wframe-larger-than=16384", "build/playground64/libziran.a"]
     if !Run(make[:], repo, settings) { return 1 }
     command: Vec(string)
-    fixed: [20]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Icmd/zir",
+    fixed: [21]string = .[emcc, "-O2", "-std=c11", "-D_GNU_SOURCE", "-Iinclude", "-Icmd/zir",
+        "-Ibootstrap/compiler_ir",
         "web/playground.c", "web/bundle.c", JoinPath(build, "libziran.a"), "-lm",
         "-sMEMORY64=2", "-sMODULARIZE=1", "-sEXPORT_NAME=createPlayground",
         "-sEXPORTED_FUNCTIONS=_RunSource,_BuildBundle", "-sEXPORTED_RUNTIME_METHODS=FS,ccall",

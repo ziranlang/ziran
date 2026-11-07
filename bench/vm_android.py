@@ -42,7 +42,7 @@ def prepare(args):
     for label, library in args.library:
         library = Path(library).resolve(); runner = out/('runner-'+label)
         argv = [cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I'+str(ROOT/'include'),
-                '-I'+str(ROOT/'cmd/zir'), ROOT/'bench/vm_startup.c', library,
+                '-I'+str(ROOT/'cmd/zir'), '-I'+str(ROOT/'bootstrap/compiler_ir'), ROOT/'bench/vm_startup.c', library,
                 '-lm', '-pthread', '-o', runner]
         execute(argv, env)
         manifest['files'][runner.name] = sha(runner)

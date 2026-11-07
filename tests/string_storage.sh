@@ -60,7 +60,7 @@ Answer :: () -> s32 {
 PY
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" \
     "$work/empty_builder.zi" "$work/string_storage.zi"
-${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/vm_string_storage_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/vm-test"
 for form in source saved; do

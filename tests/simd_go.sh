@@ -14,7 +14,7 @@ python3 "$repo/scripts/simd_header.py" --types | cmp -s - "$repo/include/ziran_s
 python3 "$repo/scripts/simd_header.py" --go | cmp -s - "$repo/cmd/zir/zir_simd_go_bodies.h" ||
     { echo "cmd/zir/zir_simd_go_bodies.h differs from scripts/simd_header.py --go" >&2; exit 1; }
 command -v go >/dev/null 2>&1 || exit 0
-"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/include" \
+"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/include" \
     "$repo/tests/simd_go_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/write"
 mkdir "$work/check"
 "$work/write" "$work/check"

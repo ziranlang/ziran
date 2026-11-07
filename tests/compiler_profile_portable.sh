@@ -34,7 +34,7 @@ PY
 }
 
 "${CC:-cc}" -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror \
-    -I"$root/cmd/zir" "$root/tests/compiler_profile_portable.c" \
+    -I"$root/include" -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" "$root/tests/compiler_profile_portable.c" \
     "$root/cmd/zir/zir_profile.c" -o "$work/profile"
 env -u ZIRAN_PROFILE "$work/profile"
 ZIRAN_PROFILE="$work/native.jsonl" "$work/profile"
@@ -49,7 +49,7 @@ if ! command -v "$cc" >/dev/null 2>&1; then
     echo "compiler_profile_portable: native passed; $cc unavailable"
     exit 0
 fi
-"$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/cmd/zir" \
+"$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/include" -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
     "$root/tests/compiler_profile_portable.c" "$root/cmd/zir/zir_profile.c" \
     "$@" -o "$work/profile.exe"
 

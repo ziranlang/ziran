@@ -6,14 +6,14 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 python3 "$repo/tests/native_build_parallel_test.py" "$ziran" "$work"
-"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/cmd/zir-c" \
+"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" \
     "$repo/tests/native_build_workers_test.c" "$repo/cmd/zir-c/zir_c_cache.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread -o "$work/workers"
 "$work/workers"
 mkdir "$work/owned"
 wrap=
 if test "$(uname -s)" = Linux; then wrap=-Wl,--wrap=syscall,--wrap=posix_spawnp; fi
-"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/cmd/zir-c" \
+"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" \
     "$repo/tests/native_build_children_test.c" "$repo/cmd/zir-c/zir_c_build.c" "$repo/cmd/zir-c/zir_c_cache.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread $wrap -o "$work/children"
 compiler=$(python3 "$repo/tests/native_test_compiler.py")
@@ -48,11 +48,11 @@ C
     for target in armv7a-linux-androideabi aarch64-linux-android i686-linux-android x86_64-linux-android; do
         for api in 21 28; do
             "$ndk_bin/$target$api-clang" -D_GNU_SOURCE -std=c11 -O2 \
-                -ffunction-sections -fdata-sections -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/cmd/zir-c" \
+                -ffunction-sections -fdata-sections -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" \
                 "$repo/tests/native_build_workers_test.c" -Wl,--gc-sections \
                 -o "$work/workers-$target$api"
             "$ndk_bin/$target$api-clang" -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror \
-                -I"$repo/cmd/zir" -I"$repo/cmd/zir-c" "$work/spawn.c" -o "$work/spawn-$target-$api"
+                -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" "$work/spawn.c" -o "$work/spawn-$target-$api"
             symbols=$("$ndk_bin/llvm-nm" --undefined-only "$work/spawn-$target-$api")
             case "$api:$symbols" in
                 21:*posix_spawn*) echo 'Unavailable Android spawn dependency' >&2; exit 1 ;;

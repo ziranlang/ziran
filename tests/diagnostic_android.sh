@@ -64,7 +64,7 @@ for target in native android; do
     else
         set --
     fi
-    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/cmd/zir" \
+    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror "$@" -I"$root/include" -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" \
         "$root/cmd/zir/zir_diagnostic.c" "$work/test.c" -o "$work/test-$target"
     "$work/test-$target" 2> "$work/$target.stderr"
 done

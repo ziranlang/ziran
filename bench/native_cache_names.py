@@ -47,7 +47,7 @@ def main():
     source = (ROOT/'bench/native_cache_names.c').read_text()
     marker = '#include "../cmd/zir-c/zir_c_cache.c"'
     assert source.count(marker)==1
-    common = [compiler,'-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','-Icmd/zir-c']
+    common = [compiler,'-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','-Icmd/zir-c']
     subprocess.run([*common,'-x','c','-','-x','none','build/libziran.a','-lm','-pthread','-o',str(out/'before')],input=source.replace(marker,old),text=True,cwd=ROOT,env=env,check=True)
     subprocess.run([*common,'bench/native_cache_names.c','build/libziran.a','-lm','-pthread','-o',str(out/'current')],cwd=ROOT,env=env,check=True)
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()

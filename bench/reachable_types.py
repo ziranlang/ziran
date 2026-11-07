@@ -39,7 +39,7 @@ def main():
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
     libraries = dict(before=args.before_lib.resolve(),current=args.library.resolve())
     for label,library in libraries.items():
-        subprocess.run(['cc','-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','bench/reachable_types.c',library,'-lm','-pthread','-o',out/label],cwd=ROOT,env=env,check=True)
+        subprocess.run(['cc','-O2','-D_GNU_SOURCE','-std=c11','-Iinclude','-Icmd/zir','-Ibootstrap/compiler_ir','bench/reachable_types.c',library,'-lm','-pthread','-o',out/label],cwd=ROOT,env=env,check=True)
     meta = dict(schema=1,platform=platform.platform(),repetitions=args.repetitions,before_limit=args.before_limit,measurement_launcher=timer,
                 compiler_version=subprocess.check_output(['cc','--version'],text=True),cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else None,
                 environment_switches={k:env.get(k) for k in ['ZIRAN_VERIFY_SYMBOL_LOOKUPS','ZIRAN_PROFILE','ZIRAN_VM_PROFILE']},

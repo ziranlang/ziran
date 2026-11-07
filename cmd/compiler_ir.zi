@@ -1,0 +1,389 @@
+// The intermediate representation records shared by the compiler core.
+// C includes the generated compiler_ir.h through zir.h; `#c` spells each
+// field and enum constant the way C reads it. This module owns the tree
+// shape and source spans; zir.c allocates them.
+
+ZIR_PATH_MAX :: 1024
+ZIR_NAME_MAX :: 128
+// Fixed text buffers. Kept statement and expression text, such as a large
+// table literal, has no length cap; saved IR bounds it by its read budget.
+ZIR_TEXT_MAX :: 4096
+
+ZirImportKind :: enum s32 #c "ZIR_IMPORT_" { OPEN :: 1; MODULE; EXTERN }
+
+ZirExternKind :: enum s32 #c "ZIR_EXTERN_" { NONE; HOST; GO; C }
+
+ZirStmtKind :: enum s32 #c "ZIR_STMT_" {
+    UNKNOWN
+    BLOCK_OPEN
+    BLOCK_CLOSE
+    DECL
+    ASSIGN
+    EXPR
+    IF
+    WHILE
+    FOR
+    CASE
+    RETURN
+    BREAK
+    CONTINUE
+    DEFER
+    UNUSED
+    UNREACHABLE
+    IF_CASE
+}
+
+ZirExprKind :: enum s32 #c "ZIR_EXPR_" {
+    UNKNOWN
+    IDENT
+    INT
+    FLOAT
+    STRING
+    CALL
+    BINARY
+    UNARY
+    MEMBER
+    POINTER_MEMBER
+    INDEX
+    CAST
+    COMPOUND
+    SIZE_OF
+    CONDITIONAL
+    FIELD_INIT
+    SLICE
+    COMPILE_TIME
+}
+
+ZirSourceSpan :: struct {
+    context: *u8 #c "struct CompilerContext *"  // in-memory owner of the source-file number
+    file: s32  // SourceFile number of the path; read it with SpanPath
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+}
+
+ZirImport :: struct {
+    kind: ZirImportKind
+    extern_kind: ZirExternKind
+    is_public: s32
+    is_file_private: s32
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    target: [ZIR_PATH_MAX]u8 #c "char"
+    extern_symbol: [ZIR_NAME_MAX]u8 #c "char"
+    signature: [ZIR_TEXT_MAX]u8 #c "char"
+    args: [ZIR_TEXT_MAX]u8 #c "char"  // parsed extern parameters
+    return_type: [ZIR_NAME_MAX]u8 #c "char"
+    must_use: s32
+    is_varargs: s32  // trailing `..any` extern parameter accepts extra call arguments
+    go_results: s32  // direct Go results populate the declared result record in field order
+    go_field: s32  // one Go receiver argument reads its declared native field
+    go_defer: s32  // a standalone call schedules its Go foreign target at function exit
+    go_variadic: s32  // expand the final slice parameter into native Go variadic arguments
+    // `#reads`: the foreign procedure only reads its string and byte
+    // arguments during the call. Format 59 reserved this slot as zero.
+    reads_arguments: s32
+    reserved_1: s32  // format 59 slot, always zero; drop it at the next format bump
+    required: s32
+    is_using: s32  // `using Alias :: #import` re-exports public names
+    span: ZirSourceSpan
+    resolved_module: *ZirModule #c "const struct ZirModule *"  // borrowed from the checked program set
+}
+
+ZirStmtNames :: union {
+    name: *u8 #c "const char *"  // declaration binding; KeepName
+    assembly_text: *u8 #c "const char *"  // BLOCK_OPEN: optional #asm variants; KeepText
+}
+
+ZirStmt :: struct {
+    kind: ZirStmtKind
+    is_using: s32  // template namespace activation; lowered in checked bodies
+    is_parallel: s32  // `#parallel for` region; serial lowering, checked rules
+    is_gpu: s32  // `#parallel_gpu for` region; pointers rejected pre-offload
+    text: *u8 #c "const char *"  // shared and immutable: assign KeepText(...)
+    is_else: s32  // checked branch role; source text is diagnostic only
+    loop_id: s32  // checked loop identity for named control flow
+    target_id: s32  // target loop for named break/continue; zero means innermost
+    for_form: s32  // on a lowered for loop's while: 1 counts, 2 walks a collection
+    for_step: s32  // on a counting loop's step: that loop's loop_id
+    expr_root: s32  // index into enclosing function exprs, or -1
+    lhs_root: s32  // structured assignment destination, or -1
+    using names: ZirStmtNames #c "union"
+    type: *u8 #c "const char *"  // declared or inferred type; KeepName
+    assignment_op: [4]u8 #c "char"
+    span: ZirSourceSpan
+}
+
+ZirExpr :: struct {
+    kind: ZirExprKind
+    is_function_value: s32  // declaration bound to an expected slot signature
+    is_this: s32  // #this resolves to the enclosing procedure despite shadowing
+    is_global_value: s32  // in-memory only: identifier/call bound to a global
+    is_move: s32  // in-memory only: a checked owned binding is consumed here
+    text_owned: s32  // in-memory only: a Text call result its owner keeps
+    slot_type: *u8 #c "const char *"  // lexical callable signature, empty for ordinary calls; KeepName
+    text: *u8 #c "const char *"  // shared and immutable: assign KeepText(...)
+    name: *u8 #c "const char *"  // KeepName
+    argument_name: *u8 #c "const char *"  // name on a call argument, if supplied; KeepName
+    argument_index: s32  // checked callee parameter position, or -1
+    op: [8]u8 #c "char"
+    left: s32
+    right: s32
+    first_child: s32
+    next_sibling: s32
+    third: s32  // false conditional arm or slice upper bound, or -1
+    type: *u8 #c "const char *"  // resolved type, empty means unresolved; KeepName
+    span: ZirSourceSpan
+}
+
+ZirFunction :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    args_text: *u8 #c "const char *"  // parameters; read with FunctionArgs, set with KeepParameters
+    default_args_text: *u8 #c "const char *"  // declaration parameters with defaults; FunctionDefaultArgs
+    using_parameters: u64  // template parameter namespace flags
+    return_type: [ZIR_NAME_MAX]u8 #c "char"
+    must_use: s32  // #must requires callers to keep the result
+    inlining: s32  // ZIR_INLINE_ALWAYS for #inline, ZIR_INLINE_COLD for #cold
+    simd_target: s32  // #target: generated C picks the best x86-64 SIMD tier
+    assembly_text: *u8 #c "const char *"  // optional #asm variants; immutable kept text
+    is_conversion: s32  // `Name :: #as (source: Type) -> Result`
+    go_method: [ZIR_NAME_MAX]u8 #c "char"  // native receiver adapter; first parameter is the receiver
+    go_method_results: s32  // flatten the result record into Go multiple results
+    effect_class: [12]u8 #c "char"  // pure | observing | mutating | external
+    exported: s32
+    retained_root: s32  // command-selected bundle root; not serialized
+    export_symbol: [ZIR_NAME_MAX]u8 #c "char"  // optional #program_export linker name
+    is_extern: s32
+    extern_kind: ZirExternKind
+    is_public: s32  // function emitted in generated interfaces
+    is_file_private: s32
+    is_template: s32  // Jai $T procedure declaration; no native body
+    is_specialization: s32  // checked instance generated from a template
+    is_global_initializer: s32  // private startup body generated from a global
+    template_param: [ZIR_NAME_MAX]u8 #c "char"
+    specialization_type: [ZIR_NAME_MAX]u8 #c "char"
+    overload_name: [ZIR_NAME_MAX]u8 #c "char"  // source name shared by overloads; name is unique
+    checked: s32  // shared checker resolved the function without errors
+    from_ir: s32  // in-memory only: expression graph came from saved IR
+    default_helpers_created: s32  // in-memory only: source helper pass ran
+    uses_host: s32  // direct or transitive host services or retained-state access
+    extern_target: [ZIR_NAME_MAX]u8 #c "char"  // resolved #foreign library/symbol
+    extern_symbol: [ZIR_NAME_MAX]u8 #c "char"  // stripped C symbol for c.* externs
+    span: ZirSourceSpan
+    stmts: *ZirStmt
+    stmt_count: s32
+    stmt_cap: s32
+    exprs: *ZirExpr
+    expr_count: s32
+    expr_cap: s32
+}
+
+// Every expression of one tree, depth first. PENDING must have room for
+// every expression of the function, since each is pushed at most once.
+ZirExprWalk :: struct {
+    fn: *ZirFunction #c "const ZirFunction *"
+    pending: *s32 #c "int *"
+    count: s32
+}
+
+ZirGlobal :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    type: [ZIR_TEXT_MAX]u8 #c "char"
+    // Shared and immutable: assign KeepText(...); a raw #string table can
+    // exceed a line.
+    init: *u8 #c "const char *"
+    is_static: s32  // internal linkage in generated native code
+    is_file_private: s32
+    native_name_collision: s32  // in-memory: another global maps to this native name
+    span: ZirSourceSpan
+}
+
+// A Ziran `Name :: value` constant emitted into generated target interfaces.
+ZirDefine :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    // Shared and immutable: assign KeepText(...); a raw #string table can
+    // exceed a line.
+    value: *u8 #c "const char *"
+    is_public: s32  // visible to importing modules
+    is_file_private: s32
+    requires_open_enum: s32  // unresolved source alias, cleared by checking
+    native_name_collision: s32  // in-memory: another constant maps to this native name
+    span: ZirSourceSpan
+}
+
+ZirAssert :: struct {
+    condition: [ZIR_TEXT_MAX]u8 #c "char"  // compile-time Ziran expression
+    message: [ZIR_TEXT_MAX]u8 #c "char"
+    span: ZirSourceSpan
+}
+
+ZirUsing :: struct {
+    path: [ZIR_NAME_MAX]u8 #c "char"
+    filter: [160]u8 #c "char"  // compact only/except/map filter: "O:a,b", "E:c", or "M:new=old"
+    is_file_private: s32
+    span: ZirSourceSpan
+}
+
+ZirLawEvidence :: struct {
+    method: [16]u8 #c "char"  // structural | evaluation | exhaustive | kernel
+    domain: [ZIR_TEXT_MAX]u8 #c "char"
+    cases_checked: u64
+    counterexample: [ZIR_TEXT_MAX]u8 #c "char"  // JSON object, empty when absent
+    waived: s32
+}
+
+ZirProofStepKind :: enum s32 #c "ZIR_PROOF_" {
+    UNFOLD :: 1
+    CASES
+    REWRITE
+    USE
+    REFL
+    RING
+    ORDER
+}
+
+ZirProofStep :: struct {
+    kind: ZirProofStepKind
+    target: [ZIR_NAME_MAX]u8 #c "char"
+    term_root: s32  // theorem application in the proof's terms graph
+    span: ZirSourceSpan
+}
+
+ZirProof :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    source: [ZIR_TEXT_MAX]u8 #c "char"  // diagnostic only after parsing
+    span: ZirSourceSpan
+    steps: *ZirProofStep
+    step_count: s32
+    terms: ZirFunction  // checked theorem arguments; never executable code
+    owner: *ZirModule #c "const struct ZirModule *"  // borrowed, never serialized
+}
+
+// A `#law NAME kind payload;` obligation (see LANGUAGE_DIRECTION.md).
+ZirLaw :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    kind: [16]u8 #c "char"
+    payload: [ZIR_TEXT_MAX]u8 #c "char"
+    span: ZirSourceSpan
+    evidence: ZirLawEvidence
+    claim: *ZirFunction  // typed theorem proposition, null for other kinds
+    proof: *ZirProof #c "const ZirProof *"  // associated certificate, borrowed, never saved
+    // In-memory EvaluateLaw result, reused while module and proof match.
+    evaluated_in: *ZirModule #c "const struct ZirModule *"
+    evaluated_proof: *ZirProof #c "const ZirProof *"
+    evaluated_status: s32
+    evaluated_detail: *u8 #c "const char *"  // KeepText
+}
+
+// A `#law_waive NAME reason;` declaration.
+ZirLawWaiver :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    reason: [ZIR_TEXT_MAX]u8 #c "char"
+    span: ZirSourceSpan
+}
+
+// A `Name :: struct { fields }` type declaration. body holds the raw field
+// lines (one per line, no braces).
+ZirType :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    body: [ZIR_TEXT_MAX * 2]u8 #c "char"
+    template_params: [ZIR_NAME_MAX]u8 #c "char"  // generic record parameters
+    template_name: [ZIR_NAME_MAX]u8 #c "char"  // specialization or checked direct origin
+    template_args: [ZIR_TEXT_MAX]u8 #c "char"
+    foreign_target: [ZIR_PATH_MAX]u8 #c "char"  // opaque Go type: go:package.Type
+    is_procedure_type: s32  // named procedure type; body holds parameters
+    is_c_call: s32  // procedure type uses the native C callback ABI
+    // `#reads`: each procedure stored in the type only reads its string
+    // parameters and the string fields of its record parameters.
+    reads_arguments: s32
+    procedure_return_type: [ZIR_NAME_MAX]u8 #c "char"
+    is_public: s32  // visible to importing modules
+    is_file_private: s32
+    is_enum: s32  // 'Name :: enum': emit typedef enum, not struct
+    is_union: s32  // fields share storage
+    is_go_anonymous: s32  // Go aliases the record's unnamed struct identity
+    is_enum_flags: s32
+    is_enum_specified: s32
+    enum_backing: [ZIR_NAME_MAX]u8 #c "char"  // checked integer storage type
+    c_prefix: [ZIR_NAME_MAX]u8 #c "char"  // `#c "PREFIX"`: C spells members PREFIX+name
+    is_record_template: s32
+    is_type_instance: s32  // unresolved until imports are linked
+    is_synthetic_application: s32  // private name made from a direct type call
+    is_owned_vec: s32  // specialized standard Vec storage
+    is_map: s32  // Go map; body records the private key/value types
+    is_extern: s32  // host-owned record or opaque foreign type
+    is_abi_incomplete: s32  // native ABI treats the complete record as opaque
+    is_results: s32  // holds the results of a procedure with several, value_0...
+    native_name_mangled: s32  // in-memory: shared spelling or target keyword
+    span: ZirSourceSpan
+}
+
+ZirTypeField :: struct {
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    type: [ZIR_NAME_MAX]u8 #c "char"
+    go_tag: [512]u8 #c "char"  // checked #go_tag string literal; Go reflection metadata
+    c_type: [ZIR_NAME_MAX]u8 #c "char"  // `#c "TYPE"`: the C header's spelling
+    is_using: s32
+}
+
+ZirModule :: struct {
+    context: *u8 #c "struct CompilerContext *"  // lookup/cache owner; distinct from source origin
+    name: [ZIR_NAME_MAX]u8 #c "char"
+    source_path: [ZIR_PATH_MAX]u8 #c "char"
+    document: *u8 #c "const struct ZirDocument *"  // raw source identity; never serialized
+    source_root: [ZIR_PATH_MAX]u8 #c "char"  // source-only path for call-site defaults
+    lookup_path: [ZIR_PATH_MAX]u8 #c "char"  // checker context; never serialized
+    // NAME when this module is the standard library's std/NAME, under any
+    // identity (NAME, std_NAME or a scoped package's); never serialized.
+    standard_name: [ZIR_NAME_MAX]u8 #c "char"
+    span: ZirSourceSpan
+    globals: *ZirGlobal
+    global_count: s32
+    global_cap: s32
+    defines: *ZirDefine
+    define_count: s32
+    define_cap: s32
+    asserts: *ZirAssert
+    assert_count: s32
+    assert_cap: s32
+    usings: *ZirUsing  // source scope; references lower before saving IR
+    using_count: s32
+    using_cap: s32
+    laws: *ZirLaw
+    law_count: s32
+    law_cap: s32
+    law_waivers: *ZirLawWaiver
+    law_waiver_count: s32
+    law_waiver_cap: s32
+    proofs: *ZirProof
+    proof_count: s32
+    proof_cap: s32
+    types: *ZirType
+    type_count: s32
+    type_cap: s32
+    imports: *ZirImport
+    import_count: s32
+    import_cap: s32
+    functions: *ZirFunction
+    function_count: s32
+    function_cap: s32
+    // Bundle composition provenance; derived from payload/library
+    // boundaries, never serialized. Library executable bodies follow the
+    // owned prefix.
+    bundle_library: *ZirModule #c "const struct ZirModule *"
+    bundle_own_functions: s32
+    bundle_own_laws: s32
+    bundle_own_waivers: s32
+    bundle_shared_functions: s32
+}
+
+ZirProgram :: struct {
+    context: *u8 #c "struct CompilerContext *"
+    context_retained: s32
+    owns_context: s32
+    retained_contexts: *u8 #c "struct CompilerContext **"
+    retained_context_count: s32
+    modules: *ZirModule
+    module_count: s32
+    module_cap: s32
+}

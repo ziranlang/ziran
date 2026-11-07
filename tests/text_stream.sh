@@ -8,6 +8,6 @@ for mode in memory temporary; do
     define=
     if test "$mode" = temporary; then define=-DTEST_TEXT_STREAM_TMPFILE=1; fi
     "${CC:-cc}" ${VM_CFLAGS:-} -O2 -std=c11 -D_GNU_SOURCE -Wall -Wextra -Werror \
-        $define -I"$repo/cmd/zir" "$repo/tests/text_stream_test.c" -o "$work/check"
+        $define -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" "$repo/tests/text_stream_test.c" -o "$work/check"
     (cd "$work" && ./check)
 done

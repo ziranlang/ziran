@@ -6,7 +6,7 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/helpers"
 "$work/helpers"
@@ -114,7 +114,7 @@ int main(void) { return StringEqual(StringLiteral("a\0z"), StringView("a\0z", 3)
 C
 sh "$repo/scripts/embed_headers.sh" "$repo/include/zir_string.h" \
     "$repo/include/zir_string_types.h" > "$work/embedded.c"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$work/copy.c" "$repo/cmd/zir/zir_runtime.c" "$work/embedded.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/copy"
 "$work/copy" "$work/copied" "$work/copied/use.c"

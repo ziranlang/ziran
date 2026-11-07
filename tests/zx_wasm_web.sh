@@ -44,7 +44,7 @@ make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
     WASM_PRIVATE_HEADERS="$work/private" \
     "$work/lib/libziran-vm.a"
 
-"$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" \
+"$emcc" -O2 -std=gnu99 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/zx_wasm_web_host.c" "$work/lib/libziran-vm.a" \
     -o "$work/host.js" -s MODULARIZE=1 -s EXPORT_NAME=ZxWasmWebHost \
     -s ENVIRONMENT=node -s NODERAWFS=1 -s ALLOW_MEMORY_GROWTH=1 \

@@ -22,7 +22,7 @@ Answer :: () -> s64 {
 }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/program.zi" > "$work/laws.json"
-"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/include" \
+"${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/include" \
     "$repo/tests/zx_portable_write_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/write"
 python3 - "$work" "$ziran" <<'PY'
 from pathlib import Path

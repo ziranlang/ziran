@@ -10,7 +10,7 @@ mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS ZIRAN_PROFILE ZIRAN_VM_PROFILE
 source=$repo/tests/spec/vm_concurrent_instances_test.zi
 "$ziran" ir --root "$repo/tests/spec" -o "$work/ir" "$source"
-"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+"${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     -I"$repo/bootstrap/compiler_text" \
     -I"$repo/bootstrap/compiler_type" \
     "$repo/tests/vm_concurrent_instances_test.c" "$repo"/cmd/zir/zir_vm*.c \

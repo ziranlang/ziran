@@ -14,7 +14,7 @@ export GOPATH="$work/go" GOTMPDIR="$work/tmp" GOMAXPROCS=2 GOFLAGS=-p=2 GOTOOLCH
 export ZIRAN_NATIVE_CACHE="$work/native-cache" XDG_CACHE_HOME="$work/cache"
 ulimit -c 0
 library="$(dirname "$ziran")/../libziran.a"
-"${CC:-cc}" -std=c11 -D_GNU_SOURCE ${VM_CFLAGS:-} -I"$repo/include" -I"$repo/cmd/zir" "$repo/tests/vec_capacity_vm.c" "$library" -Wl,--wrap=calloc -lm -pthread -ldl -o "$work/vm"
+"${CC:-cc}" -std=c11 -D_GNU_SOURCE ${VM_CFLAGS:-} -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" "$repo/tests/vec_capacity_vm.c" "$library" -Wl,--wrap=calloc -lm -pthread -ldl -o "$work/vm"
 printf '#include <stdlib.h>\n#include <stdint.h>\nint main(void) { return 0; }\n' > "$work/probe32.c"
 have_c32=false
 if "${CC:-cc}" -m32 "$work/probe32.c" -o "$work/probe32" > "$work/c32.log" 2>&1; then

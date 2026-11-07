@@ -83,7 +83,7 @@ def main():
         library = directory/'libziran.a'
         if not library.is_file(): library = directory.parent/'libziran.a'
         runner = output/f'{label}-runner'
-        command = [cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I', ROOT/'include', '-I', ROOT/'cmd/zir',
+        command = [cc, '-O2', '-std=c11', '-D_GNU_SOURCE', '-I', ROOT/'include', '-I', ROOT/'cmd/zir', '-I', ROOT/'bootstrap/compiler_ir',
                    ROOT/'bench/vm_startup.c', library, '-lm', '-pthread', '-o', runner]
         subprocess.run([str(p) for p in command], cwd=ROOT, env=env, check=True, capture_output=True)
         variants[label] = dict(runner=runner, checker=directory/'zi2zir', bundler=directory/'zi2zx',

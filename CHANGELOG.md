@@ -106,7 +106,8 @@
 - On 32-bit ARM, `f32` vector arithmetic keeps tiny values instead of
   flushing them to zero, and byte shifts of 256-bit vectors are correct.
 - `std/resample`'s x86-64 kernels use `std/simd` instead of assembly. They
-  make the same bytes and run about 10% faster with AVX2.
+  make the same bytes and run at least as fast with AVX2, about 20% faster
+  on large downscales.
 - `Text` in `std/vec` is owned UTF-8 text that frees its bytes with its
   owner. `TextView(text)` borrows it, a `Text` passed where a `string` is
   expected lends the same view, and `TextCopy` copies a string into one.

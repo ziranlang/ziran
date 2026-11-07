@@ -214,12 +214,20 @@ HorizontalStep :: (source: *u8, pixel: s64, packed: *u32, w: s64, low: *s32x4, h
     high.* = Simd.Add(high.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w + 1]))))
 }
 
-// The last tap of an odd count, its partner weight 0.
-HorizontalOdd :: (source: *u8, pixel: s64, packed: *u32, w: s64, low: *s32x4, high: *s32x4) #inline {
-    word := cast(u32)source[pixel] | (cast(u32)source[pixel + 1] << 8) |
-        (cast(u32)source[pixel + 2] << 16) | (cast(u32)source[pixel + 3] << 24)
-    words := Simd.Reinterpret(s16x8, Simd.WidenLow(Simd.Reinterpret(u8x16, Simd.WithLane(Simd.Zero(u32x4), 0, word))))
-    taps := Simd.InterleaveLow(words, Simd.Zero(s16x8))
+// The last tap of an odd count, its partner weight 0. After an earlier tap
+// it is the high half of the 8 bytes ending there, which one load reads;
+// a lone tap is read byte by byte, as nothing before it need exist.
+HorizontalOdd :: (source: *u8, pixel: s64, packed: *u32, w: s64, alone: bool, low: *s32x4, high: *s32x4) #inline {
+    taps := Simd.Zero(s16x8)
+    if alone {
+        word := cast(u32)source[pixel] | (cast(u32)source[pixel + 1] << 8) |
+            (cast(u32)source[pixel + 2] << 16) | (cast(u32)source[pixel + 3] << 24)
+        words := Simd.Reinterpret(s16x8, Simd.WidenLow(Simd.Reinterpret(u8x16, Simd.WithLane(Simd.Zero(u32x4), 0, word))))
+        taps = Simd.InterleaveLow(words, Simd.Zero(s16x8))
+    } else {
+        words := Simd.Reinterpret(s16x8, Simd.WidenLow(Simd.LoadLow(u8x16, source, pixel - 4)))
+        taps = Simd.InterleaveHigh(words, Simd.Zero(s16x8))
+    }
     low.* = Simd.Add(low.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w]))))
     high.* = Simd.Add(high.*, Simd.MulAddPairs(taps, Simd.Reinterpret(s16x8, Simd.Splat(u32x4, packed[w + 1]))))
 }
@@ -267,7 +275,7 @@ HorizontalTyped :: (source: *u8, packed: *u32, entry: s64, output: s64, target: 
             pixel += 8
             w += 2
         }
-        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, *low, *high) }
+        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, count == 1, *low, *high) }
         HorizontalFinish(target, x * 4, low, high)
         at += entry
         x += 1
@@ -289,7 +297,8 @@ HorizontalTypedWide :: (source: *u8, packed: *u32, entry: s64, output: s64, targ
         low := Simd.Splat(s32x4, ROUND)
         high := Simd.Zero(s32x4)
         if count >= 4 {
-            low8 := Simd.Zero(s32x8)
+            // The rounding rides in the first half until the halves meet.
+            low8 := Simd.Combine(low, high)
             high8 := Simd.Zero(s32x8)
             octs := count / 8
             while octs > 0 {
@@ -313,7 +322,7 @@ HorizontalTypedWide :: (source: *u8, packed: *u32, entry: s64, output: s64, targ
                 pixel += 16
                 w += 4
             }
-            low = Simd.Add(low, Simd.Add(Simd.Low(low8), Simd.High(low8)))
+            low = Simd.Add(Simd.Low(low8), Simd.High(low8))
             high = Simd.Add(Simd.Low(high8), Simd.High(high8))
         }
         if count % 4 >= 2 {
@@ -321,7 +330,7 @@ HorizontalTypedWide :: (source: *u8, packed: *u32, entry: s64, output: s64, targ
             pixel += 8
             w += 2
         }
-        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, *low, *high) }
+        if count % 2 == 1 { HorizontalOdd(source, pixel, packed, w, count == 1, *low, *high) }
         HorizontalFinish(target, x * 4, low, high)
         at += entry
         x += 1

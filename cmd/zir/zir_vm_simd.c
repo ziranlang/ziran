@@ -1,8 +1,9 @@
 /*
  * zir_vm_simd.c - std/simd operations on the portable VM.
  *
- * A vector is a fixed array of its lanes here (see vm_array_element_type),
- * and each operation evaluates through zi_ref, the scalar reference in
+ * A vector of up to 128 bits is held inline in its Value (see VmVector);
+ * a wider one is a fixed array of its lanes (see vm_array_element_type).
+ * Each operation evaluates through zi_ref, the scalar reference in
  * include/ziran_simd.h that the C and Go backends match bit for bit.
  *
  * Each call site is prepared once: its operation, the part every operand
@@ -22,6 +23,7 @@ typedef struct SimdLanes {
     const char *lane; /* canonical lane type, as allocation names it */
     int kind, lanes;
     ArrayStorage storage;
+    const VmVector *shape; /* an inline vector's, or NULL for an array */
 } SimdLanes;
 
 /* What an operand of a value operation supplies. */
@@ -67,6 +69,7 @@ site_lanes(const char *type, SimdLanes *lanes)
     lanes->kind = SimdLaneKind(&vector);
     lanes->lanes = vector.lanes;
     lanes->storage = lane_storage(lanes->kind);
+    lanes->shape = vm_vector(type);
     return lanes->kind >= 0;
 }
 
@@ -373,9 +376,22 @@ packed_width(ArrayStorage storage)
     }
 }
 
+/* Inline vectors keep float32 lanes as their exact bits, as C does. */
+static ArrayStorage
+inline_storage(ArrayStorage storage)
+{
+    return storage == ARRAY_F32 ? ARRAY_U32 : storage;
+}
+
 static int
 read_vector(Value value, const SimdLanes *vector, uint64_t *lanes)
 {
+    if(vector->shape != NULL) {
+        if(value.kind != VALUE_VECTOR || value.vector != vector->shape)
+            return 0;
+        packed_read(vector_bytes(&value), vector->storage, vector->lanes, lanes);
+        return 1;
+    }
     if(value.kind != VALUE_ARRAY || value.array == NULL ||
        value.array->length != vector->lanes)
         return 0;
@@ -393,6 +409,12 @@ static Value
 make_vector(Vm *vm, const ZirModule *module, const SimdLanes *vector,
             const uint64_t *lanes)
 {
+    if(vector->shape != NULL) {
+        Value result = vector_zero(vector->shape);
+        packed_write(vector_bytes(&result), inline_storage(vector->storage),
+                     vector->lanes, lanes);
+        return result;
+    }
     Array *array = allocate_array_try(vm, module, vector->lane, vector->lanes, 1);
     if(array == NULL)
         return (Value){0};

@@ -17,9 +17,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* std/simd vectors run on the VM as fixed arrays of their lanes, u8x16 as
- * [16]u8, so every VM file asks this instead of ArrayElementType. Their
- * operations evaluate through the scalar reference (zir_vm_simd.c). */
+/* std/simd vectors of up to 128 bits are held inline in their Value (see
+ * VmVector). Wider vectors run on the VM as fixed arrays of their lanes,
+ * u8x32 as [32]u8, so every VM file asks this instead of ArrayElementType.
+ * Their operations evaluate through the scalar reference (zir_vm_simd.c). */
 static inline int
 vm_array_element_type(const char *type, char *element, size_t element_size,
                       int *capacity)
@@ -27,7 +28,7 @@ vm_array_element_type(const char *type, char *element, size_t element_size,
     ZirVector vector;
     if(type != NULL && (type[0] == 'u' || type[0] == 's' || type[0] == 'f') &&
        type[1] >= '0' && type[1] <= '9' && strchr(type, 'x') != NULL &&
-       VectorType(type, &vector)) {
+       VectorType(type, &vector) && vector.bytes > 16) {
         size_t length = strlen(vector.lane);
         if(element != NULL) {
             if(length >= element_size) return 0;
@@ -64,7 +65,8 @@ typedef enum ValueKind {
     VALUE_SLICE,
     VALUE_SLOT,
     VALUE_POINTER, /* pointee: storage in a frame, global, record, or array */
-    VALUE_INLINE_RECORD
+    VALUE_INLINE_RECORD,
+    VALUE_VECTOR /* a std/simd vector of up to 128 bits; see VmVector */
 } ValueKind;
 
 typedef struct Record Record;
@@ -77,6 +79,7 @@ typedef struct CallSetup CallSetup;
 typedef struct VmScalarSite VmScalarSite;
 typedef struct VmSimdSite VmSimdSite;
 typedef struct InlineRecord InlineRecord;
+typedef struct VmVector VmVector;
 
 typedef struct Value {
     ValueKind kind;
@@ -106,6 +109,7 @@ typedef struct Value {
         Record *record;
         const ZirFunction *slot_function;
         const InlineRecord *inline_record;
+        const VmVector *vector;
     };
     Array *array;
 } Value;
@@ -288,6 +292,41 @@ static inline void inline_record_set(Value *value, unsigned index, Value field)
     const InlineRecord *shape=value->inline_record;
     packed_store((ArrayStorage)shape->storage[index],
         (unsigned char *)value+offsetof(Value,integer)+shape->offsets[index],field);
+}
+
+/* A std/simd vector of up to 128 bits needs no heap storage: its lanes
+ * fill the sixteen payload bytes an inline record uses, packed as an array
+ * of the lane type packs them, so copying the Value copies the vector. The
+ * VM shares one shape per vector type. */
+struct VmVector {
+    const char *name, *lane; /* "u8x16" and "u8" */
+    ArrayStorage storage;
+    unsigned char lanes, lane_bytes;
+};
+
+/* The shape of an inline vector type, or NULL for any other type. */
+const VmVector *vm_vector(const char *type);
+
+static inline Value vector_zero(const VmVector *shape)
+{
+    return (Value){.kind=VALUE_VECTOR,.vector=shape};
+}
+
+static inline unsigned char *vector_bytes(Value *value)
+{
+    return (unsigned char *)value+offsetof(Value,integer);
+}
+
+static inline Value vector_lane(const Value *value, unsigned index)
+{
+    return packed_value(value->vector->storage,
+        (const unsigned char *)value+offsetof(Value,integer)+index*value->vector->lane_bytes);
+}
+
+static inline void vector_set_lane(Value *value, unsigned index, Value lane)
+{
+    packed_store(value->vector->storage,
+        vector_bytes(value)+index*value->vector->lane_bytes,lane);
 }
 
 static inline int inline_record_field(const InlineRecord *shape, const char *name, unsigned hint)

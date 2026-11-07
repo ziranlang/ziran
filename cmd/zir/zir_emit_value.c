@@ -463,6 +463,47 @@ track_local(Emitter *e, const char *name, const char *type)
     }
 }
 
+/* A local that an inner block declares may reuse the name of an owned local
+ * that is still live, and the drops an early exit from that block writes
+ * must still reach the outer one. Before NAME is declared again, the outer
+ * binding gets a pointer alias, as a Vec has from the start. */
+void
+alias_shadowed_local(Emitter *e, const char *name)
+{
+    for(int i = e->local_count - 1; i >= 0; i--) {
+        Local *local = &e->locals[i];
+        if(strcmp(local->name, name))
+            continue;
+        if(*local->drop_alias || *local->alias ||
+           !emitter_type_contains_vec(e->module, local->type, 0))
+            return;
+        char pointer_type[ZIR_NAME_MAX * 2];
+        char binding[ZIR_NAME_MAX];
+        char address[ZIR_NAME_MAX + 2];
+        TargetBindingName(e->fn, e->target, name, binding, sizeof(binding));
+        fresh(e, local->drop_alias);
+        local->shadow_depth = e->depth;
+        format(pointer_type, sizeof(pointer_type), "*%s", local->type);
+        format(address, sizeof(address), "&%s", binding);
+        declare(e, local->drop_alias, pointer_type, address);
+        return;
+    }
+}
+
+/* Ends the block at the current depth: its locals go, and the aliases its
+ * declarations gave to bindings they shadowed leave scope with it. */
+void
+leave_block_locals(Emitter *e, int saved)
+{
+    for(int i = 0; i < saved && i < e->local_count; i++)
+        if(e->locals[i].shadow_depth == e->depth) {
+            e->locals[i].drop_alias[0] = '\0';
+            e->locals[i].shadow_depth = 0;
+        }
+    e->local_count = saved;
+    e->depth--;
+}
+
 void
 drop_locals(Emitter *e, int first)
 {

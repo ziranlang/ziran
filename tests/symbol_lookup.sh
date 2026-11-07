@@ -18,4 +18,4 @@ ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/reachable"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
     "$repo/tests/type_exports_test.c" "$library" -lm -pthread -o "$work/exports"
 ZIRAN_VERIFY_SYMBOL_LOOKUPS=1 "$work/exports"
-echo 'Type and procedure resolution preserve file scopes, imports, ambiguity, mutation and independent concurrent programs'
+echo 'Type, procedure and constant resolution preserve file scopes, imports, ambiguity, mutation and independent concurrent programs'

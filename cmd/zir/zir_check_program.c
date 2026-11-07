@@ -447,6 +447,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 memmove(def, def + 1,
                         (size_t)(module->define_count - d - 1) * sizeof(*def));
                 module->define_count--;
+                SymbolLookupsChanged();
             }
         }
     /* Resolve generic record array bounds in their defining module before

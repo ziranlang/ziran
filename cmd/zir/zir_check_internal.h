@@ -186,6 +186,8 @@ void check_moved_path_use(Checker *c, int index);
 int mark_moved_member_path(Checker *c, int index);
 int global_vec_source(Checker *c, int index);
 int global_owned_place(Checker *c, int index);
+Binding *local_owned_place(Checker *c, int index, char *path, size_t capacity);
+void reown_member_path(Checker *c, int index);
 int owned_transfer_shape(Checker *c, int index);
 int owned_initializer_shape(Checker *c, int index);
 int numeric(const char *type);
@@ -201,7 +203,6 @@ int template_parameters_at_use(const ZirModule *module, const ZirModule *owner, 
 /* The constant written at the global's use as kept text, or NULL. */
 const char *lower_compound_global(const ZirModule *module, const ZirGlobal *global, const CompoundConstant *compound);
 void compound_qualifier_for_global(CompoundConstant *compound, const char *expected_type);
-int visible_define(const ZirModule *module, const char *name, const ZirDefine **definition, const ZirModule **owner, const ZirImport **selected_import);
 int bound_compound_constant(const ZirModule *module, const char *name, int depth, CompoundConstant *result);
 int array_capacity(const ZirModule *module, const char *type, int *capacity);
 void normalize_array(const ZirModule *module, char *type, size_t size);

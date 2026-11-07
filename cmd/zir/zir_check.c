@@ -521,8 +521,8 @@ layout_type_with_buffers(const ZirModule *module, const char *source, int depth,
     if(record == NULL) {
         const ZirDefine *definition = NULL;
         const ZirModule *definition_owner = NULL;
-        if(visible_define(module, type, &definition,
-                          &definition_owner, NULL) == 1)
+        if(ResolveDefine(module, type, &definition,
+                         &definition_owner, NULL) == 1)
             return layout_type(definition_owner, definition->value,
                                depth + 1, size, alignment);
     }
@@ -1264,15 +1264,18 @@ evaluate_global_startup_literal(const ZirModule *module, int before,
         value->is_file_private = global->is_file_private;
         value->span = global->span;
     }
+    /* The view's lookups are kept under its address and end with it. */
     ZirModule view = *module;
     view.defines = values;
     view.define_count = count;
+    SymbolLookupsChanged();
     const ZirModule *evaluated_owner = NULL;
     int ok = EvaluateCompileLiteral(&view, source, span, 0,
                                     literal, literal_size,
                                     &evaluated_owner);
     if(type_owner != NULL)
         *type_owner = evaluated_owner == &view ? module : evaluated_owner;
+    SymbolLookupsChanged();
     free(values);
     return ok;
 }

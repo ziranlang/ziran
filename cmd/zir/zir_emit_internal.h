@@ -71,6 +71,10 @@ typedef struct Local {
      * parallel worker reaches through a pointer; empty for the name. */
     char alias[ZIR_NAME_MAX * 2];
     int depth;
+    /* Nesting depth of the block whose declaration of the same name gave
+     * this binding its drop alias, which ends with that block; 0 when the
+     * alias, if any, lasts as long as the binding. */
+    int shadow_depth;
 } Local;
 typedef struct RangeFacts RangeFacts;
 typedef struct Emitter {
@@ -224,6 +228,8 @@ void resolve(Emitter *e, const char *name, char *out, size_t size);
 void drop_owned_value(Emitter *e, const char *value, const char *type, const ZirModule *module, int depth);
 void clear_owned_value(Emitter *e, const char *value, const char *type, const ZirModule *module, int depth);
 void track_local(Emitter *e, const char *name, const char *type);
+void alias_shadowed_local(Emitter *e, const char *name);
+void leave_block_locals(Emitter *e, int saved);
 void drop_locals(Emitter *e, int first);
 void drop_temporary_vec(Emitter *e, const char *name, const char *type);
 int has_owned_locals(const Emitter *e);

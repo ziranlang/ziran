@@ -1618,13 +1618,15 @@ typedef struct EmitSequenceBuffers {
     char plain[ZIR_TEXT_MAX];
 } EmitSequenceBuffers;
 
-/* Whether an assignment stores owned storage into a global or a field path
- * of one, which frees the global's old value first. The checker admits no
- * other owned destination that is not a local binding. */
+/* Whether an assignment stores owned storage into a global, or a field path
+ * of a global or a local, which frees the old value first. The checker
+ * admits no other owned destination than a whole local, which it requires
+ * to be moved first. */
 static int
-global_owned_destination(Emitter *e, int index)
+owned_destination_frees(Emitter *e, int index)
 {
     const ZirExpr *place = &e->fn->exprs[index];
+    int field = place->kind == ZIR_EXPR_MEMBER;
     if(!emitter_type_contains_vec(e->module, place->type, 0))
         return 0;
     while(place->kind == ZIR_EXPR_MEMBER && place->left >= 0) {
@@ -1636,7 +1638,7 @@ global_owned_destination(Emitter *e, int index)
         return 0;
     for(int i = 0; i < e->local_count; i++)
         if(!strcmp(e->locals[i].name, place->name))
-            return 0;
+            return field;
     return 1;
 }
 
@@ -1662,6 +1664,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             if(st->expr_root >= 0 && array_result_in_place(e, st->expr_root, st->type, st->name)) {
                 /* The new array is the call's result buffer. */
                 char binding[ZIR_NAME_MAX], element[ZIR_NAME_MAX * 2], bounds[ZIR_NAME_MAX * 2];
+                alias_shadowed_local(e, st->name);
                 TargetBindingName(e->fn, e->target, st->name, binding, sizeof(binding));
                 array_target_type(e, st->type, element, sizeof(element), bounds, sizeof(bounds));
                 line(e, "%s %s%s;", element, binding, bounds);
@@ -1695,6 +1698,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 zero_record(e, st->type, buffers->value, sizeof(buffers->value));
             }
             else copy_text(buffers->value, sizeof(buffers->value), zero_value(st->type, e->target));
+            alias_shadowed_local(e, st->name);
             declare(e,st->name,st->type,buffers->value);
             if(e->target == ZIR_GO && !go_binding_read_later(e->fn, i)) {
                 char binding[ZIR_NAME_MAX];
@@ -1746,11 +1750,11 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     break;
                 }
             } else {
-                int global_owned = global_owned_destination(e, st->lhs_root);
+                int frees_old = owned_destination_frees(e, st->lhs_root);
                 /* A stable local field is as safe as a name: no call can
                  * change its destination while the right side runs. Keep
                  * snapshots for computed or aliasable destinations. */
-                e->call_in_place = !global_owned &&
+                e->call_in_place = !frees_old &&
                     (e->fn->exprs[st->lhs_root].kind == ZIR_EXPR_IDENT ||
                      (!expression_calls(e->fn, st->lhs_root) &&
                       !call_can_change(e, st->lhs_root)));
@@ -1766,9 +1770,9 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 if(in_place && e->array_destination_used)
                     break;
                 copy_text(buffers->result,sizeof(buffers->result),buffers->value);
-                if(global_owned) {
+                if(frees_old) {
                     /* The new value is complete before the old one is
-                     * freed, since it may read or move the global. */
+                     * freed, since it may read or move the destination. */
                     const char *type = e->fn->exprs[st->lhs_root].type;
                     fresh(e, buffers->old);
                     declare(e, buffers->old, type, buffers->value);
@@ -1792,7 +1796,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     line(e, "goto %s;", e->inline_label);
                     e->inline_jumps++;
                 }
-                e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+                leave_block_locals(e, saved);e->sequence_terminated=1;return;
             }
             if(st->expr_root >= 0) {
                 const char *returned_type = e->fn->return_type;
@@ -1827,7 +1831,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     }
                     drop_locals(e, 0);
                     line(e, "return;");
-                    e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+                    leave_block_locals(e, saved);e->sequence_terminated=1;return;
                 }
                 e->call_in_place = 1;
                 emit_expr(e, st->expr_root, e->fn->return_type, buffers->value, sizeof(buffers->value));
@@ -1855,7 +1859,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 drop_locals(e, 0);
                 line(e,e->target==ZIR_GO?"return":"return;");
             }
-            e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+            leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_UNREACHABLE:
             drop_locals(e, 0);
             if(run_guards && e->target == ZIR_C)
@@ -1863,7 +1867,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                      st->span.line, st->span.column);
             else
                 line(e,e->target==ZIR_GO?"panic(\"unreachable\")":"abort();");
-            e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+            leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_IF:i=emit_if(e,i,end,0);break;
         case ZIR_STMT_WHILE: {
             int close=block_end(e->fn,i,end);
@@ -1995,7 +1999,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                     line(e,"goto zir_loop_%s_%d;",st->kind==ZIR_STMT_BREAK?"break":"continue",st->target_id);
             } else
                 line(e,"%s%s",st->kind==ZIR_STMT_BREAK?"break":"continue",e->target==ZIR_GO?"":";");
-            e->local_count=saved;e->depth--;e->sequence_terminated=1;return;
+            leave_block_locals(e, saved);e->sequence_terminated=1;return;
         case ZIR_STMT_EXPR:case ZIR_STMT_UNUSED:
             if(st->expr_root>=0) {
                 const ZirExpr *expr = &e->fn->exprs[st->expr_root];
@@ -2024,7 +2028,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
         }
     }
     drop_locals(e, saved);
-    e->local_count=saved;e->depth--;e->sequence_terminated=0;
+    leave_block_locals(e, saved);e->sequence_terminated=0;
 }
 
 COMPILER_SCRATCH_VOID(static, emit_sequence,

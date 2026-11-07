@@ -849,6 +849,12 @@ argument or <code>VecPush</code> element cannot move a global, because that woul
 it as a side effect: pass its address or move it into a local first. A
 global cannot be replaced or moved while a view of it is live.
 <code>tests/global_owned_storage.sh</code> checks C, saved IR and native and VM bundles.</p>
+<p>A field path of a local record, or of a by-value parameter, takes owned
+values the same way: <code>shelf.label = TextCopy(name)</code> frees the old label, and
+a field moved out, as in <code>taken := shelf.bag.items</code>, can be assigned again.
+A whole local still has to be moved before it is replaced. A field cannot be
+assigned while a view of it is live, after its binding moved, below a moved
+field or through a pointer. <code>tests/local_owned_fields.sh</code> checks these.</p>
 <p><code>VecResizeBounded(values, count: s64, maximum_capacity: s64) -&gt; bool</code> uses
 <code>VecResize</code>'s initialized-length and owned-element semantics while bounding the
 resulting backing capacity. It rejects negative sizes, a count above the
@@ -918,12 +924,15 @@ never computed earlier than written, so one after another call in its
 expression, after a global its procedure may change, in a <code>while</code> condition
 or <code>for</code> step, or in an <code>ifx</code> arm that gives a string keeps its bytes.
 Literals such as <code>-1</code>, other globals and a local's address, as in
-<code>BuilderPrint(*out, "%", Render(a))</code>, may come first. An <code>else if</code>
+<code>BuilderPrint(*out, "%", Render(a))</code>, may come first. A procedure that only
+reads through a pointer argument, as in <code>AwardsText(*awards)</code>, is freed
+too; one that writes through it stays in place. Each local is its own
+binding, so a same-named local in another block does not keep it. An <code>else if</code>
 condition, the second operand of <code>&amp;&amp;</code> or <code>||</code>, and an <code>ifx</code> arm that gives
 a number or <code>bool</code> run on their own just before the statement, still only
 when reached, so a result read there is freed too.
-<code>tests/text_scoped_arguments.sh</code> and <code>tests/text_condition_arms.sh</code> check
-these.</p>
+<code>tests/text_scoped_arguments.sh</code>, <code>tests/text_condition_arms.sh</code> and
+<code>tests/text_scoped_producers.sh</code> check these.</p>
 <p>A foreign procedure that only reads its string and byte arguments during
 the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
 <pre><code>MeasureWidth :: (value: string, font: s32) -&gt; s32 #reads #foreign host_api;

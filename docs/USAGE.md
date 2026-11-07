@@ -1017,6 +1017,13 @@ it as a side effect: pass its address or move it into a local first. A
 global cannot be replaced or moved while a view of it is live.
 `tests/global_owned_storage.sh` checks C, saved IR and native and VM bundles.
 
+A field path of a local record, or of a by-value parameter, takes owned
+values the same way: `shelf.label = TextCopy(name)` frees the old label, and
+a field moved out, as in `taken := shelf.bag.items`, can be assigned again.
+A whole local still has to be moved before it is replaced. A field cannot be
+assigned while a view of it is live, after its binding moved, below a moved
+field or through a pointer. `tests/local_owned_fields.sh` checks these.
+
 
 `VecResizeBounded(values, count: s64, maximum_capacity: s64) -> bool` uses
 `VecResize`'s initialized-length and owned-element semantics while bounding the
@@ -1095,12 +1102,15 @@ never computed earlier than written, so one after another call in its
 expression, after a global its procedure may change, in a `while` condition
 or `for` step, or in an `ifx` arm that gives a string keeps its bytes.
 Literals such as `-1`, other globals and a local's address, as in
-`BuilderPrint(*out, "%", Render(a))`, may come first. An `else if`
+`BuilderPrint(*out, "%", Render(a))`, may come first. A procedure that only
+reads through a pointer argument, as in `AwardsText(*awards)`, is freed
+too; one that writes through it stays in place. Each local is its own
+binding, so a same-named local in another block does not keep it. An `else if`
 condition, the second operand of `&&` or `||`, and an `ifx` arm that gives
 a number or `bool` run on their own just before the statement, still only
 when reached, so a result read there is freed too.
-`tests/text_scoped_arguments.sh` and `tests/text_condition_arms.sh` check
-these.
+`tests/text_scoped_arguments.sh`, `tests/text_condition_arms.sh` and
+`tests/text_scoped_producers.sh` check these.
 
 A foreign procedure that only reads its string and byte arguments during
 the call says so with `#reads` before `#foreign`:

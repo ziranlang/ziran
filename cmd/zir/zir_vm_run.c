@@ -499,6 +499,22 @@ host_argument(const ZirModule *module, const char *type, Value value,
     out->type = type;
     char element[ZIR_NAME_MAX];
     int capacity;
+    /* A vector crosses as an array of its lanes. */
+    const VmVector *vector = vm_vector(type);
+    if(vector != NULL) {
+        if(value.kind != VALUE_VECTOR || value.vector != vector)
+            return 0;
+        out->kind = VM_HOST_ARRAY;
+        out->length = vector->lanes;
+        out->elements = calloc(vector->lanes, sizeof(*out->elements));
+        if(out->elements == NULL)
+            return 0;
+        for(unsigned i = 0; i < vector->lanes; i++)
+            if(!host_argument(module, vector->lane, vector_lane(&value, i),
+                              &out->elements[i], depth + 1))
+                return 0;
+        return 1;
+    }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
         if(capacity < 0 || value.kind != VALUE_ARRAY || value.array == NULL ||
            value.array->length != capacity ||
@@ -656,6 +672,19 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
     }
     char array_element[ZIR_NAME_MAX];
     int capacity;
+    const VmVector *vector = vm_vector(type);
+    if(vector != NULL) {
+        if(input->kind != VM_HOST_ARRAY || input->length != vector->lanes ||
+           input->elements == NULL || input->field_count != 0 || input->fields != NULL) {
+            vm->failed = 1;
+            return result;
+        }
+        Value lanes = vector_zero(vector);
+        for(unsigned i = 0; i < vector->lanes && !vm->failed; i++)
+            vector_set_lane(&lanes, i, host_return(vm, module, vector->lane,
+                                                   &input->elements[i], depth + 1));
+        return lanes;
+    }
     if(ArrayElementType(type, array_element, sizeof(array_element),
                         &capacity)) {
         if(capacity < 0 || input->kind != VM_HOST_ARRAY ||

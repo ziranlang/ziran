@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+- A fresh Text from a procedure that only reads through a pointer argument,
+  as in `AwardsText(*awards)`, is freed with its block, and so is one read
+  by a local whose name another block also declares.
+- A field of a local record or by-value parameter that holds a Vec or Text
+  can be assigned: `shelf.label = TextCopy(name)` frees the old value, and a
+  field moved out can be assigned again.
+- Fixed a use-after-free in the checker when a record literal field
+  initializer was a fresh Text.
 - `Simd.Load`, `Simd.Gather` and a returned constant array read the shared
   table instead of copying it at every use, in C and Go, and `TABLE.count`
   no longer builds the table.

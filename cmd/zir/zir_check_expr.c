@@ -1495,6 +1495,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             if(found)
                 copy_text(c->expected_type, sizeof(c->expected_type), field.type);
             const char *value_type = expression_type(c, entry->right);
+            // Checking the value may add expressions and move the array.
+            e = &c->fn->exprs[index];
+            entry = &c->fn->exprs[child];
             copy_text(c->expected_type, sizeof(c->expected_type), saved_expected);
             if(!found) {
                 error(c, entry->span, named ? "unknown initializer field" : "too many positional record fields", entry->name);

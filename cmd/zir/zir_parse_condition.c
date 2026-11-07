@@ -62,6 +62,7 @@ static void
 add_visible_compile_defines(ZirModule *visible, const ZirModule *parsed,
                             const ZirConsts *constants)
 {
+    SymbolLookupsChanged();
     visible->defines = calloc((size_t)parsed->define_count +
                               (size_t)constants->count + 1,
                               sizeof(*visible->defines));

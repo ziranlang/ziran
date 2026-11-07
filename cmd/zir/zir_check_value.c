@@ -259,6 +259,63 @@ mark_moved_member_path(Checker *c, int index)
     return 1;
 }
 
+/* A field path of an owned local binding through record fields alone,
+ * such as bag.items. Assigning it frees the old value after the new one is
+ * complete; a moved field was cleared, so freeing it does nothing. PATH
+ * receives the field path below the binding. */
+Binding *
+local_owned_place(Checker *c, int index, char *path, size_t capacity)
+{
+    const ZirExpr *e;
+    if(index < 0 || index >= c->fn->expr_count)
+        return NULL;
+    e = &c->fn->exprs[index];
+    if(e->kind != ZIR_EXPR_MEMBER || e->type == NULL ||
+       !contains_vec(c->module, e->type, 0))
+        return NULL;
+    for(const ZirExpr *place = e; place->kind == ZIR_EXPR_MEMBER;) {
+        if(place->left < 0 || place->left >= c->fn->expr_count)
+            return NULL;
+        place = &c->fn->exprs[place->left];
+        if(place->type == NULL || place->type[0] == '*')
+            return NULL;
+    }
+    return owned_member_path(c, index, path, capacity);
+}
+
+/* An assignment to a field path of an owned local owns that path again:
+ * the moves recorded at or below it end. A path below a moved field, or a
+ * field of a moved binding, stays an error. */
+void
+reown_member_path(Checker *c, int index)
+{
+    char path[ZIR_TEXT_MAX];
+    Binding *binding = local_owned_place(c, index, path, sizeof(path));
+    int kept = 0;
+    if(binding == NULL)
+        return;
+    if(binding->moved) {
+        error(c, c->fn->exprs[index].span,
+              "Vec binding is used after moving", binding->name);
+        return;
+    }
+    for(int i = 0; i < binding->moved_path_count; i++) {
+        const char *moved = binding->moved_paths[i];
+        if(path_prefix(path, moved))
+            continue;
+        if(path_prefix(moved, path)) {
+            error(c, c->fn->exprs[index].span,
+                  "owned record field is used after moving", moved);
+            return;
+        }
+        if(kept != i)
+            copy_text(binding->moved_paths[kept],
+                      sizeof(binding->moved_paths[0]), moved);
+        kept++;
+    }
+    binding->moved_path_count = kept;
+}
+
 /* A global holding owned storage, or a record literal that would move one.
  * A call argument or VecPush element would empty the global as a side
  * effect, so only a declaration, assignment or return moves a global. */
@@ -464,7 +521,7 @@ constant_value(const ZirModule *module, const char *name, int depth,
         return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    int found = visible_define(module, name, &definition, &owner, NULL);
+    int found = ResolveDefine(module, name, &definition, &owner, NULL);
     if(found != 1)
         return found;
     ZirFunction expression = {0};
@@ -497,7 +554,7 @@ bound_string_constant(const ZirModule *module, const char *name, int depth,
         return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    int found = visible_define(module, name, &definition, &owner, NULL);
+    int found = ResolveDefine(module, name, &definition, &owner, NULL);
     if(found != 1)
         return found;
     ZirFunction expression = {0};
@@ -558,7 +615,7 @@ bound_real_constant(const ZirModule *module, const char *name, int depth,
     if(depth > 128) return -1;
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
-    int found = visible_define(module, name, &definition, &owner, NULL);
+    int found = ResolveDefine(module, name, &definition, &owner, NULL);
     if(found != 1)
         return found;
     ZirFunction expression = {0};
@@ -875,273 +932,6 @@ compound_qualifier_for_global(CompoundConstant *compound,
     compound->qualifier[dot - current] = '\0';
 }
 
-typedef struct DefineVisit {
-    const ZirModule *module;
-    int depth, status;
-    const ZirDefine *definition;
-    const ZirModule *owner;
-    struct DefineVisit *next;
-} DefineVisit;
-
-/* One lookup's visits: the first come from LOCAL, the rest from the heap.
- * The list head is the field every step passes down. */
-enum { DEFINE_VISIT_LOCAL = 96 };
-typedef struct DefineVisits {
-    DefineVisit *head;
-    int used;
-    DefineVisit local[DEFINE_VISIT_LOCAL];
-} DefineVisits;
-
-static int exported_define_depth(const ZirModule *module, const char *name,
-    int depth, const ZirDefine **definition, const ZirModule **owner,
-    DefineVisit **visits);
-
-static int
-exported_define_uncached(const ZirModule *module, const char *name, int depth,
-    const ZirDefine **definition, const ZirModule **owner, DefineVisit **visits)
-{
-    if(depth >= 32) return -1;
-    *definition = NULL;
-    *owner = NULL;
-    for(int d = 0; d < module->define_count; d++) {
-        const ZirDefine *candidate = &module->defines[d];
-        if(!candidate->is_public || candidate->is_file_private ||
-           strcmp(candidate->name, name)) continue;
-        if(*definition != NULL && *definition != candidate) return -1;
-        *definition = candidate;
-        *owner = module;
-    }
-    if(*definition != NULL) return 1;
-    for(int i = 0; i < module->import_count; i++) {
-        const ZirImport *import = &module->imports[i];
-        if(!import->is_using || !import->is_public ||
-           import->is_file_private || import->resolved_module == NULL)
-            continue;
-        const ZirDefine *candidate = NULL;
-        const ZirModule *candidate_owner = NULL;
-        int found = exported_define_depth(import->resolved_module, name,
-                                    depth + 1, &candidate, &candidate_owner, visits);
-        if(found < 0 || (found == 1 && *definition != NULL &&
-                         *definition != candidate))
-            return -1;
-        if(found == 1) {
-            *definition = candidate;
-            *owner = candidate_owner;
-        }
-    }
-    return *definition != NULL;
-}
-
-static int
-exported_define_depth(const ZirModule *module, const char *name, int depth,
-    const ZirDefine **definition, const ZirModule **owner, DefineVisit **visits)
-{
-    /* The name is fixed throughout one lookup. Preserve ambiguity and the
-     * depth limit while visiting shared scopes only once at each depth. */
-    for(DefineVisit *visit = *visits; visit != NULL; visit = visit->next) {
-        if(visit->module == module && visit->depth == depth) {
-            *definition = visit->definition;
-            *owner = visit->owner;
-            return visit->status;
-        }
-    }
-    DefineVisits *pool = (DefineVisits *)(void *)((char *)visits -
-                                                  offsetof(DefineVisits, head));
-    DefineVisit *visit = pool->used < DEFINE_VISIT_LOCAL ?
-        &pool->local[pool->used++] : AllocateOrExit(sizeof(*visit));
-    *visit = (DefineVisit){.module = module, .depth = depth, .next = *visits};
-    *visits = visit;
-    visit->status = exported_define_uncached(module, name, depth,
-        &visit->definition, &visit->owner, visits);
-    *definition = visit->definition;
-    *owner = visit->owner;
-    return visit->status;
-}
-
-/* A lookup through an acyclic graph of `using` imports, visiting each
- * module once. Its answer is the depth-keyed walk's unless that walk would
- * enter a module at depth 32, so a visit that could, a cycle or a full table
- * answers DEFINE_RETRY and the lookup walks by depth instead. HEIGHT is the
- * longest chain of imports the module's own answer entered. */
-enum { DEFINE_ONCE_MAX = 64, DEFINE_RETRY = 2 };
-typedef struct DefineOnce {
-    const ZirModule *module;
-    int status, height, done;
-    const ZirDefine *definition;
-    const ZirModule *owner;
-} DefineOnce;
-typedef struct DefineOnces {
-    const char *name;
-    int count;
-    DefineOnce items[DEFINE_ONCE_MAX];
-} DefineOnces;
-
-static int
-define_once(DefineOnces *once, const ZirModule *module, int depth,
-            const ZirDefine **definition, const ZirModule **owner, int *height)
-{
-    if(depth >= 32)
-        return DEFINE_RETRY;
-    for(int i = 0; i < once->count; i++) {
-        const DefineOnce *seen = &once->items[i];
-        if(seen->module != module)
-            continue;
-        if(!seen->done || depth + seen->height >= 32)
-            return DEFINE_RETRY;
-        *definition = seen->definition;
-        *owner = seen->owner;
-        *height = seen->height;
-        return seen->status;
-    }
-    if(once->count == DEFINE_ONCE_MAX)
-        return DEFINE_RETRY;
-    DefineOnce *visit = &once->items[once->count++];
-    *visit = (DefineOnce){.module = module};
-    const ZirDefine *found = NULL;
-    const ZirModule *found_owner = NULL;
-    int status = 0, tallest = 0;
-    for(int d = 0; d < module->define_count && status == 0; d++) {
-        const ZirDefine *candidate = &module->defines[d];
-        if(!candidate->is_public || candidate->is_file_private ||
-           strcmp(candidate->name, once->name)) continue;
-        if(found != NULL && found != candidate)
-            status = -1;
-        else {
-            found = candidate;
-            found_owner = module;
-        }
-    }
-    if(status == 0 && found != NULL)
-        status = 1;
-    for(int i = 0; i < module->import_count && status == 0; i++) {
-        const ZirImport *import = &module->imports[i];
-        if(!import->is_using || !import->is_public ||
-           import->is_file_private || import->resolved_module == NULL)
-            continue;
-        const ZirDefine *candidate = NULL;
-        const ZirModule *candidate_owner = NULL;
-        int below = 0;
-        int result = define_once(once, import->resolved_module, depth + 1,
-                                 &candidate, &candidate_owner, &below);
-        if(result == DEFINE_RETRY)
-            return DEFINE_RETRY;
-        if(below + 1 > tallest)
-            tallest = below + 1;
-        if(result < 0 || (result == 1 && found != NULL && found != candidate))
-            status = -1;
-        else if(result == 1) {
-            found = candidate;
-            found_owner = candidate_owner;
-        }
-    }
-    if(status == 0)
-        status = found != NULL;
-    visit = &once->items[visit - once->items];
-    visit->status = status;
-    visit->height = tallest;
-    visit->definition = found;
-    visit->owner = found_owner;
-    visit->done = 1;
-    *definition = found;
-    *owner = found_owner;
-    *height = tallest;
-    return status;
-}
-
-static int
-exported_define_by_depth(const ZirModule *module, const char *name, int depth,
-                         const ZirDefine **definition, const ZirModule **owner)
-{
-    DefineVisits visits;
-    visits.head = NULL;
-    visits.used = 0;
-    int status = exported_define_depth(module, name, depth, definition, owner,
-                                       &visits.head);
-    for(DefineVisit *visit = visits.head; visit != NULL;) {
-        DefineVisit *next = visit->next;
-        if(visit < visits.local || visit >= visits.local + DEFINE_VISIT_LOCAL)
-            free(visit);
-        visit = next;
-    }
-    return status;
-}
-
-static int
-exported_define(const ZirModule *module, const char *name, int depth,
-                const ZirDefine **definition, const ZirModule **owner)
-{
-    DefineOnces once;
-    once.name = name;
-    once.count = 0;
-    int height = 0;
-    int status = define_once(&once, module, depth, definition, owner, &height);
-    if(status != DEFINE_RETRY)
-        return status;
-    return exported_define_by_depth(module, name, depth, definition, owner);
-}
-
-int
-visible_define(const ZirModule *module, const char *name,
-               const ZirDefine **definition, const ZirModule **owner,
-               const ZirImport **selected_import)
-{
-    *definition = NULL;
-    *owner = NULL;
-    if(selected_import != NULL) *selected_import = NULL;
-    const char *dot = strchr(name, '.');
-    const char *symbol = dot == NULL ? name : dot + 1;
-    for(int pass = 0; pass < 2; pass++) {
-        if(dot != NULL && pass == 0) continue;
-        int count = pass == 0 ? 1 : module->import_count;
-        for(int i = 0; i < count; i++) {
-            const ZirImport *import = pass == 0 ? NULL :
-                                      &module->imports[i];
-            if(import != NULL) {
-                if(!in_lookup_file(module, import->is_file_private,
-                                   import->span)) continue;
-                if(dot == NULL && import->kind != ZIR_IMPORT_OPEN &&
-                   !(import->kind == ZIR_IMPORT_MODULE &&
-                     import->is_using)) continue;
-                if(dot != NULL &&
-                   (import->kind != ZIR_IMPORT_MODULE ||
-                    strlen(import->name) != (size_t)(dot - name) ||
-                    strncmp(import->name, name,
-                            (size_t)(dot - name)) != 0)) continue;
-            }
-            const ZirModule *scope = import == NULL ? module :
-                                     import->resolved_module;
-            if(scope == NULL) continue;
-            if(import == NULL) {
-                for(int j = 0; j < scope->define_count; j++) {
-                    const ZirDefine *candidate = &scope->defines[j];
-                    if(!in_lookup_file(module, candidate->is_file_private,
-                                       candidate->span) ||
-                       strcmp(candidate->name, symbol)) continue;
-                    if(*definition != NULL && *definition != candidate)
-                        return -1;
-                    *definition = candidate;
-                    *owner = scope;
-                }
-            } else {
-                const ZirDefine *candidate = NULL;
-                const ZirModule *candidate_owner = NULL;
-                int found = exported_define(scope, symbol, 0,
-                                            &candidate, &candidate_owner);
-                if(found < 0 || (found == 1 && *definition != NULL &&
-                                 *definition != candidate))
-                    return -1;
-                if(found == 1) {
-                    *definition = candidate;
-                    *owner = candidate_owner;
-                    if(selected_import != NULL) *selected_import = import;
-                }
-            }
-        }
-        if(*definition != NULL) break;
-    }
-    return *definition != NULL;
-}
-
 int
 bound_compound_constant(const ZirModule *module, const char *name, int depth,
                         CompoundConstant *result)
@@ -1150,8 +940,8 @@ bound_compound_constant(const ZirModule *module, const char *name, int depth,
     const ZirDefine *definition = NULL;
     const ZirModule *owner = NULL;
     const ZirImport *selected_import = NULL;
-    int found = visible_define(module, name, &definition, &owner,
-                               &selected_import);
+    int found = ResolveDefine(module, name, &definition, &owner,
+                              &selected_import);
     if(found != 1) return found;
     ZirFunction expression = {0};
     int root = ParseExpr(&expression, owner, definition->value,
@@ -1252,8 +1042,8 @@ normalize_array_at(const ZirModule *module, char *type, size_t size, int depth,
         for(int alias_depth = 0; alias_depth < 8; alias_depth++) {
             const ZirDefine *found = NULL;
             const ZirModule *next_owner = NULL;
-            if(visible_define(owner, resolved, &found, &next_owner,
-                              NULL) != 1)
+            if(ResolveDefine(owner, resolved, &found, &next_owner,
+                             NULL) != 1)
                 return;
             const char *value = skip_ws(found->value);
             if(strlen(value) >= sizeof(resolved)) return;

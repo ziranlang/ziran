@@ -109,6 +109,25 @@ value_kind(const char *type)
     return VALUE_INVALID;
 }
 
+const VmVector *
+vm_vector(const char *type)
+{
+    static const VmVector vectors[] = {
+        {"u8x16", "u8", ARRAY_U8, 16, 1}, {"s8x16", "s8", ARRAY_S8, 16, 1},
+        {"u16x8", "u16", ARRAY_U16, 8, 2}, {"s16x8", "s16", ARRAY_S16, 8, 2},
+        {"u32x4", "u32", ARRAY_U32, 4, 4}, {"s32x4", "s32", ARRAY_S32, 4, 4},
+        {"u64x2", "u64", ARRAY_U64, 2, 8}, {"s64x2", "s64", ARRAY_S64, 2, 8},
+        {"f32x4", "float32", ARRAY_F32, 4, 4}, {"f64x2", "float64", ARRAY_F64, 2, 8}
+    };
+    if(type == NULL || (type[0] != 'u' && type[0] != 's' && type[0] != 'f') ||
+       type[1] < '0' || type[1] > '9')
+        return NULL;
+    for(size_t i = 0; i < sizeof(vectors) / sizeof(*vectors); i++)
+        if(vectors[i].name[1] == type[1] && !strcmp(vectors[i].name, type))
+            return &vectors[i];
+    return NULL;
+}
+
 int
 scalar_type(const char *type)
 {
@@ -177,6 +196,8 @@ portable_type_at(const ZirModule *module, const char *type, int depth,
                array_length_fits(module, element, (size_t)capacity) &&
                portable_type_at(module, element, depth + 1, path);
     }
+    if(vm_vector(type) != NULL)
+        return 1;
     record = FindType(module, type, &owner);
     if(record == NULL || record->is_extern)
         return 0;
@@ -269,7 +290,7 @@ host_type_at(const ZirModule *module, const char *type, int depth,
     if(SliceElementType(type, element, sizeof(element)))
         return element[0] != '[' && element[0] != '\0' &&
                host_type_at(module, element, depth + 1, 0);
-    if(value_kind(type) != VALUE_INVALID)
+    if(value_kind(type) != VALUE_INVALID || vm_vector(type) != NULL)
         return 1;
     const ZirModule *owner = NULL;
     const ZirType *record = FindType(module, type, &owner);
@@ -633,7 +654,7 @@ type_holds_references(const ZirModule *module, const char *type)
     /* A pointer can be an opaque host handle or owned New(T) storage. Its
      * type alone cannot rule out a live VM heap allocation. */
     if(type[0] == '*') return 1;
-    if(value_kind(type) != VALUE_INVALID)
+    if(value_kind(type) != VALUE_INVALID || vm_vector(type) != NULL)
         return 0;
     const ZirType *found = module != NULL ? FindType(module, type, NULL) : NULL;
     return found == NULL || !(found->is_enum || found->is_procedure_type);
@@ -869,6 +890,9 @@ default_value(Vm *vm, const ZirModule *module, const char *type, int depth)
         return real_value(0.0);
     if(kind == VALUE_STRING)
         return string_value((const unsigned char *)"", 0);
+    const VmVector *vector = kind == VALUE_INVALID ? vm_vector(type) : NULL;
+    if(vector != NULL)
+        return vector_zero(vector);
     if(SliceElementType(type, element, sizeof(element)))
         return (Value){.kind = VALUE_SLICE};
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
@@ -950,6 +974,13 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
     if(target == VALUE_INVALID) {
         char element[ZIR_NAME_MAX];
         int capacity;
+        const VmVector *vector = vm_vector(type);
+        if(vector != NULL) {
+            if(value.kind == VALUE_VECTOR && value.vector == vector)
+                return value;
+            vm->failed = 1;
+            return int_value(0);
+        }
         if(SliceElementType(type, element, sizeof(element))) {
             if(value.kind == VALUE_SLICE &&
                (value.array == NULL ||
@@ -1007,7 +1038,7 @@ coerce(Vm *vm, const ZirModule *module, Value value, const char *type)
     }
     if(value.kind == VALUE_STRING || value.kind == VALUE_RECORD || value.kind == VALUE_INLINE_RECORD ||
        value.kind == VALUE_ARRAY || value.kind == VALUE_SLICE ||
-       value.kind == VALUE_SLOT ||
+       value.kind == VALUE_SLOT || value.kind == VALUE_VECTOR ||
        value.kind == VALUE_VOID ||
        value.kind == VALUE_INVALID) {
         vm->failed = 1;

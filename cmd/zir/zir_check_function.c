@@ -367,8 +367,14 @@ restart:
             contextual_slot(c, st->expr_root, lookup(c, c->fn->exprs[st->lhs_root].name));
         else if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0 &&
                 (c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_MEMBER ||
-                 c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_POINTER_MEMBER))
-            contextual_slot(c, st->expr_root, expression_type(c, st->lhs_root));
+                 c->fn->exprs[st->lhs_root].kind == ZIR_EXPR_POINTER_MEMBER)) {
+            /* The destination is written, not read, so a moved field can be
+             * assigned again. */
+            c->assign_destination = 1;
+            const char *slot = expression_type(c, st->lhs_root);
+            c->assign_destination = 0;
+            contextual_slot(c, st->expr_root, slot);
+        }
         c->expected_type[0] = '\0';
         if(st->kind == ZIR_STMT_DECL)
             copy_text(c->expected_type, sizeof(c->expected_type), st->type);
@@ -490,7 +496,8 @@ restart:
                     if(destination->moved)
                         c->destination_was_moved = 1;
                     destination->moved = 0;
-                }
+                } else
+                    reown_member_path(c, st->lhs_root);
             }
         }
         if(st->kind == ZIR_STMT_DECL) {
@@ -585,17 +592,21 @@ restart:
             const char *lhs = expression_type(c, st->lhs_root);
             c->assign_destination = 0;
             if(contains_vec(c->module, lhs, 0)) {
-                int global_place = global_owned_place(c, st->lhs_root);
+                /* A global or a field path of an owned local frees its old
+                 * value on assignment; a whole local must be moved first. */
+                char path[ZIR_TEXT_MAX];
+                int freed_place = global_owned_place(c, st->lhs_root) ||
+                    local_owned_place(c, st->lhs_root, path, sizeof(path)) != NULL;
                 if(strcmp(st->assignment_op, "="))
                     error(c, st->span,
                           "Vec compound assignment is not supported",
                           st->assignment_op);
                 else if(c->fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT &&
-                        !global_place)
+                        !freed_place)
                     error(c, st->span,
-                          "Vec assignment requires a simple binding or global destination",
+                          "Vec assignment requires a binding, a field path of one or a global destination",
                           st->text);
-                else if(!global_place &&
+                else if(!freed_place &&
                         lexical_owned_binding(c, st->lhs_root) == NULL)
                     error(c, st->span,
                           "Vec assignment requires an owned local or global destination",
@@ -607,7 +618,7 @@ restart:
                     error(c, st->span,
                           "Vec assignment moves a binding or takes a call result",
                           st->text);
-                else if(!global_place && c->destination_was_moved == 0)
+                else if(!freed_place && c->destination_was_moved == 0)
                     error(c, st->span,
                           "assignment over an owned Vec leaks it; free or move it first",
                           c->fn->exprs[st->lhs_root].name);

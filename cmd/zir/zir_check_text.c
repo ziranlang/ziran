@@ -43,6 +43,8 @@ typedef struct ScopeAnswer {
     /* Whether a call may write a global: SCOPE_UNKNOWN, SCOPE_COMPUTING,
      * SCOPE_READ_ONLY for no or SCOPE_RETAINED for maybe. */
     unsigned char writes;
+    /* With writes, the pointer parameters a call may write through. */
+    uint64_t through;
 } ScopeAnswer;
 
 /* Where the string at field path FIELD, such as `data.value`, of record
@@ -150,6 +152,7 @@ static int local_record_flow(TextScope *scope, const ZirModule *module,
                              const char *path);
 
 static int pointer_type(const char *type);
+static int scalar_type(const char *type);
 
 static int
 combine(int a, int b)
@@ -439,115 +442,280 @@ pointer_type(const char *type)
     return type != NULL && *skip_ws(type) == '*';
 }
 
-/* Whether writing through the place at INDEX may change a global: its root
- * is a global, or a pointer is followed on the way to it. */
+/* What a write may change: only storage of the procedure's own locals,
+ * memory that pointer parameter P points to (P itself, 0 or more), or
+ * anything, a global included. */
+enum { REACH_LOCAL = -2, REACH_ANY = -1 };
+
+static int place_reach(const ZirFunction *fn, int index);
+
+/* The operand of unary expression E: `&x` takes x's address and `*p`,
+ * written `<<p`, is the place p points to. */
 static int
-place_reaches_global(const ZirFunction *fn, int index)
+unary_operand(const ZirExpr *e)
+{
+    return e->right >= 0 ? e->right : e->left >= 0 ? e->left : e->first_child;
+}
+
+static int
+address_of(const ZirExpr *e)
+{
+    return e->kind == ZIR_EXPR_UNARY && !strcmp(e->op, "&");
+}
+
+/* The index of FN's pointer parameter NAME, which FN never rebinds, so
+ * it still holds the caller's argument, or -1. */
+static int
+pointer_parameter(const ZirFunction *fn, const char *name)
+{
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    int found = -1;
+    for(int p = 0; p < parameters->count && p < 64; p++) {
+        const ZirParameter *item = &parameters->items[p];
+        const char *bound = item->binding_name ? item->binding_name : item->name;
+        const char *type = item->value_type ? item->value_type : item->type;
+        if(bound != NULL && !strcmp(bound, name))
+            found = !item->is_using && pointer_type(type) ? p : -1;
+    }
+    for(int s = 0; found >= 0 && s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        int lhs = st->lhs_root;
+        if((st->kind == ZIR_STMT_DECL && st->name && !strcmp(st->name, name)) ||
+           (st->kind == ZIR_STMT_ASSIGN && lhs >= 0 &&
+            fn->exprs[lhs].kind == ZIR_EXPR_IDENT && fn->exprs[lhs].name &&
+            !strcmp(fn->exprs[lhs].name, name)))
+            found = -1;
+    }
+    return found;
+}
+
+/* What the pointer value at INDEX may point into: the address of a place,
+ * or a pointer parameter. */
+static int
+pointer_reach(const ZirFunction *fn, int index)
+{
+    const ZirExpr *e = &fn->exprs[index];
+    if(address_of(e))
+        return place_reach(fn, unary_operand(e));
+    if(e->kind == ZIR_EXPR_IDENT && !e->is_global_value && !e->is_this && e->name) {
+        int p = pointer_parameter(fn, e->name);
+        if(p >= 0)
+            return p;
+    }
+    return REACH_ANY;
+}
+
+/* What writing the place at INDEX may change: a local, a field or element
+ * of one, or what a pointer followed on the way to it points to. */
+static int
+place_reach(const ZirFunction *fn, int index)
 {
     while(index >= 0) {
         const ZirExpr *e = &fn->exprs[index];
-        if(pointer_type(e->type))
-            return 1;
         if(e->kind == ZIR_EXPR_IDENT)
-            return e->is_global_value;
-        if(e->kind != ZIR_EXPR_MEMBER && e->kind != ZIR_EXPR_INDEX &&
-           e->kind != ZIR_EXPR_SLICE)
-            return 1;
+            return e->is_global_value || e->is_this || !e->name ? REACH_ANY : REACH_LOCAL;
+        if(e->kind == ZIR_EXPR_UNARY && !strcmp(e->op, "*") && unary_operand(e) >= 0)
+            return pointer_reach(fn, unary_operand(e));
+        if((e->kind != ZIR_EXPR_MEMBER && e->kind != ZIR_EXPR_INDEX &&
+            e->kind != ZIR_EXPR_SLICE) || e->left < 0)
+            return REACH_ANY;
+        if(pointer_type(fn->exprs[e->left].type))
+            return pointer_reach(fn, e->left);
         index = e->left;
     }
-    return 1;
+    return REACH_ANY;
 }
 
-static int function_writes_globals(TextScope *scope, const ZirModule *module,
-                                   const ZirFunction *fn);
+/* What a write that may change REACH adds to a procedure's effects. */
+static void
+add_reach(int reach, int *global, uint64_t *through)
+{
+    if(reach == REACH_ANY)
+        *global = 1;
+    else if(reach >= 0)
+        *through |= (uint64_t)1 << reach;
+}
 
-/* Whether evaluating the call at INDEX may write a global: it calls a
- * foreign, unknown or writing procedure, hands it a place reaching a
- * global or takes a global's address. */
-static int
-call_writes_globals(TextScope *scope, const ZirModule *module,
-                    const ZirFunction *fn, int index)
+static int function_writes(TextScope *scope, const ZirModule *module,
+                           const ZirFunction *fn, uint64_t *through);
+
+/* What evaluating the call at INDEX may write. Sets GLOBAL when it may
+ * write a global or memory of unknown origin, through a foreign, unknown
+ * or writing procedure or a place reaching a global handed to it. Each
+ * pointer argument it may write through adds what that pointer reaches:
+ * FN's own locals set LOCAL, FN's pointer parameters go into THROUGH. */
+static void
+call_writes(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+            int index, int *global, uint64_t *through, int *local)
 {
     const ZirExpr *e = &fn->exprs[index];
-    if(e->left >= 0 || e->is_function_value || !e->name || !*e->name)
-        return 1;
+    if(e->left >= 0 || e->is_function_value || !e->name || !*e->name) {
+        *global = 1;
+        return;
+    }
     for(int arg = e->first_child; arg >= 0; arg = fn->exprs[arg].next_sibling) {
         const char *type = fn->exprs[arg].type ? skip_ws(fn->exprs[arg].type) : "";
         int copied = !strcmp(type, "string") || !strcmp(type, "bool") ||
             ((type[0] == 's' || type[0] == 'u' || type[0] == 'f') &&
              isdigit((unsigned char)type[1]));
-        if(!copied && place_reaches_global(fn, arg))
-            return 1;
+        /* A Vec or record handed over by place, as in `BuilderAppend(<<b, s)`,
+         * may change where that place is. */
+        int reach = copied || pointer_type(type) ? REACH_LOCAL : place_reach(fn, arg);
+        if(reach != REACH_LOCAL)
+            add_reach(reach, global, through);
     }
+    /* Which pointer parameters the callee writes through; a builtin such as
+     * print, TextView or BuilderAppend acts only on its arguments. */
+    uint64_t written = ~(uint64_t)0;
     const ZirModule *owner = NULL;
     const ZirFunction *callee = NULL;
     int found = ResolveFunction(module, e->name, &owner, &callee);
     if(found != 1) {
-        if(found != 0)
-            return 1;
+        if(found != 0) {
+            *global = 1;
+            return;
+        }
         for(int i = 0; i < module->import_count; i++)
             if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
-               !strcmp(module->imports[i].name, e->name))
-                return 1;
-        /* A builtin such as print, TextView or BuilderAppend acts only on
-         * its arguments. */
-        return 0;
+               !strcmp(module->imports[i].name, e->name)) {
+                *global = 1;
+                return;
+            }
+    } else if(callee == NULL || owner == NULL || callee->is_extern ||
+              callee->is_template || callee->stmt_count == 0 ||
+              function_writes(scope, owner, callee, &written)) {
+        *global = 1;
+        return;
     }
-    if(callee == NULL || owner == NULL || callee->is_extern ||
-       callee->is_template || callee->stmt_count == 0)
-        return 1;
-    return function_writes_globals(scope, owner, callee);
+    for(int arg = e->first_child; arg >= 0; arg = fn->exprs[arg].next_sibling) {
+        int position = fn->exprs[arg].argument_index;
+        if(!pointer_type(fn->exprs[arg].type) ||
+           (found == 1 && position >= 0 && position < 64 &&
+            !(written & ((uint64_t)1 << position))))
+            continue;
+        int reach = pointer_reach(fn, arg);
+        if(reach == REACH_LOCAL)
+            *local = 1;
+        else
+            add_reach(reach, global, through);
+    }
 }
 
-/* Whether the tree at INDEX may write a global when evaluated. */
+/* Whether the expression at INDEX is an argument of a call. */
 static int
-tree_writes_globals(TextScope *scope, const ZirModule *module,
-                    const ZirFunction *fn, int index)
+call_argument(const ZirFunction *fn, const unsigned char *arguments, int index)
+{
+    return arguments != NULL && index >= 0 && index < fn->expr_count && arguments[index];
+}
+
+/* Marks each expression of FN that is an argument of a call. */
+static unsigned char *
+call_arguments(const ZirFunction *fn)
+{
+    unsigned char *arguments = calloc((size_t)fn->expr_count + 1, 1);
+    if(arguments == NULL)
+        return NULL;
+    for(int x = 0; x < fn->expr_count; x++)
+        if(fn->exprs[x].kind == ZIR_EXPR_CALL)
+            for(int child = fn->exprs[x].first_child; child >= 0 && child < fn->expr_count;
+                child = fn->exprs[child].next_sibling)
+                arguments[child] = 1;
+    return arguments;
+}
+
+/* What evaluating the tree at INDEX may write: answers 1 when it may write
+ * a global, and sets ARGUMENT when a call in it may write through a pointer
+ * argument, which could change what the rest of the statement reads. An
+ * address taken anywhere but as a call's argument may be kept and written
+ * later, so it counts as a global write. */
+static int
+tree_writes(TextScope *scope, const ZirModule *module, const ZirFunction *fn,
+            int index, int is_argument, int *argument)
 {
     if(index < 0)
         return 0;
     const ZirExpr *e = &fn->exprs[index];
-    if(e->kind == ZIR_EXPR_UNARY && (!strcmp(e->op, "*") || !strcmp(e->op, "&")))
-        return 1;
-    if(e->kind == ZIR_EXPR_CALL && call_writes_globals(scope, module, fn, index))
-        return 1;
-    if(tree_writes_globals(scope, module, fn, e->left) ||
-       tree_writes_globals(scope, module, fn, e->right) ||
-       tree_writes_globals(scope, module, fn, e->third))
-        return 1;
+    int global = 0;
+    if(address_of(e) && !is_argument)
+        global = 1;
+    if(e->kind == ZIR_EXPR_CALL) {
+        uint64_t through = 0;
+        int local = 0;
+        call_writes(scope, module, fn, index, &global, &through, &local);
+        if(through || local)
+            *argument = 1;
+    }
+    global |= tree_writes(scope, module, fn, e->left, 0, argument) |
+        tree_writes(scope, module, fn, e->right, 0, argument) |
+        tree_writes(scope, module, fn, e->third, 0, argument);
     for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
-        if(tree_writes_globals(scope, module, fn, child))
-            return 1;
-    return 0;
+        global |= tree_writes(scope, module, fn, child, e->kind == ZIR_EXPR_CALL, argument);
+    return global;
 }
 
-/* Whether calling FN may write a global. A recursive query answers yes. */
+/* Whether the tree at INDEX may write a global, or through a pointer
+ * argument, when evaluated. */
 static int
-function_writes_globals(TextScope *scope, const ZirModule *module,
-                        const ZirFunction *fn)
+tree_writes_globals(TextScope *scope, const ZirModule *module,
+                    const ZirFunction *fn, int index)
 {
+    int argument = 0;
+    return tree_writes(scope, module, fn, index, 0, &argument) || argument;
+}
+
+/* Whether a call in the tree at INDEX may write through a pointer argument. */
+static int
+tree_writes_arguments(TextScope *scope, const ZirModule *module,
+                      const ZirFunction *fn, int index)
+{
+    int argument = 0;
+    (void)tree_writes(scope, module, fn, index, 0, &argument);
+    return argument;
+}
+
+/* What calling FN may write that its caller can see: answers 1 when it may
+ * write a global or memory of unknown origin, and sets THROUGH to the
+ * pointer parameters it may write through. Writes to its own locals,
+ * directly or through their addresses handed to calls, are not seen. A
+ * recursive query answers 1. */
+static int
+function_writes(TextScope *scope, const ZirModule *module,
+                const ZirFunction *fn, uint64_t *through)
+{
+    *through = 0;
     ScopeAnswer *answer = answer_for(scope, fn);
     if(answer == NULL)
         return 1;
-    if(answer->writes != SCOPE_UNKNOWN)
+    if(answer->writes != SCOPE_UNKNOWN) {
+        *through = answer->through;
         return answer->writes != SCOPE_READ_ONLY;
+    }
     answer->writes = SCOPE_COMPUTING;
-    int result = 0;
-    for(int s = 0; !result && s < fn->stmt_count; s++) {
+    int global = 0, local = 0;
+    uint64_t bits = 0;
+    unsigned char *arguments = call_arguments(fn);
+    if(arguments == NULL)
+        global = 1;
+    for(int s = 0; !global && s < fn->stmt_count; s++) {
         const ZirStmt *st = &fn->stmts[s];
-        if(st->kind == ZIR_STMT_ASSIGN && place_reaches_global(fn, st->lhs_root))
-            result = 1;
+        if(st->kind == ZIR_STMT_ASSIGN)
+            add_reach(place_reach(fn, st->lhs_root), &global, &bits);
     }
-    for(int x = 0; !result && x < fn->expr_count; x++) {
+    for(int x = 0; !global && x < fn->expr_count; x++) {
         const ZirExpr *e = &fn->exprs[x];
-        if((e->kind == ZIR_EXPR_UNARY && (!strcmp(e->op, "*") || !strcmp(e->op, "&"))) ||
-           (e->kind == ZIR_EXPR_CALL && call_writes_globals(scope, module, fn, x)))
-            result = 1;
+        if(address_of(e) && !call_argument(fn, arguments, x))
+            global = 1;
+        else if(e->kind == ZIR_EXPR_CALL)
+            call_writes(scope, module, fn, x, &global, &bits, &local);
     }
+    free(arguments);
     answer = answer_for(scope, fn);
-    if(answer != NULL)
-        answer->writes = result ? SCOPE_RETAINED : SCOPE_READ_ONLY;
-    return result;
+    if(answer != NULL) {
+        answer->writes = global ? SCOPE_RETAINED : SCOPE_READ_ONLY;
+        answer->through = bits;
+    }
+    *through = bits;
+    return global;
 }
 
 static int
@@ -581,7 +749,7 @@ address_taken(const ZirFunction *fn, const char *name)
         const ZirExpr *e = &fn->exprs[i];
         if(e->kind != ZIR_EXPR_UNARY || (strcmp(e->op, "*") && strcmp(e->op, "&")))
             continue;
-        int place = e->left >= 0 ? e->left : e->first_child;
+        int place = unary_operand(e);
         while(place >= 0 && (fn->exprs[place].kind == ZIR_EXPR_MEMBER ||
                              fn->exprs[place].kind == ZIR_EXPR_INDEX))
             place = fn->exprs[place].left;
@@ -592,8 +760,32 @@ address_taken(const ZirFunction *fn, const char *name)
     return 0;
 }
 
-/* Whether FN takes the address of a global anywhere, so a pointer may
- * reach it. */
+/* Whether the expression at INDEX is an argument of a call that gives
+ * back a plain value: nothing, a scalar, a string or a Text, none of which
+ * can carry the address on. */
+static int
+handed_to_call(const ZirFunction *fn, int index)
+{
+    for(int x = 0; x < fn->expr_count; x++) {
+        const ZirExpr *e = &fn->exprs[x];
+        if(e->kind != ZIR_EXPR_CALL)
+            continue;
+        for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling) {
+            if(child != index)
+                continue;
+            const char *type = e->type ? skip_ws(e->type) : "";
+            const char *dot = strrchr(type, '.');
+            return !strcmp(type, "void") || !strcmp(type, "string") ||
+                !strcmp(dot ? dot + 1 : type, "Text") || scalar_type(type);
+        }
+    }
+    return 0;
+}
+
+/* Whether FN takes the address of a global anywhere a pointer in FN may
+ * keep it. An address handed straight to a call that gives back no pointer
+ * leaves none in FN; the call's own writes through it are counted where
+ * the call is. */
 static int
 global_address_taken(const ZirFunction *fn)
 {
@@ -601,7 +793,9 @@ global_address_taken(const ZirFunction *fn)
         const ZirExpr *e = &fn->exprs[i];
         if(e->kind != ZIR_EXPR_UNARY || (strcmp(e->op, "*") && strcmp(e->op, "&")))
             continue;
-        int place = e->left >= 0 ? e->left : e->first_child;
+        if(handed_to_call(fn, i))
+            continue;
+        int place = unary_operand(e);
         while(place >= 0 && (fn->exprs[place].kind == ZIR_EXPR_MEMBER ||
                              fn->exprs[place].kind == ZIR_EXPR_INDEX))
             place = fn->exprs[place].left;
@@ -628,12 +822,16 @@ settled(const ZirFunction *fn, int index, int globals)
     case ZIR_EXPR_IDENT:
         return !e->is_global_value || globals;
     case ZIR_EXPR_UNARY: {
-        int operand = e->left >= 0 ? e->left : e->right >= 0 ? e->right : e->first_child;
+        int operand = unary_operand(e);
         /* A variable's address, as in `Append(*out, ...)`, cannot change. */
-        if((!strcmp(e->op, "*") || !strcmp(e->op, "&")) && operand >= 0 &&
+        if(!strcmp(e->op, "&") && operand >= 0 &&
            fn->exprs[operand].kind == ZIR_EXPR_IDENT &&
            fn->exprs[operand].name != NULL && !fn->exprs[operand].is_function_value)
             return 1;
+        /* What a pointer points to, as in `<<p`, is a global as far as the
+         * moved call is concerned: it may be one. */
+        if(!strcmp(e->op, "*"))
+            return globals && settled(fn, operand, globals);
         return (!strcmp(e->op, "-") || !strcmp(e->op, "!")) &&
             settled(fn, operand, globals);
     }
@@ -660,24 +858,6 @@ settled(const ZirFunction *fn, int index, int globals)
     default:
         return 0;
     }
-}
-
-/* Whether the tree at INDEX takes an address another expression reads. */
-static int
-takes_address(const ZirFunction *fn, int index)
-{
-    if(index < 0)
-        return 0;
-    const ZirExpr *e = &fn->exprs[index];
-    if(e->kind == ZIR_EXPR_UNARY && (!strcmp(e->op, "*") || !strcmp(e->op, "&")))
-        return 1;
-    if(takes_address(fn, e->left) || takes_address(fn, e->right) ||
-       takes_address(fn, e->third))
-        return 1;
-    for(int child = e->first_child; child >= 0; child = fn->exprs[child].next_sibling)
-        if(takes_address(fn, child))
-            return 1;
-    return 0;
 }
 
 /* Whether CHILD of PARENT runs after only settled siblings, so the
@@ -824,30 +1004,6 @@ scope_text(ZirFunction *fn, int view_node, int call, int s, int *serial)
     ZirExpr *lent = &fn->exprs[view_node];
     lent->name = KeepName("TextView");
     lent->first_child = view;
-    /* Record literal fields holding the view now hold a checked string,
-     * typed as checking `.field = TextView(local)` types them, so checking
-     * saved IR again, where a `:=` declaration types its literal's fields,
-     * finds the same. */
-    for(int node = view_node, found = 1; found;) {
-        found = 0;
-        for(int x = 0; x < fn->expr_count && !found; x++) {
-            ZirExpr *field = &fn->exprs[x];
-            if(field->kind != ZIR_EXPR_FIELD_INIT || field->right != node)
-                continue;
-            if(field->type == NULL || !*field->type)
-                field->type = fn->exprs[node].type;
-            for(int r = 0; r < fn->expr_count && !found; r++) {
-                if(fn->exprs[r].kind != ZIR_EXPR_COMPOUND)
-                    continue;
-                for(int child = fn->exprs[r].first_child; child >= 0 && !found;
-                    child = fn->exprs[child].next_sibling)
-                    if(child == x) {
-                        node = r;
-                        found = 1;
-                    }
-            }
-        }
-    }
     return 1;
 }
 
@@ -934,6 +1090,24 @@ block_end(const ZirFunction *fn, int s)
         }
     }
     return fn->stmt_count;
+}
+
+/* The declaration that the read X of a local names: the closest earlier
+ * declaration of that name whose block is still open at X's statement, or
+ * -1 for a parameter or a global. Same-named locals in sibling blocks are
+ * different bindings. */
+static int
+declaration_of(const ZirFunction *fn, const Parents *parents, int x)
+{
+    int at = statement_of(parents, x);
+    const char *name = fn->exprs[x].name;
+    for(int t = at - 1; t >= 0 && name != NULL; t--) {
+        const ZirStmt *st = &fn->stmts[t];
+        if(st->kind == ZIR_STMT_DECL && st->name != NULL &&
+           !strcmp(st->name, name) && at < block_end(fn, t))
+            return t;
+    }
+    return -1;
 }
 
 /* Whether a local of TYPE can carry an ifx result out of its branches:
@@ -1107,7 +1281,7 @@ rewrite_condition(TextScope *scope, const ZirModule *module, ZirFunction *fn,
         if(else_if >= 0)
             return split_else_if(fn, else_if) ? 1 : -1;
         node = blocking_arm(fn, parents, node, globals);
-        if(node < 0)
+        if(node < 0 || tree_writes_arguments(scope, module, fn, node))
             return 0;
         globals = !global_address_taken(fn) &&
             !tree_writes_globals(scope, module, fn, node);
@@ -1144,13 +1318,9 @@ local_flow(TextScope *scope, const ZirModule *module,
     const char *name = fn->stmts[s].name;
     int array = string_array_type(fn->stmts[s].type);
     int end = block_end(fn, s);
-    for(int t = 0; t < fn->stmt_count; t++) {
-        const ZirStmt *st = &fn->stmts[t];
-        if(t != s && st->kind == ZIR_STMT_DECL && st->name && !strcmp(st->name, name))
+    for(int t = s + 1; t < end; t++)
+        if(fn->stmts[t].kind == ZIR_STMT_DEFER)
             return FLOW_RETAINED;
-        if(t > s && t < end && st->kind == ZIR_STMT_DEFER)
-            return FLOW_RETAINED;
-    }
     if(scope->walking_count == (int)(sizeof(scope->walking) / sizeof(scope->walking[0])))
         return FLOW_RETAINED;
     int walking = scope->walking_count++;
@@ -1161,7 +1331,8 @@ local_flow(TextScope *scope, const ZirModule *module,
     for(int x = 0; result && x < fn->expr_count; x++) {
         const ZirExpr *e = &fn->exprs[x];
         if(e->kind != ZIR_EXPR_IDENT || e->is_this || e->is_function_value ||
-           e->name == NULL || strcmp(e->name, name) || parents->of[x] == -1)
+           e->name == NULL || strcmp(e->name, name) || parents->of[x] == -1 ||
+           declaration_of(fn, parents, x) != s)
             continue;
         int at = statement_of(parents, x);
         if(at <= s || at >= end) {
@@ -1498,13 +1669,14 @@ local_read_only(TextScope *scope, const ZirModule *module,
 /* Keeps the Text call CALL of string local statement S as that local's
  * Text and lends a view of it at each use. */
 static int
-keep_local_text(ZirFunction *fn, int s, int call)
+keep_local_text(ZirFunction *fn, const Parents *parents, int s, int call)
 {
     const char *name = fn->stmts[s].name;
     int count = fn->expr_count;
     for(int x = 0; x < count; x++) {
         if(fn->exprs[x].kind != ZIR_EXPR_IDENT || fn->exprs[x].is_this ||
-           fn->exprs[x].name == NULL || strcmp(fn->exprs[x].name, name))
+           fn->exprs[x].name == NULL || strcmp(fn->exprs[x].name, name) ||
+           parents->of[x] == -1 || declaration_of(fn, parents, x) != s)
             continue;
         ZirExpr *local = FunctionAddExpr(fn, ZIR_EXPR_IDENT, fn->exprs[x].text,
                                          fn->exprs[x].span);
@@ -1556,7 +1728,7 @@ infer_local_texts(TextScope *scope, const ZirModule *module, ZirFunction *fn,
             continue;
         int call = vec_module ? builder_text_call(fn, root, vec_module) :
             fn->exprs[root].first_child;
-        if(call < 0 || !keep_local_text(fn, s, call)) {
+        if(call < 0 || !keep_local_text(fn, &parents, s, call)) {
             free(parents.of);
             return 0;
         }
@@ -1586,11 +1758,14 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
                (!text_detach_call(fn, x) &&
                 (vec_module = builder_text_module(module, fn, x)) == NULL))
                 continue;
-            if(!value_read_only(scope, module, fn, &parents, x) ||
-               takes_address(fn, fn->exprs[x].first_child))
+            if(!value_read_only(scope, module, fn, &parents, x))
                 continue;
-            /* The moved call is the Text producer with its arguments. */
+            /* The moved call is the Text producer with its arguments. One
+             * that may write through a pointer argument could change what
+             * the statement reads before it, so it stays. */
             int moved = vec_module ? x : fn->exprs[x].first_child;
+            if(tree_writes_arguments(scope, module, fn, moved))
+                continue;
             int globals = !global_address_taken(fn) &&
                 !tree_writes_globals(scope, module, fn, moved);
             if(scope->failed) {

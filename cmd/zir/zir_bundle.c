@@ -2219,6 +2219,7 @@ resolve_reachability:
                 if(keep_defines[m][d])
                     target->defines[target->define_count++] = source->defines[d];
             target->define_cap = kept_defines;
+            SymbolLookupsChanged();
         }
         /* Keep module globals read or written by retained functions. Globals
          * used only by discarded functions must not add bundle state or

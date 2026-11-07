@@ -996,6 +996,8 @@ name_private_defines(ZirModule *module)
         copy_text(renames[r].definition->name,
                   sizeof(renames[r].definition->name),
                   renames[r].internal);
+    if(count > 0)
+        SymbolLookupsChanged();
     free(renames);
     return 1;
 failed:

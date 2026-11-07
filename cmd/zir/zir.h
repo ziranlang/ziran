@@ -509,6 +509,13 @@ int ResolveGlobalAt(const ZirModule *module, const char *name,
                     const ZirGlobal **global);
 int ResolveGlobal(const ZirModule *module, const char *name,
                   const ZirModule **owner, const ZirGlobal **global);
+/* The constant NAME or ALIAS.NAME as MODULE's current file sees it: 1 with
+ * its DEFINITION and OWNER, 0 when absent, -1 when ambiguous.
+ * SELECTED_IMPORT, when given, receives the import an imported constant
+ * was found through. */
+int ResolveDefine(const ZirModule *module, const char *name,
+                  const ZirDefine **definition, const ZirModule **owner,
+                  const ZirImport **selected_import);
 /* Runtime contracts are parsed from embedded declaration sources. */
 const ZirType *FindType(const ZirModule *module, const char *name,
                         const ZirModule **owner);

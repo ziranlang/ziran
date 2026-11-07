@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 static void
@@ -152,6 +153,134 @@ scopes_and_mutation(void)
     ProgramFree(program);
 }
 
+static void
+constant(const ZirModule *module, const char *name, int expected_status,
+         const ZirModule *expected_owner, int index,
+         const ZirImport *expected_import)
+{
+    for(int repeat = 0; repeat < 4; repeat++) {
+        const ZirDefine *definition = (const ZirDefine *)module;
+        const ZirModule *owner = module;
+        const ZirImport *import = (const ZirImport *)module;
+        int status = ResolveDefine(module, name, &definition, &owner, &import);
+        assert(status == expected_status);
+        if(status >= 0) {
+            assert(owner == expected_owner);
+            assert(definition == (index < 0 ? NULL :
+                                  &expected_owner->defines[index]));
+            assert(import == expected_import);
+        }
+    }
+}
+
+static ZirDefine *
+define(ZirModule *module, const char *name, const char *path, int public)
+{
+    ZirDefine *definition = ModuleAddDefine(module, name, "1",
+                                            Span(path, 1, 1));
+    assert(definition != NULL);
+    definition->is_public = public;
+    return definition;
+}
+
+static void
+constants_and_mutation(void)
+{
+    ZirProgram *program = ProgramNew();
+    assert(program != NULL);
+    for(int i = 0; i < 4; i++) {
+        char name[32];
+        snprintf(name, sizeof(name), "constants%d", i);
+        assert(ProgramAddModule(program, name, name, Span(name, 1, 1)) != NULL);
+    }
+    ZirModule *root = &program->modules[0], *left = &program->modules[1];
+    ZirModule *right = &program->modules[2], *leaf = &program->modules[3];
+    char name[32];
+    /* Enough constants that answers are kept rather than rescanned. */
+    for(int i = 0; i < 8; i++) {
+        snprintf(name, sizeof(name), "Filler%d", i);
+        define(root, name, "one.zi", 0);
+    }
+    constant(root, "Later", 0, NULL, -1, NULL);
+    define(root, "Later", "one.zi", 0);
+    constant(root, "Later", 1, root, 8, NULL);
+    /* Array growth invalidates pointers as well as formerly absent names. */
+    for(int i = 0; i < 150; i++) {
+        snprintf(name, sizeof(name), "Added%d", i);
+        define(root, name, "one.zi", 0);
+        constant(root, "Later", 1, root, 8, NULL);
+    }
+    strcpy(root->defines[8].name, "Renamed");
+    SymbolLookupsChanged();
+    constant(root, "Later", 0, NULL, -1, NULL);
+    constant(root, "Renamed", 1, root, 8, NULL);
+    /* File-private constants follow the module's lookup file. */
+    define(root, "Private", "one.zi", 0)->is_file_private = 1;
+    define(root, "Private", "two.zi", 0)->is_file_private = 1;
+    for(int repeat = 0; repeat < 4; repeat++) {
+        strcpy(root->lookup_path, "one.zi");
+        constant(root, "Private", 1, root, 159, NULL);
+        strcpy(root->lookup_path, "two.zi");
+        constant(root, "Private", 1, root, 160, NULL);
+        strcpy(root->lookup_path, "absent.zi");
+        constant(root, "Private", 0, NULL, -1, NULL);
+        root->lookup_path[0] = '\0';
+        constant(root, "Private", -1, NULL, -1, NULL);
+    }
+    /* Imported constants report the import they came through. */
+    define(leaf, "Shared", "leaf.zi", 1);
+    import_module(root, left, "Left", 1, "one.zi");
+    import_module(left, leaf, "Leaf", 1, "left.zi");
+    import_module(leaf, left, "Cycle", 1, "leaf.zi");
+    /* Nested scopes pass on only public using imports, so the cycle back
+     * to Left is not followed. */
+    constant(root, "Shared", 0, NULL, -1, NULL);
+    left->imports[0].is_public = 1;
+    SymbolLookupsChanged();
+    constant(root, "Shared", 1, leaf, 0, &root->imports[0]);
+    constant(root, "Left.Shared", 1, leaf, 0, &root->imports[0]);
+    constant(root, "Left.Missing", 0, NULL, -1, NULL);
+    constant(root, "Right.Shared", 0, NULL, -1, NULL);
+    import_module(root, right, NULL, 0, "one.zi");
+    define(right, "Shared", "right.zi", 1);
+    constant(root, "Shared", -1, NULL, -1, NULL);
+    right->defines[0].is_public = 0;
+    SymbolLookupsChanged();
+    constant(root, "Shared", 1, leaf, 0, &root->imports[0]);
+    root->imports[0].is_file_private = 1;
+    SymbolLookupsChanged();
+    strcpy(root->lookup_path, "two.zi");
+    constant(root, "Shared", 0, NULL, -1, NULL);
+    strcpy(root->lookup_path, "one.zi");
+    constant(root, "Shared", 1, leaf, 0, &root->imports[0]);
+    /* A temporary view with more constants answers only while it lives. */
+    ZirDefine *values = calloc((size_t)root->define_count + 1,
+                               sizeof(*values));
+    assert(values != NULL);
+    memcpy(values, root->defines, (size_t)root->define_count * sizeof(*values));
+    strcpy(values[root->define_count].name, "ViewOnly");
+    values[root->define_count].value = "2";
+    values[root->define_count].is_public = 1;
+    values[root->define_count].span = Span("one.zi", 1, 1);
+    ZirModule view = *root;
+    view.defines = values;
+    view.define_count = root->define_count + 1;
+    SymbolLookupsChanged();
+    constant(&view, "ViewOnly", 1, &view, root->define_count, NULL);
+    constant(&view, "Renamed", 1, &view, 8, NULL);
+    constant(root, "ViewOnly", 0, NULL, -1, NULL);
+    SymbolLookupsChanged();
+    free(values);
+    /* Grow the answer table, retaining hits and misses across rehashes. */
+    for(int i = 0; i < 9000; i++) {
+        snprintf(name, sizeof(name), "Absent%d", i);
+        constant(root, name, 0, NULL, -1, NULL);
+    }
+    constant(root, "Renamed", 1, root, 8, NULL);
+    constant(root, "Left.Shared", 1, leaf, 0, &root->imports[0]);
+    ProgramFree(program);
+}
+
 static void *
 independent_programs(void *argument)
 {
@@ -187,6 +316,7 @@ int
 main(void)
 {
     scopes_and_mutation();
+    constants_and_mutation();
     pthread_t threads[4];
     const char *paths[] = {"thread0.zi", "thread1.zi", "thread2.zi", "thread3.zi"};
     for(int i = 0; i < 4; i++)

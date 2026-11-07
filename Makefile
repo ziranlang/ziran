@@ -57,6 +57,7 @@ TYPE_OBJECT := $(BUILD_DIR)/obj/compiler-type.o
 EXPRESSION_OBJECT := $(BUILD_DIR)/obj/compiler-expression.o
 STATEMENT_OBJECT := $(BUILD_DIR)/obj/compiler-statement.o
 PROOF_KERNEL_OBJECT := $(BUILD_DIR)/obj/compiler-proof-kernel.o
+SERVICES_OBJECT := $(BUILD_DIR)/obj/compiler-services.o
 BUNDLE_MODULE_OBJECT := $(BUILD_DIR)/obj/compiler-bundle.o
 ifeq ($(BOOTSTRAP),1)
 SCANNER_C := bootstrap/compiler_scan
@@ -81,6 +82,8 @@ BUNDLE_C := bootstrap/compiler_bundle
 BUNDLE_READY := $(BUNDLE_C)/compiler_bundle.c $(BUNDLE_C)/compiler_bundle.h
 IR_C := bootstrap/compiler_ir
 IR_READY := $(IR_C)/compiler_ir.h
+SERVICES_C := bootstrap/compiler_services
+SERVICES_READY := $(SERVICES_C)/compiler_services.c $(SERVICES_C)/compiler_services.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
@@ -104,24 +107,26 @@ BUNDLE_C := $(BUILD_DIR)/compiler-bundle
 BUNDLE_READY := $(BUNDLE_C)/.generated
 IR_C := $(BUILD_DIR)/compiler-ir
 IR_READY := $(IR_C)/.generated
+SERVICES_C := $(BUILD_DIR)/compiler-services
+SERVICES_READY := $(SERVICES_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(BUNDLE_C) -I$(IR_C)
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(BUNDLE_C) -I$(IR_C) -I$(SERVICES_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_native.c cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
     cmd/zir/zir_serial.c cmd/zir/zir_load.c \
     cmd/zir/zir_packages.c \
-    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c
+    cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
 PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
 LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(SERVICES_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c cmd/zir-wasm/zir_wasm_lower.c)
-FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(BUILD_DIR)/obj/check.o \
+FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(SERVICES_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
 BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
@@ -230,6 +235,9 @@ $(STATEMENT_OBJECT): $(STATEMENT_READY) $(SCANNER_READY) $(SOURCE_READY) $(TEXT_
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(STATEMENT_C)/compiler_statement.c
 
 $(call obj,cmd/zir/zir_proof.c): $(PROOF_KERNEL_READY)
+$(SERVICES_OBJECT): $(SERVICES_READY) $(IR_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SERVICES_C)/compiler_services.c
 $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
@@ -421,7 +429,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_proof_kernel/compiler_proof_kernel.c bootstrap/compiler_proof_kernel/compiler_proof_kernel.h \
     bootstrap/compiler_proof_kernel/vec.h \
     bootstrap/compiler_bundle/compiler_bundle.c bootstrap/compiler_bundle/compiler_bundle.h \
-    bootstrap/compiler_ir/compiler_ir.c bootstrap/compiler_ir/compiler_ir.h Makefile
+    bootstrap/compiler_ir/compiler_ir.c bootstrap/compiler_ir/compiler_ir.h \
+    bootstrap/compiler_services/compiler_services.c bootstrap/compiler_services/compiler_services.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -481,11 +490,16 @@ $(IR_C)/.generated: cmd/compiler_ir.zi $(BOOTSTRAP_BIN)
 	    -o $(IR_C) cmd/compiler_ir.zi
 	touch $@
 
+$(SERVICES_C)/.generated: cmd/compiler_services.zi cmd/compiler_ir.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(SERVICES_C) cmd/compiler_services.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel bundle ir
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel bundle ir services
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 check-bootstrap: $(BIN_DIR)/zi2c

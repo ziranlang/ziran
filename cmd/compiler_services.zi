@@ -1,0 +1,37 @@
+// The C services the Ziran compiler modules call while they work on the IR:
+// kept text, source paths, diagnostics and symbol lookups.
+// cmd/zir/zir_services.c implements them over the C storage. A string
+// argument needs no closing NUL; a *u8 argument or result is a C string.
+// Foreign procedures stay in their module, so each has a public wrapper.
+IR :: #import "compiler_ir";
+
+Diagnose :: (span: IR.ZirSourceSpan, code: string, message: string) { ZiranDiagnose(span, code, message) }
+// KeepText, KeepName and KeepParameters of a Ziran string.
+Keep :: (text: string) -> *u8 { return ZiranKeepText(text) }
+KeepName :: (text: string) -> *u8 { return ZiranKeepName(text) }
+KeepParameters :: (text: string) -> *u8 { return ZiranKeepParameters(text) }
+SpanPath :: (span: IR.ZirSourceSpan) -> *u8 { return CSpanPath(span) }
+// Call after changing what FindType or ResolveFunctionAt read; see zir.h.
+LookupsChanged :: () { SymbolLookupsChanged() }
+ResolveFunction :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
+                    function: **IR.ZirFunction) -> s32 {
+    return ResolveFunctionAt(module, name, path, owner, function)
+}
+// ModuleAddImport; null when it cannot allocate.
+AddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, target: string,
+              signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport {
+    return ZiranAddImport(module, kind, name, target, signature, span)
+}
+
+#scope_file
+compiler :: #system_library "ziran";
+ZiranDiagnose :: (span: IR.ZirSourceSpan, code: string, message: string) #foreign compiler "ZiranDiagnose";
+ZiranKeepText :: (text: string) -> *u8 #foreign compiler "ZiranKeepText";
+ZiranKeepName :: (text: string) -> *u8 #foreign compiler "ZiranKeepName";
+ZiranKeepParameters :: (text: string) -> *u8 #foreign compiler "ZiranKeepParameters";
+CSpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
+SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
+ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
+                      function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
+ZiranAddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, target: string,
+                   signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ZiranAddImport";

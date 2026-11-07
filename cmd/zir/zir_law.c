@@ -754,6 +754,12 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
         total *= span_count[v];
         index[v] = 0;
     }
+    /* The condition is parsed and its constants gathered once; each case
+     * only sets the variables. */
+    ZirBoundCondition *condition = PrepareBoundCondition(module, body, law->span,
+        (const char (*)[ZIR_NAME_MAX])names, (const char (*)[ZIR_NAME_MAX])types,
+        count);
+    LawStatus status = LAW_PROVED;
     for(;;) {
         int truth = 0;
         for(int v = 0; v < count; v++) {
@@ -776,17 +782,16 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                     snprintf(exprs[v] + used, ZIR_NAME_MAX - used, "]");
             }
         }
-        if(!EvaluateCompileConditionBound(module, body, law->span,
-                                          (const char (*)[ZIR_NAME_MAX])names,
-                                          (const char (*)[ZIR_NAME_MAX])types,
-                                          (const char (*)[ZIR_NAME_MAX])exprs,
-                                          values, count, &truth)) {
+        if(!EvaluateBoundCondition(condition,
+                                   (const char (*)[ZIR_NAME_MAX])exprs,
+                                   values, &truth)) {
             size_t used = (size_t)snprintf(detail, size,
                 "condition is outside the compile-time evaluator at");
             for(int v = 0; v < count && used < size; v++)
                 used += (size_t)snprintf(detail + used, size - used, "%s%s=%" PRId64,
                                          v ? ", " : " ", names[v], values[v]);
-            return LAW_UNKNOWN;
+            status = LAW_UNKNOWN;
+            break;
         }
         if(active_evidence) active_evidence->cases_checked = (uint64_t)checked + 1;
         if(!truth) {
@@ -814,7 +819,8 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
                                              "%s%s=%" PRId64, v ? ", " : " ",
                                              names[v], values[v]);
             }
-            return LAW_DISPROVED;
+            status = LAW_DISPROVED;
+            break;
         }
         checked++;
         {
@@ -827,8 +833,10 @@ evaluate_forall_law_with(const ZirModule *module, const ZirLaw *law,
             index[v]++;
         }
     }
-    snprintf(detail, size, "held for all %" PRId64 " cases", checked);
-    return LAW_PROVED;
+    FreeBoundCondition(condition);
+    if(status == LAW_PROVED)
+        snprintf(detail, size, "held for all %" PRId64 " cases", checked);
+    return status;
 }
 
 static int evaluate_law_uncached(const ZirModule *module, const ZirLaw *law,

@@ -43,6 +43,10 @@
 - `tests/compiler_kernel_benchmarks.sh` no longer stops when another
   commit lands during the run; it checks the tools, inputs and headers it
   built and measured.
+- `forall` laws check in about half the time, with the same results: each
+  law's condition is parsed once, a procedure's parameter list is split
+  once, and a call made again with the same arguments in a later case reuses
+  its result.
 - The slice lifetime check finishes in a fraction of the time on large
   programs: each pass rechecks only procedures whose callees or globals
   changed, and callee summaries and recorded writes are looked up directly.

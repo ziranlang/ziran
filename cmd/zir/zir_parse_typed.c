@@ -3,13 +3,12 @@
 #include <inttypes.h>
 #include "zir_parse_internal.h"
 
-/* Text of the qualified enum member holding `value`, so a bound enum value
- * keeps its enum type after textual expansion. */
+/* Text of the qualified member of ENUMERATION holding `value`, so a bound
+ * enum value keeps its enum type after textual expansion. */
 static int
-enum_member_text(const ZirModule *module, const char *type, int64_t value,
-                 char *out, size_t size)
+enum_member_spelling(const ZirType *enumeration, int64_t value, char *out,
+                     size_t size)
 {
-    const ZirType *enumeration = type[0] ? FindType(module, type, NULL) : NULL;
     const char *cursor;
     if(enumeration == NULL || !enumeration->is_enum) return 0;
     cursor = enumeration->body;
@@ -32,13 +31,21 @@ enum_member_text(const ZirModule *module, const char *type, int64_t value,
     return 0;
 }
 
+/* The enum TYPE names in MODULE, or NULL when it names no enum. */
+static const ZirType *
+enum_type(const ZirModule *module, const char *type)
+{
+    const ZirType *enumeration = type[0] ? FindType(module, type, NULL) : NULL;
+    return enumeration != NULL && enumeration->is_enum ? enumeration : NULL;
+}
+
 /* Replace a constant's text with its enum member spelling when it has one. */
 static void
 enum_member_expr(const ZirModule *module, const char *type, int64_t value,
                  const char **expr)
 {
     char text[ZIR_TEXT_MAX];
-    if(enum_member_text(module, type, value, text, sizeof(text)))
+    if(enum_member_spelling(enum_type(module, type), value, text, sizeof(text)))
         *expr = KeepText(text);
 }
 
@@ -66,6 +73,80 @@ int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
                           int *fuel, CompileValue *result);
 
+/* Law evaluation is pure: a binding read evaluates only the binding's text,
+ * and a call only its arguments, procedures and module constants. Such a
+ * step's result is kept and reused when the step would repeat exactly: no
+ * deeper than when it was kept and with fuel for its cost, since depth and
+ * fuel only ever make a step fail, and into a cleared value, since some
+ * steps leave fields of their destination as they were. */
+typedef struct KeptValue {
+    int depth;
+    int cost;
+    CompileKind kind;
+    int64_t integer;
+    double real;
+    const char *type;    /* kept */
+    const char *literal; /* kept */
+    const ZirModule *type_owner;
+} KeptValue;
+
+static int
+compile_value_is_clear(const CompileValue *value)
+{
+    return value->kind == COMPILE_INVALID && value->integer == 0 &&
+           value->real == 0 && !signbit(value->real) && !value->type[0] &&
+           !value->literal[0] && value->type_owner == NULL;
+}
+
+/* Give RESULT, which is clear, the kept value when the step repeats. */
+static int
+kept_value_applies(const KeptValue *kept, int depth, int *fuel,
+                   CompileValue *result)
+{
+    if(depth > kept->depth || *fuel < kept->cost) return 0;
+    *fuel -= kept->cost;
+    result->kind = kept->kind;
+    result->integer = kept->integer;
+    result->real = kept->real;
+    copy_text(result->type, sizeof(result->type), kept->type);
+    copy_text(result->literal, sizeof(result->literal), kept->literal);
+    result->type_owner = kept->type_owner;
+    return 1;
+}
+
+/* Keep VALUE with TYPE and LITERAL, copies of its texts that outlive it. */
+static void
+keep_value_texts(KeptValue *kept, int depth, int cost, const CompileValue *value,
+                 const char *type, const char *literal)
+{
+    kept->depth = depth;
+    kept->cost = cost;
+    kept->kind = value->kind;
+    kept->integer = value->integer;
+    kept->real = value->real;
+    kept->type = type;
+    kept->literal = literal;
+    kept->type_owner = value->type_owner;
+}
+
+static void
+keep_value(KeptValue *kept, int depth, int cost, const CompileValue *value)
+{
+    keep_value_texts(kept, depth, cost, value, KeepText(value->type),
+                     KeepText(value->literal));
+}
+
+/* A binding's last read: its text, evaluated in MODULE, gave VALUE. */
+struct ZirBoundRead {
+    const char *expr; /* NULL when nothing is kept */
+    const ZirModule *module;
+    KeptValue value;
+};
+
+/* Name lookups in non-empty tables so far; a read that makes none depends
+ * only on its own text. */
+static _Thread_local unsigned long binding_lookups;
+
 /* Evaluate `name` the way splicing `(cast(TYPE) (value))`, or `(value)` for
  * constants and non-scalar locals, into the expression would. Returns -1
  * when no binding in scope has that name. */
@@ -77,11 +158,20 @@ evaluate_bound_name(const ZirModule *module, const char *path,
     const ZirConsts *names = evaluation_names;
     if(names == NULL)
         return -1;
+    if(names->count > 0)
+        binding_lookups++;
     for(int i = 0; i < names->count; i++) {
         const ZirConst *binding = &names->items[i];
         if(strcmp(binding->name, name) ||
            (binding->is_file_private && strcmp(binding->path, path)))
             continue;
+        ZirBoundRead *read = names->reads != NULL && binding->path[0] &&
+                             compile_value_is_clear(result) ?
+                             &names->reads[i] : NULL;
+        if(read != NULL && read->expr == binding->expr &&
+           read->module == module &&
+           kept_value_applies(&read->value, depth, fuel, result))
+            return 1;
         char text[ZIR_TEXT_MAX];
         size_t type_length = strlen(binding->type);
         size_t expr_length = strlen(binding->expr);
@@ -100,9 +190,17 @@ evaluate_bound_name(const ZirModule *module, const char *path,
         used += expr_length;
         text[used++] = ')';
         text[used] = '\0';
-        return evaluate_typed_expression(module, names, text,
-                                         Span(binding->path[0] ? binding->path : path, 1, 1),
-                                         depth + 1, fuel, result);
+        unsigned long lookups = binding_lookups;
+        int before = *fuel;
+        int ok = evaluate_typed_expression(module, names, text,
+                                           Span(binding->path[0] ? binding->path : path, 1, 1),
+                                           depth + 1, fuel, result);
+        if(ok && read != NULL && binding_lookups == lookups) {
+            read->expr = binding->expr;
+            read->module = module;
+            keep_value(&read->value, depth, before - *fuel, result);
+        }
+        return ok;
     }
     return -1;
 }
@@ -625,6 +723,30 @@ int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
                           int *fuel, CompileValue *result);
 
+/* SOURCE as an expression evaluates it: trimmed, without a final ';'. */
+static void
+expression_input(char *out, size_t size, const char *source)
+{
+    copy_text(out, size, source);
+    trim_in_place(out);
+    size_t length = strlen(out);
+    if(length && out[length - 1] == ';') {
+        out[length - 1] = '\0';
+        trim_in_place(out);
+    }
+}
+
+/* Whether a parsed expression holds a compile-time directive, which a
+ * top-level evaluation refuses. */
+static int
+holds_compile_time(const ZirFunction *probe)
+{
+    for(int i = 0; i < probe->expr_count; i++)
+        if(probe->exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
+            return 1;
+    return 0;
+}
+
 static int
 evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
@@ -636,13 +758,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     int root, ok;
     const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
-    copy_text(buffers->input, sizeof(buffers->input), source);
-    trim_in_place(buffers->input);
-    size_t length = strlen(buffers->input);
-    if(length && buffers->input[length - 1] == ';') {
-        buffers->input[length - 1] = '\0';
-        trim_in_place(buffers->input);
-    }
+    expression_input(buffers->input, sizeof(buffers->input), source);
     if(!buffers->input[0]) return 0;
     if(names == NULL) names = &empty;
     const ZirConsts *outer_names = evaluation_names;
@@ -663,11 +779,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     }
     const ZirFunction *probe;
     root = CachedParse(module, text, span, &buffers->probe, &probe);
-    ok = root >= 0;
-    if(depth == 0)
-        for(int i = 0; i < probe->expr_count; i++)
-            if(probe->exprs[i].kind == ZIR_EXPR_COMPILE_TIME)
-                ok = 0;
+    ok = root >= 0 && (depth != 0 || !holds_compile_time(probe));
     if(ok)
         ok = evaluate_typed_node(probe, root, module, path,
                                  depth + 1, fuel, result);
@@ -740,6 +852,9 @@ typed_leave_scope(TypedBody *body, int saved)
     memmove(body->names.items, body->names.items + removed,
             (size_t)(body->names.count - removed) *
                 sizeof(*body->names.items));
+    memmove(body->names.reads, body->names.reads + removed,
+            (size_t)(body->names.count - removed) *
+                sizeof(*body->names.reads));
     body->names.count -= removed;
     body->local_count = saved;
 }
@@ -752,6 +867,9 @@ typed_add_local(TypedBody *body, const char *name, const char *type,
        body->names.count >= body->capacity) return 0;
     memmove(body->names.items + 1, body->names.items,
             (size_t)body->names.count * sizeof(*body->names.items));
+    memmove(body->names.reads + 1, body->names.reads,
+            (size_t)body->names.count * sizeof(*body->names.reads));
+    body->names.reads[0].expr = NULL;
     ZirConst *local = &body->names.items[0];
     memset(local, 0, sizeof(*local));
     local->expr = "";
@@ -1398,91 +1516,81 @@ COMPILER_SCRATCH_RETURN(static, int, typed_body_statements,
                       int *flow, CompileValue *result),
     TypedBodyStatementsBuffers, RECOVERABLE, free,
     typed_body_statements_with_buffers(body, start, stop, flow, result, buffers))
-/* Buffers evaluate_typed_function keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct EvaluateTypedFunctionBuffers {
-    char parameters[16][ZIR_TEXT_MAX];
-    char defaults[16][ZIR_TEXT_MAX];
-    CompileValue ordered[16];
-} EvaluateTypedFunctionBuffers;
+/* A procedure's parameters as a call binds them, split once for each
+ * parameter text: kept texts are one pointer for one spelling, so the two
+ * pointers identify the split. */
+typedef struct TypedParameter {
+    const char *name;          /* NULL when the parameter has no ':' */
+    const char *type;
+    const char *default_value; /* NULL without a default */
+    int is_identifier;
+} TypedParameter;
 
-static int evaluate_typed_function(const ZirModule *module, const char *name,
-                        ZirSourceSpan call_span, CompileValue *arguments,
-                        char argument_names[][ZIR_NAME_MAX],
-                        int argument_count, int depth, int *fuel,
-                        CompileValue *result);
+typedef struct TypedSignature {
+    const char *args;
+    const char *defaults;
+    int count;                 /* -1 when the defaults do not pair up */
+    TypedParameter parameters[16];
+} TypedSignature;
 
-static int
-evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
-                        ZirSourceSpan call_span, CompileValue *arguments,
-                        char argument_names[][ZIR_NAME_MAX],
-                        int argument_count, int depth, int *fuel,
-                        CompileValue *result, EvaluateTypedFunctionBuffers *buffers)
+typedef struct TypedSignatures {
+    TypedSignature **slots;
+    size_t count, capacity;
+} TypedSignatures;
+
+static void
+free_typed_signatures(void *value)
 {
-    const ZirModule *owner = NULL;
-    const ZirFunction *fn = NULL;
-    for(int i = 0; i < 16; i++) {
-        buffers->defaults[i][0] = '\0';
-        compile_value_clear(&buffers->ordered[i]);
-    }
-    unsigned used = 0;
-    TypedBody body = {0};
-    int expected, flow = 0, ok = 0;
-    if(depth >= 32 || module == NULL || !name[0] ||
-       ResolveFunctionAt(module, name, SpanPath(call_span), &owner, &fn) != 1 ||
-       fn == NULL || fn->is_extern || fn->is_template ||
-       fn->stmt_count == 0) return 0;
-    expected = *skip_ws(FunctionArgs(fn)) ?
-        split_top_level(FunctionArgs(fn), buffers->parameters[0], 16,
-                        sizeof(buffers->parameters[0])) : 0;
-    if(expected < 0 || argument_count > expected) return 0;
-    if(FunctionDefaultArgs(fn)[0] &&
-       split_top_level(FunctionDefaultArgs(fn), buffers->defaults[0], 16,
-                       sizeof(buffers->defaults[0])) != expected) return 0;
-    for(int argument = 0; argument < argument_count; argument++) {
-        int position = -1;
-        if(argument_names[argument][0]) {
-            size_t length = strlen(argument_names[argument]);
-            for(int i = 0; i < expected; i++) {
-                const char *start = skip_ws(buffers->parameters[i]);
-                const char *colon = strchr(start, ':');
-                if(colon == NULL) continue;
-                const char *end = colon;
-                while(end > start && isspace((unsigned char)end[-1])) end--;
-                if((size_t)(end - start) == length &&
-                   !strncmp(start, argument_names[argument], length)) {
-                    position = i;
-                    break;
-                }
-            }
-        } else {
-            for(int i = 0; i < expected; i++)
-                if(!(used & (1u << i))) { position = i; break; }
-        }
-        if(position < 0 || (used & (1u << position))) return 0;
-        used |= 1u << position;
-        buffers->ordered[position] = arguments[argument];
-    }
-    /* Law evaluation reads module constants through the module itself, so
-     * only non-law evaluation, which splices names into text, copies them. */
-    int copy_defines = !ZirLawEvaluation;
-    body.capacity = expected + (copy_defines ? owner->define_count : 0) +
-                    fn->stmt_count + 1;
-    body.names.items = malloc((size_t)body.capacity *
-                              sizeof(*body.names.items));
-    if(body.names.items == NULL) die("out of memory evaluating #run procedure");
-    body.module = owner;
-    body.fn = fn;
-    body.depth = depth;
-    body.fuel = fuel;
-    for(int i = 0; i < expected; i++) {
-        char *part = trim(buffers->parameters[i]);
+    TypedSignatures *signatures = value;
+    for(size_t i = 0; i < signatures->capacity; i++)
+        free(signatures->slots[i]);
+    free(signatures->slots);
+}
+
+static size_t
+typed_signature_slot(const TypedSignatures *signatures, const char *args,
+                     const char *defaults)
+{
+    uint64_t hash = ((uint64_t)(uintptr_t)args * UINT64_C(0x9e3779b97f4a7c15)) ^
+                    ((uint64_t)(uintptr_t)defaults * UINT64_C(0xc2b2ae3d27d4eb4f));
+    size_t slot = (size_t)(hash >> 17) & (signatures->capacity - 1);
+    while(signatures->slots[slot] != NULL &&
+          (signatures->slots[slot]->args != args ||
+           signatures->slots[slot]->defaults != defaults))
+        slot = (slot + 1) & (signatures->capacity - 1);
+    return slot;
+}
+
+/* Split ARGS and DEFAULTS the way a call reads them: at most 16
+ * parameters, each `name: type` with a default from DEFAULTS or after its
+ * own '='. */
+static TypedSignature *
+split_typed_signature(const char *args, const char *defaults)
+{
+    TypedSignature *signature = AllocateOrExit(sizeof(*signature));
+    char (*parts)[ZIR_TEXT_MAX] = AllocateOrExit(32 * sizeof(*parts));
+    char (*default_parts)[ZIR_TEXT_MAX] = parts + 16;
+    memset(signature, 0, sizeof(*signature));
+    signature->args = args;
+    signature->defaults = defaults;
+    for(int i = 0; i < 16; i++)
+        default_parts[i][0] = '\0';
+    int count = *skip_ws(args) ?
+        split_top_level(args, parts[0], 16, sizeof(parts[0])) : 0;
+    if(defaults[0] &&
+       split_top_level(defaults, default_parts[0], 16,
+                       sizeof(default_parts[0])) != count)
+        count = -1;
+    signature->count = count;
+    for(int i = 0; i < count; i++) {
+        TypedParameter *parameter = &signature->parameters[i];
+        char *part = trim(parts[i]);
         char *colon = strchr(part, ':');
-        if(colon == NULL) goto done;
+        if(colon == NULL) continue;
         *colon++ = '\0';
         trim_in_place(part);
         char *type = trim(colon);
-        char *default_value = top_level_assignment(buffers->defaults[i]);
+        char *default_value = top_level_assignment(default_parts[i]);
         if(default_value != NULL) default_value = trim(default_value + 1);
         char *embedded_default = strchr(type, '=');
         if(embedded_default != NULL) {
@@ -1493,36 +1601,261 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         if(!type[0] && default_value != NULL &&
            !strcmp(default_value, "#caller_location"))
             type = "Source_Code_Location";
-        if(!(used & (1u << i))) {
-            if(default_value == NULL) goto done;
-            if(!strcmp(default_value, "#caller_location")) {
-                buffers->ordered[i].kind = COMPILE_COMPOUND;
-                copy_text(buffers->ordered[i].type, sizeof(buffers->ordered[i].type),
-                          "Source_Code_Location");
-                buffers->ordered[i].type_owner = owner;
-                if(!CallerLocationLiteral(module, call_span,
-                                          buffers->ordered[i].literal,
-                                          sizeof(buffers->ordered[i].literal))) goto done;
-            } else if(!evaluate_typed_expression(owner, &body.names,
-                       default_value, fn->span, depth + 1, fuel,
-                       &buffers->ordered[i])) goto done;
+        parameter->name = KeepText(part);
+        parameter->type = KeepText(type);
+        parameter->default_value = default_value ? KeepText(default_value) : NULL;
+        parameter->is_identifier = is_identifier_text(part);
+    }
+    free(parts);
+    return signature;
+}
+
+static const TypedSignature *
+typed_signature(const ZirFunction *fn)
+{
+    CompilerMemory *memory = CompilerMemoryPause();
+    TypedSignatures *signatures = CompilerContextStorage(CompilerContextCurrent(),
+        COMPILER_SIGNATURES, sizeof(*signatures), free_typed_signatures);
+    const char *args = FunctionArgs(fn), *defaults = FunctionDefaultArgs(fn);
+    if(signatures->count * 2 >= signatures->capacity) {
+        TypedSignatures grown = {
+            .slots = calloc(signatures->capacity ? signatures->capacity * 2 : 256,
+                            sizeof(*grown.slots)),
+            .count = signatures->count,
+            .capacity = signatures->capacity ? signatures->capacity * 2 : 256};
+        if(grown.slots == NULL) die("out of memory evaluating #run procedure");
+        for(size_t i = 0; i < signatures->capacity; i++)
+            if(signatures->slots[i] != NULL)
+                grown.slots[typed_signature_slot(&grown, signatures->slots[i]->args,
+                                                 signatures->slots[i]->defaults)] =
+                    signatures->slots[i];
+        free(signatures->slots);
+        *signatures = grown;
+    }
+    size_t slot = typed_signature_slot(signatures, args, defaults);
+    if(signatures->slots[slot] == NULL) {
+        signatures->slots[slot] = split_typed_signature(args, defaults);
+        signatures->count++;
+    }
+    const TypedSignature *signature = signatures->slots[slot];
+    CompilerMemoryResume(memory);
+    return signature;
+}
+
+/* One call kept while a law is evaluated (see KeptValue). A body reads its
+ * parameters only through their bindings, so the procedure and the kept
+ * texts bound to its parameters decide the result. */
+typedef struct KeptCall {
+    uint64_t hash;
+    const ZirFunction *fn;
+    int parameter_count;
+    KeptValue value;
+    const char *bound[];  /* each parameter's binding text, kept */
+} KeptCall;
+
+enum { KEPT_CALL_SLOTS = 4096, KEPT_CALL_BYTES = 1 << 18 };
+
+/* A law's kept calls: an open-addressed table over entries in one block,
+ * both forgotten together when either fills. */
+typedef struct KeptCalls {
+    KeptCall **slots;
+    unsigned char *bytes;
+    size_t count, used;
+} KeptCalls;
+
+/* The calls of the law being evaluated; read only while ZirLawEvaluation is
+ * set, which parse recovery restores. */
+static _Thread_local KeptCalls *law_calls;
+
+static uint64_t
+call_hash(const ZirFunction *fn, const char *const *bound, int count)
+{
+    uint64_t hash = (uint64_t)(uintptr_t)fn * UINT64_C(0x9E3779B97F4A7C15);
+    for(int i = 0; i < count; i++) {
+        hash ^= (uint64_t)(uintptr_t)bound[i];
+        hash *= UINT64_C(0xBF58476D1CE4E5B9);
+        hash ^= hash >> 31;
+    }
+    return hash;
+}
+
+static size_t
+call_slot(const KeptCalls *calls, uint64_t hash, const ZirFunction *fn,
+          const char *const *bound, int count)
+{
+    size_t slot = (size_t)(hash >> 32) & (KEPT_CALL_SLOTS - 1);
+    for(const KeptCall *call; (call = calls->slots[slot]) != NULL;
+        slot = (slot + 1) & (KEPT_CALL_SLOTS - 1))
+        if(call->hash == hash && call->fn == fn &&
+           call->parameter_count == count &&
+           !memcmp(call->bound, bound, (size_t)count * sizeof(*bound)))
+            break;
+    return slot;
+}
+
+static const KeptCall *
+find_call(const KeptCalls *calls, uint64_t hash, const ZirFunction *fn,
+          const char *const *bound, int count)
+{
+    if(calls->slots == NULL) return NULL;
+    return calls->slots[call_slot(calls, hash, fn, bound, count)];
+}
+
+/* Keep a call's VALUE. The same call reads the same bindings, so it gives
+ * the same value at the same cost again; only a deeper depth is new. */
+static void
+keep_call(KeptCalls *calls, uint64_t hash, const ZirFunction *fn,
+          const char *const *bound, int count, int depth, int cost,
+          const CompileValue *value)
+{
+    if(calls->slots == NULL) {
+        calls->slots = calloc(KEPT_CALL_SLOTS, sizeof(*calls->slots));
+        calls->bytes = malloc(KEPT_CALL_BYTES);
+        if(calls->slots == NULL || calls->bytes == NULL) {
+            free(calls->slots);
+            free(calls->bytes);
+            calls->slots = NULL;
+            calls->bytes = NULL;
+            return;
         }
-        if(!is_identifier_text(part) ||
-           !compile_type_value(type, &buffers->ordered[i])) goto done;
+    }
+    size_t slot = call_slot(calls, hash, fn, bound, count);
+    KeptCall *call = calls->slots[slot];
+    if(call != NULL) {
+        if(depth > call->value.depth) call->value.depth = depth;
+        return;
+    }
+    size_t header = sizeof(KeptCall) + (size_t)count * sizeof(*bound);
+    size_t type = strlen(value->type) + 1, literal = strlen(value->literal) + 1;
+    size_t size = (header + type + literal + 15) & ~(size_t)15;
+    if(size > KEPT_CALL_BYTES) return;
+    if(calls->count * 2 >= KEPT_CALL_SLOTS ||
+       calls->used + size > KEPT_CALL_BYTES) {
+        memset(calls->slots, 0, KEPT_CALL_SLOTS * sizeof(*calls->slots));
+        calls->count = calls->used = 0;
+        slot = call_slot(calls, hash, fn, bound, count);
+    }
+    call = (KeptCall *)(calls->bytes + calls->used);
+    calls->used += size;
+    calls->count++;
+    call->hash = hash;
+    call->fn = fn;
+    call->parameter_count = count;
+    memcpy(call->bound, bound, (size_t)count * sizeof(*bound));
+    char *texts = (char *)call + header;
+    memcpy(texts, value->type, type);
+    memcpy(texts + type, value->literal, literal);
+    keep_value_texts(&call->value, depth, cost, value, texts, texts + type);
+    calls->slots[slot] = call;
+}
+
+/* Buffers evaluate_typed_function keeps on the heap so deep nesting fits the stack;
+ * freed blocks are kept for reuse, one per nesting level. */
+typedef struct EvaluateTypedFunctionBuffers {
+    CompileValue fallback;
+} EvaluateTypedFunctionBuffers;
+
+static int evaluate_typed_function(const ZirModule *module, const char *name,
+                        ZirSourceSpan call_span, CompileValue *arguments,
+                        char argument_names[][ZIR_NAME_MAX],
+                        int argument_count, int depth, int *fuel,
+                        CompileValue *result);
+
+/* Call NAME with ARGUMENTS, which are converted to the parameter types in
+ * place: callers pass values they no longer need. */
+static int
+evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
+                        ZirSourceSpan call_span, CompileValue *arguments,
+                        char argument_names[][ZIR_NAME_MAX],
+                        int argument_count, int depth, int *fuel,
+                        CompileValue *result, EvaluateTypedFunctionBuffers *buffers)
+{
+    const ZirModule *owner = NULL;
+    const ZirFunction *fn = NULL;
+    int bound[16];
+    const char *bound_texts[16];
+    TypedBody body = {0};
+    int expected, flow = 0, ok = 0;
+    if(depth >= 32 || module == NULL || !name[0] ||
+       ResolveFunctionAt(module, name, SpanPath(call_span), &owner, &fn) != 1 ||
+       fn == NULL || fn->is_extern || fn->is_template ||
+       fn->stmt_count == 0) return 0;
+    const TypedSignature *signature = typed_signature(fn);
+    expected = signature->count;
+    if(expected < 0 || argument_count > expected) return 0;
+    for(int i = 0; i < expected; i++)
+        bound[i] = -1;
+    for(int argument = 0; argument < argument_count; argument++) {
+        int position = -1;
+        if(argument_names[argument][0]) {
+            for(int i = 0; i < expected; i++)
+                if(signature->parameters[i].name != NULL &&
+                   !strcmp(signature->parameters[i].name,
+                           argument_names[argument])) {
+                    position = i;
+                    break;
+                }
+        } else {
+            for(int i = 0; i < expected; i++)
+                if(bound[i] < 0) { position = i; break; }
+        }
+        if(position < 0 || bound[position] >= 0) return 0;
+        bound[position] = argument;
+    }
+    /* Law evaluation reads module constants through the module itself, so
+     * only non-law evaluation, which splices names into text, copies them. */
+    int copy_defines = !ZirLawEvaluation;
+    body.capacity = expected + (copy_defines ? owner->define_count : 0) +
+                    fn->stmt_count + 1;
+    body.names.items = malloc((size_t)body.capacity *
+                              sizeof(*body.names.items));
+    body.names.reads = malloc((size_t)body.capacity *
+                              sizeof(*body.names.reads));
+    if(body.names.items == NULL || body.names.reads == NULL)
+        die("out of memory evaluating #run procedure");
+    body.module = owner;
+    body.fn = fn;
+    body.depth = depth;
+    body.fuel = fuel;
+    const char *path = SpanPath(fn->span);
+    for(int i = 0; i < expected; i++) {
+        const TypedParameter *parameter = &signature->parameters[i];
+        CompileValue *value = bound[i] >= 0 ? &arguments[bound[i]] :
+                              &buffers->fallback;
+        if(parameter->name == NULL) goto done;
+        if(bound[i] < 0) {
+            compile_value_clear(value);
+            if(parameter->default_value == NULL) goto done;
+            if(!strcmp(parameter->default_value, "#caller_location")) {
+                value->kind = COMPILE_COMPOUND;
+                copy_text(value->type, sizeof(value->type),
+                          "Source_Code_Location");
+                value->type_owner = owner;
+                if(!CallerLocationLiteral(module, call_span, value->literal,
+                                          sizeof(value->literal))) goto done;
+            } else if(!evaluate_typed_expression(owner, &body.names,
+                       parameter->default_value, fn->span, depth + 1, fuel,
+                       value)) goto done;
+        }
+        if(!parameter->is_identifier ||
+           !compile_type_value(parameter->type, value)) goto done;
         ZirConst *binding = &body.names.items[i];
         memset(binding, 0, sizeof(*binding));
-        copy_text(binding->name, sizeof(binding->name), part);
-        copy_text(binding->type, sizeof(binding->type), type);
-        binding->expr = KeepText(buffers->ordered[i].literal);
-        if(buffers->ordered[i].kind == COMPILE_INTEGER)
-            enum_member_expr(owner, type, buffers->ordered[i].integer,
+        body.names.reads[i].expr = NULL;
+        copy_text(binding->name, sizeof(binding->name), parameter->name);
+        copy_text(binding->type, sizeof(binding->type), parameter->type);
+        binding->expr = KeepText(value->literal);
+        if(value->kind == COMPILE_INTEGER)
+            enum_member_expr(owner, parameter->type, value->integer,
                              &binding->expr);
-        copy_text(binding->path, sizeof(binding->path), SpanPath(fn->span));
+        copy_text(binding->path, sizeof(binding->path), path);
+        bound_texts[i] = binding->expr;
         body.names.count++;
     }
     body.local_count = expected;
     for(int i = 0; copy_defines && i < owner->define_count; i++) {
         const ZirDefine *definition = &owner->defines[i];
+        body.names.reads[body.names.count].expr = NULL;
         ZirConst *constant = &body.names.items[body.names.count++];
         memset(constant, 0, sizeof(*constant));
         copy_text(constant->name, sizeof(constant->name),
@@ -1532,11 +1865,29 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
                   SpanPath(definition->span));
         constant->is_file_private = definition->is_file_private;
     }
+    /* Law evaluation reads only the bindings, so a call already evaluated
+     * with the same bound texts is answered from it. */
+    KeptCalls *calls = ZirLawEvaluation && compile_value_is_clear(result) ?
+                       law_calls : NULL;
+    uint64_t hash = 0;
+    int before = *fuel;
+    if(calls != NULL) {
+        hash = call_hash(fn, bound_texts, expected);
+        const KeptCall *call = find_call(calls, hash, fn, bound_texts, expected);
+        if(call != NULL && kept_value_applies(&call->value, depth, fuel, result)) {
+            ok = 1;
+            goto done;
+        }
+    }
     ok = typed_body_statements(&body, 0, fn->stmt_count,
                                &flow, result) && flow == 1 &&
          compile_type_value(fn->return_type, result);
+    if(ok && calls != NULL)
+        keep_call(calls, hash, fn, bound_texts, expected, depth,
+                  before - *fuel, result);
 done:
     free(body.names.items);
+    free(body.names.reads);
     return ok;
 }
 
@@ -1684,6 +2035,146 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
     return ok;
 }
 
+/* A law condition prepared once: its module's constants and one slot per
+ * bound variable, and the condition parsed. Each case only rewrites the
+ * slots' values. */
+struct ZirBoundCondition {
+    const ZirModule *module;
+    ZirSourceSpan span;
+    const char *path;
+    ZirConsts names;
+    int first_variable;
+    int variable_count;
+    const ZirType **enums;   /* each variable's enum type, or NULL */
+    char (*values)[ZIR_TEXT_MAX];
+    char input[ZIR_TEXT_MAX];
+    ZirFunction scratch;
+    const ZirFunction *probe; /* NULL when the condition cannot evaluate */
+    int root;
+    KeptCalls *calls;         /* kept across the law's cases */
+};
+
+ZirBoundCondition *
+PrepareBoundCondition(const ZirModule *module, const char *source,
+                      ZirSourceSpan span, const char names[][ZIR_NAME_MAX],
+                      const char types[][ZIR_NAME_MAX], int count)
+{
+    if(module == NULL || source == NULL || count < 0 ||
+       (count > 0 && (names == NULL || types == NULL)))
+        return NULL;
+    ZirBoundCondition *condition = calloc(1, sizeof(*condition));
+    if(condition == NULL) return NULL;
+    condition->module = module;
+    condition->span = span;
+    condition->path = SpanPath(span);
+    condition->first_variable = module->define_count;
+    condition->variable_count = count;
+    condition->names.count = module->define_count + count;
+    condition->names.items = calloc((size_t)condition->names.count + 1,
+                                    sizeof(*condition->names.items));
+    condition->names.reads = calloc((size_t)condition->names.count + 1,
+                                    sizeof(*condition->names.reads));
+    condition->enums = calloc((size_t)count + 1, sizeof(*condition->enums));
+    condition->values = calloc((size_t)count + 1, sizeof(*condition->values));
+    condition->calls = calloc(1, sizeof(*condition->calls));
+    if(condition->names.items == NULL || condition->names.reads == NULL ||
+       condition->enums == NULL || condition->values == NULL ||
+       condition->calls == NULL) {
+        FreeBoundCondition(condition);
+        return NULL;
+    }
+    for(int i = 0; i < module->define_count; i++) {
+        const ZirDefine *definition = &module->defines[i];
+        ZirConst *constant = &condition->names.items[i];
+        copy_text(constant->name, sizeof(constant->name), definition->name);
+        constant->expr = KeepText(definition->value);
+        copy_text(constant->path, sizeof(constant->path),
+                  SpanPath(definition->span));
+        constant->is_file_private = definition->is_file_private;
+    }
+    for(int i = 0; i < count; i++) {
+        ZirConst *variable = &condition->names.items[module->define_count + i];
+        copy_text(variable->name, sizeof(variable->name), names[i]);
+        copy_text(variable->type, sizeof(variable->type),
+                  types[i][0] ? types[i] : "s64");
+        copy_text(variable->path, sizeof(variable->path), condition->path);
+        variable->expr = condition->values[i];
+        condition->enums[i] = enum_type(module, types[i]);
+    }
+    /* As evaluate_typed_expression reads a top-level condition. */
+    expression_input(condition->input, sizeof(condition->input), source);
+    if(condition->input[0]) {
+        condition->root = CachedParse(module, condition->input, span,
+                                      &condition->scratch, &condition->probe);
+        if(condition->root < 0 || holds_compile_time(condition->probe)) {
+            CachedParseDone(condition->probe, &condition->scratch);
+            condition->probe = NULL;
+        }
+    }
+    return condition;
+}
+
+int
+EvaluateBoundCondition(ZirBoundCondition *condition,
+                       const char exprs[][ZIR_NAME_MAX], const int64_t *values,
+                       int *truth)
+{
+    CompileValue value;
+    compile_value_clear(&value);
+    int fuel = 100000, ok;
+    if(condition == NULL || truth == NULL ||
+       (condition->variable_count > 0 && (exprs == NULL || values == NULL)))
+        return 0;
+    for(int i = 0; i < condition->variable_count; i++) {
+        char text[ZIR_TEXT_MAX];
+        if(exprs[i][0])
+            copy_text(text, sizeof(text), exprs[i]);
+        else if(!enum_member_spelling(condition->enums[i], values[i], text,
+                                      sizeof(text)))
+            snprintf(text, sizeof(text), "%" PRId64, values[i]);
+        /* A variable's slot keeps its text, so a new value forgets the
+         * value read from the old one. */
+        if(strcmp(text, condition->values[i])) {
+            copy_text(condition->values[i], ZIR_TEXT_MAX, text);
+            condition->names.reads[condition->first_variable + i].expr = NULL;
+        }
+    }
+    /* The top-level step evaluate_typed_expression takes before the tree. */
+    if(--fuel < 0 || condition->probe == NULL) return 0;
+    int prior = ZirLawEvaluation;
+    const ZirConsts *outer_names = evaluation_names;
+    KeptCalls *outer_calls = law_calls;
+    ZirLawEvaluation = 1;
+    evaluation_names = &condition->names;
+    law_calls = condition->calls;
+    ok = evaluate_typed_node(condition->probe, condition->root,
+                             condition->module, condition->path, 1, &fuel,
+                             &value) &&
+         compile_truth(&value, truth);
+    law_calls = outer_calls;
+    evaluation_names = outer_names;
+    ZirLawEvaluation = prior;
+    return ok;
+}
+
+void
+FreeBoundCondition(ZirBoundCondition *condition)
+{
+    if(condition == NULL) return;
+    if(condition->probe != NULL)
+        CachedParseDone(condition->probe, &condition->scratch);
+    if(condition->calls != NULL) {
+        free(condition->calls->slots);
+        free(condition->calls->bytes);
+    }
+    free(condition->calls);
+    free(condition->names.items);
+    free(condition->names.reads);
+    free(condition->enums);
+    free(condition->values);
+    free(condition);
+}
+
 /* Evaluate a boolean expression with integer variables bound, for `forall`
  * laws. Bindings shadow nothing: a bound name must not be a define. */
 int
@@ -1693,48 +2184,11 @@ EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                               const char exprs[][ZIR_NAME_MAX],
                               const int64_t *values, int count, int *truth)
 {
-    ZirConsts constants = {0};
-    CompileValue value;
-    compile_value_clear(&value);
-    int fuel = 100000, ok;
-    if(module == NULL || source == NULL || truth == NULL || count < 0 ||
-       (count > 0 && (names == NULL || types == NULL || exprs == NULL ||
-                      values == NULL)))
-        return 0;
-    constants.count = module->define_count + count;
-    constants.items = calloc((size_t)constants.count + 1,
-                             sizeof(*constants.items));
-    if(constants.items == NULL) return 0;
-    for(int i = 0; i < module->define_count; i++) {
-        const ZirDefine *definition = &module->defines[i];
-        ZirConst *constant = &constants.items[i];
-        copy_text(constant->name, sizeof(constant->name), definition->name);
-        constant->expr = KeepText(definition->value);
-        copy_text(constant->path, sizeof(constant->path),
-                  SpanPath(definition->span));
-        constant->is_file_private = definition->is_file_private;
-    }
-    for(int i = 0; i < count; i++) {
-        ZirConst *constant = &constants.items[module->define_count + i];
-        copy_text(constant->name, sizeof(constant->name), names[i]);
-        copy_text(constant->type, sizeof(constant->type),
-                  types[i][0] ? types[i] : "s64");
-        char digits[32];
-        snprintf(digits, sizeof(digits), "%" PRId64, values[i]);
-        constant->expr = KeepText(digits);
-        if(exprs[i][0])
-            constant->expr = KeepText(exprs[i]);
-        else
-            enum_member_expr(module, types[i], values[i], &constant->expr);
-        copy_text(constant->path, sizeof(constant->path), SpanPath(span));
-    }
-    int prior = ZirLawEvaluation;
-    ZirLawEvaluation = 1;
-    ok = evaluate_typed_expression(module, &constants, source, span, 0,
-                                   &fuel, &value) &&
-         compile_truth(&value, truth);
-    ZirLawEvaluation = prior;
-    free(constants.items);
+    if(count > 0 && (exprs == NULL || values == NULL)) return 0;
+    ZirBoundCondition *condition = PrepareBoundCondition(module, source, span,
+                                                         names, types, count);
+    int ok = EvaluateBoundCondition(condition, exprs, values, truth);
+    FreeBoundCondition(condition);
     return ok;
 }
 

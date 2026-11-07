@@ -67,10 +67,14 @@ typedef struct {
     int source_line;
 } ZirConst;
 
+/* What law evaluation last read from one binding; see evaluate_bound_name. */
+typedef struct ZirBoundRead ZirBoundRead;
+
 typedef struct {
     ZirConst *items;
     int count;
     int capacity;
+    ZirBoundRead *reads; /* parallel to ITEMS in the law evaluator's tables */
 } ZirConsts;
 
 typedef struct {

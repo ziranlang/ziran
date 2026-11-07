@@ -51,6 +51,21 @@ int EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                                   const char types[][ZIR_NAME_MAX],
                                   const char exprs[][ZIR_NAME_MAX],
                                   const int64_t *values, int count, int *truth);
+/* A condition over bound integer, enum or sequence variables, prepared once
+ * and then evaluated for each case of a `forall` law. TYPES name each
+ * variable's type, empty for s64. A case gives each variable its value, or
+ * EXPRS its literal text when not empty. NULL without a module or source,
+ * or when out of memory; such a condition evaluates to nothing. */
+typedef struct ZirBoundCondition ZirBoundCondition;
+ZirBoundCondition *PrepareBoundCondition(const ZirModule *module,
+                                         const char *source, ZirSourceSpan span,
+                                         const char names[][ZIR_NAME_MAX],
+                                         const char types[][ZIR_NAME_MAX],
+                                         int count);
+int EvaluateBoundCondition(ZirBoundCondition *condition,
+                           const char exprs[][ZIR_NAME_MAX],
+                           const int64_t *values, int *truth);
+void FreeBoundCondition(ZirBoundCondition *condition);
 /* Aggregate results also return their declaring module as a borrowed pointer. */
 int EvaluateCompileLiteral(const ZirModule *module, const char *source,
                            ZirSourceSpan span, int executing, char *literal,

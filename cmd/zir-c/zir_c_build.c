@@ -347,6 +347,49 @@ static int compile_objects(const Files *files, char **objects, char **base,
     return ok;
 }
 
+/* Moves everything the link wrote in DIR into OUT, the executable NAME
+ * last so that it never appears before the files it loads. */
+static int
+move_link_outputs(const char *dir, const char *out, const char *name)
+{
+    DIR *listing = opendir(dir);
+    if(!listing) return 0;
+    int ok = 1;
+    struct dirent *entry;
+    while(ok && (entry = readdir(listing))) {
+        if(!strcmp(entry->d_name, ".") || !strcmp(entry->d_name, "..") ||
+           !strcmp(entry->d_name, name)) continue;
+        char from[ZIR_PATH_MAX], to[ZIR_PATH_MAX];
+        ok = snprintf(from, sizeof(from), "%s/%s", dir, entry->d_name) < (int)sizeof(from) &&
+             snprintf(to, sizeof(to), "%s/%s", out, entry->d_name) < (int)sizeof(to) &&
+             rename(from, to) == 0;
+    }
+    closedir(listing);
+    char from[ZIR_PATH_MAX], to[ZIR_PATH_MAX];
+    return ok &&
+        snprintf(from, sizeof(from), "%s/%s", dir, name) < (int)sizeof(from) &&
+        snprintf(to, sizeof(to), "%s/%s", out, name) < (int)sizeof(to) &&
+        rename(from, to) == 0;
+}
+
+/* Removes the link directory and anything a failed link left in it. */
+static void
+remove_link_dir(const char *dir)
+{
+    DIR *listing = opendir(dir);
+    if(listing) {
+        struct dirent *entry;
+        while((entry = readdir(listing))) {
+            char path[ZIR_PATH_MAX];
+            if(strcmp(entry->d_name, ".") && strcmp(entry->d_name, "..") &&
+               snprintf(path, sizeof(path), "%s/%s", dir, entry->d_name) < (int)sizeof(path))
+                unlink(path);
+        }
+        closedir(listing);
+    }
+    rmdir(dir);
+}
+
 int c_compile_executable(const char *out, const char *name, int threads, int release)
 {
     Files files = {0};
@@ -355,6 +398,7 @@ int c_compile_executable(const char *out, const char *name, int threads, int rel
     char **base = calloc(MAX_ARGS, sizeof(*base)), **objects = NULL;
     char **tail = calloc(MAX_ARGS, sizeof(*tail));
     char object_dir[ZIR_PATH_MAX], output[ZIR_PATH_MAX], temporary[ZIR_PATH_MAX] = {0};
+    char link_dir[ZIR_PATH_MAX] = {0};
     uint64_t link_started = 0;
     int count = 0, ok = 0;
     if(!base || !log || !tail) goto done;
@@ -364,6 +408,13 @@ int c_compile_executable(const char *out, const char *name, int threads, int rel
      * asks for it. CFLAGS replaces both defaults, as in make. */
     if(count >= 0) count = words(getenv("CFLAGS") ? getenv("CFLAGS") : release ? "-O3 -flto=auto" : "-O3", base, count);
     if(count < 0 || count + 10 >= MAX_ARGS) goto done;
+    /* A language forced through CC or CFLAGS (-x c, -xc) would also apply to
+     * the object files at link, so the link resets it with -x none. Only
+     * then: Emscripten's emcc reads -x none as a source language and tries
+     * to compile the objects. */
+    int forced_language = 0;
+    for(int i = 0; i < count; i++)
+        forced_language |= !strncmp(base[i], "-x", 2);
     {
         /* GCC notes every 256-bit std/simd vector passed by value in a
          * non-AVX build, an ABI change that never crosses Ziran's own calls;
@@ -424,16 +475,17 @@ int c_compile_executable(const char *out, const char *name, int threads, int rel
     ProfileEnd("native.objects", stage_started);
     if(!compiled) goto done;
     link_started = ProfileStart();
+    /* The link writes into a private directory under the executable's own
+     * name: some linkers write files beside it, such as emcc's NAME.wasm
+     * that its NAME launcher loads by that name. */
     if(snprintf(output, sizeof(output), "%s/%s", out, name) >= (int)sizeof(output) ||
-       snprintf(temporary, sizeof(temporary), "%s/.%s.XXXXXX", out, name) >= (int)sizeof(temporary)) goto done;
-    int temp = mkstemp(temporary);
-    if(temp < 0) goto done;
-    close(temp);
+       snprintf(link_dir, sizeof(link_dir), "%s/.%s.XXXXXX", out, name) >= (int)sizeof(link_dir)) goto done;
+    if(!mkdtemp(link_dir)) { link_dir[0] = 0; goto done; }
+    if(snprintf(temporary, sizeof(temporary), "%s/%s", link_dir, name) >= (int)sizeof(temporary)) goto done;
     char *args[MAX_ARGS];
     memcpy(args, base, (size_t)count * sizeof(*args));
     int n = count;
-    /* Reset a language forced through CC/CFLAGS before passing object files. */
-    args[n++] = "-x"; args[n++] = "none";
+    if(forced_language) { args[n++] = "-x"; args[n++] = "none"; }
     for(int i = 0; i < files.count; i++) args[n++] = objects[i];
     args[n++] = "-o"; args[n++] = temporary;
     for(int i = 0; i < tail_count; i++) args[n++] = tail[i];
@@ -448,11 +500,11 @@ int c_compile_executable(const char *out, const char *name, int threads, int rel
     struct stat executable;
     if(linked && stat(temporary, &executable) == 0 && S_ISREG(executable.st_mode) &&
        executable.st_size && (executable.st_mode & (S_IXUSR | S_IXGRP | S_IXOTH)) &&
-       rename(temporary, output) == 0) { temporary[0] = 0; ok = 1; }
+       move_link_outputs(link_dir, out, name)) ok = 1;
 done:
     ProfileEnd("native.link", link_started);
     c_cache_close(cache);
-    if(temporary[0]) unlink(temporary);
+    if(link_dir[0]) remove_link_dir(link_dir);
     if(ok && log && log->used) Warning((ZirSourceSpan){0}, "zir_c.toolchain", "%s%s", log->text,
                                      log->truncated ? " [output truncated]" : "");
     if(!ok) DiagnosticTarget((ZirSourceSpan){0}, "zir_c.toolchain", "c", "toolchain.native",

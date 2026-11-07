@@ -2252,20 +2252,38 @@ ST_FUNC void gen_struct_copy(int size)
 #endif
     gv2(RC_RDI, RC_RSI);
     if (n <= 4) {
-        while (n)
-            o(0xa548), --n;
+        /* Ziran, 2026-11-07: up to 39 bytes move through a free rax, rcx
+           or rdx (RC_INT, so no REX.R), 8 bytes (then 4, 2 and 1) at a
+           time, rather than with movs: a string move costs several
+           micro-ops, and 16- and 32-byte vector values are copied this way
+           constantly. */
+        int r = REG_VALUE(get_reg(RC_INT)) << 3, at = 0;
+        for (; at < 8 * n; at += 8) {
+            o(0x8b48), g(0x46 | r), g(at); /* mov at(%rsi),r */
+            o(0x8948), g(0x47 | r), g(at); /* mov r,at(%rdi) */
+        }
+        if (size & 0x04) {
+            o(0x8b), g(0x46 | r), g(at), o(0x89), g(0x47 | r), g(at);
+            at += 4;
+        }
+        if (size & 0x02) {
+            o(0x8b66), g(0x46 | r), g(at), o(0x8966), g(0x47 | r), g(at);
+            at += 2;
+        }
+        if (size & 0x01)
+            o(0x8a), g(0x46 | r), g(at), o(0x88), g(0x47 | r), g(at);
     } else {
         vpushi(n);
         gv(RC_RCX);
         o(0xa548f3);
         vpop();
+        if (size & 0x04)
+            o(0xa5);
+        if (size & 0x02)
+            o(0xa566);
+        if (size & 0x01)
+            o(0xa4);
     }
-    if (size & 0x04)
-        o(0xa5);
-    if (size & 0x02)
-        o(0xa566);
-    if (size & 0x01)
-        o(0xa4);
 #ifdef TCC_TARGET_PE
     o(0x5e5f); /* pop rdi, rsi */
 #endif

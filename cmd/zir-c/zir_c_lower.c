@@ -2003,8 +2003,11 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
         if(section == NULL) { perror("malloc"); exit(1); }
         snprintf(section, size, "%s%s%s%s", RUNTIME_INCLUDES_MARK, NUMBER_HELPERS_MARK,
                  declaration_text, body_text);
+        /* ZIRAN_NO_HEADER_INLINE keeps every call on the external symbol,
+         * so link-time interposition such as ld --wrap still sees it. */
         fprintf(h, "\n/* Small procedures other modules inline; %s.c defines them. */\n"
-                   "#if !defined(__cplusplus) && !defined(%s_SOURCE)\n",
+                   "#if !defined(__cplusplus) && !defined(%s_SOURCE) && "
+                   "!defined(ZIRAN_NO_HEADER_INLINE)\n",
                 buffers->stem, buffers->guard);
         if(ModuleUsesVecOperations(m))
             fputs("#include \"zir_vec.h\"\n", h);

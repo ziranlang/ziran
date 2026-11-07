@@ -240,7 +240,10 @@ call it. Procedures that call file-scope code, or that use string
 literals, constant tables or function values, stay out of line. A C file that
 defines a module's procedures itself, such as a test mock, puts
 <code>#define ZIRAN_&lt;MODULE&gt;_H_SOURCE 1</code> (the header guard plus <code>_SOURCE</code>) before
-including that module's header, so the header leaves out its copies. Run
+including that module's header, so the header leaves out its copies.
+<code>-DZIRAN_NO_HEADER_INLINE</code> leaves out every module's copies, so all calls
+reach the external definitions; a test that interposes procedures at link
+time, as with <code>ld --wrap</code>, builds with it. Run
 <code>sh tests/cross_module_inline.sh build/bin/ziran</code>.</p>
 <p><code>#inline</code> after a procedure's result asks generated C to always inline it:
 <code>Mix :: (value: s64) -&gt; s64 #inline { ... }</code>. GCC and Clang get

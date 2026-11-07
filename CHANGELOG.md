@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `-DZIRAN_NO_HEADER_INLINE` keeps generated C calls on the external
+  definitions instead of header inline copies, so link-time interposition
+  such as `ld --wrap` sees every call again.
 - A `#target` procedure's SSSE3, SSE4.1 and AVX2 copies call the same
   tier's copy of each `#inline` procedure of the module that uses
   `std/simd`, which ran SSE2 code before. The AV1 decoder decodes a 1080p

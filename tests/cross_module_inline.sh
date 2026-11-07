@@ -88,6 +88,14 @@ C
         exit 1
     fi
     grep -q 'lib_Hidden' "$work/undefined"
+    # ZIRAN_NO_HEADER_INLINE keeps every call external, so link-time
+    # interposition such as ld --wrap reaches it.
+    "${CC:-cc}" -std=c99 -O2 -DZIRAN_NO_HEADER_INLINE -I"$repo/include" -I"$output" \
+        -c "$output/app.c" -o "$work/app-external.o"
+    nm -u "$work/app-external.o" > "$work/undefined"
+    for name in Clamp Twice; do
+        grep -q "lib_${name}\$" "$work/undefined"
+    done
     # C++ hosts see only the declarations.
     if command -v "${CXX:-c++}" > /dev/null 2>&1; then
         printf '#include "lib.h"\nint main() { return lib_Halve(2) - 1; }\n' > "$work/host.cc"

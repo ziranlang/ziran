@@ -525,6 +525,42 @@ if test -x "$work/vm-run"; then
     grep -q "out of bounds" "$work/outside-vm.err"
 fi
 
+# Loads and gathers read a constant table in place, as index reads do,
+# instead of copying it into a local array at every call.
+cat > "$work/table.zi" <<'ZI'
+Simd :: #import "simd"
+TABLE :: s32.[10, 11, 12, 13, 14, 15, 16, 17]
+main :: () {
+    sum := Simd.Zero(s32x4)
+    picks := Simd.Make(s32x4, 7, 0, 3, 5)
+    for i: 0..cast(s64)3 {
+        sum = Simd.Add(sum, Simd.Gather(TABLE, picks))
+        sum = Simd.Add(sum, Simd.Load(s32x4, TABLE, i))
+    }
+    print("% % %\n", Simd.Lane(sum, 0), Simd.Lane(sum, 3), TABLE.count)
+}
+ZI
+"$ziran" build --target=c --entry table:main --root "$work" -o "$work/table" "$work/table.zi"
+sed -n '/^table_main(/,/^}/p' "$work/table/table.c" > "$work/table-main.c"
+grep -q 'zi_gather_s32x4_s32x4(ZIRAN_TABLE_H_table0, ' "$work/table-main.c"
+if grep -q 'memmove\|static const' "$work/table-main.c"; then
+    echo "a SIMD load or gather copied a constant table" >&2
+    exit 1
+fi
+printf '#include "table.h"\nint main(void) { table_main(); return 0; }\n' > "$work/table/main.c"
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+    "${CC:-cc}" -std=c11 -Wno-psabi -Werror=discarded-qualifiers $flags -I"$work/table" \
+        "$work/table"/*.c -o "$work/table/app"
+    test "$("$work/table/app")" = "114 118 8" ||
+        { echo "constant table SIMD reads $flags: wrong result" >&2; exit 1; }
+done
+if command -v go >/dev/null 2>&1; then
+    "$ziran" build --target=go --pkg main --entry table:main --exe --root "$work" \
+        -o "$work/table-go" "$work/table.zi"
+    test "$(cd "$work/table-go" && GO111MODULE=off go run ./*.go)" = "114 118 8"
+    grep -q 'zi_gather_s32x4_s32x4(Table_ziran_table0\[:\], ' "$work/table-go/table.go"
+fi
+
 # A module that only names vector types includes the small types header;
 # only the module that calls vector operations pays for the ops header.
 # #cold keeps lib's procedures out of line; inlined copies would bring

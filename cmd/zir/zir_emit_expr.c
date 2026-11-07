@@ -747,8 +747,9 @@ emit_constant_initializer(Emitter *e, int index, int *column)
 }
 
 /* A constant array literal as a function-local static table. A declaration
- * copies the table into its own storage; any other use gets a mutable copy,
- * as the literal's value may be changed or viewed through a slice. */
+ * copies the table into its own storage, and a consumer that only reads it
+ * uses the table itself; any other use gets a mutable copy, as the
+ * literal's value may be changed or viewed through a slice. */
 static void
 constant_array_table(Emitter *e, int index, const char *type, int braced,
                      char *out, size_t size)
@@ -898,6 +899,21 @@ constant_table_base(Emitter *e, int index, char *out, size_t size)
        !constant_array_literal(e, index, expr->type, 0))
         return 0;
     shared_constant_table(e, index, canonical(expr->type), out, size);
+    return 1;
+}
+
+int
+emit_constant_array_read(Emitter *e, int index, char *out, size_t size)
+{
+    const ZirExpr *expr = &e->fn->exprs[index];
+    if(expr->kind != ZIR_EXPR_COMPOUND || !constant_array_literal(e, index, expr->type, 0))
+        return 0;
+    if(!constant_table_base(e, index, out, size)) {
+        if(e->target != ZIR_C)
+            return 0;
+        constant_array_table(e, index, canonical(expr->type), 1, out, size);
+    }
+    e->pure = 1;
     return 1;
 }
 
@@ -1115,7 +1131,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             return;
         }
         if(e->target == ZIR_C && constant_array_literal(e, index, type, 0)) {
-            constant_array_table(e, index, type, braced, out, size);
+            /* A consumer that only copies out of the array, such as a
+             * return, reads the table itself. */
+            if(!array_operand || !constant_table_base(e, index, out, size))
+                constant_array_table(e, index, type, braced || array_operand, out, size);
             e->pure = 1;
             return;
         }
@@ -1155,6 +1174,16 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
     case ZIR_EXPR_MEMBER:
     case ZIR_EXPR_POINTER_MEMBER: {
         int base_pure;
+        const char *base_type = e->fn->exprs[expr->left].type;
+        int capacity;
+        /* A constant table's count is its bound; the table is not built. */
+        if(!strcmp(expr->name, "count") &&
+           constant_array_literal(e, expr->left, base_type, 0) &&
+           ArrayElementType(canonical(base_type), NULL, 0, &capacity) && capacity >= 0) {
+            format(buffers->result, sizeof(buffers->result), "%d", capacity);
+            pure = 1;
+            break;
+        }
         /* Reading a field needs a snapshot of that field, not a copy of every
          * enclosing record. Calls and other computed bases still evaluate once. */
         if(member_path(e->fn, expr->left))
@@ -1162,8 +1191,6 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         else
             emit_expr(e, expr->left, e->fn->exprs[expr->left].type, buffers->a, sizeof(buffers->a));
         base_pure = e->pure;
-        const char *base_type = e->fn->exprs[expr->left].type;
-        int capacity;
         if(!strcmp(expr->name, "count") &&
            ArrayElementType(base_type, NULL, 0, &capacity)) {
             if(capacity < 0) {

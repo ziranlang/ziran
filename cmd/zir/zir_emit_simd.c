@@ -54,19 +54,22 @@ touched_lanes(const SimdOp *op, const ZirVector *vector)
     return vector->lanes;
 }
 
-/* A slice or array operand: text read several times stays in a temporary. */
+/* A slice or array operand: text read several times stays in a temporary.
+ * Arrays are used in place, never copied for one access, and a constant
+ * table that is only read is the shared table itself. */
 static void
-memory_operand(Emitter *e, int child, int kind, char *out, size_t size)
+memory_operand(Emitter *e, int child, int kind, int writable, char *out, size_t size)
 {
     const ZirExpr *memory = &e->fn->exprs[child];
     if(kind == SIMD_MEMORY_ARRAY && (memory->kind == ZIR_EXPR_IDENT ||
                                      memory->kind == ZIR_EXPR_MEMBER ||
                                      memory->kind == ZIR_EXPR_POINTER_MEMBER ||
                                      memory->kind == ZIR_EXPR_INDEX)) {
-        /* Arrays are read in place, never copied for one access. */
         emit_destination(e, child, out, size);
         return;
     }
+    if(kind == SIMD_MEMORY_ARRAY && !writable && emit_constant_array_read(e, child, out, size))
+        return;
     emit_expr(e, child, memory->type, out, size);
     if(kind == SIMD_MEMORY_SLICE && !plain_identifier(out)) {
         char temporary[ZIR_NAME_MAX];
@@ -90,7 +93,7 @@ c_address(Emitter *e, int memory_child, const char *index, int lanes,
     unsigned bytes = ScalarByteWidth(element);
     if(lane == NULL || bytes == 0)
         fatal(&e->fn->exprs[memory_child], "SIMD memory needs scalar lanes");
-    memory_operand(e, memory_child, kind, base, sizeof(base));
+    memory_operand(e, memory_child, kind, writable, base, sizeof(base));
     if(kind == SIMD_MEMORY_POINTER) {
         format(out, size, "(%svoid *)((%s%s *)(%s) + (int64_t)(%s))",
                writable ? "" : "const ", writable ? "" : "const ", lane, base, index);
@@ -104,10 +107,11 @@ c_address(Emitter *e, int memory_child, const char *index, int lanes,
                writable ? "(void *)" : "", base, capacity, index, lanes, bytes);
 }
 
-/* Go memory operands are slices: arrays are sliced in place, and pointers
- * go to the unchecked _ptr helpers. */
+/* Go memory operands are slices: arrays are sliced in place, a constant
+ * table that is only read is the shared table, and pointers go to the
+ * unchecked _ptr helpers. */
 static void
-go_memory(Emitter *e, int child, int kind, char *out, size_t size)
+go_memory(Emitter *e, int child, int kind, int writable, char *out, size_t size)
 {
     const ZirExpr *memory = &e->fn->exprs[child];
     char text[ZIR_TEXT_MAX];
@@ -118,7 +122,7 @@ go_memory(Emitter *e, int child, int kind, char *out, size_t size)
     if(memory->kind == ZIR_EXPR_IDENT || memory->kind == ZIR_EXPR_MEMBER ||
        memory->kind == ZIR_EXPR_POINTER_MEMBER || memory->kind == ZIR_EXPR_INDEX)
         emit_destination(e, child, text, sizeof(text));
-    else {
+    else if(writable || !emit_constant_array_read(e, child, text, sizeof(text))) {
         char temporary[ZIR_NAME_MAX];
         emit_expr(e, child, memory->type, text, sizeof(text));
         fresh(e, temporary);
@@ -148,7 +152,7 @@ c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
     int kind = SimdMemory(table_type, element, sizeof(element), &capacity);
     ZirVector index;
     VectorType(index_type, &index);
-    memory_operand(e, children[0], kind, table, sizeof(table));
+    memory_operand(e, children[0], kind, 0, table, sizeof(table));
     emit_expr(e, children[1], index_type, indices, sizeof(indices));
     if(!plain_identifier(indices)) {
         fresh(e, temporary);
@@ -188,7 +192,7 @@ go_memory_call(Emitter *e, const SimdOp *op, const int *children, const char *re
     const char *memory_type = e->fn->exprs[children[0]].type;
     int kind = SimdMemory(memory_type, NULL, 0, NULL);
     char *memory = buffers->address, *index = buffers->index;
-    go_memory(e, children[0], kind, memory, sizeof(buffers->address));
+    go_memory(e, children[0], kind, op->shape == SIMD_STORE, memory, sizeof(buffers->address));
     if(op->shape == SIMD_GATHER) {
         const char *index_type = canonical(e->fn->exprs[children[1]].type);
         emit_expr(e, children[1], index_type, index, sizeof(buffers->index));

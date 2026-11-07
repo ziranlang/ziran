@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `Simd.Load`, `Simd.Gather` and a returned constant array read the shared
+  table instead of copying it at every use, in C and Go, and `TABLE.count`
+  no longer builds the table.
 - `std/simd` in the portable VM (`zi2zx run --vm`) runs about a quarter
   faster: each call site works out its operation and operands once.
 - Uncached `ziran run` of programs that use `std/simd` compiles in half the

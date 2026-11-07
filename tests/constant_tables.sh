@@ -63,6 +63,7 @@ Taps :: (b: s32) -> s32 {
     return s
 }
 Bump :: (values: [8]s32) -> s32 { values[0] += 10; return values[0] }
+Copied :: () -> [8]s32 { return TABLE }
 Counted :: () -> s32 {
     sum: s32 = 0
     for i: 0..TABLE.count - 1 { sum += TABLE[i] }
@@ -89,6 +90,9 @@ Answer :: () -> s64 {
     if Taps(1) != 26 { return 8 }
     if Counted() != 45 { return 9 }
     if Bump(TABLE) != 13 || TABLE[0] != 3 { return 10 }
+    got := Copied()
+    got[0] = 50
+    if got[0] != 50 || got[7] != 6 || TABLE[0] != 3 { return 11 }
     return Lib.NUMBERS[2] + cast(s64) (Pick(0) - 3)
 }
 #program_export
@@ -147,6 +151,16 @@ C
         echo 'a constant table index still copies the table' >&2
         exit 1
     fi
+    # .count needs no table, and a returned table is copied once, from
+    # the shared table into the result.
+    sed -n '/^app_Counted(/,/^}/p' "$output/app.c" > "$work/counted.c"
+    if grep -q 'memmove\|static const' "$work/counted.c"; then
+        echo 'a constant table count copied the table' >&2
+        exit 1
+    fi
+    sed -n '/^app_Copied(/,/^}/p' "$output/app.c" > "$work/copied.c"
+    test "$(grep -c 'memmove' "$work/copied.c")" = 1
+    grep -q 'memmove([a-z_0-9]*, ZIRAN_APP_H_table[0-9]*, ' "$work/copied.c"
 
     output=$work/go-$input
     "$ziran" build --target=go --pkg main --root "$root" -o "$output" "$module"

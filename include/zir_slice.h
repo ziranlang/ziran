@@ -42,5 +42,17 @@ SliceRange(Slice source, int64_t low, int64_t high, size_t element_size)
     result.length = high - low;
     return result;
 }
+/* Where nothing inlines, the view is taken in place; the call only reports. */
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define SliceRange(source, low, high, element_size) __extension__ ({ \
+        Slice __zi_range = (source); \
+        int64_t __zi_range_low = (low), __zi_range_high = (high); \
+        if(__zi_range_low < 0 || __zi_range_high < __zi_range_low || __zi_range_high > __zi_range.length) \
+            (SliceRange)(__zi_range, __zi_range_low, __zi_range_high, (element_size)); \
+        if(__zi_range.data != NULL) \
+            __zi_range.data = (char *)__zi_range.data + (size_t)__zi_range_low * (element_size); \
+        __zi_range.length = __zi_range_high - __zi_range_low; \
+        __zi_range; })
+#endif
 
 #endif /* ZIRAN_SLICE_H */

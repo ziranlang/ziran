@@ -1450,6 +1450,12 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         } else {
             line(e, "Slice %s = %s;", view, buffers->source);
         }
+        if(e->target != ZIR_GO && expr->right < 0 && expr->third < 0) {
+            /* A whole slice is the view itself: no bound can fall outside. */
+            pure = base_pure;
+            copy_text(buffers->result, sizeof(buffers->result), view);
+            break;
+        }
         if(expr->right >= 0) {
             emit_expr(e, expr->right, "s64", buffers->low, sizeof(buffers->low));
             low_pure = e->pure;

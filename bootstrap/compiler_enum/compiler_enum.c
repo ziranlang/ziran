@@ -491,7 +491,7 @@ compiler_enum_MemberValue(String body, String backing, String wanted, Slice entr
         {
             Slice value_8 = entries;
             Slice value_9 = SliceRange(value_8, (int64_t)0LL, (int64_t)result.count, sizeof(Entry));
-            Slice loop_view_26 = SliceRange(value_9, (int64_t)0, (int64_t)value_9.length, sizeof(Entry));
+            Slice loop_view_26 = value_9;
             int64_t loop_count_26 = (int64_t)(loop_view_26).length;
             int64_t loop_cursor_26 = 0LL;
             while (loop_cursor_26 < loop_count_26) {

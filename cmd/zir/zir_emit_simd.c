@@ -79,12 +79,34 @@ memory_operand(Emitter *e, int child, int kind, int writable, char *out, size_t 
     }
 }
 
+/* A whole slice of a named array, a[:], is the array's own memory, so no
+ * view needs building: the array child, or -1. */
+static int
+whole_array_slice(const Emitter *e, int child)
+{
+    const ZirExpr *memory = &e->fn->exprs[child];
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(memory->kind != ZIR_EXPR_SLICE || memory->right >= 0 || memory->third >= 0)
+        return -1;
+    const ZirExpr *base = &e->fn->exprs[memory->left];
+    if(base->kind != ZIR_EXPR_IDENT && base->kind != ZIR_EXPR_MEMBER &&
+       base->kind != ZIR_EXPR_POINTER_MEMBER && base->kind != ZIR_EXPR_INDEX)
+        return -1;
+    if(SimdMemory(base->type, element, sizeof(element), &capacity) != SIMD_MEMORY_ARRAY || capacity <= 0)
+        return -1;
+    return memory->left;
+}
+
 /* The C address of `lanes` lanes at `index`. Slices and arrays check the
  * whole run; pointers are unchecked, as their indexing is. */
 static void
 c_address(Emitter *e, int memory_child, const char *index, int lanes,
           int writable, char *out, size_t size)
 {
+    int array = whole_array_slice(e, memory_child);
+    if(array >= 0)
+        memory_child = array;
     const char *type = e->fn->exprs[memory_child].type;
     char element[ZIR_NAME_MAX], base[ZIR_TEXT_MAX];
     int capacity = 0;
@@ -144,7 +166,9 @@ static void
 c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
          char *out, size_t size)
 {
-    const char *table_type = e->fn->exprs[children[0]].type;
+    int array = whole_array_slice(e, children[0]);
+    int table_child = array >= 0 ? array : children[0];
+    const char *table_type = e->fn->exprs[table_child].type;
     const char *index_type = e->fn->exprs[children[1]].type;
     char element[ZIR_NAME_MAX], table[ZIR_TEXT_MAX], indices[ZIR_TEXT_MAX];
     char name[ZIR_NAME_MAX * 2], temporary[ZIR_NAME_MAX];
@@ -152,7 +176,7 @@ c_gather(Emitter *e, const SimdOp *op, const int *children, const char *result,
     int kind = SimdMemory(table_type, element, sizeof(element), &capacity);
     ZirVector index;
     VectorType(index_type, &index);
-    memory_operand(e, children[0], kind, 0, table, sizeof(table));
+    memory_operand(e, table_child, kind, 0, table, sizeof(table));
     emit_expr(e, children[1], index_type, indices, sizeof(indices));
     if(!plain_identifier(indices)) {
         fresh(e, temporary);

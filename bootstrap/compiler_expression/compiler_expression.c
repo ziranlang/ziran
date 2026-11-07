@@ -826,7 +826,7 @@ compiler_expression_ParsePrefix(PrefixHooks* hooks)
                                         } else {
                                             uint8_t buffer[256] = {0};
                                             Slice value_136 = {buffer, 256};
-                                            Slice value_137 = SliceRange(value_136, (int64_t)0, (int64_t)value_136.length, sizeof(uint8_t));
+                                            Slice value_137 = value_136;
                                             String value_138 = compiler_expression_BorrowToken(cursor->source, cursor);
                                             String name = compiler_expression_QualifiedName(value_137, StringLiteral(""), value_138, hooks->name_limit);
                                             if ((int64_t)(name).length == 0LL) {
@@ -975,7 +975,7 @@ compiler_expression_ParsePrefix(PrefixHooks* hooks)
                                                 if (((TokenKind)(next.kind)) == ((TokenKind)(1)) && StringEqual(compiler_expression_Following(cursor->source, cursor, 2), StringLiteral("."))) {
                                                     uint8_t buffer[256] = {0};
                                                     Slice value_192 = {buffer, 256};
-                                                    String qualified = compiler_expression_QualifiedName(SliceRange(value_192, (int64_t)0, (int64_t)value_192.length, sizeof(uint8_t)), original, following, hooks->name_limit);
+                                                    String qualified = compiler_expression_QualifiedName(value_192, original, following, hooks->name_limit);
                                                     String opener = compiler_expression_Following(cursor->source, cursor, 3);
                                                     bool value_193 = (int64_t)(qualified).length > 0LL;
                                                     if (value_193) {

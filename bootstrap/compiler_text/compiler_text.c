@@ -287,7 +287,7 @@ compiler_text_EscapeCString(String source, Slice output)
         }
         uint8_t escaped[4] = {0};
         Slice value_0 = {escaped, 4};
-        int64_t count = compiler_text_EscapeByte(byte, true, SliceRange(value_0, (int64_t)0, (int64_t)value_0.length, sizeof(uint8_t)));
+        int64_t count = compiler_text_EscapeByte(byte, true, value_0);
         {
             int64_t range_first_10 = 0LL;
             int64_t range_last_10 = (int64_t)((uint64_t)count - UINT64_C(1));
@@ -595,7 +595,7 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
         }
         uint8_t escaped[4] = {0};
         Slice value_0 = {escaped, 4};
-        int64_t count = compiler_text_EscapeByte(byte, false, SliceRange(value_0, (int64_t)0, (int64_t)value_0.length, sizeof(uint8_t)));
+        int64_t count = compiler_text_EscapeByte(byte, false, value_0);
         if ((int64_t)(((uint64_t)used + (uint64_t)count) + UINT64_C(2)) > (int64_t)(output).length) {
             return (FormatStep){.valid = false, .argument = false, .present = false, .next = at};
         }

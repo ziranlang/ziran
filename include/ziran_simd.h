@@ -524,6 +524,27 @@ zi_simd_gather_check(const void *indices, int lanes, int is_signed, int64_t leng
         }
     }
 }
+
+/* Compilers that never inline, such as TinyCC and unoptimized GCC or Clang,
+ * check in place and call only to report. Neither keeps type-based aliasing,
+ * so index lanes are read as they lie. */
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define zi_simd_at(data, length, index, count, lane) __extension__ ({ \
+        const char *__zi_at_data = (const char *)(data); \
+        int64_t __zi_at_length = (length), __zi_at = (index); \
+        if(__zi_at < 0 || __zi_at > __zi_at_length - (count)) \
+            (zi_simd_at)(__zi_at_data, __zi_at_length, __zi_at, (count), (lane)); \
+        (const void *)(__zi_at_data + __zi_at * (lane)); })
+#define zi_simd_gather_check(indices, lanes, is_signed, length) __extension__ ({ \
+        const uint32_t *__zi_gather = (const uint32_t *)(const void *)(indices); \
+        uint64_t __zi_gather_length = (uint64_t)(int64_t)(length); \
+        for(int __zi_gather_lane = 0; __zi_gather_lane < (lanes); __zi_gather_lane++) { \
+            uint32_t __zi_gather_bits = __zi_gather[__zi_gather_lane]; \
+            if(((is_signed) ? (uint64_t)(int64_t)(int32_t)__zi_gather_bits : (uint64_t)__zi_gather_bits) >= \
+               __zi_gather_length) \
+                (zi_simd_gather_check)(__zi_gather, (lanes), (is_signed), (int64_t)__zi_gather_length); \
+        } })
+#endif
 #endif /* ZIRAN_SIMD_REF_ONLY */
 
 #endif /* ZIRAN_SIMD_COMMON_H */

@@ -7661,6 +7661,25 @@ static void init_putz(init_params *p, unsigned long c, int size)
     init_assert(p, c + size);
     if (p->sec) {
         /* nothing to do because globals are already set to zero */
+    } else if (size <= 8 * PTR_SIZE) {
+        /* Ziran, 2026-11-07: a small local, such as a two-word structure
+           initialized in braces, is zeroed by stores in place rather than
+           a call to memset, each as wide as the offset's alignment allows. */
+        int left = size;
+        while (left > 0) {
+            int n = PTR_SIZE;
+            CType t;
+            while (n > left || (c & (n - 1)))
+                n >>= 1;
+            t.t = n == 8 ? VT_LLONG : n == 4 ? VT_INT : n == 2 ? VT_SHORT : VT_BYTE;
+            t.ref = NULL;
+            vset(&t, VT_LOCAL | VT_LVAL, c);
+            vpush64(t.t, 0);
+            vstore();
+            vpop();
+            c += n;
+            left -= n;
+        }
     } else {
         vpush_helper_func(TOK_memset);
         vseti(VT_LOCAL, c);

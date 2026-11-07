@@ -14,3 +14,11 @@ Local changes, to be offered upstream:
   padding the callee expects, and released 4 bytes too many afterwards.
   copy_params now pads the first stack argument from the end of the split
   structure (plan->core_stack_end).
+- x86_64-gen.c: gen_struct_copy moves a structure of up to 39 bytes through
+  a free register, 8 bytes (then 4, 2 and 1) at a time, rather than with
+  movs, which is slow to start.
+- x86_64-asm.h: the assembler knows the SSE2 instructions pmuludq and
+  pshufd.
+- tccgen.c: init_putz zeroes a local of up to eight words, such as a two-word
+  structure initialized in braces, with stores in place rather than a call
+  to memset.

@@ -534,6 +534,8 @@ ALT(DEF_ASM_OP2(cvtsd2si, 0xf20f2d, 0, OPC_MODRM | OPC_48, OPT_EA | OPT_SSE, OPT
     /* sse2 */
     DEF_ASM_OP2(andpd, 0x660f54, 0, OPC_MODRM, OPT_EA | OPT_SSE, OPT_SSE)
     DEF_ASM_OP2(sqrtsd, 0xf20f51, 0, OPC_MODRM, OPT_EA | OPT_SSE, OPT_SSE)
+    DEF_ASM_OP2(pmuludq, 0x0ff4, 0, OPC_MODRM, OPT_EA | OPT_MMXSSE, OPT_MMXSSE )
+    DEF_ASM_OP3(pshufd, 0x660f70, 0, OPC_MODRM, OPT_IM8, OPT_EA | OPT_SSE, OPT_SSE )
 
     /* movnti should only accept REG32 and REG64, we accept more */
     DEF_ASM_OP2(movnti, 0x0fc3, 0, OPC_MODRM, OPT_REG, OPT_EA)

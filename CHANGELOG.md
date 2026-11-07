@@ -39,6 +39,10 @@
 - Under TinyCC on x86-64 (`ziran run`), `std/simd` operations run inline
   rather than as calls, and small records copy through registers: a cached
   1080p AV1 decode takes 503 ms, from 697 ms.
+- Under TinyCC and unoptimized C, `std/simd` multiplies, rounding shifts,
+  widening, narrowing and gathers run inline, and bounds checks and whole
+  slices (`a[:]`) cost no call: AV1's vector self-guided filter decodes
+  352p in 76 ms under a cached `ziran run`, from 95 ms.
 - In C, locals, parameters and globals whose names begin with two
   underscores, which C reserves, are renamed as keywords are.
 - Under TinyCC and unoptimized C builds, checked division, shifts and index

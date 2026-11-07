@@ -1983,7 +1983,7 @@ compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice 
         value_21 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
     }
     Slice value_23 = {first_type, 128};
-    int64_t left_count = compiler_source_NormalizeTypeSpacing(value_21, SliceRange(value_23, (int64_t)0, (int64_t)value_23.length, sizeof(uint8_t)));
+    int64_t left_count = compiler_source_NormalizeTypeSpacing(value_21, value_23);
     String value_24 = StringRange(right, (int64_t)((int64_t)((uint64_t)right_colon + UINT64_C(1))), (int64_t)right.length);
     String value_25 = StringView(NULL, 0);
     {
@@ -1992,7 +1992,7 @@ compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice 
         value_25 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
     }
     Slice value_27 = {second_type, 128};
-    int64_t right_count = compiler_source_NormalizeTypeSpacing(value_25, SliceRange(value_27, (int64_t)0, (int64_t)value_27.length, sizeof(uint8_t)));
+    int64_t right_count = compiler_source_NormalizeTypeSpacing(value_25, value_27);
     if (left_count == 0LL || right_count == 0LL || left_count >= 128LL || right_count >= 128LL) {
         result.error = DeclarationError_SymmetricParameters;
         return result;
@@ -2007,7 +2007,7 @@ compiler_declaration_RewriteSymmetric(String source, Slice header_output, Slice 
         return result;
     }
     Slice value_32 = {result_type, 128};
-    int64_t result_count = compiler_source_NormalizeTypeSpacing(header.result, SliceRange(value_32, (int64_t)0, (int64_t)value_32.length, sizeof(uint8_t)));
+    int64_t result_count = compiler_source_NormalizeTypeSpacing(header.result, value_32);
     if (result_count >= 128LL) {
         result.error = DeclarationError_SymmetricParameters;
         return result;

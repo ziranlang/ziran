@@ -250,7 +250,7 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
             {
                 Slice value_33 = tag_workspace;
                 Slice value_34 = SliceRange(value_33, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
-                Slice loop_view_63 = SliceRange(value_34, (int64_t)0, (int64_t)value_34.length, sizeof(uint8_t));
+                Slice loop_view_63 = value_34;
                 int64_t loop_count_63 = (int64_t)(loop_view_63).length;
                 int64_t loop_cursor_63 = 0LL;
                 while (loop_cursor_63 < loop_count_63) {

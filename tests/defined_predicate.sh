@@ -99,3 +99,51 @@ EOF
 ${CC:-cc} -Iinclude -I"$work/web" "$work/web/negated.c" \
     "$work/web/main.c" -o "$work/web/app"
 "$work/web/app"
+
+# Probes follow --define in both spellings, alone, negated and combined.
+cat > "$work/flags.zi" <<'ZI'
+#if #defined(FIRST) {
+FirstPick :: 1
+} else {
+FirstPick :: 2
+}
+
+#if !#defined(FIRST) && #defined(SECOND) {
+BothPick :: 10
+} else #if #defined(FIRST) || #defined(SECOND) {
+BothPick :: 20
+} else {
+BothPick :: 30
+}
+
+#program_export
+Answer :: () -> s32 {
+    result: s32 = FirstPick + BothPick
+    #if defined(FIRST) && !defined(SECOND) {
+        result += 100
+    } else {
+        result += 200
+    }
+    return result
+}
+ZI
+for flags in 232 '121 FIRST' '212 SECOND' '221 FIRST SECOND'; do
+    set -- $flags
+    expected=$1
+    shift
+    defines=
+    for name in "$@"; do defines="$defines --define $name"; done
+    "$ziran" bundle --root "$work" $defines --entry flags:Answer \
+        -o "$work/flags.zx" "$work/flags.zi"
+    test "$("$ziran" run "$work/flags.zx")" = "$expected"
+    rm -rf "$work/flags"
+    "$(dirname "$ziran")/zi2c" --no-main --root "$work" $defines \
+        -o "$work/flags" "$work/flags.zi"
+    cat > "$work/flags/main.c" <<EOM
+#include "flags.h"
+int main(void) { return Answer() == $expected ? 0 : 1; }
+EOM
+    ${CC:-cc} -Iinclude -I"$work/flags" "$work/flags/flags.c" \
+        "$work/flags/main.c" -o "$work/flags/app"
+    "$work/flags/app"
+done

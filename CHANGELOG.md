@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `#if`, `#ifx`, `#assert` and `#run` share one compile-time evaluator, and
+  enum values read integer literals as the language does (`0b10_1`, `1_000`).
 - `#asm` routines take slices, clobber ranges such as `xmm0..xmm7` and
   `q0..q1`, and one variant per line; the checker rejects undeclared or
   reserved registers, and `-DZIRAN_ASM_CHECK` runs every variant against

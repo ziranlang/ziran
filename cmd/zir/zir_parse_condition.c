@@ -1,7 +1,9 @@
 #include "zir_scratch.h"
+#include <stddef.h>
 #include "zir_memory.h"
 #include "zir_parse_internal.h"
 #include "compiler_source.h"
+#include "compiler_text.h"
 
 static int compile_size_of_ready(const ZirModule *module, char *condition);
 
@@ -31,32 +33,36 @@ visible_compile_constants(const ZirConsts *parsed, const ZirConsts *future)
     return visible;
 }
 
-static ZirModule
-visible_compile_usings(const ZirModule *parsed, const ZirUsings *future)
+/* PARSED's COUNT items of SIZE bytes, then each of FUTURE's not declared at
+ * the same place, which SPAN_OFFSET locates in every item. */
+static void *
+visible_items(const void *parsed, int count, const void *future,
+              int future_count, size_t size, size_t span_offset, int *visible)
 {
-    ZirModule visible = *parsed;
-    int extra = future != NULL ? future->count : 0;
-    visible.usings = calloc((size_t)parsed->using_count + (size_t)extra + 1,
-                            sizeof(*visible.usings));
-    if(visible.usings == NULL)
-        die("out of memory resolving compile-time using declarations");
-    visible.using_count = 0;
-    for(int i = 0; i < parsed->using_count; i++)
-        visible.usings[visible.using_count++] = parsed->usings[i];
-    for(int i = 0; i < extra; i++) {
-        const ZirUsing *candidate = &future->items[i];
+    char *items = calloc((size_t)count + (size_t)future_count + 1, size);
+    if(items == NULL)
+        die("out of memory resolving compile-time declarations");
+    if(count > 0) memcpy(items, parsed, (size_t)count * size);
+    *visible = count;
+    for(int i = 0; i < future_count; i++) {
+        const char *candidate = (const char *)future + (size_t)i * size;
+        const ZirSourceSpan *at = (const void *)(candidate + span_offset);
         int present = 0;
-        for(int j = 0; j < parsed->using_count; j++)
-            if(!strcmp(SpanPath(parsed->usings[j].span), SpanPath(candidate->span)) &&
-               parsed->usings[j].span.line == candidate->span.line) {
-                present = 1;
-                break;
-            }
-        if(!present)
-            visible.usings[visible.using_count++] = *candidate;
+        for(int j = 0; j < count && !present; j++) {
+            const ZirSourceSpan *seen =
+                (const void *)((const char *)parsed + (size_t)j * size + span_offset);
+            present = seen->line == at->line && !strcmp(SpanPath(*seen), SpanPath(*at));
+        }
+        if(!present) memcpy(items + (size_t)(*visible)++ * size, candidate, size);
     }
-    return visible;
+    return items;
 }
+
+#define VISIBLE_ITEMS(field, count_field, future, type)                       \
+    (visible.field = visible_items(parsed->field, parsed->count_field,        \
+         (future) != NULL ? (future)->items : NULL,                           \
+         (future) != NULL ? (future)->count : 0, sizeof(type),                \
+         offsetof(type, span), &visible.count_field))
 
 static void
 add_visible_compile_defines(ZirModule *visible, const ZirModule *parsed,
@@ -91,133 +97,19 @@ add_visible_compile_defines(ZirModule *visible, const ZirModule *parsed,
     }
 }
 
-static void
-add_visible_compile_imports(ZirModule *visible, const ZirModule *parsed,
-                            const ZirImports *future)
-{
-    int extra = future != NULL ? future->count : 0;
-    SymbolLookupsChanged();
-    visible->imports = calloc((size_t)parsed->import_count +
-                              (size_t)extra + 1,
-                              sizeof(*visible->imports));
-    if(visible->imports == NULL)
-        die("out of memory resolving compile-time imports");
-    visible->import_count = 0;
-    for(int i = 0; i < parsed->import_count; i++)
-        visible->imports[visible->import_count++] = parsed->imports[i];
-    for(int i = 0; i < extra; i++) {
-        const ZirImport *candidate = &future->items[i];
-        int present = 0;
-        for(int j = 0; j < parsed->import_count; j++)
-            if(!strcmp(SpanPath(parsed->imports[j].span), SpanPath(candidate->span)) &&
-               parsed->imports[j].span.line == candidate->span.line) {
-                present = 1;
-                break;
-            }
-        if(!present)
-            visible->imports[visible->import_count++] = *candidate;
-    }
-}
-
-static void
-add_visible_compile_types(ZirModule *visible, const ZirModule *parsed,
-                          const ZirTypes *future)
-{
-    int extra = future != NULL ? future->count : 0;
-    SymbolLookupsChanged();
-    visible->types = calloc((size_t)parsed->type_count + (size_t)extra + 1,
-                            sizeof(*visible->types));
-    if(visible->types == NULL)
-        die("out of memory resolving compile-time types");
-    visible->type_count = 0;
-    for(int i = 0; i < parsed->type_count; i++)
-        visible->types[visible->type_count++] = parsed->types[i];
-    for(int i = 0; i < extra; i++) {
-        const ZirType *candidate = &future->items[i];
-        int present = 0;
-        for(int j = 0; j < parsed->type_count; j++)
-            if(!strcmp(SpanPath(parsed->types[j].span), SpanPath(candidate->span)) &&
-               parsed->types[j].span.line == candidate->span.line) {
-                present = 1;
-                break;
-            }
-        if(!present)
-            visible->types[visible->type_count++] = *candidate;
-    }
-}
-
-static void
-add_visible_compile_functions(ZirModule *visible, const ZirModule *parsed,
-                              const ZirFunctions *future)
-{
-    int extra = future != NULL ? future->count : 0;
-    visible->functions = calloc((size_t)parsed->function_count +
-                                (size_t)extra + 1,
-                                sizeof(*visible->functions));
-    if(visible->functions == NULL)
-        die("out of memory resolving compile-time procedures");
-    visible->function_count = 0;
-    for(int i = 0; i < parsed->function_count; i++)
-        visible->functions[visible->function_count++] = parsed->functions[i];
-    for(int i = 0; i < extra; i++) {
-        const ZirFunction *candidate = &future->items[i];
-        int present = 0;
-        for(int j = 0; j < parsed->function_count; j++)
-            if(!strcmp(SpanPath(parsed->functions[j].span),
-                       SpanPath(candidate->span)) &&
-               parsed->functions[j].span.line == candidate->span.line) {
-                present = 1;
-                break;
-            }
-        if(!present)
-            visible->functions[visible->function_count++] = *candidate;
-    }
-}
-
-static void
-add_visible_compile_globals(ZirModule *visible, const ZirModule *parsed,
-                            const ZirGlobals *future)
-{
-    int extra = future != NULL ? future->count : 0;
-    visible->globals = calloc((size_t)parsed->global_count +
-                              (size_t)extra + 1,
-                              sizeof(*visible->globals));
-    if(visible->globals == NULL)
-        die("out of memory resolving compile-time globals");
-    visible->global_count = 0;
-    for(int i = 0; i < parsed->global_count; i++)
-        visible->globals[visible->global_count++] = parsed->globals[i];
-    for(int i = 0; i < extra; i++) {
-        const ZirGlobal *candidate = &future->items[i];
-        int present = 0;
-        for(int j = 0; j < parsed->global_count; j++)
-            if(!strcmp(SpanPath(parsed->globals[j].span),
-                       SpanPath(candidate->span)) &&
-               parsed->globals[j].span.line == candidate->span.line) {
-                present = 1;
-                break;
-            }
-        if(!present)
-            visible->globals[visible->global_count++] = *candidate;
-    }
-}
-
 ZirModule
 visible_compile_module(const ZirModule *parsed,
                        const CompileParseContext *context,
                        const ZirConsts *constants)
 {
-    ZirModule visible = visible_compile_usings(parsed,
-        context != NULL ? context->future_usings : NULL);
+    ZirModule visible = *parsed;
+    SymbolLookupsChanged();
+    VISIBLE_ITEMS(usings, using_count, context ? context->future_usings : NULL, ZirUsing);
     add_visible_compile_defines(&visible, parsed, constants);
-    add_visible_compile_imports(&visible, parsed,
-        context != NULL ? context->future_imports : NULL);
-    add_visible_compile_types(&visible, parsed,
-        context != NULL ? context->future_types : NULL);
-    add_visible_compile_functions(&visible, parsed,
-        context != NULL ? context->future_functions : NULL);
-    add_visible_compile_globals(&visible, parsed,
-        context != NULL ? context->future_globals : NULL);
+    VISIBLE_ITEMS(imports, import_count, context ? context->future_imports : NULL, ZirImport);
+    VISIBLE_ITEMS(types, type_count, context ? context->future_types : NULL, ZirType);
+    VISIBLE_ITEMS(functions, function_count, context ? context->future_functions : NULL, ZirFunction);
+    VISIBLE_ITEMS(globals, global_count, context ? context->future_globals : NULL, ZirGlobal);
     return visible;
 }
 
@@ -275,11 +167,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
     }
     if(strstr(expanded, "size_of") != NULL)
         lower_size_of_value(expanded, sizeof(expanded), module, span);
-    known = eval_const_condition(expanded, &value, module, consts,
-                                 SpanPath(span), span.line, 0);
-    if(!known)
-        known = eval_typed_condition(expanded, module, consts,
-                                     span, &value);
+    known = eval_typed_condition(expanded, module, consts, span, &value);
     if(!known && context != NULL) {
         /* Embedded source imports already belong to this partially parsed
          * program. External imports are loaded on demand by ProgramsLoad. */
@@ -309,11 +197,7 @@ select_compile_condition(ZirModule *module, const ZirConsts *consts,
             if(deferred != NULL) { *deferred = 1; goto not_ready; }
             die_at(span, "invalid #if enum member");
         }
-        known = eval_const_condition(expanded, &value, module, consts,
-                                     SpanPath(span), span.line, 0);
-        if(!known)
-            known = eval_typed_condition(expanded, module, consts,
-                                         span, &value);
+        known = eval_typed_condition(expanded, module, consts, span, &value);
     }
     if(!known) {
         if(deferred != NULL) { *deferred = 1; goto not_ready; }
@@ -445,10 +329,7 @@ replace_compile_ifx_with_buffers(char *source, size_t capacity, const ZirFunctio
         return 0;
     if(strstr(buffers->condition, "size_of") != NULL)
         lower_size_of_value(buffers->condition, sizeof(buffers->condition), module, span);
-    if(!eval_const_condition(buffers->condition, &value, module, consts,
-                             SpanPath(span), span.line, 0) &&
-       !eval_typed_condition(buffers->condition, module, consts,
-                             span, &value)) {
+    if(!eval_typed_condition(buffers->condition, module, consts, span, &value)) {
         if(allow_deferred) return 0;
         die_at(span, "#ifx condition is not a compile-time constant: %s",
                buffers->condition);
@@ -750,11 +631,11 @@ parse_compile_check_with_buffers(ZirModule *module, const char *path, int line_n
     if(strncmp(line, "#assert", 7) == 0 &&
        (line[7] == '\0' || isspace((unsigned char)line[7]))) {
         char *body = trim(line + 7);
-        char *comma;
         if(body[0] == '\0')
             die_at(Span(path, line_no, 1), "#assert needs a condition");
-        comma = find_top_comma(body);
-        if(comma != NULL) {
+        SourcePart part = compiler_text_NextSourcePart(StringView(body, strlen(body)), 0);
+        if(part.next >= 0) {
+            char *comma = body + part.end;
             *comma = '\0';
             snprintf(buffers->msg, sizeof(buffers->msg), "%s", trim(comma + 1));
             if(buffers->msg[0] == '\0')
@@ -767,10 +648,8 @@ parse_compile_check_with_buffers(ZirModule *module, const char *path, int line_n
         {
             int64_t value = 0;
             int known = strstr(buffers->cond, "size_of") == NULL &&
-                (eval_const_condition(buffers->cond, &value, module, consts,
-                                      path, line_no, 0) ||
-                 eval_typed_condition(buffers->cond, module, consts,
-                                      Span(path, line_no, 1), &value));
+                eval_typed_condition(buffers->cond, module, consts,
+                                     Span(path, line_no, 1), &value);
             if(known && !value)
                 die_at(Span(path, line_no, 1), "#assert failed: %s", buffers->msg);
             if(known)

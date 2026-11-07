@@ -71,12 +71,6 @@ source_append(SourceBuffer *buffer, char byte)
     buffer->text[buffer->length] = '\0';
 }
 
-int
-source_identifier_byte(unsigned char byte)
-{
-    return compiler_source_SourceIdentifier(byte);
-}
-
 /* The line limit applies to what the author wrote. Checking it before raw
  * #string bodies are lowered keeps the diagnostic on the real line. */
 static void
@@ -586,22 +580,6 @@ relative_path(const char *root, const char *path)
         return path + n;
     }
     return path;
-}
-
-int
-parse_quoted(const char *s, char *out, size_t out_size)
-{
-    const char *q;
-    size_t n = 0;
-
-    q = strchr(s, '"');
-    if(q == NULL)
-        return 0;
-    q++;
-    while(*q != '\0' && *q != '"' && n + 1 < out_size)
-        out[n++] = *q++;
-    out[n] = '\0';
-    return *q == '"';
 }
 
 int

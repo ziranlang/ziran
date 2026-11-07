@@ -68,6 +68,48 @@ _Thread_local int ZirLawEvaluation;
  * an identifier is evaluated, instead of being spliced into the source text
  * first. Each expression then parses once, whatever values it sees. */
 static _Thread_local const ZirConsts *evaluation_names;
+/* The constants a condition's defined(NAME) probes, in either mode. */
+static _Thread_local const ZirConsts *condition_names;
+
+/* Whether NAME is a constant visible from PATH, as defined(NAME) asks. */
+static int
+compile_name_defined(const ZirModule *module, const char *path, const char *name)
+{
+    const ZirConsts *names = condition_names;
+    for(int i = 0; names != NULL && i < names->count; i++)
+        if(!strcmp(names->items[i].name, name) &&
+           (!names->items[i].is_file_private || !strcmp(names->items[i].path, path)))
+            return 1;
+    for(int i = 0; module != NULL && i < module->define_count; i++)
+        if(!strcmp(module->defines[i].name, name) &&
+           (!module->defines[i].is_file_private ||
+            !strcmp(SpanPath(module->defines[i].span), path)))
+            return 1;
+    return 0;
+}
+
+/* OS names the host platform, which .WINDOWS, .MACOS and .LINUX compare to. */
+static int
+compile_platform_value(const char *name, CompileValue *result)
+{
+    static const char *const platforms[] = {".WINDOWS", ".MACOS", ".LINUX"};
+    int64_t value = 0;
+    if(!strcmp(name, "OS")) {
+#if defined(_WIN32)
+        value = 1;
+#elif defined(__APPLE__)
+        value = 2;
+#elif defined(__linux__)
+        value = 3;
+#endif
+    } else
+        for(int i = 0; i < 3; i++)
+            if(!strcmp(name, platforms[i])) value = i + 1;
+    if(value == 0) return 0;
+    result->kind = COMPILE_INTEGER;
+    result->integer = value;
+    return compile_value_literal(result);
+}
 
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
@@ -298,7 +340,8 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                 return bound;
         }
         return evaluate_imported_typed_define(module, path,
-                    expression->name, depth + 1, fuel, result);
+                    expression->name, depth + 1, fuel, result) ||
+               compile_platform_value(expression->name, result);
     case ZIR_EXPR_SIZE_OF: {
         size_t size, alignment;
         if(!TypeLayout(module, expression->name, &size, &alignment) ||
@@ -557,6 +600,15 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         char name[ZIR_NAME_MAX];
         int count = 0;
         copy_text(name, sizeof(name), expression->name);
+        if(!strcmp(name, "defined")) {
+            int probe_name = expression->first_child;
+            if(probe_name < 0 || probe->exprs[probe_name].kind != ZIR_EXPR_IDENT ||
+               probe->exprs[probe_name].next_sibling >= 0) return 0;
+            result->kind = COMPILE_INTEGER;
+            result->integer = compile_name_defined(module, path,
+                                                   probe->exprs[probe_name].name);
+            return compile_value_literal(result);
+        }
         if(!name[0] && expression->left >= 0) {
             const ZirExpr *callee = &probe->exprs[expression->left];
             if(callee->kind != ZIR_EXPR_MEMBER || callee->left < 0 ||
@@ -754,7 +806,6 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
 {
     ZirConsts empty = {0};
     memset(&buffers->probe, 0, sizeof(buffers->probe));
-    int64_t integer;
     int root, ok;
     const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
@@ -762,20 +813,15 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     if(!buffers->input[0]) return 0;
     if(names == NULL) names = &empty;
     const ZirConsts *outer_names = evaluation_names;
+    const ZirConsts *outer_conditions = condition_names;
     const char *text = buffers->input;
+    condition_names = names;
     if(ZirLawEvaluation)
         evaluation_names = names;
     else {
         evaluation_names = NULL;
         expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
         text = buffers->expanded;
-        if(eval_const_condition_with_fuel(buffers->expanded, &integer, module, names,
-                                          path, span.line, depth, fuel)) {
-            evaluation_names = outer_names;
-            result->kind = COMPILE_INTEGER;
-            result->integer = integer;
-            return compile_value_literal(result);
-        }
     }
     const ZirFunction *probe;
     root = CachedParse(module, text, span, &buffers->probe, &probe);
@@ -785,6 +831,7 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
                                  depth + 1, fuel, result);
     CachedParseDone(probe, &buffers->probe);
     evaluation_names = outer_names;
+    condition_names = outer_conditions;
     return ok;
 }
 
@@ -1898,54 +1945,6 @@ COMPILER_SCRATCH_RETURN(static, int, evaluate_typed_function,
                         CompileValue *result),
     EvaluateTypedFunctionBuffers, RECOVERABLE, free,
     evaluate_typed_function_with_buffers(module, name, call_span, arguments, argument_names, argument_count, depth, fuel, result, buffers))
-/* Buffers evaluate_typed_integer_function keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct EvaluateTypedIntegerFunctionBuffers {
-    CompileValue arguments[16];
-    char names[16][ZIR_NAME_MAX];
-} EvaluateTypedIntegerFunctionBuffers;
-
-int evaluate_typed_integer_function(ZirEval *ev, const char *name,
-                                const int64_t *values,
-                                const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, int64_t *result);
-
-static int
-evaluate_typed_integer_function_with_buffers(ZirEval *ev, const char *name,
-                                const int64_t *values,
-                                const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, int64_t *result, EvaluateTypedIntegerFunctionBuffers *buffers)
-{
-    CompileValue value;
-    compile_value_clear(&value);
-    for(int i = 0; i < 16; i++) compile_value_clear(&buffers->arguments[i]);
-    memset(buffers->names, 0, sizeof(buffers->names));
-    int local_fuel = 10000;
-    int *fuel = ev->fuel != NULL ? ev->fuel : &local_fuel;
-    if(ev->module == NULL || argument_count < 0 || argument_count > 16 ||
-       ev->depth >= 16) return 0;
-    for(int i = 0; i < argument_count; i++) {
-        buffers->arguments[i].kind = COMPILE_INTEGER;
-        buffers->arguments[i].integer = values[i];
-        if(!compile_value_literal(&buffers->arguments[i])) return 0;
-        copy_text(buffers->names[i], sizeof(buffers->names[i]), argument_names[i]);
-    }
-    if(!evaluate_typed_function(ev->module, name,
-                                Span(ev->lookup_path, ev->source_line, 1),
-                                buffers->arguments, buffers->names, argument_count,
-                                ev->depth + 1, fuel, &value) ||
-       value.kind != COMPILE_INTEGER) return 0;
-    *result = value.integer;
-    return 1;
-}
-
-COMPILER_SCRATCH_RETURN(, int, evaluate_typed_integer_function,
-    (ZirEval *ev, const char *name,
-                                const int64_t *values,
-                                const char argument_names[][ZIR_NAME_MAX],
-                                int argument_count, int64_t *result),
-    EvaluateTypedIntegerFunctionBuffers, RECOVERABLE, free,
-    evaluate_typed_integer_function_with_buffers(ev, name, values, argument_names, argument_count, result, buffers))
 
 int
 eval_typed_condition(const char *source, const ZirModule *module,
@@ -1989,8 +1988,13 @@ EvaluateCompileExpression(const ZirModule *module, const char *source,
                         source, SpanPath(span));
     if(strstr(expanded, "size_of") != NULL)
         lower_size_of_value(expanded, sizeof(expanded), module, span);
-    int ok = eval_const_condition(expanded, value, module, &constants,
-                                  SpanPath(span), span.line, executing ? 1 : 0);
+    int fuel = 10000;
+    CompileValue result;
+    compile_value_clear(&result);
+    int ok = evaluate_typed_expression(module, &constants, expanded, span,
+                                       executing ? 1 : 0, &fuel, &result) &&
+             result.kind == COMPILE_INTEGER;
+    if(ok) *value = result.integer;
     free(constants.items);
     return ok;
 }

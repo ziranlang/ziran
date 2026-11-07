@@ -1412,8 +1412,6 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                          * evaluation buffers. */
                         expr = trim((char *)(expr + 4));
                     } else if(starts_word(expr, "#run")) {
-                        int64_t value = 0;
-                        int folded;
                         ZirConsts visible = visible_compile_constants(
                             &consts, &future_constants);
                         buffers->run_scope = visible_compile_module(
@@ -1421,30 +1419,27 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         expand_compile_expr(buffers->expanded, sizeof(buffers->expanded),
                                             &visible, trim((char *)(expr + 4)),
                                             buffers->rel);
-                        folded = strstr(buffers->expanded, "size_of") == NULL &&
-                                 eval_const_condition(buffers->expanded, &value,
-                                                     &buffers->run_scope,
-                                                     &visible, buffers->rel, line_no, 1);
-                        if(folded)
-                            snprintf(buffers->run_value, sizeof(buffers->run_value),
-                                     "%ld", value);
-                        else {
-                            CompileValue typed = {0};
+                        /* Imports load only for what the visible scope
+                         * cannot fold already, and for every size_of. */
+                        int folded = 0;
+                        for(int attempt = strstr(buffers->expanded, "size_of") != NULL;
+                            attempt < 2 && !folded; attempt++) {
+                            CompileValue typed;
                             int fuel = 10000;
-                            if(compile_context.resolver != NULL &&
+                            compile_value_clear(&typed);
+                            if(attempt == 1 && compile_context.resolver != NULL &&
                                !compile_context.resolver(
                                    compile_context.resolver_context, program,
                                    &buffers->run_scope, path, root, buffers->expanded))
                                 die_at(Span(buffers->rel, line_no, 1),
                                        "cannot resolve imports for #run expression");
-                            if(evaluate_typed_expression(&buffers->run_scope, &visible,
+                            folded = evaluate_typed_expression(&buffers->run_scope, &visible,
                                     buffers->expanded, Span(buffers->rel, line_no, 1), 1,
                                     &fuel, &typed) &&
-                               typed.kind != COMPILE_INVALID) {
+                                typed.kind != COMPILE_INVALID;
+                            if(folded)
                                 copy_text(buffers->run_value, sizeof(buffers->run_value),
                                           typed.literal);
-                                folded = 1;
-                            }
                         }
                         if(!folded) {
                             int written = snprintf(buffers->run_value,

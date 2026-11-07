@@ -135,18 +135,6 @@ typedef struct {
     int parent_active;
 } ZirCondFrame;
 
-typedef struct ZirEval {
-    const char *p;
-    int known;
-    int64_t value;
-    const ZirModule *module;
-    const ZirConsts *consts;
-    const char *lookup_path;
-    int source_line;
-    int depth;
-    int *fuel;
-} ZirEval;
-
 typedef enum {
     COMPILE_INVALID, COMPILE_INTEGER, COMPILE_REAL, COMPILE_STRING,
     COMPILE_COMPOUND
@@ -223,7 +211,6 @@ typedef struct LoadFrame {
 void die(const char *fmt, ...);
 void die_at(ZirSourceSpan span, const char *fmt, ...);
 void source_append(SourceBuffer *buffer, char byte);
-int source_identifier_byte(unsigned char byte);
 char *lower_jai_multiline_strings(const char *source, const char *path);
 int starts_word(const char *s, const char *word);
 int looks_like_non_jai_control(const char *text, const char *word);
@@ -251,7 +238,6 @@ int take_abi_incomplete(ZirType *type);
 int take_go_anonymous(ZirType *type);
 int expand_type_this(ZirType *type);
 const char *relative_path(const char *root, const char *path);
-int parse_quoted(const char *s, char *out, size_t out_size);
 void normalize_record_separators(char *body, int split_commas);
 int is_c_ident(const char *s);
 ZirExternKind classify_extern_target(const char *target, char *symbol, size_t symbol_size, const char *path, int line_no);
@@ -301,14 +287,8 @@ int line_is_compile_else(const char *line);
 int parse_cond_start(char *line, char **condition);
 int line_starts_compile_condition(const char *line);
 void expand_compile_expr(char *dst, size_t dst_size, const ZirConsts *consts, const char *src, const char *lookup_path);
-char *find_top_comma(char *s);
 int eval_integer_type(const char *type, int64_t value);
 int eval_close(const ZirFunction *fn, int opening, int stop);
-int checked_add_long(int64_t left, int64_t right, int64_t *result);
-int checked_sub_long(int64_t left, int64_t right, int64_t *result);
-int checked_mul_long(int64_t left, int64_t right, int64_t *result);
-int eval_const_condition_with_fuel(const char *src, int64_t *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth, int *fuel);
-int eval_const_condition(const char *src, int64_t *value, const ZirModule *module, const ZirConsts *consts, const char *lookup_path, int line, int depth);
 int compile_value_literal(CompileValue *value);
 int compile_truth(const CompileValue *value, int *truth);
 int compile_type_value(const char *type, CompileValue *value);
@@ -327,7 +307,6 @@ int CachedParse(const ZirModule *module, const char *text, ZirSourceSpan span,
                 ZirFunction *scratch, const ZirFunction **probe);
 void CachedParseDone(const ZirFunction *probe, ZirFunction *scratch);
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names, const char *source, ZirSourceSpan span, int depth, int *fuel, CompileValue *result);
-int evaluate_typed_integer_function(ZirEval *ev, const char *name, const int64_t *values, const char argument_names[][ZIR_NAME_MAX], int argument_count, int64_t *result);
 int eval_typed_condition(const char *source, const ZirModule *module, const ZirConsts *names, ZirSourceSpan span, int64_t *result);
 ZirConsts visible_compile_constants(const ZirConsts *parsed, const ZirConsts *future);
 ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseContext *context, const ZirConsts *constants);

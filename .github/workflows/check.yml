@@ -31,7 +31,7 @@ jobs:
           go-version: '1.24'
       - name: Install ripgrep, MinGW, Wine, Vorbis, ARMv7 and Wasm tools, and the private display for the test scripts
         timeout-minutes: 5
-        run: sh scripts/ci_packages.sh ccache ripgrep gcc-mingw-w64-x86-64 wine wine64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user lld
+        run: sh scripts/ci_packages.sh ccache ripgrep gcc-mingw-w64-x86-64 wine wine64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
       - name: Keep compile results between runs
         uses: ./.github/actions/compile-cache
         with:
@@ -39,7 +39,7 @@ jobs:
       - name: Build the toolchain
         run: make
       - name: Run the language, backend, and portable runtime checks
-        run: env -u DISPLAY -u WAYLAND_DISPLAY WINDOWS_REQUIRED=1 ARM_REQUIRED=1 WASM_REQUIRED=1 make check CHECK_JOBS=4 CHECK_SHARD=${{ matrix.shard }}/2
+        run: env -u DISPLAY -u WAYLAND_DISPLAY WINDOWS_REQUIRED=1 ARM_REQUIRED=1 WASM_REQUIRED=1 ZIRAN_WASM_CC=clang-18 make check CHECK_JOBS=4 CHECK_SHARD=${{ matrix.shard }}/2
       - name: Show how much the compile cache saved
         if: always()
         run: ccache --show-stats || true

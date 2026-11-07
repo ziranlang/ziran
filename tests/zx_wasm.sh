@@ -2,8 +2,8 @@
 set -eu
 # The wasm execution tier must agree with the native tier and the portable
 # VM on the scalar fixture, and reject out-of-subset programs with a
-# diagnostic instead of guessing. node runs the emitted module; wasmtime
-# is used as a second engine when its python binding is importable.
+# diagnostic instead of guessing. Node or Python Wasmtime runs the emitted
+# modules; an explicit ZIRAN_WASM_PYTHON selects Wasmtime for every check.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 build=$(CDPATH= cd -- "$(dirname -- "$ziran")/.." && pwd)
@@ -15,9 +15,66 @@ entry=zx_wasm_test:Answer
 expected=9091
 nodebin=${ZIRAN_WASM_NODE:-node}
 
-command -v "$nodebin" >/dev/null 2>&1 || {
-    echo "zx-wasm-test: node is unavailable; skipping the wasm execution check"
-    exit 0
+wasmpython=${ZIRAN_WASM_PYTHON:-python3}
+python_engine=0
+python_available=0
+if command -v "$wasmpython" >/dev/null 2>&1 &&
+   "$wasmpython" -c 'import wasmtime' >/dev/null 2>&1; then
+    python_available=1
+    if test -n "${ZIRAN_WASM_PYTHON:-}" || ! command -v "$nodebin" >/dev/null 2>&1; then
+        python_engine=1
+    fi
+fi
+if test -n "${ZIRAN_WASM_PYTHON:-}" && test "$python_available" != 1; then
+    echo "zx-wasm-test: $wasmpython cannot import wasmtime" >&2
+    exit 1
+fi
+if test "$python_engine" != 1 && ! command -v "$nodebin" >/dev/null 2>&1; then
+    echo 'zx-wasm-test: needs node or Python wasmtime for execution' >&2
+    test "${WASM_REQUIRED:-0}" != 1
+    exit
+fi
+
+# Both engines use the same modules and budget trap contract.
+cat >"$work/run_wasm.py" <<'EOF'
+import sys
+from wasmtime import Engine, Store, Linker, Module, Global, GlobalType, ValType, FuncType, Trap
+mode, *args = sys.argv[1:]
+engine = Engine()
+for path in args if mode == 'simd' else args[:1]:
+    store = Store(engine)
+    linker = Linker(engine)
+    if mode != 'simd':
+        def overrun():
+            raise Trap('budget spent')
+        linker.define_func('zx', 'overrun', FuncType([], []), overrun)
+        budget = 5 if mode == 'budget' else int(args[1])
+        linker.define(store, 'zx', 'budget', Global(store, GlobalType(ValType.i64(), True), budget))
+    module = Module.from_file(engine, path)
+    instance = linker.instantiate(store, module)
+    if mode == 'budget':
+        try:
+            instance.exports(store)['zx_entry'](store)
+        except Trap as error:
+            if 'budget spent' not in str(error):
+                raise
+        else:
+            raise RuntimeError('no overrun trap')
+    else:
+        name = 'Answer' if mode == 'simd' else 'zx_entry'
+        print(instance.exports(store)[name](store))
+EOF
+run_engine() {
+    mode=$1; shift
+    if test "$python_engine" = 1; then
+        "$wasmpython" "$work/run_wasm.py" "$mode" "$@"
+    else
+        case $mode in
+            scalar) "$nodebin" "$run_wasm" "$@" ;;
+            budget) "$nodebin" "$work/spend_budget.js" "$@" ;;
+            simd) "$nodebin" "$work/run_simd.js" "$@" ;;
+        esac
+    fi
 }
 
 zi2wasm=$(dirname -- "$ziran")/zi2wasm
@@ -48,7 +105,7 @@ WebAssembly.instantiate(fs.readFileSync(file), {
 }).catch((e) => { console.error(e.message); process.exit(1); });
 EOF
 
-result=$("$nodebin" "$run_wasm" "$work/zx_wasm_test.wasm" 10000000)
+result=$(run_engine scalar "$work/zx_wasm_test.wasm" 10000000)
 test "$result" = "$expected" || {
     echo "zx-wasm-test: wasm result $result != $expected"
     exit 1
@@ -69,28 +126,11 @@ WebAssembly.instantiate(fs.readFileSync(file), {
     process.exit(1);
 }).catch((e) => { console.error(e.message); process.exit(1); });
 EOF
-"$nodebin" "$work/spend_budget.js" "$work/zx_wasm_test.wasm"
+run_engine budget "$work/zx_wasm_test.wasm"
 
 # A second engine, when available, must agree on the same module.
-if command -v python3 >/dev/null 2>&1 &&
-   python3 -c 'import wasmtime' >/dev/null 2>&1; then
-    python3 - "$work/zx_wasm_test.wasm" "$expected" <<'EOF'
-import sys
-from wasmtime import Engine, Linker, Module, Store, ValType, Global, Func, FuncType
-path, expected = sys.argv[1], sys.argv[2]
-engine = Engine()
-module = Module.from_file(engine, path)
-linker = Linker(engine)
-linker.define("zx", "overrun",
-              Func(engine, FuncType([], []), lambda: (_ for _ in ()).throw(RuntimeError("overrun"))))
-linker.define("zx", "budget", Global(engine, ValType.i64(), 10000000, True))
-store = Store(engine)
-instance = linker.instantiate(store, module)
-result = instance.exports(store)["zx_entry"](store)
-if str(result) != expected:
-    print(f"zx-wasm-test: wasmtime result {result} != {expected}")
-    sys.exit(1)
-EOF
+if test "$python_available" = 1 && test "$python_engine" != 1; then
+    test "$("$wasmpython" "$work/run_wasm.py" scalar "$work/zx_wasm_test.wasm" 10000000)" = "$expected"
 fi
 
 # Enums are outside the tier while strings lower: the tool reports the
@@ -133,7 +173,7 @@ Answer :: () -> s64 {
 EOF
 "$zi2wasm" --root "$work" --entry text:Answer \
     -o "$work/text.wasm" "$work/text.zi"
-text=$("$nodebin" "$run_wasm" "$work/text.wasm" 1000000)
+text=$(run_engine scalar "$work/text.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry text:Answer \
     -o "$work/text.zx" "$work/text.zi"
 case "$("$ziran" run "$work/text.zx")" in
@@ -161,7 +201,7 @@ Answer :: () -> s64 {
 EOF
 "$zi2wasm" --root "$work" --entry records:Answer \
     -o "$work/records.wasm" "$work/records.zi"
-records=$("$nodebin" "$run_wasm" "$work/records.wasm" 1000000)
+records=$(run_engine scalar "$work/records.wasm" 1000000)
 "$ziran" bundle --root "$work" --entry records:Answer \
     -o "$work/records.zx" "$work/records.zi"
 case "$("$ziran" run "$work/records.zx")" in
@@ -249,7 +289,7 @@ printf '#include <stdio.h>\n#include "simd.h"\nint main(void) { printf("%%lld\\n
     "$work/simd-c/simd.c" "$work/simd-host.c" -o "$work/simd-native"
 portable=$("$work/simd-native")
 case $(uname -m) in wasm*) ;; *) test "$((portable % 100))" = 0 ;; esac
-# The generated C needs no libc beyond its bounds-failure report.
+# Supply the small freestanding libc surface used by generated C.
 mkdir -p "$work/freestanding"
 cat >"$work/freestanding/stdio.h" <<'EOF'
 typedef struct FILE FILE;
@@ -257,7 +297,25 @@ typedef struct FILE FILE;
 static inline int fprintf(FILE *file, const char *format, ...) { (void)file; (void)format; return 0; }
 EOF
 printf '_Noreturn static inline void abort(void) { __builtin_trap(); }\n' >"$work/freestanding/stdlib.h"
-wasmcc=${ZIRAN_WASM_CC:-clang}
+cat >"$work/freestanding/string.h" <<'EOF'
+#ifndef ZIRAN_TEST_STRING_H
+#define ZIRAN_TEST_STRING_H
+#include <stddef.h>
+static inline void *memcpy(void *dst, const void *src, size_t n) {
+    unsigned char *d = dst;
+    const unsigned char *s = src;
+    for (size_t i = 0; i < n; ++i) d[i] = s[i];
+    return dst;
+}
+static inline int memcmp(const void *a, const void *b, size_t n) {
+    const unsigned char *x = a, *y = b;
+    for (size_t i = 0; i < n; ++i) if (x[i] != y[i]) return x[i] - y[i];
+    return 0;
+}
+#endif
+EOF
+. "$repo/tests/lib/wasm_cc.sh"
+: >"$work/wasm-probe.log"
 simd_ran=0
 wasm_build() {
     name=$1; shift
@@ -266,7 +324,9 @@ wasm_build() {
         -isystem "$work/freestanding" -I"$repo/include" -I"$work/$name-c" "$@" \
         -Wl,--no-entry -Wl,--export=Answer "$work/$name-c/$name.c"
 }
-if wasm_build simd -o "$work/simd-baseline.wasm" >/dev/null 2>&1; then
+if wasm_cc_select; then
+    echo "zx-wasm-test: wasm32 compiler: $wasmcc"
+    wasm_build simd -o "$work/simd-baseline.wasm"
     wasm_build simd -msimd128 -o "$work/simd-simd.wasm"
     wasm_build simd -msimd128 -DZIRAN_NO_ASM -o "$work/simd-portable.wasm"
     cat >"$work/run_simd.js" <<'EOF'
@@ -277,12 +337,13 @@ for (const file of process.argv.slice(2)) {
   console.log(new WebAssembly.Instance(new WebAssembly.Module(bytes), {}).exports.Answer().toString());
 }
 EOF
-    results=$("$nodebin" "$work/run_simd.js" "$work/simd-simd.wasm" \
+    results=$(run_engine simd "$work/simd-simd.wasm" \
         "$work/simd-baseline.wasm" "$work/simd-portable.wasm" | tr '\n' ' ')
     test "$results" = "$((portable + 72)) $((portable + 11)) $portable " || {
         echo "zx-wasm-test: SIMD128 results '$results' for portable $portable"
         exit 1
     }
+    echo "zx-wasm-test: executed SIMD128, baseline and portable modules: $results"
     # The assembler rejects SIMD instructions in a build without SIMD, so the
     # baseline module built above holds none of the SIMD templates.
     if wasm_build simd -D__wasm_simd128__ -o "$work/simd-forced.wasm" >"$work/simd-forced.log" 2>&1 ||
@@ -293,21 +354,23 @@ EOF
     if test "$($wasmcc -dumpversion | cut -d. -f1)" -ge 19; then
         wasm_build carried -msimd128 -o "$work/carried-simd.wasm"
         wasm_build carried -o "$work/carried-baseline.wasm"
-        results=$("$nodebin" "$work/run_simd.js" "$work/carried-simd.wasm" \
+        results=$(run_engine simd "$work/carried-simd.wasm" \
             "$work/carried-baseline.wasm" | tr '\n' ' ')
         test "$results" = "$((portable / 100)) $((portable / 100)) " || {
             echo "zx-wasm-test: stack-carried SIMD128 results '$results' for portable $portable"
             exit 1
         }
+        echo "zx-wasm-test: executed stack-carried SIMD128 and baseline modules: $results"
     else
         echo "zx-wasm-test: $wasmcc is older than Clang 19; skipping the stack-carried SIMD128 kernel"
     fi
     simd_ran=1
 else
-    echo "zx-wasm-test: $wasmcc cannot link wasm32; skipping the SIMD128 modules"
+    echo "zx-wasm-test: no working wasm32 compiler/linker; skipping the SIMD128 modules"
 fi
 if test "${WASM_REQUIRED:-0}" = 1 && test "$simd_ran" != 1; then
-    echo 'zx-wasm-test: WASM_REQUIRED=1 needs a clang with wasm-ld' >&2
+    cat "$work/wasm-probe.log" >&2
+    echo 'zx-wasm-test: WASM_REQUIRED=1 needs a clang with wasm-ld (set ZIRAN_WASM_CC)' >&2
     exit 1
 fi
 # The portable tiers run the checked bodies of the same assembly procedures.
@@ -319,7 +382,7 @@ Answer :: () -> s64 { return 40 + cast(s64)SimdPath() }
 EOF
 "$zi2wasm" --root "$work" --entry simd_path:Answer \
     -o "$work/simd_path.wasm" "$work/simd_path.zi"
-test "$("$nodebin" "$run_wasm" "$work/simd_path.wasm" 1000000)" = 40
+test "$(run_engine scalar "$work/simd_path.wasm" 1000000)" = 40
 "$ziran" bundle --root "$work" --entry simd_path:Answer \
     -o "$work/simd_path.zx" "$work/simd_path.zi"
 test "$("$ziran" run "$work/simd_path.zx")" = 40

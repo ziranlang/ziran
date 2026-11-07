@@ -56,7 +56,7 @@ int64_t compiler_text_OperatorTokenLength(String source);
 String compiler_text_ProcedureOperator(String name);
 
 /* Small procedures other modules inline; compiler_text.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE)
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include "zir_bounds.h"
 static inline bool compiler_text_SpaceByte_ziran_inline(uint8_t byte);
 #define compiler_text_SpaceByte(...) compiler_text_SpaceByte_ziran_inline(__VA_ARGS__)

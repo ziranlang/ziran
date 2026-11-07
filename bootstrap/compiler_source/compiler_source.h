@@ -126,7 +126,7 @@ InliningModifier compiler_source_ProcedureInlining(String source);
 TargetModifier compiler_source_ProcedureTarget(String source);
 
 /* Small procedures other modules inline; compiler_source.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_SOURCE_H_SOURCE)
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_SOURCE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 static inline void compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_commas);
 #define compiler_source_NormalizeRecordSeparators(...) compiler_source_NormalizeRecordSeparators_ziran_inline(__VA_ARGS__)
 static inline bool compiler_source_BraceOutsideLiterals_ziran_inline(String source);

@@ -19,3 +19,6 @@ do not import a UI library.
   language rules.
 - Run relevant checks with `DISPLAY` and `WAYLAND_DISPLAY` removed. Any test
   that needs a display must use a private Xvfb/Xephyr display.
+- Test with `make check` (every check, run in parallel on `BUILD_QUEUE_JOBS`)
+  and `make check-bootstrap`; `make check CHECK_FILTER=text` reruns only the
+  checks whose name contains `text`. Full logs are in `build/check-logs/`.

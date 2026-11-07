@@ -1,0 +1,387 @@
+// Scalar proof kernel: hash-consed terms over booleans and fixed-width
+// integers, ring normalization of polynomials modulo 2^w, order facts and
+// case splits. Every step spends one deterministic budget, so results never
+// depend on the machine. The caller owns the kernel record; only polynomial
+// scratch is allocated, and allocation failure counts as exhaustion.
+
+ProofBudget :: 100000;
+ProofDepth :: 64;
+ProofTerms :: 4096;
+ProofFacts :: 128;
+ProofTypes :: 32;
+
+ProofOp :: enum s32 { Const; Var; Add; Sub; Mul; Eq; Lt; Le; And; Or; Not; Ite }
+// Type zero is Bool. identity is the caller's key for an enum declaration,
+// zero for primitives, so equal-width enums stay distinct.
+ProofType :: struct { width: u32; is_unsigned: bool; identity: u64 }
+ProofTerm :: struct { op: ProofOp; type: s32; a: s32; b: s32; c: s32; value: u64 }
+ProofFact :: struct { term: s32; truth: bool }
+ProofKernel :: struct {
+    types: [32]ProofType; type_count: s32
+    terms: [4096]ProofTerm; count: s32
+    budget: s32; exhausted: bool
+    facts: [128]ProofFact; fact_count: s32
+}
+
+#scope_file
+OrderTerms :: 64;
+// A monomial is a sorted multiset of atom IDs and a coefficient modulo 2^w.
+// ITEs are atoms until cases selects a branch. No order identities about
+// modular arithmetic are assumed.
+Monomial :: struct { coefficient: u64; degree: s32; factors: [64]s32 }
+// Removal moves the last monomial into the gap; terms from count on are spare.
+Polynomial :: struct { terms: Vec(Monomial); count: s64 }
+// edges[a][b] is 1 for a <= b and 2 for a < b.
+Order :: struct { ids: [64]s32; count: s32; edges: [64][64]u8; diseq: [128][2]s32; diseq_count: s32 }
+OrderResult :: struct { truth: s32; impossible: bool }
+
+Spend :: (k: *ProofKernel) -> bool {
+    k.budget -= 1
+    if k.budget >= 0 && !k.exhausted { return true }
+    k.exhausted = true
+    return false
+}
+Mask :: (width: u32) -> u64 {
+    if width >= 64 { return 0xffffffffffffffff }
+    return (cast(u64)1 << cast(u64)width) - 1
+}
+// Flipping the sign bit maps two's-complement order onto unsigned order.
+Compare :: (a: u64, b: u64, type: ProofType) -> s32 {
+    mask := Mask(type.width)
+    sign: u64 = ifx type.is_unsigned then 0 else (mask >> 1) + 1
+    x := (a & mask) ^ sign
+    y := (b & mask) ^ sign
+    return cast(s32)(x > y) - cast(s32)(x < y)
+}
+Ring :: (op: ProofOp) -> bool { return op == .Add || op == .Sub || op == .Mul }
+Comparison :: (op: ProofOp) -> bool { return op == .Eq || op == .Lt || op == .Le }
+
+SameFactors :: (x: *Monomial, y: *Monomial) -> bool {
+    if x.degree != y.degree { return false }
+    for i: 0..x.degree - 1 { if x.factors[i] != y.factors[i] { return false } }
+    return true
+}
+PolyAdd :: (k: *ProofKernel, p: *Polynomial, m: *Monomial, mask: u64) -> bool {
+    if !Spend(k) { return false }
+    coefficient := m.coefficient & mask
+    if coefficient == 0 { return true }
+    for i: 0..p.count - 1 {
+        if !Spend(k) { return false }
+        if SameFactors(*p.terms[i], m) {
+            p.terms[i].coefficient = (p.terms[i].coefficient + coefficient) & mask
+            if p.terms[i].coefficient == 0 { p.count -= 1; p.terms[i] = p.terms[p.count] }
+            return true
+        }
+    }
+    if p.count == ProofTerms { k.exhausted = true; return false }
+    if p.count == p.terms.count && !VecPush(p.terms, <<m) { k.exhausted = true; return false }
+    p.terms[p.count] = <<m
+    p.terms[p.count].coefficient = coefficient
+    p.count += 1
+    return true
+}
+// Multiplies monomials by merging their sorted factors.
+Product :: (k: *ProofKernel, out: *Polynomial, a: *Polynomial, b: *Polynomial, mask: u64) -> bool {
+    for i: 0..a.count - 1 {
+        for j: 0..b.count - 1 {
+            x := *a.terms[i]
+            y := *b.terms[j]
+            if x.degree + y.degree > ProofDepth { k.exhausted = true; return false }
+            m: Monomial
+            m.coefficient = x.coefficient * y.coefficient
+            m.degree = x.degree + y.degree
+            xi: s32 = 0
+            yi: s32 = 0
+            for n: 0..m.degree - 1 {
+                if yi == y.degree || (xi < x.degree && x.factors[xi] <= y.factors[yi]) {
+                    m.factors[n] = x.factors[xi]; xi += 1
+                } else { m.factors[n] = y.factors[yi]; yi += 1 }
+            }
+            if !PolyAdd(k, out, *m, mask) { return false }
+        }
+    }
+    return true
+}
+Normalize :: (k: *ProofKernel, id: s32, out: *Polynomial, depth: s32) -> bool {
+    if id < 0 || id >= k.count || depth > ProofDepth || !Spend(k) { return false }
+    t := k.terms[id]
+    if t.type == 0 { return false }
+    mask := Mask(k.types[t.type].width)
+    if !Ring(t.op) {
+        m: Monomial
+        m.coefficient = ifx t.op == .Const then t.value else 1
+        if t.op != .Const { m.degree = 1; m.factors[0] = id }
+        return PolyAdd(k, out, *m, mask)
+    }
+    a: Polynomial
+    b: Polynomial
+    if !Normalize(k, t.a, *a, depth + 1) || !Normalize(k, t.b, *b, depth + 1) { return false }
+    if t.op == .Mul { return Product(k, out, *a, *b, mask) }
+    for i: 0..a.count - 1 { if !PolyAdd(k, out, *a.terms[i], mask) { return false } }
+    for i: 0..b.count - 1 {
+        if t.op == .Sub { b.terms[i].coefficient = cast(u64)0 - b.terms[i].coefficient }
+        if !PolyAdd(k, out, *b.terms[i], mask) { return false }
+    }
+    return true
+}
+
+OrderId :: (k: *ProofKernel, o: *Order, id: s32, ring: bool) -> s32 {
+    for i: 0..o.count - 1 { if Equal(k, o.ids[i], id, ring) { return i } }
+    if o.count == OrderTerms { k.exhausted = true; return -1 }
+    o.ids[o.count] = id
+    o.edges[o.count][o.count] = 1
+    o.count += 1
+    return o.count - 1
+}
+Edge :: (o: *Order, a: s32, b: s32, strength: u8) {
+    if a >= 0 && b >= 0 && o.edges[a][b] < strength { o.edges[a][b] = strength }
+}
+OrderFact :: (k: *ProofKernel, o: *Order, id: s32, truth: bool, ring: bool) {
+    t := k.terms[id]
+    if t.op == .Not { OrderFact(k, o, t.a, !truth, ring); return }
+    if !Comparison(t.op) || k.terms[t.a].type == 0 { return }
+    a := OrderId(k, o, t.a, ring)
+    b := OrderId(k, o, t.b, ring)
+    if a < 0 || b < 0 { return }
+    if t.op != .Eq {
+        strict: u8 = ifx t.op == .Lt then 2 else 1
+        if truth { Edge(o, a, b, strict) } else { Edge(o, b, a, 3 - strict) }
+    } else if truth { Edge(o, a, b, 1); Edge(o, b, a, 1) }
+    else if o.diseq_count < ProofFacts {
+        o.diseq[o.diseq_count][0] = a
+        o.diseq[o.diseq_count][1] = b
+        o.diseq_count += 1
+    }
+}
+// Closes the facts under transitivity, then decides a comparison goal.
+DecideOrder :: (k: *ProofKernel, goal: s32, ring: bool) -> OrderResult {
+    o: Order
+    for i: 0..k.fact_count - 1 { OrderFact(k, *o, k.facts[i].term, k.facts[i].truth, ring) }
+    t := k.terms[goal]
+    a: s32 = -1
+    b: s32 = -1
+    if Comparison(t.op) {
+        a = OrderId(k, *o, t.a, ring)
+        b = OrderId(k, *o, t.b, ring)
+    }
+    for i: 0..o.count - 1 {
+        for j: 0..o.count - 1 {
+            x := k.terms[o.ids[i]]
+            y := k.terms[o.ids[j]]
+            if x.type == y.type && x.type != 0 && x.op == .Const && y.op == .Const {
+                cmp := Compare(x.value, y.value, k.types[x.type])
+                if cmp <= 0 { Edge(*o, i, j, ifx cmp < 0 then 2 else 1) }
+            }
+        }
+    }
+    m: s32 = 0
+    while m < o.count && !k.exhausted {
+        for i: 0..o.count - 1 {
+            for j: 0..o.count - 1 {
+                if !Spend(k) { break }
+                if o.edges[i][m] != 0 && o.edges[m][j] != 0 {
+                    Edge(*o, i, j, ifx o.edges[i][m] == 2 || o.edges[m][j] == 2 then 2 else 1)
+                }
+            }
+        }
+        m += 1
+    }
+    result := OrderResult.{truth = -1}
+    for i: 0..o.count - 1 { if o.edges[i][i] == 2 { result.impossible = true } }
+    for i: 0..o.diseq_count - 1 {
+        x := o.diseq[i][0]
+        y := o.diseq[i][1]
+        if o.edges[x][y] != 0 && o.edges[y][x] != 0 { result.impossible = true }
+    }
+    if a < 0 || b < 0 { return result }
+    forward := o.edges[a][b]
+    backward := o.edges[b][a]
+    if t.op == .Eq {
+        if forward != 0 && backward != 0 { result.truth = 1 }
+        else if forward == 2 || backward == 2 { result.truth = 0 }
+    } else if t.op == .Lt {
+        if forward == 2 { result.truth = 1 } else if backward != 0 { result.truth = 0 }
+    } else if forward != 0 { result.truth = 1 } else if backward == 2 { result.truth = 0 }
+    return result
+}
+
+// -1 means undetermined; otherwise 0 or 1.
+Truth :: (k: *ProofKernel, id: s32, ring: bool, order: bool, depth: s32) -> s32 {
+    if id < 0 || id >= k.count || depth > ProofDepth || !Spend(k) { return -1 }
+    t := k.terms[id]
+    if t.type != 0 { return -1 }
+    if t.op == .Const { return cast(s32)t.value }
+    for i: 0..k.fact_count - 1 { if k.facts[i].term == id { return cast(s32)k.facts[i].truth } }
+    if t.op == .Not {
+        a := Truth(k, t.a, ring, order, depth + 1)
+        return ifx a < 0 then -1 else 1 - a
+    }
+    if t.op == .And || t.op == .Or {
+        a := Truth(k, t.a, ring, order, depth + 1)
+        b := Truth(k, t.b, ring, order, depth + 1)
+        // The absorbing value decides alone; otherwise both must be known.
+        absorbing: s32 = ifx t.op == .And then 0 else 1
+        if a == absorbing || b == absorbing { return absorbing }
+        return ifx a >= 0 && b >= 0 then 1 - absorbing else -1
+    }
+    if t.op == .Ite {
+        c := Truth(k, t.a, ring, order, depth + 1)
+        if c >= 0 { return Truth(k, ifx c == 1 then t.b else t.c, ring, order, depth + 1) }
+        a := Truth(k, t.b, ring, order, depth + 1)
+        b := Truth(k, t.c, ring, order, depth + 1)
+        return ifx a == b then a else -1
+    }
+    if !Comparison(t.op) { return -1 }
+    if Equal(k, t.a, t.b, ring) { return cast(s32)(t.op != .Lt) }
+    a := k.terms[t.a]
+    b := k.terms[t.b]
+    if t.op == .Eq && a.type == 0 && b.type == 0 {
+        x := Truth(k, t.a, ring, order, depth + 1)
+        y := Truth(k, t.b, ring, order, depth + 1)
+        if x >= 0 && y >= 0 { return cast(s32)(x == y) }
+    }
+    if a.op == .Const && b.op == .Const && a.type == b.type {
+        cmp := cast(s32)(a.value > b.value) - cast(s32)(a.value < b.value)
+        if a.type != 0 { cmp = Compare(a.value, b.value, k.types[a.type]) }
+        if t.op == .Eq { return cast(s32)(cmp == 0) }
+        return cast(s32)(cmp < 0 || (t.op == .Le && cmp == 0))
+    }
+    if order && a.type != 0 { return DecideOrder(k, id, ring).truth }
+    return -1
+}
+
+// Selects decided ITE branches and folds constant arithmetic. The first
+// undecided ITE condition becomes the case split.
+Reduce :: (k: *ProofKernel, id: s32, ring: bool, order: bool, depth: s32, split: *s32) -> s32 {
+    if id < 0 || id >= k.count || depth > ProofDepth || !Spend(k) { return -1 }
+    t := k.terms[id]
+    if t.op == .Const || t.op == .Var { return id }
+    if t.op == .Ite {
+        cond := Truth(k, t.a, ring, order, depth + 1)
+        if cond >= 0 { return Reduce(k, ifx cond == 1 then t.b else t.c, ring, order, depth + 1, split) }
+        if <<split < 0 { <<split = t.a }
+    }
+    a := Reduce(k, t.a, ring, order, depth + 1, split)
+    b := ifx t.b >= 0 then Reduce(k, t.b, ring, order, depth + 1, split) else t.b
+    c := ifx t.c >= 0 then Reduce(k, t.c, ring, order, depth + 1, split) else t.c
+    if a < 0 || (t.b >= 0 && b < 0) || (t.c >= 0 && c < 0) { return -1 }
+    if Ring(t.op) && k.terms[a].op == .Const && k.terms[b].op == .Const {
+        x := k.terms[a].value
+        y := k.terms[b].value
+        value := ifx t.op == .Add then x + y else ifx t.op == .Sub then x - y else x * y
+        return Node(k, .Const, t.type, -1, -1, -1, value)
+    }
+    return Node(k, t.op, t.type, a, b, c, t.value)
+}
+// An undecided boolean atom to split on.
+Atom :: (k: *ProofKernel, id: s32, ring: bool, order: bool, depth: s32) -> s32 {
+    if id < 0 || depth > ProofDepth || !Spend(k) { return -1 }
+    t := k.terms[id]
+    if t.type != 0 || Truth(k, id, ring, order, 0) >= 0 { return -1 }
+    if t.op == .Var || t.op == .Lt || t.op == .Le || (t.op == .Eq && k.terms[t.a].type != 0) { return id }
+    a := Atom(k, t.a, ring, order, depth + 1)
+    if a >= 0 { return a }
+    b := ifx t.b >= 0 then Atom(k, t.b, ring, order, depth + 1) else -1
+    return ifx b >= 0 then b else ifx t.op == .Eq then id else -1
+}
+CloseGoal :: (k: *ProofKernel, goal: s32, ring: bool, order: bool, cases: bool, depth: s32) -> bool {
+    if depth > ProofDepth || !Spend(k) { k.exhausted = true; return false }
+    saved := k.fact_count
+    for i: 0..saved - 1 {
+        // Check each fact against earlier facts, not against itself.
+        k.fact_count = i
+        known := Truth(k, k.facts[i].term, ring, order, 0)
+        k.fact_count = saved
+        if known >= 0 && known != cast(s32)k.facts[i].truth { return true }
+    }
+    if order && DecideOrder(k, goal, ring).impossible { return true }
+    split: s32 = -1
+    reduced := Reduce(k, goal, ring, order, 0, *split)
+    if reduced < 0 || k.exhausted { return false }
+    result := Truth(k, reduced, ring, order, 0)
+    if result >= 0 || !cases { return result == 1 }
+    if split < 0 { split = Atom(k, reduced, ring, order, 0) }
+    if saved == ProofFacts { k.exhausted = true; return false }
+    if split < 0 { return false }
+    k.facts[saved] = .{term = split, truth = true}
+    k.fact_count += 1
+    yes := CloseGoal(k, goal, ring, order, cases, depth + 1)
+    k.facts[saved].truth = false
+    no := yes && CloseGoal(k, goal, ring, order, cases, depth + 1)
+    k.fact_count = saved
+    return yes && no && !k.exhausted
+}
+
+#scope_export
+Init :: (k: *ProofKernel) {
+    k.types[0] = .{}
+    k.type_count = 1
+    k.count = 0
+    k.budget = ProofBudget
+    k.exhausted = false
+    k.fact_count = 0
+}
+TypeAdd :: (k: *ProofKernel, type: ProofType) -> s32 {
+    for i: 0..k.type_count - 1 {
+        known := k.types[i]
+        if known.width == type.width && known.is_unsigned == type.is_unsigned &&
+        known.identity == type.identity { return i }
+    }
+    if k.type_count == ProofTypes { k.exhausted = true; return -1 }
+    k.types[k.type_count] = type
+    k.type_count += 1
+    return k.type_count - 1
+}
+// Returns the existing ID of an identical term.
+Node :: (k: *ProofKernel, op: ProofOp, type: s32, a: s32, b: s32, c: s32, value: u64) -> s32 {
+    if !Spend(k) || type < 0 || type >= k.type_count { return -1 }
+    bits := value
+    if op == .Const { bits = bits & (ifx type != 0 then Mask(k.types[type].width) else 1) }
+    if op == .Ite && b == c { return b }
+    term := ProofTerm.{op = op, type = type, a = a, b = b, c = c, value = bits}
+    for i: 0..k.count - 1 {
+        t := k.terms[i]
+        if t.op == op && t.type == type && t.a == a && t.b == b && t.c == c && t.value == bits { return i }
+    }
+    if k.count == ProofTerms { k.exhausted = true; return -1 }
+    k.terms[k.count] = term
+    k.count += 1
+    return k.count - 1
+}
+// With ring, terms are equal when their polynomials modulo 2^w agree.
+Equal :: (k: *ProofKernel, a: s32, b: s32, ring: bool) -> bool {
+    if a < 0 || b < 0 || a >= k.count || b >= k.count || !Spend(k) { return false }
+    if a == b { return true }
+    type := k.terms[a].type
+    if type != k.terms[b].type || !ring || type == 0 { return false }
+    x: Polynomial
+    y: Polynomial
+    if !Normalize(k, a, *x, 0) || !Normalize(k, b, *y, 0) || x.count != y.count { return false }
+    for i: 0..x.count - 1 {
+        found := false
+        for j: 0..y.count - 1 {
+            if !Spend(k) { return false }
+            if x.terms[i].coefficient == y.terms[j].coefficient && SameFactors(*x.terms[i], *y.terms[j]) {
+                found = true
+                break
+            }
+        }
+        if !found { return false }
+    }
+    return true
+}
+Close :: (k: *ProofKernel, goal: s32, ring: bool, order: bool, cases: bool) -> bool {
+    return CloseGoal(k, goal, ring, order, cases, 0) && !k.exhausted
+}
+// Replaces every subterm equal to from (modulo the ring) with to.
+Rewrite :: (k: *ProofKernel, goal: s32, from: s32, to: s32, depth: s32) -> s32 {
+    if goal < 0 || depth > ProofDepth || !Spend(k) { return -1 }
+    if Equal(k, goal, from, true) { return to }
+    t := k.terms[goal]
+    if t.op == .Const || t.op == .Var { return goal }
+    a := Rewrite(k, t.a, from, to, depth + 1)
+    b := ifx t.b >= 0 then Rewrite(k, t.b, from, to, depth + 1) else t.b
+    c := ifx t.c >= 0 then Rewrite(k, t.c, from, to, depth + 1) else t.c
+    if a < 0 || (t.b >= 0 && b < 0) || (t.c >= 0 && c < 0) { return -1 }
+    return Node(k, t.op, t.type, a, b, c, t.value)
+}

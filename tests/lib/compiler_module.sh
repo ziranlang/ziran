@@ -34,10 +34,12 @@ for input in "$source" "$work/ir/$module.zir"; do
     test "$(GO111MODULE=off go run "$output/go/"*.go)" = "$expected"
 done
 
-# Both source and saved IR must regenerate the exact fresh-build seed.
+# Both source and saved IR must regenerate the exact fresh-build seed,
+# including the generated standard-module headers it keeps.
 "$ziran" ir --root "$repo/cmd" -o "$work/source-ir" "$repo/cmd/$compiler_module.zi"
 for input in "$repo/cmd/$compiler_module.zi" "$work/source-ir/$compiler_module.zir"; do
     "$bin/zi2c" --no-main --root "$repo/cmd" -o "$work/source-c" "$input"
-    cmp "$repo/bootstrap/$compiler_module/$compiler_module.c" "$work/source-c/$compiler_module.c"
-    cmp "$repo/bootstrap/$compiler_module/$compiler_module.h" "$work/source-c/$compiler_module.h"
+    for file in "$repo/bootstrap/$compiler_module"/*; do
+        cmp "$file" "$work/source-c/${file##*/}"
+    done
 done

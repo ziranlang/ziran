@@ -1,0 +1,101 @@
+Kernel :: #import "compiler_proof_kernel";
+
+Random :: struct { state: u32 }
+Next :: (random: *Random) -> u32 {
+    random.state = random.state ^ (random.state << 13)
+    random.state = random.state ^ (random.state >> 17)
+    random.state = random.state ^ (random.state << 5)
+    return random.state
+}
+Leaf :: (k: *Kernel.ProofKernel, op: Kernel.ProofOp, type: s32, value: u64) -> s32 {
+    return Kernel.Node(k, op, type, -1, -1, -1, value)
+}
+Binary :: (k: *Kernel.ProofKernel, op: Kernel.ProofOp, type: s32, a: s32, b: s32) -> s32 {
+    return Kernel.Node(k, op, type, a, b, -1, 0)
+}
+Word :: (k: *Kernel.ProofKernel, random: *Random, type: s32, depth: s32) -> s32 {
+    if depth == 0 {
+        if Next(random) % 2 == 0 { return Leaf(k, Kernel.ProofOp.Var, type, cast(u64)(Next(random) % 3)) }
+        return Leaf(k, Kernel.ProofOp.Const, type, cast(u64)Next(random))
+    }
+    pick := Next(random) % 4
+    a := Word(k, random, type, depth - 1)
+    b := Word(k, random, type, depth - 1)
+    if pick == 0 { return Binary(k, Kernel.ProofOp.Add, type, a, b) }
+    if pick == 1 { return Binary(k, Kernel.ProofOp.Sub, type, a, b) }
+    if pick == 2 { return Binary(k, Kernel.ProofOp.Mul, type, a, b) }
+    return Kernel.Node(k, Kernel.ProofOp.Ite, type, Binary(k, Kernel.ProofOp.Lt, 0, a, b), a, b, 0)
+}
+Claim :: (k: *Kernel.ProofKernel, width: u32, is_unsigned: bool, build: s32, ring: bool, order: bool, cases: bool) -> bool {
+    Kernel.Init(k)
+    type := Kernel.TypeAdd(k, .{width = width, is_unsigned = is_unsigned, identity = 0})
+    x := Leaf(k, Kernel.ProofOp.Var, type, 0)
+    y := Leaf(k, Kernel.ProofOp.Var, type, 1)
+    one := Leaf(k, Kernel.ProofOp.Const, type, 1)
+    goal: s32 = -1
+    if build == 0 { goal = Binary(k, Kernel.ProofOp.Eq, 0, Binary(k, Kernel.ProofOp.Add, type, x, y), Binary(k, Kernel.ProofOp.Add, type, y, x)) }
+    if build == 1 {
+        sum := Binary(k, Kernel.ProofOp.Add, type, x, one)
+        goal = Binary(k, Kernel.ProofOp.Eq, 0, Binary(k, Kernel.ProofOp.Mul, type, sum, sum),
+            Binary(k, Kernel.ProofOp.Add, type, Binary(k, Kernel.ProofOp.Add, type, Binary(k, Kernel.ProofOp.Mul, type, x, x), Binary(k, Kernel.ProofOp.Add, type, x, x)), one))
+    }
+    if build == 2 { goal = Binary(k, Kernel.ProofOp.Eq, 0, Binary(k, Kernel.ProofOp.Add, type, x, one), x) }
+    if build == 3 { goal = Binary(k, Kernel.ProofOp.Lt, 0, x, Binary(k, Kernel.ProofOp.Add, type, x, one)) }
+    if build == 4 {
+        p := Leaf(k, Kernel.ProofOp.Var, 0, 2)
+        goal = Binary(k, Kernel.ProofOp.Or, 0, p, Kernel.Node(k, Kernel.ProofOp.Not, 0, p, -1, -1, 0))
+    }
+    if build == 5 {
+        lower := Kernel.Node(k, Kernel.ProofOp.Ite, type, Binary(k, Kernel.ProofOp.Lt, 0, x, y), x, y, 0)
+        goal = Binary(k, Kernel.ProofOp.Le, 0, lower, y)
+    }
+    return Kernel.Close(k, goal, ring, order, cases)
+}
+
+#program_export
+Answer :: () -> s32 {
+    k: Kernel.ProofKernel
+    if !Claim(*k, 32, false, 0, true, false, false) || Claim(*k, 32, false, 0, false, false, false) { return 0 }
+    if !Claim(*k, 8, true, 1, true, false, false) || !Claim(*k, 64, false, 1, true, false, false) { return 1 }
+    if Claim(*k, 16, true, 2, true, true, true) { return 2 }
+    // Modular arithmetic wraps, so x < x + 1 is no theorem at any width.
+    if Claim(*k, 8, true, 3, true, true, true) || Claim(*k, 8, false, 3, true, true, true) { return 3 }
+    if !Claim(*k, 8, true, 4, false, false, true) || Claim(*k, 8, true, 4, false, false, false) { return 4 }
+    if !Claim(*k, 8, false, 5, true, true, true) || Claim(*k, 8, false, 5, true, true, false) { return 5 }
+    // Each step spends the deterministic budget.
+    Kernel.Init(*k)
+    yes := Leaf(*k, Kernel.ProofOp.Const, 0, 1)
+    k.budget = 0
+    if Kernel.Close(*k, yes, true, true, true) || !k.exhausted { return 6 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    k: Kernel.ProofKernel
+    random := Random.{state = 104729}
+    hash: u32 = 2166136261
+    for round: 0..47 {
+        Kernel.Init(*k)
+        type := Kernel.TypeAdd(*k, .{width = cast(u32)(8 << (round % 4)), is_unsigned = round % 2 == 0, identity = 0})
+        depth := cast(s32)(1 + round % 2)
+        a := Word(*k, *random, type, depth)
+        b := Word(*k, *random, type, depth)
+        lhs := Binary(*k, Kernel.ProofOp.Add, type, a, b)
+        rhs := Binary(*k, Kernel.ProofOp.Add, type, b, a)
+        if round % 3 == 1 { rhs = Binary(*k, Kernel.ProofOp.Mul, type, a, b) }
+        if round % 3 == 2 { lhs = Binary(*k, Kernel.ProofOp.Sub, type, Binary(*k, Kernel.ProofOp.Add, type, a, b), b); rhs = a }
+        goal := Binary(*k, Kernel.ProofOp.Eq, 0, lhs, rhs)
+        for flags: 0..7 {
+            closed := Kernel.Close(*k, goal, flags % 2 == 1, (flags / 2) % 2 == 1, flags / 4 == 1)
+            hash = hash * cast(u32)16777619 ^ cast(u32)closed
+            hash = hash * cast(u32)16777619 ^ cast(u32)k.budget
+            hash = hash * cast(u32)16777619 ^ cast(u32)k.count
+        }
+        hash = hash * cast(u32)16777619 ^ cast(u32)Kernel.Equal(*k, lhs, rhs, true)
+        hash = hash * cast(u32)16777619 ^ cast(u32)Kernel.Rewrite(*k, goal, lhs, rhs, 0)
+    }
+    return cast(s64)hash
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

@@ -263,7 +263,8 @@
   through a thin boundary that keeps IR storage, spans and diagnostics, and
   the replaced C is deleted. Fresh builds first compile a bootstrap compiler
   from the seeds in <code>bootstrap/</code>, then rebuild every tool from the maintained
-  <code>.zi</code> sources. <code>make check-bootstrap</code> verifies the seeds and
+  <code>.zi</code> sources. A seed also keeps the generated headers of standard modules
+  it uses, such as <code>vec.h</code>. <code>make check-bootstrap</code> verifies the seeds and
   <code>make update-bootstrap</code> regenerates them. Each <code>tests/compiler_&lt;module&gt;.sh</code>
   checks source and saved IR on C, Go and <code>.zx</code>, a deterministic input corpus,
   seed agreement and the C boundary.</p>
@@ -309,6 +310,10 @@
 <td><code>compiler_statement.zi</code></td>
 <td>Loop and control headers, <code>then</code>/<code>else</code>, <code>#if</code> headers, name references</td>
 </tr>
+<tr>
+<td><code>compiler_proof_kernel.zi</code></td>
+<td>Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget</td>
+</tr>
 </tbody>
 </table></div>
 <p>C files in <code>cmd/zir</code>, with line counts on 2026-11-07. <em>Boundary</em> means the
@@ -347,8 +352,8 @@
 </tr>
 <tr>
 <td>Borrows, laws, proofs</td>
-<td><code>zir_borrow.c</code> 2005, <code>zir_law.c</code> 2117, <code>zir_proof.c</code> 779, <code>zir_proof_kernel.c</code> 368</td>
-<td>C</td>
+<td><code>zir_borrow.c</code> 2005, <code>zir_law.c</code> 2117, <code>zir_proof.c</code> 781</td>
+<td>C; <code>zir_proof.c</code> turns checked IR into terms for the Ziran proof kernel</td>
 </tr>
 <tr>
 <td>C and Go output</td>
@@ -1641,10 +1646,11 @@
   <code>.zir</code> and <code>.zx</code> store and recheck certificates and verification dependencies;
   forged graph references, steps, and evidence are rejected. Lean 4.34.1
   validates the mathematical rules and an independent interpreter checks
-  generated C kernel claims. The C port and procedure projection remain
-  trusted, and arbitrary-sequence induction remains future work. See
-  <a href="laws.html">LAWS.md</a> and <code>tests/proofs.sh</code>, <code>tests/law_integers.sh</code>,
-  <code>tests/proof_kernel.sh</code>, and <code>make proof-model</code>.</p>
+  the kernel's claims. The kernel (<code>cmd/compiler_proof_kernel.zi</code>) and
+  procedure projection remain trusted, and arbitrary-sequence induction
+  remains future work. See <a href="laws.html">LAWS.md</a> and <code>tests/proofs.sh</code>,
+  <code>tests/law_integers.sh</code>, <code>tests/compiler_proof_kernel.sh</code>, and
+  <code>make proof-model</code>.</p>
 </li>
 <li>Named <code>#law NAME kind payload;</code> obligations are implemented for the
   <code>type</code>, <code>bounds</code>, <code>effect</code>, <code>abi</code>, <code>custom</code>, and <code>forall</code> kinds (<code>forall</code>

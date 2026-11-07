@@ -1,6 +1,6 @@
 #include "zir_memory.h"
 #include "zir_proof.h"
-#include "zir_proof_kernel.h"
+#include "compiler_proof_kernel.h"
 #include "zir_scalar.h"
 #include "zir_parse.h"
 #include "zir_expr.h"
@@ -23,11 +23,11 @@ typedef struct Environment { Binding bindings[LOCALS]; int count; } Environment;
 typedef struct Continuation { int start, stop, scope; const struct Continuation *next; } Continuation;
 typedef struct ProofContext {
     ProofKernel kernel;
-    const ZirFunction *active[PROOF_DEPTH];
+    const ZirFunction *active[ProofDepth];
     int active_count;
-    const ZirFunction *unfold[PROOF_DEPTH];
+    const ZirFunction *unfold[ProofDepth];
     int unfold_count, unfold_all;
-    const ZirLaw *laws[PROOF_DEPTH];
+    const ZirLaw *laws[ProofDepth];
     int law_count;
     int unsupported;
     int invalid;
@@ -42,7 +42,7 @@ static int unsupported(ProofContext *c, const char *reason)
 }
 static int tick(ProofContext *c, int depth)
 {
-    if(depth > PROOF_DEPTH || --c->kernel.budget < 0) {
+    if(depth > ProofDepth || --c->kernel.budget < 0) {
         c->kernel.exhausted = 1;
         return 0;
     }
@@ -84,8 +84,9 @@ static int scalar_type(ProofContext *c, const ZirModule *m, const char *name)
     const char *scalar = type && type->is_enum ? type->enum_backing : ScalarType(name);
     unsigned width = ScalarWidth(scalar);
     if(!width) return unsupported(c, "proofs require booleans, fixed-width integers, or enums");
-    return ProofTypeAdd(&c->kernel, (ProofType){width, scalar[0] == 'u',
-                                               type && type->is_enum ? type : NULL});
+    /* An enum's identity is its declaration's address. */
+    uint64_t identity = type && type->is_enum ? (uint64_t)(uintptr_t)type : 0;
+    return compiler_proof_kernel_TypeAdd(&c->kernel, (ProofType){width, scalar[0] == 'u', identity});
 }
 static int same_type(ProofContext *c, int a, int b)
 {
@@ -106,7 +107,7 @@ static int env_add(ProofContext *c, Environment *e, const char *name, int value)
 }
 static int node(ProofContext *c, ProofOp op, int type, int a, int b, int third, uint64_t value)
 {
-    return ProofNode(&c->kernel, op, type, a, b, third, value);
+    return compiler_proof_kernel_Node(&c->kernel, op, type, a, b, third, value);
 }
 static int expression(ProofContext *, const ZirModule *, const ZirFunction *, int,
                       Environment *, int, int);
@@ -141,7 +142,7 @@ static int function_value(ProofContext *c, const ZirModule *m, const ZirFunction
         return unsupported(c, "proofs cannot unfold foreign, observing, or mutating procedures");
     for(int i = 0; i < c->active_count; i++) if(c->active[i] == fn)
         return unsupported(c, "recursive procedures are outside the scalar proof fragment");
-    if(c->active_count == PROOF_DEPTH) { c->kernel.exhausted = 1; return -1; }
+    if(c->active_count == ProofDepth) { c->kernel.exhausted = 1; return -1; }
     Parameters p;
     if(!parameters(FunctionArgs(fn), &p) || count != p.count)
         return unsupported(c, "proof calls require explicit scalar parameters");
@@ -173,7 +174,7 @@ static int tag(ProofContext *c, const ZirFunction *fn, int index, int result)
         int type = c->kernel.terms[result].type;
         if(!type) e->type = KeepName("bool");
         else if(c->kernel.types[type].identity)
-            e->type = KeepName(((const ZirType *)c->kernel.types[type].identity)->name);
+            e->type = KeepName(((const ZirType *)(uintptr_t)c->kernel.types[type].identity)->name);
         else e->type = KeepNameFormat("%c%u", c->kernel.types[type].is_unsigned ? 'u' : 's', c->kernel.types[type].width);
     }
     return result;
@@ -190,12 +191,12 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
         int type = expected > 0 ? expected :
                    scalar_type(c, m, value > INT64_MAX ? "u64" : "s64");
         if(type < 0) return -1;
-        result = node(c, P_CONST, type, -1, -1, -1, value);
+        result = node(c, ProofOp_Const, type, -1, -1, -1, value);
     } else if(e->kind == ZIR_EXPR_IDENT) {
         int at = env_find(env, e->name);
         if(at >= 0) result = env->bindings[at].value;
         else if(!strcmp(e->name, "true") || !strcmp(e->name, "false"))
-            result = node(c, P_CONST, 0, -1, -1, -1, !strcmp(e->name, "true"));
+            result = node(c, ProofOp_Const, 0, -1, -1, -1, !strcmp(e->name, "true"));
         else {
             const ZirDefine *d = NULL;
             for(int i = 0; i < m->define_count; i++)
@@ -220,18 +221,18 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
         if(!t || !t->is_enum || !EnumMemberValue(t, e->name, &value))
             return unsupported(c, "unresolved enum member in proof");
         int type = scalar_type(c, m, fn->exprs[e->left].name);
-        result = node(c, P_CONST, type, -1, -1, -1, (uint64_t)value);
+        result = node(c, ProofOp_Const, type, -1, -1, -1, (uint64_t)value);
     } else if(e->kind == ZIR_EXPR_CAST) {
         int type = scalar_type(c, m, e->name);
         int operand = expression(c, m, fn, e->right, env, -1, depth + 1);
         if(type < 0 || operand < 0) return -1;
         ProofTerm t = c->kernel.terms[operand];
         if(t.type == type) result = operand;
-        else if(t.op == P_CONST) {
+        else if(t.op == ProofOp_Const) {
             uint64_t bits = t.value;
             if(t.type && !c->kernel.types[t.type].is_unsigned)
                 bits = (uint64_t)ScalarSigned(bits, c->kernel.types[t.type].width);
-            result = node(c, P_CONST, type, -1, -1, -1, type ? bits : bits != 0);
+            result = node(c, ProofOp_Const, type, -1, -1, -1, type ? bits : bits != 0);
         } else return unsupported(c, "symbolic conversions between scalar types need a separate proof rule");
     } else if(e->kind == ZIR_EXPR_UNARY) {
         int type = e->type[0] && fn->checked ? scalar_type(c, m, e->type) : expected;
@@ -242,9 +243,9 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
         if(type && c->kernel.types[type].identity)
             return unsupported(c, "enum proofs currently support equality only");
         if(!strcmp(e->op, "+") && type) result = operand;
-        else if(!strcmp(e->op, "!") && !type) result = node(c, P_NOT, 0, operand, -1, -1, 0);
+        else if(!strcmp(e->op, "!") && !type) result = node(c, ProofOp_Not, 0, operand, -1, -1, 0);
         else if(!strcmp(e->op, "-") && type)
-            result = node(c, P_SUB, type, node(c, P_CONST, type, -1, -1, -1, 0), operand, -1, 0);
+            result = node(c, ProofOp_Sub, type, node(c, ProofOp_Const, type, -1, -1, -1, 0), operand, -1, 0);
         else return unsupported(c, "unsupported unary operation in scalar proof");
     } else if(e->kind == ZIR_EXPR_BINARY) {
         if(e->left < 0 || e->right < 0 || e->left >= fn->expr_count || e->right >= fn->expr_count)
@@ -268,28 +269,29 @@ static int expression(ProofContext *c, const ZirModule *m, const ZirFunction *fn
         if(!same_type(c, a, b)) return unsupported(c, "scalar proof operands require identical types");
         int type = c->kernel.terms[a].type;
         ProofOp op;
-        if(!strcmp(e->op, "+") && type) op = P_ADD;
-        else if(!strcmp(e->op, "-") && type) op = P_SUB;
-        else if(!strcmp(e->op, "*") && type) op = P_MUL;
-        else if(!strcmp(e->op, "==") || !strcmp(e->op, "!=")) op = P_EQ;
-        else if(!strcmp(e->op, "<") && type) op = P_LT;
-        else if(!strcmp(e->op, "<=") && type) op = P_LE;
-        else if(!strcmp(e->op, ">") && type) { op = P_LT; int tmp = a; a = b; b = tmp; }
-        else if(!strcmp(e->op, ">=") && type) { op = P_LE; int tmp = a; a = b; b = tmp; }
-        else if(!strcmp(e->op, "&&") && !type) op = P_AND;
-        else if(!strcmp(e->op, "||") && !type) op = P_OR;
+        if(!strcmp(e->op, "+") && type) op = ProofOp_Add;
+        else if(!strcmp(e->op, "-") && type) op = ProofOp_Sub;
+        else if(!strcmp(e->op, "*") && type) op = ProofOp_Mul;
+        else if(!strcmp(e->op, "==") || !strcmp(e->op, "!=")) op = ProofOp_Eq;
+        else if(!strcmp(e->op, "<") && type) op = ProofOp_Lt;
+        else if(!strcmp(e->op, "<=") && type) op = ProofOp_Le;
+        else if(!strcmp(e->op, ">") && type) { op = ProofOp_Lt; int tmp = a; a = b; b = tmp; }
+        else if(!strcmp(e->op, ">=") && type) { op = ProofOp_Le; int tmp = a; a = b; b = tmp; }
+        else if(!strcmp(e->op, "&&") && !type) op = ProofOp_And;
+        else if(!strcmp(e->op, "||") && !type) op = ProofOp_Or;
         else return unsupported(c, "unsupported binary operation in scalar proof");
         if(type && c->kernel.types[type].identity &&
-           op != P_EQ) return unsupported(c, "enum proofs currently support equality only");
-        result = node(c, op, op == P_ADD || op == P_SUB || op == P_MUL ? type : 0, a, b, -1, 0);
-        if(!strcmp(e->op, "!=")) result = node(c, P_NOT, 0, result, -1, -1, 0);
+           op != ProofOp_Eq) return unsupported(c, "enum proofs currently support equality only");
+        int ring = op == ProofOp_Add || op == ProofOp_Sub || op == ProofOp_Mul;
+        result = node(c, op, ring ? type : 0, a, b, -1, 0);
+        if(!strcmp(e->op, "!=")) result = node(c, ProofOp_Not, 0, result, -1, -1, 0);
     } else if(e->kind == ZIR_EXPR_CONDITIONAL) {
         int cond = expression(c, m, fn, e->left, env, 0, depth + 1);
         int a = expression(c, m, fn, e->right, env, expected, depth + 1);
         int b = a < 0 ? -1 : expression(c, m, fn, e->third, env, c->kernel.terms[a].type, depth + 1);
         if(cond < 0 || a < 0 || b < 0 || c->kernel.terms[cond].type || !same_type(c, a, b))
             return unsupported(c, "ill-typed conditional in proof");
-        result = node(c, P_ITE, c->kernel.terms[a].type, cond, a, b, 0);
+        result = node(c, ProofOp_Ite, c->kernel.terms[a].type, cond, a, b, 0);
     } else if(e->kind == ZIR_EXPR_CALL) {
         const ZirModule *owner = NULL;
         const ZirFunction *callee = NULL;
@@ -358,7 +360,7 @@ static int arms(ProofContext *c, const ZirModule *m, const ZirFunction *fn, Envi
     if(cond < 0 || c->kernel.terms[cond].type) return unsupported(c, "proof branch condition must be boolean");
     int b = arms(c, m, fn, env, close + 1, after, rest, return_type, depth + 1);
     if(b < 0 || !same_type(c, a, b)) return -1;
-    return node(c, P_ITE, return_type, cond, a, b, 0);
+    return node(c, ProofOp_Ite, return_type, cond, a, b, 0);
 }
 static int sequence(ProofContext *c, const ZirModule *m, const ZirFunction *fn, Environment *env,
                     int start, int stop, const Continuation *next, int return_type, int depth)
@@ -375,7 +377,7 @@ static int sequence(ProofContext *c, const ZirModule *m, const ZirFunction *fn, 
         if(s->kind == ZIR_STMT_DECL) {
             int type = scalar_type(c, m, s->type);
             int value = s->expr_root >= 0 ? expression(c, m, fn, s->expr_root, env, type, depth + 1) :
-                        node(c, P_CONST, type, -1, -1, -1, 0);
+                        node(c, ProofOp_Const, type, -1, -1, -1, 0);
             if(type < 0 || value < 0 || c->kernel.terms[value].type != type ||
                !env_add(c, env, s->name, value)) return -1;
         } else if(s->kind == ZIR_STMT_ASSIGN) {
@@ -389,9 +391,9 @@ static int sequence(ProofContext *c, const ZirModule *m, const ZirFunction *fn, 
             if(value < 0 || c->kernel.terms[value].type != type) return -1;
             if(strcmp(s->assignment_op, "=") && s->assignment_op[0]) {
                 ProofOp op;
-                if(!strcmp(s->assignment_op, "+=")) op = P_ADD;
-                else if(!strcmp(s->assignment_op, "-=")) op = P_SUB;
-                else if(!strcmp(s->assignment_op, "*=")) op = P_MUL;
+                if(!strcmp(s->assignment_op, "+=")) op = ProofOp_Add;
+                else if(!strcmp(s->assignment_op, "-=")) op = ProofOp_Sub;
+                else if(!strcmp(s->assignment_op, "*=")) op = ProofOp_Mul;
                 else return unsupported(c, "unsupported scalar assignment in proof");
                 value = node(c, op, type, old, value, -1, 0);
             }
@@ -457,7 +459,7 @@ ZirLaw *FindVisibleLaw(const ZirModule *m, const char *name, const ZirModule **o
 static int graph_visit(const ZirFunction *fn, int at, unsigned char *seen, int depth)
 {
     if(at == -1) return 1;
-    if(at < 0 || at >= fn->expr_count || depth > PROOF_DEPTH || seen[at] == 1) return 0;
+    if(at < 0 || at >= fn->expr_count || depth > ProofDepth || seen[at] == 1) return 0;
     if(seen[at] == 2) return 1;
     seen[at] = 1;
     const ZirExpr *e = &fn->exprs[at];
@@ -471,7 +473,7 @@ static int graph_visit(const ZirFunction *fn, int at, unsigned char *seen, int d
 }
 static int graph_valid(const ZirFunction *fn)
 {
-    if(fn->expr_count < 0 || fn->expr_count > PROOF_TERMS || fn->checked) return 0;
+    if(fn->expr_count < 0 || fn->expr_count > ProofTerms || fn->checked) return 0;
     unsigned char *seen = calloc((size_t)fn->expr_count + 1, 1);
     if(!seen) return 0;
     int ok = 1;
@@ -625,7 +627,7 @@ int PrepareLawProofs(ZirProgram **programs, int count)
             if(!proof->step_count && !parse_steps(proof, owner)) {
                 Diagnostic(proof->span, "proof.syntax", "invalid proof steps for %s", proof->name); return 0;
             }
-            if(proof->step_count > PROOF_TERMS || proof->terms.stmt_count || !graph_valid(&proof->terms)) {
+            if(proof->step_count > ProofTerms || proof->terms.stmt_count || !graph_valid(&proof->terms)) {
                 Diagnostic(proof->span, "proof.graph", "invalid proof expression graph"); return 0;
             }
             for(int s = 0; s < proof->step_count; s++) {
@@ -669,10 +671,10 @@ static int application(ProofContext *c, const ZirModule *m, const ZirProof *proo
     }
     if(count != p.count) return 0;
     int saved_facts = c->kernel.fact_count;
-    ProofFact facts[PROOF_FACTS];
+    ProofFact facts[ProofFacts];
     memcpy(facts, c->kernel.facts, sizeof(facts));
     int saved_unfold = c->unfold_count, saved_all = c->unfold_all;
-    const ZirFunction *saved_functions[PROOF_DEPTH];
+    const ZirFunction *saved_functions[ProofDepth];
     memcpy(saved_functions, c->unfold, sizeof(saved_functions));
     /* A lemma must check in an empty hypothesis context; caller branches
      * cannot turn an unproved or circular lemma into a theorem. */
@@ -692,7 +694,7 @@ static int theorem(ProofContext *c, const ZirModule *m, const ZirLaw *law,
     if(!tick(c, depth)) return -1;
     for(int i = 0; i < c->law_count; i++) if(c->laws[i] == law)
         { c->invalid = 1; return unsupported(c, "circular theorem dependency"); }
-    if(c->law_count == PROOF_DEPTH) { c->kernel.exhausted = 1; return -1; }
+    if(c->law_count == ProofDepth) { c->kernel.exhausted = 1; return -1; }
     if(!law->proof || !law->proof->step_count) return unsupported(c, "theorem has no complete proof certificate");
     c->laws[c->law_count++] = law;
     const ZirProof *proof = law->proof;
@@ -716,7 +718,7 @@ static int theorem(ProofContext *c, const ZirModule *m, const ZirLaw *law,
                 const ZirFunction *fn = NULL; const ZirModule *owner = NULL;
                 int found = ResolveFunction(m, step->target, &owner, &fn);
                 if(found != 1) found = ResolveFunction(proof->owner, step->target, &owner, &fn);
-                if(found != 1 || c->unfold_count == PROOF_DEPTH) { ok = 0; break; }
+                if(found != 1 || c->unfold_count == ProofDepth) { ok = 0; break; }
                 c->unfold[c->unfold_count++] = fn;
             }
             continue;
@@ -731,16 +733,16 @@ static int theorem(ProofContext *c, const ZirModule *m, const ZirLaw *law,
             int lemma = -1;
             if(!application(c, m, proof, step, env, &lemma, depth + 1)) { ok = 0; break; }
             if(step->kind == ZIR_PROOF_USE) {
-                ok = ProofEqual(&c->kernel, goal, lemma, 0);
+                ok = compiler_proof_kernel_Equal(&c->kernel, goal, lemma, 0);
                 closed = 1;
             } else {
                 ProofTerm equation = c->kernel.terms[lemma];
-                if(equation.op != P_EQ) { ok = 0; break; }
-                goal = ProofRewrite(&c->kernel, goal, equation.a, equation.b, 0);
+                if(equation.op != ProofOp_Eq) { ok = 0; break; }
+                goal = compiler_proof_kernel_Rewrite(&c->kernel, goal, equation.a, equation.b, 0);
                 ok = goal >= 0;
             }
         } else if(step->kind == ZIR_PROOF_REFL || step->kind == ZIR_PROOF_RING || step->kind == ZIR_PROOF_ORDER) {
-            ok = ProofClose(&c->kernel, goal, step->kind != ZIR_PROOF_REFL,
+            ok = compiler_proof_kernel_Close(&c->kernel, goal, step->kind != ZIR_PROOF_REFL,
                             step->kind == ZIR_PROOF_ORDER, cases);
             closed = 1;
         } else { ok = 0; break; }
@@ -759,12 +761,12 @@ int EvaluateTheorem(const ZirModule *module, const ZirLaw *law, char *detail, si
     }
     ProofContext *c = calloc(1, sizeof(*c));
     if(!c) { snprintf(detail, size, "out of memory checking theorem"); return 2; }
-    ProofKernelInit(&c->kernel);
+    compiler_proof_kernel_Init(&c->kernel);
     Parameters p;
     int args[PARAMETERS], ok = parameters(FunctionArgs(law->claim), &p);
     for(int i = 0; ok && i < p.count; i++) {
         int type = scalar_type(c, module, p.types[i]);
-        args[i] = node(c, P_VAR, type, -1, -1, -1, (uint64_t)i);
+        args[i] = node(c, ProofOp_Var, type, -1, -1, -1, (uint64_t)i);
         ok = args[i] >= 0;
     }
     int result = ok ? theorem(c, module, law, args, p.count, 0) : -1;
@@ -774,6 +776,6 @@ int EvaluateTheorem(const ZirModule *module, const ZirLaw *law, char *detail, si
     else if(c->kernel.exhausted) { snprintf(detail, size, "scalar proof exceeds its deterministic budget"); status = 2; }
     else if(c->unsupported) { snprintf(detail, size, "%s", c->reason); status = 2; }
     else { snprintf(detail, size, "invalid proof: a step did not establish its goal"); status = 3; }
-    ProofKernelFree(&c->kernel); free(c);
+    free(c);
     return status;
 }

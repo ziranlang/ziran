@@ -1,0 +1,714 @@
+// Theorems over checked IR: their typed propositions, `#proof` certificates
+// and evaluation by the scalar proof kernel. Pure procedures over booleans,
+// fixed-width integers and enums unfold into kernel terms. C keeps storage,
+// name lookup, the expression parser and diagnostics.
+
+IR :: #import "compiler_ir";
+Kernel :: #import "compiler_proof_kernel";
+Services :: #import "compiler_services";
+Source :: #import "compiler_source";
+Text :: #import "compiler_text";
+#import "vec";
+
+#scope_file
+zir :: #system_library "zir";
+libc :: #system_library "libc";
+FindType :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign zir "FindType";
+EnumMemberValue :: (type: *IR.ZirType, name: *u8, value: *s64) -> s32 #foreign zir "EnumMemberValue";
+ResolveFunction :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR.ZirFunction) -> s32 #foreign zir "ResolveFunction";
+ParseExpr :: (fn: *IR.ZirFunction, m: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ParseExprNoDefaults";
+FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign zir "FunctionAddStmt";
+ModuleAddProof :: (m: *IR.ZirModule, name: *u8, body: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ModuleAddProof";
+calloc :: (count: u64, size: u64) -> *u8 #foreign libc "calloc";
+realloc :: (data: *u8, size: u64) -> *u8 #foreign libc "realloc";
+free :: (data: *u8) #foreign libc "free";
+
+// IR.ZIR_NAME_MAX and IR.ZIR_TEXT_MAX; an imported constant cannot size an array yet.
+NameMax :: 128;
+TextMax :: 4096;
+Spelled :: struct { bytes: [NameMax]u8 }
+Long :: struct { bytes: [TextMax]u8 }
+Signature :: struct { names: [16]string; types: [16]string; count: s32 }
+Binding :: struct { name: string; value: s32 }
+Environment :: struct { bindings: [64]Binding; count: s32 }
+// The statements that follow a closed block, in their enclosing scope.
+Continuation :: struct { start: s32; stop: s32; scope: s32; next: *Continuation }
+// The procedures a certificate's unfold steps open; all opens every one.
+Unfolds :: struct { functions: [64]*IR.ZirFunction; count: s32; all: bool }
+Context :: struct {
+    kernel: Kernel.ProofKernel
+    active: [64]*IR.ZirFunction; active_count: s32
+    unfold: Unfolds
+    laws: [64]*IR.ZirLaw; law_count: s32
+    unsupported: bool; invalid: bool
+    reason: string
+}
+
+C :: (text: string) -> Spelled { name: Spelled; IR.CopyText(name.bytes[:], text); return name }
+CLong :: (text: string) -> Long { long: Long; IR.CopyText(long.bytes[:], text); return long }
+// Diagnose BEFORE NAME AFTER.
+Report :: (span: IR.ZirSourceSpan, code: string, before: string, name := "", after := "") -> bool {
+    text: Long
+    IR.CopyText(text.bytes[:], before)
+    IR.CopyText(text.bytes[before.count:TextMax], name)
+    IR.CopyText(text.bytes[before.count + name.count:TextMax], after)
+    Services.Diagnose(span, code, Name(text.bytes[:]))
+    return false
+}
+Trim :: (text: string) -> string { range := Text.TrimRange(text); return text[range.begin:range.end] }
+Unsupported :: (c: *Context, reason: string) -> s32 { c.unsupported = true; c.reason = reason; return -1 }
+Tick :: (c: *Context, depth: s32) -> bool {
+    if depth <= Kernel.ProofDepth {
+        c.kernel.budget -= 1
+        if c.kernel.budget >= 0 { return !c.kernel.exhausted }
+    }
+    c.kernel.exhausted = true
+    return false
+}
+Args :: (fn: *IR.ZirFunction) -> string { return IR.CText(fn.args_text) }
+Name :: (buffer: []u8) -> string { return IR.BufferText(buffer) }
+Index :: (text: string, byte: u8) -> s64 {
+    at: s64 = 0
+    while at < text.count && text[at] != byte { at += 1 }
+    return at
+}
+// `name: type` bindings separated by top-level commas, as theorems and proof
+// procedures declare them: unique identifiers and plain types, no defaults.
+ParseSignature :: (source: string, out: *Signature) -> bool {
+    <<out = .{}
+    at: s64 = ifx Trim(source).count == 0 then -1 else 0
+    while at >= 0 {
+        part := Text.NextSourcePart(source, at)
+        text := source[part.begin:part.end]
+        colon := Index(text, #char ":")
+        if out.count == 16 || colon == text.count { return false }
+        name := Trim(text[0:colon])
+        type := Trim(text[colon + 1:text.count])
+        if !Source.IdentifierText(name, false) || name.count >= NameMax || type.count == 0 || type.count >= NameMax ||
+           Index(type, #char "=") < type.count || Index(type, #char "$") < type.count { return false }
+        for i: 0..out.count - 1 { if out.names[i] == name { return false } }
+        out.names[out.count] = name
+        out.types[out.count] = type
+        out.count += 1
+        at = part.next
+    }
+    return true
+}
+Primitive :: (width: u32, unsigned: bool) -> string {
+    if width == 8 { return ifx unsigned then "u8" else "s8" }
+    if width == 16 { return ifx unsigned then "u16" else "s16" }
+    if width == 32 { return ifx unsigned then "u32" else "s32" }
+    return ifx unsigned then "u64" else "s64"
+}
+// The kernel type of a boolean, fixed-width integer or enum. An enum's
+// identity is its declaration's address; its backing may be spelled int.
+ScalarType :: (c: *Context, m: *IR.ZirModule, name: string) -> s32 {
+    if name == "bool" { return 0 }
+    spelled := C(name)
+    type := FindType(m, *spelled.bytes[0], null)
+    enum := type != null && type.is_enum != 0
+    scalar := ifx enum then Name(type.enum_backing[:]) else name
+    width: u32 = ifx enum && (scalar == "int" || scalar == "integer") then 64 else 0
+    for shift: 3..6 {
+        bits := cast(u32)1 << cast(u32)shift
+        if scalar == Primitive(bits, false) || scalar == Primitive(bits, true) { width = bits }
+    }
+    if width == 0 { return Unsupported(c, "proofs require booleans, fixed-width integers, or enums") }
+    identity: u64 = ifx enum then cast(u64)type else 0
+    return Kernel.TypeAdd(*c.kernel, .{width = width, is_unsigned = scalar[0] == #char "u", identity = identity})
+}
+TermType :: (c: *Context, term: s32) -> s32 { return c.kernel.terms[term].type }
+SameType :: (c: *Context, a: s32, b: s32) -> bool { return a >= 0 && b >= 0 && TermType(c, a) == TermType(c, b) }
+Find :: (e: *Environment, name: string) -> s32 {
+    i := e.count - 1
+    while i >= 0 && e.bindings[i].name != name { i -= 1 }
+    return i
+}
+Bind :: (c: *Context, e: *Environment, name: string, value: s32) -> bool {
+    if value < 0 { return false }
+    if e.count == 64 { c.kernel.exhausted = true; return false }
+    e.bindings[e.count] = .{name, value}
+    e.count += 1
+    return true
+}
+Constant :: (c: *Context, type: s32, value: u64) -> s32 { return Kernel.Node(*c.kernel, Kernel.ProofOp.Const, type, -1, -1, -1, value) }
+Node :: (c: *Context, op: Kernel.ProofOp, type: s32, a: s32, b: s32) -> s32 { return Kernel.Node(*c.kernel, op, type, a, b, -1, 0) }
+Valid :: (fn: *IR.ZirFunction, at: s32) -> bool { return at >= 0 && at < fn.expr_count }
+// A call's procedure, NAME or ALIAS.NAME; false for indirect calls.
+CallName :: (fn: *IR.ZirFunction, call: *IR.ZirExpr, out: []u8) -> bool {
+    name := IR.CText(call.name)
+    if name.count > 0 { return IR.CopyText(out, name) }
+    if !Valid(fn, call.left) { return false }
+    member := *fn.exprs[call.left]
+    if member.kind != IR.ZirExprKind.MEMBER || !Valid(fn, member.left) || fn.exprs[member.left].kind != IR.ZirExprKind.IDENT { return false }
+    alias := IR.CText(fn.exprs[member.left].name)
+    field := IR.CText(member.name)
+    if alias.count + field.count + 1 >= out.count { return false }
+    IR.CopyText(out, alias)
+    out[alias.count] = #char "."
+    return IR.CopyText(out[alias.count + 1:out.count], field)
+}
+BlockClose :: (fn: *IR.ZirFunction, open: s32, stop: s32) -> s32 {
+    level := 1
+    for i: open + 1..stop - 1 {
+        kind := fn.stmts[i].kind
+        if kind == IR.ZirStmtKind.IF || kind == IR.ZirStmtKind.BLOCK_OPEN || kind == IR.ZirStmtKind.WHILE ||
+           kind == IR.ZirStmtKind.FOR || kind == IR.ZirStmtKind.IF_CASE { level += 1 }
+        if kind == IR.ZirStmtKind.BLOCK_CLOSE { level -= 1; if level == 0 { return i } }
+    }
+    return -1
+}
+
+FunctionValue :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, args: []s32, depth: s32) -> s32 {
+    if !Tick(c, depth) { return -1 }
+    if fn.checked == 0 || fn.is_extern != 0 || fn.uses_host != 0 || Name(fn.effect_class[:]) != "pure" {
+        return Unsupported(c, "proofs cannot unfold foreign, observing, or mutating procedures")
+    }
+    for i: 0..c.active_count - 1 {
+        if c.active[i] == fn { return Unsupported(c, "recursive procedures are outside the scalar proof fragment") }
+    }
+    if c.active_count == Kernel.ProofDepth { c.kernel.exhausted = true; return -1 }
+    p: Signature
+    if !ParseSignature(Args(fn), *p) || args.count != p.count { return Unsupported(c, "proof calls require explicit scalar parameters") }
+    env: Environment
+    ok := true
+    for i: 0..p.count - 1 {
+        type := ifx ok then ScalarType(c, m, p.types[i]) else -1
+        ok = ok && args[i] >= 0 && type >= 0 && TermType(c, args[i]) == type && Bind(c, *env, p.names[i], args[i])
+    }
+    type := ScalarType(c, m, Name(fn.return_type[:]))
+    if !ok || type < 0 { return Unsupported(c, "procedure arguments do not match their declared scalar types") }
+    c.active[c.active_count] = fn
+    c.active_count += 1
+    result := Sequence(c, m, fn, *env, 0, fn.stmt_count, null, type, depth + 1)
+    c.active_count -= 1
+    return result
+}
+
+// Program bodies have already been checked. Proposition and certificate
+// graphs are retyped on every load; saved annotations cannot authorize a step.
+Tag :: (c: *Context, fn: *IR.ZirFunction, index: s32, result: s32) -> s32 {
+    if result < 0 || fn.checked != 0 { return result }
+    type := c.kernel.types[TermType(c, result)]
+    name := "bool"
+    if type.identity != 0 { name = Name((cast(*IR.ZirType)type.identity).name[:]) }
+    else if TermType(c, result) != 0 { name = Primitive(type.width, type.is_unsigned) }
+    fn.exprs[index].type = Services.KeepName(name)
+    return result
+}
+
+Expression :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, index: s32, env: *Environment, expected: s32, depth: s32) -> s32 {
+    if !Tick(c, depth) || !Valid(fn, index) { return -1 }
+    e := *fn.exprs[index]
+    op := Name(e.op[:])
+    result: s32 = -1
+    if e.kind == IR.ZirExprKind.INT {
+        literal := Text.IntegerLiteral(IR.CText(e.text))
+        if !literal.valid { return Unsupported(c, "invalid integer literal in proof") }
+        type := ifx expected > 0 then expected else ScalarType(c, m, ifx literal.value > 0x7fffffffffffffff then "u64" else "s64")
+        if type < 0 { return -1 }
+        result = Constant(c, type, literal.value)
+    } else if e.kind == IR.ZirExprKind.IDENT {
+        name := IR.CText(e.name)
+        at := Find(env, name)
+        if at >= 0 { result = env.bindings[at].value }
+        else if name == "true" || name == "false" { result = Constant(c, 0, cast(u64)(name == "true")) }
+        else {
+            define: *IR.ZirDefine = null
+            for i: 0..m.define_count - 1 { if Name(m.defines[i].name[:]) == name { define = *m.defines[i] } }
+            if define == null { return Unsupported(c, "proof expressions cannot read runtime globals or unresolved names") }
+            probe: IR.ZirFunction
+            empty: Environment
+            result = Expression(c, m, *probe, ParseExpr(*probe, m, define.value, define.span), *empty, expected, depth + 1)
+            free(cast(*u8)probe.exprs)
+        }
+    } else if e.kind == IR.ZirExprKind.MEMBER {
+        if !Valid(fn, e.left) || fn.exprs[e.left].kind != IR.ZirExprKind.IDENT { return Unsupported(c, "record and pointer members are outside scalar proofs") }
+        alias := fn.exprs[e.left].name
+        t := FindType(m, alias, null)
+        value: s64
+        if t == null || t.is_enum == 0 || EnumMemberValue(t, e.name, *value) == 0 { return Unsupported(c, "unresolved enum member in proof") }
+        result = Constant(c, ScalarType(c, m, IR.CText(alias)), cast(u64)value)
+    } else if e.kind == IR.ZirExprKind.CAST {
+        type := ScalarType(c, m, IR.CText(e.name))
+        operand := Expression(c, m, fn, e.right, env, -1, depth + 1)
+        if type < 0 || operand < 0 { return -1 }
+        t := c.kernel.terms[operand]
+        if t.type == type { result = operand }
+        else if t.op == Kernel.ProofOp.Const {
+            bits := t.value
+            from := c.kernel.types[t.type]
+            sign := cast(u64)1 << cast(u64)(from.width - 1)
+            // Sign-extend a signed source.
+            if t.type != 0 && !from.is_unsigned && (bits & sign) != 0 { bits = bits | ~(sign | (sign - 1)) }
+            result = Constant(c, type, ifx type != 0 then bits else cast(u64)(bits != 0))
+        } else { return Unsupported(c, "symbolic conversions between scalar types need a separate proof rule") }
+    } else if e.kind == IR.ZirExprKind.UNARY {
+        declared := IR.CText(e.type)
+        type := ifx declared.count > 0 && fn.checked != 0 then ScalarType(c, m, declared) else expected
+        operand := Expression(c, m, fn, e.right, env, ifx op == "!" then 0 else type, depth + 1)
+        if operand < 0 { return -1 }
+        type = TermType(c, operand)
+        if type != 0 && c.kernel.types[type].identity != 0 { return Unsupported(c, "enum proofs currently support equality only") }
+        if op == "+" && type != 0 { result = operand }
+        else if op == "!" && type == 0 { result = Node(c, Kernel.ProofOp.Not, 0, operand, -1) }
+        else if op == "-" && type != 0 { result = Node(c, Kernel.ProofOp.Sub, type, Constant(c, type, 0), operand) }
+        else { return Unsupported(c, "unsupported unary operation in scalar proof") }
+    } else if e.kind == IR.ZirExprKind.BINARY {
+        result = Binary(c, m, fn, e, env, expected, depth)
+        if result < 0 { return -1 }
+    } else if e.kind == IR.ZirExprKind.CONDITIONAL {
+        cond := Expression(c, m, fn, e.left, env, 0, depth + 1)
+        a := Expression(c, m, fn, e.right, env, expected, depth + 1)
+        b := ifx a >= 0 then Expression(c, m, fn, e.third, env, TermType(c, a), depth + 1) else -1
+        if cond < 0 || a < 0 || b < 0 || TermType(c, cond) != 0 || !SameType(c, a, b) { return Unsupported(c, "ill-typed conditional in proof") }
+        result = Kernel.Node(*c.kernel, Kernel.ProofOp.Ite, TermType(c, a), cond, a, b, 0)
+    } else if e.kind == IR.ZirExprKind.CALL {
+        result = Call(c, m, fn, e, env, depth)
+        if result < 0 { return -1 }
+    } else { return Unsupported(c, "expression is outside the pure scalar proof fragment") }
+    return Tag(c, fn, index, result)
+}
+Binary :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, e: *IR.ZirExpr, env: *Environment, expected: s32, depth: s32) -> s32 {
+    if !Valid(fn, e.left) || !Valid(fn, e.right) { return Unsupported(c, "malformed proof expression graph") }
+    numeric := ifx expected > 0 then expected else -1
+    declared := IR.CText(e.type)
+    if fn.checked != 0 && declared.count > 0 && declared != "bool" { numeric = ScalarType(c, m, declared) }
+    // A literal operand takes the other operand's type.
+    left := *fn.exprs[e.left]
+    reverse := left.kind == IR.ZirExprKind.INT ||
+               (left.kind == IR.ZirExprKind.UNARY && left.right >= 0 && fn.exprs[left.right].kind == IR.ZirExprKind.INT)
+    a: s32 = -1
+    b: s32 = -1
+    if reverse {
+        b = Expression(c, m, fn, e.right, env, numeric, depth + 1)
+        if b >= 0 { a = Expression(c, m, fn, e.left, env, TermType(c, b), depth + 1) }
+    } else {
+        a = Expression(c, m, fn, e.left, env, numeric, depth + 1)
+        if a >= 0 { b = Expression(c, m, fn, e.right, env, TermType(c, a), depth + 1) }
+    }
+    if a < 0 || b < 0 { return -1 }
+    if !SameType(c, a, b) { return Unsupported(c, "scalar proof operands require identical types") }
+    type := TermType(c, a)
+    op := Name(e.op[:])
+    kind := Kernel.ProofOp.Const
+    if type != 0 {
+        if op == "+" { kind = Kernel.ProofOp.Add }
+        else if op == "-" { kind = Kernel.ProofOp.Sub }
+        else if op == "*" { kind = Kernel.ProofOp.Mul }
+        else if op == "<" || op == ">" { kind = Kernel.ProofOp.Lt }
+        else if op == "<=" || op == ">=" { kind = Kernel.ProofOp.Le }
+    } else if op == "&&" { kind = Kernel.ProofOp.And }
+    else if op == "||" { kind = Kernel.ProofOp.Or }
+    if op == "==" || op == "!=" { kind = Kernel.ProofOp.Eq }
+    if kind == Kernel.ProofOp.Const { return Unsupported(c, "unsupported binary operation in scalar proof") }
+    if type != 0 && c.kernel.types[type].identity != 0 && kind != Kernel.ProofOp.Eq { return Unsupported(c, "enum proofs currently support equality only") }
+    if op == ">" || op == ">=" { swap := a; a = b; b = swap }
+    ring := kind == Kernel.ProofOp.Add || kind == Kernel.ProofOp.Sub || kind == Kernel.ProofOp.Mul
+    result := Node(c, kind, ifx ring then type else 0, a, b)
+    return ifx op == "!=" then Node(c, Kernel.ProofOp.Not, 0, result, -1) else result
+}
+Call :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, e: *IR.ZirExpr, env: *Environment, depth: s32) -> s32 {
+    owner: *IR.ZirModule = null
+    callee: *IR.ZirFunction = null
+    name: Spelled
+    if !CallName(fn, e, name.bytes[:]) || Services.ResolveFunction(m, *name.bytes[0], Services.SpanPath(e.span), *owner, *callee) != 1 {
+        return Unsupported(c, "unresolved or indirect procedure in proof")
+    }
+    allowed := c.unfold.all || c.active_count > 0
+    for i: 0..c.unfold.count - 1 { if c.unfold.functions[i] == callee { allowed = true } }
+    if !allowed { return Unsupported(c, "procedure calls need an unfold step") }
+    p: Signature
+    if !ParseSignature(Args(callee), *p) { return Unsupported(c, "unsupported procedure signature in proof") }
+    args: [16]s32
+    count: s32 = 0
+    used: u32 = 0
+    at := e.first_child
+    while at >= 0 {
+        if !Tick(c, depth) || at >= fn.expr_count || count == 16 { return Unsupported(c, "malformed proof call arguments") }
+        argument := *fn.exprs[at]
+        position := ifx fn.checked != 0 then argument.argument_index else count
+        if position < 0 || position >= p.count || (used & (cast(u32)1 << cast(u32)position)) != 0 ||
+           (fn.checked == 0 && IR.CText(argument.argument_name).count > 0) { return Unsupported(c, "proof expressions use positional arguments") }
+        used |= cast(u32)1 << cast(u32)position
+        args[position] = Expression(c, m, fn, at, env, ScalarType(c, owner, p.types[position]), depth + 1)
+        if args[position] < 0 { return -1 }
+        count += 1
+        at = argument.next_sibling
+    }
+    if count != p.count { return Unsupported(c, "proof calls require all procedure arguments") }
+    return FunctionValue(c, owner, callee, args[0:count], depth + 1)
+}
+
+// The arms of an if/else chain from AT to AFTER, as nested conditionals.
+Arms :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, env: *Environment, at: s32, after: s32, rest: *Continuation, result: s32, depth: s32) -> s32 {
+    if !Tick(c, depth) { return -1 }
+    if at == after { return Sequence(c, m, fn, env, rest.start, rest.stop, rest.next, result, depth + 1) }
+    close := BlockClose(fn, at, after)
+    if close < 0 { return Unsupported(c, "malformed conditional body in proof") }
+    yes := <<env
+    a := Sequence(c, m, fn, *yes, at + 1, close, rest, result, depth + 1)
+    if a < 0 { return -1 }
+    if fn.stmts[at].is_else != 0 && fn.stmts[at].expr_root < 0 { return a }
+    cond := Expression(c, m, fn, fn.stmts[at].expr_root, env, 0, depth + 1)
+    if cond < 0 || TermType(c, cond) != 0 { return Unsupported(c, "proof branch condition must be boolean") }
+    b := Arms(c, m, fn, env, close + 1, after, rest, result, depth + 1)
+    if b < 0 || !SameType(c, a, b) { return -1 }
+    return Kernel.Node(*c.kernel, Kernel.ProofOp.Ite, result, cond, a, b, 0)
+}
+Sequence :: (c: *Context, m: *IR.ZirModule, fn: *IR.ZirFunction, env: *Environment, start: s32, stop: s32, next: *Continuation, result: s32, depth: s32) -> s32 {
+    if !Tick(c, depth) { return -1 }
+    for i: start..stop - 1 {
+        if !Tick(c, depth) { return -1 }
+        s := *fn.stmts[i]
+        if s.kind == IR.ZirStmtKind.RETURN {
+            value := Expression(c, m, fn, s.expr_root, env, result, depth + 1)
+            if value >= 0 && TermType(c, value) == result { return value }
+            return Unsupported(c, "proof return type differs from its declared type")
+        } else if s.kind == IR.ZirStmtKind.DECL {
+            type := ScalarType(c, m, IR.CText(s.type))
+            value := ifx s.expr_root >= 0 then Expression(c, m, fn, s.expr_root, env, type, depth + 1) else Constant(c, type, 0)
+            if type < 0 || value < 0 || TermType(c, value) != type || !Bind(c, env, IR.CText(s.names.name), value) { return -1 }
+        } else if s.kind == IR.ZirStmtKind.ASSIGN {
+            if !Valid(fn, s.lhs_root) || fn.exprs[s.lhs_root].kind != IR.ZirExprKind.IDENT { return Unsupported(c, "proof procedures can assign only scalar locals") }
+            local := Find(env, IR.CText(fn.exprs[s.lhs_root].name))
+            if local < 0 { return Unsupported(c, "proof procedure writes outside its local scope") }
+            old := env.bindings[local].value
+            type := TermType(c, old)
+            value := Expression(c, m, fn, s.expr_root, env, type, depth + 1)
+            if value < 0 || TermType(c, value) != type { return -1 }
+            assignment := Name(s.assignment_op[:])
+            if assignment == "+=" { value = Node(c, Kernel.ProofOp.Add, type, old, value) }
+            else if assignment == "-=" { value = Node(c, Kernel.ProofOp.Sub, type, old, value) }
+            else if assignment == "*=" { value = Node(c, Kernel.ProofOp.Mul, type, old, value) }
+            else if assignment.count > 0 && assignment != "=" { return Unsupported(c, "unsupported scalar assignment in proof") }
+            env.bindings[local].value = value
+        } else if s.kind == IR.ZirStmtKind.IF || s.kind == IR.ZirStmtKind.BLOCK_OPEN {
+            // The rest of this sequence continues after the chain or scope.
+            after := i
+            while after == i || (s.kind == IR.ZirStmtKind.IF && after < stop &&
+                                 fn.stmts[after].kind == IR.ZirStmtKind.IF && fn.stmts[after].is_else != 0) {
+                close := BlockClose(fn, after, stop)
+                if close < 0 { return Unsupported(c, ifx s.kind == IR.ZirStmtKind.IF then "malformed branch in proof procedure" else "malformed scope in proof procedure") }
+                after = close + 1
+            }
+            rest := Continuation.{after, stop, env.count, next}
+            if s.kind == IR.ZirStmtKind.IF { return Arms(c, m, fn, env, i, after, *rest, result, depth + 1) }
+            return Sequence(c, m, fn, env, i + 1, after - 1, *rest, result, depth + 1)
+        } else if s.kind == IR.ZirStmtKind.EXPR {
+            if Expression(c, m, fn, s.expr_root, env, -1, depth + 1) < 0 { return -1 }
+        } else if s.kind != IR.ZirStmtKind.UNUSED { return Unsupported(c, "loops, pointers, and effects are outside scalar proofs") }
+    }
+    if next == null { return Unsupported(c, "proof procedures must return on every branch") }
+    env.count = next.scope
+    return Sequence(c, m, fn, env, next.start, next.stop, next.next, result, depth + 1)
+}
+
+FindLaw :: (m: *IR.ZirModule, name: string, depth: s32, owner: **IR.ZirModule) -> *IR.ZirLaw {
+    if depth > 16 { return null }
+    dot := Index(name, #char ".")
+    if dot < name.count {
+        for i: 0..m.import_count - 1 {
+            import := *m.imports[i]
+            if import.resolved_module != null && Name(import.name[:]) == name[0:dot] {
+                return FindLaw(import.resolved_module, name[dot + 1:name.count], depth + 1, owner)
+            }
+        }
+        return null
+    }
+    for i: 0..m.law_count - 1 { if Name(m.laws[i].name[:]) == name { <<owner = m; return *m.laws[i] } }
+    found: *IR.ZirLaw = null
+    for i: 0..m.import_count - 1 {
+        import := *m.imports[i]
+        if import.kind == IR.ZirImportKind.OPEN && import.resolved_module != null {
+            candidate_owner: *IR.ZirModule = null
+            candidate := FindLaw(import.resolved_module, name, depth + 1, *candidate_owner)
+            if candidate != null && found != null && found != candidate { return null }
+            if candidate != null { found = candidate; <<owner = candidate_owner }
+        }
+    }
+    return found
+}
+// Every node of an unchecked graph is reached along paths without cycles,
+// and its scalar fields hold encodable values.
+GraphVisit :: (fn: *IR.ZirFunction, at: s32, seen: []u8, depth: s32) -> bool {
+    if at == -1 { return true }
+    if !Valid(fn, at) || depth > Kernel.ProofDepth || seen[at] == 1 { return false }
+    if seen[at] == 2 { return true }
+    seen[at] = 1
+    e := *fn.exprs[at]
+    if !GraphVisit(fn, e.left, seen, depth + 1) || !GraphVisit(fn, e.right, seen, depth + 1) || !GraphVisit(fn, e.third, seen, depth + 1) ||
+       !GraphVisit(fn, e.first_child, seen, depth + 1) || !GraphVisit(fn, e.next_sibling, seen, depth + 1) { return false }
+    seen[at] = 2
+    return true
+}
+GraphValid :: (fn: *IR.ZirFunction) -> bool {
+    seen: Vec(u8)
+    if fn.expr_count < 0 || fn.expr_count > Kernel.ProofTerms || fn.checked != 0 || !VecResize(seen, cast(s64)fn.expr_count + 1) { return false }
+    for i: 0..fn.expr_count - 1 {
+        e := *fn.exprs[i]
+        if e.kind <= IR.ZirExprKind.UNKNOWN || e.kind > IR.ZirExprKind.COMPILE_TIME || (e.is_function_value != 0 && e.is_function_value != 1) ||
+           (e.is_this != 0 && e.is_this != 1) || e.argument_index < -1 || e.argument_index >= 64 ||
+           !GraphVisit(fn, i, VecSlice(seen, 0, seen.count), 0) { return false }
+    }
+    return true
+}
+
+// The steps of a `#proof` body: `unfold [name]`, `cases` and `rewrite` steps,
+// then one closing `use`, `refl`, `ring` or `order`.
+ParseSteps :: (p: *IR.ZirProof, m: *IR.ZirModule) -> bool {
+    source := Name(p.source[:])
+    at := Text.SkipSpace(source, 0, false)
+    closed := false
+    while at < source.count {
+        end := at + Index(source[at:source.count], #char ";")
+        if end == source.count || end - at >= TextMax || closed { return false }
+        text := Trim(source[at:end])
+        length: s64 = 0
+        while length < text.count && (text[length] | 32) >= #char "a" && (text[length] | 32) <= #char "z" { length += 1 }
+        word := text[0:length]
+        operand := text[Text.SkipSpace(text, length, false):text.count]
+        step: IR.ZirProofStep
+        step.term_root = -1
+        step.span = p.span
+        words: [7]string = .{"unfold", "cases", "rewrite", "use", "refl", "ring", "order"}
+        for i: 0..6 { if words[i] == word { step.kind = cast(IR.ZirProofStepKind)(i + 1) } }
+        if cast(s32)step.kind == 0 { return false }
+        closed = step.kind >= IR.ZirProofStepKind.USE
+        if step.kind == IR.ZirProofStepKind.REWRITE || step.kind == IR.ZirProofStepKind.USE {
+            spelled := CLong(operand)
+            step.term_root = ParseExpr(*p.terms, m, *spelled.bytes[0], step.span)
+            if step.term_root < 0 || p.terms.exprs[step.term_root].kind != IR.ZirExprKind.CALL ||
+               !CallName(*p.terms, *p.terms.exprs[step.term_root], step.target[:]) { return false }
+        } else if step.kind == IR.ZirProofStepKind.UNFOLD { if !IR.CopyText(step.target[:], operand) { return false } }
+        else if operand.count > 0 { return false }
+        steps := cast(*IR.ZirProofStep)realloc(cast(*u8)p.steps, cast(u64)(p.step_count + 1) * size_of(IR.ZirProofStep))
+        if steps == null { return false }
+        p.steps = steps
+        p.steps[p.step_count] = step
+        p.step_count += 1
+        at = Text.SkipSpace(source, end + 1, false)
+    }
+    return true
+}
+
+// Parse a theorem's `bindings => proposition` payload into its claim graph,
+// or check the one saved IR supplied.
+PrepareClaim :: (module: *IR.ZirModule, law: *IR.ZirLaw) -> bool {
+    payload := Name(law.payload[:])
+    arrow: s64 = 0
+    while arrow + 1 < payload.count && (payload[arrow] != #char "=" || payload[arrow + 1] != #char ">") { arrow += 1 }
+    proposition := ifx arrow + 1 < payload.count then payload[Text.SkipSpace(payload, arrow + 2, false):payload.count] else ""
+    if proposition.count == 0 { return Report(law.span, "proof.claim", "theorem requires typed bindings => boolean proposition") }
+    args := Trim(payload[0:arrow])
+    bindings: Signature
+    ok := ParseSignature(args, *bindings)
+    if law.claim == null && ok {
+        law.claim = cast(*IR.ZirFunction)calloc(1, size_of(IR.ZirFunction))
+        if law.claim == null { return false }
+        law.claim.args_text = Services.KeepParameters(args)
+        IR.CopyText(law.claim.return_type[:], "bool")
+        law.claim.span = law.span
+        text := CLong(proposition)
+        root := ParseExpr(law.claim, module, *text.bytes[0], law.span)
+        s := FunctionAddStmt(law.claim, IR.ZirStmtKind.RETURN, *text.bytes[0], law.span)
+        if s != null { s.expr_root = root }
+        ok = root >= 0 && s != null
+    }
+    claim := law.claim
+    if !ok || claim == null || Args(claim) != args || Name(claim.return_type[:]) != "bool" || claim.stmt_count != 1 ||
+       claim.stmts[0].kind != IR.ZirStmtKind.RETURN || !Valid(claim, claim.stmts[0].expr_root) || !GraphValid(claim) {
+        return Report(law.span, "proof.claim", "malformed theorem proposition")
+    }
+    return true
+}
+PrepareProof :: (module: *IR.ZirModule, proof: *IR.ZirProof) -> bool {
+    owner: *IR.ZirModule = null
+    law := FindLaw(module, Name(proof.name[:]), 0, *owner)
+    if law == null || Name(law.kind[:]) != "theorem" || law.proof != null {
+        return Report(proof.span, "proof.identity", "proof ", Name(proof.name[:]), " must name one visible, unproved theorem")
+    }
+    proof.owner = module
+    if proof.step_count == 0 && !ParseSteps(proof, owner) { return Report(proof.span, "proof.syntax", "invalid proof steps for ", Name(proof.name[:])) }
+    if proof.step_count > Kernel.ProofTerms || proof.terms.stmt_count != 0 || !GraphValid(*proof.terms) {
+        return Report(proof.span, "proof.graph", "invalid proof expression graph")
+    }
+    for s: 0..proof.step_count - 1 {
+        step := *proof.steps[s]
+        valid := step.kind >= IR.ZirProofStepKind.UNFOLD && step.kind <= IR.ZirProofStepKind.ORDER
+        if step.kind == IR.ZirProofStepKind.REWRITE || step.kind == IR.ZirProofStepKind.USE { valid = valid && Valid(*proof.terms, step.term_root) }
+        else { valid = valid && step.term_root == -1 && (step.kind == IR.ZirProofStepKind.UNFOLD || step.target[0] == 0) }
+        if !valid { return Report(proof.span, "proof.graph", "invalid proof step") }
+    }
+    law.proof = proof
+    return true
+}
+
+// A lemma's proposition for the arguments of a `rewrite` or `use` step,
+// checked in an empty hypothesis context so caller branches cannot turn an
+// unproved or circular lemma into a theorem.
+Application :: (c: *Context, m: *IR.ZirModule, proof: *IR.ZirProof, step: *IR.ZirProofStep, env: *Environment, depth: s32) -> s32 {
+    owner: *IR.ZirModule = null
+    target := Name(step.target[:])
+    law := FindLaw(proof.owner, target, 0, *owner)
+    if law == null { law = FindLaw(m, target, 0, *owner) }
+    if law == null || Name(law.kind[:]) != "theorem" || law.claim == null { return Unsupported(c, "proof step names no visible theorem") }
+    terms := *proof.terms
+    name: Spelled
+    p: Signature
+    if !Valid(terms, step.term_root) || terms.exprs[step.term_root].kind != IR.ZirExprKind.CALL ||
+       !CallName(terms, *terms.exprs[step.term_root], name.bytes[:]) || Name(name.bytes[:]) != target ||
+       !ParseSignature(Args(law.claim), *p) { return -1 }
+    args: [16]s32
+    count: s32 = 0
+    at := terms.exprs[step.term_root].first_child
+    while at >= 0 {
+        if !Tick(c, depth) || at >= terms.expr_count || count >= p.count || IR.CText(terms.exprs[at].argument_name).count > 0 { return -1 }
+        args[count] = Expression(c, m, terms, at, env, ScalarType(c, owner, p.types[count]), depth + 1)
+        if args[count] < 0 { return -1 }
+        count += 1
+        at = terms.exprs[at].next_sibling
+    }
+    if count != p.count { return -1 }
+    facts := c.kernel.facts
+    fact_count := c.kernel.fact_count
+    unfold := c.unfold
+    c.kernel.fact_count = 0
+    proved := Theorem(c, owner, law, args[0:count], depth + 1)
+    c.kernel.facts = facts
+    c.kernel.fact_count = fact_count
+    c.unfold = unfold
+    return proved
+}
+// The theorem's proposition for ARGS once its certificate closes it.
+Theorem :: (c: *Context, m: *IR.ZirModule, law: *IR.ZirLaw, args: []s32, depth: s32) -> s32 {
+    if !Tick(c, depth) { return -1 }
+    for i: 0..c.law_count - 1 { if c.laws[i] == law { c.invalid = true; return Unsupported(c, "circular theorem dependency") } }
+    if c.law_count == Kernel.ProofDepth { c.kernel.exhausted = true; return -1 }
+    proof := law.proof
+    if proof == null || proof.step_count == 0 { return Unsupported(c, "theorem has no complete proof certificate") }
+    c.laws[c.law_count] = law
+    c.law_count += 1
+    params: Signature
+    env: Environment
+    goal: s32 = -1
+    original: s32 = -1
+    ok := ParseSignature(Args(law.claim), *params) && args.count == params.count
+    cases := false
+    closed := false
+    c.unfold.count = 0
+    c.unfold.all = false
+    for i: 0..params.count - 1 {
+        type := ifx ok then ScalarType(c, m, params.types[i]) else -1
+        ok = ok && args[i] >= 0 && type >= 0 && TermType(c, args[i]) == type && Bind(c, *env, params.names[i], args[i])
+    }
+    for i: 0..proof.step_count - 1 {
+        step := *proof.steps[i]
+        if !ok || closed { ok = false; break }
+        if step.kind == IR.ZirProofStepKind.UNFOLD {
+            if goal >= 0 { ok = false; break }
+            if step.target[0] == 0 { c.unfold.all = true; continue }
+            fn: *IR.ZirFunction = null
+            owner: *IR.ZirModule = null
+            found := ResolveFunction(m, *step.target[0], *owner, *fn)
+            if found != 1 { found = ResolveFunction(proof.owner, *step.target[0], *owner, *fn) }
+            if found != 1 || c.unfold.count == Kernel.ProofDepth { ok = false; break }
+            c.unfold.functions[c.unfold.count] = fn
+            c.unfold.count += 1
+            continue
+        }
+        if goal < 0 {
+            goal = Expression(c, m, law.claim, law.claim.stmts[0].expr_root, *env, 0, depth + 1)
+            original = goal
+            if goal < 0 || TermType(c, goal) != 0 { ok = false; break }
+        }
+        if step.kind == IR.ZirProofStepKind.CASES { cases = true }
+        else if step.kind == IR.ZirProofStepKind.REWRITE || step.kind == IR.ZirProofStepKind.USE {
+            lemma := Application(c, m, proof, step, *env, depth + 1)
+            if lemma < 0 { ok = false; break }
+            equation := c.kernel.terms[lemma]
+            closed = step.kind == IR.ZirProofStepKind.USE
+            if closed { ok = Kernel.Equal(*c.kernel, goal, lemma, false) }
+            else if equation.op != Kernel.ProofOp.Eq { ok = false; break }
+            else { goal = Kernel.Rewrite(*c.kernel, goal, equation.a, equation.b, 0); ok = goal >= 0 }
+        } else {
+            ok = Kernel.Close(*c.kernel, goal, step.kind != IR.ZirProofStepKind.REFL, step.kind == IR.ZirProofStepKind.ORDER, cases)
+            closed = true
+        }
+    }
+    c.law_count -= 1
+    if !closed && !c.unsupported && !c.kernel.exhausted { Unsupported(c, "proof certificate has no closing step") }
+    return ifx ok && closed && !c.unsupported && !c.kernel.exhausted then original else -1
+}
+
+#scope_export
+#program_export
+FindVisibleLaw :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirLaw { return FindLaw(m, IR.CText(name), 0, owner) }
+
+// `#proof NAME { steps }`; the steps are parsed once imports resolve.
+#program_export
+ParseProofDeclaration :: (m: *IR.ZirModule, source: *u8, span: IR.ZirSourceSpan) -> s32 {
+    text := IR.CText(source)
+    clean: Vec(u8)
+    if !VecResize(clean, text.count) { return 0 }
+    body := TextView(VecSlice(clean, 0, Source.StripComments(text, VecSlice(clean, 0, clean.count), 0).count))
+    at := Text.SkipSpace(body, 6, false)
+    start := at
+    while at < body.count && (Text.IdentifierByte(body[at]) || body[at] == #char ".") { at += 1 }
+    name := C(body[start:at])
+    open := Text.SkipSpace(body, at, false)
+    close := body.count - 1
+    while close > open && body[close] != #char "}" { close -= 1 }
+    tail := Trim(body[close + 1:body.count])
+    if at == start || at - start >= NameMax || open == body.count || body[open] != #char "{" || close == open ||
+       (tail.count > 0 && tail != ";") || close - open - 1 >= TextMax { return 0 }
+    steps := CLong(body[open + 1:close])
+    return ModuleAddProof(m, *name.bytes[0], *steps.bytes[0], span)
+}
+
+// Give every theorem its claim graph, then every `#proof` its theorem.
+#program_export
+PrepareLawProofs :: (programs: **IR.ZirProgram, count: s32) -> s32 {
+    for pass: 0..1 {
+        for p: 0..count - 1 {
+            for i: 0..programs[p].module_count - 1 {
+                module := *programs[p].modules[i]
+                for l: 0..module.law_count - 1 {
+                    if pass == 1 { break }
+                    law := *module.laws[l]
+                    law.proof = null
+                    if Name(law.kind[:]) == "theorem" { if !PrepareClaim(module, law) { return 0 } }
+                    else if law.claim != null { Report(law.span, "proof.claim", "non-theorem law has a proposition graph"); return 0 }
+                }
+                for n: 0..module.proof_count - 1 { if pass == 1 && !PrepareProof(module, *module.proofs[n]) { return 0 } }
+            }
+        }
+    }
+    return 1
+}
+
+// 0 proved, 2 unsupported or over budget, 3 invalid; DETAIL says why.
+#program_export
+EvaluateTheorem :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+    out := IR.CBuffer(detail, size)
+    if law.claim == null || law.proof == null { IR.CopyText(out, "theorem has no proof certificate"); return 2 }
+    c := cast(*Context)calloc(1, size_of(Context))
+    if c == null { IR.CopyText(out, "out of memory checking theorem"); return 2 }
+    defer free(cast(*u8)c)
+    Kernel.Init(*c.kernel)
+    p: Signature
+    args: [16]s32
+    ok := ParseSignature(Args(law.claim), *p)
+    for i: 0..p.count - 1 {
+        args[i] = ifx ok then Kernel.Node(*c.kernel, Kernel.ProofOp.Var, ScalarType(c, module, p.types[i]), -1, -1, -1, cast(u64)i) else -1
+        ok = args[i] >= 0
+    }
+    status: s32 = 3
+    reason := "invalid proof: a step did not establish its goal"
+    if ok && Theorem(c, module, law, args[0:p.count], 0) >= 0 { status = 0; reason = "kernel checked proof over the full typed domain" }
+    else if c.invalid { IR.CopyText(out, "invalid proof: "); out = out[15:out.count]; reason = c.reason }
+    else if c.kernel.exhausted { status = 2; reason = "scalar proof exceeds its deterministic budget" }
+    else if c.unsupported { status = 2; reason = c.reason }
+    IR.CopyText(out, reason)
+    return status
+}

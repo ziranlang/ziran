@@ -260,6 +260,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   | `compiler_expression.zi` | Expression and initializer grammar, `#char`, statement expressions |
   | `compiler_statement.zi` | Loop and control headers, `then`/`else`, `#if` headers, name references |
   | `compiler_proof_kernel.zi` | Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget |
+  | `compiler_proof.zi` | Theorem propositions and `#proof` certificates over checked IR: pure scalar procedures unfold into kernel terms |
   | `compiler_bundle.zi` | The `.zx` container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk |
   | `compiler_ir.zi` | The IR records C shares: modules, functions, statements, expressions, types, laws and proofs, their kinds and buffer sizes. `zir.h` includes the generated header, spelled for C with `#c` |
 
@@ -275,7 +276,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   | Parser main loop | `zir_parse.c` 732, `zir_parse_source.c` 2274, `zir_parse_discover.c` 1713 | C, calling the Ziran scanners per line |
   | Compile-time evaluation | `zir_parse_typed.c` 2227, `zir_parse_condition.c` 767, `zir_parse_eval.c` 649 | C; one typed evaluator serves `#if`, `#ifx`, `#assert`, `#run` and constants |
   | Checker | `zir_check.c` 1644, `zir_check_expr.c` 2987, `zir_check_statement.c` 2210, `zir_check_text.c` 2050, `zir_check_value.c` 1733, `zir_check_link.c` 1570, `zir_check_program.c` 1044, `zir_check_function.c` 931, `zir_check_simd.c` 367 | C |
-  | Borrows, laws, proofs | `zir_borrow.c` 2005, `zir_law.c` 2117, `zir_proof.c` 781 | C; `zir_proof.c` turns checked IR into terms for the Ziran proof kernel |
+  | Borrows, laws | `zir_borrow.c` 2005, `zir_law.c` 2117 | C; proofs moved to `compiler_proof.zi` |
   | C and Go output | `zir_emit.c` 2053, `zir_emit_expr.c` 2144, `zir_emit_statement.c` 2096, `zir_emit_range.c` 2417, `zir_emit_value.c` 1316, `zir_emit_call.c` 1234, `zir_emit_simd_go.c` 1261, `zir_emit_gpu.c` 843, `zir_emit_simd.c` 458, `zir_asm.c` 1996, `zir_simd.c` 562, `zir_runtime.c` 274 | C |
   | IR, loading, storage | `zir.c` 2392, `zir_serial.c` 1811, `zir_load.c` 1285, `zir_storage.c` 474, `zir_edit.c` 338, `zir_body.c` 286, `zir_packages.c` 275, `zir_sha256.c` 258, `zir_diagnostic.c` 236, `zir_profile.c` 229, `zir_context.c` 166, `zir_files.c` 154, `zir_memory.c` 131, `zir_native.c` 127, `zir_document.c` 120, `zir_overlay.c` 43, `zir_semantic.c` 29 | C |
   | Bundles | `zir_bundle.c` 2986, `zir_bundle_assets.c` 103 | Boundary for the `.zx` format and its table checks; IR linking, pruning, law evaluation and capability discovery are C |

@@ -315,6 +315,10 @@
 <td>Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget</td>
 </tr>
 <tr>
+<td><code>compiler_proof.zi</code></td>
+<td>Theorem propositions and <code>#proof</code> certificates over checked IR: pure scalar procedures unfold into kernel terms</td>
+</tr>
+<tr>
 <td><code>compiler_bundle.zi</code></td>
 <td>The <code>.zx</code> container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk</td>
 </tr>
@@ -359,9 +363,9 @@
 <td>C</td>
 </tr>
 <tr>
-<td>Borrows, laws, proofs</td>
-<td><code>zir_borrow.c</code> 2005, <code>zir_law.c</code> 2117, <code>zir_proof.c</code> 781</td>
-<td>C; <code>zir_proof.c</code> turns checked IR into terms for the Ziran proof kernel</td>
+<td>Borrows, laws</td>
+<td><code>zir_borrow.c</code> 2005, <code>zir_law.c</code> 2117</td>
+<td>C; proofs moved to <code>compiler_proof.zi</code></td>
 </tr>
 <tr>
 <td>C and Go output</td>

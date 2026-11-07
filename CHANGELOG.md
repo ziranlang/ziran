@@ -4,6 +4,8 @@
 
 - The scalar proof kernel behind `#proof` is written in Ziran instead of C,
   with the same proof results, diagnostics and step budget.
+- Theorems and their `#proof` certificates are parsed, prepared and checked
+  by Ziran code instead of C, with the same results and diagnostics.
 - The `.zx` container (header, capability, law and waiver tables, assets
   and their limits) is written, read and checked against its program by
   Ziran code instead of C; bundles keep the same bytes.

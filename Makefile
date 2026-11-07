@@ -57,6 +57,7 @@ TYPE_OBJECT := $(BUILD_DIR)/obj/compiler-type.o
 EXPRESSION_OBJECT := $(BUILD_DIR)/obj/compiler-expression.o
 STATEMENT_OBJECT := $(BUILD_DIR)/obj/compiler-statement.o
 PROOF_KERNEL_OBJECT := $(BUILD_DIR)/obj/compiler-proof-kernel.o
+BUNDLE_MODULE_OBJECT := $(BUILD_DIR)/obj/compiler-bundle.o
 ifeq ($(BOOTSTRAP),1)
 SCANNER_C := bootstrap/compiler_scan
 SCANNER_READY := $(SCANNER_C)/compiler_scan.c $(SCANNER_C)/compiler_scan.h
@@ -76,6 +77,8 @@ STATEMENT_C := bootstrap/compiler_statement
 STATEMENT_READY := $(STATEMENT_C)/compiler_statement.c $(STATEMENT_C)/compiler_statement.h
 PROOF_KERNEL_C := bootstrap/compiler_proof_kernel
 PROOF_KERNEL_READY := $(PROOF_KERNEL_C)/compiler_proof_kernel.c $(PROOF_KERNEL_C)/compiler_proof_kernel.h $(PROOF_KERNEL_C)/vec.h
+BUNDLE_C := bootstrap/compiler_bundle
+BUNDLE_READY := $(BUNDLE_C)/compiler_bundle.c $(BUNDLE_C)/compiler_bundle.h
 else
 SCANNER_C := $(BUILD_DIR)/compiler-scan
 SCANNER_READY := $(SCANNER_C)/.generated
@@ -95,8 +98,10 @@ STATEMENT_C := $(BUILD_DIR)/compiler-statement
 STATEMENT_READY := $(STATEMENT_C)/.generated
 PROOF_KERNEL_C := $(BUILD_DIR)/compiler-proof-kernel
 PROOF_KERNEL_READY := $(PROOF_KERNEL_C)/.generated
+BUNDLE_C := $(BUILD_DIR)/compiler-bundle
+BUNDLE_READY := $(BUNDLE_C)/.generated
 endif
-override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C)
+override CFLAGS += -I$(SCANNER_C) -I$(TEXT_C) -I$(SOURCE_C) -I$(DECLARATION_C) -I$(ENUM_C) -I$(TYPE_C) -I$(EXPRESSION_C) -I$(STATEMENT_C) -I$(PROOF_KERNEL_C) -I$(BUNDLE_C)
 FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c cmd/zir/zir_sha256.c cmd/zir/zir_context.c cmd/zir/zir_memory.c cmd/zir/zir_storage.c cmd/zir/zir.c cmd/zir/zir_asm.c cmd/zir/zir_enum.c cmd/zir/zir_type.c cmd/zir/zir_text.c \
     cmd/zir/zir_native.c cmd/zir/zir_simd.c cmd/zir/zir_body.c cmd/zir/zir_token.c cmd/zir/zir_cleanup.c cmd/zir/zir_expr.c \
     cmd/zir/zir_borrow.c cmd/zir/zir_law.c cmd/zir/zir_proof.c \
@@ -109,12 +114,12 @@ LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(BUILD_DIR)/obj/check.o \
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c cmd/zir-wasm/zir_wasm_lower.c)
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o
-BUNDLE_OBJECT := $(call obj,$(PORTABLE))
+BUNDLE_OBJECT := $(call obj,$(PORTABLE)) $(BUNDLE_MODULE_OBJECT)
 RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_headers.o
 
 .PHONY: all check curl-http-test clean install-user package-objects package-link force-compiler-flags
@@ -223,6 +228,11 @@ $(call obj,cmd/zir/zir_proof.c): $(PROOF_KERNEL_READY)
 $(PROOF_KERNEL_OBJECT): $(PROOF_KERNEL_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(PROOF_KERNEL_C)/compiler_proof_kernel.c
+
+$(call obj,$(PORTABLE)): $(BUNDLE_READY)
+$(BUNDLE_MODULE_OBJECT): $(BUNDLE_READY) $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(BUNDLE_C)/compiler_bundle.c
 
 $(BUILD_DIR)/obj/runtime_headers.o: $(BUILD_DIR)/runtime_headers.c $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
@@ -404,7 +414,8 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_expression/compiler_expression.c bootstrap/compiler_expression/compiler_expression.h \
     bootstrap/compiler_statement/compiler_statement.c bootstrap/compiler_statement/compiler_statement.h \
     bootstrap/compiler_proof_kernel/compiler_proof_kernel.c bootstrap/compiler_proof_kernel/compiler_proof_kernel.h \
-    bootstrap/compiler_proof_kernel/vec.h Makefile
+    bootstrap/compiler_proof_kernel/vec.h \
+    bootstrap/compiler_bundle/compiler_bundle.c bootstrap/compiler_bundle/compiler_bundle.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
 	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=-O2 \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
@@ -454,11 +465,16 @@ $(PROOF_KERNEL_C)/.generated: cmd/compiler_proof_kernel.zi std/vec.zi $(BOOTSTRA
 	    -o $(PROOF_KERNEL_C) cmd/compiler_proof_kernel.zi
 	touch $@
 
+$(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(BUNDLE_C) cmd/compiler_bundle.zi
+	touch $@
+
 .PHONY: check-bootstrap update-bootstrap
 # The checked-in bootstrap C must match what the current compiler generates
 # from cmd/compiler_*.zi; update-bootstrap refreshes it. A seed also keeps the
 # generated headers of standard modules it uses, such as vec.h.
-BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement proof_kernel bundle
 GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
     -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 check-bootstrap: $(BIN_DIR)/zi2c
@@ -479,7 +495,7 @@ update-bootstrap: $(BIN_DIR)/zi2c
 
 endif
 
-$(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(call obj,$(PORTABLE)) \
+$(BIN_DIR)/bundle-link-test: $(call obj,tests/bundle_link_test.c) $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) \
     $(BUILD_DIR)/obj/vm.o | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 

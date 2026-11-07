@@ -12,6 +12,7 @@
 #include "zir_serial.h"
 #include "zir_expr.h"
 #include "zir_text.h"
+#include "compiler_bundle.h"
 
 #include <ctype.h>
 #include <limits.h>
@@ -19,16 +20,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Versions 26 and 27 share one encoding. 27 marks a thin add-on that composes
- * declarations into a module its library already provides; readers before 27
- * cannot do that, so the writer uses it only for such add-ons. */
-enum { ZX_VERSION_PLAIN = 26, ZX_VERSION_PARTIAL = 27,
-       ZX_MAX_IR_BYTES = 256 * 1024 * 1024, ZX_MAX_CAPABILITIES = 4096 };
-
-typedef struct CapabilityName {
-    char module[ZIR_NAME_MAX];
-    char function[ZIR_NAME_MAX];
-} CapabilityName;
+/* The .zx byte format lives in cmd/compiler_bundle.zi. This file links the
+ * checked program, measures and streams its IR, evaluates its laws and
+ * compares the decoded tables with the program it reads. */
 
 static int
 split_binding_name(const char *text, char *module, char *function)
@@ -201,9 +195,9 @@ module_name_order(const void *left, const void *right)
 /* An extern kept only so a law stays decidable demands no host binding:
  * capabilities list imports the linked code actually calls. */
 static int
-import_is_called(const ZirModule *module, const ZirImport *import)
+import_is_called(const ZirModule *module, int function_count, const ZirImport *import)
 {
-    for(int f = 0; f < module->function_count; f++) {
+    for(int f = 0; f < function_count; f++) {
         const ZirFunction *fn = &module->functions[f];
         for(int e = 0; e < fn->expr_count; e++)
             if(fn->exprs[e].kind == ZIR_EXPR_CALL &&
@@ -214,84 +208,45 @@ import_is_called(const ZirModule *module, const ZirImport *import)
     return 0;
 }
 
+/* A capability is a called extern that no Ziran provider implements. OWN
+ * looks only at a composed module's own declarations, not its library's. */
 static int
-own_import_is_called(const ZirModule *module, const ZirImport *import)
+capability_import(const ZirModule *module, const ZirImport *import, int own)
 {
-    ZirModule own = *module;
-    if(module->bundle_library) own.function_count = module->bundle_own_functions;
-    return import_is_called(&own, import);
-}
-
-static int
-count_capabilities(const ZirProgram *program, int module_count, int own)
-{
-    int count = 0;
-    for(int m = 0; m < module_count; m++)
-        for(int i = 0; i < program->modules[m].import_count; i++)
-            count += program->modules[m].imports[i].kind == ZIR_IMPORT_EXTERN &&
-                     (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
-                      strncmp(program->modules[m].imports[i].target,
-                              "ziran:", 6) != 0) &&
-                     (own ? own_import_is_called : import_is_called)(
-                         &program->modules[m], &program->modules[m].imports[i]);
-    return count;
-}
-
-static int
-write_u32(FILE *out, uint32_t value)
-{
-    unsigned char bytes[4] = {
-        (unsigned char)value, (unsigned char)(value >> 8),
-        (unsigned char)(value >> 16), (unsigned char)(value >> 24)
-    };
-    return fwrite(bytes, 1, sizeof(bytes), out) == sizeof(bytes);
-}
-
-static int
-read_u32(FILE *in, uint32_t *value)
-{
-    unsigned char bytes[4];
-    if(fread(bytes, 1, sizeof(bytes), in) != sizeof(bytes))
+    if(import->kind != ZIR_IMPORT_EXTERN ||
+       (import->extern_kind == ZIR_EXTERN_HOST &&
+        strncmp(import->target, "ziran:", 6) == 0))
         return 0;
-    *value = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 |
-             (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
-    return 1;
+    return import_is_called(module, own && module->bundle_library ?
+                                module->bundle_own_functions : module->function_count,
+                            import);
 }
 
-static int
-write_name(FILE *out, const char *name)
+/* The capability list of the first MODULE_COUNT modules, in bundle order.
+ * The names borrow the program. */
+static Capability *
+list_capabilities(const ZirProgram *program, int module_count, int own, size_t *count)
 {
-    size_t length = strnlen(name, ZIR_NAME_MAX);
-    return length > 0 && length < ZIR_NAME_MAX &&
-           write_u32(out, (uint32_t)length) &&
-           fwrite(name, 1, length, out) == length;
+    size_t total = 0;
+    for(int pass = 0; pass < 2; pass++) {
+        Capability *list = pass ? calloc(total ? total : 1, sizeof(*list)) : NULL;
+        if(pass && list == NULL) return NULL;
+        total = 0;
+        for(int m = 0; m < module_count; m++) {
+            const ZirModule *module = &program->modules[m];
+            for(int i = 0; i < module->import_count; i++)
+                if(capability_import(module, &module->imports[i], own)) {
+                    if(pass) list[total] = (Capability){
+                        StringView(module->name, strlen(module->name)),
+                        StringView(module->imports[i].name, strlen(module->imports[i].name))};
+                    total++;
+                }
+        }
+        if(pass) { *count = total; return list; }
+    }
+    return NULL;
 }
 
-static int
-read_name(FILE *in, char *name, size_t capacity)
-{
-    uint32_t length;
-    if(!read_u32(in, &length) || length == 0 || length >= capacity)
-        return 0;
-    if(fread(name, 1, length, in) != length || memchr(name, 0, length))
-        return 0;
-    name[length] = 0;
-    return 1;
-}
-static int write_text(FILE *out, const char *text, size_t capacity)
-{
-    size_t length = strnlen(text, capacity);
-    return length < capacity && write_u32(out, (uint32_t)length) &&
-           fwrite(text, 1, length, out) == length;
-}
-static int read_text(FILE *in, char *text, size_t capacity)
-{
-    uint32_t length;
-    if(!read_u32(in, &length) || length >= capacity ||
-       fread(text, 1, length, in) != length || memchr(text, 0, length)) return 0;
-    text[length] = 0;
-    return 1;
-}
 static int
 copy_function(ZirFunction *target, const ZirFunction *source)
 {
@@ -2406,85 +2361,73 @@ composes_library_module(const ZirProgram *program, const ZirProgram *context)
     return 0;
 }
 
+static String
+text_of(const char *text, size_t capacity)
+{
+    return StringView(text, strnlen(text, capacity));
+}
+#define FIELD(array) text_of((array), sizeof(array))
+#define TEXT(pointer) StringView((pointer), strlen(pointer))
+
 int
 BundleWriteInContext(FILE *out, const ZirProgram *program,
                const ZirProgram *context,
                const char *entry_module, const char *entry_function,
                const ZxAssets *assets)
 {
-    size_t length = 0;
-    int ok;
+    size_t length = 0, capability_count = 0, law_count = 0, waiver_count = 0;
     if(out == NULL || program == NULL || entry_module == NULL ||
-       entry_function == NULL)
+       entry_function == NULL || !ProgramMeasurePortable(program, &length))
         return 0;
-    ok = ProgramMeasurePortable(program, &length);
-    if(length == 0 || length > ZX_MAX_IR_BYTES)
-        ok = 0;
-    int capabilities = count_capabilities(program, program->module_count, 0);
-    if(capabilities > ZX_MAX_CAPABILITIES)
-        ok = 0;
-    if(ok) {
-        ok = fwrite("ZX\0\0", 1, 4, out) == 4 &&
-             write_u32(out, composes_library_module(program, context) ?
-                                ZX_VERSION_PARTIAL : ZX_VERSION_PLAIN) &&
-             write_name(out, entry_module) &&
-             write_name(out, entry_function) &&
-             write_u32(out, (uint32_t)capabilities);
-        for(int m = 0; ok && m < program->module_count; m++)
-            for(int i = 0; ok && i < program->modules[m].import_count; i++)
-                if(program->modules[m].imports[i].kind == ZIR_IMPORT_EXTERN &&
-                   (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
-                    strncmp(program->modules[m].imports[i].target,
-                            "ziran:", 6) != 0) &&
-                   import_is_called(&program->modules[m],
-                                    &program->modules[m].imports[i]))
-                    ok = write_name(out, program->modules[m].name) &&
-                         write_name(out, program->modules[m].imports[i].name);
-        {
-            int laws = 0, waivers = 0;
-            for(int m = 0; m < program->module_count; m++) {
-                laws += program->modules[m].law_count;
-                waivers += program->modules[m].law_waiver_count;
-            }
-            if(ok)
-                ok = write_u32(out, (uint32_t)laws);
-            for(int m = 0; ok && m < program->module_count; m++)
-                for(int l = 0; ok && l < program->modules[m].law_count;
-                    l++) {
-                    const ZirLaw *law = &program->modules[m].laws[l];
-                    char detail[ZIR_TEXT_MAX];
-                    int status = EvaluateLaw(context,
-                        &program->modules[m], law, detail,
-                        sizeof(detail));
-                    ok = write_name(out, program->modules[m].name) &&
-                         write_name(out, law->name) &&
-                         write_name(out, law->kind) &&
-                         write_name(out, LawStatusName(status)) &&
-                         write_name(out, detail) &&
-                         write_name(out, law->evidence.method) &&
-                         write_text(out, law->evidence.domain, sizeof(law->evidence.domain)) &&
-                         write_u32(out, (uint32_t)law->evidence.cases_checked) &&
-                         write_u32(out, (uint32_t)(law->evidence.cases_checked >> 32)) &&
-                         write_text(out, law->evidence.counterexample, sizeof(law->evidence.counterexample)) &&
-                         write_u32(out, (uint32_t)law->evidence.waived);
-                }
-            if(ok)
-                ok = write_u32(out, (uint32_t)waivers);
-            for(int m = 0; ok && m < program->module_count; m++)
-                for(int w = 0; ok &&
-                    w < program->modules[m].law_waiver_count; w++) {
-                    const ZirLawWaiver *waiver =
-                        &program->modules[m].law_waivers[w];
-                    ok = write_name(out, program->modules[m].name) &&
-                         write_name(out, waiver->name) &&
-                         write_name(out, waiver->reason);
-                }
-        }
-        size_t written = 0;
-        ok = ok && write_u32(out, (uint32_t)length) &&
-             ProgramWritePortable(program, out, &written) && written == length &&
-             ZxAssetsWrite(out, assets) && fflush(out) == 0;
+    for(int m = 0; m < program->module_count; m++) {
+        law_count += (size_t)program->modules[m].law_count;
+        waiver_count += (size_t)program->modules[m].law_waiver_count;
     }
+    size_t asset_count = assets != NULL ? assets->count : 0;
+    Capability *capabilities = list_capabilities(program, program->module_count, 0,
+                                                 &capability_count);
+    Law *laws = calloc(law_count ? law_count : 1, sizeof(*laws));
+    char (*details)[ZIR_TEXT_MAX] = malloc((law_count ? law_count : 1) * ZIR_TEXT_MAX);
+    Waiver *waivers = calloc(waiver_count ? waiver_count : 1, sizeof(*waivers));
+    Asset *items = calloc(asset_count ? asset_count : 1, sizeof(*items));
+    unsigned char *head = NULL, *tail = NULL;
+    int ok = capabilities && laws && details && waivers && items;
+    for(int m = 0, l = 0, w = 0; ok && m < program->module_count; m++) {
+        const ZirModule *module = &program->modules[m];
+        for(int i = 0; i < module->law_count; i++, l++) {
+            const ZirLaw *law = &module->laws[i];
+            int status = EvaluateLaw(context, module, law, details[l], ZIR_TEXT_MAX);
+            laws[l] = (Law){FIELD(module->name), FIELD(law->name), FIELD(law->kind),
+                TEXT(LawStatusName(status)), FIELD(details[l]),
+                FIELD(law->evidence.method), FIELD(law->evidence.domain),
+                law->evidence.cases_checked, FIELD(law->evidence.counterexample),
+                law->evidence.waived != 0};
+        }
+        for(int i = 0; i < module->law_waiver_count; i++, w++)
+            waivers[w] = (Waiver){FIELD(module->name), FIELD(module->law_waivers[i].name),
+                                  FIELD(module->law_waivers[i].reason)};
+    }
+    for(size_t i = 0; ok && i < asset_count; i++)
+        items[i] = (Asset){TEXT(assets->items[i].name),
+            StringView((const char *)assets->items[i].data, assets->items[i].size)};
+    Header header = {composes_library_module(program, context),
+        TEXT(entry_module), TEXT(entry_function),
+        {capabilities, (int64_t)capability_count}, {laws, (int64_t)law_count},
+        {waivers, (int64_t)waiver_count}, (int64_t)length};
+    Slice asset_slice = {items, (int64_t)asset_count};
+    int64_t head_size = ok ? compiler_bundle_EncodeHeader((Slice){0}, header) : -1;
+    int64_t tail_size = head_size > 0 ? compiler_bundle_EncodeAssets((Slice){0}, asset_slice) : -1;
+    ok = tail_size > 0 && (head = malloc((size_t)head_size)) != NULL &&
+         (tail = malloc((size_t)tail_size)) != NULL &&
+         compiler_bundle_EncodeHeader((Slice){head, head_size}, header) == head_size &&
+         compiler_bundle_EncodeAssets((Slice){tail, tail_size}, asset_slice) == tail_size;
+    /* The IR streams between the two encoded parts, never buffered. */
+    size_t written = 0;
+    ok = ok && fwrite(head, 1, (size_t)head_size, out) == (size_t)head_size &&
+         ProgramWritePortable(program, out, &written) && written == length &&
+         fwrite(tail, 1, (size_t)tail_size, out) == (size_t)tail_size && fflush(out) == 0;
+    free(head); free(tail); free(items); free(waivers); free(details); free(laws);
+    free(capabilities);
     return ok;
 }
 
@@ -2742,49 +2685,30 @@ ZxLawTableFree(ZxLawTable *table)
     table->waiver_count = 0;
 }
 
-static int
-skip_fields(FILE *in, int count)
-{
-    for(int i = 0; i < count; i++) {
-        uint32_t length;
-        if(!read_u32(in, &length) || length > ZX_MAX_IR_BYTES ||
-           fseek(in, (long)length, SEEK_CUR) != 0)
-            return 0;
-    }
-    return 1;
-}
-
 long
 BundleProgramEnd(FILE *in)
 {
-    long start = ftell(in), end = -1;
-    unsigned char signature[4];
-    uint32_t version, count, length;
+    long start = ftell(in);
+    unsigned char *bytes = NULL;
+    size_t size = 0, capacity = 0;
+    int64_t end = 0;
     if(start < 0)
         return -1;
-    if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZX\0\0", 4) ||
-       !read_u32(in, &version) || version < ZX_VERSION_PLAIN ||
-       version > ZX_VERSION_PARTIAL || !skip_fields(in, 2) ||
-       !read_u32(in, &count) || count > ZX_MAX_CAPABILITIES || !skip_fields(in, 2 * (int)count))
-        goto done;
-    /* Each law: six names and a domain, two count words, a counterexample
-     * and the waived word; each waiver: three names. */
-    if(!read_u32(in, &count) || count > ZX_MAX_CAPABILITIES * 64)
-        goto done;
-    for(uint32_t i = 0; i < count; i++)
-        if(!skip_fields(in, 7) || fseek(in, 8, SEEK_CUR) != 0 || !skip_fields(in, 1) ||
-           fseek(in, 4, SEEK_CUR) != 0)
-            goto done;
-    if(!read_u32(in, &count) || count > ZX_MAX_CAPABILITIES * 64 || !skip_fields(in, 3 * (int)count) ||
-       !read_u32(in, &length) || length == 0 || length > ZX_MAX_IR_BYTES)
-        goto done;
-    end = ftell(in);
-    if(end >= 0)
-        end += (long)length;
-done:
-    if(fseek(in, start, SEEK_SET) != 0)
+    /* The header usually fits the first read; grow until it is whole. */
+    while(end == 0) {
+        unsigned char *more = capacity < SIZE_MAX / 2 ?
+            realloc(bytes, capacity ? capacity * 2 : 4096) : NULL;
+        if(more == NULL) { end = -1; break; }
+        bytes = more;
+        capacity = capacity ? capacity * 2 : 4096;
+        size += fread(bytes + size, 1, capacity - size, in);
+        end = compiler_bundle_ProgramEnd(StringView((const char *)bytes, size));
+        if(end == 0 && size < capacity) end = -1;
+    }
+    free(bytes);
+    if(fseek(in, start, SEEK_SET) != 0 || end <= 0 || end > LONG_MAX - start)
         return -1;
-    return end;
+    return start + (long)end;
 }
 
 /* Compares the bundle's law table with the laws of its checked program;
@@ -2825,6 +2749,71 @@ laws_differ(const ZirProgram *program, int own_modules, const ZxLawTable *laws)
     return NULL;
 }
 
+/* The rest of IN, which is seekable, in one block. */
+static unsigned char *
+read_rest(FILE *in, size_t *size)
+{
+    long start = ftell(in), end;
+    if(start < 0 || fseek(in, 0, SEEK_END) != 0 || (end = ftell(in)) < start ||
+       fseek(in, start, SEEK_SET) != 0 || (uint64_t)(end - start) >= SIZE_MAX)
+        return NULL;
+    *size = (size_t)(end - start);
+    unsigned char *bytes = malloc(*size ? *size : 1);
+    if(bytes != NULL &&
+       (fread(bytes, 1, *size, in) != *size || fgetc(in) != EOF || ferror(in))) {
+        free(bytes);
+        return NULL;
+    }
+    return bytes;
+}
+
+/* Decoded strings respect the format's limits, which the records hold. */
+static int
+copy_field(char *to, size_t capacity, String from)
+{
+    if(from.length >= capacity)
+        return 0;
+    memcpy(to, from.data, from.length);
+    to[from.length] = '\0';
+    return 1;
+}
+#define COPY(to, from) copy_field((to), sizeof(to), (from))
+
+static int
+same_text(String left, String right)
+{
+    return left.length == right.length && !memcmp(left.data, right.data, left.length);
+}
+
+/* Moves the decoded assets' data to the front of BYTES, the bundle they
+ * borrow, which becomes their storage. Fails only before moving anything. */
+static int
+adopt_assets(ZxAssets *assets, unsigned char *bytes, const Asset *items, size_t count)
+{
+    assets->items = calloc(count ? count : 1, sizeof(*assets->items));
+    if(assets->items == NULL)
+        return 0;
+    for(size_t i = 0; i < count; i++, assets->count++) {
+        assets->items[i].name = strndup(items[i].name.data, items[i].name.length);
+        assets->items[i].size = (uint32_t)items[i].data.length;
+        if(assets->items[i].name == NULL)
+            return 0;
+    }
+    size_t used = 0;
+    for(size_t i = 0; i < count; i++) {
+        memmove(bytes + used, items[i].data.data, items[i].data.length);
+        used += items[i].data.length;
+    }
+    unsigned char *storage = realloc(bytes, used ? used : 1);
+    assets->storage = storage != NULL ? storage : bytes;
+    used = 0;
+    for(size_t i = 0; i < count; i++) {
+        assets->items[i].data = assets->storage + used;
+        used += assets->items[i].size;
+    }
+    return 1;
+}
+
 ZirProgram *
 BundleReadInContext(FILE *in, const char *path,
            char *entry_module, size_t module_size,
@@ -2833,19 +2822,21 @@ BundleReadInContext(FILE *in, const char *path,
            const ZirProgram *const *libraries, size_t library_count,
            int *own_module_count, size_t *own_capability_count, int *trusted)
 {
-    unsigned char signature[4];
-    uint32_t version, capability_count, length;
+    size_t size = 0, linked_count = 0;
+    unsigned char *bytes = NULL;
     FILE *payload = NULL;
-    unsigned char *payload_bytes = NULL;
     ZirProgram *program = NULL;
-    CapabilityName *capabilities = NULL;
+    Capability *capabilities = NULL, *linked = NULL;
+    Law *decoded_laws = NULL;
+    Waiver *decoded_waivers = NULL;
+    Asset *items = NULL;
     ZxLawTable discarded = {0};
     ZxAssets discarded_assets = {0};
     int discard_assets = assets == NULL;
     if(discard_assets) assets = &discarded_assets;
     int discard_laws = laws == NULL;
     if(discard_laws) laws = &discarded;
-    const char *problem = "invalid or truncated bundle";
+    String problem = compiler_bundle_Message(Problem_Invalid);
     int own_modules = 0;
     int unchecked = 0;
     if(trusted == NULL) trusted = &unchecked;
@@ -2853,110 +2844,81 @@ BundleReadInContext(FILE *in, const char *path,
        entry_function == NULL || library_count > 64 ||
        (library_count != 0 && libraries == NULL))
         return NULL;
-    if(fread(signature, 1, 4, in) != 4 || memcmp(signature, "ZX\0\0", 4))
+    if((bytes = read_rest(in, &size)) == NULL)
         goto failed;
-    if(!read_u32(in, &version))
-        goto failed;
-    if(version < ZX_VERSION_PLAIN || version > ZX_VERSION_PARTIAL) {
-        problem = "unsupported ZX version";
-        goto failed;
-    }
-    if(!read_name(in, entry_module, module_size) ||
-       !read_name(in, entry_function, function_size) ||
-       !read_u32(in, &capability_count))
-        goto failed;
-    if(capability_count > ZX_MAX_CAPABILITIES) {
-        problem = "bundle has too many host capabilities";
+    /* Count the tables, then fill them. */
+    String all = StringView((const char *)bytes, size);
+    Layout layout = compiler_bundle_Decode(all, (Slice){0}, (Slice){0}, (Slice){0}, (Slice){0});
+    if(layout.problem != Problem_None) {
+        problem = compiler_bundle_Message(layout.problem);
         goto failed;
     }
-    capabilities = calloc(capability_count ? capability_count : 1,
-                          sizeof(*capabilities));
-    if(capabilities == NULL)
+    capabilities = calloc((size_t)layout.capabilities + 1, sizeof(*capabilities));
+    decoded_laws = calloc((size_t)layout.laws + 1, sizeof(*decoded_laws));
+    decoded_waivers = calloc((size_t)layout.waivers + 1, sizeof(*decoded_waivers));
+    items = calloc((size_t)layout.assets + 1, sizeof(*items));
+    laws->laws = calloc((size_t)layout.laws + 1, sizeof(*laws->laws));
+    laws->waivers = calloc((size_t)layout.waivers + 1, sizeof(*laws->waivers));
+    if(capabilities == NULL || decoded_laws == NULL || decoded_waivers == NULL ||
+       items == NULL || laws->laws == NULL || laws->waivers == NULL)
         goto failed;
-    for(uint32_t i = 0; i < capability_count; i++)
-        if(!read_name(in, capabilities[i].module,
-                      sizeof(capabilities[i].module)) ||
-           !read_name(in, capabilities[i].function,
-                      sizeof(capabilities[i].function)))
+    layout = compiler_bundle_Decode(all, (Slice){capabilities, layout.capabilities},
+        (Slice){decoded_laws, layout.laws}, (Slice){decoded_waivers, layout.waivers},
+        (Slice){items, layout.assets});
+    if(layout.problem != Problem_None ||
+       !copy_field(entry_module, module_size, layout.entry_module) ||
+       !copy_field(entry_function, function_size, layout.entry_function))
+        goto failed;
+    for(int64_t i = 0; i < layout.laws; i++, laws->law_count++) {
+        ZxLawRecord *record = &laws->laws[i];
+        const Law *law = &decoded_laws[i];
+        record->evidence.cases_checked = law->cases;
+        record->evidence.waived = law->waived;
+        if(!COPY(record->module, law->module) || !COPY(record->name, law->name) ||
+           !COPY(record->kind, law->kind) || !COPY(record->status, law->status) ||
+           !COPY(record->detail, law->detail) ||
+           !COPY(record->evidence.method, law->method) ||
+           !COPY(record->evidence.domain, law->domain) ||
+           !COPY(record->evidence.counterexample, law->counterexample))
             goto failed;
-    if(laws != NULL) {
-        uint32_t law_count = 0, waiver_count = 0;
-        if(!read_u32(in, &law_count) ||
-           law_count > ZX_MAX_CAPABILITIES * 64)
-            goto failed;
-        laws->laws = law_count ? calloc(law_count,
-                                        sizeof(*laws->laws)) : NULL;
-        if(law_count != 0 && laws->laws == NULL)
-            goto failed;
-        for(uint32_t i = 0; i < law_count; i++) {
-            ZxLawRecord *record = &laws->laws[i];
-            uint32_t lo, hi, waived;
-            if(!read_name(in, record->module, sizeof(record->module)) ||
-               !read_name(in, record->name, sizeof(record->name)) ||
-               !read_name(in, record->kind, sizeof(record->kind)) ||
-               !read_name(in, record->status, sizeof(record->status)) ||
-               !read_name(in, record->detail, sizeof(record->detail)) ||
-               !read_name(in, record->evidence.method, sizeof(record->evidence.method)) ||
-               !read_text(in, record->evidence.domain, sizeof(record->evidence.domain)) ||
-               !read_u32(in, &lo) || !read_u32(in, &hi) ||
-               !read_text(in, record->evidence.counterexample, sizeof(record->evidence.counterexample)) ||
-               !read_u32(in, &waived) || waived > 1)
-                goto failed;
-            record->evidence.cases_checked = (uint64_t)lo | ((uint64_t)hi << 32);
-            record->evidence.waived = (int)waived;
-        }
-        laws->law_count = (int)law_count;
-        if(!read_u32(in, &waiver_count) ||
-           waiver_count > ZX_MAX_CAPABILITIES * 64)
-            goto failed;
-        laws->waivers = waiver_count ? calloc(waiver_count,
-                                              sizeof(*laws->waivers)) : NULL;
-        if(waiver_count != 0 && laws->waivers == NULL)
-            goto failed;
-        for(uint32_t i = 0; i < waiver_count; i++) {
-            ZxLawWaiverRecord *record = &laws->waivers[i];
-            if(!read_name(in, record->module, sizeof(record->module)) ||
-               !read_name(in, record->name, sizeof(record->name)) ||
-               !read_name(in, record->reason, sizeof(record->reason)))
-                goto failed;
-        }
-        laws->waiver_count = (int)waiver_count;
     }
-    if(!read_u32(in, &length) || length == 0 || length > ZX_MAX_IR_BYTES)
-        goto failed;
-    payload_bytes = malloc(length);
-    if(payload_bytes == NULL || fread(payload_bytes, 1, length, in) != length ||
-       !ZxAssetsRead(in, assets) || fgetc(in) != EOF || ferror(in))
-        goto failed;
-    payload = ZirReadMemory(payload_bytes, length);
+    for(int64_t i = 0; i < layout.waivers; i++, laws->waiver_count++) {
+        ZxLawWaiverRecord *record = &laws->waivers[i];
+        if(!COPY(record->module, decoded_waivers[i].module) ||
+           !COPY(record->name, decoded_waivers[i].name) ||
+           !COPY(record->reason, decoded_waivers[i].reason))
+            goto failed;
+    }
+    payload = ZirReadMemory(bytes + layout.program,
+                            (size_t)(layout.program_end - layout.program));
     if(payload == NULL)
         goto failed;
     program = ProgramRead(payload, path);
     if(program == NULL) {
-        problem = "invalid embedded ZIR";
+        problem = TEXT("invalid embedded ZIR");
         goto failed;
     }
     own_modules = program->module_count;
     if(!libraries_disjoint(libraries, library_count)) {
-        problem = "conflicting bundle library providers";
+        problem = TEXT("conflicting bundle library providers");
         goto failed;
     }
-    if(version < ZX_VERSION_PARTIAL)
+    if(!layout.partial)
         for(size_t i = 0; i < library_count; i++)
             for(int l = 0; l < libraries[i]->module_count; l++)
                 for(int m = 0; m < own_modules; m++)
                     if(!strcmp(libraries[i]->modules[l].name, program->modules[m].name)) {
-                        problem = "bundle library module composition needs ZX version 27";
+                        problem = TEXT("bundle library module composition needs ZX version 27");
                         goto failed;
                     }
     for(size_t i = 0; i < library_count; i++) {
         if(!append_library(program, libraries[i])) {
-            problem = "missing or conflicting bundle library";
+            problem = TEXT("missing or conflicting bundle library");
             goto failed;
         }
     }
     if(!*trusted && !CheckCanonicalPrograms(&program, 1, NULL)) {
-        problem = "embedded ZIR failed semantic checking";
+        problem = TEXT("embedded ZIR failed semantic checking");
         goto failed;
     }
     /* Every specialization needed by the add-on belongs in its delta.
@@ -2966,55 +2928,55 @@ BundleReadInContext(FILE *in, const char *path,
         if(module->bundle_library &&
            module->function_count != module->bundle_own_functions +
                                      module->bundle_library->function_count) {
-            problem = "bundle library composition added executable declarations";
+            problem = TEXT("bundle library composition added executable declarations");
             goto failed;
         }
     }
     /* Canonical checking can materialize generic specializations. Validate
-     * requirements against the final payload before reusing its count. The
-     * separately verified libraries retain their own capability lists. A
-     * trusted payload is compared before checking: when a specialization
-     * would add a call, the caller reads it again with checking. */
-    if(capability_count != (uint32_t)count_capabilities(program, own_modules, 1)) {
-        problem = "bundle capability list differs from linked IR";
+     * requirements against the final payload. The separately verified
+     * libraries retain their own capability lists. A trusted payload is
+     * compared before checking: when a specialization would add a call, the
+     * caller reads it again with checking. */
+    linked = list_capabilities(program, own_modules, 1, &linked_count);
+    int same = linked != NULL && linked_count == (size_t)layout.capabilities;
+    for(size_t i = 0; same && i < linked_count; i++)
+        same = same_text(linked[i].module, capabilities[i].module) &&
+               same_text(linked[i].function, capabilities[i].function);
+    if(!same) {
+        problem = TEXT("bundle capability list differs from linked IR");
         goto failed;
     }
-    uint32_t next_capability = 0;
-    for(int m = 0; m < own_modules; m++)
-        for(int i = 0; i < program->modules[m].import_count; i++)
-            if(program->modules[m].imports[i].kind == ZIR_IMPORT_EXTERN &&
-               (program->modules[m].imports[i].extern_kind != ZIR_EXTERN_HOST ||
-                strncmp(program->modules[m].imports[i].target,
-                        "ziran:", 6) != 0) &&
-               own_import_is_called(&program->modules[m],
-                                &program->modules[m].imports[i])) {
-                if(strcmp(capabilities[next_capability].module,
-                          program->modules[m].name) != 0 ||
-                   strcmp(capabilities[next_capability].function,
-                          program->modules[m].imports[i].name) != 0) {
-                    problem = "bundle capability list differs from linked IR";
-                    goto failed;
-                }
-                next_capability++;
-            }
-    if(laws && !*trusted && (problem = laws_differ(program, own_modules, laws)) != NULL)
+    const char *difference;
+    if(!*trusted && (difference = laws_differ(program, own_modules, laws)) != NULL) {
+        problem = TEXT(difference);
         goto failed;
+    }
     fclose(payload);
-    free(payload_bytes);
+    payload = NULL;
+    if(!adopt_assets(assets, bytes, items, (size_t)layout.assets))
+        goto failed;
+    free(items);
+    free(decoded_waivers);
+    free(decoded_laws);
+    free(linked);
     free(capabilities);
     if(discard_laws) ZxLawTableFree(&discarded);
     if(discard_assets) ZxAssetsFree(&discarded_assets);
     if(own_module_count != NULL) *own_module_count = own_modules;
-    if(own_capability_count != NULL) *own_capability_count = capability_count;
+    if(own_capability_count != NULL) *own_capability_count = (size_t)layout.capabilities;
     return program;
 failed:
     if(*trusted)
         *trusted = 0;
     else
-        Diagnostic(Span(path, 1, 1), "zx.invalid", "%s", problem);
+        Diagnostic(Span(path, 1, 1), "zx.invalid", "%.*s", (int)problem.length, problem.data);
     if(payload != NULL)
         fclose(payload);
-    free(payload_bytes);
+    free(bytes);
+    free(items);
+    free(decoded_waivers);
+    free(decoded_laws);
+    free(linked);
     free(capabilities);
     ProgramFree(program);
     ZxAssetsFree(assets);

@@ -1,0 +1,322 @@
+#import "compiler_bundle"
+
+// One record of each table and an empty and a binary asset around a 3-byte IR.
+Sample :: (output: []u8) -> s64 {
+    capabilities: [2]Capability = .{.{"app", "Draw"}, .{"host", "Clock"}}
+    laws: [1]Law = .{.{"app", "Total", "property", "proved", "sums agree", "exhaustive", "",
+        0x100000002, "x = 1", true}}
+    waivers: [1]Waiver = .{.{"app", "Slow", "measured"}}
+    at := EncodeHeader(output, .{false, "app", "main", capabilities[:], laws[:], waivers[:], 3})
+    if at < 0 || at + 3 > output.count { return -1 }
+    output[at] = #char "I"
+    output[at + 1] = #char "R"
+    output[at + 2] = #char "!"
+    at += 3
+    assets: [2]Asset = .{.{"assets/a", ""}, .{"assets/b/c", "\x00\xc3\xbf"}}
+    size := EncodeAssets(output[at:output.count], assets[:])
+    if size < 0 { return -1 }
+    return at + size
+}
+
+// A header for a one-byte IR, that IR, then SECTION as the asset bytes.
+WithSection :: (output: []u8, section: string) -> s64 {
+    capabilities: []Capability
+    laws: []Law
+    waivers: []Waiver
+    at := EncodeHeader(output, .{false, "m", "f", capabilities, laws, waivers, 1})
+    output[at] = 0
+    at += 1
+    for byte: section {
+        output[at] = byte
+        at += 1
+    }
+    return at
+}
+
+Invalid :: (bytes: []u8, size: s64) -> bool {
+    capabilities: [2]Capability
+    laws: [1]Law
+    waivers: [1]Waiver
+    assets: [2]Asset
+    return Decode(TextView(bytes[0:size]), capabilities[:], laws[:], waivers[:], assets[:]).problem ==
+        Problem.Invalid
+}
+
+// The documented layout, word for word.
+Format :: () -> bool {
+    bytes: [64]u8
+    capabilities: []Capability
+    laws: []Law
+    waivers: []Waiver
+    header := Header.{true, "m", "f", capabilities, laws, waivers, 1}
+    if EncodeHeader(bytes[0:0], header) != 34 || bytes[0] != 0 { return false }
+    if EncodeHeader(bytes[:], header) != 34 { return false }
+    expected := "ZX\x00\x00\x1b\x00\x00\x00\x01\x00\x00\x00m\x01\x00\x00\x00f\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01\x00\x00\x00"
+    if TextView(bytes[0:34]) != expected { return false }
+    assets: []Asset
+    if EncodeAssets(bytes[34:64], assets) != 4 || TextView(bytes[34:38]) != "\x00\x00\x00\x00" { return false }
+    layout := Decode(TextView(bytes[0:34]), capabilities, laws, waivers, assets)
+    return layout.problem == Problem.Invalid && ProgramEnd(TextView(bytes[0:34])) == 35
+}
+
+RoundTrip :: () -> bool {
+    bytes: [512]u8
+    size := Sample(bytes[:])
+    if size <= 0 { return false }
+    data := TextView(bytes[0:size])
+    capabilities: [2]Capability
+    laws: [1]Law
+    waivers: [1]Waiver
+    assets: [2]Asset
+    layout := Decode(data, capabilities[:], laws[:], waivers[:], assets[:])
+    if layout.problem != Problem.None || layout.partial || layout.entry_module != "app" ||
+    layout.entry_function != "main" || layout.capabilities != 2 || layout.laws != 1 ||
+    layout.waivers != 1 || layout.assets != 2 || data[layout.program:layout.program_end] != "IR!" { return false }
+    if capabilities[0].module != "app" || capabilities[0].function != "Draw" ||
+    capabilities[1].module != "host" || capabilities[1].function != "Clock" { return false }
+    law := laws[0]
+    if law.module != "app" || law.name != "Total" || law.kind != "property" || law.status != "proved" ||
+    law.detail != "sums agree" || law.method != "exhaustive" || law.domain != "" ||
+    law.cases != 0x100000002 || law.counterexample != "x = 1" || !law.waived { return false }
+    if waivers[0].module != "app" || waivers[0].name != "Slow" || waivers[0].reason != "measured" { return false }
+    if assets[0].name != "assets/a" || assets[0].data != "" ||
+    assets[1].name != "assets/b/c" || assets[1].data != "\x00\xc3\xbf" { return false }
+    if ProgramEnd(data) != layout.program_end { return false }
+    // Short storage still counts every record.
+    counted := Decode(data, capabilities[0:1], laws[0:0], waivers[0:0], assets[0:1])
+    if counted.problem != Problem.None || counted.capabilities != 2 || counted.laws != 1 ||
+    counted.assets != 2 || counted.program_end != layout.program_end { return false }
+    // Every prefix is invalid; only a cut inside the header asks for more bytes.
+    for length: 0..size - 1 {
+        if !Invalid(bytes[:], length) { return false }
+        end := ProgramEnd(data[0:length])
+        if (length < layout.program && end != 0) || (length >= layout.program && end != layout.program_end) { return false }
+    }
+    // Sample writes only its own bytes, so a zero follows the bundle.
+    return Invalid(bytes[:], size + 1)
+}
+
+// The whole section from the old C stream test: an empty and a binary asset.
+Whole :: (bytes: []u8, size: s64) -> bool {
+    capabilities: []Capability
+    laws: []Law
+    waivers: []Waiver
+    assets: [2]Asset
+    layout := Decode(TextView(bytes[0:size]), capabilities, laws, waivers, assets[:])
+    return layout.problem == Problem.None && layout.assets == 2 && assets[0].name == "a" &&
+        assets[0].data.count == 0 && assets[1].name == "b" && assets[1].data == "\x00\xc3\xbf"
+}
+
+// Its truncations, oversized words and broken orders or names never decode.
+Sections :: () -> bool {
+    section := "\x02\x00\x00\x00\x01\x00\x00\x00a\x00\x00\x00\x00\x01\x00\x00\x00b\x03\x00\x00\x00\x00\xc3\xbf"
+    bytes: [128]u8
+    for length: 0..section.count - 1 {
+        if !Invalid(bytes[:], WithSection(bytes[:], section[0:length])) { return false }
+    }
+    if !Whole(bytes[:], WithSection(bytes[:], section)) { return false }
+    offsets: [5]s64 = .{0, 4, 9, 13, 18}
+    for offset: offsets {
+        size := WithSection(bytes[:], section)
+        for index: 0..3 { bytes[size - section.count + offset + index] = 255 }
+        if !Invalid(bytes[:], size) { return false }
+    }
+    broken: [3]string = .{
+        "\x02\x00\x00\x00\x01\x00\x00\x00b\x00\x00\x00\x00\x01\x00\x00\x00a\x00\x00\x00\x00",
+        "\x02\x00\x00\x00\x01\x00\x00\x00a\x00\x00\x00\x00\x01\x00\x00\x00a\x00\x00\x00\x00",
+        "\x01\x00\x00\x00\x03\x00\x00\x00a\x00b\x00\x00\x00\x00"}
+    for text: broken { if !Invalid(bytes[:], WithSection(bytes[:], text)) { return false } }
+    return true
+}
+
+Names :: () -> bool {
+    good: [5]string = .{"a", "assets/a.bin", "a/b/c", ".hidden/x", "a..b"}
+    for name: good { if !AssetName(name) { return false } }
+    bad: [10]string = .{"", "/a", "a/", "a//b", ".", "..", "a/../b", "a\\b", "c:a", "./a"}
+    bytes: [128]u8
+    for name: bad {
+        if AssetName(name) { return false }
+        assets: [1]Asset = .{.{name, "x"}}
+        if EncodeAssets(bytes[:], assets[:]) != -1 { return false }
+        if name.count > 0 {
+            section: [64]u8
+            at: s64 = 0
+            words: [2]s64 = .{1, name.count}
+            for word: words {
+                section[at] = cast(u8)word
+                at += 4
+            }
+            for byte: name {
+                section[at] = byte
+                at += 1
+            }
+            at += 4
+            if !Invalid(bytes[:], WithSection(bytes[:], TextView(section[0:at]))) { return false }
+        }
+    }
+    unsorted: [2]Asset = .{.{"b", ""}, .{"a", ""}}
+    repeated: [2]Asset = .{.{"a", ""}, .{"a", ""}}
+    sorted: [3]Asset = .{.{"a", ""}, .{"a/b", ""}, .{"ab", ""}}
+    return EncodeAssets(bytes[:], unsorted[:]) == -1 && EncodeAssets(bytes[:], repeated[:]) == -1 &&
+        EncodeAssets(bytes[:], sorted[:]) == 4 + 3 * 8 + 1 + 3 + 2
+}
+
+// Every string field holds the bytes its reader accepts, and no more.
+Limits :: () -> bool {
+    long: [4096]u8
+    for index: 0..4095 { long[index] = #char "a" }
+    capabilities: []Capability
+    laws: []Law
+    waivers: []Waiver
+    output: []u8
+    names: [5]string = .{"", "a\x00b", TextView(long[0:128]), TextView(long[0:127]), "m"}
+    expected: [5]s64 = .{-1, -1, -1, 0, 0}
+    for name, index: names {
+        size := EncodeHeader(output, .{false, name, "f", capabilities, laws, waivers, 1})
+        if (expected[index] == -1) != (size == -1) { return false }
+    }
+    if EncodeHeader(output, .{false, "m", "f", capabilities, laws, waivers, 0}) != -1 ||
+    EncodeHeader(output, .{false, "m", "f", capabilities, laws, waivers, 268435457}) != -1 ||
+    EncodeHeader(output, .{false, "m", "f", capabilities, laws, waivers, 268435456}) != 34 { return false }
+    fields: [6]Law = .{
+        .{"m", "n", TextView(long[0:16]), "s", "d", "e", "", 0, "", false},
+        .{"m", "n", "k", "s", TextView(long[0:128]), "e", "", 0, "", false},
+        .{"m", "n", "k", "s", "d", "e", TextView(long[0:4096]), 0, "", false},
+        .{"m", "n", "k", "s", "d", "", "", 0, "", false},
+        .{"m", "n", "k", "s", "d", "e", "", 0, "a\x00", false},
+        .{"m", "n", TextView(long[0:15]), "s", TextView(long[0:127]), "e", TextView(long[0:4095]), 0,
+            TextView(long[0:4095]), false}}
+    for index: 0..5 {
+        size := EncodeHeader(output, .{false, "m", "f", capabilities, fields[index:index + 1], waivers, 1})
+        if (index == 5) != (size > 0) { return false }
+    }
+    waiver: [1]Waiver = .{.{"m", "n", TextView(long[0:128])}}
+    return EncodeHeader(output, .{false, "m", "f", capabilities, laws, waiver[:], 1}) == -1
+}
+
+Put :: (bytes: []u8, at: s64, value: u32) {
+    bytes[at] = cast(u8)(value & 255)
+    bytes[at + 1] = cast(u8)((value >> 8) & 255)
+    bytes[at + 2] = cast(u8)((value >> 16) & 255)
+    bytes[at + 3] = cast(u8)(value >> 24)
+}
+
+// Header words a reader must refuse, and what ProgramEnd says of them.
+Words :: () -> bool {
+    bytes: [128]u8
+    capabilities: []Capability
+    laws: []Law
+    waivers: []Waiver
+    assets: []Asset
+    // 4 version, 8 module length, 13 function length, 18 capabilities,
+    // 22 laws, 26 waivers, 30 IR length.
+    cases: [9]s64 = .{4, 4, 0, 8, 12, 18, 22, 30, 30}
+    values: [9]u32 = .{25, 28, 0x585b, 0, 0, 4097, 262145, 0, 268435457}
+    problems: [9]Problem = .{Problem.Version, Problem.Version, Problem.Invalid, Problem.Invalid,
+        Problem.Invalid, Problem.Capabilities, Problem.Invalid, Problem.Invalid, Problem.Invalid}
+    for at, index: cases {
+        size := WithSection(bytes[:], "\x00\x00\x00\x00")
+        if at == 12 { bytes[12] = 0 } else { Put(bytes[:], at, values[index]) }
+        data := TextView(bytes[0:size])
+        problem := Decode(data, capabilities, laws, waivers, assets).problem
+        if problem != problems[index] || ProgramEnd(data) != -1 { return false }
+    }
+    if Message(Problem.Version) != "unsupported ZX version" ||
+    Message(Problem.Capabilities) != "bundle has too many host capabilities" ||
+    Message(Problem.Invalid) != "invalid or truncated bundle" { return false }
+    // A count the bytes do not hold yet is a short header, not a bad one.
+    WithSection(bytes[:], "\x00\x00\x00\x00")
+    Put(bytes[:], 18, 4096)
+    if ProgramEnd(TextView(bytes[0:22])) != 0 { return false }
+    // A waived word other than 0 or 1 is malformed.
+    one: [1]Law = .{.{"m", "n", "k", "s", "d", "e", "", 0, "", true}}
+    size := EncodeHeader(bytes[:], .{false, "m", "f", capabilities, one[:], waivers, 1})
+    if size <= 0 { return false }
+    Put(bytes[:], size - 12, 2)
+    if ProgramEnd(TextView(bytes[0:size])) != -1 { return false }
+    Put(bytes[:], size - 12, 1)
+    return ProgramEnd(TextView(bytes[0:size])) == size + 1 && ProgramEnd("") == 0
+}
+
+#program_export
+Answer :: () -> s32 {
+    if !Format() { return 1 }
+    if !RoundTrip() { return 2 }
+    if !Sections() { return 3 }
+    if !Names() { return 4 }
+    if !Limits() { return 5 }
+    if !Words() { return 6 }
+    return 42
+}
+
+Least :: (left: s64, right: s64) -> s64 {
+    if left < right { return left }
+    return right
+}
+Mix :: (result: u32, value: u32) -> u32 { return result * cast(u32)16777619 ^ value }
+MixText :: (result: u32, text: string) -> u32 {
+    mixed := Mix(result, cast(u32)text.count)
+    for byte: text { mixed = Mix(mixed, cast(u32)byte) }
+    return mixed
+}
+
+// Hashes what a reader makes of DATA: the problem, the IR bounds and,
+// for a whole bundle, every decoded field.
+Digest :: (result: u32, data: string) -> u32 {
+    capabilities: [2]Capability
+    laws: [1]Law
+    waivers: [1]Waiver
+    assets: [2]Asset
+    layout := Decode(data, capabilities[:], laws[:], waivers[:], assets[:])
+    mixed := Mix(Mix(result, cast(u32)layout.problem), cast(u32)(ProgramEnd(data) + 1))
+    if layout.problem != Problem.None { return mixed }
+    mixed = Mix(mixed, cast(u32)layout.partial)
+    mixed = MixText(MixText(mixed, layout.entry_module), layout.entry_function)
+    mixed = Mix(Mix(mixed, cast(u32)layout.program), cast(u32)layout.program_end)
+    for capability: capabilities[0:Least(layout.capabilities, capabilities.count)] {
+        mixed = MixText(MixText(mixed, capability.module), capability.function)
+    }
+    for law: laws[0:Least(layout.laws, laws.count)] {
+        texts: [8]string = .{law.module, law.name, law.kind, law.status, law.detail,
+            law.method, law.domain, law.counterexample}
+        for text: texts { mixed = MixText(mixed, text) }
+        mixed = Mix(Mix(mixed, cast(u32)(law.cases & 0xffffffff)), cast(u32)(law.cases >> 32))
+        mixed = Mix(mixed, cast(u32)law.waived)
+    }
+    for waiver: waivers[0:Least(layout.waivers, waivers.count)] {
+        mixed = MixText(MixText(MixText(mixed, waiver.module), waiver.name), waiver.reason)
+    }
+    for asset: assets[0:Least(layout.assets, assets.count)] { mixed = MixText(MixText(mixed, asset.name), asset.data) }
+    return mixed
+}
+
+// Damaged and cut copies of the sample, and random asset names.
+#program_export
+Fingerprint :: () -> s64 {
+    sample: [512]u8
+    size := Sample(sample[:])
+    bytes: [512]u8
+    state: u32 = 314159
+    result: u32 = 2166136261
+    alphabet := "ab./\\:"
+    for round: 0..399 {
+        for index: 0..size - 1 { bytes[index] = sample[index] }
+        state = state * cast(u32)1664525 + cast(u32)1013904223
+        length := size - cast(s64)(state >> 16) % 8
+        for 0..round % 3 {
+            state = state * cast(u32)1664525 + cast(u32)1013904223
+            bytes[cast(s64)(state >> 8) % size] = cast(u8)(state >> 24)
+        }
+        result = Digest(result, TextView(bytes[0:length]))
+        name: [12]u8
+        count := round % 12
+        for index: 0..count - 1 {
+            state = state * cast(u32)1664525 + cast(u32)1013904223
+            name[index] = alphabet[cast(s64)(state >> 16) % alphabet.count]
+        }
+        result = Mix(result, cast(u32)AssetName(TextView(name[0:count])))
+    }
+    return cast(s64)result
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

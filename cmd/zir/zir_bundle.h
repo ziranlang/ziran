@@ -21,15 +21,16 @@ typedef struct ZxAsset {
     uint32_t size;
 } ZxAsset;
 
+/* Assets read from a bundle share one STORAGE block; collected ones own
+ * their data. */
 typedef struct ZxAssets {
     ZxAsset *items;
     size_t count;
+    unsigned char *storage;
 } ZxAssets;
 
 void ZxAssetsFree(ZxAssets *assets);
 int ZxAssetsCollect(ZxAssets *assets, const char *spec);
-int ZxAssetsWrite(FILE *out, const ZxAssets *assets);
-int ZxAssetsRead(FILE *in, ZxAssets *assets);
 /* Serialize an immutable checked program's portable view directly to OUT.
  * Native templates stay in the source graph; no seeking or temporary payload
  * stream is needed. The program must remain unchanged during measurement/write. */
@@ -101,12 +102,12 @@ const ZirFunction *BundleEntry(const Bundle *bundle);
 /* Instances opened after this run on the portable VM when ENABLED, even
  * where compiled code is available (`zi2zx run --vm`). */
 void BundleUsePortableVm(int enabled);
-/* Native engine builds: the SHA-256 naming the bundle's compiled code, and
 /* Lets the bundle's procedure #asm variants run as native code. Call it
  * only for a bundle built from local source in this process, as
  * `zi2zx run FILE.zi` does; it does nothing for a bundle that links
  * libraries. Every other bundle runs each procedure's portable body. */
 void BundleTrustNativeAssembly(Bundle *bundle);
+/* Native engine builds: the SHA-256 naming the bundle's compiled code, and
  * its program written as C that a host links ahead of time
  * (ZxNativeWriteLinked), which returns that identity too. */
 void BundleIdentity(const Bundle *bundle, unsigned char identity[32]);

@@ -2,28 +2,12 @@
 #include "zir_files.h"
 #include "zir_bundle.h"
 #include "zir_diagnostic.h"
+#include "compiler_bundle.h"
 #include <dirent.h>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
-
-static int
-asset_name(const char *name)
-{
-    if(name == NULL || *name == '\0') return 0;
-    const char *part = name;
-    for(const char *p = name;; p++) {
-        if(*p == '\\' || *p == ':') return 0;
-        if(*p == '/' || *p == '\0') {
-            size_t n = (size_t)(p - part);
-            if(n == 0 || (n == 1 && part[0] == '.') ||
-               (n == 2 && part[0] == '.' && part[1] == '.')) return 0;
-            if(*p == '\0') return 1;
-            part = p + 1;
-        }
-    }
-}
 
 void
 ZxAssetsFree(ZxAssets *assets)
@@ -31,8 +15,9 @@ ZxAssetsFree(ZxAssets *assets)
     if(assets == NULL) return;
     for(size_t i = 0; i < assets->count; i++) {
         free(assets->items[i].name);
-        free(assets->items[i].data);
+        if(assets->storage == NULL) free(assets->items[i].data);
     }
+    free(assets->storage);
     free(assets->items);
     memset(assets, 0, sizeof(*assets));
 }
@@ -55,7 +40,8 @@ static int
 collect_path(ZxAssets *assets, const char *name, const char *path)
 {
     struct stat stat;
-    if(!asset_name(name) || FileStatusNoLinks(path, &stat) != 0) return 0;
+    if(!compiler_bundle_AssetName(StringView(name, strlen(name))) ||
+       FileStatusNoLinks(path, &stat) != 0) return 0;
     if(S_ISDIR(stat.st_mode)) {
         DIR *dir = opendir(path);
         if(dir == NULL) return 0;
@@ -118,87 +104,4 @@ ZxAssetsCollect(ZxAssets *assets, const char *spec)
             if(!strcmp(assets->items[i - 1].name, assets->items[i].name)) return 0;
     }
     return ok;
-}
-
-static int
-write_size(FILE *out, uint32_t size)
-{
-    unsigned char bytes[4] = {(unsigned char)size, (unsigned char)(size >> 8),
-        (unsigned char)(size >> 16), (unsigned char)(size >> 24)};
-    return fwrite(bytes, 1, 4, out) == 4;
-}
-
-static int
-read_size(FILE *in, uint32_t *size)
-{
-    unsigned char bytes[4];
-    if(fread(bytes, 1, 4, in) != 4) return 0;
-    *size = (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 |
-        (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
-    return 1;
-}
-
-int
-ZxAssetsWrite(FILE *out, const ZxAssets *assets)
-{
-    size_t count = assets != NULL ? assets->count : 0;
-    if(count > UINT32_MAX || !write_size(out, (uint32_t)count)) return 0;
-    for(size_t i = 0; i < count; i++) {
-        const ZxAsset *item = &assets->items[i];
-        size_t n = strlen(item->name);
-        if(n > UINT32_MAX || !asset_name(item->name) ||
-           (i > 0 && strcmp(assets->items[i - 1].name, item->name) >= 0) ||
-           !write_size(out, (uint32_t)n) || fwrite(item->name, 1, n, out) != n ||
-           !write_size(out, item->size) ||
-           fwrite(item->data, 1, item->size, out) != item->size) return 0;
-    }
-    return 1;
-}
-
-/* Resources are the last section. Measure it once, rather than seeking to
- * the end twice per resource (which also discards stdio's read buffer). */
-static int
-section_size(FILE *in, size_t *size)
-{
-    long start = ftell(in);
-    if(start < 0 || fseek(in, 0, SEEK_END) != 0) return 0;
-    long end = ftell(in);
-    if(fseek(in, start, SEEK_SET) != 0) return 0;
-    if(end < start || (uint64_t)(end - start) > SIZE_MAX) return 0;
-    *size = (size_t)(end - start);
-    return 1;
-}
-
-int
-ZxAssetsRead(FILE *in, ZxAssets *assets)
-{
-    uint32_t count;
-    size_t size;
-    if(!read_size(in, &count) || !section_size(in, &size) ||
-       (uint64_t)count * 9 > size ||
-       (uint64_t)count > SIZE_MAX / sizeof(*assets->items)) return 0;
-    if(count == 0) return 1;
-    assets->items = calloc(count, sizeof(*assets->items));
-    if(assets->items == NULL) return 0;
-    for(uint32_t i = 0; i < count; i++) {
-        ZxAsset *item = &assets->items[i];
-        assets->count++;
-        uint32_t n;
-        if(size < 4 || !read_size(in, &n)) return 0;
-        size -= 4;
-        if(n == 0 || (uint64_t)n + 1 > SIZE_MAX ||
-           (uint64_t)n + 4 > size) return 0;
-        item->name = malloc((size_t)n + 1);
-        if(item->name == NULL || fread(item->name, 1, n, in) != n) return 0;
-        item->name[n] = '\0';
-        size -= n + (size_t)4;
-        if(memchr(item->name, 0, n) != NULL || !asset_name(item->name) ||
-           (i > 0 && strcmp(assets->items[i - 1].name, item->name) >= 0) ||
-           !read_size(in, &item->size) || item->size > size) return 0;
-        item->data = malloc(item->size ? item->size : 1);
-        if(item->data == NULL || fread(item->data, 1, item->size, in) != item->size)
-            return 0;
-        size -= item->size;
-    }
-    return 1;
 }

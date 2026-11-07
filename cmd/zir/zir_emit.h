@@ -137,6 +137,8 @@ void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);
 void GoSimdBegin(void);
 void GoSimdCollect(const char *text);
 int GoSimdWrite(const char *out_dir, const char *pkg);
+/* Writes every value helper and its reference form, for tests/simd_go.sh. */
+int GoSimdWriteCheck(const char *out_dir, const char *pkg);
 /* A native program entry has a typed Ziran body plus a standard main adapter. */
 int NativeProgramMain(const ZirModule *module, const ZirFunction *fn);
 int CheckNativeEntry(const ZirFunction *fn, const char *target);

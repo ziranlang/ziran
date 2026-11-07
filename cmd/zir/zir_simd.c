@@ -101,6 +101,12 @@ SimdLaneKind(const ZirVector *vector)
 }
 
 const SimdOp *
+SimdOpAt(int index)
+{
+    return index >= 0 && (size_t)index < OP_COUNT ? &ops[index] : NULL;
+}
+
+const SimdOp *
 SimdOpNamed(const char *name)
 {
     for(size_t i = 0; name != NULL && i < OP_COUNT; i++)

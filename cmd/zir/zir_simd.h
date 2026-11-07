@@ -33,6 +33,8 @@ typedef struct SimdOp {
 
 /* Lane kind of a vector, ZI_K_U8 .. ZI_K_F64, or -1. */
 int SimdLaneKind(const ZirVector *vector);
+/* The operation at index, from 0, or NULL past the last. */
+const SimdOp *SimdOpAt(int index);
 /* A source name in std/simd, or NULL. */
 const SimdOp *SimdOpNamed(const char *name);
 /* A checked call name, or NULL. */

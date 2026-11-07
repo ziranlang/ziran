@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""Generate include/ziran_simd_ops.h, the typed C helpers for std/simd, and
-include/ziran_simd_types.h, the vector types alone.
+"""Generate include/ziran_simd_ops.h, the typed C helpers for std/simd,
+include/ziran_simd_types.h, the vector types alone, and
+cmd/zir/zir_simd_go_bodies.h, the typed Go helpers zi2go writes.
 
     python3 scripts/simd_header.py > include/ziran_simd_ops.h
     python3 scripts/simd_header.py --types > include/ziran_simd_types.h
+    python3 scripts/simd_header.py --go > cmd/zir/zir_simd_go_bodies.h
     python3 scripts/simd_header.py --test > build/simd_ops_test.c
 
 Every helper computes exactly what zi_ref in include/ziran_simd.h does. GCC
@@ -13,7 +15,7 @@ build (TinyCC, ZIRAN_SIMD_SCALAR) runs plain C over each type's own lanes.
 TinyCC on x86-64 runs every helper as an inline macro, the common integer
 ones as SSE2 assembly.
 --test writes a program that checks every helper, in every x86-64 tier the
-build can run, against zi_ref.
+build can run, against zi_ref; tests/simd_go.sh checks the Go helpers.
 """
 import random
 import re
@@ -2747,12 +2749,453 @@ def test_macros(prefix, tier, rng):
     return cases
 
 
+# ---------------------------------------------------------------- Go
+
+# zi2go writes each std/simd helper a Go package calls into ziran_simd.go.
+# Value helpers get these typed bodies: straight-line over each lane, or a
+# loop for more than eight lanes of one per-lane expression, so the Go
+# compiler inlines the common ones. zir_emit_simd_go.c builds each
+# signature, naming the parameters a, b, m (Select's mask), n (a count),
+# i (a lane index), l (a lane value), k0.. (Shuffle) and l0.. (Make).
+# Floating-point lanes convert each result to their own type, which keeps
+# Go from fusing a multiply and an add across inlined helpers.
+
+GO_LANE = {'u8': 'uint8', 's8': 'int8', 'u16': 'uint16', 's16': 'int16', 'u32': 'uint32',
+           's32': 'int32', 'u64': 'uint64', 's64': 'int64', 'f32': 'float32', 'f64': 'float64'}
+GO_HELPERS = {}  # lane function name: its Go text
+
+
+def go_lane(t):
+    return GO_LANE[t.lane]
+
+
+def go_vec(t):
+    return '[%d]%s' % (t.lanes, go_lane(t))
+
+
+def go_func(name, params, ret, body):
+    GO_HELPERS.setdefault(name, 'func %s(%s) %s {\n%s}\n' % (name, params, ret, body))
+    return name
+
+
+def go_lane_fn(kind, t, params, ret, body):
+    return go_func('zi_go_%s_%s' % (kind, t.lane), params, ret, body)
+
+
+def go_minmax(t, less):
+    c = '<' if less else '>'
+    return go_lane_fn('min' if less else 'max', t, 'x, y %s' % go_lane(t), go_lane(t),
+                      '\tif x %s y {\n\t\treturn x\n\t}\n\treturn y\n' % c)
+
+
+def go_sat(r):
+    """r's lane clamped from an int64."""
+    hi = (1 << (r.bits - 1)) - 1 if r.signed else (1 << r.bits) - 1
+    lo = -(1 << (r.bits - 1)) if r.signed else 0
+    return go_lane_fn('sat', r, 'v int64', go_lane(r),
+                      '\tif v < %d {\n\t\treturn %d\n\t}\n\tif v > %d {\n\t\treturn %d\n\t}\n\treturn %s(v)\n' %
+                      (lo, lo, hi, hi, go_lane(r)))
+
+
+def go_sat_unsigned(r):
+    """r's lane clamped from a uint64."""
+    hi = (1 << (r.bits - 1)) - 1 if r.signed else (1 << r.bits) - 1
+    return go_lane_fn('satu', r, 'v uint64', go_lane(r),
+                      '\tif v > %d {\n\t\treturn %d\n\t}\n\treturn %s(v)\n' % (hi, hi, go_lane(r)))
+
+
+def go_mask(r):
+    full = '-1' if r.signed else '^%s(0)' % go_lane(r)
+    return go_lane_fn('mask', r, 'yes bool', go_lane(r),
+                      '\tif yes {\n\t\treturn %s\n\t}\n\treturn 0\n' % full)
+
+
+def go_abs(t):
+    return go_lane_fn('abs', t, 'x %s' % go_lane(t), go_lane(t),
+                      '\tif x < 0 {\n\t\treturn -x\n\t}\n\treturn x\n')
+
+
+def go_sign(t):
+    return go_lane_fn('sign', t, 'x, s %s' % go_lane(t), go_lane(t),
+                      '\tif s < 0 {\n\t\treturn -x\n\t}\n\tif s == 0 {\n\t\treturn 0\n\t}\n\treturn x\n')
+
+
+def go_abs_diff(t):
+    u = go_lane(t.u)
+    x, y = ('%s(x)' % u, '%s(y)' % u) if t.signed else ('x', 'y')
+    return go_lane_fn('abs_diff', t, 'x, y %s' % go_lane(t), u,
+                      '\tif x < y {\n\t\treturn %s - %s\n\t}\n\treturn %s - %s\n' % (y, x, x, y))
+
+
+def go_to_int(t, r):
+    """A float lane truncated to r's integers, saturated, NaN as 0."""
+    name = 'zi_go_%s_%s' % (t.lane, r.lane)
+    lane = go_lane(r)
+    if r.signed:
+        limit = 1 << (r.bits - 1)
+        body = ('\tif v != v {\n\t\treturn 0\n\t}\n\tif v >= %d {\n\t\treturn math.MaxInt%d\n\t}\n'
+                '\tif v <= -%d {\n\t\treturn math.MinInt%d\n\t}\n\treturn %s(v)\n' %
+                (limit, r.bits, limit, r.bits, lane))
+    else:
+        body = ('\tif !(v > 0) {\n\t\treturn 0\n\t}\n\tif v >= %d {\n\t\treturn math.MaxUint%d\n\t}\n'
+                '\treturn %s(v)\n' % (1 << r.bits, r.bits, lane))
+    return go_func(name, 'v %s' % go_lane(t), lane, body)
+
+
+def go_bits(t, x):
+    """Lane x of t as an unsigned integer of its width."""
+    if t.float:
+        return 'math.Float%dbits(%s)' % (t.bits, x)
+    return 'uint%d(%s)' % (t.bits, x) if t.signed else x
+
+
+def go_from_bits(r, x, width):
+    """A lane of r from x, an unsigned integer `width` bits wide."""
+    if r.float:
+        if width != r.bits:
+            x = 'uint%d(%s)' % (r.bits, x)
+        return 'math.Float%dfrombits(%s)' % (r.bits, x)
+    if width == r.bits and not r.signed:
+        return x
+    return '%s(%s)' % (go_lane(r), x)
+
+
+def go_list(prefix, items, suffix):
+    """prefix{items}suffix, one line if it is short, else wrapped."""
+    line = '%s{%s}%s' % (prefix, ', '.join(items), suffix)
+    if len(line) <= 96:
+        return '\t' + line + '\n'
+    rows, row = [], ''
+    for item in items:
+        if row and len(row) + len(item) + 2 > 88:
+            rows.append(row)
+            row = ''
+        row += ('' if not row else ' ') + item + ','
+    rows.append(row)
+    return '\t%s{\n%s\t}%s\n' % (prefix, ''.join('\t\t%s\n' % r for r in rows), suffix)
+
+
+def go_pick(r, expr, setup=''):
+    """setup, then a return of r with lane j set to expr(j)."""
+    return setup + go_list('return ' + go_vec(r), [expr(j) for j in range(r.lanes)], '')
+
+
+def go_map(r, expr, setup=''):
+    """go_pick for an expression the same for every lane j, given as expr('j')
+    in a loop past eight lanes."""
+    if r.lanes <= 8:
+        return go_pick(r, expr, setup)
+    return (setup + '\tvar r %s\n\tfor j := range r {\n\t\tr[j] = %s\n\t}\n\treturn r\n' %
+            (go_vec(r), expr('j')))
+
+
+def go_word(t, v, w):
+    """64-bit word w of vector v of t, its lanes little-endian."""
+    per = 64 // t.bits
+    terms = []
+    for j in range(per):
+        x = go_bits(t, '%s[%d]' % (v, w * per + j))
+        if t.bits < 64:
+            x = 'uint64(%s)' % x
+        terms.append(x if j == 0 else '%s<<%d' % (x, t.bits * j))
+    return ' | '.join(terms)
+
+
+def go_from_words(r, words):
+    """Lanes of r from 64-bit words, little-endian."""
+    per = 64 // r.bits
+
+    def lane(j):
+        y, shift = words[j // per], r.bits * (j % per)
+        return go_from_bits(r, '%s >> %d' % (y, shift) if shift else y, 64)
+    return lane
+
+
+def go_reinterpret(t, r):
+    if r.bits == t.bits:
+        return go_map(r, lambda i: go_from_bits(r, go_bits(t, 'a[%s]' % i), t.bits))
+    if r.bits > t.bits:
+        per = r.bits // t.bits
+        u = 'uint%d' % r.bits
+
+        def wide(j):
+            terms = []
+            for k in range(per):
+                x = '%s(%s)' % (u, go_bits(t, 'a[%d]' % (j * per + k)))
+                terms.append(x if k == 0 else '%s<<%d' % (x, t.bits * k))
+            return go_from_bits(r, ' | '.join(terms), r.bits)
+        return go_pick(r, wide)
+    per = t.bits // r.bits
+
+    def narrow(j):
+        x, shift = 'a[%d]' % (j // per), r.bits * (j % per)
+        if t.float or r.float:
+            x = go_bits(t, x)
+        if shift:
+            x = '%s >> %d' % (x, shift)
+        return go_from_bits(r, x, t.bits)
+    return go_pick(r, narrow)
+
+
+def go_byte_shift(t, kind):
+    """ShiftBytesLeft, ShiftBytesRight or AlignBytes on each 128-bit block as
+    two 64-bit words, through Go's shifts, which give 0 for a count of 64 or
+    more."""
+    lines = ['\ts := uint(n) * 8\n']
+    words = []
+    for block in range(2 if t.wide else 1):
+        x0, x1 = 2 * block, 2 * block + 1
+        lines.append('\tx%d := %s\n\tx%d := %s\n' % (x0, go_word(t, 'a', x0), x1, go_word(t, 'a', x1)))
+        y0, y1 = 'y%d' % x0, 'y%d' % x1
+        if kind == 'shr':
+            lines.append('\t%s := x%d>>s | x%d<<(64-s) | x%d>>(s-64)\n\t%s := x%d >> s\n' %
+                         (y0, x0, x1, x1, y1, x1))
+        elif kind == 'shl':
+            lines.append('\t%s := x%d << s\n\t%s := x%d<<s | x%d>>(64-s) | x%d<<(s-64)\n' %
+                         (y0, x0, y1, x1, x0, x0))
+        else:
+            # AlignBytes(a, b, n): the 32 bytes b:a from byte n.
+            lines.append('\tz%d := %s\n\tz%d := %s\n' % (x0, go_word(t, 'b', x0), x1, go_word(t, 'b', x1)))
+            lines.append('\t%s := z%d>>s | z%d<<(64-s) | z%d>>(s-64) | x%d<<(128-s)\n' % (y0, x0, x1, x1, x0))
+            lines.append('\t%s := z%d>>s | x%d<<(64-s) | x%d>>(s-64) | x%d<<(128-s)\n' % (y1, x1, x0, x0, x1))
+        words += [y0, y1]
+    return ''.join(lines) + go_pick(t, go_from_words(t, words))
+
+
+def go_reduce(t, kind):
+    if kind == 'add':
+        if t.lanes > 8:
+            return '\tvar s %s\n\tfor _, v := range a {\n\t\ts += v\n\t}\n\treturn s\n' % go_lane(t)
+        return '\treturn %s\n' % ' + '.join('a[%d]' % i for i in range(t.lanes))
+    if kind == 'max_index':
+        # The first of equal lanes.
+        if t.lanes > 8:
+            return ('\tm, at := a[0], 0\n\tfor j, v := range a {\n\t\tif v > m {\n\t\t\tm, at = v, j\n'
+                    '\t\t}\n\t}\n\treturn int64(at)\n')
+        lines = ['\tm, at := a[0], 0\n']
+        lines += ['\tif a[%d] > m {\n\t\tm, at = a[%d], %d\n\t}\n' % (i, i, i) for i in range(1, t.lanes)]
+        return ''.join(lines) + '\treturn int64(at)\n'
+    f = go_minmax(t, kind == 'min')
+    if t.lanes > 8:
+        return '\tm := a[0]\n\tfor _, v := range a {\n\t\tm = %s(m, v)\n\t}\n\treturn m\n' % f
+    # Integer minimums and maximums, so any order gives the same lane.
+    v = ['a[%d]' % i for i in range(t.lanes)]
+    while len(v) > 1:
+        v = ['%s(%s, %s)' % (f, v[i], v[i + 1]) for i in range(0, len(v), 2)]
+    return '\treturn %s\n' % v[0]
+
+
+def go_body(op, t, r):
+    """op's Go body for t with result r, or None."""
+    e, L, W = op.enum, go_lane(t), t.bits
+    a = lambda i: 'a[%s]' % i
+    b = lambda i: 'b[%s]' % i
+    if e in ('ZI_OP_ADD', 'ZI_OP_SUB', 'ZI_OP_MUL', 'ZI_OP_DIV'):
+        if t.float:
+            return go_map(t, lambda i: '%s(%s %s %s)' % (L, a(i), op.c_op, b(i)))
+        return go_map(t, lambda i: '%s %s %s' % (a(i), op.c_op, b(i)))
+    if e in ('ZI_OP_ADD_SAT', 'ZI_OP_SUB_SAT'):
+        f, c = go_sat(t), '+' if e == 'ZI_OP_ADD_SAT' else '-'
+        return go_map(t, lambda i: '%s(int64(%s) %s int64(%s))' % (f, a(i), c, b(i)))
+    if e in ('ZI_OP_MIN', 'ZI_OP_MAX'):
+        f = go_minmax(t, e == 'ZI_OP_MIN')
+        return go_map(t, lambda i: '%s(%s, %s)' % (f, a(i), b(i)))
+    if e == 'ZI_OP_AVG':
+        return go_map(t, lambda i: '%s((uint32(%s) + uint32(%s) + 1) >> 1)' % (L, a(i), b(i)))
+    if e == 'ZI_OP_MUL_HIGH':
+        p = 'int32' if t.signed else 'uint32'
+        return go_map(t, lambda i: '%s((%s(%s) * %s(%s)) >> 16)' % (L, p, a(i), p, b(i)))
+    if e == 'ZI_OP_MUL_HIGH_ROUND':
+        return go_map(t, lambda i: 'int16((int32(%s)*int32(%s) + 0x4000) >> 15)' % (a(i), b(i)))
+    bitwise = {'ZI_OP_AND': '&', 'ZI_OP_OR': '|', 'ZI_OP_XOR': '^', 'ZI_OP_AND_NOT': '&^'}
+    if e in bitwise:
+        return go_map(t, lambda i: '%s %s %s' % (a(i), bitwise[e], b(i)))
+    if e == 'ZI_OP_NOT':
+        return go_map(t, lambda i: '^%s' % a(i))
+    if e in ('ZI_OP_ABS', 'ZI_OP_NEG') and t.float:
+        sign = '0x%x' % (1 << (W - 1))
+        change = '&^' if e == 'ZI_OP_ABS' else '^'
+        return go_map(t, lambda i: 'math.Float%dfrombits(math.Float%dbits(%s) %s %s)' % (W, W, a(i), change, sign))
+    if e == 'ZI_OP_ABS':
+        f = go_abs(t)
+        return go_map(t, lambda i: '%s(%s)' % (f, a(i)))
+    if e == 'ZI_OP_NEG':
+        return go_map(t, lambda i: '-%s' % a(i))
+    if e == 'ZI_OP_SIGN':
+        f = go_sign(t)
+        return go_map(t, lambda i: '%s(%s, %s)' % (f, a(i), b(i)))
+    if e == 'ZI_OP_ABS_DIFF':
+        f = go_abs_diff(t)
+        return go_map(r, lambda i: '%s(%s, %s)' % (f, a(i), b(i)))
+    if isinstance(op, Compare):
+        f = go_mask(r)
+        return go_map(r, lambda i: '%s(%s %s %s)' % (f, a(i), op.c_op, b(i)))
+    if e == 'ZI_OP_SELECT':
+        m = lambda i: 'm[%s]' % i
+        if t.float:
+            return go_map(t, lambda i: 'math.Float%dfrombits(math.Float%dbits(%s)&%s | math.Float%dbits(%s)&^%s)' %
+                          (W, W, a(i), m(i), W, b(i), m(i)))
+        mask = (lambda i: '%s(%s)' % (L, m(i))) if t.signed else m
+        return go_map(t, lambda i: '%s&%s | %s&^%s' % (a(i), mask(i), b(i), mask(i)))
+    if isinstance(op, Shift):
+        # Go shifts give 0, or the sign for a signed right shift, for a
+        # count of the lane width or more, as std/simd does.
+        if op.kind == 'shl':
+            return go_map(t, lambda i: '%s << n' % a(i))
+        if op.kind == 'shr':
+            return go_map(t, lambda i: '%s >> n' % a(i))
+        # (v >> n) plus the last bit shifted out; a count of 0 shifts out
+        # nothing.
+        return go_map(t, lambda i: '%s>>n + %s>>m&1' % (a(i), a(i)),
+                      setup='\tif n == 0 {\n\t\treturn a\n\t}\n\tm := n - 1\n')
+    if isinstance(op, ShiftLanes):
+        # Each count lane read as unsigned.
+        c = (lambda i: 'uint%d(%s)' % (W, b(i))) if t.signed else b
+        return go_map(t, lambda i: '%s %s %s' % (a(i), '<<' if op.left else '>>', c(i)))
+    if isinstance(op, ByteMacro):
+        return go_byte_shift(t, op.kind)
+    if e == 'ZI_OP_MAKE':
+        return go_pick(t, lambda i: 'l%d' % i)
+    if e == 'ZI_OP_SPLAT':
+        return go_map(t, lambda i: 'l')
+    if e == 'ZI_OP_ZERO':
+        return '\treturn %s{}\n' % go_vec(t)
+    if e == 'ZI_OP_LANE':
+        return '\treturn a[i]\n'
+    if e == 'ZI_OP_WITH_LANE':
+        return '\ta[i] = l\n\treturn a\n'
+    if isinstance(op, WidenHalf):
+        offset = t.block // 2 if op.high else 0
+        return go_pick(r, lambda j: '%s(%s)' % (go_lane(r), a(block_lane(t, r, j, offset))))
+    if e == 'ZI_OP_WIDEN':
+        return go_map(r, lambda i: '%s(%s)' % (go_lane(r), a(i)))
+    if isinstance(op, MulWide):
+        offset = t.block // 2 if op.high else 0
+        R = go_lane(r)
+        return go_pick(r, lambda j: '%s(%s) * %s(%s)' % (
+            R, a(block_lane(t, r, j, offset)), R, b(block_lane(t, r, j, offset))))
+    if e == 'ZI_OP_MADD':
+        return go_pick(r, lambda i: 'int32(%s)*int32(%s) + int32(%s)*int32(%s)' %
+                       (a(2 * i), b(2 * i), a(2 * i + 1), b(2 * i + 1)))
+    if e == 'ZI_OP_MADD_SAT':
+        f = go_sat(r)
+        return go_pick(r, lambda i: '%s(int64(%s)*int64(%s) + int64(%s)*int64(%s))' %
+                       (f, a(2 * i), b(2 * i), a(2 * i + 1), b(2 * i + 1)))
+    if e == 'ZI_OP_ADD_PAIRS':
+        R = go_lane(r)
+        return go_pick(r, lambda i: '%s(%s) + %s(%s)' % (R, a(2 * i), R, a(2 * i + 1)))
+    if e == 'ZI_OP_SAD':
+        f = go_abs_diff(t)
+        return go_pick(r, lambda i: ' + '.join('uint64(%s(%s, %s))' % (f, a(k), b(k))
+                                               for k in range(8 * i, 8 * i + 8)))
+    if isinstance(op, Reduce):
+        return go_reduce(t, op.kind)
+    if e == 'ZI_OP_ALL_ZERO':
+        if t.lanes > 8:
+            return '\tvar x %s\n\tfor _, v := range a {\n\t\tx |= v\n\t}\n\treturn x == 0\n' % L
+        return '\treturn %s == 0\n' % '|'.join(a(i) for i in range(t.lanes))
+    if e == 'ZI_OP_BYTE_SHUFFLE':
+        # An index of 16 or more picks 0.
+        return ('\tvar r %s\n\tfor j, x := range b {\n\t\tif x < 16 {\n\t\t\tr[j] = a[j&^15+int(x)]\n'
+                '\t\t}\n\t}\n\treturn r\n' % go_vec(t))
+    if e == 'ZI_OP_SHUFFLE':
+        return go_pick(t, lambda j: a('%sk%d' % ('%d+' % (j // t.block * t.block) if j >= t.block else '',
+                                                  j % t.block)))
+    if isinstance(op, Half):
+        offset = r.lanes if op.high else 0
+        return go_pick(r, lambda j: a(j + offset))
+    if isinstance(op, Combine):
+        return go_pick(r, lambda j: a(j) if j < t.lanes else b(j - t.lanes))
+    if isinstance(op, Interleave):
+        offset = t.block // 2 if op.high else 0
+
+        def pick(j):
+            k = j % t.block
+            return (b if k % 2 else a)((j // t.block) * t.block + k // 2 + offset)
+        return go_pick(t, pick)
+    return None
+
+
+def go_narrow(t, r):
+    """Each lane clamped to r's range, block by block: a's lanes, then b's."""
+    f = go_sat_unsigned(r) if t.bits == 64 and not t.signed else go_sat(r)
+    arg = '%s' if t.bits == 64 and not t.signed else 'int64(%s)'
+
+    def pick(j):
+        k = j % r.block
+        v = '%s[%d]' % ('a' if k < t.block else 'b', (j // r.block) * t.block + k % t.block)
+        return '%s(%s)' % (f, arg % v)
+    return go_pick(r, pick)
+
+
+def go_convert(t, r):
+    if not t.float:
+        return go_map(r, lambda i: '%s(a[%s])' % (go_lane(r), i))
+    f = go_to_int(t, r)
+    return go_map(r, lambda i: '%s(a[%s])' % (f, i))
+
+
+def go_entries():
+    """(name, body) for every value helper, sorted. C writes Shuffle as a
+    macro, so ops() leaves it out."""
+    out = []
+    for op in ops() + [Op('ZI_OP_SHUFFLE', 'shuffle', TYPES, 'shuffle')]:
+        if isinstance(op, (Memory, Gather)):
+            continue
+        if isinstance(op, Narrow):
+            for t, r in narrow_pairs():
+                out.append(('narrow_%s_%s' % (t.name, r.name), go_narrow(t, r)))
+            continue
+        if isinstance(op, Reinterpret):
+            for t in TYPES:
+                for r in TYPES:
+                    if r.bytes == t.bytes:
+                        body = '\treturn a\n' if r == t else go_reinterpret(t, r)
+                        out.append(('reinterpret_%s_%s' % (t.name, r.name), body))
+            continue
+        if isinstance(op, Convert):
+            for t in TYPES:
+                for r in TYPES:
+                    if r.lanes == t.lanes and r.bits == t.bits and r.float != t.float:
+                        out.append(('convert_%s_%s' % (t.name, r.name), go_convert(t, r)))
+            continue
+        for t in op.types:
+            r = op.result(t)
+            body = go_body(op, t, r if isinstance(r, T) else None)
+            if body is None:
+                raise SystemExit('simd_header.py: no Go body for %s' % op.name(t))
+            out.append((op.name(t), body))
+    return sorted(('zi_' + name, body) for name, body in out)
+
+
+def c_string(text):
+    return '"%s"' % text.replace('\\', '\\\\').replace('"', '\\"').replace('\t', '\\t').replace('\n', '\\n')
+
+
+def go_header():
+    bodies = go_entries()
+    out = ['/* Generated by scripts/simd_header.py --go; do not edit. */',
+           '/* Typed Go bodies of the std/simd value helpers, sorted by name, and the',
+           ' * lane functions they call, for zir_emit_simd_go.c. */',
+           '', 'static const GoSimdText go_simd_bodies[] = {']
+    for name, body in bodies:
+        out.append('    {"%s",\n     %s},' % (name, c_string(body)))
+    out += ['};', '', 'static const GoSimdText go_simd_lane_functions[] = {']
+    for name in sorted(GO_HELPERS):
+        out.append('    {"%s",\n     %s},' % (name, c_string(GO_HELPERS[name])))
+    out += ['};', '']
+    return '\n'.join(out)
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == '--test':
         tiers = [('zi_', 'base', '1')]
         tiers += [('zi_%s_' % n, f, 'ZI_X86 && defined(ZIRAN_SIMD_TIERS)')
                   for n, f in (('ssse3', 'ssse3'), ('sse41', 'sse4.1'), ('avx2', 'avx2'))]
         sys.stdout.write(test_program(tiers))
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == '--go':
+        sys.stdout.write(go_header())
         return
     if len(sys.argv) > 1 and sys.argv[1] == '--types':
         sys.stdout.write(types_header())

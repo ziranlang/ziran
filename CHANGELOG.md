@@ -43,6 +43,9 @@
   widening, narrowing and gathers run inline, and bounds checks and whole
   slices (`a[:]`) cost no call: AV1's vector self-guided filter decodes
   352p in 76 ms under a cached `ziran run`, from 95 ms.
+- Go output computes each `std/simd` operation in its own typed code, which
+  Go inlines, instead of through one general lane interpreter: a 352p AV1
+  decode built as Go takes 44 ms, from 346 ms.
 - In C, locals, parameters and globals whose names begin with two
   underscores, which C reserves, are renamed as keywords are.
 - Under TinyCC and unoptimized C builds, checked division, shifts and index

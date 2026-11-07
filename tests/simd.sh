@@ -525,6 +525,73 @@ if test -x "$work/vm-run"; then
     grep -q "out of bounds" "$work/outside-vm.err"
 fi
 
+# Vectors are values wherever they are kept: record fields, nested records,
+# arrays and slices of vectors, pointers, globals, parameters and results.
+# The portable VM holds a 128-bit vector inline in its value and a 256-bit
+# one as an array of lanes; copies never share lanes.
+cat > "$work/values.zi" <<'ZI'
+Simd :: #import "simd"
+Lanes :: struct { tag: s32; v: s32x4; wide: s16x16; f: f32x4 }
+Box :: struct { inner: Lanes; rows: [3]u8x16 }
+Global: s32x4;
+Bump :: (v: s32x4, by: s32) -> s32x4 #cold { return Simd.Add(v, Simd.Splat(s32x4, by)) }
+Fill :: (p: *s32x4, x: s32) #cold { <<p = Simd.Splat(s32x4, x) }
+SumRows :: (rows: []s32x4) -> s32x4 #cold {
+    total := Simd.Zero(s32x4)
+    for row: rows { total = Simd.Add(total, row) }
+    return total
+}
+Make :: (x: s32) -> Lanes #cold {
+    l: Lanes
+    l.tag = x
+    l.v = Simd.Make(s32x4, x, x + 1, x + 2, x + 3)
+    l.wide = Simd.Splat(s16x16, cast(s16) x)
+    l.f = Simd.Make(f32x4, 1.5, -0.0, 0.25, 3.0)
+    return l
+}
+main :: () {
+    rows: [4]s32x4
+    for i: 0..3 { rows[i] = Simd.Splat(s32x4, cast(s32) i) }
+    rows[2] = Bump(rows[2], 10)
+    copy := rows
+    copy[0] = Simd.Splat(s32x4, 100)
+    Fill(*rows[3], 7)
+    Global = SumRows(rows[:])
+    b: Box
+    b.inner = Make(5)
+    b.rows[1] = Simd.Splat(u8x16, 200)
+    saved := b
+    b.inner.v = Simd.Zero(s32x4)
+    v := saved.inner.v
+    p := *v
+    <<p = Bump(<<p, 1)
+    print("% % % % % % % %\n", Simd.Lane(Global, 0), Simd.Lane(copy[0], 1), Simd.Lane(rows[0], 0),
+          Simd.Lane(v, 3), Simd.Lane(saved.inner.wide, 15), Simd.Lane(saved.rows[1], 4),
+          Simd.Lane(b.inner.v, 0), saved.inner.tag)
+    print("% % %\n", Simd.Lane(saved.inner.f, 0), Simd.Lane(saved.inner.f, 1), Simd.Lane(saved.inner.f, 2))
+}
+ZI
+values_expected='20 100 0 9 5 200 0 5
+1.5 -0 0.25'
+"$ziran" build --target=c --entry values:main --root "$work" -o "$work/values" "$work/values.zi"
+printf '#include "values.h"\nint main(void) { values_main(); return 0; }\n' > "$work/values/main.c"
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+    "${CC:-cc}" -std=c11 -Wno-psabi $flags -I"$work/values" "$work/values"/*.c -o "$work/values/app"
+    test "$("$work/values/app")" = "$values_expected" ||
+        { echo "vector values $flags: wrong result" >&2; exit 1; }
+done
+if command -v go >/dev/null 2>&1; then
+    "$ziran" build --target=go --pkg main --entry values:main --exe --root "$work" \
+        -o "$work/values-go" "$work/values.zi"
+    test "$(cd "$work/values-go" && GO111MODULE=off go run ./*.go)" = "$values_expected"
+fi
+"$ziran" bundle --root "$work" --entry values:main -o "$work/values.zx" "$work/values.zi"
+test "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/values.zx")" = "$values_expected"
+if test -x "$work/vm-run"; then
+    test "$("$work/vm-run" "$work/values.zx")" = "$values_expected" ||
+        { echo "vector values on the portable VM: wrong result" >&2; exit 1; }
+fi
+
 # Loads and gathers read a constant table in place, as index reads do,
 # instead of copying it into a local array at every call.
 cat > "$work/table.zi" <<'ZI'

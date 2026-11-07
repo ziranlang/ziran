@@ -123,6 +123,10 @@
   an `ifx` comparison gets one pair of parentheses, a local nothing reads is
   cast to void, and a procedure named like `ReadSignedBits` no longer pulls
   in an unused helper.
+- Generated C builds the SIMD tier copies of a large `#target` procedure in
+  their own files, such as `inverse_transform.avx2.c`, so a parallel C build
+  compiles them at the same time. An AV1 decoder builds at `-O2` about 40%
+  faster with 8 jobs.
 - A range over a computed bound, such as `for i: 0..count`, tests the bound
   once as it starts and then leaves only at its last value. Generated C has
   one loop exit, which GCC can vectorize, and an AV1 decode runs about 2%

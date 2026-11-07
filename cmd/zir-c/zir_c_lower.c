@@ -815,27 +815,130 @@ static const struct {
     {"ssse3", "ZI_TARGET_SSSE3", 2},
 };
 
+/* The expressions a C compiler builds for one copy of fn: its own and,
+ * at every call, those of each #inline procedure of the module it calls,
+ * as the compiler copies those into it. */
+static long
+expanded_expressions(const ZirModule *m, const ZirFunction *fn, int depth)
+{
+    long total = fn->expr_count;
+    if(depth >= 8)
+        return total;
+    for(int i = 0; i < fn->expr_count; i++) {
+        const ZirExpr *x = &fn->exprs[i];
+        if(x->kind != ZIR_EXPR_CALL || x->name[0] == '\0' || strchr(x->name, '.'))
+            continue;
+        for(int f = 0; f < m->function_count; f++)
+            if(&m->functions[f] != fn && m->functions[f].inlining == ZIR_INLINE_ALWAYS &&
+               !strcmp(m->functions[f].name, x->name)) {
+                total += expanded_expressions(m, &m->functions[f], depth + 1);
+                break;
+            }
+    }
+    return total;
+}
+
+enum {
+    /* Clones this large take a C compiler longer than parsing the SIMD
+     * header again in a unit of their own. */
+    TIER_UNIT_EXPRESSIONS = 4000
+};
+
+/* Whether a module's #target clones build in translation units of their
+ * own, one per tier, which a parallel C build compiles beside the module.
+ * Each unit includes the module source with ZIRAN_TIER_UNIT set and keeps
+ * its tier's clones and the module's file-scope procedures, so a module
+ * with state of its own, which a unit would copy, stays one unit. */
+static int
+module_splits_tiers(const ZirModule *m)
+{
+    long targets = 0;
+    if(EmitRunGuardsEnabled())
+        return 0;
+    for(int i = 0; i < m->global_count; i++)
+        if(m->globals[i].is_static)
+            return 0;
+    for(int i = 0; i < m->function_count; i++) {
+        const ZirFunction *fn = &m->functions[i];
+        if(fn->is_template || fn->is_extern)
+            continue;
+        if(fn->assembly_text && *fn->assembly_text)
+            return 0;
+        for(int s = 0; s < fn->stmt_count; s++)
+            if(fn->stmts[s].is_parallel || fn->stmts[s].is_gpu ||
+               StatementHasAssembly(&fn->stmts[s]))
+                return 0;
+        if(fn->simd_target)
+            targets += expanded_expressions(m, fn, 0);
+    }
+    return targets >= TIER_UNIT_EXPRESSIONS;
+}
+
 /* A #target procedure's clones, emitted before it when ziran_simd.h
- * dispatches: the same body with each tier's std/simd helpers. */
+ * dispatches: the same body with each tier's std/simd helpers. A module
+ * that splits its tiers declares every clone and defines each only in
+ * its tier's unit. */
 static void
 emit_target_clones(FILE *c, const ZirModule *m, const ZirCModuleSyms *restab,
                    int restab_count, const ZirFunction *fn, const char *cret,
-                   const char *cname, const char *cargs)
+                   const char *cname, const char *cargs, int split)
 {
     fputs("#if defined(ZIRAN_SIMD_DISPATCH)\n", c);
     for(size_t t = 0; t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++) {
         if(simd_tiers[t].tier < 4) fprintf(c, "#if ZI_BASE_TIER < %d\n", simd_tiers[t].tier);
-        fprintf(c, "static %s %s\n%s_ziran_%s(%s)\n{\n", simd_tiers[t].attribute,
-                cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
+        if(split)
+            fprintf(c, "ZIRAN_TIER_CLONE %s %s %s_ziran_%s(%s);\n"
+                       "#if defined(ZIRAN_TIER_UNIT) && ZIRAN_TIER_UNIT == %d\n"
+                       "ZIRAN_TIER_CLONE %s %s\n%s_ziran_%s(%s)\n{\n",
+                    simd_tiers[t].attribute, cret[0] ? cret : "void", cname,
+                    simd_tiers[t].name, cargs, simd_tiers[t].tier,
+                    simd_tiers[t].attribute, cret[0] ? cret : "void", cname,
+                    simd_tiers[t].name, cargs);
+        else
+            fprintf(c, "static %s %s\n%s_ziran_%s(%s)\n{\n", simd_tiers[t].attribute,
+                    cret[0] ? cret : "void", cname, simd_tiers[t].name, cargs);
         if(EmitRunGuardsEnabled())
             fputs("    ZIR_BUDGET();\n", c);
         EmitUseSimdTier(simd_tiers[t].name);
         lower_body(c, m, restab, restab_count, fn);
         EmitUseSimdTier(NULL);
         fputs("}\n", c);
+        if(split) fputs("#endif\n", c);
         if(simd_tiers[t].tier < 4) fputs("#endif\n", c);
     }
     fputs("#endif\n", c);
+}
+
+/* The unit that builds one tier's clones of a split module. */
+static int
+write_tier_unit(const ZirModule *m, const char *cpath, const char *name, int tier)
+{
+    char path[ZIR_PATH_MAX], temp[ZIR_PATH_MAX];
+    size_t length = strlen(cpath);
+    if(length < 2 || snprintf(path, sizeof(path), "%.*s.%s.c", (int)(length - 2),
+                              cpath, name) >= (int)sizeof(path))
+        return 0;
+    FILE *unit = GeneratedOutputOpen(path, temp, sizeof(temp));
+    if(unit == NULL)
+        return 0;
+    const char *base = strrchr(cpath, '/');
+    base = base != NULL ? base + 1 : cpath;
+    fprintf(unit, "/* Generated by zi2c from %s. */\n"
+                  "/* The %s clones of %s, which builds the rest of the module. */\n"
+                  "#define ZIRAN_TIER_UNIT %d\n"
+                  "#if defined(__GNUC__) || defined(__clang__)\n"
+                  "#pragma GCC diagnostic ignored \"-Wunused-function\"\n"
+                  "#pragma GCC diagnostic ignored \"-Wunused-variable\"\n"
+                  "#pragma GCC diagnostic ignored \"-Wunused-const-variable\"\n"
+                  "#endif\n"
+                  "#include \"%s\"\n",
+            m->source_path, name, base, tier, base);
+    int failed = ferror(unit) != 0;
+    if(fclose(unit) != 0 || failed) {
+        remove(temp);
+        return 0;
+    }
+    return GeneratedOutputReplace(temp, path) == 0;
 }
 
 /* The start of a #target procedure's body: the best clone this CPU runs, or
@@ -1556,6 +1659,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     FILE *c;
     int i;
     int needs_startup = ModuleNeedsStartup(m);
+    int split = module_splits_tiers(m);
     char init_name[LOWER_NAME_MAX];
     NativeCModuleInitName(m, init_name, sizeof(init_name));
     stem_from_source(m->source_path, buffers->stem, sizeof(buffers->stem));
@@ -1875,6 +1979,13 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             fputs("#define ZIRAN_SIMD_TIERS 1\n#include \"ziran_simd.h\"\n", c);
             break;
         }
+    /* A tier unit's clones are hidden symbols the module source calls. */
+    if(split)
+        fputs("#if (defined(__GNUC__) || defined(__clang__)) && !defined(_WIN32) && !defined(__CYGWIN__)\n"
+              "#define ZIRAN_TIER_CLONE __attribute__((visibility(\"hidden\")))\n"
+              "#else\n"
+              "#define ZIRAN_TIER_CLONE\n"
+              "#endif\n", c);
     /* Forward prototypes for private functions: initializers and earlier
      * definitions may reference them before their definition. A private
      * procedure every caller inlined has no call left, which is no fault. */
@@ -1903,6 +2014,10 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         fprintf(c, "static %s%s %s(%s) ZIRAN_MAYBE_UNUSED;\n", inlining_prefix(fn),
                 cret[0] ? cret : "void", cname, buffers->cargs);
     }
+    /* A tier unit leaves the module's variables and exported procedures to
+     * the module source, which defines them once. */
+    if(split)
+        fputs("#ifndef ZIRAN_TIER_UNIT\n", c);
     for(i = 0; i < m->global_count; i++) {
         BodySymbols symbols = {m, restab, restab_count, SpanPath(m->globals[i].span)};
         EmitGlobalSlotWrappers(c, m, &m->globals[i], ZIR_C,
@@ -1957,6 +2072,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
             free(compound_text);
         }
     }
+    if(split)
+        fputs("#endif\n", c);
     for(i = 0; i < m->function_count; i++) {
         const ZirFunction *fn = &m->functions[i];
         char cname[LOWER_NAME_MAX];
@@ -1983,7 +2100,9 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         EmitSlotWrappers(c, m, fn, ZIR_C, resolve_body_symbol, &symbols);
         EmitAssemblyHelpers(c, m, fn, ZIR_C, cret, buffers->cargs);
         if(fn->simd_target)
-            emit_target_clones(c, m, restab, restab_count, fn, cret, cname, buffers->cargs);
+            emit_target_clones(c, m, restab, restab_count, fn, cret, cname, buffers->cargs, split);
+        if(split && fn->is_public)
+            fputs("#ifndef ZIRAN_TIER_UNIT\n", c);
         if(fn->is_public)
             fprintf(c, "%s%s\n%s(%s)\n{\n", inlining_prefix(fn), cret[0] ? cret : "void",
                     cname, buffers->cargs);
@@ -1999,7 +2118,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         fprintf(c, "}\n");
         if(NativeProgramMain(m, fn))
             EmitNativeMain(c, m, fn, ZIR_C);
+        if(split && fn->is_public)
+            fputs("#endif\n", c);
     }
+    if(split)
+        fputs("\n#ifndef ZIRAN_TIER_UNIT", c);
     int startup_count = 0;
     for(i = 0; i < m->function_count; i++)
         startup_count += m->functions[i].is_global_initializer;
@@ -2043,6 +2166,8 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "%s_constructor(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);
     }
+    if(split)
+        fputs("\n#endif\n", c);
     char *tables = EmitConstantTablesEnd();
     if(TextStreamClose(&stream) != 0) {
         free(tables);
@@ -2091,6 +2216,13 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot write runtime headers beside %s", buffers->cpath);
         return 0;
     }
+    for(size_t t = 0; split && t < sizeof(simd_tiers) / sizeof(simd_tiers[0]); t++)
+        if(!write_tier_unit(m, buffers->cpath, simd_tiers[t].name, simd_tiers[t].tier)) {
+            Diagnostic(m->span, "zir_c.global",
+                       "cannot write the %s unit beside %s", simd_tiers[t].name,
+                       buffers->cpath);
+            return 0;
+        }
     return 1;
 }
 

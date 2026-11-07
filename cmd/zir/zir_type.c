@@ -145,6 +145,7 @@ static RecordFields *fields_of(CompilerThread *thread, const ZirType *record)
         copy_part(field->name, sizeof(field->name), parsed.name);
         copy_part(field->type, sizeof(field->type), parsed.type);
         copy_part(field->go_tag, sizeof(field->go_tag), parsed.tag);
+        copy_part(field->c_type, sizeof(field->c_type), parsed.c_type);
         field->is_using = parsed.is_using;
         if(field->type[0] != '*' && !compiler_type_BuiltinValueName(type_text(field->type)))
             result->primitive_fields = 0;

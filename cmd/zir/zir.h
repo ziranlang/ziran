@@ -371,6 +371,7 @@ typedef struct ZirType {
     int is_enum_flags;
     int is_enum_specified;
     char enum_backing[ZIR_NAME_MAX]; /* checked integer storage type */
+    char c_prefix[ZIR_NAME_MAX]; /* `#c "PREFIX"`: C spells members PREFIX+name */
     int is_record_template;
     int is_type_instance; /* unresolved until imports are linked */
     int is_synthetic_application; /* private name made from a direct type call */
@@ -387,6 +388,7 @@ typedef struct ZirTypeField {
     char name[ZIR_NAME_MAX];
     char type[ZIR_NAME_MAX];
     char go_tag[512]; /* checked #go_tag string literal; Go reflection metadata */
+    char c_type[ZIR_NAME_MAX]; /* `#c "TYPE"`: the C header's spelling */
     int is_using;
 } ZirTypeField;
 

@@ -99,6 +99,41 @@ compiler_type_ScalarByteWidth(String type)
     return 0;
 }
 
+String
+compiler_type_CSpelling(String directive)
+{
+    bool value_0 = (int64_t)(directive).length < 6LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)2LL), StringLiteral("#c"));
+    bool value_1 = value_0;
+    bool value_2 = value_1;
+    if (!value_2) {
+        bool value_3 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 2));
+        value_2 = !value_3;
+    }
+    if (value_2) {
+        return StringLiteral("");
+    }
+    String value_4 = StringRange(directive, (int64_t)3LL, (int64_t)directive.length);
+    String value_5 = StringView(NULL, 0);
+    {
+        String source = value_4;
+        SourceRange range = compiler_text_TrimRange(source);
+        value_5 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+    }
+    String literal = value_5;
+    if ((int64_t)(literal).length < 3LL || (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) != 34 || (uint8_t)ZIRAN_INDEX(literal.data, literal.length, ((int64_t)((uint64_t)((int64_t)(literal).length) - UINT64_C(1)))) != 34) {
+        return StringLiteral("");
+    }
+    String spelling = StringRange(literal, (int64_t)1LL, (int64_t)((int64_t)((uint64_t)((int64_t)(literal).length) - UINT64_C(1))));
+    for (int64_t it_index = 0LL; it_index < (int64_t)(spelling).length; it_index++) {
+        uint8_t byte = (uint8_t)spelling.data[it_index];
+        bool value_7 = compiler_text_IdentifierByte(byte);
+        if (!value_7 && byte != 32 && byte != 42) {
+            return StringLiteral("");
+        }
+    }
+    return spelling;
+}
+
 RecordField
 compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace)
 {
@@ -234,58 +269,65 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
         int64_t tag = compiler_type_Find(type, 35, 0LL);
         if (tag >= 0LL) {
             String directive = StringRange(type, (int64_t)tag, (int64_t)type.length);
-            bool value_26 = union_record || (int64_t)(directive).length < 8LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag"));
-            bool value_27 = value_26;
-            bool value_28 = value_27;
-            if (!value_28) {
-                bool value_29 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
-                value_28 = !value_29;
-            }
-            if (value_28) {
+            String value_26 = compiler_type_CSpelling(directive);
+            result.c_type = value_26;
+            if ((int64_t)(result.c_type).length >= type_limit) {
                 return result;
             }
-            String value_30 = StringRange(directive, (int64_t)7LL, (int64_t)directive.length);
-            String value_31 = StringView(NULL, 0);
-            {
-                String source = value_30;
-                SourceRange range = compiler_text_TrimRange(source);
-                value_31 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
-            }
-            String literal = value_31;
-            if ((int64_t)(literal).length == 0LL || (int64_t)(literal).length >= (int64_t)(tag_workspace).length) {
-                return result;
-            }
-            DecodedLiteral decoded = compiler_text_DecodeString(literal, tag_workspace);
-            if (!decoded.valid) {
-                return result;
-            }
-            {
-                Slice value_33 = tag_workspace;
-                Slice value_34 = SliceRange(value_33, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
-                Slice loop_view_63 = value_34;
-                int64_t loop_count_63 = (int64_t)(loop_view_63).length;
-                int64_t loop_cursor_63 = 0LL;
-                while (loop_cursor_63 < loop_count_63) {
-                    int64_t loop_index_63 = loop_cursor_63;
-                    uint8_t byte = ((uint8_t *)loop_view_63.data)[loop_index_63];
-                    if (byte == 0) {
-                        return result;
-                    }
-                    loop_cursor_63 = (int64_t)((uint64_t)loop_cursor_63 + UINT64_C(1));
+            if ((int64_t)(result.c_type).length == 0LL) {
+                bool value_27 = union_record || (int64_t)(directive).length < 8LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag"));
+                bool value_28 = value_27;
+                bool value_29 = value_28;
+                if (!value_29) {
+                    bool value_30 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
+                    value_29 = !value_30;
                 }
+                if (value_29) {
+                    return result;
+                }
+                String value_31 = StringRange(directive, (int64_t)7LL, (int64_t)directive.length);
+                String value_32 = StringView(NULL, 0);
+                {
+                    String source = value_31;
+                    SourceRange range = compiler_text_TrimRange(source);
+                    value_32 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                }
+                String literal = value_32;
+                if ((int64_t)(literal).length == 0LL || (int64_t)(literal).length >= (int64_t)(tag_workspace).length) {
+                    return result;
+                }
+                DecodedLiteral decoded = compiler_text_DecodeString(literal, tag_workspace);
+                if (!decoded.valid) {
+                    return result;
+                }
+                {
+                    Slice value_34 = tag_workspace;
+                    Slice value_35 = SliceRange(value_34, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
+                    Slice loop_view_68 = value_35;
+                    int64_t loop_count_68 = (int64_t)(loop_view_68).length;
+                    int64_t loop_cursor_68 = 0LL;
+                    while (loop_cursor_68 < loop_count_68) {
+                        int64_t loop_index_68 = loop_cursor_68;
+                        uint8_t byte = ((uint8_t *)loop_view_68.data)[loop_index_68];
+                        if (byte == 0) {
+                            return result;
+                        }
+                        loop_cursor_68 = (int64_t)((uint64_t)loop_cursor_68 + UINT64_C(1));
+                    }
+                }
+                result.tag = literal;
             }
-            result.tag = literal;
-            String value_35 = StringRange(type, (int64_t)0LL, (int64_t)tag);
-            String value_36 = StringView(NULL, 0);
+            String value_36 = StringRange(type, (int64_t)0LL, (int64_t)tag);
+            String value_37 = StringView(NULL, 0);
             {
-                String source = value_35;
+                String source = value_36;
                 SourceRange range = compiler_text_TrimRange(source);
-                value_36 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                value_37 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
             }
-            type = value_36;
+            type = value_37;
         }
-        bool value_38 = compiler_type_Identifier(name);
-        if (!value_38 || (int64_t)(name).length >= name_limit || (int64_t)(type).length == 0LL || (int64_t)(type).length >= type_limit) {
+        bool value_39 = compiler_type_Identifier(name);
+        if (!value_39 || (int64_t)(name).length >= name_limit || (int64_t)(type).length == 0LL || (int64_t)(type).length >= type_limit) {
             return result;
         }
         result.status = 1;

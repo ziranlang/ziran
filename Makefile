@@ -204,7 +204,7 @@ $(ENUM_OBJECT): $(ENUM_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(ENUM_C)/compiler_enum.c
 
-$(call obj,cmd/zir/zir_type.c): $(TYPE_READY)
+$(call obj,cmd/zir/zir_type.c cmd/zir/zir_parse_discover.c): $(TYPE_READY)
 $(TYPE_OBJECT): $(TYPE_READY) $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TYPE_C)/compiler_type.c

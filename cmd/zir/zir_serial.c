@@ -183,7 +183,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 62u
+#define ZIR_FORMAT_VERSION 63u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -310,7 +310,7 @@ static const Field type_fields[] = {
     INTEGER_FIELD(ZirType, is_go_anonymous),
     INTEGER_FIELD(ZirType, is_enum_flags),
     INTEGER_FIELD(ZirType, is_enum_specified),
-    STRING_FIELD(ZirType, enum_backing),
+    STRING_FIELD(ZirType, enum_backing), STRING_FIELD(ZirType, c_prefix),
     INTEGER_FIELD(ZirType, is_record_template),
     INTEGER_FIELD(ZirType, is_owned_vec),
     INTEGER_FIELD(ZirType, is_map),
@@ -318,6 +318,16 @@ static const Field type_fields[] = {
     INTEGER_FIELD(ZirType, is_abi_incomplete), INTEGER_FIELD(ZirType, is_results),
     SPAN_FIELD(ZirType, span)
 };
+
+/* An enum's `#c` constant prefix: empty or a C identifier. */
+static int
+c_prefix_valid(const char *prefix)
+{
+    if(isdigit((unsigned char)prefix[0])) return 0;
+    for(; *prefix; prefix++)
+        if(!isalnum((unsigned char)*prefix) && *prefix != '_') return 0;
+    return 1;
+}
 
 static int
 enum_backing_valid(const char *backing)
@@ -1284,7 +1294,8 @@ validate_program(const ZirProgram *program)
                (type->is_enum && !enum_backing_valid(type->enum_backing)) ||
                (!type->is_enum &&
                 (type->is_enum_flags || type->is_enum_specified ||
-                 type->enum_backing[0])) ||
+                 type->enum_backing[0] || type->c_prefix[0])) ||
+               !c_prefix_valid(type->c_prefix) ||
                (type->is_enum_specified &&
                 !specified_enum_body_valid(type->body)) ||
                (type->is_record_template != 0 &&

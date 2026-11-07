@@ -160,6 +160,26 @@ static void function_c_name(const ZirModule *m, const ZirFunction *fn,
 static void strip_alias_type(const ZirModule *m, const char *type,
                              char *dst, size_t dst_size);
 
+/* The C constant for MEMBER of enumeration TYPE: its `#c` prefix, else the
+ * shared mangled spelling, else Type_Member unless MEMBER already starts
+ * with the type name. */
+static int
+c_enum_member(const ZirModule *m, const ZirType *type, const char *member,
+              char *out, size_t size)
+{
+    int written;
+    if(type->c_prefix[0])
+        written = snprintf(out, size, "%s%s", type->c_prefix, member);
+    else if(NativeEnumMemberName(m, type, member, out, size))
+        written = (int)strlen(out);
+    else {
+        int prefixed = strncmp(member, type->name, strlen(type->name)) == 0;
+        written = snprintf(out, size, "%s%s%s", prefixed ? "" : type->name,
+                           prefixed ? "" : "_", member);
+    }
+    return written >= 0 && (size_t)written < size;
+}
+
 /* The program being lowered, for host capabilities bound to Ziran
  * providers in other modules. */
 static const ZirProgram *lowering_program;
@@ -372,22 +392,12 @@ rewrite_body2(const ZirModule *m, const ZirCModuleSyms *restab,
                     if(!EnumMemberValue(enumeration, member_name, &value))
                         continue;
                     char mapped[LOWER_TEXT_MAX];
-                    int written;
-                    if(NativeEnumMemberName(m, enumeration, member_name,
-                                            mapped, sizeof(mapped)))
-                        written = (int)strlen(mapped);
-                    else {
-                        int prefixed = strncmp(member_name, enumeration->name,
-                                               strlen(enumeration->name)) == 0;
-                        written = prefixed ?
-                            snprintf(mapped, sizeof(mapped), "%s", member_name) :
-                            snprintf(mapped, sizeof(mapped), "%s_%s",
-                                     enumeration->name, member_name);
-                    }
-                    if(written < 0 || (size_t)written >= sizeof(mapped) ||
-                       n + (size_t)written >= dst_size) return 0;
-                    memcpy(dst + n, mapped, (size_t)written);
-                    n += (size_t)written;
+                    if(!c_enum_member(m, enumeration, member_name, mapped, sizeof(mapped)))
+                        return 0;
+                    size_t written = strlen(mapped);
+                    if(n + written >= dst_size) return 0;
+                    memcpy(dst + n, mapped, written);
+                    n += written;
                     p = end - 1;
                     goto next_character;
                 }
@@ -2020,6 +2030,57 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
     return count;
 }
 
+/* The fields of record TY in a C header, one per line at INDENT. A `using`
+ * field spelled `#c "union"` or `#c "struct"` also exposes its record's
+ * fields as an anonymous member over the same storage, as C reaches them. */
+static void
+header_fields(FILE *h, const ZirModule *m, const ZirType *ty,
+              LowerModuleBuffers *buffers, const char *indent, int nested)
+{
+    size_t offset = 0;
+    ZirTypeField field;
+    int status;
+    while((status = TypeNextField(ty, &offset, &field)) == 1) {
+        char mapped[LOWER_NAME_MAX], suffix[LOWER_NAME_MAX];
+        TargetFieldName(ty, ZIR_C, field.name, mapped, sizeof(mapped));
+        split_array_type(field.type, buffers->base, sizeof(buffers->base),
+                         suffix, sizeof(suffix));
+        if(!strcmp(field.c_type, "union") || !strcmp(field.c_type, "struct")) {
+            const ZirModule *owner = NULL;
+            const ZirType *inner = FindType(m, field.type, &owner);
+            if(owner == NULL) owner = m;
+            if(nested || !field.is_using || suffix[0] || inner == NULL || inner->is_enum ||
+               inner->is_procedure_type || inner->is_extern || inner->is_record_template ||
+               inner->is_union != (field.c_type[0] == 'u')) {
+                Diagnostic(ty->span, "zir_c.record", "#c \"%s\" requires a using field of a %s: %s",
+                           field.c_type, field.c_type, field.name);
+                exit(1);
+            }
+            char native[LOWER_NAME_MAX * 2], deeper[32];
+            NativeTypeName(owner, inner, native, sizeof(native));
+            fprintf(h, "%sunion {\n%s    %s %s;\n%s    %s {\n",
+                    indent, indent, native, mapped, indent, field.c_type);
+            snprintf(deeper, sizeof(deeper), "%s        ", indent);
+            header_fields(h, owner, inner, buffers, deeper, 1);
+            fprintf(h, "%s    };\n%s};\n", indent, indent);
+            continue;
+        }
+        /* `#c "TYPE"` spells the field, or an array's element. */
+        if(field.c_type[0])
+            snprintf(buffers->base, sizeof(buffers->base), "%s", field.c_type);
+        else {
+            strip_alias_type(m, buffers->base, buffers->tmpb, sizeof(buffers->tmpb));
+            snprintf(buffers->base, sizeof(buffers->base), "%s", buffers->tmpb);
+            rewrite_self_pointer_type(ty->name, buffers->base, sizeof(buffers->base));
+        }
+        fprintf(h, "%s%s %s%s;\n", indent, buffers->base, mapped, suffix);
+    }
+    if(status < 0) {
+        Diagnostic(ty->span, "check.record", "malformed field in %s", ty->name);
+        exit(1);
+    }
+}
+
 static int
 lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
              int restab_count, const char *out_dir, int linked, LowerModuleBuffers *buffers)
@@ -2182,19 +2243,11 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                             }
                             memcpy(buffers->member, buffers->raw, member_length);
                             buffers->member[member_length] = '\0';
-                            if(NativeEnumMemberName(m, ty, buffers->member, buffers->mapped,
-                                                    sizeof(buffers->mapped)))
-                                fprintf(h, "    %s%s,\n", buffers->mapped,
-                                        buffers->raw + member_length);
-                            else {
-                                int prefixed = member_length >= strlen(ty->name) &&
-                                    strncmp(buffers->raw, ty->name, strlen(ty->name)) == 0;
-                                fprintf(h, "    %s%s%.*s%s,\n",
-                                        prefixed ? "" : ty->name,
-                                        prefixed ? "" : "_",
-                                        (int)member_length, buffers->raw,
-                                        buffers->raw + member_length);
-                            }
+                            if(!c_enum_member(m, ty, buffers->member, buffers->mapped,
+                                              sizeof(buffers->mapped)))
+                                c_rewrite_overflow(m->source_path, ty->span.line);
+                            fprintf(h, "    %s%s,\n", buffers->mapped,
+                                    buffers->raw + member_length);
                         }
                     }
                     line = nl ? nl + 1 : NULL;
@@ -2211,25 +2264,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 TypeHasZeroArray(m, ty->name) ? "__extension__ " : "",
                 ty->is_union ? "union" : "struct", native);
         /* Shared checked fields omit target-specific reflection metadata. */
-        {
-            size_t offset = 0;
-            ZirTypeField field;
-            int status;
-            while((status = TypeNextField(ty, &offset, &field)) == 1) {
-                char mapped[LOWER_NAME_MAX], suffix[LOWER_NAME_MAX];
-                TargetFieldName(ty, ZIR_C, field.name, mapped, sizeof(mapped));
-                split_array_type(field.type, buffers->base, sizeof(buffers->base),
-                                 suffix, sizeof(suffix));
-                strip_alias_type(m, buffers->base, buffers->tmpb, sizeof(buffers->tmpb));
-                snprintf(buffers->base, sizeof(buffers->base), "%s", buffers->tmpb);
-                rewrite_self_pointer_type(ty->name, buffers->base, sizeof(buffers->base));
-                fprintf(h, "    %s %s%s;\n", buffers->base, mapped, suffix);
-            }
-            if(status < 0) {
-                Diagnostic(ty->span, "check.record", "malformed field in %s", ty->name);
-                exit(1);
-            }
-        }
+        header_fields(h, m, ty, buffers, "    ", 0);
         fprintf(h, "};\n");
         if(ty->is_synthetic_application) fputs("#endif\n", h);
         if(!visible[i]) fputs("#endif\n", h);

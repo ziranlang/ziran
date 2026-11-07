@@ -976,6 +976,26 @@ bundle; the provider must have the same signature. `--bind-host MODULE`
 binds every remaining capability to MODULE's exported function of the same
 name, as a C program links a host's symbols by name, so one Ziran host module
 serves `ziran bundle` and the Go target alike.
+### C header spellings
+
+`#c "SPELLING"` lets a generated C header match C code that shares the
+records. On a field it replaces the C type, or an array's element type. Written
+last on an enum, it prefixes each C constant. Saved IR keeps it; Go and the
+`.zx` VM ignore it:
+
+```jai
+ExprKind :: enum s32 #c "ZIR_EXPR_" { Unknown; Ident }  // ZIR_EXPR_Ident
+Expr :: struct {
+    name: *u8 #c "const char *"
+    op: [8]u8 #c "char"                                    // char op[8]
+}
+```
+
+A `using` field spelled `#c "union"` (or `"struct"`) also lays its record's
+fields out as an anonymous C member over the same storage, so C reads
+`stmt->name` where Ziran reads `stmt.name`. Run
+`sh tests/c_spelling.sh build/bin/ziran`.
+
 The portable host ABI copies returned string bytes into VM-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain

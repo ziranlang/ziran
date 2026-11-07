@@ -4,6 +4,7 @@
 #include "zir_memory.h"
 #include "zir_files.h"
 #include "zir_parse_internal.h"
+#include "compiler_type.h"
 
 static void canonical_enum_values(ZirType *type);
 /* Buffers normalize_jai_source_tokens keeps on the heap so deep nesting fits the stack;
@@ -1392,6 +1393,22 @@ parse_enum_backing(ZirType *type, const char *header)
         die_at(type->span, "enum backing type exceeds size limit");
     snprintf(backing, sizeof(backing), "%.*s", (int)(end - start), start);
     trim_in_place(backing);
+    char *c_spelling = strchr(backing, '#');
+    while(c_spelling != NULL && !(c_spelling[1] == 'c' && isspace((unsigned char)c_spelling[2])))
+        c_spelling = strchr(c_spelling + 1, '#');
+    if(c_spelling != NULL) {
+        String prefix = compiler_type_CSpelling(StringView(c_spelling, strlen(c_spelling)));
+        int valid = prefix.length > 0 && prefix.length < sizeof(type->c_prefix) &&
+            !isdigit((unsigned char)prefix.data[0]) &&
+            (c_spelling == backing || isspace((unsigned char)c_spelling[-1]));
+        for(size_t i = 0; valid && i < prefix.length; i++)
+            valid = isalnum((unsigned char)prefix.data[i]) || prefix.data[i] == '_';
+        if(!valid)
+            die_at(type->span, "enum #c requires a C identifier prefix, last: #c \"PREFIX\"");
+        snprintf(type->c_prefix, sizeof(type->c_prefix), "%.*s", (int)prefix.length, prefix.data);
+        *c_spelling = '\0';
+        trim_in_place(backing);
+    }
     char *directive = strstr(backing, "#specified");
     if(directive != NULL) {
         char *after = directive + strlen("#specified");
@@ -1543,9 +1560,11 @@ InstantiateGenericRecordAt(ZirType *instance, const ZirType *generic,
                                    params, actual, parameter_count))
             return 0;
         int length = snprintf(instance->body + used,
-            sizeof(instance->body) - used, "%s%s: %s%s%s\n",
+            sizeof(instance->body) - used, "%s%s: %s%s%s%s%s%s\n",
             field.is_using ? "using " : "", field.name, type,
-            field.go_tag[0] ? " #go_tag " : "", field.go_tag);
+            field.go_tag[0] ? " #go_tag " : "", field.go_tag,
+            field.c_type[0] ? " #c \"" : "", field.c_type,
+            field.c_type[0] ? "\"" : "");
         if(length < 0 || (size_t)length >= sizeof(instance->body) - used)
             return 0;
         used += (size_t)length;

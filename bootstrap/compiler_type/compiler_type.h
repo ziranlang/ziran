@@ -23,6 +23,7 @@ struct RecordField {
     String name;
     String type;
     String tag;
+    String c_type;
     bool is_using;
 };
 
@@ -48,6 +49,7 @@ String compiler_type_ForeignTypeTarget(String foreign, bool is_map);
 bool compiler_type_ForeignImportSupported(String target, String foreign);
 bool compiler_type_ProcedureTypeSupported(String target, bool c_call);
 int32_t compiler_type_ScalarByteWidth(String type);
+String compiler_type_CSpelling(String directive);
 RecordField compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace);
 ElementType compiler_type_SliceElement(String type);
 ElementType compiler_type_ArrayElement(String type);

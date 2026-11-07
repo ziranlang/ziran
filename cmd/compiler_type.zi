@@ -9,6 +9,7 @@ RecordField :: struct {
     name: string
     type: string
     tag: string
+    c_type: string
     is_using: bool
 }
 ElementType :: struct { valid: bool; element: string; capacity: s64 }
@@ -46,6 +47,20 @@ ScalarByteWidth :: (type: string) -> s32 {
     return 0
 }
 
+// The spelling of a whole `#c "SPELLING"` directive: the C type of a field,
+// or the prefix of an enum's C constants. Identifier bytes, spaces and `*`
+// only; empty for anything else.
+CSpelling :: (directive: string) -> string {
+    if directive.count < 6 || directive[0:2] != "#c" || !Text.SpaceByte(directive[2]) { return "" }
+    literal := Trim(directive[3:])
+    if literal.count < 3 || literal[0] != #char "\"" || literal[literal.count - 1] != #char "\"" { return "" }
+    spelling := literal[1:literal.count - 1]
+    for byte: spelling {
+        if !Text.IdentifierByte(byte) && byte != #char " " && byte != #char "*" { return "" }
+    }
+    return spelling
+}
+
 NextField :: (body: string, at: s64, union_record: bool, name_limit: s64,
     type_limit: s64, tag_workspace: []u8) -> RecordField {
     result: RecordField
@@ -81,14 +96,18 @@ NextField :: (body: string, at: s64, union_record: bool, name_limit: s64,
         tag := Find(type, #char "#", 0)
         if tag >= 0 {
             directive := type[tag:]
-            if union_record || directive.count < 8 || directive[0:7] != "#go_tag" ||
-            !Text.SpaceByte(directive[7]) { return result }
-            literal := Trim(directive[7:])
-            if literal.count == 0 || literal.count >= tag_workspace.count { return result }
-            decoded := Text.DecodeString(literal, tag_workspace)
-            if !decoded.valid { return result }
-            for byte: tag_workspace[0:decoded.count] { if byte == 0 { return result } }
-            result.tag = literal
+            result.c_type = CSpelling(directive)
+            if result.c_type.count >= type_limit { return result }
+            if result.c_type.count == 0 {
+                if union_record || directive.count < 8 || directive[0:7] != "#go_tag" ||
+                !Text.SpaceByte(directive[7]) { return result }
+                literal := Trim(directive[7:])
+                if literal.count == 0 || literal.count >= tag_workspace.count { return result }
+                decoded := Text.DecodeString(literal, tag_workspace)
+                if !decoded.valid { return result }
+                for byte: tag_workspace[0:decoded.count] { if byte == 0 { return result } }
+                result.tag = literal
+            }
             type = Trim(type[0:tag])
         }
         if !Identifier(name) || name.count >= name_limit ||

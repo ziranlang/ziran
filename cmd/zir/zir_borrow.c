@@ -24,6 +24,8 @@ typedef struct Origin {
      * view keeps depth 1; these bits only name the parameter when a return
      * is rejected. */
     uint64_t lent;
+    /* A VecSlice of a global Vec: it lives only for its block. */
+    int global_vec;
 } Origin;
 
 /* Origins share immutable bit sets until the lifetime check finishes. */
@@ -371,6 +373,7 @@ merge(BorrowCheck *check, Origin a, Origin b)
     result.parameters |= b.parameters;
     result.pointees |= b.pointees;
     result.lent |= b.lent;
+    result.global_vec |= b.global_vec;
     if(b.depth > result.depth)
         result.depth = b.depth;
     result.invalid |= b.invalid;
@@ -405,7 +408,7 @@ same_origin(Origin left, Origin right)
 {
     return left.parameters == right.parameters &&
         left.pointees == right.pointees && left.lent == right.lent &&
-        left.depth == right.depth && left.invalid == right.invalid &&
+        left.global_vec == right.global_vec && left.depth == right.depth && left.invalid == right.invalid &&
         left.unknown == right.unknown && left.globals == right.globals;
 }
 
@@ -1497,7 +1500,20 @@ expression_origin(BorrowCheck *check, int index)
         if(!strcmp(expression->name, "VecSlice")) {
             /* The view borrows its Vec argument's binding; the move rules
              * keep that binding alive while the view is in scope. */
-            return expression_origin(check, expression->first_child);
+            Origin origin = expression_origin(check, expression->first_child);
+            /* A global Vec outlives every block, but a later push or free
+             * anywhere may move its elements, and only a live borrow in this
+             * block stops that. So its view lives no longer than the block,
+             * like a view of a local: it cannot be returned or kept in a
+             * global or an outer binding. */
+            BorrowPlace place = storage_place(check, expression->first_child, 1);
+            if(!origin.unknown && place.root != NULL &&
+               place.root->global_index >= 0) {
+                if(origin.depth < check->depth)
+                    origin.depth = check->depth;
+                origin.global_vec = 1;
+            }
+            return origin;
         }
         if(view_type(check, expression->type)) {
             /* Host slice returns own their storage: the VM copies the
@@ -1614,6 +1630,13 @@ reject_return(BorrowCheck *check, ZirSourceSpan span, Origin source)
             "returned %s borrows backing storage through a pointer whose "
             "lifetime cannot be proved; pass that storage as a slice "
             "parameter and return a view of it, or copy the elements", kind);
+        check->failed = 1;
+        return;
+    }
+    if(!source.invalid && !source.unknown && source.global_vec) {
+        Diagnostic(span, "check.slice_lifetime",
+            "returned %s views a global Vec, which a later push or free may "
+            "move; take the view in the caller or copy the elements", kind);
         check->failed = 1;
         return;
     }

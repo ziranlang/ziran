@@ -2254,9 +2254,14 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             } else if(view) {
                 int third = second >= 0 ?
                     c->fn->exprs[second].next_sibling : -1;
-                if(vec_place_root(c, first) == NULL)
+                /* A global Vec, or one in a global record, is a place too:
+                 * the borrow pass keeps it from growing, being freed or
+                 * reassigned, here or in any callee, while the view lives. */
+                if(vec_place_root(c, first) == NULL &&
+                   !global_owned_place(c, first))
                     error(c, e->span,
-                          "VecSlice requires a local Vec place", e->name);
+                          "VecSlice requires a Vec variable or a field of one",
+                          e->name);
                 if(second < 0 || third < 0 ||
                    c->fn->exprs[third].next_sibling >= 0)
                     error(c, e->span, "VecSlice requires low and high bounds",

@@ -141,7 +141,13 @@ pointer, as in `VecSlice(h.items, 0, n)`, `h.items[1:]`, or the view a
 `for h.items` or `for it.parts` loop takes. That borrow is field-sensitive:
 elements stay writable, and so do sibling fields and their Vecs, while
 resizing or freeing the viewed Vec, moving or assigning it or a record that
-holds it, or calling a procedure whose summary does either, is rejected. `VecClone(dest, src)` requires a fresh or moved-from destination
+holds it, or calling a procedure whose summary does either, is rejected.
+The source can be a global Vec, or a Vec field of a global record, under the
+same rules: while the view is live, growing, freeing or replacing that Vec is
+rejected here and in any procedure whose summary does so. Because a later
+push anywhere may move a global's elements, such a view also lives no longer
+than its block: returning it or storing it in a global or an outer binding
+is rejected. `VecClone(dest, src)` requires a fresh or moved-from destination
 and returns `false` on allocation failure without changing the source.
 Native output and the portable VM agree on the observable value of
 every moved binding: the source is unreachable after the move.

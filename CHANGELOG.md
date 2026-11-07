@@ -91,7 +91,8 @@
   such as `s16x16`, with operations that give the same bits in C (SSE2 to
   AVX2, NEON and WebAssembly SIMD128), Go, bundles and the portable VM.
 - A `#target` procedure runs the best x86-64 SIMD instructions the CPU has,
-  chosen once when the program runs. `ZIRAN_SIMD_TIER` lowers the choice.
+  chosen once when the program runs. `ZIRAN_SIMD_TIER` lowers the choice,
+  and `#asm` variants needing a vector feature beyond it are passed over.
 - `std/simd` works however it is imported or aliased, and short standard
   imports such as `#import "simd"` also resolve through
   `--module-path std=DIR`, as package tests pass it.

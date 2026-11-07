@@ -1588,7 +1588,8 @@ Blend :: (row: []u8, out: []u8) #target {
 Generated C holds SSSE3, SSE4.1 and AVX2 copies of `Blend` and calls the
 best one the CPU runs, chosen once, so one SSE2 build uses AVX2 where it can.
 `ZIRAN_SIMD_TIER=1` (SSE2) to `4` (AVX2) in the environment lowers the
-choice for testing. Builds that already enable AVX2, and other targets,
+choice for testing, and `#asm` variants needing a vector feature beyond that
+tier, such as `x86_64+avx2` under `ZIRAN_SIMD_TIER=3`, are passed over. Builds that already enable AVX2, and other targets,
 compile the procedure once. A `#target` procedure cannot take or return a
 256-bit vector by value, or pass one to another procedure, because AVX2 code
 passes those in different registers; use an array or a pointer. It cannot be

@@ -39,31 +39,35 @@ static const struct { const char *name, *guard; } architectures[] = {
  * helper may use these instructions, while its caller keeps the build's ISA.
  * Each architecture column is the helper's target option, or NULL where the
  * feature does not exist. hwcap is the Linux AT_HWCAP bit on AArch64/ARMv7.
- * WebAssembly features are build options instead; see runtime_selected. */
+ * WebAssembly features are build options instead; see runtime_selected.
+ * tier is the lowest ZIRAN_SIMD_TIER (1 SSE2 .. 4 AVX2, as for #target
+ * clones) a CPU with an x86 vector feature reaches, 5 beyond AVX2; a forced
+ * lower tier hides the feature. 0 marks features outside the tiers. */
 static const struct {
     const char *name, *x86, *aarch64, *hwcap, *arm, *wasm32;
+    int tier;
 } cpu_features[] = {
-    {"popcnt", "popcnt", NULL, NULL, NULL, NULL},
-    {"sse2", "sse2", NULL, NULL, NULL, NULL},
-    {"ssse3", "ssse3", NULL, NULL, NULL, NULL},
-    {"sse4.1", "sse4.1", NULL, NULL, NULL, NULL},
-    {"sse4.2", "sse4.2", NULL, NULL, NULL, NULL},
-    {"avx", "avx", NULL, NULL, NULL, NULL},
-    {"avx2", "avx2", NULL, NULL, NULL, NULL},
-    {"avx512f", "avx512f", NULL, NULL, NULL, NULL},
-    {"bmi", "bmi", NULL, NULL, NULL, NULL},
-    {"bmi2", "bmi2", NULL, NULL, NULL, NULL},
-    {"lzcnt", "lzcnt", NULL, NULL, NULL, NULL},
-    {"fma", "fma", NULL, NULL, NULL, NULL},
-    {"aes", "aes", "+aes", "HWCAP_AES", NULL, NULL},
-    {"pclmul", "pclmul", NULL, NULL, NULL, NULL},
-    {"crc32", NULL, "+crc", "HWCAP_CRC32", NULL, NULL},
-    {"pmull", NULL, "+aes", "HWCAP_PMULL", NULL, NULL},
-    {"sha2", NULL, "+sha2", "HWCAP_SHA2", NULL, NULL},
-    {"atomics", NULL, "+lse", "HWCAP_ATOMICS", NULL, NULL},
-    {"simd", NULL, "+simd", "HWCAP_ASIMD", NULL, NULL},
-    {"neon", NULL, NULL, "HWCAP_NEON", "neon", NULL},
-    {"simd128", NULL, NULL, NULL, NULL, "simd128"}
+    {"popcnt", "popcnt", NULL, NULL, NULL, NULL, 0},
+    {"sse2", "sse2", NULL, NULL, NULL, NULL, 0},
+    {"ssse3", "ssse3", NULL, NULL, NULL, NULL, 2},
+    {"sse4.1", "sse4.1", NULL, NULL, NULL, NULL, 3},
+    {"sse4.2", "sse4.2", NULL, NULL, NULL, NULL, 4},
+    {"avx", "avx", NULL, NULL, NULL, NULL, 4},
+    {"avx2", "avx2", NULL, NULL, NULL, NULL, 4},
+    {"avx512f", "avx512f", NULL, NULL, NULL, NULL, 5},
+    {"bmi", "bmi", NULL, NULL, NULL, NULL, 0},
+    {"bmi2", "bmi2", NULL, NULL, NULL, NULL, 0},
+    {"lzcnt", "lzcnt", NULL, NULL, NULL, NULL, 0},
+    {"fma", "fma", NULL, NULL, NULL, NULL, 4},
+    {"aes", "aes", "+aes", "HWCAP_AES", NULL, NULL, 0},
+    {"pclmul", "pclmul", NULL, NULL, NULL, NULL, 0},
+    {"crc32", NULL, "+crc", "HWCAP_CRC32", NULL, NULL, 0},
+    {"pmull", NULL, "+aes", "HWCAP_PMULL", NULL, NULL, 0},
+    {"sha2", NULL, "+sha2", "HWCAP_SHA2", NULL, NULL, 0},
+    {"atomics", NULL, "+lse", "HWCAP_ATOMICS", NULL, NULL, 0},
+    {"simd", NULL, "+simd", "HWCAP_ASIMD", NULL, NULL, 0},
+    {"neon", NULL, NULL, "HWCAP_NEON", "neon", NULL, 0},
+    {"simd128", NULL, NULL, NULL, NULL, "simd128", 0}
 };
 #define CPU_FEATURES (sizeof(cpu_features) / sizeof(*cpu_features))
 
@@ -700,10 +704,25 @@ assembly_guard(FILE *out, const Assembly *assembly)
     }
 }
 
-/* Linux AArch64 and ARMv7 detect features through the kernel's AT_HWCAP. */
+/* The highest #target tier an x86 variant's features need, or 0. */
+static int
+assembly_tier(const Assembly *assembly)
+{
+    int tier = 0;
+    if(assembly->architecture != ASM_X86_64 && assembly->architecture != ASM_X86) return 0;
+    for(size_t i = 0; i < CPU_FEATURES; i++)
+        if((assembly->features & (UINT64_C(1) << i)) && cpu_features[i].tier > tier)
+            tier = cpu_features[i].tier;
+    return tier;
+}
+
+/* Linux AArch64 and ARMv7 detect features through the kernel's AT_HWCAP;
+ * x86 vector features also read ZIRAN_SIMD_TIER from the environment. */
 static void
 assembly_includes(FILE *out, const Assembly *assembly)
 {
+    if(assembly_tier(assembly))
+        fputs("#if !defined(ZIRAN_NO_ASM)\n#include <stdlib.h>\n#endif\n", out);
     if(!assembly->features ||
        (assembly->architecture != ASM_AARCH64 && assembly->architecture != ASM_ARM)) return;
     fprintf(out, "#if !defined(ZIRAN_NO_ASM) && defined(__linux__) && defined(%s)\n"
@@ -932,6 +951,14 @@ assembly_predicate(FILE *out, const Assembly *assembly)
         else fprintf(out, "__builtin_cpu_supports(\"%s\")", cpu_features[i].name);
         first = 0;
     }
+    /* ZIRAN_SIMD_TIER, read as ziran_simd.h reads it for #target clones,
+     * hides a feature beyond the forced tier. */
+    int tier = assembly_tier(assembly);
+    if(tier)
+        fprintf(out, " && !__extension__ ({\n"
+                     "    const char *zir_tier = getenv(\"ZIRAN_SIMD_TIER\");\n"
+                     "    zir_tier != NULL && zir_tier[0] >= '1' && zir_tier[0] < '%c' && zir_tier[1] == '\\0'; })",
+                '0' + tier);
 }
 
 static void

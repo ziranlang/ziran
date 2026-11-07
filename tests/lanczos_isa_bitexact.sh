@@ -181,9 +181,11 @@ for optimization in 0 2; do
     fi
 done
 if test "$(uname -m)" = x86_64; then
+    # Below AVX2 the AVX2 probe fails too, so the SSE2 kernels are the best.
+    { echo 'levels: scalar sse2'; echo 'best: sse2'; grep '^cases:' "$work/native-O2.out"; } > "$work/tiers.out"
     for tier in 1 2 3; do
         ZIRAN_SIMD_TIER=$tier "$work/native-O2" > "$work/tier$tier.out"
-        cmp -s "$work/tier$tier.out" "$work/native-O2.out" ||
+        cmp -s "$work/tier$tier.out" "$work/tiers.out" ||
             { echo "ZIRAN_SIMD_TIER=$tier:"; cat "$work/tier$tier.out"; exit 1; }
     done
     echo "SSE2, SSSE3 and SSE4.1 copies agree"

@@ -203,6 +203,31 @@ for mask in 0 1 2 3; do
     "$output/run"
 done
 
+# ZIRAN_SIMD_TIER hides x86 vector features beyond the forced tier, as it
+# lowers #target clones: on a CPU with every feature, each tier picks its own
+# variant, any forced tier passes over AVX-512, and other values force none.
+if test "$(uname -m)" = x86_64; then
+    cat > "$work/tier.zi" <<'ZI'
+#program_export
+Tier :: () -> s32 #asm("x86_64+avx512f", "movl $5, %[out]", "=r", "", "", "") #asm("x86_64+avx2+fma", "movl $4, %[out]", "=r", "", "", "") #asm("x86_64+sse4.1", "movl $3, %[out]", "=r", "", "", "") #asm("x86_64+ssse3+popcnt", "movl $2, %[out]", "=r", "", "", "") #asm("x86_64", "movl $1, %[out]", "=r", "", "", "") { return 0 }
+ZI
+    cat > "$work/every-feature.h" <<'C'
+#define __builtin_cpu_init() ((void)0)
+#define __builtin_cpu_supports(feature) 1
+C
+    printf '#include "tier.h"\n#include <stdio.h>\nint main(void) { printf("%%d\\n", Tier()); return 0; }\n' > "$work/tier-host.c"
+    output=$work/tier-c
+    "$ziran" build --target=c --root "$work" -o "$output" "$work/tier.zi"
+    "${CC:-cc}" -std=c11 -O2 -include "$work/every-feature.h" -I"$repo/include" -I"$output" \
+        "$output/tier.c" "$work/tier-host.c" -o "$output/run"
+    test "$(unset ZIRAN_SIMD_TIER; "$output/run")" = 5
+    for forced in 1:1 2:2 3:3 4:4 5:5 0:5 12:5 :5; do
+        picked=$(ZIRAN_SIMD_TIER=${forced%:*} "$output/run")
+        test "$picked" = "${forced#*:}" ||
+            { echo "ZIRAN_SIMD_TIER=${forced%:*} picked $picked" >&2; exit 1; }
+    done
+fi
+
 # Compile every advertised runtime feature, including the corresponding
 # target attribute and detection primitive, on its destination architecture.
 python3 - "$work/matrix.zi" <<'PY'

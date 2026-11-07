@@ -611,6 +611,7 @@ zi_simd_tier_detect(void)
             }
         }
     }
+    /* #asm feature probes read it the same way (cmd/zir/zir_asm.c). */
     const char *forced = getenv("ZIRAN_SIMD_TIER");
     if(forced != NULL && forced[0] >= '1' && forced[0] <= '4' && forced[1] == '\0' &&
        forced[0] - '0' < tier)

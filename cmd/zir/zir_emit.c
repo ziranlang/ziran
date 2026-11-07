@@ -823,6 +823,14 @@ NativeTypeAtUse(const ZirModule *module, const char *type,
     return out[0] != '\0';
 }
 
+/* A ZirResolveTarget naming SOURCE in C as the module CONTEXT sees it. */
+void
+resolve_type_at_use(void *context, const char *source, char *out, size_t size)
+{
+    if(!NativeTypeAtUse(context, source, out, size))
+        copy_text(out, size, source);
+}
+
 static const ZirModule *
 native_go_constant_owner(const ZirModule *module, const char *name)
 {
@@ -1376,11 +1384,11 @@ record_type(const ZirModule *module, const char *type)
 }
 
 const ZirType *
-field_record(const ZirModule *module, const char *type)
+field_record(const ZirModule *module, const char *type, const ZirModule **owner)
 {
     const char *base = skip_ws(type);
     while(*base == '*') base = skip_ws(base + 1);
-    return FindType(module, base, NULL);
+    return FindType(module, base, owner);
 }
 int
 spelled_pointer_field(const ZirType *record, const char *name, ZirTypeField *field)
@@ -1424,6 +1432,7 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
                 const char *base_expression, char *out, size_t size, EmitFieldPathBuffers *buffers)
 {
     char current_type[ZIR_NAME_MAX];
+    const ZirModule *scope = module;
     copy_text(buffers->result, sizeof(buffers->result), base_expression);
     copy_text(current_type, sizeof(current_type), base_type);
     for(const char *part = path; *part;) {
@@ -1437,7 +1446,10 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
         }
         memcpy(name, part, length);
         name[length] = '\0';
-        const ZirType *record = field_record(module, current_type);
+        /* A field's type is spelled in the module declaring its record. */
+        const ZirModule *owner = NULL;
+        const ZirType *record = field_record(scope, current_type, &owner);
+        if(owner != NULL) scope = owner;
         if(target == ZIR_GO && record != NULL && record->is_union) {
             /* Unions keep a byte backing; every Go access reinterprets it
              * through the field's declared type. */
@@ -1450,7 +1462,7 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
                     break;
                 }
             if(field_type != NULL) {
-                const ZirType *enumeration = FindType(module, field_type, NULL);
+                const ZirType *enumeration = FindType(scope, field_type, NULL);
                 const char *backing = enumeration != NULL &&
                                       enumeration->is_enum ?
                     enumeration->enum_backing : field_type;
@@ -1485,15 +1497,9 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
         ZirTypeField spelled;
         if(dot == NULL && read && target == ZIR_C &&
            spelled_pointer_field(record, name, &spelled)) {
-            const char *leaf = spelled.type;
-            char native[ZIR_NAME_MAX], pointer[ZIR_NAME_MAX * 2];
-            while(*leaf == '*') leaf = skip_ws(leaf + 1);
-            if(NativeTypeAtUse(module, leaf, native, sizeof(native))) {
-                format(pointer, sizeof(pointer), "%.*s%s", (int)(leaf - spelled.type),
-                       spelled.type, native);
-                slot_native_type(pointer, target, native, sizeof(native));
-            } else
-                slot_native_type(spelled.type, target, native, sizeof(native));
+            char native[ZIR_NAME_MAX];
+            slot_type_at_use(spelled.type, target, resolve_type_at_use, (void *)scope,
+                             native, sizeof(native));
             format(buffers->next, sizeof(buffers->next), "((%s)%s)", native, buffers->result);
             copy_text(buffers->result, sizeof(buffers->result), buffers->next);
         }

@@ -335,6 +335,14 @@ ProcedureOperator :: (name: string) -> string {
     return ""
 }
 
+// The value of hex digit BYTE, or -1.
+HexDigit :: (byte: u8) -> s32 {
+    if byte >= 48 && byte <= 57 { return cast(s32)byte - 48 }
+    if byte >= 97 && byte <= 102 { return cast(s32)byte - 97 + 10 }
+    if byte >= 65 && byte <= 70 { return cast(s32)byte - 65 + 10 }
+    return -1
+}
+
 #scope_file
 Operators: [16]string = .{"==", "!=", "<=", ">=", "<<", ">>", "+", "-", "*", "/", "%", "<", ">", "&", "|", "^"};
 Procedures: [16]string = .{"operator_equal", "operator_not_equal", "operator_less_equal", "operator_greater_equal", "operator_shift_left", "operator_shift_right", "operator_add", "operator_subtract", "operator_multiply", "operator_divide", "operator_modulo", "operator_less", "operator_greater", "operator_bit_and", "operator_bit_or", "operator_bit_xor"};
@@ -353,12 +361,6 @@ AfterQuote :: (source: string, at: s64) -> s64 {
         if byte == #char "\\" && at < source.count { at += 1 }
     }
     return at
-}
-HexDigit :: (byte: u8) -> s32 {
-    if byte >= 48 && byte <= 57 { return cast(s32)byte - 48 }
-    if byte >= 97 && byte <= 102 { return cast(s32)byte - 97 + 10 }
-    if byte >= 65 && byte <= 70 { return cast(s32)byte - 65 + 10 }
-    return -1
 }
 EscapeByte :: (byte: u8, c_string: bool, output: []u8) -> s64 {
     output[0] = #char "\\"

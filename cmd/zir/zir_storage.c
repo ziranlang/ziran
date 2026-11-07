@@ -437,13 +437,23 @@ RawTextExpand(const char *text)
     return out;
 }
 
+/* Whether TEXT holds a raw-text marker. Other uses of \x1f, such as the
+ * compile-time evaluator's own markers, are text like any other. */
+static int
+raw_text_marked(const char *text)
+{
+    for(const char *p = strchr(text, '\x1f'); p != NULL; p = strchr(p + 1, '\x1f'))
+        if(p[1] == 'R' && isdigit((unsigned char)p[2])) return 1;
+    return 0;
+}
+
 const char *KeepText(const char *text)
 {
     if(text == NULL || *text == '\0') return empty_text;
     CompilerThread *thread = kept_texts_thread();
     /* Text without raw-text markers is kept as it is; a cached one needs
      * no allocation, so memory tracking need not pause for it. */
-    if(strchr(text, '\x1f') == NULL) {
+    if(!raw_text_marked(text)) {
         const char *cached = kept_text_cached(thread, text, SIZE_MAX);
         if(cached) return cached;
         CompilerMemory *memory = CompilerThreadPause(thread);

@@ -54,7 +54,6 @@ static int canonical_compound(const ZirModule *module, CompileValue *value);
 /* Buffers evaluate_typed_node keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedNodeBuffers {
-    unsigned char bytes[ZIR_TEXT_MAX];
     CompileValue args[16];
     char names[16][ZIR_NAME_MAX];
 } EvaluateTypedNodeBuffers;
@@ -70,6 +69,138 @@ _Thread_local int ZirLawEvaluation;
 static _Thread_local const ZirConsts *evaluation_names;
 /* The constants a condition's defined(NAME) probes, in either mode. */
 static _Thread_local const ZirConsts *condition_names;
+
+/* Storage one #run evaluation owns besides its value texts: the bytes of
+ * each Vec(u8) builder, and the bindings pointers and slices refer to. A
+ * value names either through a marker literal, "\x1fB<n>\x1f" for builder n
+ * or "\x1fP<n>\x1f" for reference n, the way a long literal travels as a
+ * raw-text marker. Source cannot spell one (string text escapes control
+ * bytes), and no marker leaves the outermost evaluation, which frees the
+ * store. */
+typedef struct CompileReference {
+    TypedBody *body; /* NULL once that call has returned */
+    int serial;
+} CompileReference;
+
+typedef struct CompileStore {
+    CompileText *builders;
+    int builder_count, builder_capacity;
+    CompileReference *references;
+    int reference_count, reference_capacity;
+    int users;
+} CompileStore;
+
+static _Thread_local CompileStore compile_store;
+/* The procedure calls being evaluated, innermost first. */
+static _Thread_local TypedBody *active_bodies;
+
+static void
+compile_store_leave(void)
+{
+    if(--compile_store.users > 0) return;
+    for(int i = 0; i < compile_store.builder_count; i++)
+        free(compile_store.builders[i].data);
+    free(compile_store.builders);
+    free(compile_store.references);
+    memset(&compile_store, 0, sizeof(compile_store));
+}
+
+static int
+compile_marker(CompileValue *value, CompileKind kind, int index)
+{
+    char text[32];
+    snprintf(text, sizeof(text), "\"\x1f" "%c%d\x1f\"",
+             kind == COMPILE_BUILDER ? 'B' : 'P', index);
+    value->kind = kind;
+    value->integer = index;
+    copy_text(value->type, sizeof(value->type),
+              kind == COMPILE_BUILDER ? "Vec(u8)" : "");
+    compile_set_literal(value, text);
+    return 1;
+}
+
+/* The builder or reference a marker literal names, or 0 for other text. */
+static int
+compile_marker_value(const char *literal, CompileValue *value)
+{
+    if(literal[0] != '"' || literal[1] != '\x1f' ||
+       (literal[2] != 'B' && literal[2] != 'P') ||
+       !isdigit((unsigned char)literal[3])) return 0;
+    char *end;
+    long index = strtol(literal + 3, &end, 10);
+    if(end[0] != '\x1f' || end[1] != '"' || end[2] != '\0') return 0;
+    CompileKind kind = literal[2] == 'B' ? COMPILE_BUILDER : COMPILE_REFERENCE;
+    if(index >= (kind == COMPILE_BUILDER ? compile_store.builder_count :
+                 compile_store.reference_count)) return 0;
+    return compile_marker(value, kind, (int)index);
+}
+
+static int
+compile_new_builder(CompileValue *value)
+{
+    CompileStore *store = &compile_store;
+    if(store->users == 0) return 0;
+    if(store->builder_count == store->builder_capacity) {
+        int capacity = store->builder_capacity ? store->builder_capacity * 2 : 16;
+        CompileText *grown = realloc(store->builders,
+                                     (size_t)capacity * sizeof(*grown));
+        if(grown == NULL) return 0;
+        store->builders = grown;
+        store->builder_capacity = capacity;
+    }
+    store->builders[store->builder_count] = (CompileText){0};
+    return compile_marker(value, COMPILE_BUILDER, store->builder_count++);
+}
+
+static CompileText *
+compile_builder(const CompileValue *value)
+{
+    return value->kind == COMPILE_BUILDER && value->integer >= 0 &&
+           value->integer < compile_store.builder_count ?
+           &compile_store.builders[value->integer] : NULL;
+}
+
+static int
+compile_new_reference(CompileValue *value, TypedBody *body, int serial)
+{
+    CompileStore *store = &compile_store;
+    if(store->users == 0) return 0;
+    if(store->reference_count == store->reference_capacity) {
+        int capacity = store->reference_capacity ? store->reference_capacity * 2 : 16;
+        CompileReference *grown = realloc(store->references,
+                                          (size_t)capacity * sizeof(*grown));
+        if(grown == NULL) return 0;
+        store->references = grown;
+        store->reference_capacity = capacity;
+    }
+    store->references[store->reference_count] = (CompileReference){body, serial};
+    return compile_marker(value, COMPILE_REFERENCE, store->reference_count++);
+}
+
+/* The binding a live reference names, and the call that holds it. */
+static ZirConst *
+compile_referenced(const CompileValue *value, TypedBody **owner)
+{
+    if(value->kind != COMPILE_REFERENCE || value->integer < 0 ||
+       value->integer >= compile_store.reference_count) return NULL;
+    const CompileReference *reference = &compile_store.references[value->integer];
+    TypedBody *body = reference->body;
+    for(int i = 0; body != NULL && i < body->local_count; i++)
+        if(body->serials[i] == reference->serial) {
+            *owner = body;
+            return &body->names.items[i];
+        }
+    return NULL;
+}
+
+/* The call whose bindings the expression being evaluated reads. */
+static TypedBody *
+current_body(void)
+{
+    for(TypedBody *body = active_bodies; body != NULL; body = body->outer)
+        if(&body->names == evaluation_names) return body;
+    return NULL;
+}
 
 /* Whether NAME is a constant visible from PATH, as defined(NAME) asks. */
 static int
@@ -114,6 +245,12 @@ compile_platform_value(const char *name, CompileValue *result)
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
                           int *fuel, CompileValue *result);
+static int compile_literal_member(const CompileValue *compound, const char *member,
+                                  const ZirModule *module, const char *path,
+                                  int depth, int *fuel, CompileValue *result);
+static int compile_literal_index(const CompileValue *compound, int64_t index,
+                                 const ZirModule *module, const char *path,
+                                 int depth, int *fuel, CompileValue *result);
 
 /* Law evaluation is pure: a binding read evaluates only the binding's text,
  * and a call only its arguments, procedures and module constants. Such a
@@ -137,7 +274,7 @@ compile_value_is_clear(const CompileValue *value)
 {
     return value->kind == COMPILE_INVALID && value->integer == 0 &&
            value->real == 0 && !signbit(value->real) && !value->type[0] &&
-           !value->literal[0] && value->type_owner == NULL;
+           !compile_literal(value)[0] && value->type_owner == NULL;
 }
 
 /* Give RESULT, which is clear, the kept value when the step repeats. */
@@ -151,7 +288,7 @@ kept_value_applies(const KeptValue *kept, int depth, int *fuel,
     result->integer = kept->integer;
     result->real = kept->real;
     copy_text(result->type, sizeof(result->type), kept->type);
-    copy_text(result->literal, sizeof(result->literal), kept->literal);
+    compile_set_literal(result, kept->literal);
     result->type_owner = kept->type_owner;
     return 1;
 }
@@ -175,7 +312,7 @@ static void
 keep_value(KeptValue *kept, int depth, int cost, const CompileValue *value)
 {
     keep_value_texts(kept, depth, cost, value, KeepText(value->type),
-                     KeepText(value->literal));
+                     KeepText(compile_literal(value)));
 }
 
 /* A binding's last read: its text, evaluated in MODULE, gave VALUE. */
@@ -188,6 +325,117 @@ struct ZirBoundRead {
 /* Name lookups in non-empty tables so far; a read that makes none depends
  * only on its own text. */
 static _Thread_local unsigned long binding_lookups;
+
+/* BINDING's value: `cast(TYPE) (value)` for scalars and bools, otherwise
+ * `(value)`. */
+static int evaluate_cached_binding(const ZirModule *module,
+                                   const ZirConsts *names,
+                                   const ZirConst *binding, const char *path,
+                                   int depth, int *fuel, CompileValue *result);
+
+static int
+evaluate_binding(const ZirModule *module, const ZirConsts *names,
+                 const ZirConst *binding, const char *path, int depth,
+                 int *fuel, CompileValue *result)
+{
+    if(compile_marker_value(binding->expr, result)) return 1;
+    CompileText text = {0};
+    if(ScalarWidth(binding->type) || !strcmp(binding->type, "bool")) {
+        compile_text_put(&text, "cast(");
+        compile_text_put(&text, binding->type);
+        compile_text_put(&text, ") ");
+    }
+    compile_text_put(&text, "(");
+    compile_text_put(&text, binding->expr);
+    compile_text_put(&text, ")");
+    int ok = !text.failed &&
+             evaluate_typed_expression(module, names, text.data,
+                                       Span(binding->path[0] ? binding->path : path, 1, 1),
+                                       depth + 1, fuel, result);
+    free(text.data);
+    return ok;
+}
+
+/* VALUE in place of the reference it holds: the binding's current value. */
+static int
+compile_dereference(CompileValue *value, int depth, int *fuel)
+{
+    TypedBody *owner = NULL;
+    const ZirConst *binding = compile_referenced(value, &owner);
+    if(binding == NULL) return 0;
+    CompileValue target;
+    compile_value_clear(&target);
+    if(!evaluate_cached_binding(owner->module, &owner->names, binding,
+                                SpanPath(owner->fn->span), depth, fuel,
+                                &target) ||
+       target.kind == COMPILE_REFERENCE) return 0;
+    *value = target;
+    return 1;
+}
+
+static int
+evaluate_cached_binding(const ZirModule *module, const ZirConsts *names,
+                        const ZirConst *binding, const char *path, int depth,
+                        int *fuel, CompileValue *result)
+{
+    size_t index = (size_t)(binding - names->items);
+    ZirBoundRead *read = names->reads != NULL && binding->path[0] &&
+                         index < (size_t)names->count &&
+                         compile_value_is_clear(result) ?
+                         &names->reads[index] : NULL;
+    if(read != NULL && read->expr == binding->expr &&
+       read->module == module &&
+       kept_value_applies(&read->value, depth, fuel, result))
+        return 1;
+    unsigned long lookups = binding_lookups;
+    int before = *fuel;
+    int ok = evaluate_binding(module, names, binding, path, depth, fuel,
+                              result);
+    if(ok && read != NULL && binding_lookups == lookups) {
+        read->expr = binding->expr;
+        read->module = module;
+        keep_value(&read->value, depth, before - *fuel, result);
+    }
+    return ok;
+}
+
+static int
+compile_bool(CompileValue *result, int truth)
+{
+    result->kind = COMPILE_INTEGER;
+    result->integer = truth != 0;
+    copy_text(result->type, sizeof(result->type), "bool");
+    return compile_value_literal(result);
+}
+
+/* A pointer or full slice `*name` or `name[:]` to a binding of the call
+ * being evaluated. A Vec(u8) is its own reference, and a slice of a slice
+ * the same one. */
+static int
+compile_reference_to(const char *name, int pointer, CompileValue *result)
+{
+    TypedBody *body = current_body();
+    if(body == NULL) return 0;
+    for(int i = 0; i < body->local_count; i++) {
+        const ZirConst *binding = &body->names.items[i];
+        if(strcmp(binding->name, name)) continue;
+        /* A reference passed in names its storage already. */
+        if(compile_marker_value(binding->expr, result)) {
+            copy_text(result->type, sizeof(result->type), binding->type);
+            return 1;
+        }
+        char element[ZIR_NAME_MAX];
+        int capacity = 0;
+        if(!pointer &&
+           !ArrayElementType(binding->type, element, sizeof(element), &capacity))
+            return 0;
+        if(!compile_new_reference(result, body, body->serials[i])) return 0;
+        snprintf(result->type, sizeof(result->type), "%s%s",
+                 pointer ? "*" : "[]", pointer ? binding->type : element);
+        return 1;
+    }
+    return 0;
+}
 
 /* Evaluate `name` the way splicing `(cast(TYPE) (value))`, or `(value)` for
  * constants and non-scalar locals, into the expression would. Returns -1
@@ -207,42 +455,8 @@ evaluate_bound_name(const ZirModule *module, const char *path,
         if(strcmp(binding->name, name) ||
            (binding->is_file_private && strcmp(binding->path, path)))
             continue;
-        ZirBoundRead *read = names->reads != NULL && binding->path[0] &&
-                             compile_value_is_clear(result) ?
-                             &names->reads[i] : NULL;
-        if(read != NULL && read->expr == binding->expr &&
-           read->module == module &&
-           kept_value_applies(&read->value, depth, fuel, result))
-            return 1;
-        char text[ZIR_TEXT_MAX];
-        size_t type_length = strlen(binding->type);
-        size_t expr_length = strlen(binding->expr);
-        size_t used = 0;
-        if(type_length + expr_length + 9 >= sizeof(text))
-            return 0;
-        if(ScalarWidth(binding->type) || !strcmp(binding->type, "bool")) {
-            memcpy(text, "cast(", 5);
-            memcpy(text + 5, binding->type, type_length);
-            used = 5 + type_length;
-            memcpy(text + used, ") ", 2);
-            used += 2;
-        }
-        text[used++] = '(';
-        memcpy(text + used, binding->expr, expr_length);
-        used += expr_length;
-        text[used++] = ')';
-        text[used] = '\0';
-        unsigned long lookups = binding_lookups;
-        int before = *fuel;
-        int ok = evaluate_typed_expression(module, names, text,
-                                           Span(binding->path[0] ? binding->path : path, 1, 1),
-                                           depth + 1, fuel, result);
-        if(ok && read != NULL && binding_lookups == lookups) {
-            read->expr = binding->expr;
-            read->module = module;
-            keep_value(&read->value, depth, before - *fuel, result);
-        }
-        return ok;
+        return evaluate_cached_binding(module, names, binding, path, depth,
+                                       fuel, result);
     }
     return -1;
 }
@@ -272,6 +486,46 @@ evaluate_module_define(const ZirModule *module, const char *path,
 int evaluate_typed_node(const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
                     int depth, int *fuel, CompileValue *result);
+
+/* The builder primitives on a #run Vec(u8): BuilderAppend, BuilderFinish,
+ * and the Append that BuilderPrint expands to, for the string, integer and
+ * bool texts std/format writes. Returns -1 for any other call. */
+static int
+compile_builder_call(const char *name, CompileValue *args, int count,
+                     CompileValue *result)
+{
+    int append = !strcmp(name, "BuilderAppend");
+    int finish = !strcmp(name, "BuilderFinish");
+    if(!append && !finish && strcmp(name, "Append")) return -1;
+    CompileText *builder = count >= 1 ? compile_builder(&args[0]) : NULL;
+    if(builder == NULL) return append || finish ? 0 : -1;
+    if(finish) {
+        if(count != 1) return 0;
+        CompileText text = {0};
+        compile_text_string(&text, (const unsigned char *)builder->data,
+                            builder->used);
+        builder->used = 0;
+        result->kind = COMPILE_STRING;
+        if(!text.failed) compile_set_literal(result, text.data);
+        free(text.data);
+        return !text.failed;
+    }
+    if(count != 2) return append ? 0 : -1;
+    const CompileValue *value = &args[1];
+    if(value->kind == COMPILE_STRING) {
+        size_t length = 0;
+        unsigned char *bytes = compile_string_bytes(value, &length);
+        if(bytes == NULL) return 0;
+        compile_text_add(builder, (const char *)bytes, length);
+        free(bytes);
+        return !builder->failed;
+    }
+    if(append || value->kind != COMPILE_INTEGER) return append ? 0 : -1;
+    compile_text_put(builder, !strcmp(value->type, "bool") ?
+                     (value->integer ? "true" : "false") :
+                     compile_literal(value));
+    return !builder->failed;
+}
 
 static int
 evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
@@ -309,11 +563,11 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         /* A law accepts only a literal that spells its double exactly, the
          * way the evaluator writes a real passed through a call or local;
          * other decimal text would round. */
-        return !ZirLawEvaluation || !strcmp(result->literal, expression->text);
+        return !ZirLawEvaluation || !strcmp(compile_literal(result), expression->text);
     case ZIR_EXPR_STRING:
+        if(compile_marker_value(expression->text, result)) return 1;
         result->kind = COMPILE_STRING;
-        copy_text(result->literal, sizeof(result->literal),
-                  expression->text);
+        compile_set_literal(result, expression->text);
         return 1;
     case ZIR_EXPR_COMPOUND:
         return compile_compound_value(probe, expression, module, path,
@@ -325,11 +579,8 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         return compile_value_literal(result);
     case ZIR_EXPR_IDENT:
         if(!strcmp(expression->name, "true") ||
-           !strcmp(expression->name, "false")) {
-            result->kind = COMPILE_INTEGER;
-            result->integer = !strcmp(expression->name, "true");
-            return compile_value_literal(result);
-        }
+           !strcmp(expression->name, "false"))
+            return compile_bool(result, !strcmp(expression->name, "true"));
         {
             int bound = evaluate_bound_name(module, path, expression->name,
                                             depth, fuel, result);
@@ -358,12 +609,27 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
             result->integer = LONG_MIN;
             return compile_value_literal(result);
         }
+        /* The parser spells address-of `*x` as "&" and `<<p` as "*". */
+        if(!strcmp(expression->op, "&") &&
+           operand->kind == ZIR_EXPR_IDENT && evaluation_names != NULL)
+            return compile_reference_to(operand->name, 1, result);
         if(!evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, &right)) return 0;
+        if(right.kind == COMPILE_BUILDER &&
+           (!strcmp(expression->op, "&") || !strcmp(expression->op, "*"))) {
+            *result = right;
+            return 1;
+        }
+        if(!strcmp(expression->op, "*")) {
+            if(!compile_dereference(&right, depth + 1, fuel)) return 0;
+            *result = right;
+            return 1;
+        }
+        if(right.kind == COMPILE_BUILDER || right.kind == COMPILE_REFERENCE)
+            return 0;
         if(!strcmp(expression->op, "!")) {
             if(!compile_truth(&right, &truth)) return 0;
-            result->kind = COMPILE_INTEGER;
-            result->integer = !truth;
+            return compile_bool(result, !truth);
         } else if(!strcmp(expression->op, "+")) {
             *result = right;
         } else if(!strcmp(expression->op, "-")) {
@@ -389,26 +655,20 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         if(!strcmp(op, "&&") || !strcmp(op, "||")) {
             if(!compile_truth(&left, &truth)) return 0;
             if((!strcmp(op, "&&") && !truth) ||
-               (!strcmp(op, "||") && truth)) {
-                result->kind = COMPILE_INTEGER;
-                result->integer = truth;
-                return compile_value_literal(result);
-            }
+               (!strcmp(op, "||") && truth))
+                return compile_bool(result, truth);
         }
         if(!evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, &right)) return 0;
         if(!strcmp(op, "==") || !strcmp(op, "!=")) {
             int equal;
-            if(!compile_values_equal(&left, &right, &equal)) return 0;
-            result->kind = COMPILE_INTEGER;
-            result->integer = !strcmp(op, "==") ? equal : !equal;
-            return compile_value_literal(result);
+            if(left.kind == COMPILE_BUILDER || left.kind == COMPILE_REFERENCE ||
+               !compile_values_equal(&left, &right, &equal)) return 0;
+            return compile_bool(result, !strcmp(op, "==") ? equal : !equal);
         }
         if(!strcmp(op, "&&") || !strcmp(op, "||")) {
             if(!compile_truth(&right, &truth)) return 0;
-            result->kind = COMPILE_INTEGER;
-            result->integer = truth;
-            return compile_value_literal(result);
+            return compile_bool(result, truth);
         }
         if((left.kind != COMPILE_INTEGER && left.kind != COMPILE_REAL) ||
            (right.kind != COMPILE_INTEGER && right.kind != COMPILE_REAL))
@@ -430,16 +690,13 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                     (uint64_t)right.integer, 64, 1) :
                     (left.integer < right.integer ? -1 : left.integer > right.integer);
             }
-            result->kind = COMPILE_INTEGER;
             if(left.kind == COMPILE_INTEGER && right.kind == COMPILE_INTEGER)
-                result->integer = !strcmp(op, "<") ? cmp < 0 :
+                return compile_bool(result, !strcmp(op, "<") ? cmp < 0 :
                                   !strcmp(op, "<=") ? cmp <= 0 :
-                                  !strcmp(op, ">") ? cmp > 0 : cmp >= 0;
-            else
-                result->integer = !strcmp(op, "<") ? a < b :
+                                  !strcmp(op, ">") ? cmp > 0 : cmp >= 0);
+            return compile_bool(result, !strcmp(op, "<") ? a < b :
                                   !strcmp(op, "<=") ? a <= b :
-                                  !strcmp(op, ">") ? a > b : a >= b;
-            return compile_value_literal(result);
+                                  !strcmp(op, ">") ? a > b : a >= b);
         }
         if(left.kind == COMPILE_INTEGER && right.kind == COMPILE_INTEGER) {
             int64_t x = left.integer, y = right.integer, folded;
@@ -528,12 +785,22 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
 }
         }
         if(!evaluate_typed_node(probe, expression->left, module, path,
-                                depth + 1, fuel, &left)) return 0;
+                                depth + 1, fuel, &left) ||
+           (left.kind == COMPILE_REFERENCE &&
+            !compile_dereference(&left, depth + 1, fuel))) return 0;
+        if(left.kind == COMPILE_BUILDER) {
+            const CompileText *builder = compile_builder(&left);
+            if(builder == NULL || strcmp(expression->name, "count")) return 0;
+            result->kind = COMPILE_INTEGER;
+            result->integer = (int64_t)builder->used;
+            return compile_value_literal(result);
+        }
         if(left.kind == COMPILE_STRING &&
            !strcmp(expression->name, "count")) {
-            size_t length;
-            if(!DecodeStringLiteral(left.literal, buffers->bytes, sizeof(buffers->bytes),
-                                     &length) || length > LONG_MAX) return 0;
+            size_t length = 0;
+            unsigned char *bytes = compile_string_bytes(&left, &length);
+            free(bytes);
+            if(bytes == NULL || length > LONG_MAX) return 0;
             result->kind = COMPILE_INTEGER;
             result->integer = (int64_t)length;
             return compile_value_literal(result);
@@ -546,17 +813,33 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                 result->integer = capacity;
                 return compile_value_literal(result);
             }
+            if(compile_literal_member(&left, expression->name, module, path,
+                                      depth, fuel, result))
+                return 1;
             return compile_compound_member(&left, expression->name,
                                            module, path, depth, fuel, result);
         }
         return 0;
+    case ZIR_EXPR_SLICE: {
+        /* Only the whole of an array local: `name[:]`. */
+        const ZirExpr *base = expression->left >= 0 ?
+            &probe->exprs[expression->left] : NULL;
+        if(base == NULL || base->kind != ZIR_EXPR_IDENT ||
+           expression->right >= 0 || expression->third >= 0) return 0;
+        return compile_reference_to(base->name, 0, result);
+    }
     case ZIR_EXPR_INDEX:
         if(!evaluate_typed_node(probe, expression->left, module, path,
                                 depth + 1, fuel, &left) ||
+           (left.kind == COMPILE_REFERENCE &&
+            !compile_dereference(&left, depth + 1, fuel)) ||
            !evaluate_typed_node(probe, expression->right, module, path,
                                 depth + 1, fuel, &right) ||
            left.kind != COMPILE_COMPOUND ||
            right.kind != COMPILE_INTEGER) return 0;
+        if(compile_literal_index(&left, right.integer, module, path,
+                                 depth, fuel, result))
+            return 1;
         return compile_compound_index(&left, right.integer, module, path,
                                       depth, fuel, result);
     case ZIR_EXPR_CAST:
@@ -630,6 +913,8 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
                       probe->exprs[child].argument_name);
             count++;
         }
+        int builtin = compile_builder_call(name, buffers->args, count, result);
+        if(builtin >= 0) return builtin;
         ZirSourceSpan call_span = expression->left >= 0 ?
             probe->exprs[expression->left].span : expression->span;
         return evaluate_typed_function(module, name, call_span, buffers->args, buffers->names,
@@ -767,25 +1052,26 @@ CachedParseDone(const ZirFunction *probe, ZirFunction *scratch)
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EvaluateTypedExpressionBuffers {
     ZirFunction probe;
-    char input[ZIR_TEXT_MAX];
-    char expanded[ZIR_TEXT_MAX];
 } EvaluateTypedExpressionBuffers;
 
 int evaluate_typed_expression(const ZirModule *module, const ZirConsts *names,
                           const char *source, ZirSourceSpan span, int depth,
                           int *fuel, CompileValue *result);
 
-/* SOURCE as an expression evaluates it: trimmed, without a final ';'. */
-static void
-expression_input(char *out, size_t size, const char *source)
+/* SOURCE as an expression evaluates it: trimmed, without a final ';'. The
+ * caller frees it. */
+static char *
+expression_input(const char *source)
 {
-    copy_text(out, size, source);
+    char *out = strdup(source);
+    if(out == NULL) return NULL;
     trim_in_place(out);
     size_t length = strlen(out);
     if(length && out[length - 1] == ';') {
         out[length - 1] = '\0';
         trim_in_place(out);
     }
+    return out;
 }
 
 /* Whether a parsed expression holds a compile-time directive, which a
@@ -809,20 +1095,17 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
     int root, ok;
     const char *path = SpanPath(span);
     if(depth > 32 || source == NULL || --*fuel < 0) return 0;
-    expression_input(buffers->input, sizeof(buffers->input), source);
-    if(!buffers->input[0]) return 0;
+    char *text = expression_input(source);
+    if(text == NULL || !text[0]) {
+        free(text);
+        return 0;
+    }
     if(names == NULL) names = &empty;
     const ZirConsts *outer_names = evaluation_names;
     const ZirConsts *outer_conditions = condition_names;
-    const char *text = buffers->input;
     condition_names = names;
-    if(ZirLawEvaluation)
-        evaluation_names = names;
-    else {
-        evaluation_names = NULL;
-        expand_compile_expr(buffers->expanded, sizeof(buffers->expanded), names, buffers->input, path);
-        text = buffers->expanded;
-    }
+    evaluation_names = names;
+    compile_store.users++;
     const ZirFunction *probe;
     root = CachedParse(module, text, span, &buffers->probe, &probe);
     ok = root >= 0 && (depth != 0 || !holds_compile_time(probe));
@@ -830,6 +1113,11 @@ evaluate_typed_expression_with_buffers(const ZirModule *module, const ZirConsts 
         ok = evaluate_typed_node(probe, root, module, path,
                                  depth + 1, fuel, result);
     CachedParseDone(probe, &buffers->probe);
+    free(text);
+    /* A builder or reference ends with the evaluation that made it. */
+    if(compile_store.users == 1 && ok &&
+       strchr(compile_literal(result), '\x1f') != NULL) ok = 0;
+    compile_store_leave();
     evaluation_names = outer_names;
     condition_names = outer_conditions;
     return ok;
@@ -902,6 +1190,8 @@ typed_leave_scope(TypedBody *body, int saved)
     memmove(body->names.reads, body->names.reads + removed,
             (size_t)(body->names.count - removed) *
                 sizeof(*body->names.reads));
+    memmove(body->serials, body->serials + removed,
+            (size_t)(body->names.count - removed) * sizeof(*body->serials));
     body->names.count -= removed;
     body->local_count = saved;
 }
@@ -916,7 +1206,10 @@ typed_add_local(TypedBody *body, const char *name, const char *type,
             (size_t)body->names.count * sizeof(*body->names.items));
     memmove(body->names.reads + 1, body->names.reads,
             (size_t)body->names.count * sizeof(*body->names.reads));
+    memmove(body->serials + 1, body->serials,
+            (size_t)body->names.count * sizeof(*body->serials));
     body->names.reads[0].expr = NULL;
+    body->serials[0] = body->next_serial++;
     ZirConst *local = &body->names.items[0];
     memset(local, 0, sizeof(*local));
     local->expr = "";
@@ -924,7 +1217,7 @@ typed_add_local(TypedBody *body, const char *name, const char *type,
     copy_text(local->type, sizeof(local->type), type);
     copy_text(local->path, sizeof(local->path), SpanPath(body->fn->span));
     if(value != NULL)
-        local->expr = KeepText(value->literal);
+        local->expr = KeepText(compile_literal(value));
     body->names.count++;
     body->local_count++;
     return 1;
@@ -937,141 +1230,112 @@ typed_local_index(TypedBody *body, const char *name)
         if(!strcmp(body->names.items[i].name, name)) return i;
     return -1;
 }
-static int typed_store_element(TypedBody *body, const char *type,
-                               const char *literal, char **indexes, int count,
-                               const char *source, char *out, size_t size);
 /* Zero literal for a local `name: [N]integer`, e.g. `s32.[0, 0, 0]`. */
 static int
-zero_array_literal(const char *type, char *out, size_t size)
+zero_array_literal(const char *type, CompileText *out)
 {
     char element[ZIR_NAME_MAX];
     int capacity = 0;
-    size_t used;
     if(!ArrayElementType(type, element, sizeof(element), &capacity) ||
-       capacity < 1 || capacity > 256 || !eval_integer_type(element, 0))
+       capacity < 1 || !eval_integer_type(element, 0))
         return 0;
-    used = (size_t)snprintf(out, size, "%s.[", element);
-    for(int i = 0; i < capacity && used < size; i++)
-        used += (size_t)snprintf(out + used, size - used, "%s0",
-                                 i ? ", " : "");
-    if(used + 2 > size) return 0;
-    out[used] = ']';
-    out[used + 1] = '\0';
+    compile_text_put(out, element);
+    compile_text_put(out, ".[");
+    for(int i = 0; i < capacity; i++)
+        compile_text_put(out, i ? ", 0" : "0");
+    compile_text_put(out, "]");
+    return !out->failed;
+}
+
+/* The extent of each element of a canonical array literal `T.[a, b, c]`:
+ * calls VISIT with the element's text until it returns 0. Returns the
+ * element count, or -1 when LITERAL is not such a literal. */
+static int64_t
+array_elements(const char *literal,
+               int (*visit)(void *context, int64_t ordinal,
+                            const char *start, size_t length),
+               void *context)
+{
+    const char *cursor = strstr(literal, ".[");
+    int64_t ordinal = 0;
+    if(cursor == NULL) return -1;
+    cursor += 2;
+    if(*skip_ws(cursor) == ']') return 0;
+    for(;;) {
+        int depth = 0, quoted = 0;
+        cursor = skip_ws(cursor);
+        const char *start = cursor;
+        while(*cursor && (quoted || depth > 0 ||
+                          (*cursor != ',' && *cursor != ']'))) {
+            if(quoted) {
+                if(*cursor == '\\' && cursor[1]) cursor++;
+                else if(*cursor == '"') quoted = 0;
+            } else if(*cursor == '"') quoted = 1;
+            else if(strchr("([{", *cursor)) depth++;
+            else if(strchr(")]}", *cursor)) depth--;
+            cursor++;
+        }
+        if(*cursor == '\0') return -1;
+        size_t length = (size_t)(cursor - start);
+        while(length && isspace((unsigned char)start[length - 1])) length--;
+        if(visit != NULL && !visit(context, ordinal, start, length))
+            return ordinal + 1;
+        ordinal++;
+        if(*cursor == ']') return ordinal;
+        cursor++;
+    }
+}
+
+typedef struct ElementEdit {
+    int64_t index;
+    const char *replacement;
+    CompileText *out;
+    int found;
+} ElementEdit;
+
+static int
+copy_element(void *context, int64_t ordinal, const char *start, size_t length)
+{
+    ElementEdit *edit = context;
+    if(ordinal) compile_text_put(edit->out, ", ");
+    if(ordinal == edit->index) {
+        compile_text_put(edit->out, skip_ws(edit->replacement));
+        edit->found = 1;
+    } else compile_text_add(edit->out, start, length);
     return 1;
+}
+
+static int
+take_element(void *context, int64_t ordinal, const char *start, size_t length)
+{
+    ElementEdit *edit = context;
+    if(ordinal != edit->index) return 1;
+    compile_text_add(edit->out, start, length);
+    edit->found = 1;
+    return 0;
 }
 
 /* Replace element `index` of a canonical array literal `T.[a, b, c]`. */
 static int
 store_array_element(const char *literal, int64_t index, const char *replacement,
-                    char *out, size_t size)
+                    CompileText *out)
 {
     const char *open = strstr(literal, ".[");
-    const char *cursor;
-    size_t used;
-    int64_t ordinal = 0;
-    int depth = 0;
+    ElementEdit edit = {index, replacement, out, 0};
     if(open == NULL || index < 0) return 0;
-    cursor = open + 2;
-    used = (size_t)(cursor - literal);
-    if(used >= size) return 0;
-    memcpy(out, literal, used);
-    for(;;) {
-        const char *start = cursor;
-        while(*cursor && !(depth == 0 && (*cursor == ',' || *cursor == ']'))) {
-            if(*cursor == '[' || *cursor == '{' || *cursor == '(') depth++;
-            if(*cursor == ']' || *cursor == '}' || *cursor == ')') depth--;
-            cursor++;
-        }
-        if(*cursor == '\0') return 0;
-        if(ordinal == index) {
-            start = skip_ws(replacement);
-            size_t length = strlen(start);
-            if(used + length + 2 >= size) return 0;
-            memcpy(out + used, start, length);
-            used += length;
-        } else {
-            size_t length = (size_t)(cursor - start);
-            if(ordinal > 0 && *start == ' ') { start++; length--; }
-            if(used + length + 2 >= size) return 0;
-            memcpy(out + used, start, length);
-            used += length;
-        }
-        if(*cursor == ']') {
-            if(ordinal < index) return 0;
-            out[used++] = ']';
-            out[used] = '\0';
-            return 1;
-        }
-        out[used++] = ',';
-        out[used++] = ' ';
-        cursor++;
-        ordinal++;
-    }
+    compile_text_add(out, literal, (size_t)(open - literal) + 2);
+    if(array_elements(literal, copy_element, &edit) < 0) return 0;
+    compile_text_put(out, "]");
+    return edit.found && !out->failed;
 }
 
 /* Text of element `index` of a canonical array literal `T.[a, b, c]`. */
 static int
-array_element_text(const char *literal, int64_t index, char *out, size_t size)
+array_element_text(const char *literal, int64_t index, CompileText *out)
 {
-    const char *cursor = strstr(literal, ".[");
-    int64_t ordinal = 0;
-    if(cursor == NULL || index < 0) return 0;
-    cursor += 2;
-    for(;;) {
-        int depth = 0;
-        cursor = skip_ws(cursor);
-        const char *start = cursor;
-        while(*cursor && !(depth == 0 && (*cursor == ',' || *cursor == ']'))) {
-            if(*cursor == '[' || *cursor == '{' || *cursor == '(') depth++;
-            if(*cursor == ']' || *cursor == '}' || *cursor == ')') depth--;
-            cursor++;
-        }
-        if(*cursor == '\0') return 0;
-        if(ordinal == index) {
-            size_t length = (size_t)(cursor - start);
-            while(length && isspace((unsigned char)start[length - 1])) length--;
-            if(length >= size) return 0;
-            memcpy(out, start, length);
-            out[length] = '\0';
-            return 1;
-        }
-        if(*cursor == ']') return 0;
-        cursor++;
-        ordinal++;
-    }
-}
-
-/* Writes `literal`, an array of `type`, to `out` with the element at
- * `indexes` (one per level of nesting) set to the value of `source`. */
-static int
-typed_store_element(TypedBody *body, const char *type, const char *literal,
-                    char **indexes, int count, const char *source,
-                    char *out, size_t size)
-{
-    char element_type[ZIR_NAME_MAX];
-    int capacity = 0;
-    CompileValue at, element;
-    compile_value_clear(&at);
-    compile_value_clear(&element);
-    if(count < 1 ||
-       !ArrayElementType(type, element_type, sizeof(element_type), &capacity) ||
-       !typed_body_expression(body, indexes[0], &at) ||
-       at.kind != COMPILE_INTEGER || at.integer < 0 || at.integer >= capacity)
-        return 0;
-    if(count == 1)
-        return typed_body_expression(body, source, &element) &&
-               compile_type_value(element_type, &element) &&
-               store_array_element(literal, at.integer, element.literal,
-                                   out, size);
-    char *row = AllocateOrExit(ZIR_TEXT_MAX);
-    char *stored = AllocateOrExit(ZIR_TEXT_MAX);
-    int ok = array_element_text(literal, at.integer, row, ZIR_TEXT_MAX) &&
-             typed_store_element(body, element_type, row, indexes + 1,
-                                 count - 1, source, stored, ZIR_TEXT_MAX) &&
-             store_array_element(literal, at.integer, stored, out, size);
-    free(row);
-    free(stored);
-    return ok;
+    ElementEdit edit = {index, NULL, out, 0};
+    return index >= 0 && array_elements(literal, take_element, &edit) >= 0 &&
+           edit.found && !out->failed;
 }
 
 /* Records the evaluator can hold as a literal: plain named records. */
@@ -1089,11 +1353,10 @@ literal_record(const ZirModule *module, const char *type,
 }
 
 /* Value text of field `name` in a record literal `T.{.a = x, .b = y}` as the
- * evaluator writes it. Returns 1 when present, 0 when absent, -1 when the
- * text is not such a literal. */
+ * evaluator writes it, added to OUT. Returns 1 when present, 0 when absent,
+ * -1 when the text is not such a literal. */
 static int
-record_field_text(const char *literal, const char *name, char *out,
-                  size_t size)
+record_field_text(const char *literal, const char *name, CompileText *out)
 {
     const char *cursor = literal != NULL ? strstr(literal, ".{") : NULL;
     size_t name_length = strlen(name);
@@ -1127,61 +1390,126 @@ record_field_text(const char *literal, const char *name, char *out,
             size_t length = (size_t)(cursor - value);
             while(length && isspace((unsigned char)value[length - 1]))
                 length--;
-            if(length >= size) return -1;
-            memcpy(out, value, length);
-            out[length] = '\0';
-            return 1;
+            compile_text_add(out, value, length);
+            return out->failed ? -1 : 1;
         }
         if(*cursor == ',') cursor++;
     }
 }
 
+static int
+compile_literal_member(const CompileValue *compound, const char *member,
+                       const ZirModule *module, const char *path, int depth,
+                       int *fuel, CompileValue *result)
+{
+    const ZirModule *owner = NULL;
+    const ZirType *record = literal_record(module, compound->type, &owner);
+    if(record == NULL) return 0;
+    CompileText text = {0};
+    int present = record_field_text(compile_literal(compound), member, &text);
+    int found = 0;
+    if(present > 0) {
+        ZirTypeField field;
+        size_t offset = 0;
+        while(TypeNextField(record, &offset, &field) == 1) {
+            if(strcmp(field.name, member)) continue;
+            found = evaluate_typed_expression(owner, evaluation_names, text.data,
+                                              Span(path, 1, 1), depth + 1,
+                                              fuel, result) &&
+                    compile_type_value(field.type, result);
+            break;
+        }
+    }
+    free(text.data);
+    return present > 0 && found;
+}
+
+static int
+compile_literal_index(const CompileValue *compound, int64_t index,
+                      const ZirModule *module, const char *path, int depth,
+                      int *fuel, CompileValue *result)
+{
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(!ArrayElementType(compound->type, element, sizeof(element), &capacity) ||
+       index < 0 || index >= capacity) return 0;
+    CompileText text = {0};
+    int found = array_element_text(compile_literal(compound), index, &text);
+    int ok = found &&
+             evaluate_typed_expression(module, evaluation_names, text.data,
+                                       Span(path, 1, 1), depth + 1, fuel,
+                                       result) &&
+             compile_type_value(element, result);
+    free(text.data);
+    return ok;
+}
+
 static int record_literal(const ZirModule *module, const ZirType *record,
                           const char *type, const char *literal,
                           const char *path, const char *replacement,
-                          char *out, size_t size, int depth);
+                          CompileText *out, int depth);
 
 /* Zero text for a value of `type`, as a zero-initialized local holds it:
  * 0 for integers, bools and enums, 0.0 for floats, "" for strings, and
  * arrays and records of zeros. */
 static int
-zero_value_literal(const ZirModule *module, const char *type, char *out,
-                   size_t size, int depth)
+zero_value_literal(const ZirModule *module, const char *type, CompileText *out,
+                   int depth)
 {
     char element[ZIR_NAME_MAX];
     int capacity = 0;
-    if(depth > 16 || size < 3) return 0;
-    if(!strcmp(type, "float32") || !strcmp(type, "float64"))
-        return snprintf(out, size, "0.0") < (int)size;
-    if(ScalarWidth(type) || !strcmp(type, "bool"))
-        return snprintf(out, size, "0") < (int)size;
-    if(!strcmp(type, "string"))
-        return snprintf(out, size, "\"\"") < (int)size;
+    if(depth > 16) return 0;
+    if(!strcmp(type, "float32") || !strcmp(type, "float64")) {
+        compile_text_put(out, "0.0");
+        return !out->failed;
+    }
+    if(ScalarWidth(type) || !strcmp(type, "bool")) {
+        compile_text_put(out, "0");
+        return !out->failed;
+    }
+    if(!strcmp(type, "string")) {
+        compile_text_put(out, "\"\"");
+        return !out->failed;
+    }
+    if(!strcmp(type, "Vec(u8)")) {
+        /* Each zero Vec(u8) is a builder of its own. */
+        CompileValue builder;
+        compile_value_clear(&builder);
+        if(!compile_new_builder(&builder)) return 0;
+        compile_text_put(out, compile_literal(&builder));
+        return !out->failed;
+    }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
-        char *zero = AllocateOrExit(ZIR_TEXT_MAX);
-        int ok = capacity >= 1 && capacity <= 256 &&
-                 zero_value_literal(module, element, zero, ZIR_TEXT_MAX,
-                                    depth + 1);
-        size_t used = ok ? (size_t)snprintf(out, size, "%s.[", element) : 0;
-        for(int i = 0; ok && i < capacity; i++) {
-            int written = snprintf(out + used, size - used, "%s%s",
-                                   i ? ", " : "", zero);
-            if(written < 0 || (size_t)written >= size - used) ok = 0;
-            else used += (size_t)written;
+        CompileText zero = {0};
+        int ok = capacity >= 1 &&
+                 zero_value_literal(module, element, &zero, depth + 1);
+        /* Elements holding builders each need their own. */
+        int fresh = ok && strchr(zero.data, '\x1f') != NULL;
+        if(ok) {
+            compile_text_put(out, element);
+            compile_text_put(out, ".[");
+            for(int i = 0; ok && i < capacity; i++) {
+                if(i) compile_text_put(out, ", ");
+                if(fresh && i) {
+                    zero.used = 0;
+                    ok = zero_value_literal(module, element, &zero, depth + 1);
+                }
+                compile_text_add(out, zero.data, zero.used);
+            }
+            compile_text_put(out, "]");
         }
-        free(zero);
-        if(!ok || used + 2 > size) return 0;
-        out[used] = ']';
-        out[used + 1] = '\0';
-        return 1;
+        free(zero.data);
+        return ok && !out->failed;
     }
     const ZirModule *owner = NULL;
     const ZirType *found = FindType(module, type, NULL);
-    if(found != NULL && found->is_enum)
-        return snprintf(out, size, "0") < (int)size;
+    if(found != NULL && found->is_enum) {
+        compile_text_put(out, "0");
+        return !out->failed;
+    }
     const ZirType *record = literal_record(module, type, &owner);
     return record != NULL &&
-           record_literal(owner, record, type, NULL, NULL, NULL, out, size,
+           record_literal(owner, record, type, NULL, NULL, NULL, out,
                           depth + 1);
 }
 
@@ -1192,7 +1520,7 @@ zero_value_literal(const ZirModule *module, const char *type, char *out,
 static int
 record_literal(const ZirModule *module, const ZirType *record,
                const char *type, const char *literal, const char *path,
-               const char *replacement, char *out, size_t size, int depth)
+               const char *replacement, CompileText *out, int depth)
 {
     char head[ZIR_NAME_MAX] = "";
     const char *rest = NULL;
@@ -1208,45 +1536,37 @@ record_literal(const ZirModule *module, const ZirType *record,
         head[length] = '\0';
         rest = dot != NULL ? dot + 1 : NULL;
     }
-    char *value = AllocateOrExit(ZIR_TEXT_MAX);
-    char *current = AllocateOrExit(ZIR_TEXT_MAX);
-    int written = snprintf(out, size, "%s.{", type);
-    size_t used = written < 0 ? size : (size_t)written;
+    compile_text_put(out, type);
+    compile_text_put(out, ".{");
     int ordinal = 0;
-    while(ok && used < size && TypeNextField(record, &offset, &field) == 1) {
+    while(ok && !out->failed && TypeNextField(record, &offset, &field) == 1) {
+        CompileText current = {0};
         int present = literal != NULL ?
-            record_field_text(literal, field.name, current, ZIR_TEXT_MAX) : 0;
-        if(present < 0) { ok = 0; break; }
-        if(!present && !zero_value_literal(module, field.type, current,
-                                           ZIR_TEXT_MAX, depth + 1)) {
-            ok = 0;
-            break;
-        }
-        if(path != NULL && !strcmp(field.name, head)) {
+            record_field_text(literal, field.name, &current) : 0;
+        if(present < 0 ||
+           (!present && !zero_value_literal(module, field.type, &current,
+                                            depth + 1))) ok = 0;
+        if(ordinal) compile_text_put(out, ", ");
+        compile_text_put(out, ".");
+        compile_text_put(out, field.name);
+        compile_text_put(out, " = ");
+        if(ok && path != NULL && !strcmp(field.name, head)) {
             replaced = 1;
-            if(rest == NULL) copy_text(value, ZIR_TEXT_MAX, replacement);
+            if(rest == NULL) compile_text_put(out, replacement);
             else {
                 const ZirModule *owner = NULL;
                 const ZirType *inner = literal_record(module, field.type,
                                                       &owner);
                 ok = inner != NULL &&
-                     record_literal(owner, inner, field.type, current, rest,
-                                    replacement, value, ZIR_TEXT_MAX,
-                                    depth + 1);
+                     record_literal(owner, inner, field.type, current.data,
+                                    rest, replacement, out, depth + 1);
             }
-        } else copy_text(value, ZIR_TEXT_MAX, current);
-        written = snprintf(out + used, size - used, "%s.%s = %s",
-                           ordinal ? ", " : "", field.name, value);
-        if(written < 0 || (size_t)written >= size - used) ok = 0;
-        else used += (size_t)written;
+        } else if(ok) compile_text_add(out, current.data, current.used);
+        free(current.data);
         ordinal++;
     }
-    free(value);
-    free(current);
-    if(!ok || !replaced || used + 2 > size) return 0;
-    out[used] = '}';
-    out[used + 1] = '\0';
-    return 1;
+    compile_text_put(out, "}");
+    return ok && replaced && !out->failed;
 }
 
 /* Record literals written with fields missing or out of order still get one
@@ -1263,11 +1583,11 @@ canonical_compound(const ZirModule *module, CompileValue *value)
     record = literal_record(value->type_owner != NULL ? value->type_owner :
                             module, value->type, &owner);
     if(record == NULL) return 1;
-    char *text = AllocateOrExit(ZIR_TEXT_MAX);
-    if(record_literal(owner, record, value->type, value->literal, NULL, NULL,
-                      text, ZIR_TEXT_MAX, 0))
-        copy_text(value->literal, sizeof(value->literal), text);
-    free(text);
+    CompileText text = {0};
+    if(record_literal(owner, record, value->type, compile_literal(value), NULL,
+                      NULL, &text, 0))
+        compile_set_literal(value, text.data);
+    free(text.data);
     return 1;
 }
 
@@ -1301,10 +1621,148 @@ record_path_type(const ZirModule *module, const ZirType *record,
 /* Buffers typed_body_statements keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct TypedBodyStatementsBuffers {
-    char text[ZIR_TEXT_MAX];
-    char combined[ZIR_TEXT_MAX];
     char control[ZIR_TEXT_MAX];
 } TypedBodyStatementsBuffers;
+
+/* `(LEFT) OP (RIGHT)`, the expression `LEFT OP= RIGHT` assigns. */
+static int
+typed_compound_assignment(TypedBody *body, const char *left, char op,
+                          const char *right, CompileValue *value)
+{
+    CompileText text = {0};
+    char spelled[2] = {op, '\0'};
+    compile_text_put(&text, "(");
+    compile_text_put(&text, left);
+    compile_text_put(&text, ") ");
+    compile_text_put(&text, spelled);
+    compile_text_put(&text, " (");
+    compile_text_put(&text, right);
+    compile_text_put(&text, ")");
+    int ok = !text.failed && typed_body_expression(body, text.data, value);
+    free(text.data);
+    return ok;
+}
+
+/* The literal of TYPE value LITERAL with the part at STEPS, field names
+ * after '.' and indexes, replaced by VALUE. */
+typedef struct StoreStep {
+    char field[ZIR_NAME_MAX]; /* empty for an index */
+    int64_t index;
+} StoreStep;
+
+static int
+store_at_path(const ZirModule *module, const char *type, const char *literal,
+              const StoreStep *steps, int count, CompileValue *value,
+              CompileText *out)
+{
+    if(count == 0) {
+        if(!compile_type_value(type, value)) return 0;
+        compile_text_put(out, compile_literal(value));
+        return !out->failed;
+    }
+    char inner_type[ZIR_NAME_MAX];
+    CompileText inner = {0}, stored = {0};
+    int ok;
+    if(steps[0].field[0]) {
+        const ZirModule *owner = NULL;
+        const ZirType *record = literal_record(module, type, &owner);
+        ok = record != NULL &&
+             record_path_type(owner, record, steps[0].field, inner_type,
+                              sizeof(inner_type));
+        if(ok) {
+            int present = record_field_text(literal, steps[0].field, &inner);
+            ok = present > 0 ||
+                 (present == 0 &&
+                  zero_value_literal(owner, inner_type, &inner, 0));
+        }
+        ok = ok && store_at_path(owner, inner_type, inner.data, steps + 1,
+                                 count - 1, value, &stored) &&
+             record_literal(owner, record, type, literal, steps[0].field,
+                            stored.data, out, 0);
+    } else {
+        int capacity = 0;
+        ok = ArrayElementType(type, inner_type, sizeof(inner_type), &capacity) &&
+             steps[0].index >= 0 && steps[0].index < capacity &&
+             array_element_text(literal, steps[0].index, &inner) &&
+             store_at_path(module, inner_type, inner.data, steps + 1,
+                           count - 1, value, &stored) &&
+             store_array_element(literal, steps[0].index, stored.data, out);
+    }
+    free(inner.data);
+    free(stored.data);
+    return ok && !out->failed;
+}
+
+/* `TARGET = SOURCE`, or `TARGET op= SOURCE`, where TARGET is a local with
+ * fields `.name` and indexes `[i]` after it, reached through the pointer
+ * or slice the local holds when it holds one. */
+static int
+typed_store_path(TypedBody *body, char *target, char op, const char *source)
+{
+    StoreStep steps[16];
+    int count = 0;
+    CompileValue value;
+    compile_value_clear(&value);
+    if(op ? !typed_compound_assignment(body, target, op, source, &value) :
+            !typed_body_expression(body, source, &value)) return 0;
+    /* `<<name` stores through the pointer NAME holds. */
+    int through = !strncmp(target, "<<", 2);
+    if(through) target = (char *)skip_ws(target + 2);
+    char *cursor = target;
+    while(is_ident_char((unsigned char)*cursor)) cursor++;
+    char root[ZIR_NAME_MAX];
+    size_t length = (size_t)(cursor - target);
+    if(length == 0 || length >= sizeof(root)) return 0;
+    memcpy(root, target, length);
+    root[length] = '\0';
+    for(;;) {
+        cursor = (char *)skip_ws(cursor);
+        if(*cursor == '\0') break;
+        if(count == 16) return 0;
+        StoreStep *step = &steps[count++];
+        step->field[0] = '\0';
+        if(*cursor == '.') {
+            cursor = (char *)skip_ws(cursor + 1);
+            char *name = cursor;
+            while(is_ident_char((unsigned char)*cursor)) cursor++;
+            length = (size_t)(cursor - name);
+            if(length == 0 || length >= sizeof(step->field)) return 0;
+            memcpy(step->field, name, length);
+            step->field[length] = '\0';
+            continue;
+        }
+        if(*cursor != '[') return 0;
+        char *open = cursor;
+        int depth = 0;
+        for(; *cursor; cursor++) {
+            if(*cursor == '[') depth++;
+            else if(*cursor == ']' && --depth == 0) break;
+        }
+        if(*cursor != ']') return 0;
+        *cursor++ = '\0';
+        CompileValue at;
+        compile_value_clear(&at);
+        if(!typed_body_expression(body, open + 1, &at) ||
+           at.kind != COMPILE_INTEGER) return 0;
+        step->index = at.integer;
+    }
+    int local = typed_local_index(body, root);
+    if(local < 0) return 0;
+    ZirConst *binding = &body->names.items[local];
+    TypedBody *owner = body;
+    CompileValue held;
+    compile_value_clear(&held);
+    if((count > 0 || through) && compile_marker_value(binding->expr, &held)) {
+        if(held.kind != COMPILE_REFERENCE ||
+           (binding = compile_referenced(&held, &owner)) == NULL) return 0;
+    } else if(through || !binding->expr[0]) return 0;
+    CompileText stored = {0};
+    int ok = store_at_path(owner->module, binding->type, binding->expr, steps,
+                           count, &value, &stored);
+    if(ok) binding->expr = KeepText(stored.data);
+    free(stored.data);
+    return ok;
+}
 
 static int typed_body_statements(TypedBody *body, int start, int stop,
                       int *flow, CompileValue *result);
@@ -1314,6 +1772,8 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
                       int *flow, CompileValue *result, TypedBodyStatementsBuffers *buffers)
 {
     int saved = body->local_count;
+    /* The declaration or assignment being taken apart, owned. */
+    char *text = NULL;
     for(int i = start; i < stop && !*flow; i++) {
         const ZirStmt *statement = &body->fn->stmts[i];
         const char *source = skip_ws(statement->text);
@@ -1379,17 +1839,19 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             continue;
         }
         if(statement->kind == ZIR_STMT_RETURN) {
-            if(!typed_body_expression(body, skip_ws(source + 6),
-                                      result)) goto failed;
+            const char *value = skip_ws(source + 6);
+            if(*value != '\0' && *value != ';' &&
+               !typed_body_expression(body, value, result)) goto failed;
             *flow = 1;
             break;
         }
         if(statement->kind == ZIR_STMT_DECL) {
-            copy_text(buffers->text, sizeof(buffers->text), source);
-            char *colon = strchr(buffers->text, ':');
+            free(text);
+            if((text = strdup(source)) == NULL) goto failed;
+            char *colon = strchr(text, ':');
             if(colon == NULL) goto failed;
             *colon++ = '\0';
-            trim_in_place(buffers->text);
+            trim_in_place(text);
             char *equals = strchr(colon, '=');
             if(equals != NULL) *equals++ = '\0';
             trim_in_place(colon);
@@ -1406,129 +1868,62 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
             const char *type = colon[0] ? colon :
                 value.kind == COMPILE_REAL ? "float64" :
                 value.kind == COMPILE_STRING ? "string" :
-                value.kind == COMPILE_COMPOUND ? value.type : "s64";
+                value.kind == COMPILE_COMPOUND || value.kind == COMPILE_REFERENCE ||
+                value.kind == COMPILE_BUILDER ? value.type : "s64";
             if(equals != NULL && !compile_type_value(type, &value))
                 goto failed;
-            if(equals == NULL &&
-               zero_array_literal(type, buffers->combined,
-                                  sizeof(buffers->combined))) {
-                value.kind = COMPILE_COMPOUND;
-                copy_text(value.type, sizeof(value.type), type);
-                copy_text(value.literal, sizeof(value.literal),
-                          buffers->combined);
-                equals = (char *)"";
-            } else if(equals == NULL &&
-                      zero_value_literal(body->module, type,
-                                         buffers->combined,
-                                         sizeof(buffers->combined), 0)) {
-                /* A local without an initializer holds its type's zero. */
-                if(!typed_body_expression(body, buffers->combined, &value) ||
-                   !compile_type_value(type, &value)) goto failed;
-                equals = (char *)"";
+            if(equals == NULL) {
+                CompileText zero = {0};
+                int ok = 1;
+                if(zero_array_literal(type, &zero)) {
+                    value.kind = COMPILE_COMPOUND;
+                    copy_text(value.type, sizeof(value.type), type);
+                    compile_set_literal(&value, zero.data);
+                    equals = (char *)"";
+                } else {
+                    free(zero.data);
+                    zero = (CompileText){0};
+                    /* A local without an initializer holds its type's zero. */
+                    if(zero_value_literal(body->module, type, &zero, 0)) {
+                        ok = typed_body_expression(body, zero.data, &value) &&
+                             compile_type_value(type, &value);
+                        equals = (char *)"";
+                    }
+                }
+                /* A large zero costs as much fuel as the values it holds. */
+                *body->fuel -= (int)(zero.used / 4);
+                free(zero.data);
+                if(!ok || *body->fuel < 0) goto failed;
             }
-            if(!typed_add_local(body, buffers->text, type,
+            if(!typed_add_local(body, text, type,
                                 equals != NULL ? &value : NULL)) goto failed;
             continue;
         }
         if(statement->kind == ZIR_STMT_ASSIGN) {
-            copy_text(buffers->text, sizeof(buffers->text), source);
-            char *equals = strchr(buffers->text, '=');
+            free(text);
+            if((text = strdup(source)) == NULL) goto failed;
+            char *equals = strchr(text, '=');
             if(equals == NULL) goto failed;
-            char op = equals > buffers->text ? equals[-1] : '\0';
+            char op = equals > text ? equals[-1] : '\0';
             if(op && strchr("+-*/%", op) != NULL) equals[-1] = '\0';
             else op = '\0';
             *equals++ = '\0';
-            trim_in_place(buffers->text);
-            {
-                char *bracket = strchr(buffers->text, '[');
-                if(bracket != NULL && !op) {
-                    /* `name[i] = value`, or `name[i][j] = value` on an
-                     * array of arrays, on an array local. */
-                    char *indexes[8];
-                    int count = 0, target;
-                    for(char *cursor = bracket; *cursor; ) {
-                        int depth = 0;
-                        char *open = cursor;
-                        if(*open != '[' || count == 8) goto failed;
-                        for(; *cursor; cursor++) {
-                            if(*cursor == '[') depth++;
-                            else if(*cursor == ']' && --depth == 0) break;
-                        }
-                        if(*cursor != ']') goto failed;
-                        *open = '\0';
-                        *cursor++ = '\0';
-                        indexes[count++] = open + 1;
-                    }
-                    trim_in_place(buffers->text);
-                    target = typed_local_index(body, buffers->text);
-                    if(target < 0 ||
-                       !typed_store_element(body, body->names.items[target].type,
-                                            body->names.items[target].expr,
-                                            indexes, count, equals,
-                                            buffers->combined,
-                                            sizeof(buffers->combined)))
-                        goto failed;
-                    body->names.items[target].expr = KeepText(buffers->combined);
-                    continue;
-                }
+            trim_in_place(text);
+            if(strpbrk(text, ".[") != NULL || !strncmp(text, "<<", 2)) {
+                if(!typed_store_path(body, text, op, equals)) goto failed;
+                continue;
             }
-            {
-                char *dot = strchr(buffers->text, '.');
-                if(dot != NULL) {
-                    /* `name.field = value`, or `name.a.b op= value`, on a
-                     * record local: rebuild the record with that field. */
-                    const ZirModule *owner = NULL;
-                    const ZirType *record;
-                    char field_type[ZIR_NAME_MAX];
-                    CompileValue value;
-                    compile_value_clear(&value);
-                    int target;
-                    if(op) {
-                        int written = snprintf(buffers->combined,
-                            sizeof(buffers->combined), "(%s) %c (%s)",
-                            buffers->text, op, equals);
-                        if(written < 0 ||
-                           (size_t)written >= sizeof(buffers->combined) ||
-                           !typed_body_expression(body, buffers->combined,
-                                                  &value)) goto failed;
-                    } else if(!typed_body_expression(body, equals, &value))
-                        goto failed;
-                    *dot++ = '\0';
-                    trim_in_place(buffers->text);
-                    target = typed_local_index(body, buffers->text);
-                    if(target < 0 || !body->names.items[target].expr[0])
-                        goto failed;
-                    record = literal_record(body->module,
-                                            body->names.items[target].type,
-                                            &owner);
-                    if(record == NULL ||
-                       !record_path_type(owner, record, dot, field_type,
-                                         sizeof(field_type)) ||
-                       !compile_type_value(field_type, &value) ||
-                       !record_literal(owner, record,
-                                       body->names.items[target].type,
-                                       body->names.items[target].expr, dot,
-                                       value.literal, buffers->combined,
-                                       sizeof(buffers->combined), 0))
-                        goto failed;
-                    body->names.items[target].expr = KeepText(buffers->combined);
-                    continue;
-                }
-            }
-            int local = typed_local_index(body, buffers->text);
+            int local = typed_local_index(body, text);
             if(local < 0) goto failed;
             CompileValue value;
             compile_value_clear(&value);
             if(op) {
-                int written = snprintf(buffers->combined, sizeof(buffers->combined),
-                    "(%s) %c (%s)", body->names.items[local].expr, op,
-                    equals);
-                if(written < 0 || (size_t)written >= sizeof(buffers->combined) ||
-                   !typed_body_expression(body, buffers->combined, &value)) goto failed;
+                if(!typed_compound_assignment(body, body->names.items[local].expr,
+                                              op, equals, &value)) goto failed;
             } else if(!typed_body_expression(body, equals, &value)) goto failed;
             if(!compile_type_value(body->names.items[local].type,
                                    &value)) goto failed;
-            body->names.items[local].expr = KeepText(value.literal);
+            body->names.items[local].expr = KeepText(compile_literal(&value));
             continue;
         }
         if(statement->kind == ZIR_STMT_EXPR) {
@@ -1551,9 +1946,11 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
         }
         goto failed;
     }
+    free(text);
     typed_leave_scope(body, saved);
     return 1;
 failed:
+    free(text);
     typed_leave_scope(body, saved);
     return 0;
 }
@@ -1772,7 +2169,7 @@ keep_call(KeptCalls *calls, uint64_t hash, const ZirFunction *fn,
         return;
     }
     size_t header = sizeof(KeptCall) + (size_t)count * sizeof(*bound);
-    size_t type = strlen(value->type) + 1, literal = strlen(value->literal) + 1;
+    size_t type = strlen(value->type) + 1, literal = strlen(compile_literal(value)) + 1;
     size_t size = (header + type + literal + 15) & ~(size_t)15;
     if(size > KEPT_CALL_BYTES) return;
     if(calls->count * 2 >= KEPT_CALL_SLOTS ||
@@ -1790,7 +2187,7 @@ keep_call(KeptCalls *calls, uint64_t hash, const ZirFunction *fn,
     memcpy(call->bound, bound, (size_t)count * sizeof(*bound));
     char *texts = (char *)call + header;
     memcpy(texts, value->type, type);
-    memcpy(texts + type, value->literal, literal);
+    memcpy(texts + type, compile_literal(value), literal);
     keep_value_texts(&call->value, depth, cost, value, texts, texts + type);
     calls->slots[slot] = call;
 }
@@ -1848,21 +2245,23 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         if(position < 0 || bound[position] >= 0) return 0;
         bound[position] = argument;
     }
-    /* Law evaluation reads module constants through the module itself, so
-     * only non-law evaluation, which splices names into text, copies them. */
-    int copy_defines = !ZirLawEvaluation;
-    body.capacity = expected + (copy_defines ? owner->define_count : 0) +
-                    fn->stmt_count + 1;
+    /* Module constants are read through the module itself. */
+    body.capacity = expected + fn->stmt_count + 1;
     body.names.items = malloc((size_t)body.capacity *
                               sizeof(*body.names.items));
     body.names.reads = malloc((size_t)body.capacity *
                               sizeof(*body.names.reads));
-    if(body.names.items == NULL || body.names.reads == NULL)
+    body.serials = malloc((size_t)body.capacity * sizeof(*body.serials));
+    if(body.names.items == NULL || body.names.reads == NULL ||
+       body.serials == NULL)
         die("out of memory evaluating #run procedure");
     body.module = owner;
     body.fn = fn;
     body.depth = depth;
     body.fuel = fuel;
+    body.outer = active_bodies;
+    active_bodies = &body;
+    compile_store.users++;
     const char *path = SpanPath(fn->span);
     for(int i = 0; i < expected; i++) {
         const TypedParameter *parameter = &signature->parameters[i];
@@ -1877,8 +2276,10 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
                 copy_text(value->type, sizeof(value->type),
                           "Source_Code_Location");
                 value->type_owner = owner;
-                if(!CallerLocationLiteral(module, call_span, value->literal,
-                                          sizeof(value->literal))) goto done;
+                char location[ZIR_TEXT_MAX];
+                if(!CallerLocationLiteral(module, call_span, location,
+                                          sizeof(location))) goto done;
+                compile_set_literal(value, location);
             } else if(!evaluate_typed_expression(owner, &body.names,
                        parameter->default_value, fn->span, depth + 1, fuel,
                        value)) goto done;
@@ -1890,27 +2291,16 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
         body.names.reads[i].expr = NULL;
         copy_text(binding->name, sizeof(binding->name), parameter->name);
         copy_text(binding->type, sizeof(binding->type), parameter->type);
-        binding->expr = KeepText(value->literal);
+        binding->expr = KeepText(compile_literal(value));
         if(value->kind == COMPILE_INTEGER)
             enum_member_expr(owner, parameter->type, value->integer,
                              &binding->expr);
         copy_text(binding->path, sizeof(binding->path), path);
         bound_texts[i] = binding->expr;
+        body.serials[i] = body.next_serial++;
         body.names.count++;
     }
     body.local_count = expected;
-    for(int i = 0; copy_defines && i < owner->define_count; i++) {
-        const ZirDefine *definition = &owner->defines[i];
-        body.names.reads[body.names.count].expr = NULL;
-        ZirConst *constant = &body.names.items[body.names.count++];
-        memset(constant, 0, sizeof(*constant));
-        copy_text(constant->name, sizeof(constant->name),
-                  definition->name);
-        constant->expr = KeepText(definition->value);
-        copy_text(constant->path, sizeof(constant->path),
-                  SpanPath(definition->span));
-        constant->is_file_private = definition->is_file_private;
-    }
     /* Law evaluation reads only the bindings, so a call already evaluated
      * with the same bound texts is answered from it. */
     KeptCalls *calls = ZirLawEvaluation && compile_value_is_clear(result) ?
@@ -1925,15 +2315,23 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
             goto done;
         }
     }
-    ok = typed_body_statements(&body, 0, fn->stmt_count,
-                               &flow, result) && flow == 1 &&
-         compile_type_value(fn->return_type, result);
+    ok = typed_body_statements(&body, 0, fn->stmt_count, &flow, result) &&
+         (fn->return_type[0] && strcmp(fn->return_type, "void") ?
+          flow == 1 && compile_type_value(fn->return_type, result) :
+          result->kind == COMPILE_INVALID);
     if(ok && calls != NULL)
         keep_call(calls, hash, fn, bound_texts, expected, depth,
                   before - *fuel, result);
 done:
+    /* Pointers into this call's bindings no longer refer to anything. */
+    for(int i = 0; i < compile_store.reference_count; i++)
+        if(compile_store.references[i].body == &body)
+            compile_store.references[i].body = NULL;
+    active_bodies = body.outer;
+    compile_store_leave();
     free(body.names.items);
     free(body.names.reads);
+    free(body.serials);
     return ok;
 }
 
@@ -1999,18 +2397,15 @@ EvaluateCompileExpression(const ZirModule *module, const char *source,
     return ok;
 }
 
-int
-EvaluateCompileLiteral(const ZirModule *module, const char *source,
-                       ZirSourceSpan span, int executing, char *literal,
-                       size_t literal_size,
-                       const ZirModule **type_owner)
+/* SOURCE evaluated in MODULE with FUEL steps, its constants in scope. */
+static int
+evaluate_compile_value(const ZirModule *module, const char *source,
+                       ZirSourceSpan span, int executing, int *fuel,
+                       CompileValue *value)
 {
     ZirConsts constants = {0};
-    CompileValue value;
-    compile_value_clear(&value);
-    int fuel = 10000;
-    if(module == NULL || source == NULL || literal == NULL ||
-       literal_size == 0) return 0;
+    compile_value_clear(value);
+    if(module == NULL || source == NULL) return 0;
     constants.count = module->define_count;
     constants.items = calloc((size_t)constants.count + 1,
                              sizeof(*constants.items));
@@ -2027,15 +2422,58 @@ EvaluateCompileLiteral(const ZirModule *module, const char *source,
     }
     int ok = evaluate_typed_expression(module, &constants, source,
                                        span, executing ? 1 : 0,
-                                       &fuel, &value) &&
-             value.kind != COMPILE_INVALID &&
-             strlen(value.literal) < literal_size;
-    if(ok) {
-        copy_text(literal, literal_size, value.literal);
-        if(type_owner != NULL) *type_owner = value.type_owner;
-    }
+                                       fuel, value) &&
+             value->kind != COMPILE_INVALID;
     free(constants.items);
     return ok;
+}
+
+int
+EvaluateCompileLiteral(const ZirModule *module, const char *source,
+                       ZirSourceSpan span, int executing, const char **literal,
+                       const ZirModule **type_owner)
+{
+    CompileValue value;
+    int fuel = 10000;
+    if(literal == NULL ||
+       !evaluate_compile_value(module, source, span, executing, &fuel, &value))
+        return 0;
+    *literal = KeepText(compile_literal(&value));
+    if(type_owner != NULL) *type_owner = value.type_owner;
+    return 1;
+}
+
+int
+EvaluateCompileRun(const ZirModule *module, const char *source,
+                   ZirSourceSpan span, const char **literal,
+                   const ZirModule **type_owner, int *exhausted)
+{
+    CompileValue value;
+    int fuel = COMPILE_RUN_FUEL;
+    *exhausted = 0;
+    /* size_of lowers first where it appears, through the integer path. */
+    if(strstr(source, "size_of") != NULL) {
+        int64_t integer = 0;
+        if(EvaluateCompileExpression(module, source, span, 1, &integer)) {
+            char digits[32];
+            snprintf(digits, sizeof(digits), "%" PRId64, integer);
+            *literal = KeepText(digits);
+            if(type_owner != NULL) *type_owner = NULL;
+            return 1;
+        }
+    }
+    if(!evaluate_compile_value(module, source, span, 1, &fuel, &value)) {
+        *exhausted = fuel < 0;
+        return 0;
+    }
+    if(value.kind == COMPILE_INTEGER) {
+        char digits[32];
+        snprintf(digits, sizeof(digits), "%" PRId64, value.integer);
+        *literal = KeepText(digits);
+    } else
+        *literal = KeepText(compile_literal(&value));
+    if(type_owner != NULL) *type_owner = value.type_owner;
+    return 1;
 }
 
 /* A law condition prepared once: its module's constants and one slot per
@@ -2105,7 +2543,10 @@ PrepareBoundCondition(const ZirModule *module, const char *source,
         condition->enums[i] = enum_type(module, types[i]);
     }
     /* As evaluate_typed_expression reads a top-level condition. */
-    expression_input(condition->input, sizeof(condition->input), source);
+    char *input = expression_input(source);
+    copy_text(condition->input, sizeof(condition->input),
+              input != NULL ? input : "");
+    free(input);
     if(condition->input[0]) {
         condition->root = CachedParse(module, condition->input, span,
                                       &condition->scratch, &condition->probe);

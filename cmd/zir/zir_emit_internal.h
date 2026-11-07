@@ -204,12 +204,14 @@ void slot_native_type(const char *source, ZirTarget target, char *out, size_t si
 void slot_type_at_use(const char *source, ZirTarget target,
                       ZirResolveTarget resolve_type, void *context,
                       char *out, size_t size);
+void resolve_type_at_use(void *context, const char *source, char *out, size_t size);
 int width(const char *type);
 int signed_type(const char *type);
 int enum_type(const ZirModule *module, const char *type);
 int enum_flags_type(const ZirModule *module, const char *type);
 int record_type(const ZirModule *module, const char *type);
-const ZirType *field_record(const ZirModule *module, const char *type);
+/* The record TYPE names in MODULE; OWNER, when given, gets its declaring module. */
+const ZirType *field_record(const ZirModule *module, const char *type, const ZirModule **owner);
 /* The C or Go text for PATH's fields from BASE_EXPRESSION. A READ of a pointer
  * field C spells its own way is cast to the field's Ziran type. */
 void emit_field_path(const ZirModule *module, ZirTarget target, const char *base_type, const char *path, int read, const char *base_expression, char *out, size_t size);
@@ -266,6 +268,13 @@ int IndexInRange(const Emitter *e, int index, int64_t count);
 /* Whether index provably lies below the count of the slice or string that
  * identifier base names. */
 int IndexBelowCount(const Emitter *e, int index, int base);
+/* Whether the run elements from index provably lie inside the slice or
+ * string that identifier base names: 0 <= index, index + run <= count. */
+int RunBelowCount(const Emitter *e, int index, int64_t run, int base);
+/* Whether the C view of slice expression index, base[low:high] of a fixed
+ * array of capacity elements or of a slice when capacity < 0, provably keeps
+ * 0 <= low <= high <= count. */
+int SliceRangeInRange(const Emitter *e, int index, int capacity);
 /* Whether every element of the local that declaration, with no value,
  * declares is provably stored before anything can read it, so C need not
  * fill it with zeros first. */

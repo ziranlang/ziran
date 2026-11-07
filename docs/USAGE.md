@@ -16,15 +16,24 @@ Increment :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", 
 }
 ```
 
-Each `#asm` takes four to six literal strings: architecture, assembly template,
+Each `#asm` takes four to six arguments: architecture, assembly template,
 output constraints, input constraints, and optionally clobbers and options
-(both default to `""`). Use semicolons to
-separate constraints and clobbers; commas remain available for the assembler's
-constraint alternatives. Options are `""` or `"volatile"`. Templates use GNU
+(both default to `""`). The architecture and options are literal strings.
+Templates, constraints and clobbers can also name compile-time string
+constants; options are `""` or `"volatile"`. Use semicolons to separate constraints and clobbers; commas
+remain available for the assembler's constraint alternatives. Templates use GNU
 extended assembly syntax, including named operands, register modifiers,
 multiple instructions, escaped newlines, and assembler directives. Templates
 are quoted as data in generated source. The native compiler and assembler
 validate instruction syntax and machine-specific constraints.
+
+A template constant can be generated in the same file with
+`TEMPLATE :: #run MakeTemplate();` and used as `#asm("x86_64", TEMPLATE, ...)`.
+The generator can use builders, loops, pointers and slices. Put its helpers
+under `#scope_file` and restore `#scope_export` before the public kernel;
+`tests/spec/asm_dct8.zi` generates three architectures from one transform
+description this way.
+
 Generated C uses positional operands internally, so source operand aliases
 may also be C keywords. Named matching inputs retain the same binding.
 
@@ -224,7 +233,11 @@ rejection checks, and `tests/assembly_features.sh` for CPU selection,
 concurrent calls, unavailable features and isolated helpers. It runs ARMv7
 NEON and its masked fallback under `qemu-arm` with GCC and Clang
 (`ZIRAN_ARM_CC`, `ZIRAN_ARM_CLANG`, `ZIRAN_QEMU_ARM`; `ARM_REQUIRED=1` fails
-instead of skipping). `tests/zx_wasm.sh` builds SIMD128 and baseline modules
+instead of skipping). `tests/asm_dct8.sh` compares source and saved-IR C
+output and runs the DCT on ARM, Thumb and AArch64 with the available GNU/Linux
+and NDK cross compilers and QEMU emulators, including masked-NEON fallbacks
+with GCC and Clang. `ARM_REQUIRED=1` requires every ARM execution case.
+`tests/zx_wasm.sh` builds SIMD128 and baseline modules
 with `ZIRAN_WASM_CC` (default `clang`, `WASM_REQUIRED=1` to require it).
 `tests/go_assembly.sh` checks native and default Go builds, forced fallback,
 strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
@@ -976,25 +989,6 @@ an empty type name, and JSON decoding retains anonymous struct error details.
 The annotation preserves ordinary checked Ziran fields and is retained in
 saved IR. Other targets keep their ordinary record representation.
 
-### Native scripts
-
-`ziran run --target=c tool.zi -- ARGS` runs a native tool in one command: it
-builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
-its sources change, and runs it with the arguments, returning its status. The
-entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
-the module roots, such as `tools/check.zi`, still imports the project's modules.
-The tool reads its source path from `ZIRAN_SCRIPT_FILE`; see
-`scripts/build_playground.zi` for a maintained build tool.
-
-### Host capabilities and visibility
-
-Ziran also resolves `host_api :: #system_library "host_api";` to its host
-capability bridge. `ziran bundle --bind caller:capability=provider:function`
-can satisfy a portable host capability with an exported Ziran function in the
-bundle; the provider must have the same signature. `--bind-host MODULE`
-binds every remaining capability to MODULE's exported function of the same
-name, as a C program links a host's symbols by name, so one Ziran host module
-serves `ziran bundle` and the Go target alike.
 ### C header spellings
 
 `#c "SPELLING"` lets a generated C header match C code that shares the
@@ -1015,6 +1009,25 @@ fields out as an anonymous C member over the same storage, so C reads
 `stmt->name` where Ziran reads `stmt.name`. Run
 `sh tests/c_spelling.sh build/bin/ziran`.
 
+### Native scripts
+
+`ziran run --target=c tool.zi -- ARGS` runs a native tool in one command: it
+builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
+its sources change, and runs it with the arguments, returning its status. The
+entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
+the module roots, such as `tools/check.zi`, still imports the project's modules.
+The tool reads its source path from `ZIRAN_SCRIPT_FILE`; see
+`scripts/build_playground.zi` for a maintained build tool.
+
+### Host capabilities and visibility
+
+Ziran also resolves `host_api :: #system_library "host_api";` to its host
+capability bridge. `ziran bundle --bind caller:capability=provider:function`
+can satisfy a portable host capability with an exported Ziran function in the
+bundle; the provider must have the same signature. `--bind-host MODULE`
+binds every remaining capability to MODULE's exported function of the same
+name, as a C program links a host's symbols by name, so one Ziran host module
+serves `ziran bundle` and the Go target alike.
 The portable host ABI copies returned string bytes into VM-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
 A host can reuse its result buffers on its next call; saved strings retain

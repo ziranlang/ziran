@@ -1,6 +1,7 @@
 #include "zir_memory.h"
 #include <inttypes.h>
 #include "zir_check_internal.h"
+#include "compiler_link.h"
 /* Buffers CheckPrograms keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct CheckProgramsBuffers {
@@ -8,9 +9,7 @@ typedef struct CheckProgramsBuffers {
     char saved_path[ZIR_PATH_MAX];
     Checker scope;
     ZirToken token;
-    char literal[ZIR_TEXT_MAX];
     ZirFunction raw;
-    char folded[ZIR_TEXT_MAX];
     ZirFunction expression;
     Checker initializer;
     char assignment[ZIR_TEXT_MAX];
@@ -193,20 +192,18 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                     ZirDefine *definition = &module->defines[d];
                     if(!starts_word(definition->value, "#run")) continue;
                     pending++;
-                    int64_t value = 0;
                     const char *expression = skip_ws(definition->value + 4);
-                    if(EvaluateCompileExpression(module, expression,
-                                                 definition->span, 1, &value)) {
-                        char digits[32];
-                        snprintf(digits, sizeof(digits), "%" PRId64, value);
-                        definition->value = KeepText(digits);
-                    } else {
-                        if(!EvaluateCompileLiteral(module, expression,
-                                                   definition->span, 1, buffers->literal,
-                                                   sizeof(buffers->literal), NULL))
-                            continue;
-                        definition->value = KeepText(buffers->literal);
+                    const char *literal = NULL;
+                    int exhausted = 0;
+                    if(!EvaluateCompileRun(module, expression, definition->span,
+                                           &literal, NULL, &exhausted)) {
+                        if(!exhausted) continue;
+                        Diagnostic(definition->span, "check.consteval",
+                                   "#run expression ran more than %d steps: %s",
+                                   COMPILE_RUN_FUEL, expression);
+                        return 0;
                     }
+                    definition->value = literal;
                     progress++;
                 }
             }
@@ -234,6 +231,10 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
             LowerLinkedCompileExpressions(&programs[p]->modules[m], 0);
+    /* #asm arguments may name constant strings, #run results among them. */
+    for(int p = 0; p < count; p++)
+        for(int m = 0; m < programs[p]->module_count; m++)
+            if(!ResolveAssemblyConstants(&programs[p]->modules[m])) return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
             ZirModule *module = &programs[p]->modules[m];
@@ -242,15 +243,16 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 int64_t value = 0;
                 if(!EvaluateCompileExpression(module,
                         assertion->condition, assertion->span, 0, &value)) {
+                    const char *literal = NULL;
                     if(!EvaluateCompileLiteral(module,
                             assertion->condition, assertion->span, 0,
-                            buffers->literal, sizeof(buffers->literal), NULL) ||
-                       (strcmp(buffers->literal, "0") && strcmp(buffers->literal, "1"))) {
+                            &literal, NULL) ||
+                       (strcmp(literal, "0") && strcmp(literal, "1"))) {
                         Diagnostic(assertion->span, "check.assert",
                                    "#assert requires a compile-time constant condition");
                         return 0;
                     }
-                    value = buffers->literal[0] == '1';
+                    value = literal[0] == '1';
                 }
                 snprintf(assertion->condition,
                          sizeof(assertion->condition), "%d", value != 0);
@@ -313,16 +315,15 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                 }
                 free(buffers->raw.exprs);
                 const ZirModule *folded_owner = NULL;
+                const char *folded = NULL;
                 if(!literal_initializer && strcmp(global->type, "bool") &&
                    (EvaluateCompileLiteral(module, global->init,
-                        global->span, 0, buffers->folded, sizeof(buffers->folded),
-                        &folded_owner) ||
+                        global->span, 0, &folded, &folded_owner) ||
                     evaluate_global_startup_literal(module, g, global->init,
-                        global->span, buffers->folded, sizeof(buffers->folded),
-                        &folded_owner))) {
+                        global->span, &folded, &folded_owner))) {
                     if(folded_owner != NULL) {
                         CompoundConstant compound = {0};
-                        compound.literal = KeepText(buffers->folded);
+                        compound.literal = folded;
                         compound.owner = folded_owner;
                         compound_qualifier_for_global(&compound,
                                                       global->type);
@@ -336,7 +337,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
                         }
                         global->init = lowered;
                     } else
-                        global->init = KeepText(buffers->folded);
+                        global->init = folded;
                 }
                 if(!check_file_private_expression(module, global->init,
                                                   global->span))
@@ -516,7 +517,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
             if(!normalize_type_applications(&programs[p]->modules[m]))
                 return 0;
     if(!check_foreign_slice_returns(programs, count) ||
-       !check_inline_procedures(programs, count))
+       !compiler_link_CheckInline(programs, count))
         return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++) {
@@ -733,10 +734,7 @@ CheckPrograms_with_buffers(ZirProgram **programs, int count, CheckProgramsBuffer
         return 0;
     for(int p = 0; p < count; p++)
         for(int m = 0; m < programs[p]->module_count; m++)
-            if(!name_private_functions(&programs[p]->modules[m]) ||
-               !name_private_defines(&programs[p]->modules[m]) ||
-               !name_private_globals(&programs[p]->modules[m]) ||
-               !name_private_types(&programs[p]->modules[m]))
+            if(!compiler_link_NamePrivate(&programs[p]->modules[m]))
                 return 0;
     DeriveEffectClasses(programs, count);
     if(!CheckParallelRegions(programs, count))

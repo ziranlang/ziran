@@ -257,34 +257,47 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   | `compiler_declaration.zi` | Parameters, imports and `using` clauses, foreign declarations, multiple results, defaults, `BuilderPrint`, `#symmetric`, local renames |
   | `compiler_enum.zi` | Enum members, values and checked constant arithmetic |
   | `compiler_type.zi` | Type spelling, record fields, `#go_tag`, array capacities, foreign type symbols |
-  | `compiler_expression.zi` | Expression and initializer grammar, `#char`, statement expressions |
+  | `compiler_expression.zi` | Operator rules, `#char`, and statement expression parts |
+  | `compiler_parse.zi` | Expression and initializer grammar building shared IR directly, spans, nesting limits and typed initializer fields |
   | `compiler_statement.zi` | Loop and control headers, `then`/`else`, `#if` headers, name references |
   | `compiler_proof_kernel.zi` | Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget |
   | `compiler_proof.zi` | Theorem propositions and `#proof` certificates over checked IR: pure scalar procedures unfold into kernel terms |
+  | `compiler_law.zi` | Effect-class derivation and effect-law evaluation over checked IR, using shared compiler services |
   | `compiler_bundle.zi` | The `.zx` container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk |
   | `compiler_ir.zi` | The IR records C shares: modules, functions, statements, expressions, types, laws and proofs, their kinds and buffer sizes. `zir.h` includes the generated header, spelled for C with `#c` |
+  | `compiler_services.zi` | The C services Ziran IR modules call: kept text, source paths, diagnostics, symbol lookups and import storage |
+  | `compiler_link.zi` | Import aliases and resolution, file-private renaming of procedures, constants, globals and types with their references, and the `#inline` self-call check |
 
   C files in `cmd/zir`, with line counts on 2026-11-07. *Boundary* means the
   rules live in Ziran and C keeps storage, spans and diagnostics. *C* means
-  there is no Ziran counterpart yet. One small overlap remains:
-  `find_unquoted_text` in `zir_parse_condition.c` repeats the quote skipping
-  of `compiler_source.zi`.
+  there is no Ziran counterpart yet. Expression parsing no longer uses callback slots; quoted searches also reuse
+  `compiler_source.zi` instead of a second C scanner.
 
   | Area | Files (lines) | Status |
   |---|---|---|
-  | Frontend boundary | `zir_token.c` 70, `zir_text.c` 431, `zir_enum.c` 131, `zir_type.c` 470, `zir_parse_declaration.c` 926, `zir_cleanup.c` 1272, `zir_expr.c` 880 | Boundary; `zir_expr.c` builds IR nodes through callback slots |
+  | Frontend boundary | `zir_token.c` 70, `zir_text.c` 431, `zir_enum.c` 131, `zir_type.c` 470, `zir_parse_declaration.c` 926, `zir_cleanup.c` 1272, `zir_expr.c` 386 | Boundary; expression grammar builds shared IR in `compiler_parse.zi` |
   | Parser main loop | `zir_parse.c` 732, `zir_parse_source.c` 2274, `zir_parse_discover.c` 1713 | C, calling the Ziran scanners per line |
-  | Compile-time evaluation | `zir_parse_typed.c` 2227, `zir_parse_condition.c` 767, `zir_parse_eval.c` 649 | C; one typed evaluator serves `#if`, `#ifx`, `#assert`, `#run` and constants |
-  | Checker | `zir_check.c` 1644, `zir_check_expr.c` 2987, `zir_check_statement.c` 2210, `zir_check_text.c` 2050, `zir_check_value.c` 1733, `zir_check_link.c` 1570, `zir_check_program.c` 1044, `zir_check_function.c` 931, `zir_check_simd.c` 367 | C |
-  | Borrows, laws | `zir_borrow.c` 2005, `zir_law.c` 2117 | C; proofs moved to `compiler_proof.zi` |
+  | Compile-time evaluation | `zir_parse_typed.c` 2227, `zir_parse_condition.c` 739, `zir_parse_eval.c` 649 | C; one typed evaluator serves `#if`, `#ifx`, `#assert`, `#run` and constants |
+  | Checker | `zir_check.c` 1644, `zir_check_expr.c` 2987, `zir_check_statement.c` 2210, `zir_check_text.c` 2050, `zir_check_value.c` 1733, `zir_check_link.c` 877, `zir_check_program.c` 1044, `zir_check_function.c` 931, `zir_check_simd.c` 367 | Boundary for import linking, file-private names and `#inline` self-calls (`compiler_link.zi`); the rest is C |
+  | Borrows, laws | `zir_borrow.c` 2005, `zir_law.c` 1871 | Boundary for effect classes and effect laws (`compiler_law.zi`); proofs moved to `compiler_proof.zi`; the remaining law checks are C |
   | C and Go output | `zir_emit.c` 2053, `zir_emit_expr.c` 2144, `zir_emit_statement.c` 2096, `zir_emit_range.c` 2417, `zir_emit_value.c` 1316, `zir_emit_call.c` 1234, `zir_emit_simd_go.c` 1261, `zir_emit_gpu.c` 843, `zir_emit_simd.c` 458, `zir_asm.c` 1996, `zir_simd.c` 562, `zir_runtime.c` 274 | C |
   | IR, loading, storage | `zir.c` 2392, `zir_serial.c` 1811, `zir_load.c` 1285, `zir_storage.c` 474, `zir_edit.c` 338, `zir_body.c` 286, `zir_packages.c` 275, `zir_sha256.c` 258, `zir_diagnostic.c` 236, `zir_profile.c` 229, `zir_context.c` 166, `zir_files.c` 154, `zir_memory.c` 131, `zir_native.c` 127, `zir_document.c` 120, `zir_overlay.c` 43, `zir_semantic.c` 29 | C |
   | Bundles | `zir_bundle.c` 2986, `zir_bundle_assets.c` 103 | Boundary for the `.zx` format and its table checks; IR linking, pruning, law evaluation and capability discovery are C |
   | VM | `zir_vm_eval.c` 3697, `zir_vm_run.c` 2079, `zir_vm_verify.c` 1442, `zir_vm.c` 1352, `zir_vm_simd.c` 667 | C |
   | Bundle hosts | `zir_host.c` 844, `zir_zx_host.c` 783, `zir_zx_native_run.c` 896, `zir_zx_native_lower.c` 721, `zir_zx_native.c` 506, `zir_zx_wasm.c` 149, `zir_zx_wasm_web.c` 136 | C platform glue |
 
-  The parser, checker, backends and runtime still contain C, so the compiler
-  is not yet self-hosted.
+  The expression-parser slice reduces handwritten code from 1,558 lines to
+  1,160, including its 35-line services boundary and assembly metadata
+  retention (433 parser lines removed, 398 net). Sharing quoted searches
+  removes another 12 lines, including the
+  C declaration. Counts exclude generated seeds and tests. The parser main
+  loop, discovery passes and typed compile-time evaluator still run in C;
+  their migration remains unfinished. The compiler is not yet self-hosted.
+
+  The effect-law slice removes 246 handwritten C lines and adds 233 Ziran
+  lines. Including its header, shared services and proof diagnostic cleanup,
+  compiler sources shrink by six lines; build rules add fourteen. Generated
+  seeds, tests and documentation are excluded from these counts.
 
 - Portable imported callback signatures resolve their parameter and return
   types in their defining module. Record and enum parameters and record

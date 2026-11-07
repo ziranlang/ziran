@@ -122,29 +122,6 @@ typedef struct ValidatedRecords {
     size_t count;
 } ValidatedRecords;
 
-typedef struct PrivateFunctionName {
-    ZirFunction *function;
-    char internal[ZIR_NAME_MAX];
-} PrivateFunctionName;
-
-typedef struct PrivateDefineName {
-    ZirDefine *definition;
-    char original[ZIR_NAME_MAX];
-    char internal[ZIR_NAME_MAX];
-} PrivateDefineName;
-
-typedef struct PrivateGlobalName {
-    ZirGlobal *global;
-    char original[ZIR_NAME_MAX];
-    char internal[ZIR_NAME_MAX];
-} PrivateGlobalName;
-
-typedef struct PrivateTypeName {
-    ZirType *type;
-    char original[ZIR_NAME_MAX];
-    char internal[ZIR_NAME_MAX];
-} PrivateTypeName;
-
 /* Shared between the parts only: the Makefile merges the parts into one
  * object and localizes these hidden symbols, so they never leave it. */
 #pragma GCC visibility push(hidden)
@@ -168,7 +145,7 @@ void bind(Checker *c, const char *name, const char *type, ZirSourceSpan span);
 void activate_using_filtered(Checker *c, const char *path, const char *filter, ZirSourceSpan span);
 void activate_using(Checker *c, const char *path, ZirSourceSpan span);
 int lower_file_record_using(ZirModule *module, char *source, size_t capacity, ZirSourceSpan span);
-int evaluate_global_startup_literal(const ZirModule *module, int before, const char *source, ZirSourceSpan span, char *literal, size_t literal_size, const ZirModule **type_owner);
+int evaluate_global_startup_literal(const ZirModule *module, int before, const char *source, ZirSourceSpan span, const char **literal, const ZirModule **type_owner);
 int resolve_using_enum(Checker *c, const char *name, const ZirType **enumeration, char *source, size_t size);
 void promote_using_tree(Checker *c, int index);
 int order_using_expressions(ZirFunction *function);
@@ -274,14 +251,9 @@ int canonical_type_arguments(const char *source, char *output, size_t capacity);
 int rewrite_type_applications(ZirModule *module, const char *source, char *output, size_t capacity, ZirSourceSpan span, int recursion);
 int normalize_type_applications(ZirModule *module);
 int check_foreign_slice_returns(ZirProgram **programs, int count);
-int check_inline_procedures(ZirProgram **programs, int count);
 int fill_late_type_instances(ZirModule *module, ZirSourceSpan span);
 int order_local_types(ZirModule *module);
 int jai_module_types(const ZirModule *module);
-int name_private_functions(ZirModule *module);
-int name_private_defines(ZirModule *module);
-int name_private_globals(ZirModule *module);
-int name_private_types(ZirModule *module);
 int instantiate_specializations(Checker *checker);
 #pragma GCC visibility pop
 

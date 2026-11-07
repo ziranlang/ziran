@@ -23,7 +23,6 @@ static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
 #endif
 static uint8_t compiler_text_Byte(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_text_AfterQuote(String source, int64_t at) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_text_HexDigit(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output) ZIRAN_MAYBE_UNUSED;
 static String Operators[16] = {{"==", sizeof("==") - 1}, {"!=", sizeof("!=") - 1}, {"<=", sizeof("<=") - 1}, {">=", sizeof(">=") - 1}, {"<<", sizeof("<<") - 1}, {">>", sizeof(">>") - 1}, {"+", sizeof("+") - 1}, {"-", sizeof("-") - 1}, {"*", sizeof("*") - 1}, {"/", sizeof("/") - 1}, {"%", sizeof("%") - 1}, {"<", sizeof("<") - 1}, {">", sizeof(">") - 1}, {"&", sizeof("&") - 1}, {"|", sizeof("|") - 1}, {"^", sizeof("^") - 1}};
 static String Procedures[16] = {{"operator_equal", sizeof("operator_equal") - 1}, {"operator_not_equal", sizeof("operator_not_equal") - 1}, {"operator_less_equal", sizeof("operator_less_equal") - 1}, {"operator_greater_equal", sizeof("operator_greater_equal") - 1}, {"operator_shift_left", sizeof("operator_shift_left") - 1}, {"operator_shift_right", sizeof("operator_shift_right") - 1}, {"operator_add", sizeof("operator_add") - 1}, {"operator_subtract", sizeof("operator_subtract") - 1}, {"operator_multiply", sizeof("operator_multiply") - 1}, {"operator_divide", sizeof("operator_divide") - 1}, {"operator_modulo", sizeof("operator_modulo") - 1}, {"operator_less", sizeof("operator_less") - 1}, {"operator_greater", sizeof("operator_greater") - 1}, {"operator_bit_and", sizeof("operator_bit_and") - 1}, {"operator_bit_or", sizeof("operator_bit_or") - 1}, {"operator_bit_xor", sizeof("operator_bit_xor") - 1}};
@@ -367,7 +366,7 @@ compiler_text_EscapeCString(String source, Slice output)
             int64_t index = range_first_10;
             if (index <= range_last_10) for (;;) {
                 if ((int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-                    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
+                    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = (escaped)[index];
                     used = (int64_t)((uint64_t)used + UINT64_C(1));
                 }
                 if (index == range_last_10) {
@@ -677,7 +676,7 @@ compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output)
             int64_t range_last_30 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_30;
             if (index <= range_last_30) for (;;) {
-                ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = ZIRAN_INDEX(escaped, 4, index);
+                ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = (escaped)[index];
                 used = (int64_t)((uint64_t)used + UINT64_C(1));
                 if (index == range_last_30) {
                     break;
@@ -726,6 +725,21 @@ compiler_text_ProcedureOperator(String name)
     return StringLiteral("");
 }
 
+int32_t
+compiler_text_HexDigit(uint8_t byte)
+{
+    if (byte >= 48 && byte <= 57) {
+        return (int32_t)((uint32_t)(byte) - 48u);
+    }
+    if (byte >= 97 && byte <= 102) {
+        return (int32_t)(((uint32_t)(byte) - 97u) + 10u);
+    }
+    if (byte >= 65 && byte <= 70) {
+        return (int32_t)(((uint32_t)(byte) - 65u) + 10u);
+    }
+    return -1;
+}
+
 static uint8_t
 compiler_text_Byte(String source, int64_t at)
 {
@@ -753,48 +767,33 @@ compiler_text_AfterQuote(String source, int64_t at)
     return at;
 }
 
-static int32_t
-compiler_text_HexDigit(uint8_t byte)
-{
-    if (byte >= 48 && byte <= 57) {
-        return (int32_t)((uint32_t)(byte) - 48u);
-    }
-    if (byte >= 97 && byte <= 102) {
-        return (int32_t)(((uint32_t)(byte) - 97u) + 10u);
-    }
-    if (byte >= 65 && byte <= 70) {
-        return (int32_t)(((uint32_t)(byte) - 65u) + 10u);
-    }
-    return -1;
-}
-
 static int64_t
 compiler_text_EscapeByte(uint8_t byte, bool c_string, Slice output)
 {
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 92;
+    ((uint8_t *)output.data)[0] = 92;
     if (byte == 34 || byte == 92) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)1)] = byte;
+        ((uint8_t *)output.data)[1] = byte;
         return 2LL;
     }
     if (byte == 10) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)1)] = 110;
+        ((uint8_t *)output.data)[1] = 110;
         return 2LL;
     }
     if (byte == 9) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)1)] = 116;
+        ((uint8_t *)output.data)[1] = 116;
         return 2LL;
     }
     if (byte == 13 && c_string) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)1)] = 114;
+        ((uint8_t *)output.data)[1] = 114;
         return 2LL;
     }
     if (byte < 32 || byte == 127) {
         String hex = StringLiteral("0123456789abcdef");
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)1)] = 120;
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)2)] = (uint8_t)ZIRAN_INDEX(hex.data, hex.length, ((uint8_t)(byte >> 4)));
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)3)] = (uint8_t)ZIRAN_INDEX(hex.data, hex.length, ((uint8_t)((uint32_t)byte & 15u)));
+        ((uint8_t *)output.data)[1] = 120;
+        ((uint8_t *)output.data)[2] = (uint8_t)ZIRAN_INDEX(hex.data, hex.length, ((uint8_t)(byte >> 4)));
+        ((uint8_t *)output.data)[3] = (uint8_t)ZIRAN_INDEX(hex.data, hex.length, ((uint8_t)((uint32_t)byte & 15u)));
         return 4LL;
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = byte;
+    ((uint8_t *)output.data)[0] = byte;
     return 1LL;
 }

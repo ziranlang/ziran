@@ -279,14 +279,10 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
                     drop_owned_value(e, buffers->field, element, e->module, 0);
                     e->indent--; line(e, "}");
                 }
-                if(!strcmp(element, "u8")) {
-                    line(e, "if (%s > (%s).count) memset((%s).data + (%s).count, 0, (size_t)(%s - (%s).count));", requested, buffers->vector, buffers->vector, buffers->vector, requested, buffers->vector);
-                } else {
-                    if(record_type(e->module, element)) zero_record(e, element, buffers->value, sizeof(buffers->value));
-                    else copy_text(buffers->value, sizeof(buffers->value), zero_value(element, e->target));
-                    declare(e, item_name, element, buffers->value);
-                    line(e, "for (int64_t %s = (%s).count; %s < %s; ++%s) (%s).data[%s] = %s;", index, buffers->vector, index, requested, index, buffers->vector, index, item_name);
-                }
+                /* Every C zero value is all zero bytes; filling in place keeps
+                 * a large element off the stack. */
+                line(e, "if (%s > (%s).count) memset((%s).data + (%s).count, 0, (size_t)(%s - (%s).count) * sizeof(*(%s).data));",
+                     requested, buffers->vector, buffers->vector, buffers->vector, requested, buffers->vector, buffers->vector);
                 line(e, "(%s).count = %s;", buffers->vector, requested);
                 e->indent--; line(e, "}");
             }
@@ -608,7 +604,7 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
              char *out, size_t size)
 {
     int is_array = ArrayElementType(type, NULL, 0, NULL) != 0;
-    const ZirType *record = is_array ? NULL : field_record(e->module, type);
+    const ZirType *record = is_array ? NULL : field_record(e->module, type, NULL);
     char value[ZIR_TEXT_MAX], text[ZIR_TEXT_MAX], native[ZIR_NAME_MAX * 2];
     size_t used = 0;
     if(e->target == ZIR_GO || (is_array && !braced) ||
@@ -1207,10 +1203,10 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             if(e->target == ZIR_GO)
                 go_field_ident(field->name, field_name, sizeof(field_name));
             else
-                TargetFieldName(field_record(e->module, type), e->target,
+                TargetFieldName(field_record(e->module, type, NULL), e->target,
                                 field->name, field_name, sizeof(field_name));
             emit_expr(e, field->right, field->type, buffers->a, sizeof(buffers->a));
-            spelled_field_store(e->target, field_record(e->module, type), field->name,
+            spelled_field_store(e->target, field_record(e->module, type, NULL), field->name,
                                 buffers->a, sizeof(buffers->a));
             format(buffers->b, sizeof(buffers->b), "%s.%s", temp, field_name);
             assign_value(e, buffers->b, field->type, buffers->a);
@@ -1488,7 +1484,9 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 copy_text(mapped, sizeof(mapped), scalar);
             else
                 e->resolve(e->context, element, mapped, sizeof(mapped));
-            format(buffers->result, sizeof(buffers->result), "SliceRange(%s, (int64_t)%s, (int64_t)%s, sizeof(%s))",
+            /* Bounds the range facts prove need no check. */
+            format(buffers->result, sizeof(buffers->result), "%s(%s, (int64_t)%s, (int64_t)%s, sizeof(%s))",
+                   SliceRangeInRange(e, index, array ? capacity : -1) ? "SliceRangeAt" : "SliceRange",
                    view, buffers->low, buffers->high, mapped);
         }
         break;
@@ -1507,6 +1505,14 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             emit_destination(e, expr->left, buffers->a, sizeof(buffers->a));
             base_pure = e->pure;
         } else {
+            /* A simple subscript cannot change the array or fail before its
+             * base is read. Read that base in place instead of copying a
+             * whole array field out of a computed record. */
+            if(e->target == ZIR_C && ArrayElementType(base_type, NULL, 0, NULL) &&
+               plain_wide_operand(e->fn, expr->right, 0)) {
+                e->call_in_place = 1;
+                e->array_operand = 1;
+            }
             emit_expr(e, expr->left, base_type, buffers->a, sizeof(buffers->a));
             base_pure = e->pure;
         }
@@ -2057,23 +2063,9 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             char cast_native[ZIR_NAME_MAX];
             if(e->target == ZIR_GO)
                 e->resolve(e->context, type, cast_native, sizeof(cast_native));
-            else {
-                const char *leaf = type;
-                char native_leaf[ZIR_NAME_MAX], source[ZIR_NAME_MAX * 2];
-                while(*leaf == '*' || *leaf == '[') {
-                    if(*leaf == '*') leaf = skip_ws(leaf + 1);
-                    else {
-                        const char *close = strchr(leaf, ']');
-                        if(close == NULL) break;
-                        leaf = skip_ws(close + 1);
-                    }
-                }
-                if(e->target == ZIR_C &&
-                   NativeTypeAtUse(e->module, leaf, native_leaf, sizeof(native_leaf))) {
-                    format(source, sizeof(source), "%.*s%s", (int)(leaf - type), type, native_leaf);
-                    slot_native_type(source, e->target, cast_native, sizeof(cast_native));
-                } else slot_native_type(type, e->target, cast_native, sizeof(cast_native));
-            }
+            else
+                slot_type_at_use(type, e->target, e->target == ZIR_C ? resolve_type_at_use : NULL,
+                                 (void *)e->module, cast_native, sizeof(cast_native));
             if(e->target == ZIR_GO && type[0] == '*') {
                 if(canonical(operand_type)[0] == '*')
                     format(buffers->result, sizeof(buffers->result),

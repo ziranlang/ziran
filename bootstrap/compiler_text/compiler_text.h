@@ -61,6 +61,7 @@ FormatStep compiler_text_NextPrintPiece(Slice bytes, int64_t at, Slice output);
 String compiler_text_OperatorProcedure(String op);
 int64_t compiler_text_OperatorTokenLength(String source);
 String compiler_text_ProcedureOperator(String name);
+int32_t compiler_text_HexDigit(uint8_t byte);
 
 /* Small procedures other modules inline; compiler_text.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
@@ -75,6 +76,8 @@ static inline int64_t compiler_text_BlockHeaderEnd_ziran_inline(String source);
 #define compiler_text_BlockHeaderEnd(...) compiler_text_BlockHeaderEnd_ziran_inline(__VA_ARGS__)
 static inline int64_t compiler_text_CamelIdentifier_ziran_inline(String source, Slice output);
 #define compiler_text_CamelIdentifier(...) compiler_text_CamelIdentifier_ziran_inline(__VA_ARGS__)
+static inline int32_t compiler_text_HexDigit_ziran_inline(uint8_t byte);
+#define compiler_text_HexDigit(...) compiler_text_HexDigit_ziran_inline(__VA_ARGS__)
 
 static inline bool
 compiler_text_SpaceByte_ziran_inline(uint8_t byte)
@@ -191,6 +194,21 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
     }
     ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;
     return used;
+}
+
+static inline int32_t
+compiler_text_HexDigit_ziran_inline(uint8_t byte)
+{
+    if (byte >= 48 && byte <= 57) {
+        return (int32_t)((uint32_t)(byte) - 48u);
+    }
+    if (byte >= 97 && byte <= 102) {
+        return (int32_t)(((uint32_t)(byte) - 97u) + 10u);
+    }
+    if (byte >= 65 && byte <= 70) {
+        return (int32_t)(((uint32_t)(byte) - 65u) + 10u);
+    }
+    return -1;
 }
 #endif
 

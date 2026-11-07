@@ -207,6 +207,13 @@ Answer :: () -> s32 {
     StatementSeparator("} else {") != -1 { return 31 }
     if ClosingParenthesis("(Call(\")\"), ['(']) tail") != 17 ||
     ClosingParenthesis("(\"unfinished\\") != -1 || ClosingParenthesis("not a call") != -1 { return 27 }
+    if FindUnquoted("", "x", false) != -1 || FindUnquoted("abc", "", false) != 0 ||
+    FindUnquoted("abc", "bc", false) != 1 || FindUnquoted("abc", "bc", true) != -1 ||
+    FindUnquoted("size_of_extra xsize_of 1size_of size_of1 size_of", "size_of", true) != 41 ||
+    FindUnquoted("\"size_of\" 'size_of' size_of", "size_of", true) != 20 ||
+    FindUnquoted("\"a\\\"size_of\" size_of", "size_of", true) != 13 ||
+    FindUnquoted("\"unfinished size_of", "size_of", false) != -1 ||
+    FindUnquoted("'\\'size_of' size_of", "size_of", false) != 12 { return 32 }
     if !StatementChecks() { return 28 }
     if !ProcedureChecks() { return 29 }
     return 42

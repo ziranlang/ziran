@@ -106,6 +106,23 @@ PutRaw :: (output: []u8, used: *s64, byte: u8) {
 SourceIdentifier :: (byte: u8) -> bool {
     return Letter(byte) || (byte >= #char "0" && byte <= #char "9")
 }
+// First match outside quoted literals, optionally bounded by identifier bytes.
+// Empty text has no match; a nonempty source may match an empty needle at 0.
+FindUnquoted :: (source: string, needle: string, word: bool) -> s64 {
+    at: s64 = 0
+    while at < source.count {
+        if source[at] == #char "\"" || source[at] == #char "'" {
+            at = AfterQuote(source, at)
+            continue
+        }
+        if Matches(source, at, needle) && (!word ||
+            !SourceIdentifier(Byte(source, at - 1)) &&
+            !SourceIdentifier(Byte(source, at + needle.count))) { return at }
+        at += 1
+    }
+    return -1
+}
+
 StartsWord :: (source: string, word: string) -> bool {
     if !Matches(source, 0, word) { return false }
     byte := Byte(source, word.count)

@@ -3,23 +3,19 @@
 #include "zir_parse_internal.h"
 
 static void
-expand_compile_expr_depth(char *dst, size_t dst_size, const ZirConsts *consts,
+expand_compile_text_depth(CompileText *out, const ZirConsts *consts,
                           const char *src, const char *lookup_path, int depth,
                           const ZirConst **active)
 {
-    size_t n = 0;
     int in_string = 0;
     int escaped = 0;
-    int i;
 
-    if(dst_size == 0)
-        return;
     if(depth > 16)
         die_at(Span(lookup_path, 1, 1),
                "compile-time constant expansion exceeds 16 levels");
-    for(const char *p = src; p != NULL && *p != '\0' && n + 1 < dst_size;) {
+    for(const char *p = src; p != NULL && *p != '\0' && !out->failed;) {
         if(in_string) {
-            dst[n++] = *p;
+            compile_text_add(out, p, 1);
             if(escaped)
                 escaped = 0;
             else if(*p == '\\')
@@ -31,7 +27,7 @@ expand_compile_expr_depth(char *dst, size_t dst_size, const ZirConsts *consts,
         }
         if(*p == '"') {
             in_string = 1;
-            dst[n++] = *p++;
+            compile_text_add(out, p++, 1);
             continue;
         }
         /* Expanded text spells the probe defined(NAME), which expands to
@@ -43,109 +39,106 @@ expand_compile_expr_depth(char *dst, size_t dst_size, const ZirConsts *consts,
 
             if(*word_end == '\0' || *word_end == '(' ||
                isspace((unsigned char)*word_end)) {
-                if(n + 7 >= dst_size)
-                    break;
-                memcpy(dst + n, "defined", 7);
-                n += 7;
+                compile_text_put(out, "defined");
                 p = word_end;
                 /* Copy the probe name verbatim: constants must not expand
                  * inside defined(...). */
-                {
-                    const char *gap = p;
-                    while(*gap == ' ' || *gap == '\t')
-                        gap++;
-                    if(*gap == '(') {
-                        int probe_depth = 0;
-                        while(*gap != '\0' && n + 1 < dst_size) {
-                            if(*gap == '(')
-                                probe_depth++;
-                            else if(*gap == ')') {
-                                probe_depth--;
-                                if(probe_depth == 0) {
-                                    dst[n++] = *gap++;
-                                    break;
-                                }
-                            }
-                            dst[n++] = *gap++;
+                const char *gap = p;
+                while(*gap == ' ' || *gap == '\t')
+                    gap++;
+                if(*gap == '(') {
+                    int probe_depth = 0;
+                    const char *start = gap;
+                    while(*gap != '\0') {
+                        if(*gap == '(')
+                            probe_depth++;
+                        else if(*gap == ')' && --probe_depth == 0) {
+                            gap++;
+                            break;
                         }
-                        p = gap;
+                        gap++;
                     }
+                    compile_text_add(out, p, (size_t)(start - p));
+                    compile_text_add(out, start, (size_t)(gap - start));
+                    p = gap;
                 }
                 continue;
             }
         }
         if(isalpha((unsigned char)*p) || *p == '_') {
-            char ident[ZIR_NAME_MAX];
-            size_t il = 0;
+            const char *word = p;
             int found = 0;
 
-            size_t previous = n;
+            size_t previous = out->used;
             while(previous > 0 &&
-                  isspace((unsigned char)dst[previous - 1])) previous--;
-            int member = previous > 0 && dst[previous - 1] == '.';
+                  isspace((unsigned char)out->data[previous - 1])) previous--;
+            int member = previous > 0 && out->data[previous - 1] == '.';
 
-            while(isalnum((unsigned char)*p) || *p == '_') {
-                if(il + 1 < sizeof(ident))
-                    ident[il++] = *p;
+            while(isalnum((unsigned char)*p) || *p == '_')
                 p++;
-            }
-            ident[il] = '\0';
-            for(i = 0; !member && i < consts->count; i++) {
-                if(strcmp(consts->items[i].name, ident) == 0 &&
-                   (!consts->items[i].is_file_private ||
-                    strcmp(consts->items[i].path, lookup_path) == 0)) {
-                    char expanded[ZIR_TEXT_MAX];
-                    int written;
-
+            size_t length = (size_t)(p - word);
+            for(int i = 0; !member && i < consts->count; i++) {
+                const ZirConst *constant = &consts->items[i];
+                if(strlen(constant->name) == length &&
+                   !strncmp(constant->name, word, length) &&
+                   (!constant->is_file_private ||
+                    strcmp(constant->path, lookup_path) == 0)) {
                     for(int ancestor = 0; ancestor < depth; ancestor++)
-                        if(active[ancestor] == &consts->items[i])
-                            die_at(Span(consts->items[i].path,
-                                        consts->items[i].source_line, 1),
+                        if(active[ancestor] == constant)
+                            die_at(Span(constant->path,
+                                        constant->source_line, 1),
                                    "cyclic compile-time constant: %s",
-                                   ident);
-                    active[depth] = &consts->items[i];
-
-                    expand_compile_expr_depth(expanded, sizeof(expanded),
-                                              consts, consts->items[i].expr,
-                                              consts->items[i].path,
-                                              depth + 1, active);
-                    if(ZirLawEvaluation &&
-                       (ScalarWidth(consts->items[i].type) ||
-                        !strcmp(consts->items[i].type, "bool")))
-                        written = snprintf(dst + n, dst_size - n,
-                            "(cast(%s) (%s))", consts->items[i].type, expanded);
-                    else
-                        written = snprintf(dst + n, dst_size - n, "(%s)", expanded);
-                    if(written < 0)
-                        written = 0;
-                    if((size_t)written >= dst_size - n)
-                        n = dst_size - 1;
-                    else
-                        n += (size_t)written;
+                                   constant->name);
+                    active[depth] = constant;
+                    int cast = ZirLawEvaluation &&
+                               (ScalarWidth(constant->type) ||
+                                !strcmp(constant->type, "bool"));
+                    if(cast) {
+                        compile_text_put(out, "(cast(");
+                        compile_text_put(out, constant->type);
+                        compile_text_put(out, ") ");
+                    }
+                    compile_text_put(out, "(");
+                    expand_compile_text_depth(out, consts, constant->expr,
+                                              constant->path, depth + 1,
+                                              active);
+                    compile_text_put(out, cast ? "))" : ")");
                     found = 1;
                     break;
                 }
             }
-            if(!found) {
-                if(n + il >= dst_size)
-                    break;
-                memcpy(dst + n, ident, il);
-                n += il;
-            }
+            if(!found)
+                compile_text_add(out, word, length);
             continue;
         }
-        dst[n++] = *p++;
+        compile_text_add(out, p++, 1);
     }
-    dst[n] = '\0';
+}
+
+char *
+expand_compile_text(const ZirConsts *consts, const char *src,
+                    const char *lookup_path)
+{
+    const ZirConst *active[17] = {0};
+    CompileText out = {0};
+    compile_text_add(&out, "", 0);
+    expand_compile_text_depth(&out, consts, src, lookup_path, 0, active);
+    if(out.failed) {
+        free(out.data);
+        return NULL;
+    }
+    return out.data;
 }
 
 void
 expand_compile_expr(char *dst, size_t dst_size, const ZirConsts *consts,
                     const char *src, const char *lookup_path)
 {
-    const ZirConst *active[17] = {0};
-    expand_compile_expr_depth(dst, dst_size, consts, src, lookup_path, 0,
-                              active);
+    if(dst_size == 0)
+        return;
+    char *expanded = expand_compile_text(consts, src, lookup_path);
+    copy_text(dst, dst_size, expanded != NULL ? expanded : "");
+    free(expanded);
 }
 
 int
@@ -225,6 +218,72 @@ find_imported_define(const ZirModule *module, const char *lookup_path,
     return definition;
 }
 
+void
+compile_set_literal(CompileValue *value, const char *text)
+{
+    size_t length = strlen(text);
+    if(length < sizeof(value->spelling)) {
+        memcpy(value->spelling, text, length + 1);
+        value->kept = NULL;
+    } else {
+        value->kept = KeepText(text);
+        value->spelling[0] = '\0';
+    }
+}
+
+void
+compile_text_add(CompileText *text, const char *bytes, size_t length)
+{
+    if(text->failed) return;
+    if(text->used + length + 1 > text->capacity) {
+        size_t capacity = text->capacity ? text->capacity : 256;
+        while(capacity < text->used + length + 1) {
+            if(capacity > SIZE_MAX / 2) { text->failed = 1; return; }
+            capacity *= 2;
+        }
+        char *data = realloc(text->data, capacity);
+        if(data == NULL) { text->failed = 1; return; }
+        text->data = data;
+        text->capacity = capacity;
+    }
+    memcpy(text->data + text->used, bytes, length);
+    text->used += length;
+    text->data[text->used] = '\0';
+}
+
+void
+compile_text_put(CompileText *text, const char *piece)
+{
+    compile_text_add(text, piece, strlen(piece));
+}
+
+void
+compile_text_string(CompileText *text, const unsigned char *bytes, size_t length)
+{
+    static const char hex[] = "0123456789abcdef";
+    compile_text_add(text, "\"", 1);
+    for(size_t i = 0; i < length; i++) {
+        unsigned char byte = bytes[i];
+        char escaped[4] = {'\\', 0, 0, 0};
+        size_t used = 2;
+        if(byte == '"' || byte == '\\') escaped[1] = (char)byte;
+        else if(byte == '\n') escaped[1] = 'n';
+        else if(byte == '\t') escaped[1] = 't';
+        else if(byte == '\r') escaped[1] = 'r';
+        else if(byte < 0x20 || byte == 0x7f) {
+            escaped[1] = 'x';
+            escaped[2] = hex[byte >> 4];
+            escaped[3] = hex[byte & 15];
+            used = 4;
+        } else {
+            escaped[0] = (char)byte;
+            used = 1;
+        }
+        compile_text_add(text, escaped, used);
+    }
+    compile_text_add(text, "\"", 1);
+}
+
 int
 compile_value_literal(CompileValue *value)
 {
@@ -240,20 +299,22 @@ compile_value_literal(CompileValue *value)
             digits[count++] = (char)('0' + magnitude % 10);
             magnitude /= 10;
         } while(magnitude != 0);
-        char *out = value->literal;
+        char *out = value->spelling;
         if(negative) *out++ = '-';
         while(count > 0) *out++ = digits[--count];
         *out = '\0';
+        value->kept = NULL;
         return 1;
     }
     if(value->kind == COMPILE_REAL) {
-        int written = snprintf(value->literal, sizeof(value->literal),
+        int written = snprintf(value->spelling, sizeof(value->spelling),
                                "%.17g", value->real);
-        if(written < 0 || (size_t)written >= sizeof(value->literal)) return 0;
-        DecimalPointDot(value->literal);
-        if(strpbrk(value->literal, ".eE") == NULL) {
-            if((size_t)written + 2 >= sizeof(value->literal)) return 0;
-            strcat(value->literal, ".0");
+        if(written < 0 || (size_t)written >= sizeof(value->spelling)) return 0;
+        value->kept = NULL;
+        DecimalPointDot(value->spelling);
+        if(strpbrk(value->spelling, ".eE") == NULL) {
+            if((size_t)written + 2 >= sizeof(value->spelling)) return 0;
+            strcat(value->spelling, ".0");
         }
     }
     return value->kind != COMPILE_INVALID;
@@ -271,6 +332,10 @@ compile_truth(const CompileValue *value, int *truth)
 int
 compile_type_value(const char *type, CompileValue *value)
 {
+    if(value->kind == COMPILE_BUILDER)
+        return !strcmp(type, "Vec(u8)") || !strcmp(type, "*Vec(u8)");
+    if(value->kind == COMPILE_REFERENCE)
+        return type[0] == '*' || !strncmp(type, "[]", 2);
     if(!strcmp(type, "u64")) {
         if(value->kind != COMPILE_INTEGER ||
            (value->integer < 0 && strcmp(value->type, "u64"))) return 0;
@@ -327,26 +392,32 @@ compile_law_exact_double(const CompileValue *value)
            value->integer <= (INT64_C(1) << 53);
 }
 
-/* Buffers compile_values_equal keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct CompileValuesEqualBuffers {
-    unsigned char a[ZIR_TEXT_MAX];
-    unsigned char b[ZIR_TEXT_MAX];
-} CompileValuesEqualBuffers;
+unsigned char *
+compile_string_bytes(const CompileValue *value, size_t *length)
+{
+    const char *literal = compile_literal(value);
+    /* A literal decodes to no more bytes than it spells. */
+    size_t capacity = strlen(literal) + 1;
+    unsigned char *bytes = malloc(capacity);
+    if(bytes != NULL && !DecodeStringLiteral(literal, bytes, capacity, length)) {
+        free(bytes);
+        bytes = NULL;
+    }
+    return bytes;
+}
 
-int compile_values_equal(const CompileValue *left, const CompileValue *right,
-                     int *equal);
-
-static int
-compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *right,
-                     int *equal, CompileValuesEqualBuffers *buffers)
+int
+compile_values_equal(const CompileValue *left, const CompileValue *right,
+                     int *equal)
 {
     if(left->kind == COMPILE_STRING && right->kind == COMPILE_STRING) {
-        size_t an, bn;
-        if(!DecodeStringLiteral(left->literal, buffers->a, sizeof(buffers->a), &an) ||
-           !DecodeStringLiteral(right->literal, buffers->b, sizeof(buffers->b), &bn)) return 0;
-        *equal = an == bn && memcmp(buffers->a, buffers->b, an) == 0;
-        return 1;
+        size_t an = 0, bn = 0;
+        unsigned char *a = compile_string_bytes(left, &an);
+        unsigned char *b = a != NULL ? compile_string_bytes(right, &bn) : NULL;
+        if(b != NULL) *equal = an == bn && memcmp(a, b, an) == 0;
+        free(a);
+        free(b);
+        return b != NULL;
     }
     if(left->kind == COMPILE_INTEGER && right->kind == COMPILE_INTEGER) {
         *equal = left->integer == right->integer;
@@ -356,7 +427,7 @@ compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *
      * type have equal text. */
     if(left->kind == COMPILE_COMPOUND && right->kind == COMPILE_COMPOUND &&
        !strcmp(left->type, right->type)) {
-        *equal = !strcmp(left->literal, right->literal);
+        *equal = !strcmp(compile_literal(left), compile_literal(right));
         return 1;
     }
     if((left->kind == COMPILE_REAL || left->kind == COMPILE_INTEGER) &&
@@ -373,11 +444,6 @@ compile_values_equal_with_buffers(const CompileValue *left, const CompileValue *
     return 0;
 }
 
-COMPILER_SCRATCH_RETURN(, int, compile_values_equal,
-    (const CompileValue *left, const CompileValue *right,
-                     int *equal),
-    CompileValuesEqualBuffers, RECOVERABLE, free,
-    compile_values_equal_with_buffers(left, right, equal, buffers))
 
 int
 compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
@@ -394,13 +460,10 @@ compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
        (!array && (record == NULL || record->is_enum ||
                    record->is_procedure_type || record->is_record_template)))
         return 0;
-    int written = array ?
-        snprintf(result->literal, sizeof(result->literal), "%s.[", element) :
-        snprintf(result->literal, sizeof(result->literal), "%s.{",
-                 expression->name);
-    if(written < 0 || (size_t)written >= sizeof(result->literal)) return 0;
-    size_t used = (size_t)written;
-    int ordinal = 0, mode = -1;
+    CompileText text = {0};
+    compile_text_put(&text, array ? element : expression->name);
+    compile_text_put(&text, array ? ".[" : ".{");
+    int ordinal = 0, mode = -1, ok = 0;
     for(int child = expression->first_child; child >= 0;
         child = probe->exprs[child].next_sibling) {
         const ZirExpr *entry = &probe->exprs[child];
@@ -410,13 +473,13 @@ compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
         char field_name[ZIR_NAME_MAX] = "";
         int named = !strcmp(entry->op, "=");
         if(array) {
-            if(named || ordinal >= capacity) return 0;
+            if(named || ordinal >= capacity) goto done;
             copy_text(field_type, sizeof(field_type), element);
         } else {
             ZirTypeField field;
             size_t offset = 0;
             int position = 0, found = 0;
-            if(mode >= 0 && mode != named) return 0;
+            if(mode >= 0 && mode != named) goto done;
             mode = named;
             while(TypeNextField(record, &offset, &field) == 1) {
                 if(named ? !strcmp(field.name, entry->name) :
@@ -428,38 +491,35 @@ compile_compound_value(const ZirFunction *probe, const ZirExpr *expression,
                 }
                 position++;
             }
-            if(!found) return 0;
+            if(!found) goto done;
             for(int previous = expression->first_child; previous != child;
                 previous = probe->exprs[previous].next_sibling)
                 if(named && !strcmp(probe->exprs[previous].name,
-                                    field_name)) return 0;
+                                    field_name)) goto done;
         }
         if(!evaluate_typed_node(probe, entry->right, module, path,
                                 depth + 1, fuel, &value) ||
-           !compile_type_value(field_type, &value)) return 0;
-        if(array)
-            written = snprintf(result->literal + used,
-                               sizeof(result->literal) - used, "%s%s",
-                               ordinal ? ", " : "", value.literal);
-        else
-            written = snprintf(result->literal + used,
-                               sizeof(result->literal) - used,
-                               "%s.%s = %s", ordinal ? ", " : "",
-                               field_name, value.literal);
-        if(written < 0 || (size_t)written >= sizeof(result->literal) - used)
-            return 0;
-        used += (size_t)written;
+           !compile_type_value(field_type, &value)) goto done;
+        if(ordinal) compile_text_put(&text, ", ");
+        if(!array) {
+            compile_text_put(&text, ".");
+            compile_text_put(&text, field_name);
+            compile_text_put(&text, " = ");
+        }
+        compile_text_put(&text, compile_literal(&value));
         ordinal++;
     }
-    if(array && ordinal != capacity) return 0;
-    written = snprintf(result->literal + used, sizeof(result->literal) - used,
-                       "%c", array ? ']' : '}');
-    if(written != 1 || (size_t)written >= sizeof(result->literal) - used)
-        return 0;
+    if(array && ordinal != capacity) goto done;
+    compile_text_put(&text, array ? "]" : "}");
+    if(text.failed) goto done;
+    compile_set_literal(result, text.data);
     result->kind = COMPILE_COMPOUND;
     copy_text(result->type, sizeof(result->type), expression->name);
     result->type_owner = module;
-    return 1;
+    ok = 1;
+done:
+    free(text.data);
+    return ok;
 }
 /* Buffers compile_compound_member keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
@@ -479,7 +539,7 @@ compile_compound_member_with_buffers(const CompileValue *compound, const char *m
     if(compound->type_owner != NULL)
         module = compound->type_owner;
     memset(&buffers->probe, 0, sizeof(buffers->probe));
-    int root = ParseExpr(&buffers->probe, module, compound->literal,
+    int root = ParseExpr(&buffers->probe, module, compile_literal(compound),
                          Span(path, 1, 1));
     int found = 0;
     if(root >= 0 && buffers->probe.exprs[root].kind == ZIR_EXPR_COMPOUND) {
@@ -536,7 +596,7 @@ compile_compound_index_with_buffers(const CompileValue *compound, int64_t index,
                          &capacity) || index < 0 || index >= capacity)
         return 0;
     const ZirFunction *probe;
-    int root = CachedParse(module, compound->literal, Span(path, 1, 1),
+    int root = CachedParse(module, compile_literal(compound), Span(path, 1, 1),
                            &buffers->probe, &probe);
     int found = 0, ordinal = 0;
     if(root >= 0 && probe->exprs[root].kind == ZIR_EXPR_COMPOUND)

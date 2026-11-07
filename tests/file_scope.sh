@@ -337,3 +337,42 @@ package main
 func main() { if Main_Answer() != 9 { panic("private enums collided") } }
 GO
 GO111MODULE=off go run "$work/private-enum-go"/*.go
+
+# Renaming rejects what it cannot give one checked name each.
+reject() {
+    if "$ziran" check --root "$work" "$work/main.zi" 2> "$work/reject.err"; then
+        echo "file-private naming accepted: $1" >&2
+        exit 1
+    fi
+    grep -Fq "$1" "$work/reject.err"
+}
+cat > "$work/part.zi" <<'ZI'
+#scope_file
+Same :: 1;
+Same :: 2;
+ZI
+cat > "$work/main.zi" <<'ZI'
+#load "part.zi";
+Answer :: () -> s32 { return 1 }
+ZI
+reject 'part.zi:2:1: duplicate constant in one file: Same'
+cat > "$work/part.zi" <<'ZI'
+#scope_file
+#program_export
+Answer :: () -> s32 { return 1 }
+ZI
+cat > "$work/main.zi" <<'ZI'
+#load "part.zi";
+#scope_file
+#program_export
+Answer :: () -> s32 { return 2 }
+ZI
+reject 'colliding #program_export procedure: Answer'
+long=$(python3 -c 'print(", ".join("a%d_%s: T" % (i, "x" * 120) for i in range(30)))')
+printf '#scope_file\nT :: struct { v: s32 }\nUse :: (%s) { }\n' "$long" > "$work/part.zi"
+cat > "$work/main.zi" <<'ZI'
+#load "part.zi";
+#scope_file
+T :: struct { w: s32 }
+ZI
+reject 'part.zi:3:1: file-private reference exceeds text limit: T'

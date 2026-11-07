@@ -12,6 +12,12 @@ Count :: 4
 Point :: struct { x: s32; y: s32; }
 Pure :: (a: s32, b: s32) -> s32 { return a + b }
 Extern :: () -> s32 #foreign host_api;
+counter: s32 = 0;
+Read :: () -> s32 { return counter }
+ReadRelay :: () -> s32 { return Read() }
+Write :: () { counter = 1 }
+WriteRelay :: () { Write() }
+Store :: (value: *s32) { value.* = 1 }
 
 #law LayoutComplete type Point;
 #law BoundResolved bounds [Count]s32;
@@ -19,6 +25,12 @@ Extern :: () -> s32 #foreign host_api;
 #law AbiPortable abi Pure;
 #law CustomTrue custom Pure(20, 22) == 42;
 #law EffectClassPure effect Pure == pure;
+#law EffectRead effect Read == observing;
+#law EffectReadRelay effect ReadRelay == observing;
+#law EffectWrite effect Write == mutating;
+#law EffectWriteRelay effect WriteRelay == mutating;
+#law EffectStore effect Store == mutating;
+#law EffectForeignClass effect Extern == external;
 #law BoundExact bounds [Count]s32 == 4;
 #law BoundAtLeast bounds [Count]s32 >= 4;
 #law SizeExact size Point == 8;
@@ -29,13 +41,19 @@ Answer :: () -> s32 { return Pure(20, 22) }
 ZI
 
 "$ziran" check --root "$work" "$work/laws.zi" > "$work/laws.json"
-test "$(wc -l < "$work/laws.json")" = 10
+test "$(wc -l < "$work/laws.json")" = 16
 rg -q '"law":"LayoutComplete","kind":"type".*"status":"proved"' "$work/laws.json"
 rg -q '"law":"BoundResolved","kind":"bounds".*"status":"proved"' "$work/laws.json"
 rg -q '"law":"EffectPure","kind":"effect".*"status":"proved"' "$work/laws.json"
 rg -q '"law":"AbiPortable","kind":"abi".*"status":"proved"' "$work/laws.json"
 rg -q '"law":"CustomTrue","kind":"custom".*"status":"proved"' "$work/laws.json"
 rg -q '"law":"EffectClassPure".*"status":"proved".*Pure is pure' "$work/laws.json"
+rg -q '"law":"EffectRead".*"status":"proved".*Read is observing' "$work/laws.json"
+rg -q '"law":"EffectReadRelay".*"status":"proved".*ReadRelay is observing' "$work/laws.json"
+rg -q '"law":"EffectWrite".*"status":"proved".*Write is mutating' "$work/laws.json"
+rg -q '"law":"EffectWriteRelay".*"status":"proved".*WriteRelay is mutating' "$work/laws.json"
+rg -q '"law":"EffectStore".*"status":"proved".*Store is mutating' "$work/laws.json"
+rg -q '"law":"EffectForeignClass".*"status":"proved".*Extern is foreign; class is external' "$work/laws.json"
 rg -q '"law":"BoundExact".*"status":"proved".*bound 4 == 4' "$work/laws.json"
 rg -q '"law":"SizeExact".*"status":"proved".*8 bytes == 8' "$work/laws.json"
 
@@ -51,10 +69,21 @@ cmp "$work/laws-source.zx" "$work/laws-saved.zx"
 test "$("$ziran" run "$work/laws-source.zx")" = 42
 
 cat > "$work/disproved.zi" <<'ZI'
+host_api :: #system_library "host_api";
+Extern :: () -> s32 #foreign host_api;
+ForeignCall :: () -> s32 { return Extern() }
+counter: s32 = 0;
+Write :: () { counter = 1 }
 Pair :: struct { a: s64; b: s64; }
 Pure :: (a: s32, b: s32) -> s32 { return a + b }
 #law CustomFalse custom Pure(1, 1) == 42;
 #law EffectWrong effect Pure == mutating;
+#law EffectWrites effect Write;
+#law EffectMissing effect Missing;
+#law EffectClassMissing effect Missing == pure;
+#law EffectForeignWrong effect Extern == pure;
+#law EffectForeignCall effect ForeignCall == external;
+#law EffectCallsForeign effect ForeignCall;
 #law BoundWrong bounds [2]s32 >= 8;
 #law SizeWrong size Pair <= 8;
 #program_export
@@ -67,6 +96,12 @@ if "$ziran" check --root "$work" "$work/disproved.zi" \
 fi
 rg -q '"law":"CustomFalse".*"status":"disproved"' "$work/disproved.json"
 rg -q '"law":"EffectWrong".*"status":"disproved".*not mutating' "$work/disproved.json"
+rg -q '"law":"EffectWrites".*"status":"disproved".*Write writes a file-scope global' "$work/disproved.json"
+rg -q '"law":"EffectMissing".*"status":"disproved".*no visible procedure named Missing' "$work/disproved.json"
+rg -q '"law":"EffectClassMissing".*"status":"disproved".*no visible procedure named Missing' "$work/disproved.json"
+rg -q '"law":"EffectForeignWrong".*"status":"disproved".*Extern is foreign; class is external' "$work/disproved.json"
+rg -q '"law":"EffectForeignCall".*"status":"proved".*ForeignCall is external' "$work/disproved.json"
+rg -q '"law":"EffectCallsForeign".*"status":"unknown".*ForeignCall calls foreign code; its effects are not visible' "$work/disproved.json"
 rg -q '"law":"BoundWrong".*"status":"disproved".*bound 2 >= 8' "$work/disproved.json"
 rg -q '"law":"SizeWrong".*"status":"disproved".*16 bytes <= 8' "$work/disproved.json"
 rg -q 'law CustomFalse is disproved' "$work/disproved.err"

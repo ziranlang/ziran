@@ -108,17 +108,21 @@ native_count(const Emitter *e, long lanes, char *out, size_t size)
 }
 
 /* Lanes a load or store of `type` touches: LoadLow and StoreLow move 64 bits
- * of a fixed vector and half of a native one. */
-static void
+ * of a fixed vector and half of a native one. Returns their number, or 0
+ * when only the running code knows it. */
+static int
 touched_lanes(const Emitter *e, const SimdOp *op, const char *type, char *out, size_t size)
 {
     ZirVector vector;
     VectorType(type, &vector);
     int low = op->id == ZI_OP_LOAD_LOW || op->id == ZI_OP_STORE_LOW;
-    if(vector.is_native)
+    if(vector.is_native) {
         native_count(e, low ? vector.lanes / 2 : vector.lanes, out, size);
-    else
-        format(out, size, "%d", low ? 64 / vector.lane_bits : vector.lanes);
+        return e->target == ZIR_C && zir_native_blocks == 0 ? 0 :
+               (low ? vector.lanes / 2 : vector.lanes) * (e->target == ZIR_C ? zir_native_blocks : 1);
+    }
+    format(out, size, "%d", low ? 64 / vector.lane_bits : vector.lanes);
+    return low ? 64 / vector.lane_bits : vector.lanes;
 }
 
 /* A slice or array operand: text read several times stays in a temporary.
@@ -165,11 +169,13 @@ whole_array_slice(const Emitter *e, int child)
     return memory->left;
 }
 
-/* The C address of `lanes` lanes at `index`. Slices and arrays check the
- * whole run; pointers are unchecked, as their indexing is. */
+/* The C address of `lanes` lanes at `index`, the text of expression at.
+ * Slices and arrays check the whole run unless the range facts prove it,
+ * from at, inside: touched is the lane count, 0 when not fixed here.
+ * Pointers are unchecked, as their indexing is. */
 static void
-c_address(Emitter *e, int memory_child, const char *index, const char *lanes,
-          int writable, char *out, size_t size)
+c_address(Emitter *e, int memory_child, int at, const char *index, const char *lanes,
+          int touched, int writable, char *out, size_t size)
 {
     int array = whole_array_slice(e, memory_child);
     if(array >= 0)
@@ -182,10 +188,15 @@ c_address(Emitter *e, int memory_child, const char *index, const char *lanes,
     unsigned bytes = ScalarByteWidth(element);
     if(lane == NULL || bytes == 0)
         fatal(&e->fn->exprs[memory_child], "SIMD memory needs scalar lanes");
+    int proven = touched > 0 &&
+        ((kind == SIMD_MEMORY_ARRAY && capacity >= touched &&
+          IndexInRange(e, at, (int64_t)capacity - touched + 1)) ||
+         (kind == SIMD_MEMORY_SLICE && RunBelowCount(e, at, touched, memory_child)));
     memory_operand(e, memory_child, kind, writable, base, sizeof(base));
-    if(kind == SIMD_MEMORY_POINTER) {
-        format(out, size, "(%svoid *)((%s%s *)(%s) + (int64_t)(%s))",
-               writable ? "" : "const ", writable ? "" : "const ", lane, base, index);
+    if(kind == SIMD_MEMORY_POINTER || proven) {
+        format(out, size, "(%svoid *)((%s%s *)(%s%s) + (int64_t)(%s))",
+               writable ? "" : "const ", writable ? "" : "const ", lane, base,
+               kind == SIMD_MEMORY_SLICE ? ".data" : "", index);
         return;
     }
     if(kind == SIMD_MEMORY_SLICE)
@@ -375,8 +386,8 @@ emit_simd_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t size,
             /* The value is computed before the access is checked. */
             emit_expr(e, children[2], type, text[0], sizeof(text[0]));
         }
-        touched_lanes(e, op, type, lanes, sizeof(lanes));
-        c_address(e, children[0], buffers->index, lanes, value >= 0,
+        int touched = touched_lanes(e, op, type, lanes, sizeof(lanes));
+        c_address(e, children[0], children[1], buffers->index, lanes, touched, value >= 0,
                   buffers->address, sizeof(buffers->address));
         helper_name(e, op, here, here, native_vector(type), name, sizeof(buffers->name));
         if(value >= 0) {

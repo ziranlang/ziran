@@ -80,7 +80,20 @@ typedef struct RangeFacts {
     unsigned char *clobber;
     int *last_clobber;   /* statement -> latest earlier clobber, or -1 */
     unsigned char *dirty; /* per while: its condition or body may clobber */
+    /* Calls: the module whose procedures a call names, the range each
+     * parameter's incoming value lies in while a call's result is worked
+     * out (NULL: any value of its type), and results found so far. */
+    const ZirModule *module;
+    const struct Range *seed;
+    struct CallRange *calls;
+    int call_count, call_depth;
+    /* The calls of this procedure, each spliced into a copy of its caller,
+     * once looked for; spliced is set on such a copy's own facts. */
+    struct Callers *callers;
+    int callers_built, spliced;
 } RangeFacts;
+
+static void callers_free(struct Callers *callers);
 
 typedef struct Range {
     int64_t low, high;
@@ -90,6 +103,16 @@ typedef struct RangeMemo {
     int64_t key; /* binding * (statements + 2) + statement + 2, 0 when empty */
     Range range;
 } RangeMemo;
+
+/* What a call of callee returns when each parameter starts in seed. */
+typedef struct CallRange {
+    const ZirFunction *callee;
+    Range *seed;
+    int seeds, known;
+    Range result;
+} CallRange;
+
+enum { CALL_RANGES = 64, CALL_DEPTH = 2 };
 
 /* An exact integer polynomial over bindings and slice counts, plus a
  * constant somewhere in k: the value is sum(coef * atoms) + some c in k. */
@@ -229,6 +252,10 @@ RangeFactsFree(RangeFacts *f)
     free(f->last_clobber);
     free(f->dirty);
     free(f->memo);
+    for(int c = 0; c < f->call_count; c++)
+        free(f->calls[c].seed);
+    free(f->calls);
+    callers_free(f->callers);
     if(f->facts != NULL)
         for(int s = 0; s < 2 * f->statements; s++)
         {
@@ -1095,20 +1122,55 @@ binding_base_range(const RangeFacts *f, int binding, int at, int depth, Range *o
     if(f->unknown[binding] || depth > RANGE_DEPTH)
         return 1;
     if(binding >= f->statements) {
-        /* A parameter's incoming value is any value of its type. */
+        /* A parameter's incoming value is any value of its type, or of
+         * what the call being followed passes. */
         value = whole;
+        if(f->seed != NULL)
+            narrow(&value, f->seed[binding - f->statements]);
     } else if(fn->stmts[binding].expr_root < 0) {
         /* A declaration without a value starts at zero. */
         value.low = value.high = 0;
     } else if(!initializer_range(f, binding, at, depth, &value)) {
         return 1;
     }
+
+    int conditional_write = -1, conditional_branch = -1;
+    if(f->first_write[binding] >= 0 && f->next_write[f->first_write[binding]] < 0 &&
+       f->increment_loop[binding] < 0 && f->loop_of[at] < 0) {
+        int write = f->first_write[binding];
+        if(!strcmp(fn->stmts[write].assignment_op, "=") && fn->stmts[write].expr_root >= 0) {
+            for(int open = 0; open < write; open++) {
+                if(fn->stmts[open].kind != ZIR_STMT_IF || fn->stmts[open].is_else ||
+                   fn->stmts[open].expr_root < 0 || write >= f->block_end[open] ||
+                   at < f->block_end[open] || f->loop_of[write] >= 0)
+                    continue;
+                conditional_write = write;
+                conditional_branch = open;
+            }
+        }
+    }
+
     for(int s = f->first_write[binding]; s >= 0; s = f->next_write[s]) {
         Range stored;
         if(strcmp(fn->stmts[s].assignment_op, "="))
             continue;
-        if(fn->stmts[s].expr_root < 0 || !expr_range(f, fn->stmts[s].expr_root, depth + 1, &stored))
+        if(fn->stmts[s].expr_root < 0)
             return 1;
+        int known;
+        if(s == conditional_write && f->contexts < RANGE_CONTEXT) {
+            push_context(f, fn->stmts[conditional_branch].expr_root, 1, s);
+            known = expr_range(f, fn->stmts[s].expr_root, depth + 1, &stored);
+            ((RangeFacts *)f)->contexts--;
+        } else
+            known = expr_range(f, fn->stmts[s].expr_root, depth + 1, &stored);
+        if(!known)
+            return 1;
+        if(s == conditional_write) {
+            int64_t except[RANGE_EXCEPT];
+            int excepts = 0;
+            narrow_by(f, fn->stmts[conditional_branch].expr_root, 0, binding, s, depth + 1,
+                      &value, except, &excepts);
+        }
         if(stored.low < value.low) value.low = stored.low;
         if(stored.high > value.high) value.high = stored.high;
     }
@@ -1135,6 +1197,105 @@ binding_base_range(const RangeFacts *f, int binding, int at, int depth, Range *o
     }
     *out = value;
     return 1;
+}
+
+/* The values its return statements give, with each parameter starting in
+ * seed: the result of a call of callee, from facts of its own. */
+static int
+returned_range(const ZirModule *owner, const ZirFunction *callee, Range *seed, int call_depth,
+               Range *out)
+{
+    RangeFacts *inner = RangeFactsBuild(callee);
+    int known = inner != NULL, any = 0;
+    if(inner == NULL)
+        return 0;
+    inner->module = owner;
+    inner->seed = seed;
+    inner->call_depth = call_depth;
+    /* Falling off the end aborts, so only return statements give values. */
+    for(int s = 0; s < callee->stmt_count && known; s++) {
+        Range value;
+        if(callee->stmts[s].kind != ZIR_STMT_RETURN)
+            continue;
+        inner->budget = RANGE_BUDGET;
+        if(callee->stmts[s].expr_root < 0 || !expr_range(inner, callee->stmts[s].expr_root, 0, &value)) {
+            known = 0;
+            break;
+        }
+        if(!any) {
+            *out = value;
+            any = 1;
+        } else {
+            if(value.low < out->low) out->low = value.low;
+            if(value.high > out->high) out->high = value.high;
+        }
+    }
+    RangeFactsFree(inner);
+    return known && any;
+}
+
+/* The values a call of a checked Ziran procedure returns, worked out from
+ * its body with each parameter in the range its argument has here: with a
+ * limit of 3, CoefficientLevel(levels, at, 3) returns 0..3. */
+static int
+call_range(const RangeFacts *f, int index, Range *out)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    const ZirExpr *call = &f->fn->exprs[index];
+    const ZirModule *owner = NULL;
+    const ZirFunction *callee = NULL;
+    const ZirParameters *parameters;
+    Range *seed, result;
+    int count, known;
+    if(f->module == NULL || f->call_depth >= CALL_DEPTH || call->name == NULL || !call->name[0] ||
+       (call->slot_type != NULL && *call->slot_type) || call->is_function_value ||
+       ResolveFunction(f->module, call->name, &owner, &callee) != 1 || callee == NULL ||
+       callee == f->fn || !callee->checked || callee->is_extern || callee->is_template ||
+       callee->stmt_count <= 0 || !type_range(callee->return_type, &result))
+        return 0;
+    parameters = ParametersOf(FunctionArgs(callee));
+    count = parameters->count;
+    seed = malloc(((size_t)count + 1) * sizeof(*seed));
+    if(seed == NULL)
+        return 0;
+    for(int p = 0; p < count; p++) {
+        const char *type = parameters->items[p].value_type != NULL ? parameters->items[p].value_type :
+                                                                      parameters->items[p].type;
+        if(!type_range(type, &seed[p]))
+            seed[p].low = INT64_MIN, seed[p].high = INT64_MAX;
+    }
+    for(int child = call->first_child; child >= 0; child = f->fn->exprs[child].next_sibling) {
+        int p = f->fn->exprs[child].argument_index;
+        Range value;
+        /* An argument the parameter type holds arrives as itself. */
+        if(p >= 0 && p < count && !parameters->items[p].is_using &&
+           expr_range(f, child, 0, &value) && within(value, seed[p]))
+            seed[p] = value;
+    }
+    for(int c = 0; c < f->call_count; c++)
+        if(f->calls[c].callee == callee && f->calls[c].seeds == count &&
+           !memcmp(f->calls[c].seed, seed, (size_t)count * sizeof(*seed))) {
+            free(seed);
+            *out = f->calls[c].result;
+            return f->calls[c].known;
+        }
+    known = returned_range(owner, callee, seed, f->call_depth + 1, &result);
+    if(f->call_count < CALL_RANGES) {
+        if(g->calls == NULL)
+            g->calls = calloc(CALL_RANGES, sizeof(*g->calls));
+        if(g->calls != NULL) {
+            CallRange *slot = &g->calls[g->call_count++];
+            slot->callee = callee;
+            slot->seed = seed;
+            slot->seeds = count;
+            slot->known = known;
+            slot->result = result;
+            seed = NULL;
+        }
+    }
+    free(seed);
+    *out = result;
+    return known;
 }
 
 static int
@@ -1206,6 +1367,12 @@ expr_range(const RangeFacts *f, int index, int depth, Range *out)
         }
         break;
     }
+    case ZIR_EXPR_CALL:
+        if(call_range(f, index, &a) && (!has_whole || within(a, whole))) {
+            *out = a;
+            return 1;
+        }
+        break;
     case ZIR_EXPR_CONDITIONAL:
         if(expr_range(f, expr->right, depth + 1, &a) && expr_range(f, expr->third, depth + 1, &b)) {
             a.low = a.low < b.low ? a.low : b.low;
@@ -1524,7 +1691,18 @@ atom_range(const RangeFacts *f, int atom, int at, Range *out)
         return 1;
     }
     if(atom >= f->bindings) {
-        /* A count. */
+        /* A count: a view of a whole fixed array holds its length. */
+        int view = atom - f->bindings, capacity = 0;
+        if(view < f->statements && invariant(f, view) && f->fn->stmts[view].kind == ZIR_STMT_DECL &&
+           f->fn->stmts[view].expr_root >= 0) {
+            const ZirExpr *value = &f->fn->exprs[f->fn->stmts[view].expr_root];
+            if(value->kind == ZIR_EXPR_SLICE && value->right < 0 && value->third < 0 && value->left >= 0 &&
+               f->fn->exprs[value->left].type != NULL &&
+               ArrayElementType(f->fn->exprs[value->left].type, NULL, 0, &capacity) && capacity >= 0) {
+                out->low = out->high = capacity;
+                return 1;
+            }
+        }
         out->low = 0;
         out->high = INT64_MAX;
         guard_narrow(f, atom, at, 0, out);
@@ -2291,11 +2469,457 @@ poly_index_below(const RangeFacts *f, int index, const Poly *limit)
     return proven;
 }
 
+/* The emitter's facts, resolving calls in the module being emitted. */
+static RangeFacts *
+emitter_facts(const Emitter *e)
+{
+    if(e->ranges != NULL && e->ranges->fn == e->fn)
+        e->ranges->module = e->module;
+    return e->ranges;
+}
+
+/* Callers' facts. Only its own module can call a procedure that is not
+ * public, so an access in its body that every call there keeps inside its
+ * memory needs no check. A call is shown on a copy of its caller with the
+ * callee's body spliced in as a block just before the call's statement:
+ * each parameter becomes a local holding its argument, or the caller's own
+ * binding when the argument names one neither side writes, and the callee's
+ * names take a prefix no source name has. A copy is only proved on, never
+ * emitted. */
+enum { CALL_SITES = 32 };
+
+typedef struct CallSite {
+    ZirFunction fn;
+    RangeFacts *facts;
+    int offset; /* callee expression x is fn.exprs[offset + x] */
+} CallSite;
+
+typedef struct Callers {
+    int count, usable;
+    CallSite site[CALL_SITES];
+    char **names;
+    int name_count, name_cap;
+} Callers;
+
+static void
+callers_free(Callers *c)
+{
+    if(c == NULL)
+        return;
+    for(int i = 0; i < c->count; i++) {
+        RangeFactsFree(c->site[i].facts);
+        free(c->site[i].fn.stmts);
+        free(c->site[i].fn.exprs);
+    }
+    for(int i = 0; i < c->name_count; i++)
+        free(c->names[i]);
+    free(c->names);
+    free(c);
+}
+
+/* NAME with the prefix spliced names take, kept until c is freed. */
+static const char *
+spliced_name(Callers *c, const char *name)
+{
+    size_t length = strlen(name);
+    char *copy;
+    if(c->name_count == c->name_cap) {
+        int cap = c->name_cap ? 2 * c->name_cap : 64;
+        char **grown = realloc(c->names, (size_t)cap * sizeof(*grown));
+        if(grown == NULL)
+            return NULL;
+        c->names = grown;
+        c->name_cap = cap;
+    }
+    if((copy = malloc(length + 2)) == NULL)
+        return NULL;
+    copy[0] = '\001';
+    memcpy(copy + 1, name, length + 1);
+    c->names[c->name_count++] = copy;
+    return copy;
+}
+
+static int
+tree_size(const ZirFunction *fn, int x)
+{
+    int size = 1;
+    if(x < 0)
+        return 0;
+    size += tree_size(fn, fn->exprs[x].left) + tree_size(fn, fn->exprs[x].right) +
+            tree_size(fn, fn->exprs[x].third);
+    for(int child = fn->exprs[x].first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        size += tree_size(fn, child);
+    return size;
+}
+
+/* Copy expression x of from and what it holds to to[*next...]. */
+static int
+copy_tree(const ZirFunction *from, int x, ZirExpr *to, int *next)
+{
+    int at, last = -1;
+    if(x < 0)
+        return -1;
+    at = (*next)++;
+    to[at] = from->exprs[x];
+    to[at].next_sibling = to[at].first_child = -1;
+    to[at].left = copy_tree(from, from->exprs[x].left, to, next);
+    to[at].right = copy_tree(from, from->exprs[x].right, to, next);
+    to[at].third = copy_tree(from, from->exprs[x].third, to, next);
+    for(int child = from->exprs[x].first_child; child >= 0; child = from->exprs[child].next_sibling) {
+        int copied = copy_tree(from, child, to, next);
+        if(last < 0)
+            to[at].first_child = copied;
+        else
+            to[last].next_sibling = copied;
+        last = copied;
+    }
+    return at;
+}
+
+static int
+tree_calls(const ZirFunction *fn, int x, int except)
+{
+    if(x < 0)
+        return 0;
+    if(x != except && fn->exprs[x].kind == ZIR_EXPR_CALL)
+        return 1;
+    if(tree_calls(fn, fn->exprs[x].left, except) || tree_calls(fn, fn->exprs[x].right, except) ||
+       tree_calls(fn, fn->exprs[x].third, except))
+        return 1;
+    for(int child = fn->exprs[x].first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(tree_calls(fn, child, except))
+            return 1;
+    return 0;
+}
+
+static int
+tree_holds(const ZirFunction *fn, int x, int wanted)
+{
+    if(x < 0)
+        return 0;
+    if(x == wanted || tree_holds(fn, fn->exprs[x].left, wanted) ||
+       tree_holds(fn, fn->exprs[x].right, wanted) || tree_holds(fn, fn->exprs[x].third, wanted))
+        return 1;
+    for(int child = fn->exprs[x].first_child; child >= 0; child = fn->exprs[child].next_sibling)
+        if(tree_holds(fn, child, wanted))
+            return 1;
+    return 0;
+}
+
+/* The name a binding of facts f was declared with. */
+static const char *
+binding_name(const RangeFacts *f, int binding)
+{
+    if(binding < f->statements)
+        return f->fn->stmts[binding].name;
+    {
+        const ZirParameters *parameters = ParametersOf(FunctionArgs(f->fn));
+        const ZirParameter *p = &parameters->items[binding - f->statements];
+        return p->binding_name != NULL ? p->binding_name : p->name;
+    }
+}
+
+static const char *
+parameter_type(const ZirParameter *p)
+{
+    return p->value_type != NULL ? p->value_type : p->type;
+}
+
+/* Splice the callee of facts f into a copy of caller, before statement s
+ * holding call: 1 when the copy and its facts are built. */
+static int
+splice_call(Callers *c, const RangeFacts *f, const ZirModule *module, const ZirFunction *caller,
+            const RangeFacts *outer, int s, int call, CallSite *site)
+{
+    const ZirFunction *callee = f->fn;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(callee));
+    const ZirStmt *st = &caller->stmts[s];
+    int count = parameters->count, *argument = NULL, *alias = NULL, ok = 0;
+    int marker, extra = 0, next, k = 0, loops = 0;
+    ZirFunction *copy = &site->fn;
+    ZirStmt plain = {0};
+    memset(site, 0, sizeof(*site));
+    if(st->for_step || st->is_parallel || st->is_gpu ||
+       !(st->kind == ZIR_STMT_DECL || st->kind == ZIR_STMT_ASSIGN || st->kind == ZIR_STMT_EXPR ||
+         st->kind == ZIR_STMT_RETURN || (st->kind == ZIR_STMT_IF && !st->is_else)))
+        return 0;
+    argument = malloc(((size_t)count + 1) * sizeof(int));
+    alias = malloc(((size_t)count + 1) * sizeof(int));
+    if(argument == NULL || alias == NULL)
+        goto done;
+    for(int p = 0; p < count; p++)
+        argument[p] = alias[p] = -1;
+    for(int child = caller->exprs[call].first_child; child >= 0; child = caller->exprs[child].next_sibling) {
+        int p = caller->exprs[child].argument_index;
+        if(p < 0 || p >= count || argument[p] >= 0 || parameters->items[p].is_using)
+            goto done;
+        argument[p] = child;
+    }
+    for(int p = 0; p < count; p++) {
+        const ZirExpr *value;
+        int binding;
+        if(argument[p] < 0 || parameters->items[p].name == NULL)
+            goto done;
+        value = &caller->exprs[argument[p]];
+        binding = value->kind == ZIR_EXPR_IDENT && !value->is_global_value && !value->is_function_value ?
+            outer->binding_of[argument[p]] : -1;
+        /* The caller's binding stands for the parameter when neither side
+         * writes it and both have one type. */
+        if(binding >= 0 && invariant(outer, binding) && invariant(f, f->statements + p) &&
+           outer->binding_type[binding] != NULL &&
+           !strcmp(canonical(outer->binding_type[binding]), canonical(parameter_type(&parameters->items[p]))))
+            alias[p] = binding;
+        else
+            extra += tree_size(caller, argument[p]);
+    }
+    /* A name the callee reads from outside it must not meet a caller's
+     * binding of the same name. */
+    for(int x = 0; x < callee->expr_count; x++) {
+        const ZirExpr *expr = &callee->exprs[x];
+        if(expr->kind != ZIR_EXPR_IDENT || f->binding_of[x] >= 0 || expr->name == NULL)
+            continue;
+        for(int b = 0; b < outer->bindings; b++) {
+            const char *name = binding_name(outer, b);
+            if(name != NULL && !strcmp(name, expr->name))
+                goto done;
+        }
+    }
+    /* Anything the statement runs besides this call may change memory
+     * first, so the copy calls something unknown before the callee. */
+    marker = tree_calls(caller, st->expr_root, call) || tree_calls(caller, st->lhs_root, call);
+    copy->name[0] = '\0';
+    copy->args_text = caller->args_text;
+    copy->default_args_text = caller->default_args_text;
+    copy->stmts = calloc((size_t)caller->stmt_count + callee->stmt_count + count + 3, sizeof(ZirStmt));
+    copy->exprs = calloc((size_t)caller->expr_count + callee->expr_count + extra + 1, sizeof(ZirExpr));
+    if(copy->stmts == NULL || copy->exprs == NULL)
+        goto done;
+    memcpy(copy->exprs, caller->exprs, (size_t)caller->expr_count * sizeof(ZirExpr));
+    site->offset = next = caller->expr_count;
+    memcpy(copy->exprs + next, callee->exprs, (size_t)callee->expr_count * sizeof(ZirExpr));
+    next += callee->expr_count;
+    for(int x = 0; x < callee->expr_count; x++) {
+        ZirExpr *expr = &copy->exprs[site->offset + x];
+        int binding = f->binding_of[x];
+        int *links[] = {&expr->left, &expr->right, &expr->first_child, &expr->next_sibling, &expr->third};
+        for(int l = 0; l < 5; l++)
+            if(*links[l] >= 0)
+                *links[l] += site->offset;
+        if(expr->kind != ZIR_EXPR_IDENT || binding < 0)
+            continue;
+        if(binding >= f->statements && alias[binding - f->statements] >= 0)
+            expr->name = caller->exprs[argument[binding - f->statements]].name;
+        else if((expr->name = spliced_name(c, binding_name(f, binding))) == NULL)
+            goto done;
+    }
+    for(int s2 = 0; s2 < caller->stmt_count; s2++)
+        if(caller->stmts[s2].loop_id > loops)
+            loops = caller->stmts[s2].loop_id;
+    plain.expr_root = plain.lhs_root = -1;
+    plain.span = st->span;
+    for(int s2 = 0; s2 < s; s2++)
+        copy->stmts[k++] = caller->stmts[s2];
+    copy->stmts[k] = plain;
+    copy->stmts[k++].kind = ZIR_STMT_BLOCK_OPEN;
+    if(marker) {
+        static const char unknown[] = "\001unknown";
+        copy->exprs[next] = caller->exprs[call];
+        copy->exprs[next].kind = ZIR_EXPR_CALL;
+        copy->exprs[next].name = unknown;
+        copy->exprs[next].type = "void";
+        copy->exprs[next].left = copy->exprs[next].right = copy->exprs[next].third = -1;
+        copy->exprs[next].first_child = copy->exprs[next].next_sibling = -1;
+        copy->stmts[k] = plain;
+        copy->stmts[k].kind = ZIR_STMT_EXPR;
+        copy->stmts[k++].expr_root = next++;
+    }
+    for(int p = 0; p < count; p++) {
+        if(alias[p] >= 0)
+            continue;
+        copy->stmts[k] = plain;
+        copy->stmts[k].kind = ZIR_STMT_DECL;
+        copy->stmts[k].expr_root = copy_tree(caller, argument[p], copy->exprs, &next);
+        copy->stmts[k].type = parameter_type(&parameters->items[p]);
+        if((copy->stmts[k].name = spliced_name(c, binding_name(f, f->statements + p))) == NULL)
+            goto done;
+        k++;
+    }
+    for(int s2 = 0; s2 < callee->stmt_count; s2++) {
+        ZirStmt *into = &copy->stmts[k++];
+        *into = callee->stmts[s2];
+        if(into->expr_root >= 0)
+            into->expr_root += site->offset;
+        if(into->lhs_root >= 0)
+            into->lhs_root += site->offset;
+        if(into->loop_id > 0)
+            into->loop_id += loops;
+        if(into->target_id > 0)
+            into->target_id += loops;
+        if(into->for_step > 0)
+            into->for_step += loops;
+        if(into->kind == ZIR_STMT_DECL && into->name != NULL &&
+           (into->name = spliced_name(c, into->name)) == NULL)
+            goto done;
+    }
+    copy->stmts[k] = plain;
+    copy->stmts[k++].kind = ZIR_STMT_BLOCK_CLOSE;
+    for(int s2 = s; s2 < caller->stmt_count; s2++)
+        copy->stmts[k++] = caller->stmts[s2];
+    copy->stmt_count = copy->stmt_cap = k;
+    copy->expr_count = copy->expr_cap = next;
+    site->facts = RangeFactsBuild(copy);
+    if(site->facts != NULL) {
+        site->facts->module = module;
+        site->facts->spliced = 1;
+        ok = 1;
+    }
+done:
+    free(argument);
+    free(alias);
+    if(!ok) {
+        free(copy->stmts);
+        free(copy->exprs);
+        memset(site, 0, sizeof(*site));
+    }
+    return ok;
+}
+
+/* Whether text holds name as a whole identifier. */
+static int
+names_word(const char *text, const char *name)
+{
+    size_t length = strlen(name);
+    if(text == NULL || length == 0)
+        return 0;
+    for(const char *at = strstr(text, name); at != NULL; at = strstr(at + 1, name)) {
+        char before = at > text ? at[-1] : ' ', after = at[length];
+        if(!isalnum((unsigned char)before) && before != '_' && !isalnum((unsigned char)after) && after != '_')
+            return 1;
+    }
+    return 0;
+}
+
+/* Every call of the procedure of facts f in module, each spliced into a
+ * copy of its caller; usable when all of them were. */
+static Callers *
+callers_of(const RangeFacts *f, const ZirModule *module)
+{
+    const ZirFunction *callee = f->fn;
+    Callers *c = calloc(1, sizeof(*c));
+    int own = 0;
+    if(c == NULL)
+        return NULL;
+    for(int i = 0; i < module->function_count; i++)
+        own |= &module->functions[i] == callee;
+    if(!own || callee->is_public || callee->exported || callee->export_symbol[0] || callee->is_template ||
+       callee->is_specialization || callee->is_conversion || callee->retained_root ||
+       (callee->assembly_text && *callee->assembly_text) ||
+       callee->is_extern || callee->is_global_initializer || callee->go_method[0] ||
+       NativeProgramMain(module, callee) || (callee->overload_name[0] && strcmp(callee->overload_name, callee->name)))
+        return c;
+    /* A file-scope initializer or define naming it may make it a value. */
+    c->usable = 1;
+    for(int g = 0; g < module->global_count && c->usable; g++)
+        c->usable = !names_word(module->globals[g].init, callee->name);
+    for(int d = 0; d < module->define_count && c->usable; d++)
+        c->usable = !names_word(module->defines[d].value, callee->name);
+    for(int i = 0; i < module->function_count && c->usable; i++) {
+        const ZirFunction *caller = &module->functions[i];
+        RangeFacts *outer = NULL;
+        for(int x = 0; x < caller->expr_count && c->usable; x++) {
+            const ZirExpr *expr = &caller->exprs[x];
+            const ZirModule *owner = NULL;
+            const ZirFunction *target = NULL;
+            const char *dot, *last;
+            int s = -1;
+            /* Values are marked; the callee name of a call parses to a
+             * node no statement reaches. */
+            if(expr->name == NULL || (expr->kind != ZIR_EXPR_CALL && !expr->is_function_value))
+                continue;
+            dot = strrchr(expr->name, '.');
+            last = dot != NULL ? dot + 1 : expr->name;
+            if(strcmp(last, callee->name))
+                continue;
+            if(expr->is_function_value) {
+                c->usable = 0;
+                break;
+            }
+            if(expr->slot_type != NULL && *expr->slot_type)
+                continue;
+            /* A call whose target is unclear may be one more. */
+            if(ResolveFunction(module, expr->name, &owner, &target) != 1) {
+                c->usable = 0;
+                break;
+            }
+            if(target != callee)
+                continue;
+            if(caller->is_template || !caller->checked || c->count == CALL_SITES ||
+               (outer == NULL && (outer = RangeFactsBuild(caller)) == NULL)) {
+                c->usable = 0;
+                break;
+            }
+            for(int t = 0; t < caller->stmt_count && s < 0; t++)
+                if(tree_holds(caller, caller->stmts[t].expr_root, x) ||
+                   tree_holds(caller, caller->stmts[t].lhs_root, x))
+                    s = t;
+            if(s < 0 || !splice_call(c, f, module, caller, outer, s, x, &c->site[c->count])) {
+                c->usable = 0;
+                break;
+            }
+            c->count++;
+        }
+        RangeFactsFree(outer);
+    }
+    return c;
+}
+
+typedef enum { PROVE_IN_RANGE, PROVE_BELOW_COUNT, PROVE_RUN } ProofKind;
+
+static int index_in_range_here(const Emitter *e, int index, int64_t count);
+static int run_below_count_here(const Emitter *e, int index, int64_t run, int base);
+
+/* Whether every call of the procedure being emitted keeps the access at
+ * index inside its memory, shown on each call's spliced copy. */
+static int
+callers_prove(const Emitter *e, ProofKind kind, int index, int base, int64_t n)
+{
+    RangeFacts *f = e->ranges;
+    Emitter *probe;
+    int proven = 1;
+    if(f == NULL || f->fn != e->fn || f->spliced || e->target != ZIR_C || e->module == NULL || index < 0)
+        return 0;
+    if(!f->callers_built) {
+        f->callers_built = 1;
+        f->callers = callers_of(f, e->module);
+    }
+    if(f->callers == NULL || !f->callers->usable || f->callers->count == 0 ||
+       (probe = malloc(sizeof(*probe))) == NULL)
+        return 0;
+    for(int i = 0; i < f->callers->count && proven; i++) {
+        CallSite *site = &f->callers->site[i];
+        *probe = *e;
+        probe->fn = &site->fn;
+        probe->ranges = site->facts;
+        if(kind == PROVE_IN_RANGE)
+            proven = index_in_range_here(probe, site->offset + index, n);
+        else
+            proven = run_below_count_here(probe, site->offset + index, n, site->offset + base);
+    }
+    free(probe);
+    return proven;
+}
+
 int
 IndexInRange(const Emitter *e, int index, int64_t count)
 {
+    return index_in_range_here(e, index, count) || callers_prove(e, PROVE_IN_RANGE, index, -1, count);
+}
+
+static int
+index_in_range_here(const Emitter *e, int index, int64_t count)
+{
     Range range;
-    if(e->ranges == NULL || e->ranges->fn != e->fn || count <= 0)
+    if(emitter_facts(e) == NULL || e->ranges->fn != e->fn || count <= 0)
         return 0;
     e->ranges->budget = RANGE_BUDGET;
     if(expr_range(e->ranges, index, 0, &range) && range.low >= 0 && range.high < count)
@@ -2391,10 +3015,10 @@ counter_below_count(const Emitter *e, int index, int base)
     return 0;
 }
 
-int
-IndexBelowCount(const Emitter *e, int index, int base)
+static int
+index_below_count_here(const Emitter *e, int index, int base)
 {
-    const RangeFacts *f = e->ranges;
+    const RangeFacts *f = emitter_facts(e);
     Poly limit;
     int view;
     if(f == NULL || f->fn != e->fn || index < 0 || base < 0)
@@ -2407,6 +3031,88 @@ IndexBelowCount(const Emitter *e, int index, int base)
     poly_atom(&limit, f->bindings + view);
     e->ranges->budget = POLY_BUDGET;
     return poly_index_below(f, index, &limit);
+}
+
+int
+IndexBelowCount(const Emitter *e, int index, int base)
+{
+    return index_below_count_here(e, index, base) || callers_prove(e, PROVE_BELOW_COUNT, index, base, 1);
+}
+
+int
+RunBelowCount(const Emitter *e, int index, int64_t run, int base)
+{
+    return run_below_count_here(e, index, run, base) || callers_prove(e, PROVE_RUN, index, base, run);
+}
+
+static int
+run_below_count_here(const Emitter *e, int index, int64_t run, int base)
+{
+    const RangeFacts *f = emitter_facts(e);
+    Poly limit;
+    int view;
+    if(run == 1)
+        return index_below_count_here(e, index, base);
+    if(f == NULL || f->fn != e->fn || index < 0 || base < 0 || run < 1)
+        return 0;
+    view = f->fn->exprs[base].kind == ZIR_EXPR_IDENT ? f->binding_of[base] : -1;
+    if(!invariant(f, view))
+        return 0;
+    /* index < count - (run - 1), so the last element read is below count. */
+    poly_atom(&limit, f->bindings + view);
+    limit.k.low = limit.k.high = 1 - run;
+    e->ranges->budget = POLY_BUDGET;
+    return poly_index_below(f, index, &limit);
+}
+
+/* Whether high is low + run for a binding low and a constant run >= 1. */
+static int
+plus_run(const RangeFacts *f, int high, int low, int64_t *run)
+{
+    const ZirExpr *sum = &f->fn->exprs[high];
+    const ZirExpr *left;
+    if(sum->kind != ZIR_EXPR_BINARY || sum->op == NULL || strcmp(sum->op, "+") || sum->left < 0 ||
+       sum->right < 0 || f->fn->exprs[sum->right].kind != ZIR_EXPR_INT ||
+       !literal_value(f->fn->exprs[sum->right].text, run) || *run < 1 || *run > INT32_MAX)
+        return 0;
+    left = &f->fn->exprs[sum->left];
+    return left->kind == ZIR_EXPR_IDENT && f->fn->exprs[low].kind == ZIR_EXPR_IDENT &&
+           f->binding_of[sum->left] >= 0 && f->binding_of[sum->left] == f->binding_of[low];
+}
+
+/* base[low:high] needs 0 <= low <= high <= count. An absent bound is 0 or
+ * the count. For low:low + run, prove the run fits both the memory and the
+ * endpoint's integer type, including unsigned types whose wrapped result
+ * would still be nonnegative. Of a slice, an open bound is shown below the
+ * count, which asks a little more than needed. */
+int
+SliceRangeInRange(const Emitter *e, int index, int capacity)
+{
+    const RangeFacts *f = emitter_facts(e);
+    const ZirExpr *expr;
+    Range endpoint;
+    int64_t run;
+    if(f == NULL || f->fn != e->fn || e->target != ZIR_C || index < 0 ||
+       e->fn->exprs[index].kind != ZIR_EXPR_SLICE)
+        return 0;
+    expr = &e->fn->exprs[index];
+    if(expr->right < 0 && expr->third < 0)
+        return 1;
+    if(expr->third < 0)
+        return capacity >= 0 ? IndexInRange(e, expr->right, (int64_t)capacity + 1) :
+                               IndexBelowCount(e, expr->right, expr->left);
+    if(expr->right < 0)
+        return capacity >= 0 ? IndexInRange(e, expr->third, (int64_t)capacity + 1) :
+                               IndexBelowCount(e, expr->third, expr->left);
+    if(!plus_run(f, expr->third, expr->right, &run) ||
+       !type_range(f->fn->exprs[expr->third].type, &endpoint) || run > endpoint.high)
+        return 0;
+    if(capacity >= 0) {
+        int64_t limit = capacity < endpoint.high ? capacity : endpoint.high;
+        return run <= limit && IndexInRange(e, expr->right, limit - run + 1);
+    }
+    return RunBelowCount(e, expr->right, run, expr->left) &&
+           IndexInRange(e, expr->right, endpoint.high - run + 1);
 }
 
 /* Definite initialization. Ziran fills a local declared with no value with
@@ -2853,7 +3559,7 @@ fill_run(Fill *w, int from, int to)
 int
 WrittenBeforeRead(const Emitter *e, int declaration)
 {
-    const RangeFacts *f = e->ranges;
+    const RangeFacts *f = emitter_facts(e);
     const ZirStmt *st;
     Fill w = {0};
     int parent, result = FILL_FAIL;

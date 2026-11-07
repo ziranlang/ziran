@@ -492,7 +492,7 @@ take_abi_incomplete_with_buffers(ZirType *type, TakeAbiIncompleteBuffers *buffer
         const char *nl = strchr(line, '\n');
         size_t length = nl != NULL ? (size_t)(nl - line) + 1 : strlen(line);
         int skip = 0;
-        if(find_unquoted_text(line, "#abi_incomplete") != NULL) {
+        if(find_unquoted(line, "#abi_incomplete", false) != NULL) {
             if(found || !line_is_abi_incomplete(line, length))
                 return 0;
             found = 1;

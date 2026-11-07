@@ -1,0 +1,432 @@
+// Linking rules on the checked IR. Every source import names exactly one
+// module of the build, and file-private declarations that share a source
+// name in different loaded files get distinct checked names, so native
+// backends and the portable linker see one identity each. C keeps storage,
+// spans and diagnostics behind compiler_services.
+IR :: #import "compiler_ir";
+Scan :: #import "compiler_scan";
+Services :: #import "compiler_services";
+Bytes :: #import "compiler_text";
+
+// Give each open import a module alias, then resolve every import to the
+// one module its target names. False after a diagnostic.
+LinkImports :: (programs: **IR.ZirProgram, count: s32) -> bool {
+    ok := AliasOpenImports(programs, count) && ResolveImports(programs, count)
+    Services.LookupsChanged()
+    return ok
+}
+
+// Rename colliding file-private procedures, constants, globals and types,
+// in that order, and the references to them.
+NamePrivate :: (module: *IR.ZirModule) -> bool {
+    return NameKind(module, .Function) && NameKind(module, .Constant) &&
+        NameKind(module, .Global) && NameKind(module, .Type)
+}
+
+// C compilers refuse to always inline a procedure into itself.
+CheckInline :: (programs: **IR.ZirProgram, count: s32) -> bool {
+    for p: 0..count - 1 {
+        program := programs[p]
+        for m: 0..program.module_count - 1 {
+            module := *program.modules[m]
+            for f: 0..module.function_count - 1 {
+                function := *module.functions[f]
+                if function.inlining != Inline { continue }
+                name := IR.BufferText(function.name[:])
+                overload := IR.BufferText(function.overload_name[:])
+                for e: 0..function.expr_count - 1 {
+                    call := *function.exprs[e]
+                    callee := IR.CText(call.name)
+                    if call.kind == IR.ZirExprKind.CALL && call.name != null &&
+                    (callee == name || (overload.count > 0 && callee == overload)) {
+                        return Fail(call.span, "check.inline", "#inline procedure ", name, " calls itself")
+                    }
+                }
+            }
+        }
+    }
+    return true
+}
+
+#scope_file
+Inline :: 1;  // ZIR_INLINE_ALWAYS
+OpenSignature :: "internal-open";
+
+// Report MESSAGE, SUBJECT and TAIL as one diagnostic.
+Fail :: (span: IR.ZirSourceSpan, code: string, message: string, subject: string, tail: string = "") -> bool {
+    text: Text
+    if !BuilderAppend(text.bytes, message) || !BuilderAppend(text.bytes, subject) ||
+    !BuilderAppend(text.bytes, tail) { Services.Diagnose(span, code, message); return false }
+    Services.Diagnose(span, code, TextView(text))
+    return false
+}
+
+Path :: (span: IR.ZirSourceSpan) -> string { return IR.CText(Services.SpanPath(span)) }
+
+// PREFIX and SERIAL in decimal, written into OUTPUT.
+Numbered :: (output: []u8, prefix: string, serial: s32) -> string {
+    digits: [12]u8
+    count: s64 = 0
+    value := serial
+    while count == 0 || value > 0 {
+        digits[count] = cast(u8)(48 + value % 10)
+        count += 1
+        value /= 10
+    }
+    at: s64 = 0
+    for byte: prefix { output[at] = byte; at += 1 }
+    while count > 0 { count -= 1; output[at] = digits[count]; at += 1 }
+    return TextView(output[0:at])
+}
+
+// True when one of MODULE's first LIMIT imports is a module alias NAME.
+ModuleAlias :: (module: *IR.ZirModule, name: string, limit: s32) -> bool {
+    for i: 0..limit - 1 {
+        if module.imports[i].kind == IR.ZirImportKind.MODULE && IR.BufferText(module.imports[i].name[:]) == name { return true }
+    }
+    return false
+}
+
+// Open imports have no source alias, but checked types need a stable
+// qualifier when the consumer declares a type with the same name.
+AliasOpenImports :: (programs: **IR.ZirProgram, count: s32) -> bool {
+    for p: 0..count - 1 {
+        program := programs[p]
+        for m: 0..program.module_count - 1 {
+            module := *program.modules[m]
+            sources := module.import_count
+            for i: 0..sources - 1 {
+                if module.imports[i].kind != IR.ZirImportKind.OPEN || Aliased(module, i) { continue }
+                alias: [32]u8
+                suffix: s32 = 0
+                while ModuleAlias(module, Numbered(alias[:], "__zi_open_", suffix), module.import_count) { suffix += 1 }
+                name := Numbered(alias[:], "__zi_open_", suffix)
+                span := module.imports[i].span
+                if Services.AddImport(module, IR.ZirImportKind.MODULE, name, IR.BufferText(module.imports[i].target[:]), OpenSignature, span) == null {
+                    return Fail(span, "check.import", "cannot allocate internal open import", "")
+                }
+            }
+        }
+    }
+    return true
+}
+
+Aliased :: (module: *IR.ZirModule, open: s32) -> bool {
+    target := IR.BufferText(module.imports[open].target[:])
+    for i: 0..module.import_count - 1 {
+        import := *module.imports[i]
+        if import.kind == IR.ZirImportKind.MODULE && IR.BufferText(import.signature[:]) == OpenSignature &&
+        IR.BufferText(import.target[:]) == target { return true }
+    }
+    return false
+}
+
+ResolveImports :: (programs: **IR.ZirProgram, count: s32) -> bool {
+    for p: 0..count - 1 {
+        program := programs[p]
+        for m: 0..program.module_count - 1 {
+            module := *program.modules[m]
+            for i: 0..module.import_count - 1 {
+                import := *module.imports[i]
+                import.resolved_module = null
+                if import.kind == IR.ZirImportKind.MODULE && ModuleAlias(module, IR.BufferText(import.name[:]), i) {
+                    return Fail(import.span, "check.import", "duplicate import alias: ", IR.BufferText(import.name[:]))
+                }
+                if import.kind != IR.ZirImportKind.OPEN && import.kind != IR.ZirImportKind.MODULE { continue }
+                target := IR.BufferText(import.target[:])
+                if !ModuleName(target) { return Fail(import.span, "check.import", "invalid Jai module name: ", target) }
+                for q: 0..count - 1 {
+                    for n: 0..programs[q].module_count - 1 {
+                        candidate := *programs[q].modules[n]
+                        if target != IR.BufferText(candidate.name[:]) && target != Stem(IR.BufferText(candidate.source_path[:])) { continue }
+                        if import.resolved_module != null && import.resolved_module != candidate {
+                            return Fail(import.span, "check.import", "ambiguous Ziran import: ", target)
+                        }
+                        import.resolved_module = candidate
+                    }
+                }
+                if import.resolved_module == null { return Fail(import.span, "check.import", "unresolved Jai module: ", target) }
+            }
+        }
+    }
+    return true
+}
+
+ModuleName :: (name: string) -> bool {
+    if name.count == 0 || (name[0] >= #char "0" && name[0] <= #char "9") { return false }
+    for byte: name { if !Bytes.IdentifierByte(byte) { return false } }
+    return true
+}
+
+Stem :: (path: string) -> string {
+    if path.count > 3 && path[path.count - 3:] == ".zi" { return path[0:path.count - 3] }
+    return path
+}
+
+Kind :: enum s32 { Function; Constant; Global; Type }
+Entry :: struct { name: string; span: IR.ZirSourceSpan; file_private: bool; exported: bool }
+Rename :: struct { index: s32; internal: [32]u8 }
+
+Declarations :: (module: *IR.ZirModule, kind: Kind) -> s32 {
+    if kind == .Function { return module.function_count }
+    if kind == .Constant { return module.define_count }
+    if kind == .Global { return module.global_count }
+    return module.type_count
+}
+
+Declared :: (module: *IR.ZirModule, kind: Kind, index: s32) -> Entry {
+    if kind == .Function {
+        function := *module.functions[index]
+        return .{IR.CText(*function.name[0]), function.span, function.is_file_private != 0, function.exported != 0}
+    }
+    if kind == .Constant {
+        constant := *module.defines[index]
+        return .{IR.CText(*constant.name[0]), constant.span, constant.is_file_private != 0, false}
+    }
+    if kind == .Global {
+        global := *module.globals[index]
+        return .{IR.CText(*global.name[0]), global.span, global.is_file_private != 0, false}
+    }
+    type := *module.types[index]
+    return .{IR.CText(*type.name[0]), type.span, type.is_file_private != 0, false}
+}
+
+SetName :: (module: *IR.ZirModule, kind: Kind, index: s32, name: string) {
+    if kind == .Function { IR.CopyText(module.functions[index].name[:], name) }
+    else if kind == .Constant { IR.CopyText(module.defines[index].name[:], name) }
+    else if kind == .Global { IR.CopyText(module.globals[index].name[:], name) }
+    else { IR.CopyText(module.types[index].name[:], name) }
+}
+
+Duplicate :: (kind: Kind) -> string {
+    if kind == .Function { return "duplicate procedure in one file: " }
+    if kind == .Constant { return "duplicate constant in one file: " }
+    if kind == .Global { return "duplicate global in one file: " }
+    return "duplicate type in one file: "
+}
+
+Prefix :: (kind: Kind) -> string {
+    if kind == .Function { return "zir_file_function_" }
+    if kind == .Constant { return "zir_file_constant_" }
+    if kind == .Global { return "zir_file_global_" }
+    return "zir_file_type_"
+}
+
+Named :: (module: *IR.ZirModule, kind: Kind, name: string) -> bool {
+    for i: 0..Declarations(module, kind) - 1 { if Declared(module, kind, i).name == name { return true } }
+    return false
+}
+
+// A name no declaration, import or earlier rename of MODULE uses yet.
+Taken :: (module: *IR.ZirModule, renames: []Rename, name: string) -> bool {
+    if Named(module, .Function, name) || Named(module, .Global, name) ||
+    Named(module, .Constant, name) || Named(module, .Type, name) { return true }
+    for i: 0..module.import_count - 1 { if IR.BufferText(module.imports[i].name[:]) == name { return true } }
+    for rename: renames { if IR.BufferText(rename.internal[:]) == name { return true } }
+    return false
+}
+
+NameKind :: (module: *IR.ZirModule, kind: Kind) -> bool {
+    renames: Vec(Rename)
+    count := Declarations(module, kind)
+    for d: 0..count - 1 {
+        declaration := Declared(module, kind, d)
+        if !declaration.file_private { continue }
+        path := Path(declaration.span)
+        collision := false
+        for other: 0..count - 1 {
+            candidate := Declared(module, kind, other)
+            if other == d || candidate.name != declaration.name { continue }
+            if Path(candidate.span) == path {
+                return Fail(declaration.span, "check.file_scope", Duplicate(kind), declaration.name)
+            }
+            collision = true
+        }
+        if !collision { continue }
+        if declaration.exported {
+            return Fail(declaration.span, "check.file_scope", "colliding #program_export procedure: ", declaration.name)
+        }
+        rename: Rename
+        rename.index = d
+        serial := d
+        while Taken(module, renames[:], Numbered(rename.internal[:], Prefix(kind), serial)) { serial += 1 }
+        if !VecPush(renames, rename) { return Fail(declaration.span, "check.file_scope", "cannot allocate file-private names", "") }
+    }
+    if renames.count == 0 { return true }
+    if kind == .Function { RenameCalls(module, renames[:]) }
+    else {
+        for rename: renames {
+            declaration := Declared(module, kind, rename.index)
+            template := kind == .Type && module.types[rename.index].is_record_template != 0
+            if !RewriteReferences(module, kind, Path(declaration.span), declaration.name,
+                                  IR.BufferText(rename.internal[:]), template) { return false }
+        }
+    }
+    for rename: renames { SetName(module, kind, rename.index, IR.BufferText(rename.internal[:])) }
+    if kind != .Constant { for f: 0..module.function_count - 1 { module.functions[f].from_ir = 1 } }
+    Services.LookupsChanged()
+    return true
+}
+
+// Calls and procedure values that resolve to a renamed procedure.
+RenameCalls :: (module: *IR.ZirModule, renames: []Rename) {
+    for f: 0..module.function_count - 1 {
+        caller := *module.functions[f]
+        path := Services.SpanPath(caller.span)
+        for x: 0..caller.expr_count - 1 {
+            expression := *caller.exprs[x]
+            if !((expression.kind == IR.ZirExprKind.CALL && IR.CText(expression.slot_type).count == 0) ||
+                 (expression.kind == IR.ZirExprKind.IDENT && expression.is_function_value != 0)) ||
+            IR.CText(expression.name).count == 0 { continue }
+            owner: *IR.ZirModule = null
+            target: *IR.ZirFunction = null
+            if Services.ResolveFunction(module, expression.name, path, *owner, *target) != 1 || owner != module { continue }
+            for rename: renames {
+                if target == *module.functions[rename.index] {
+                    expression.name = Services.KeepName(IR.BufferText(rename.internal[:]))
+                    break
+                }
+            }
+        }
+    }
+}
+
+// The text of PATH's declarations that can refer to a renamed declaration
+// of KIND. Procedure references resolve through RenameCalls instead.
+RewriteReferences :: (module: *IR.ZirModule, kind: Kind, path: string, original: string,
+                      internal: string, template: bool) -> bool {
+    edit: Edit = .{original = original, internal = internal}
+    for g: 0..module.global_count - 1 {
+        global := *module.globals[g]
+        if Path(global.span) != path { continue }
+        edit.span = global.span
+        if kind != .Global { RewriteBuffer(*edit, global.type[:]) }
+        global.init = RewriteKept(*edit, global.init, .Plain)
+    }
+    if kind == .Global {
+        for f: 0..module.function_count - 1 {
+            caller := *module.functions[f]
+            if Path(caller.span) != path { continue }
+            for x: 0..caller.expr_count - 1 {
+                expression := *caller.exprs[x]
+                if expression.is_global_value != 0 && IR.CText(expression.name) == original {
+                    expression.name = Services.KeepName(internal)
+                }
+            }
+        }
+        return !edit.failed
+    }
+    for d: 0..module.define_count - 1 {
+        constant := *module.defines[d]
+        if Path(constant.span) != path { continue }
+        edit.span = constant.span
+        constant.value = RewriteKept(*edit, constant.value, .Plain)
+    }
+    for t: 0..module.type_count - 1 {
+        type := *module.types[t]
+        if Path(type.span) != path { continue }
+        edit.span = type.span
+        // Enum bodies hold members, and a template parameter may shadow a type.
+        if kind == .Constant || (type.is_enum == 0 && !Shadows(type, original)) { RewriteBuffer(*edit, type.body[:]) }
+        if kind == .Type { RewriteBuffer(*edit, type.template_name[:]) }
+        RewriteBuffer(*edit, type.template_args[:])
+        if kind == .Type { RewriteBuffer(*edit, type.procedure_return_type[:]) }
+    }
+    if kind == .Constant { return !edit.failed }
+    for i: 0..module.import_count - 1 {
+        import := *module.imports[i]
+        if Path(import.span) != path { continue }
+        edit.span = import.span
+        RewriteBuffer(*edit, import.signature[:])
+        RewriteBuffer(*edit, import.args[:])
+        RewriteBuffer(*edit, import.return_type[:])
+    }
+    for f: 0..module.function_count - 1 {
+        function := *module.functions[f]
+        if Path(function.span) != path { continue }
+        edit.span = function.span
+        function.args_text = RewriteKept(*edit, function.args_text, .Parameters)
+        RewriteBuffer(*edit, function.return_type[:])
+        for s: 0..function.stmt_count - 1 {
+            statement := *function.stmts[s]
+            edit.span = statement.span
+            statement.type = RewriteKept(*edit, statement.type, .Name)
+        }
+        for x: 0..function.expr_count - 1 {
+            expression := *function.exprs[x]
+            edit.span = expression.span
+            expression.type = RewriteKept(*edit, expression.type, .Name)
+            expression.slot_type = RewriteKept(*edit, expression.slot_type, .Name)
+            if expression.kind == IR.ZirExprKind.CAST || expression.kind == IR.ZirExprKind.COMPOUND ||
+            expression.kind == IR.ZirExprKind.SIZE_OF || (expression.kind == IR.ZirExprKind.CALL && template) {
+                expression.name = RewriteKept(*edit, expression.name, .Name)
+            }
+        }
+    }
+    return !edit.failed
+}
+
+// A template parameter of TYPE named NAME, as in `$NAME: Type`.
+Shadows :: (type: *IR.ZirType, name: string) -> bool {
+    source := IR.BufferText(type.template_params[:])
+    token := Scan.NextToken(source, 0, 1, 1)
+    while token.kind != Scan.TokenKind.Eof {
+        next := Scan.NextToken(source, token.end, token.after_line, token.after_column)
+        if token.kind == Scan.TokenKind.Ident && source[token.begin:token.end] == name && source[next.begin:next.end] == ":" { return true }
+        token = next
+    }
+    return false
+}
+
+// One rename in one declaration's text. After the first failure, which
+// reports its diagnostic, every later rewrite leaves its text alone.
+Edit :: struct { span: IR.ZirSourceSpan; original: string; internal: string; failed: bool }
+
+// SOURCE with every reference to the original name renamed: an identifier
+// token not after "." and not before ":". Empty when nothing refers to it.
+Rewrite :: (edit: *Edit, source: string, limit: s64) -> Text {
+    text: Text
+    if edit.failed { return .{} }
+    copied: s64 = 0
+    previous := ""
+    token := Scan.NextToken(source, 0, 1, 1)
+    while token.kind != Scan.TokenKind.Eof {
+        next := Scan.NextToken(source, token.end, token.after_line, token.after_column)
+        spelling := source[token.begin:token.end]
+        if token.kind == Scan.TokenKind.Ident && spelling == edit.original && previous != "." &&
+        source[next.begin:next.end] != ":" {
+            if !BuilderAppend(text.bytes, source[copied:token.begin]) || !BuilderAppend(text.bytes, edit.internal) { copied = -1; break }
+            copied = token.end
+        }
+        previous = spelling
+        token = next
+    }
+    if copied > 0 && BuilderAppend(text.bytes, source[copied:]) && text.bytes.count < limit { return text }
+    if copied != 0 {
+        edit.failed = true
+        Fail(edit.span, "check.file_scope", "file-private reference exceeds text limit: ", edit.original)
+    }
+    return .{}
+}
+
+// A fixed C buffer, rewritten in place.
+RewriteBuffer :: (edit: *Edit, buffer: []u8) {
+    text: Text = Rewrite(edit, IR.BufferText(buffer), buffer.count)
+    if text.bytes.count > 0 { IR.CopyText(buffer, TextView(text)) }
+}
+
+Kept :: enum s32 { Plain; Name; Parameters }
+
+// The kept rewritten text of the kept C string SOURCE, or SOURCE itself.
+// Kept text has room to grow by ZIR_TEXT_MAX - 1 bytes, as C's
+// TextEditBegin gives it.
+RewriteKept :: (edit: *Edit, source: *u8, kept: Kept) -> *u8 {
+    limit: s64 = IR.ZIR_NAME_MAX
+    if kept == .Plain { limit = IR.CText(source).count + IR.ZIR_TEXT_MAX }
+    else if kept == .Parameters { limit = IR.ZIR_TEXT_MAX }
+    text: Text = Rewrite(edit, IR.CText(source), limit)
+    if text.bytes.count == 0 { return source }
+    if kept == .Plain { return Services.Keep(TextView(text)) }
+    if kept == .Name { return Services.KeepName(TextView(text)) }
+    return Services.KeepParameters(TextView(text))
+}

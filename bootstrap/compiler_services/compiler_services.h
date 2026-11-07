@@ -5,25 +5,33 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "zir_slice.h"
 #include "zir_string_types.h"
 #include "compiler_ir.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-void compiler_services_Diagnose(ZirSourceSpan span, String code, String message);
+void compiler_services_Diagnose__overload_1(ZirSourceSpan span, String code, String message);
+void compiler_services_Diagnose__overload_2(ZirSourceSpan span, String code, String message, String subject, String tail);
 uint8_t* compiler_services_Keep(String text);
 uint8_t* compiler_services_KeepName(String text);
 uint8_t* compiler_services_KeepParameters(String text);
 uint8_t* compiler_services_SpanPath(ZirSourceSpan span);
 void compiler_services_LookupsChanged(void);
 int32_t compiler_services_ResolveFunction(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirFunction** function);
+int32_t compiler_services_MapPrimitiveName(uint8_t* name);
 ZirImport* compiler_services_AddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span);
 int32_t compiler_services_SourceFile(String path);
 uint8_t* compiler_services_Allocate(int64_t count, int64_t size);
 bool compiler_services_WriteBytes(uint8_t* file, String bytes);
 bool compiler_services_MapTypeParts(ZirModule* module, String name);
 bool compiler_services_VecElementType(ZirModule* module, String name);
+ZirExpr* compiler_services_AddExpr(ZirFunction* fn, ZirExprKind kind, String text, ZirSourceSpan span);
+ZirType* compiler_services_FindType(ZirModule* module, String name, ZirModule** owner);
+int32_t compiler_services_NextField(ZirType* record, uint64_t* offset, ZirTypeField* field);
+void compiler_services_Fatal(ZirSourceSpan span, String code, String message);
+bool compiler_services_ExpandDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last);
 
 #ifdef __cplusplus
 }

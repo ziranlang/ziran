@@ -42,6 +42,15 @@ SliceRange(Slice source, int64_t low, int64_t high, size_t element_size)
     result.length = high - low;
     return result;
 }
+/* The view of a range the compiler proved inside source. */
+static inline Slice
+SliceRangeAt(Slice source, int64_t low, int64_t high, size_t element_size)
+{
+    Slice result;
+    result.data = source.data != NULL ? (char *)source.data + (size_t)low * element_size : NULL;
+    result.length = high - low;
+    return result;
+}
 /* Where nothing inlines, the view is taken in place; the call only reports. */
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
 #define SliceRange(source, low, high, element_size) __extension__ ({ \

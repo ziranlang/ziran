@@ -247,8 +247,7 @@ resolve_module_fn(const ZirModule *m, const char *ident, size_t len,
     return 0;
 }
 
-/* Resolve alias.fn( via the cross-module symbol table: find the import
- * named alias, get its target module, look up fn there. */
+/* Resolve alias.fn( in the target module or through its public reexports. */
 static size_t
 resolve_aliased_fn(const ZirModule *m, const ZirCModuleSyms *restab,
                    int restab_count, const char *alias, size_t alen,
@@ -277,6 +276,19 @@ resolve_aliased_fn(const ZirModule *m, const ZirCModuleSyms *restab,
                 }
             }
         }
+    }
+    /* Reexported procedures belong to their declaring module, so they are
+     * absent from the target module's native symbol table. Keep the full
+     * qualification while following the checked import graph. */
+    char qualified[ZIR_NAME_MAX];
+    const ZirModule *owner = NULL;
+    const ZirFunction *function = NULL;
+    int length = snprintf(qualified, sizeof(qualified), "%.*s.%.*s",
+                          (int)alen, alias, (int)flen, fn);
+    if(length > 0 && (size_t)length < sizeof(qualified) &&
+       ResolveFunction(m, qualified, &owner, &function) == 1) {
+        function_c_name(owner, function, dst, dst_size);
+        return strlen(dst);
     }
     return 0;
 }

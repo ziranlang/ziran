@@ -92,6 +92,19 @@ zir_f_91ae99e11753ff79_ResolveFunctionAt(ZirModule* module, uint8_t* name, uint8
 function);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_CMapPrimitiveName_22c75838
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_CMapPrimitiveName_22c75838
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_91ae99e11753ff79_CMapPrimitiveName(uint8_t* name) __asm__("_MapPrimitiveName");
+#else
+int32_t zir_foreign_zir_f_91ae99e11753ff79_CMapPrimitiveName(uint8_t* name) __asm__("MapPrimitiveName");
+#endif
+static int32_t
+zir_f_91ae99e11753ff79_CMapPrimitiveName(uint8_t* name)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_CMapPrimitiveName(name);
+}
+#endif
 #ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranAddImport_bdeca351
 #define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranAddImport_bdeca351
 #ifdef __APPLE__
@@ -171,11 +184,95 @@ zir_f_91ae99e11753ff79_ZiranVecType(ZirModule* module, String name)
     return zir_foreign_zir_f_91ae99e11753ff79_ZiranVecType(module, name);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_FunctionAddExpr_77906f85
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_FunctionAddExpr_77906f85
+#ifdef __APPLE__
+ZirExpr* zir_foreign_zir_f_91ae99e11753ff79_FunctionAddExpr(ZirFunction* fn, ZirExprKind kind, uint8_t* text, ZirSourceSpan span) __asm__("_FunctionAddExpr");
+#else
+ZirExpr* zir_foreign_zir_f_91ae99e11753ff79_FunctionAddExpr(ZirFunction* fn, ZirExprKind kind, uint8_t* text, ZirSourceSpan span) __asm__("FunctionAddExpr");
+#endif
+static ZirExpr*
+zir_f_91ae99e11753ff79_FunctionAddExpr(ZirFunction* fn, ZirExprKind kind, uint8_t* text, ZirSourceSpan span)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_FunctionAddExpr(fn, kind, text, 
+span);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_CFindType_2a8e44a3
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_CFindType_2a8e44a3
+#ifdef __APPLE__
+ZirType* zir_foreign_zir_f_91ae99e11753ff79_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("_FindType");
+#else
+ZirType* zir_foreign_zir_f_91ae99e11753ff79_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner) __asm__("FindType");
+#endif
+static ZirType*
+zir_f_91ae99e11753ff79_CFindType(ZirModule* module, uint8_t* name, ZirModule** owner)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_CFindType(module, name, owner);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_fd1d4dc9
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_fd1d4dc9
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+#else
+int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+#endif
+static int32_t
+zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(record, offset, field);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_exit_1120afe9
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_exit_1120afe9
+#ifdef __APPLE__
+void zir_foreign_zir_f_91ae99e11753ff79_exit(int32_t status) __asm__("_exit");
+#else
+void zir_foreign_zir_f_91ae99e11753ff79_exit(int32_t status) __asm__("exit");
+#endif
+static void
+zir_f_91ae99e11753ff79_exit(int32_t status)
+{
+    zir_foreign_zir_f_91ae99e11753ff79_exit(status);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ExpandDefaultArguments_fb474e95
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ExpandDefaultArguments_fb474e95
+#ifdef __APPLE__
+bool zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last) __asm__("_ExpandDefaultArguments");
+#else
+bool zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last) __asm__("ExpandDefaultArguments");
+#endif
+static bool
+zir_f_91ae99e11753ff79_ExpandDefaultArguments(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ExpandDefaultArguments(fn, module, span, 
+stmt_index, callee, first, last);
+}
+#endif
 
 void
-compiler_services_Diagnose(ZirSourceSpan span, String code, String message)
+compiler_services_Diagnose__overload_1(ZirSourceSpan span, String code, String message)
 {
     zir_f_91ae99e11753ff79_ZiranDiagnose(span, code, message);
+}
+
+void
+compiler_services_Diagnose__overload_2(ZirSourceSpan span, String code, String message, String subject, String tail)
+{
+    uint8_t text[4096] = {0};
+    int64_t at = 0LL;
+    String parts[3] = {message, subject, tail};
+    for (int64_t i = 0LL; i <= 2LL; i++) {
+        if (at < 4095LL) {
+            Slice value_0 = {text, 4096};
+            compiler_ir_CopyText(SliceRange(value_0, (int64_t)at, (int64_t)4096LL, sizeof(uint8_t)), (parts)[i]);
+            at = (int64_t)((uint64_t)at + (uint64_t)((int64_t)(parts[i]).length));
+        }
+    }
+    Slice value_1 = {text, 4096};
+    zir_f_91ae99e11753ff79_ZiranDiagnose(span, code, compiler_ir_BufferText(value_1));
 }
 
 uint8_t*
@@ -214,6 +311,12 @@ compiler_services_ResolveFunction(ZirModule* module, uint8_t* name, uint8_t* pat
     return zir_f_91ae99e11753ff79_ResolveFunctionAt(module, name, path, owner, function);
 }
 
+int32_t
+compiler_services_MapPrimitiveName(uint8_t* name)
+{
+    return zir_f_91ae99e11753ff79_CMapPrimitiveName(name);
+}
+
 ZirImport*
 compiler_services_AddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span)
 {
@@ -248,4 +351,45 @@ bool
 compiler_services_VecElementType(ZirModule* module, String name)
 {
     return zir_f_91ae99e11753ff79_ZiranVecType(module, name);
+}
+
+ZirExpr*
+compiler_services_AddExpr(ZirFunction* fn, ZirExprKind kind, String text, ZirSourceSpan span)
+{
+    return zir_f_91ae99e11753ff79_FunctionAddExpr(fn, kind, compiler_services_Keep(text), span);
+}
+
+ZirType*
+compiler_services_FindType(ZirModule* module, String name, ZirModule** owner)
+{
+    uint8_t spelled[256] = {0};
+    bool value_0 = (int64_t)(name).length >= 128LL;
+    if (!value_0) {
+        Slice value_1 = {spelled, 256};
+        bool value_2 = compiler_ir_CopyText(value_1, name);
+        value_0 = !value_2;
+    }
+    if (value_0) {
+        return (void *)0;
+    }
+    return zir_f_91ae99e11753ff79_CFindType(module, &(spelled[0]), owner);
+}
+
+int32_t
+compiler_services_NextField(ZirType* record, uint64_t* offset, ZirTypeField* field)
+{
+    return zir_f_91ae99e11753ff79_TypeNextField(record, offset, field);
+}
+
+void
+compiler_services_Fatal(ZirSourceSpan span, String code, String message)
+{
+    zir_f_91ae99e11753ff79_ZiranDiagnose(span, code, message);
+    zir_f_91ae99e11753ff79_exit(1);
+}
+
+bool
+compiler_services_ExpandDefaults(ZirFunction* fn, ZirModule* module, ZirSourceSpan span, int32_t stmt_index, int32_t callee, int32_t* first, int32_t* last)
+{
+    return zir_f_91ae99e11753ff79_ExpandDefaultArguments(fn, module, span, stmt_index, callee, first, last);
 }

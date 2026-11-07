@@ -101,6 +101,7 @@ enum {
     TargetModifier_Duplicate = 3,
 };
 bool compiler_source_SourceIdentifier(uint8_t byte);
+int64_t compiler_source_FindUnquoted(String source, String needle, bool word);
 bool compiler_source_StartsWord(String source, String word);
 bool compiler_source_IdentifierText(String source, bool member_path);
 bool compiler_source_NonJaiControl(String source, String word);

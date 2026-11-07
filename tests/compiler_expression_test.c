@@ -227,12 +227,57 @@ static void primary_and_prefix(void)
     free(function.exprs);
 }
 
+static void operators_and_literals(void)
+{
+    ZirFunction function = {0};
+    ZirSourceSpan span = Span("literals.zi", 2, 1);
+    int root = ParseExprNoDefaults(&function, NULL, "1 && 0 || 1", span);
+    assert(!strcmp(function.exprs[root].op, "||"));
+    assert(!strcmp(function.exprs[function.exprs[root].left].op, "&&"));
+    root = ParseExprNoDefaults(&function, NULL, "1 | 2 ^ 3 & 1", span);
+    assert(!strcmp(function.exprs[root].op, "|"));
+    int exclusive = function.exprs[root].right;
+    assert(!strcmp(function.exprs[exclusive].op, "^"));
+    assert(!strcmp(function.exprs[function.exprs[exclusive].right].op, "&"));
+    const char *unary[] = {"+value", "-value", "!value", "~value", "*value"};
+    const char *spelled[] = {"+", "-", "!", "~", "&"};
+    for(int i = 0; i < 5; i++) {
+        root = ParseExprNoDefaults(&function, NULL, unary[i], span);
+        assert(function.exprs[root].kind == ZIR_EXPR_UNARY && !strcmp(function.exprs[root].op, spelled[i]));
+    }
+    root = ParseExprNoDefaults(&function, NULL, "#ifx 1 2; else 3", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_CONDITIONAL && !strcmp(function.exprs[root].op, "#ifx"));
+    root = ParseExprNoDefaults(&function, NULL, "(1 +", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_UNKNOWN);
+
+    ZirModule module = {0};
+    ZirType *record = ModuleAddType(&module, "Root", span);
+    copy_text(record->body, sizeof(record->body), "nested: Root; other: s32");
+    const char *literals[] = {"Root.{nested = {1}, 2}", "(Root.{1})", ".{}", "Root.{1,}"};
+    for(int i = 0; i < 4; i++) {
+        root = ParseExprNoDefaults(&function, &module, literals[i], span);
+        assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND);
+    }
+    assert(function.exprs[root].first_child >= 0);
+    root = ParseExprNoDefaults(&function, &module, ".{}", span);
+    assert(function.exprs[root].first_child == -1);
+    root = ParseExprNoDefaults(&function, &module, "s32.[1, 2, 3]", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND && !strcmp(function.exprs[root].name, "[3]s32"));
+    root = ParseExprTyped(&function, &module, ".[1, 2]", span, "[2]s32");
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND && !strcmp(function.exprs[root].name, "[2]s32"));
+    root = ParseExprNoDefaults(&function, &module, "[2]s32.[s32.[1, 2], s32.[3, 4]]", span);
+    assert(function.exprs[root].kind == ZIR_EXPR_COMPOUND && !strcmp(function.exprs[root].name, "[2][2]s32"));
+    free(module.types);
+    free(function.exprs);
+}
+
 int main(void)
 {
     grammar();
     statements();
     postfix_and_initializers();
     primary_and_prefix();
+    operators_and_literals();
     assert(compiler_expression_CharacterByte((String){0}) == -1);
     assert(compiler_expression_BinaryPrecedence((String){0}) == 0);
     return 0;

@@ -135,22 +135,32 @@ typedef struct {
     int parent_active;
 } ZirCondFrame;
 
+/* A COMPILE_BUILDER is a #run Vec(u8), and a COMPILE_REFERENCE a pointer or
+ * slice to a binding of a procedure being evaluated; both name storage that
+ * lives only while the evaluation runs. */
 typedef enum {
     COMPILE_INVALID, COMPILE_INTEGER, COMPILE_REAL, COMPILE_STRING,
-    COMPILE_COMPOUND
+    COMPILE_COMPOUND, COMPILE_BUILDER, COMPILE_REFERENCE
 } CompileKind;
 
+enum { COMPILE_SPELLING_MAX = 64 };
+
+/* A compile-time value. Its source spelling has no size limit: a short one
+ * is held in `spelling` and a longer one is kept text (KeepText), so copies
+ * of the value share it. Read it with compile_literal and set it with
+ * compile_set_literal. */
 typedef struct {
     CompileKind kind;
     int64_t integer;
     double real;
     char type[ZIR_NAME_MAX];
-    char literal[ZIR_TEXT_MAX];
+    const char *kept;
+    char spelling[COMPILE_SPELLING_MAX];
     const ZirModule *type_owner;
 } CompileValue;
 
 /* An empty value. Evaluation creates millions of these, so only the fields
- * a reader inspects are cleared instead of the whole literal buffer. */
+ * a reader inspects are cleared. */
 static inline void
 compile_value_clear(CompileValue *value)
 {
@@ -158,14 +168,38 @@ compile_value_clear(CompileValue *value)
     value->integer = 0;
     value->real = 0;
     value->type[0] = '\0';
-    value->literal[0] = '\0';
+    value->kept = NULL;
+    value->spelling[0] = '\0';
     value->type_owner = NULL;
 }
+
+static inline const char *
+compile_literal(const CompileValue *value)
+{
+    return value->kept != NULL ? value->kept : value->spelling;
+}
+
+void compile_set_literal(CompileValue *value, const char *text);
+/* The bytes a string value spells, allocated; NULL when it does not decode. */
+unsigned char *compile_string_bytes(const CompileValue *value, size_t *length);
+
+/* Text written piece by piece, growing as needed; free(text.data) ends it.
+ * A failed write leaves `failed` set, and later writes do nothing. */
+typedef struct {
+    char *data;
+    size_t used, capacity;
+    int failed;
+} CompileText;
+
+void compile_text_add(CompileText *text, const char *bytes, size_t length);
+void compile_text_put(CompileText *text, const char *piece);
+/* BYTES spelled as a string literal DecodeStringLiteral reads back. */
+void compile_text_string(CompileText *text, const unsigned char *bytes, size_t length);
 
 extern _Thread_local int ZirLawEvaluation;
 int compile_law_exact_double(const CompileValue *value);
 
-typedef struct {
+typedef struct TypedBody {
     const ZirModule *module;
     const ZirFunction *fn;
     ZirConsts names;
@@ -174,6 +208,10 @@ typedef struct {
     int depth;
     int *fuel;
     ZirSourceSpan current_span;
+    /* Each binding's serial, beside names.items, which references name. */
+    int *serials;
+    int next_serial;
+    struct TypedBody *outer; /* the call evaluating this one */
 } TypedBody;
 
 typedef struct CompileParseContext {
@@ -287,6 +325,9 @@ int line_is_compile_else(const char *line);
 int parse_cond_start(char *line, char **condition);
 int line_starts_compile_condition(const char *line);
 void expand_compile_expr(char *dst, size_t dst_size, const ZirConsts *consts, const char *src, const char *lookup_path);
+/* SRC with every visible constant spliced in, of any length; the caller
+ * frees it. NULL when memory runs out. */
+char *expand_compile_text(const ZirConsts *consts, const char *src, const char *lookup_path);
 int eval_integer_type(const char *type, int64_t value);
 int eval_close(const ZirFunction *fn, int opening, int stop);
 int compile_value_literal(CompileValue *value);
@@ -312,8 +353,7 @@ ZirConsts visible_compile_constants(const ZirConsts *parsed, const ZirConsts *fu
 ZirModule visible_compile_module(const ZirModule *parsed, const CompileParseContext *context, const ZirConsts *constants);
 void free_visible_compile_module(ZirModule *visible);
 int select_compile_condition(ZirModule *module, const ZirConsts *consts, const char *source, ZirSourceSpan span, const CompileParseContext *context, const char *source_path, int *deferred);
-char *find_unquoted_text(const char *source, const char *needle);
-char *find_unquoted_word(const char *source, const char *word);
+char *find_unquoted(const char *source, const char *needle, bool word);
 int lower_compile_ifx_value(char *value, size_t capacity, const ZirModule *module, const ZirConsts *consts, ZirSourceSpan span, int allow_deferred);
 int lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module, const ZirConsts *consts, int allow_deferred);
 void lower_size_of_value(char *value, size_t capacity, const ZirModule *module, ZirSourceSpan span);

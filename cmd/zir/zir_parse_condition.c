@@ -213,41 +213,13 @@ not_ready:
     return 0;
 }
 
-/* Like strstr, the result points into source and is writable exactly when
- * the caller's source is. */
+/* The match borrows SOURCE; C retains its writable storage. */
 char *
-find_unquoted_text(const char *source, const char *needle)
+find_unquoted(const char *source, const char *needle, bool word)
 {
-    size_t length = strlen(needle);
-    for(char *p = (char *)source; *p;) {
-        if(*p == '"' || *p == '\'') {
-            char quote = *p++;
-            while(*p && *p != quote) {
-                if(*p == '\\' && p[1]) p++;
-                p++;
-            }
-            if(*p) p++;
-            continue;
-        }
-        if(!strncmp(p, needle, length)) return p;
-        p++;
-    }
-    return NULL;
-}
-
-char *
-find_unquoted_word(const char *source, const char *word)
-{
-    size_t length = strlen(word);
-    for(char *at = find_unquoted_text(source, word); at != NULL;
-        at = find_unquoted_text(at + length, word)) {
-        int before = at == source ? 0 : (unsigned char)at[-1];
-        int after = (unsigned char)at[length];
-        if(!(isalnum(before) || before == '_') &&
-           !(isalnum(after) || after == '_'))
-            return at;
-    }
-    return NULL;
+    int64_t at = compiler_source_FindUnquoted(
+        StringView(source, strlen(source)), StringView(needle, strlen(needle)), word);
+    return at < 0 ? NULL : (char *)source + at;
 }
 
 static const ZirExpr *
@@ -269,14 +241,14 @@ outer_compile_ifx(const ZirFunction *fn)
 static int
 compile_size_of_ready(const ZirModule *module, char *condition)
 {
-    if(find_unquoted_word(condition, "size_of") != NULL)
+    if(find_unquoted(condition, "size_of", true) != NULL)
         for(int i = 0; i < module->import_count; i++)
             if((module->imports[i].kind == ZIR_IMPORT_OPEN ||
                 module->imports[i].kind == ZIR_IMPORT_MODULE) &&
                module->imports[i].resolved_module == NULL)
                 return 0;
-    for(char *at = find_unquoted_word(condition, "size_of"); at != NULL;
-        at = find_unquoted_word(at + 7, "size_of")) {
+    for(char *at = find_unquoted(condition, "size_of", true); at != NULL;
+        at = find_unquoted(at + 7, "size_of", true)) {
         char *start = (char *)skip_ws(at + 7);
         if(*start != '(') return 0;
         start++;
@@ -335,7 +307,7 @@ replace_compile_ifx_with_buffers(char *source, size_t capacity, const ZirFunctio
                buffers->condition);
     }
     selected = fn->exprs[value ? expr->right : expr->third].text;
-    at = find_unquoted_text(source, expr->text);
+    at = find_unquoted(source, expr->text, false);
     if(at == NULL)
         die_at(span, "cannot locate #ifx expression in source");
     written = snprintf(buffers->rewritten, sizeof(buffers->rewritten), "%.*s(%s)%s",
@@ -376,7 +348,7 @@ lower_compile_ifx_value_with_buffers(char *value, size_t capacity,
         const ZirExpr *expr = outer_compile_ifx(&buffers->probe);
         if(expr == NULL) {
             free(buffers->probe.exprs);
-            if(find_unquoted_text(value, "#ifx") != NULL)
+            if(find_unquoted(value, "#ifx", false) != NULL)
                 die_at(span, "invalid #ifx expression");
             return 1;
         }
@@ -405,14 +377,14 @@ lower_compile_ifx_function(ZirFunction *fn, const ZirModule *module,
         const ZirExpr *expr = outer_compile_ifx(fn);
         if(expr == NULL) {
             for(int i = 0; i < fn->stmt_count; i++)
-                if(find_unquoted_text(fn->stmts[i].text, "#ifx") != NULL)
+                if(find_unquoted(fn->stmts[i].text, "#ifx", false) != NULL)
                     die_at(fn->stmts[i].span, "invalid #ifx expression");
             return 1;
         }
         int replaced = 0;
         for(int i = 0; i < fn->stmt_count; i++) {
             ZirStmt *st = &fn->stmts[i];
-            if(find_unquoted_text(st->text, expr->text) == NULL)
+            if(find_unquoted(st->text, expr->text, false) == NULL)
                 continue;
             char text[ZIR_TEXT_MAX];
             copy_text(text, sizeof(text), st->text);
@@ -433,7 +405,7 @@ static int
 function_has_compile_ifx(const ZirFunction *fn)
 {
     for(int i = 0; i < fn->stmt_count; i++)
-        if(find_unquoted_text((char *)fn->stmts[i].text, "#ifx") != NULL)
+        if(find_unquoted((char *)fn->stmts[i].text, "#ifx", false) != NULL)
             return 1;
     return 0;
 }
@@ -464,7 +436,7 @@ replace_size_of_with_buffers(char *source, size_t capacity, const ZirModule *mod
 {
     char inferred[ZIR_NAME_MAX];
     size_t size, alignment;
-    char *at = find_unquoted_text(source, expr->text);
+    char *at = find_unquoted(source, expr->text, false);
     const char *sized_type = expr->name;
     int written;
     if(TypeOfOperand(expr->name, buffers->operand, sizeof(buffers->operand))) {
@@ -511,7 +483,7 @@ lower_size_of_value_with_buffers(char *value, size_t capacity, const ZirModule *
         const ZirExpr *expr = first_size_of(&buffers->probe, 1);
         if(expr == NULL) {
             free(buffers->probe.exprs);
-            if(find_unquoted_word(value, "size_of") != NULL)
+            if(find_unquoted(value, "size_of", true) != NULL)
                 die_at(span, "invalid size_of expression");
             return;
         }
@@ -556,7 +528,7 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(definition->span));
         SymbolLookupsChanged();
-        if(find_unquoted_text(definition->value, "#ifx") != NULL) {
+        if(find_unquoted(definition->value, "#ifx", false) != NULL) {
             size_t capacity;
             char *edit = TextEditBegin(definition->value, &capacity);
             lower_compile_ifx_value(edit, capacity, module,
@@ -565,8 +537,8 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
             definition->value = TextEditEnd(edit);
         }
         if(!starts_word(definition->value, "#run") &&
-           find_unquoted_text(definition->value, "#ifx") == NULL &&
-           find_unquoted_word(definition->value, "size_of") != NULL) {
+           find_unquoted(definition->value, "#ifx", false) == NULL &&
+           find_unquoted(definition->value, "size_of", true) != NULL) {
             size_t capacity;
             char *edit = TextEditBegin(definition->value, &capacity);
             lower_size_of_value(edit, capacity, module, definition->span);
@@ -581,15 +553,15 @@ LowerLinkedCompileExpressions(ZirModule *module, int allow_deferred)
         copy_text(module->lookup_path, sizeof(module->lookup_path),
                   SpanPath(global->span));
         SymbolLookupsChanged();
-        if(find_unquoted_text(global->init, "#ifx") != NULL) {
+        if(find_unquoted(global->init, "#ifx", false) != NULL) {
             size_t capacity;
             char *edit = TextEditBegin(global->init, &capacity);
             lower_compile_ifx_value(edit, capacity, module, &constants,
                                     global->span, allow_deferred);
             global->init = TextEditEnd(edit);
         }
-        if(find_unquoted_text(global->init, "#ifx") == NULL &&
-           find_unquoted_word(global->init, "size_of") != NULL) {
+        if(find_unquoted(global->init, "#ifx", false) == NULL &&
+           find_unquoted(global->init, "size_of", true) != NULL) {
             size_t capacity;
             char *edit = TextEditBegin(global->init, &capacity);
             lower_size_of_value(edit, capacity, module, global->span);

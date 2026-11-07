@@ -134,56 +134,90 @@ assembly_target(Assembly *assembly, ZirSourceSpan span)
     return 1;
 }
 
-/* Four to six literal strings: clobbers and options may be left out. A
- * template can be a raw #string body of any length; the source reader keeps
- * a long one aside behind a marker, which KeepText expands. */
+/* One #asm argument at *CURSOR, which moves past it: a literal string,
+ * quotes included, from *START for *LENGTH bytes (1), or the name of a
+ * constant string, `NAME` or `Module.NAME` (2). 0 for anything else and -1
+ * for a string without its closing quote. */
 static int
-read_assembly(const char **cursor, Assembly *assembly, ZirSourceSpan span)
+assembly_argument(const char **cursor, const char **start, size_t *length)
+{
+    const char *at = skip_ws(*cursor);
+    *start = at;
+    if(*at == '"') {
+        for(at++; *at && *at != '"'; at++)
+            if(*at == '\\' && at[1]) at++;
+        if(*at != '"') return -1;
+        at++;
+    } else {
+        for(;;) {
+            if(!isalpha((unsigned char)*at) && *at != '_') return 0;
+            while(is_ident_char(*at)) at++;
+            if(*at != '.') break;
+            at++;
+        }
+    }
+    *length = (size_t)(at - *start);
+    *cursor = at;
+    return **start == '"' ? 1 : 2;
+}
+
+/* Four to six arguments: clobbers and options may be left out. A template
+ * can be a raw #string body of any length; the source reader keeps a long
+ * one aside behind a marker, which KeepText expands. With NAMES, as the
+ * source is read, the template, operands and clobbers may name constant
+ * strings; they stay empty here until ResolveAssemblyConstants puts each
+ * constant's literal in place of its name. */
+static int
+assembly_variant(const char **cursor, Assembly *assembly, ZirSourceSpan span,
+                 int names)
 {
     const char *at = skip_ws(*cursor);
     if(strncmp(at, "#asm", 4) || *skip_ws(at + 4) != '(')
         return assembly_error(span, "#asm requires four to six literal strings in parentheses");
     at = skip_ws(at + 4) + 1;
+    int named = 0;
     for(int i = 0; i < 6; i++) assembly->part[i] = "";
     for(int i = 0; i < 6; i++) {
-        at = skip_ws(at);
-        const char *start = at;
-        if(*at++ != '"')
-            return assembly_error(span, "#asm requires four to six literal strings in parentheses");
-        while(*at && *at != '"') {
-            if(*at == '\\' && at[1]) at++;
-            at++;
-        }
-        if(*at != '"') return assembly_error(span, "unterminated #asm string");
-        at++;
-        size_t length = (size_t)(at - start), decoded_length = 0;
-        char *literal = malloc(length + 1);
-        unsigned char *decoded = malloc(length + 1);
-        if(literal == NULL || decoded == NULL) {
-            free(literal); free(decoded);
-            return assembly_error(span, "out of memory reading #asm");
-        }
-        memcpy(literal, start, length);
-        literal[length] = 0;
-        char *expanded = strchr(literal, '\x1f') ? RawTextExpand(literal) : NULL;
-        int valid;
-        if(expanded) {
-            /* A marker stands for the body of a long literal, quotes and
-             * escapes included; decode that body like any other. */
+        const char *start;
+        size_t length, decoded_length = 0;
+        int kind = assembly_argument(&at, &start, &length);
+        if(kind < 0) return assembly_error(span, "unterminated #asm string");
+        if(kind == 2 && names && i >= 1 && i <= 4) named = 1;
+        else if(kind == 2 && !names && i >= 1 && i <= 4)
+            return assembly_error(span, "#asm constant name was not resolved");
+        else if(kind != 1)
+            return assembly_error(span, i >= 1 && i <= 4 ?
+                "#asm template, operands and clobbers must be literal strings or constant string names" :
+                "#asm architecture and options must be literal strings");
+        else {
+            char *literal = malloc(length + 1);
+            unsigned char *decoded = malloc(length + 1);
+            if(literal == NULL || decoded == NULL) {
+                free(literal); free(decoded);
+                return assembly_error(span, "out of memory reading #asm");
+            }
+            memcpy(literal, start, length);
+            literal[length] = 0;
+            char *expanded = strchr(literal, '\x1f') ? RawTextExpand(literal) : NULL;
+            int valid;
+            if(expanded) {
+                /* A marker stands for the body of a long literal, quotes and
+                 * escapes included; decode that body like any other. */
+                free(decoded);
+                decoded = malloc(strlen(expanded) + 1);
+                valid = decoded != NULL &&
+                    DecodeStringLiteral(expanded, decoded, strlen(expanded), &decoded_length);
+                free(expanded);
+            } else valid = DecodeStringLiteral(literal, decoded, length, &decoded_length);
+            free(literal);
+            if(!valid || memchr(decoded, 0, decoded_length) != NULL) {
+                free(decoded);
+                return assembly_error(span, "invalid #asm string (embedded NUL is forbidden)");
+            }
+            decoded[decoded_length] = 0;
+            assembly->part[i] = KeepText((const char *)decoded);
             free(decoded);
-            decoded = malloc(strlen(expanded) + 1);
-            valid = decoded != NULL &&
-                DecodeStringLiteral(expanded, decoded, strlen(expanded), &decoded_length);
-            free(expanded);
-        } else valid = DecodeStringLiteral(literal, decoded, length, &decoded_length);
-        free(literal);
-        if(!valid || memchr(decoded, 0, decoded_length) != NULL) {
-            free(decoded);
-            return assembly_error(span, "invalid #asm string (embedded NUL is forbidden)");
         }
-        decoded[decoded_length] = 0;
-        assembly->part[i] = KeepText((const char *)decoded);
-        free(decoded);
         at = skip_ws(at);
         char next = *at++;
         if(next == ')' && i >= 3) break;
@@ -193,8 +227,144 @@ read_assembly(const char **cursor, Assembly *assembly, ZirSourceSpan span)
     if(!assembly_target(assembly, span)) return 0;
     if(*assembly->part[5] && strcmp(assembly->part[5], "volatile"))
         return assembly_error(span, "#asm options must be empty or volatile");
-    assembly->tinycc = tinycc_variant(assembly);
+    assembly->tinycc = !named && tinycc_variant(assembly);
     *cursor = at;
+    return 1;
+}
+
+/* A variant after ResolveAssemblyConstants: every argument is a literal. */
+static int
+read_assembly(const char **cursor, Assembly *assembly, ZirSourceSpan span)
+{
+    return assembly_variant(cursor, assembly, span, 0);
+}
+
+typedef struct AssemblyText {
+    char *data;
+    size_t used, capacity;
+} AssemblyText;
+
+static void
+assembly_text_add(AssemblyText *text, const char *bytes, size_t length)
+{
+    if(text->used + length + 1 > text->capacity) {
+        size_t capacity = text->capacity ? text->capacity : 256;
+        while(text->used + length + 1 > capacity) capacity *= 2;
+        char *data = realloc(text->data, capacity);
+        if(data == NULL) {
+            fputs("out of memory resolving #asm constants\n", stderr);
+            exit(1);
+        }
+        text->data = data;
+        text->capacity = capacity;
+    }
+    memcpy(text->data + text->used, bytes, length);
+    text->used += length;
+    text->data[text->used] = 0;
+}
+
+/* TEXT, a run of #asm variants as the source reader kept them, with each
+ * constant name replaced by the literal of the string it names in MODULE.
+ * TEXT itself when it names none; NULL after a diagnostic. */
+static const char *
+resolve_assembly_text(const ZirModule *module, const char *text, ZirSourceSpan span)
+{
+    if(strstr(text, "#asm") == NULL) return text;
+    AssemblyText out = {0};
+    const char *at = text, *copied = text;
+    int changed = 0;
+    while(*(at = skip_ws(at))) {
+        if(strncmp(at, "#asm", 4) || *skip_ws(at + 4) != '(') break;
+        at = skip_ws(at + 4) + 1;
+        for(int i = 0; i < 6; i++) {
+            const char *start;
+            size_t length;
+            if(assembly_argument(&at, &start, &length) == 2) {
+                char name[ZIR_NAME_MAX];
+                const char *literal = NULL;
+                if(length >= sizeof(name)) {
+                    free(out.data);
+                    assembly_error(span, "#asm constant name is too long");
+                    return NULL;
+                }
+                memcpy(name, start, length);
+                name[length] = 0;
+                if(!EvaluateCompileLiteral(module, name, span, 0, &literal, NULL) ||
+                   literal == NULL || literal[0] != '"') {
+                    free(out.data);
+                    Diagnostic(span, "check.assembly",
+                               "#asm argument %s is not a constant string", name);
+                    return NULL;
+                }
+                assembly_text_add(&out, copied, (size_t)(start - copied));
+                assembly_text_add(&out, literal, strlen(literal));
+                copied = at;
+                changed = 1;
+            }
+            at = skip_ws(at);
+            if(*at != ',') break;
+            at++;
+        }
+        if(*at == ')') at++;
+    }
+    if(!changed) return text;
+    assembly_text_add(&out, copied, strlen(copied));
+    const char *resolved = KeepText(out.data);
+    free(out.data);
+    return resolved;
+}
+
+/* Whether RESOLVED is SOURCE, variants as the source reader kept them, with
+ * each constant name argument in SOURCE replaced by a literal string. */
+static int
+assembly_text_matches(const char *source, const char *resolved)
+{
+    for(;;) {
+        const char *a, *b;
+        size_t na, nb;
+        source = skip_ws(source);
+        resolved = skip_ws(resolved);
+        int ka = assembly_argument(&source, &a, &na);
+        if(ka == 0) {
+            if(*source != *resolved) return 0;
+            if(!*source) return 1;
+            source++;
+            resolved++;
+            continue;
+        }
+        int kb = assembly_argument(&resolved, &b, &nb);
+        if(ka < 0 || kb <= 0) return 0;
+        if(ka == 2 && kb == 1) continue;
+        if(ka != kb || na != nb || memcmp(a, b, na)) return 0;
+    }
+}
+
+int
+ResolveAssemblyConstants(ZirModule *module)
+{
+    for(int f = 0; f < module->function_count; f++) {
+        ZirFunction *fn = &module->functions[f];
+        if(fn->assembly_text && *fn->assembly_text) {
+            const char *text = resolve_assembly_text(module, fn->assembly_text, fn->span);
+            if(text == NULL) return 0;
+            fn->assembly_text = text;
+        }
+        for(int i = 0; i < fn->stmt_count; i++) {
+            ZirStmt *st = &fn->stmts[i];
+            if(!StatementHasAssembly(st)) continue;
+            const char *text = resolve_assembly_text(module, st->assembly_text, st->span);
+            if(text == NULL) return 0;
+            /* A named argument binds saved metadata to the constant's value,
+             * just as a literal binds it to its source spelling. */
+            const char *source = AssemblyBlockText(st->text, st->span);
+            if(source == NULL ||
+               (source = resolve_assembly_text(module, source, st->span)) == NULL)
+                return 0;
+            if(!assembly_text_matches(source, text))
+                return assembly_error(st->span, "#asm block metadata does not match its source");
+            st->assembly_text = text;
+        }
+    }
     return 1;
 }
 
@@ -223,7 +393,7 @@ ExtractAssemblyModifiers(char *header, ZirSourceSpan span)
             }
             const char *end = at;
             Assembly assembly;
-            if(!read_assembly(&end, &assembly, span)) exit(1);
+            if(!assembly_variant(&end, &assembly, span, 1)) exit(1);
             size_t length = (size_t)(end - at);
             if(used + length + 2 > sizeof(kept)) {
                 assembly_error(span, "#asm variants exceed size limit");
@@ -253,7 +423,7 @@ AssemblyBlockText(const char *header, ZirSourceSpan span)
     int count = 0;
     while(!strncmp(at, "#asm", 4) && !is_ident_char(at[4])) {
         Assembly assembly;
-        if(!read_assembly(&at, &assembly, span)) return NULL;
+        if(!assembly_variant(&at, &assembly, span, 1)) return NULL;
         count++;
         at = skip_ws(at);
     }
@@ -838,7 +1008,7 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
        *st->assignment_op || st->is_using || st->is_else || st->is_parallel || st->is_gpu)
         return assembly_error(st->span, "invalid #asm block statement metadata");
     const char *canonical = AssemblyBlockText(st->text, st->span);
-    if(canonical == NULL || strcmp(canonical, st->assembly_text))
+    if(canonical == NULL || !assembly_text_matches(canonical, st->assembly_text))
         return assembly_error(st->span, "#asm block metadata does not match its source");
     const char *cursor = st->assembly_text;
     int architectures_seen[ASSEMBLY_OPERANDS], variants = 0;
@@ -1215,6 +1385,10 @@ assembly_attribute(FILE *out, const Assembly *assembly)
             fputs(feature_option(assembly->architecture, i), out);
             first = 0;
         }
+        /* NEON needs the full D-register bank even when the caller was
+         * compiled with -mfpu=vfpv3-d16. Clang keeps d32 separate from neon. */
+        if(assembly->architecture == ASM_ARM && !compiler && assembly->features)
+            fputs(",d32", out);
         fputs("\")))", out);
         if(assembly->architecture == ASM_ARM) fputc('\n', out);
     }

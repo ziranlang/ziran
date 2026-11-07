@@ -1,7 +1,447 @@
 // AV1's 8-bit 8x8 DCT_DCT inverse transform as a typed #asm routine, the
 // real-kernel check of #asm: SSSE3, AArch64 and ARMv7 NEON variants beside
 // the portable body, compared with AV1's s64 reference by
-// tests/asm_dct8.sh. tests/asm_dct8_templates.zi generates the templates.
+// tests/asm_dct8.sh. In-file #run templates build each architecture below.
+// The InverseDct8x8 #asm templates: x86-64 SSSE3, AArch64
+// and ARMv7 NEON from one description of the transform, with the registers
+// each step frees reused by the next. This file runs Program for each
+// architecture with #run while it compiles.
+#import "std/format"
+using Vectors :: #import "std/vec";
+
+#scope_file
+X86 :: 0;
+A64 :: 1;
+ARM :: 2;
+
+// Rotations by 799/4017, 3406/2276, 2896/2896 and 1567/3784. The NEON
+// variants read cosine and sine from lanes of the table's first row,
+// [799, 4017, 3406, 2276, 2896, 1567, 3784, 0]; x86 multiplies pairs from
+// byte 16 + 32 * key (x = a*c - b*s) and 32 + 32 * key (y = a*s + b*c).
+K799 :: 0;
+K3406 :: 1;
+K2896 :: 2;
+K1567 :: 3;
+CosLane :: s64.[0, 2, 4, 5];
+SinLane :: s64.[1, 3, 4, 6];
+// x86 table offsets: the rounding dwords and the pmulhrsw factors.
+ROUND :: 144;
+HALF :: 160;
+SIXTEENTH :: 176;
+
+Gen :: struct {
+    arch: s64;
+    free: [24]s64;
+    count: s64;
+    failed: bool;
+    text: Vec(u8);
+}
+
+Release :: (g: *Gen, r: s64) {
+    i: s64 = 0
+    while i < g.count { if g.free[i] == r { g.failed = true }; i += 1 }
+    g.free[g.count] = r
+    g.count += 1
+}
+
+Take :: (g: *Gen) -> s64 {
+    if g.count == 0 { g.failed = true; return 0 }
+    r := g.free[0]
+    i: s64 = 1
+    while i < g.count { g.free[i - 1] = g.free[i]; i += 1 }
+    g.count -= 1
+    return r
+}
+
+// Start an instruction line, which the caller then prints into g.text; the
+// template is the lines joined by newlines.
+Line :: (g: *Gen) {
+    if g.text.count > 0 { BuilderAppend(g.text, "\n") }
+    BuilderAppend(g.text, "    ")
+}
+
+Put :: (g: *Gen, line: string) {
+    Line(g)
+    BuilderAppend(g.text, line)
+}
+
+Label :: (g: *Gen, name: string) {
+    BuilderAppend(g.text, "\n")
+    BuilderAppend(g.text, name)
+}
+
+// x86 operands: %%xmmN registers and N(%[name]) memory.
+X :: (r: s64) -> string {
+    name: Vec(u8)
+    BuilderPrint(*name, "%%%%xmm%", r)
+    return BuilderFinish(name)
+}
+
+Memory :: (offset: s64, operand: string) -> string {
+    name: Vec(u8)
+    if offset != 0 { BuilderPrint(*name, "%", offset) }
+    BuilderPrint(*name, "(%%[%])", operand)
+    return BuilderFinish(name)
+}
+
+E :: (g: *Gen, op: string, a: string, b: string) {
+    Line(g); BuilderPrint(*g.text, "% %, %", op, a, b)
+}
+
+XMAX :: "%%xmm13";
+XMIN :: "%%xmm14";
+
+Track :: (g: *Gen, r: s64) {
+    if g.arch == X86 {
+        E(g, "pmaxsw", X(r), XMAX)
+        E(g, "pminsw", X(r), XMIN)
+    } else if g.arch == A64 {
+        Line(g); BuilderPrint(*g.text, "smax v28.8h, v28.8h, v%.8h", r)
+        Line(g); BuilderPrint(*g.text, "smin v29.8h, v29.8h, v%.8h", r)
+    } else {
+        Line(g); BuilderPrint(*g.text, "vmax.s16 q1, q1, q%", r)
+        Line(g); BuilderPrint(*g.text, "vmin.s16 q2, q2, q%", r)
+    }
+}
+
+Prologue :: (g: *Gen) {
+    if g.arch == X86 {
+        E(g, "movdqu", Memory(ROUND, "table"), "%%xmm12")
+        E(g, "pxor", XMAX, XMAX)
+        E(g, "pxor", XMIN, XMIN)
+    } else if g.arch == A64 {
+        Put(g, "ld1 {v0.8h}, [%[table]]")
+        Put(g, "movi v28.8h, #0")
+        Put(g, "movi v29.8h, #0")
+    } else {
+        Put(g, "vld1.16 {d0-d1}, [%[table]]")
+        Put(g, "vmov.i16 q1, #0")
+        Put(g, "vmov.i16 q2, #0")
+        Put(g, "mov r12, %[dequant]")
+    }
+}
+
+// Row i of the dequantized s32 block, narrowed to eight s16 lanes.
+LoadRow :: (g: *Gen, i: s64) -> s64 {
+    v := Take(g)
+    if g.arch == X86 {
+        t := Take(g)
+        E(g, "movdqu", Memory(32 * i, "dequant"), X(v))
+        E(g, "movdqu", Memory(32 * i + 16, "dequant"), X(t))
+        E(g, "packssdw", X(t), X(v))
+        Release(g, t)
+    } else if g.arch == A64 {
+        a := Take(g)
+        b := Take(g)
+        Line(g); BuilderPrint(*g.text, "ldp q%, q%, [%%[dequant], #%]", a, b, 32 * i)
+        Line(g); BuilderPrint(*g.text, "sqxtn v%.4h, v%.4s", v, a)
+        Line(g); BuilderPrint(*g.text, "sqxtn2 v%.8h, v%.4s", v, b)
+        Release(g, a)
+        Release(g, b)
+    } else {
+        Put(g, "vld1.32 {d24-d27}, [r12]!")
+        Line(g); BuilderPrint(*g.text, "vqmovn.s32 d%, q12", 2 * v)
+        Line(g); BuilderPrint(*g.text, "vqmovn.s32 d%, q13", 2 * v + 1)
+    }
+    Track(g, v)
+    return v
+}
+
+// x86: interleave a and b's low and high halves into a and a new register.
+Pair :: (g: *Gen, low: string, high: string, rows: []s64, o: s64, a: s64, b: s64, out: []s64) {
+    t := Take(g)
+    E(g, "movdqa", X(rows[a]), X(t))
+    E(g, low, X(rows[b]), X(rows[a]))
+    E(g, high, X(rows[b]), X(t))
+    Release(g, rows[b])
+    out[o] = rows[a]
+    out[o + 1] = t
+}
+
+// AArch64: trn1 and trn2 of a and b into two new registers.
+Step :: (g: *Gen, size: string, a: s64, b: s64, out: []s64, x: s64, y: s64) {
+    t0 := Take(g)
+    t1 := Take(g)
+    Line(g); BuilderPrint(*g.text, "trn1 v%.%, v%.%, v%.%", t0, size, a, size, b, size)
+    Line(g); BuilderPrint(*g.text, "trn2 v%.%, v%.%, v%.%", t1, size, a, size, b, size)
+    Release(g, a)
+    Release(g, b)
+    out[x] = t0
+    out[y] = t1
+}
+
+// Transpose the eight rows in r, leaving the columns in r.
+Transpose :: (g: *Gen, r: []s64) {
+    p: [8]s64
+    q: [8]s64
+    if g.arch == X86 {
+        for m: 0..3 { Pair(g, "punpcklwd", "punpckhwd", r, 2 * m, 2 * m, 2 * m + 1, p[:]) }
+        Pair(g, "punpckldq", "punpckhdq", p[:], 0, 0, 2, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 2, 1, 3, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 4, 4, 6, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 6, 5, 7, q[:])
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 0, 0, 4, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 2, 1, 5, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 4, 2, 6, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 6, 3, 7, r)
+    } else if g.arch == A64 {
+        for m: 0..3 { Step(g, "8h", r[2 * m], r[2 * m + 1], p[:], 2 * m, 2 * m + 1) }
+        bases := s64.[0, 4]
+        for base: bases {
+            Step(g, "4s", p[base], p[base + 2], q[:], base, base + 2)
+            Step(g, "4s", p[base + 1], p[base + 3], q[:], base + 1, base + 3)
+        }
+        for k: 0..3 { Step(g, "2d", q[k], q[k + 4], r, k, k + 4) }
+    } else {
+        for m: 0..3 {
+            Line(g); BuilderPrint(*g.text, "vtrn.16 q%, q%", r[2 * m], r[2 * m + 1])
+        }
+        firsts := s64.[0, 1, 4, 5]
+        for a: firsts {
+            Line(g); BuilderPrint(*g.text, "vtrn.32 q%, q%", r[a], r[a + 2])
+        }
+        for k: 0..3 {
+            Line(g); BuilderPrint(*g.text, "vswp d%, d%", 2 * r[k] + 1, 2 * r[k + 4])
+        }
+    }
+}
+
+// Lanes x and y of t become a*c - b*s and a*s + b*c, Round2 by 12, from
+// a = t[x] and b = t[y]; returns in p and q, which may swap x and y.
+EmitButterfly :: (g: *Gen, t: []s64, x: s64, y: s64, p: s64, q: s64, key: s64) {
+    a := t[x]
+    b := t[y]
+    if g.arch == X86 {
+        t0 := Take(g)
+        t1 := Take(g)
+        k := Take(g)
+        E(g, "movdqa", X(a), X(t0))
+        E(g, "punpcklwd", X(b), X(t0))
+        E(g, "punpckhwd", X(b), X(a))
+        E(g, "movdqa", X(t0), X(b))
+        E(g, "movdqa", X(a), X(t1))
+        E(g, "movdqu", Memory(16 + 32 * key, "table"), X(k))
+        E(g, "pmaddwd", X(k), X(t0))
+        E(g, "pmaddwd", X(k), X(a))
+        E(g, "movdqu", Memory(32 + 32 * key, "table"), X(k))
+        E(g, "pmaddwd", X(k), X(b))
+        E(g, "pmaddwd", X(k), X(t1))
+        products := s64.[t0, a, b, t1]
+        for r: products { E(g, "paddd", "%%xmm12", X(r)) }
+        for r: products { E(g, "psrad", "$12", X(r)) }
+        E(g, "packssdw", X(a), X(t0))
+        E(g, "packssdw", X(t1), X(b))
+        Track(g, t0)
+        Track(g, b)
+        Release(g, a)
+        Release(g, t1)
+        Release(g, k)
+        t[p] = t0
+        t[q] = b
+        return
+    }
+    if g.arch == A64 {
+        c := CosLane[key]
+        s := SinLane[key]
+        w: [4]s64
+        for i: 0..3 { w[i] = Take(g) }
+        Line(g); BuilderPrint(*g.text, "smull v%.4s, v%.4h, v0.h[%]", w[0], a, c)
+        Line(g); BuilderPrint(*g.text, "smull2 v%.4s, v%.8h, v0.h[%]", w[1], a, c)
+        Line(g); BuilderPrint(*g.text, "smlsl v%.4s, v%.4h, v0.h[%]", w[0], b, s)
+        Line(g); BuilderPrint(*g.text, "smlsl2 v%.4s, v%.8h, v0.h[%]", w[1], b, s)
+        Line(g); BuilderPrint(*g.text, "smull v%.4s, v%.4h, v0.h[%]", w[2], a, s)
+        Line(g); BuilderPrint(*g.text, "smull2 v%.4s, v%.8h, v0.h[%]", w[3], a, s)
+        Line(g); BuilderPrint(*g.text, "smlal v%.4s, v%.4h, v0.h[%]", w[2], b, c)
+        Line(g); BuilderPrint(*g.text, "smlal2 v%.4s, v%.8h, v0.h[%]", w[3], b, c)
+        Line(g); BuilderPrint(*g.text, "sqrshrn v%.4h, v%.4s, #12", a, w[0])
+        Line(g); BuilderPrint(*g.text, "sqrshrn2 v%.8h, v%.4s, #12", a, w[1])
+        Line(g); BuilderPrint(*g.text, "sqrshrn v%.4h, v%.4s, #12", b, w[2])
+        Line(g); BuilderPrint(*g.text, "sqrshrn2 v%.8h, v%.4s, #12", b, w[3])
+        Track(g, a)
+        Track(g, b)
+        for i: 0..3 { Release(g, w[i]) }
+    } else {
+        c := CosLane[key]
+        s := SinLane[key]
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q12, d%, d%[%]", 2 * a, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q13, d%, d%[%]", 2 * a + 1, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmlsl.s16 q12, d%, d%[%]", 2 * b, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmlsl.s16 q13, d%, d%[%]", 2 * b + 1, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q14, d%, d%[%]", 2 * a, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q15, d%, d%[%]", 2 * a + 1, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmlal.s16 q14, d%, d%[%]", 2 * b, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmlal.s16 q15, d%, d%[%]", 2 * b + 1, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q12, #12", 2 * a)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q13, #12", 2 * a + 1)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q14, #12", 2 * b)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q15, #12", 2 * b + 1)
+        Track(g, a)
+        Track(g, b)
+    }
+    t[p] = a
+    t[q] = b
+}
+
+// t[x], t[y] = t[x] + t[y], t[x] - t[y], saturating.
+EmitHadamard :: (g: *Gen, t: []s64, x: s64, y: s64) {
+    a := t[x]
+    b := t[y]
+    r := Take(g)
+    if g.arch == X86 {
+        E(g, "movdqa", X(a), X(r))
+        E(g, "paddsw", X(b), X(a))
+        E(g, "psubsw", X(b), X(r))
+        Release(g, b)
+        t[x] = a
+        t[y] = r
+        return
+    }
+    if g.arch == A64 {
+        Line(g); BuilderPrint(*g.text, "sqadd v%.8h, v%.8h, v%.8h", r, a, b)
+        Line(g); BuilderPrint(*g.text, "sqsub v%.8h, v%.8h, v%.8h", b, a, b)
+    } else {
+        Line(g); BuilderPrint(*g.text, "vqadd.s16 q%, q%, q%", r, a, b)
+        Line(g); BuilderPrint(*g.text, "vqsub.s16 q%, q%, q%", b, a, b)
+    }
+    Release(g, a)
+    t[x] = r
+    t[y] = b
+}
+
+// AV1's 8-point inverse DCT over the eight registers in p, in place.
+EmitDct8 :: (g: *Gen, p: []s64) {
+    t: [8]s64
+    order := s64.[0, 4, 2, 6, 1, 5, 3, 7]
+    for i: 0..7 { t[i] = p[order[i]] }
+    EmitButterfly(g, t[:], 4, 7, 4, 7, K799)
+    EmitButterfly(g, t[:], 5, 6, 5, 6, K3406)
+    EmitButterfly(g, t[:], 0, 1, 1, 0, K2896)
+    EmitButterfly(g, t[:], 2, 3, 2, 3, K1567)
+    EmitHadamard(g, t[:], 4, 5)
+    EmitHadamard(g, t[:], 7, 6)
+    EmitHadamard(g, t[:], 0, 3)
+    EmitHadamard(g, t[:], 1, 2)
+    EmitButterfly(g, t[:], 6, 5, 5, 6, K2896)
+    for i: 0..3 {
+        EmitHadamard(g, t[:], i, 7 - i)
+        p[i] = t[i]
+        p[7 - i] = t[7 - i]
+    }
+}
+
+// Round2(v, bits) in every lane.
+RoundShift :: (g: *Gen, r: []s64, bits: s64) {
+    if g.arch == X86 {
+        k := Take(g)
+        E(g, "movdqu", Memory(ifx bits == 1 then HALF else SIXTEENTH, "table"), X(k))
+        for i: 0..7 { E(g, "pmulhrsw", X(k), X(r[i])) }
+        Release(g, k)
+        return
+    }
+    for i: 0..7 {
+        if g.arch == A64 { Line(g); BuilderPrint(*g.text, "srshr v%.8h, v%.8h, #%", r[i], r[i], bits) }
+        else { Line(g); BuilderPrint(*g.text, "vrshr.s16 q%, q%, #%", r[i], r[i], bits) }
+    }
+}
+
+// Return 0 and write nothing when any lane saturated; otherwise widen the
+// rows into the residual and return 1.
+Finish :: (g: *Gen, rows: []s64) {
+    if g.arch == X86 {
+        k := Take(g)
+        t := Take(g)
+        E(g, "pcmpeqd", X(k), X(k))
+        E(g, "psrlw", "$1", X(k))
+        E(g, "pcmpeqw", XMAX, X(k))
+        E(g, "pcmpeqd", X(t), X(t))
+        E(g, "psllw", "$15", X(t))
+        E(g, "pcmpeqw", XMIN, X(t))
+        E(g, "por", X(t), X(k))
+        E(g, "pmovmskb", X(k), "%%eax")
+        Put(g, "movl $0, %[out]")
+        Put(g, "testl %%eax, %%eax")
+        Put(g, "jnz 9f")
+        for i: 0..7 {
+            v := rows[i]
+            E(g, "movdqa", X(v), X(t))
+            E(g, "punpcklwd", X(v), X(t))
+            E(g, "psrad", "$16", X(t))
+            E(g, "punpckhwd", X(v), X(v))
+            E(g, "psrad", "$16", X(v))
+            E(g, "movdqu", X(t), Memory(32 * i, "residual"))
+            E(g, "movdqu", X(v), Memory(32 * i + 16, "residual"))
+        }
+        Put(g, "movl $1, %[out]")
+    } else if g.arch == A64 {
+        Put(g, "mvni v30.8h, #0x80, lsl #8")
+        Put(g, "movi v31.8h, #0x80, lsl #8")
+        Put(g, "cmeq v30.8h, v28.8h, v30.8h")
+        Put(g, "cmeq v31.8h, v29.8h, v31.8h")
+        Put(g, "orr v30.16b, v30.16b, v31.16b")
+        Put(g, "umaxv h30, v30.8h")
+        Put(g, "umov w9, v30.h[0]")
+        Put(g, "mov %w[out], #0")
+        Put(g, "cbnz w9, 9f")
+        for i: 0..7 {
+            a := Take(g)
+            b := Take(g)
+            Line(g); BuilderPrint(*g.text, "sxtl v%.4s, v%.4h", a, rows[i])
+            Line(g); BuilderPrint(*g.text, "sxtl2 v%.4s, v%.8h", b, rows[i])
+            Line(g); BuilderPrint(*g.text, "stp q%, q%, [%%[residual], #%]", a, b, 32 * i)
+            Release(g, a)
+            Release(g, b)
+        }
+        Put(g, "mov %w[out], #1")
+    } else {
+        Put(g, "vmvn.i16 q12, #0x8000")
+        Put(g, "vmov.i16 q13, #0x8000")
+        Put(g, "vceq.i16 q12, q1, q12")
+        Put(g, "vceq.i16 q13, q2, q13")
+        Put(g, "vorr q12, q12, q13")
+        Put(g, "vorr d24, d24, d25")
+        Put(g, "vmov r2, r3, d24")
+        Put(g, "orrs r2, r2, r3")
+        Put(g, "mov %[out], #0")
+        Put(g, "bne 9f")
+        Put(g, "mov r12, %[residual]")
+        for i: 0..7 {
+            Line(g); BuilderPrint(*g.text, "vmovl.s16 q12, d%", 2 * rows[i])
+            Line(g); BuilderPrint(*g.text, "vmovl.s16 q13, d%", 2 * rows[i] + 1)
+            Put(g, "vst1.32 {d24-d27}, [r12]!")
+        }
+        Put(g, "mov %[out], #1")
+    }
+    Label(g, "9:")
+}
+
+// The whole kernel for one architecture: rows, columns, then the check.
+Program :: (arch: s64) -> string {
+    g: Gen
+    g.arch = arch
+    if arch == X86 {
+        for i: 0..11 { Release(*g, i) }
+        Release(*g, 15)
+    } else if arch == A64 {
+        for i: 1..7 { Release(*g, i) }
+        for i: 16..27 { Release(*g, i) }
+    } else {
+        for i: 3..11 { Release(*g, i) }
+    }
+    Prologue(*g)
+    rows: [8]s64
+    for i: 0..7 { rows[i] = LoadRow(*g, i) }
+    Transpose(*g, rows[:])
+    EmitDct8(*g, rows[:])
+    RoundShift(*g, rows[:], 1)
+    Transpose(*g, rows[:])
+    EmitDct8(*g, rows[:])
+    RoundShift(*g, rows[:], 4)
+    Finish(*g, rows[:])
+    if g.failed { return "" }
+    return BuilderFinish(g.text)
+}
+
+#scope_export
 
 // The 8-bit DCT_DCT 8x8 inverse transform of AV1 7.13.3 at 16-bit lanes:
 // the row pass, Round2 by 1, the column pass and Round2 by 4, row-major
@@ -67,1161 +507,17 @@ Dct8 :: (t: *Dct8Lane) -> bool {
     return true
 }
 
+// One description of the transform, generated for each target as the spec
+// compiles.
+DCT8_X86 :: #run Program(X86);
+DCT8_A64 :: #run Program(A64);
+DCT8_ARM :: #run Program(ARM);
+
 // table is Dct8Table; dequant and residual hold at least 64 values.
 InverseDct8x8Lanes :: (dequant: []s32, residual: []s32, table: []s16) -> s32
-#asm("x86_64+ssse3", #string END
-    movdqu 144(%[table]), %%xmm12
-    pxor %%xmm13, %%xmm13
-    pxor %%xmm14, %%xmm14
-    movdqu (%[dequant]), %%xmm0
-    movdqu 16(%[dequant]), %%xmm1
-    packssdw %%xmm1, %%xmm0
-    pmaxsw %%xmm0, %%xmm13
-    pminsw %%xmm0, %%xmm14
-    movdqu 32(%[dequant]), %%xmm2
-    movdqu 48(%[dequant]), %%xmm3
-    packssdw %%xmm3, %%xmm2
-    pmaxsw %%xmm2, %%xmm13
-    pminsw %%xmm2, %%xmm14
-    movdqu 64(%[dequant]), %%xmm4
-    movdqu 80(%[dequant]), %%xmm5
-    packssdw %%xmm5, %%xmm4
-    pmaxsw %%xmm4, %%xmm13
-    pminsw %%xmm4, %%xmm14
-    movdqu 96(%[dequant]), %%xmm6
-    movdqu 112(%[dequant]), %%xmm7
-    packssdw %%xmm7, %%xmm6
-    pmaxsw %%xmm6, %%xmm13
-    pminsw %%xmm6, %%xmm14
-    movdqu 128(%[dequant]), %%xmm8
-    movdqu 144(%[dequant]), %%xmm9
-    packssdw %%xmm9, %%xmm8
-    pmaxsw %%xmm8, %%xmm13
-    pminsw %%xmm8, %%xmm14
-    movdqu 160(%[dequant]), %%xmm10
-    movdqu 176(%[dequant]), %%xmm11
-    packssdw %%xmm11, %%xmm10
-    pmaxsw %%xmm10, %%xmm13
-    pminsw %%xmm10, %%xmm14
-    movdqu 192(%[dequant]), %%xmm15
-    movdqu 208(%[dequant]), %%xmm1
-    packssdw %%xmm1, %%xmm15
-    pmaxsw %%xmm15, %%xmm13
-    pminsw %%xmm15, %%xmm14
-    movdqu 224(%[dequant]), %%xmm3
-    movdqu 240(%[dequant]), %%xmm5
-    packssdw %%xmm5, %%xmm3
-    pmaxsw %%xmm3, %%xmm13
-    pminsw %%xmm3, %%xmm14
-    movdqa %%xmm0, %%xmm7
-    punpcklwd %%xmm2, %%xmm0
-    punpckhwd %%xmm2, %%xmm7
-    movdqa %%xmm4, %%xmm9
-    punpcklwd %%xmm6, %%xmm4
-    punpckhwd %%xmm6, %%xmm9
-    movdqa %%xmm8, %%xmm11
-    punpcklwd %%xmm10, %%xmm8
-    punpckhwd %%xmm10, %%xmm11
-    movdqa %%xmm15, %%xmm1
-    punpcklwd %%xmm3, %%xmm15
-    punpckhwd %%xmm3, %%xmm1
-    movdqa %%xmm0, %%xmm5
-    punpckldq %%xmm4, %%xmm0
-    punpckhdq %%xmm4, %%xmm5
-    movdqa %%xmm7, %%xmm2
-    punpckldq %%xmm9, %%xmm7
-    punpckhdq %%xmm9, %%xmm2
-    movdqa %%xmm8, %%xmm6
-    punpckldq %%xmm15, %%xmm8
-    punpckhdq %%xmm15, %%xmm6
-    movdqa %%xmm11, %%xmm10
-    punpckldq %%xmm1, %%xmm11
-    punpckhdq %%xmm1, %%xmm10
-    movdqa %%xmm0, %%xmm3
-    punpcklqdq %%xmm8, %%xmm0
-    punpckhqdq %%xmm8, %%xmm3
-    movdqa %%xmm5, %%xmm4
-    punpcklqdq %%xmm6, %%xmm5
-    punpckhqdq %%xmm6, %%xmm4
-    movdqa %%xmm7, %%xmm9
-    punpcklqdq %%xmm11, %%xmm7
-    punpckhqdq %%xmm11, %%xmm9
-    movdqa %%xmm2, %%xmm15
-    punpcklqdq %%xmm10, %%xmm2
-    punpckhqdq %%xmm10, %%xmm15
-    movdqa %%xmm3, %%xmm1
-    punpcklwd %%xmm15, %%xmm1
-    punpckhwd %%xmm15, %%xmm3
-    movdqa %%xmm1, %%xmm15
-    movdqa %%xmm3, %%xmm8
-    movdqu 16(%[table]), %%xmm6
-    pmaddwd %%xmm6, %%xmm1
-    pmaddwd %%xmm6, %%xmm3
-    movdqu 32(%[table]), %%xmm6
-    pmaddwd %%xmm6, %%xmm15
-    pmaddwd %%xmm6, %%xmm8
-    paddd %%xmm12, %%xmm1
-    paddd %%xmm12, %%xmm3
-    paddd %%xmm12, %%xmm15
-    paddd %%xmm12, %%xmm8
-    psrad $12, %%xmm1
-    psrad $12, %%xmm3
-    psrad $12, %%xmm15
-    psrad $12, %%xmm8
-    packssdw %%xmm3, %%xmm1
-    packssdw %%xmm8, %%xmm15
-    pmaxsw %%xmm1, %%xmm13
-    pminsw %%xmm1, %%xmm14
-    pmaxsw %%xmm15, %%xmm13
-    pminsw %%xmm15, %%xmm14
-    movdqa %%xmm9, %%xmm11
-    punpcklwd %%xmm4, %%xmm11
-    punpckhwd %%xmm4, %%xmm9
-    movdqa %%xmm11, %%xmm4
-    movdqa %%xmm9, %%xmm10
-    movdqu 48(%[table]), %%xmm3
-    pmaddwd %%xmm3, %%xmm11
-    pmaddwd %%xmm3, %%xmm9
-    movdqu 64(%[table]), %%xmm3
-    pmaddwd %%xmm3, %%xmm4
-    pmaddwd %%xmm3, %%xmm10
-    paddd %%xmm12, %%xmm11
-    paddd %%xmm12, %%xmm9
-    paddd %%xmm12, %%xmm4
-    paddd %%xmm12, %%xmm10
-    psrad $12, %%xmm11
-    psrad $12, %%xmm9
-    psrad $12, %%xmm4
-    psrad $12, %%xmm10
-    packssdw %%xmm9, %%xmm11
-    packssdw %%xmm10, %%xmm4
-    pmaxsw %%xmm11, %%xmm13
-    pminsw %%xmm11, %%xmm14
-    pmaxsw %%xmm4, %%xmm13
-    pminsw %%xmm4, %%xmm14
-    movdqa %%xmm0, %%xmm8
-    punpcklwd %%xmm7, %%xmm8
-    punpckhwd %%xmm7, %%xmm0
-    movdqa %%xmm8, %%xmm7
-    movdqa %%xmm0, %%xmm6
-    movdqu 80(%[table]), %%xmm9
-    pmaddwd %%xmm9, %%xmm8
-    pmaddwd %%xmm9, %%xmm0
-    movdqu 96(%[table]), %%xmm9
-    pmaddwd %%xmm9, %%xmm7
-    pmaddwd %%xmm9, %%xmm6
-    paddd %%xmm12, %%xmm8
-    paddd %%xmm12, %%xmm0
-    paddd %%xmm12, %%xmm7
-    paddd %%xmm12, %%xmm6
-    psrad $12, %%xmm8
-    psrad $12, %%xmm0
-    psrad $12, %%xmm7
-    psrad $12, %%xmm6
-    packssdw %%xmm0, %%xmm8
-    packssdw %%xmm6, %%xmm7
-    pmaxsw %%xmm8, %%xmm13
-    pminsw %%xmm8, %%xmm14
-    pmaxsw %%xmm7, %%xmm13
-    pminsw %%xmm7, %%xmm14
-    movdqa %%xmm5, %%xmm10
-    punpcklwd %%xmm2, %%xmm10
-    punpckhwd %%xmm2, %%xmm5
-    movdqa %%xmm10, %%xmm2
-    movdqa %%xmm5, %%xmm3
-    movdqu 112(%[table]), %%xmm0
-    pmaddwd %%xmm0, %%xmm10
-    pmaddwd %%xmm0, %%xmm5
-    movdqu 128(%[table]), %%xmm0
-    pmaddwd %%xmm0, %%xmm2
-    pmaddwd %%xmm0, %%xmm3
-    paddd %%xmm12, %%xmm10
-    paddd %%xmm12, %%xmm5
-    paddd %%xmm12, %%xmm2
-    paddd %%xmm12, %%xmm3
-    psrad $12, %%xmm10
-    psrad $12, %%xmm5
-    psrad $12, %%xmm2
-    psrad $12, %%xmm3
-    packssdw %%xmm5, %%xmm10
-    packssdw %%xmm3, %%xmm2
-    pmaxsw %%xmm10, %%xmm13
-    pminsw %%xmm10, %%xmm14
-    pmaxsw %%xmm2, %%xmm13
-    pminsw %%xmm2, %%xmm14
-    movdqa %%xmm1, %%xmm6
-    paddsw %%xmm11, %%xmm1
-    psubsw %%xmm11, %%xmm6
-    movdqa %%xmm15, %%xmm9
-    paddsw %%xmm4, %%xmm15
-    psubsw %%xmm4, %%xmm9
-    movdqa %%xmm7, %%xmm5
-    paddsw %%xmm2, %%xmm7
-    psubsw %%xmm2, %%xmm5
-    movdqa %%xmm8, %%xmm3
-    paddsw %%xmm10, %%xmm8
-    psubsw %%xmm10, %%xmm3
-    movdqa %%xmm9, %%xmm0
-    punpcklwd %%xmm6, %%xmm0
-    punpckhwd %%xmm6, %%xmm9
-    movdqa %%xmm0, %%xmm6
-    movdqa %%xmm9, %%xmm11
-    movdqu 80(%[table]), %%xmm4
-    pmaddwd %%xmm4, %%xmm0
-    pmaddwd %%xmm4, %%xmm9
-    movdqu 96(%[table]), %%xmm4
-    pmaddwd %%xmm4, %%xmm6
-    pmaddwd %%xmm4, %%xmm11
-    paddd %%xmm12, %%xmm0
-    paddd %%xmm12, %%xmm9
-    paddd %%xmm12, %%xmm6
-    paddd %%xmm12, %%xmm11
-    psrad $12, %%xmm0
-    psrad $12, %%xmm9
-    psrad $12, %%xmm6
-    psrad $12, %%xmm11
-    packssdw %%xmm9, %%xmm0
-    packssdw %%xmm11, %%xmm6
-    pmaxsw %%xmm0, %%xmm13
-    pminsw %%xmm0, %%xmm14
-    pmaxsw %%xmm6, %%xmm13
-    pminsw %%xmm6, %%xmm14
-    movdqa %%xmm7, %%xmm2
-    paddsw %%xmm15, %%xmm7
-    psubsw %%xmm15, %%xmm2
-    movdqa %%xmm8, %%xmm10
-    paddsw %%xmm6, %%xmm8
-    psubsw %%xmm6, %%xmm10
-    movdqa %%xmm3, %%xmm9
-    paddsw %%xmm0, %%xmm3
-    psubsw %%xmm0, %%xmm9
-    movdqa %%xmm5, %%xmm11
-    paddsw %%xmm1, %%xmm5
-    psubsw %%xmm1, %%xmm11
-    movdqu 160(%[table]), %%xmm4
-    pmulhrsw %%xmm4, %%xmm7
-    pmulhrsw %%xmm4, %%xmm8
-    pmulhrsw %%xmm4, %%xmm3
-    pmulhrsw %%xmm4, %%xmm5
-    pmulhrsw %%xmm4, %%xmm11
-    pmulhrsw %%xmm4, %%xmm9
-    pmulhrsw %%xmm4, %%xmm10
-    pmulhrsw %%xmm4, %%xmm2
-    movdqa %%xmm7, %%xmm15
-    punpcklwd %%xmm8, %%xmm7
-    punpckhwd %%xmm8, %%xmm15
-    movdqa %%xmm3, %%xmm6
-    punpcklwd %%xmm5, %%xmm3
-    punpckhwd %%xmm5, %%xmm6
-    movdqa %%xmm11, %%xmm0
-    punpcklwd %%xmm9, %%xmm11
-    punpckhwd %%xmm9, %%xmm0
-    movdqa %%xmm10, %%xmm1
-    punpcklwd %%xmm2, %%xmm10
-    punpckhwd %%xmm2, %%xmm1
-    movdqa %%xmm7, %%xmm4
-    punpckldq %%xmm3, %%xmm7
-    punpckhdq %%xmm3, %%xmm4
-    movdqa %%xmm15, %%xmm8
-    punpckldq %%xmm6, %%xmm15
-    punpckhdq %%xmm6, %%xmm8
-    movdqa %%xmm11, %%xmm5
-    punpckldq %%xmm10, %%xmm11
-    punpckhdq %%xmm10, %%xmm5
-    movdqa %%xmm0, %%xmm9
-    punpckldq %%xmm1, %%xmm0
-    punpckhdq %%xmm1, %%xmm9
-    movdqa %%xmm7, %%xmm2
-    punpcklqdq %%xmm11, %%xmm7
-    punpckhqdq %%xmm11, %%xmm2
-    movdqa %%xmm4, %%xmm3
-    punpcklqdq %%xmm5, %%xmm4
-    punpckhqdq %%xmm5, %%xmm3
-    movdqa %%xmm15, %%xmm6
-    punpcklqdq %%xmm0, %%xmm15
-    punpckhqdq %%xmm0, %%xmm6
-    movdqa %%xmm8, %%xmm10
-    punpcklqdq %%xmm9, %%xmm8
-    punpckhqdq %%xmm9, %%xmm10
-    movdqa %%xmm2, %%xmm1
-    punpcklwd %%xmm10, %%xmm1
-    punpckhwd %%xmm10, %%xmm2
-    movdqa %%xmm1, %%xmm10
-    movdqa %%xmm2, %%xmm11
-    movdqu 16(%[table]), %%xmm5
-    pmaddwd %%xmm5, %%xmm1
-    pmaddwd %%xmm5, %%xmm2
-    movdqu 32(%[table]), %%xmm5
-    pmaddwd %%xmm5, %%xmm10
-    pmaddwd %%xmm5, %%xmm11
-    paddd %%xmm12, %%xmm1
-    paddd %%xmm12, %%xmm2
-    paddd %%xmm12, %%xmm10
-    paddd %%xmm12, %%xmm11
-    psrad $12, %%xmm1
-    psrad $12, %%xmm2
-    psrad $12, %%xmm10
-    psrad $12, %%xmm11
-    packssdw %%xmm2, %%xmm1
-    packssdw %%xmm11, %%xmm10
-    pmaxsw %%xmm1, %%xmm13
-    pminsw %%xmm1, %%xmm14
-    pmaxsw %%xmm10, %%xmm13
-    pminsw %%xmm10, %%xmm14
-    movdqa %%xmm6, %%xmm0
-    punpcklwd %%xmm3, %%xmm0
-    punpckhwd %%xmm3, %%xmm6
-    movdqa %%xmm0, %%xmm3
-    movdqa %%xmm6, %%xmm9
-    movdqu 48(%[table]), %%xmm2
-    pmaddwd %%xmm2, %%xmm0
-    pmaddwd %%xmm2, %%xmm6
-    movdqu 64(%[table]), %%xmm2
-    pmaddwd %%xmm2, %%xmm3
-    pmaddwd %%xmm2, %%xmm9
-    paddd %%xmm12, %%xmm0
-    paddd %%xmm12, %%xmm6
-    paddd %%xmm12, %%xmm3
-    paddd %%xmm12, %%xmm9
-    psrad $12, %%xmm0
-    psrad $12, %%xmm6
-    psrad $12, %%xmm3
-    psrad $12, %%xmm9
-    packssdw %%xmm6, %%xmm0
-    packssdw %%xmm9, %%xmm3
-    pmaxsw %%xmm0, %%xmm13
-    pminsw %%xmm0, %%xmm14
-    pmaxsw %%xmm3, %%xmm13
-    pminsw %%xmm3, %%xmm14
-    movdqa %%xmm7, %%xmm11
-    punpcklwd %%xmm15, %%xmm11
-    punpckhwd %%xmm15, %%xmm7
-    movdqa %%xmm11, %%xmm15
-    movdqa %%xmm7, %%xmm5
-    movdqu 80(%[table]), %%xmm6
-    pmaddwd %%xmm6, %%xmm11
-    pmaddwd %%xmm6, %%xmm7
-    movdqu 96(%[table]), %%xmm6
-    pmaddwd %%xmm6, %%xmm15
-    pmaddwd %%xmm6, %%xmm5
-    paddd %%xmm12, %%xmm11
-    paddd %%xmm12, %%xmm7
-    paddd %%xmm12, %%xmm15
-    paddd %%xmm12, %%xmm5
-    psrad $12, %%xmm11
-    psrad $12, %%xmm7
-    psrad $12, %%xmm15
-    psrad $12, %%xmm5
-    packssdw %%xmm7, %%xmm11
-    packssdw %%xmm5, %%xmm15
-    pmaxsw %%xmm11, %%xmm13
-    pminsw %%xmm11, %%xmm14
-    pmaxsw %%xmm15, %%xmm13
-    pminsw %%xmm15, %%xmm14
-    movdqa %%xmm4, %%xmm9
-    punpcklwd %%xmm8, %%xmm9
-    punpckhwd %%xmm8, %%xmm4
-    movdqa %%xmm9, %%xmm8
-    movdqa %%xmm4, %%xmm2
-    movdqu 112(%[table]), %%xmm7
-    pmaddwd %%xmm7, %%xmm9
-    pmaddwd %%xmm7, %%xmm4
-    movdqu 128(%[table]), %%xmm7
-    pmaddwd %%xmm7, %%xmm8
-    pmaddwd %%xmm7, %%xmm2
-    paddd %%xmm12, %%xmm9
-    paddd %%xmm12, %%xmm4
-    paddd %%xmm12, %%xmm8
-    paddd %%xmm12, %%xmm2
-    psrad $12, %%xmm9
-    psrad $12, %%xmm4
-    psrad $12, %%xmm8
-    psrad $12, %%xmm2
-    packssdw %%xmm4, %%xmm9
-    packssdw %%xmm2, %%xmm8
-    pmaxsw %%xmm9, %%xmm13
-    pminsw %%xmm9, %%xmm14
-    pmaxsw %%xmm8, %%xmm13
-    pminsw %%xmm8, %%xmm14
-    movdqa %%xmm1, %%xmm5
-    paddsw %%xmm0, %%xmm1
-    psubsw %%xmm0, %%xmm5
-    movdqa %%xmm10, %%xmm6
-    paddsw %%xmm3, %%xmm10
-    psubsw %%xmm3, %%xmm6
-    movdqa %%xmm15, %%xmm4
-    paddsw %%xmm8, %%xmm15
-    psubsw %%xmm8, %%xmm4
-    movdqa %%xmm11, %%xmm2
-    paddsw %%xmm9, %%xmm11
-    psubsw %%xmm9, %%xmm2
-    movdqa %%xmm6, %%xmm7
-    punpcklwd %%xmm5, %%xmm7
-    punpckhwd %%xmm5, %%xmm6
-    movdqa %%xmm7, %%xmm5
-    movdqa %%xmm6, %%xmm0
-    movdqu 80(%[table]), %%xmm3
-    pmaddwd %%xmm3, %%xmm7
-    pmaddwd %%xmm3, %%xmm6
-    movdqu 96(%[table]), %%xmm3
-    pmaddwd %%xmm3, %%xmm5
-    pmaddwd %%xmm3, %%xmm0
-    paddd %%xmm12, %%xmm7
-    paddd %%xmm12, %%xmm6
-    paddd %%xmm12, %%xmm5
-    paddd %%xmm12, %%xmm0
-    psrad $12, %%xmm7
-    psrad $12, %%xmm6
-    psrad $12, %%xmm5
-    psrad $12, %%xmm0
-    packssdw %%xmm6, %%xmm7
-    packssdw %%xmm0, %%xmm5
-    pmaxsw %%xmm7, %%xmm13
-    pminsw %%xmm7, %%xmm14
-    pmaxsw %%xmm5, %%xmm13
-    pminsw %%xmm5, %%xmm14
-    movdqa %%xmm15, %%xmm8
-    paddsw %%xmm10, %%xmm15
-    psubsw %%xmm10, %%xmm8
-    movdqa %%xmm11, %%xmm9
-    paddsw %%xmm5, %%xmm11
-    psubsw %%xmm5, %%xmm9
-    movdqa %%xmm2, %%xmm6
-    paddsw %%xmm7, %%xmm2
-    psubsw %%xmm7, %%xmm6
-    movdqa %%xmm4, %%xmm0
-    paddsw %%xmm1, %%xmm4
-    psubsw %%xmm1, %%xmm0
-    movdqu 176(%[table]), %%xmm3
-    pmulhrsw %%xmm3, %%xmm15
-    pmulhrsw %%xmm3, %%xmm11
-    pmulhrsw %%xmm3, %%xmm2
-    pmulhrsw %%xmm3, %%xmm4
-    pmulhrsw %%xmm3, %%xmm0
-    pmulhrsw %%xmm3, %%xmm6
-    pmulhrsw %%xmm3, %%xmm9
-    pmulhrsw %%xmm3, %%xmm8
-    pcmpeqd %%xmm10, %%xmm10
-    psrlw $1, %%xmm10
-    pcmpeqw %%xmm13, %%xmm10
-    pcmpeqd %%xmm5, %%xmm5
-    psllw $15, %%xmm5
-    pcmpeqw %%xmm14, %%xmm5
-    por %%xmm5, %%xmm10
-    pmovmskb %%xmm10, %%eax
-    movl $0, %[out]
-    testl %%eax, %%eax
-    jnz 9f
-    movdqa %%xmm15, %%xmm5
-    punpcklwd %%xmm15, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm15, %%xmm15
-    psrad $16, %%xmm15
-    movdqu %%xmm5, (%[residual])
-    movdqu %%xmm15, 16(%[residual])
-    movdqa %%xmm11, %%xmm5
-    punpcklwd %%xmm11, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm11, %%xmm11
-    psrad $16, %%xmm11
-    movdqu %%xmm5, 32(%[residual])
-    movdqu %%xmm11, 48(%[residual])
-    movdqa %%xmm2, %%xmm5
-    punpcklwd %%xmm2, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm2, %%xmm2
-    psrad $16, %%xmm2
-    movdqu %%xmm5, 64(%[residual])
-    movdqu %%xmm2, 80(%[residual])
-    movdqa %%xmm4, %%xmm5
-    punpcklwd %%xmm4, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm4, %%xmm4
-    psrad $16, %%xmm4
-    movdqu %%xmm5, 96(%[residual])
-    movdqu %%xmm4, 112(%[residual])
-    movdqa %%xmm0, %%xmm5
-    punpcklwd %%xmm0, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm0, %%xmm0
-    psrad $16, %%xmm0
-    movdqu %%xmm5, 128(%[residual])
-    movdqu %%xmm0, 144(%[residual])
-    movdqa %%xmm6, %%xmm5
-    punpcklwd %%xmm6, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm6, %%xmm6
-    psrad $16, %%xmm6
-    movdqu %%xmm5, 160(%[residual])
-    movdqu %%xmm6, 176(%[residual])
-    movdqa %%xmm9, %%xmm5
-    punpcklwd %%xmm9, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm9, %%xmm9
-    psrad $16, %%xmm9
-    movdqu %%xmm5, 192(%[residual])
-    movdqu %%xmm9, 208(%[residual])
-    movdqa %%xmm8, %%xmm5
-    punpcklwd %%xmm8, %%xmm5
-    psrad $16, %%xmm5
-    punpckhwd %%xmm8, %%xmm8
-    psrad $16, %%xmm8
-    movdqu %%xmm5, 224(%[residual])
-    movdqu %%xmm8, 240(%[residual])
-    movl $1, %[out]
-9:
-END, "=&r", "r;r;r", "rax;xmm0..xmm15;cc")
-#asm("aarch64", #string END
-    ld1 {v0.8h}, [%[table]]
-    movi v28.8h, #0
-    movi v29.8h, #0
-    ldp q2, q3, [%[dequant], #0]
-    sqxtn v1.4h, v2.4s
-    sqxtn2 v1.8h, v3.4s
-    smax v28.8h, v28.8h, v1.8h
-    smin v29.8h, v29.8h, v1.8h
-    ldp q5, q6, [%[dequant], #32]
-    sqxtn v4.4h, v5.4s
-    sqxtn2 v4.8h, v6.4s
-    smax v28.8h, v28.8h, v4.8h
-    smin v29.8h, v29.8h, v4.8h
-    ldp q16, q17, [%[dequant], #64]
-    sqxtn v7.4h, v16.4s
-    sqxtn2 v7.8h, v17.4s
-    smax v28.8h, v28.8h, v7.8h
-    smin v29.8h, v29.8h, v7.8h
-    ldp q19, q20, [%[dequant], #96]
-    sqxtn v18.4h, v19.4s
-    sqxtn2 v18.8h, v20.4s
-    smax v28.8h, v28.8h, v18.8h
-    smin v29.8h, v29.8h, v18.8h
-    ldp q22, q23, [%[dequant], #128]
-    sqxtn v21.4h, v22.4s
-    sqxtn2 v21.8h, v23.4s
-    smax v28.8h, v28.8h, v21.8h
-    smin v29.8h, v29.8h, v21.8h
-    ldp q25, q26, [%[dequant], #160]
-    sqxtn v24.4h, v25.4s
-    sqxtn2 v24.8h, v26.4s
-    smax v28.8h, v28.8h, v24.8h
-    smin v29.8h, v29.8h, v24.8h
-    ldp q2, q3, [%[dequant], #192]
-    sqxtn v27.4h, v2.4s
-    sqxtn2 v27.8h, v3.4s
-    smax v28.8h, v28.8h, v27.8h
-    smin v29.8h, v29.8h, v27.8h
-    ldp q6, q16, [%[dequant], #224]
-    sqxtn v5.4h, v6.4s
-    sqxtn2 v5.8h, v16.4s
-    smax v28.8h, v28.8h, v5.8h
-    smin v29.8h, v29.8h, v5.8h
-    trn1 v17.8h, v1.8h, v4.8h
-    trn2 v19.8h, v1.8h, v4.8h
-    trn1 v20.8h, v7.8h, v18.8h
-    trn2 v22.8h, v7.8h, v18.8h
-    trn1 v23.8h, v21.8h, v24.8h
-    trn2 v25.8h, v21.8h, v24.8h
-    trn1 v26.8h, v27.8h, v5.8h
-    trn2 v2.8h, v27.8h, v5.8h
-    trn1 v3.4s, v17.4s, v20.4s
-    trn2 v6.4s, v17.4s, v20.4s
-    trn1 v16.4s, v19.4s, v22.4s
-    trn2 v1.4s, v19.4s, v22.4s
-    trn1 v4.4s, v23.4s, v26.4s
-    trn2 v7.4s, v23.4s, v26.4s
-    trn1 v18.4s, v25.4s, v2.4s
-    trn2 v21.4s, v25.4s, v2.4s
-    trn1 v24.2d, v3.2d, v4.2d
-    trn2 v27.2d, v3.2d, v4.2d
-    trn1 v5.2d, v16.2d, v18.2d
-    trn2 v17.2d, v16.2d, v18.2d
-    trn1 v20.2d, v6.2d, v7.2d
-    trn2 v19.2d, v6.2d, v7.2d
-    trn1 v22.2d, v1.2d, v21.2d
-    trn2 v23.2d, v1.2d, v21.2d
-    smull v26.4s, v5.4h, v0.h[0]
-    smull2 v25.4s, v5.8h, v0.h[0]
-    smlsl v26.4s, v23.4h, v0.h[1]
-    smlsl2 v25.4s, v23.8h, v0.h[1]
-    smull v2.4s, v5.4h, v0.h[1]
-    smull2 v3.4s, v5.8h, v0.h[1]
-    smlal v2.4s, v23.4h, v0.h[0]
-    smlal2 v3.4s, v23.8h, v0.h[0]
-    sqrshrn v5.4h, v26.4s, #12
-    sqrshrn2 v5.8h, v25.4s, #12
-    sqrshrn v23.4h, v2.4s, #12
-    sqrshrn2 v23.8h, v3.4s, #12
-    smax v28.8h, v28.8h, v5.8h
-    smin v29.8h, v29.8h, v5.8h
-    smax v28.8h, v28.8h, v23.8h
-    smin v29.8h, v29.8h, v23.8h
-    smull v4.4s, v17.4h, v0.h[2]
-    smull2 v16.4s, v17.8h, v0.h[2]
-    smlsl v4.4s, v22.4h, v0.h[3]
-    smlsl2 v16.4s, v22.8h, v0.h[3]
-    smull v18.4s, v17.4h, v0.h[3]
-    smull2 v6.4s, v17.8h, v0.h[3]
-    smlal v18.4s, v22.4h, v0.h[2]
-    smlal2 v6.4s, v22.8h, v0.h[2]
-    sqrshrn v17.4h, v4.4s, #12
-    sqrshrn2 v17.8h, v16.4s, #12
-    sqrshrn v22.4h, v18.4s, #12
-    sqrshrn2 v22.8h, v6.4s, #12
-    smax v28.8h, v28.8h, v17.8h
-    smin v29.8h, v29.8h, v17.8h
-    smax v28.8h, v28.8h, v22.8h
-    smin v29.8h, v29.8h, v22.8h
-    smull v7.4s, v24.4h, v0.h[4]
-    smull2 v1.4s, v24.8h, v0.h[4]
-    smlsl v7.4s, v27.4h, v0.h[4]
-    smlsl2 v1.4s, v27.8h, v0.h[4]
-    smull v21.4s, v24.4h, v0.h[4]
-    smull2 v26.4s, v24.8h, v0.h[4]
-    smlal v21.4s, v27.4h, v0.h[4]
-    smlal2 v26.4s, v27.8h, v0.h[4]
-    sqrshrn v24.4h, v7.4s, #12
-    sqrshrn2 v24.8h, v1.4s, #12
-    sqrshrn v27.4h, v21.4s, #12
-    sqrshrn2 v27.8h, v26.4s, #12
-    smax v28.8h, v28.8h, v24.8h
-    smin v29.8h, v29.8h, v24.8h
-    smax v28.8h, v28.8h, v27.8h
-    smin v29.8h, v29.8h, v27.8h
-    smull v25.4s, v20.4h, v0.h[5]
-    smull2 v2.4s, v20.8h, v0.h[5]
-    smlsl v25.4s, v19.4h, v0.h[6]
-    smlsl2 v2.4s, v19.8h, v0.h[6]
-    smull v3.4s, v20.4h, v0.h[6]
-    smull2 v4.4s, v20.8h, v0.h[6]
-    smlal v3.4s, v19.4h, v0.h[5]
-    smlal2 v4.4s, v19.8h, v0.h[5]
-    sqrshrn v20.4h, v25.4s, #12
-    sqrshrn2 v20.8h, v2.4s, #12
-    sqrshrn v19.4h, v3.4s, #12
-    sqrshrn2 v19.8h, v4.4s, #12
-    smax v28.8h, v28.8h, v20.8h
-    smin v29.8h, v29.8h, v20.8h
-    smax v28.8h, v28.8h, v19.8h
-    smin v29.8h, v29.8h, v19.8h
-    sqadd v16.8h, v5.8h, v17.8h
-    sqsub v17.8h, v5.8h, v17.8h
-    sqadd v18.8h, v23.8h, v22.8h
-    sqsub v22.8h, v23.8h, v22.8h
-    sqadd v6.8h, v27.8h, v19.8h
-    sqsub v19.8h, v27.8h, v19.8h
-    sqadd v7.8h, v24.8h, v20.8h
-    sqsub v20.8h, v24.8h, v20.8h
-    smull v1.4s, v22.4h, v0.h[4]
-    smull2 v21.4s, v22.8h, v0.h[4]
-    smlsl v1.4s, v17.4h, v0.h[4]
-    smlsl2 v21.4s, v17.8h, v0.h[4]
-    smull v26.4s, v22.4h, v0.h[4]
-    smull2 v25.4s, v22.8h, v0.h[4]
-    smlal v26.4s, v17.4h, v0.h[4]
-    smlal2 v25.4s, v17.8h, v0.h[4]
-    sqrshrn v22.4h, v1.4s, #12
-    sqrshrn2 v22.8h, v21.4s, #12
-    sqrshrn v17.4h, v26.4s, #12
-    sqrshrn2 v17.8h, v25.4s, #12
-    smax v28.8h, v28.8h, v22.8h
-    smin v29.8h, v29.8h, v22.8h
-    smax v28.8h, v28.8h, v17.8h
-    smin v29.8h, v29.8h, v17.8h
-    sqadd v2.8h, v6.8h, v18.8h
-    sqsub v18.8h, v6.8h, v18.8h
-    sqadd v3.8h, v7.8h, v17.8h
-    sqsub v17.8h, v7.8h, v17.8h
-    sqadd v4.8h, v20.8h, v22.8h
-    sqsub v22.8h, v20.8h, v22.8h
-    sqadd v5.8h, v19.8h, v16.8h
-    sqsub v16.8h, v19.8h, v16.8h
-    srshr v2.8h, v2.8h, #1
-    srshr v3.8h, v3.8h, #1
-    srshr v4.8h, v4.8h, #1
-    srshr v5.8h, v5.8h, #1
-    srshr v16.8h, v16.8h, #1
-    srshr v22.8h, v22.8h, #1
-    srshr v17.8h, v17.8h, #1
-    srshr v18.8h, v18.8h, #1
-    trn1 v23.8h, v2.8h, v3.8h
-    trn2 v27.8h, v2.8h, v3.8h
-    trn1 v24.8h, v4.8h, v5.8h
-    trn2 v1.8h, v4.8h, v5.8h
-    trn1 v21.8h, v16.8h, v22.8h
-    trn2 v26.8h, v16.8h, v22.8h
-    trn1 v25.8h, v17.8h, v18.8h
-    trn2 v6.8h, v17.8h, v18.8h
-    trn1 v7.4s, v23.4s, v24.4s
-    trn2 v20.4s, v23.4s, v24.4s
-    trn1 v19.4s, v27.4s, v1.4s
-    trn2 v2.4s, v27.4s, v1.4s
-    trn1 v3.4s, v21.4s, v25.4s
-    trn2 v4.4s, v21.4s, v25.4s
-    trn1 v5.4s, v26.4s, v6.4s
-    trn2 v16.4s, v26.4s, v6.4s
-    trn1 v22.2d, v7.2d, v3.2d
-    trn2 v17.2d, v7.2d, v3.2d
-    trn1 v18.2d, v19.2d, v5.2d
-    trn2 v23.2d, v19.2d, v5.2d
-    trn1 v24.2d, v20.2d, v4.2d
-    trn2 v27.2d, v20.2d, v4.2d
-    trn1 v1.2d, v2.2d, v16.2d
-    trn2 v21.2d, v2.2d, v16.2d
-    smull v25.4s, v18.4h, v0.h[0]
-    smull2 v26.4s, v18.8h, v0.h[0]
-    smlsl v25.4s, v21.4h, v0.h[1]
-    smlsl2 v26.4s, v21.8h, v0.h[1]
-    smull v6.4s, v18.4h, v0.h[1]
-    smull2 v7.4s, v18.8h, v0.h[1]
-    smlal v6.4s, v21.4h, v0.h[0]
-    smlal2 v7.4s, v21.8h, v0.h[0]
-    sqrshrn v18.4h, v25.4s, #12
-    sqrshrn2 v18.8h, v26.4s, #12
-    sqrshrn v21.4h, v6.4s, #12
-    sqrshrn2 v21.8h, v7.4s, #12
-    smax v28.8h, v28.8h, v18.8h
-    smin v29.8h, v29.8h, v18.8h
-    smax v28.8h, v28.8h, v21.8h
-    smin v29.8h, v29.8h, v21.8h
-    smull v3.4s, v23.4h, v0.h[2]
-    smull2 v19.4s, v23.8h, v0.h[2]
-    smlsl v3.4s, v1.4h, v0.h[3]
-    smlsl2 v19.4s, v1.8h, v0.h[3]
-    smull v5.4s, v23.4h, v0.h[3]
-    smull2 v20.4s, v23.8h, v0.h[3]
-    smlal v5.4s, v1.4h, v0.h[2]
-    smlal2 v20.4s, v1.8h, v0.h[2]
-    sqrshrn v23.4h, v3.4s, #12
-    sqrshrn2 v23.8h, v19.4s, #12
-    sqrshrn v1.4h, v5.4s, #12
-    sqrshrn2 v1.8h, v20.4s, #12
-    smax v28.8h, v28.8h, v23.8h
-    smin v29.8h, v29.8h, v23.8h
-    smax v28.8h, v28.8h, v1.8h
-    smin v29.8h, v29.8h, v1.8h
-    smull v4.4s, v22.4h, v0.h[4]
-    smull2 v2.4s, v22.8h, v0.h[4]
-    smlsl v4.4s, v17.4h, v0.h[4]
-    smlsl2 v2.4s, v17.8h, v0.h[4]
-    smull v16.4s, v22.4h, v0.h[4]
-    smull2 v25.4s, v22.8h, v0.h[4]
-    smlal v16.4s, v17.4h, v0.h[4]
-    smlal2 v25.4s, v17.8h, v0.h[4]
-    sqrshrn v22.4h, v4.4s, #12
-    sqrshrn2 v22.8h, v2.4s, #12
-    sqrshrn v17.4h, v16.4s, #12
-    sqrshrn2 v17.8h, v25.4s, #12
-    smax v28.8h, v28.8h, v22.8h
-    smin v29.8h, v29.8h, v22.8h
-    smax v28.8h, v28.8h, v17.8h
-    smin v29.8h, v29.8h, v17.8h
-    smull v26.4s, v24.4h, v0.h[5]
-    smull2 v6.4s, v24.8h, v0.h[5]
-    smlsl v26.4s, v27.4h, v0.h[6]
-    smlsl2 v6.4s, v27.8h, v0.h[6]
-    smull v7.4s, v24.4h, v0.h[6]
-    smull2 v3.4s, v24.8h, v0.h[6]
-    smlal v7.4s, v27.4h, v0.h[5]
-    smlal2 v3.4s, v27.8h, v0.h[5]
-    sqrshrn v24.4h, v26.4s, #12
-    sqrshrn2 v24.8h, v6.4s, #12
-    sqrshrn v27.4h, v7.4s, #12
-    sqrshrn2 v27.8h, v3.4s, #12
-    smax v28.8h, v28.8h, v24.8h
-    smin v29.8h, v29.8h, v24.8h
-    smax v28.8h, v28.8h, v27.8h
-    smin v29.8h, v29.8h, v27.8h
-    sqadd v19.8h, v18.8h, v23.8h
-    sqsub v23.8h, v18.8h, v23.8h
-    sqadd v5.8h, v21.8h, v1.8h
-    sqsub v1.8h, v21.8h, v1.8h
-    sqadd v20.8h, v17.8h, v27.8h
-    sqsub v27.8h, v17.8h, v27.8h
-    sqadd v4.8h, v22.8h, v24.8h
-    sqsub v24.8h, v22.8h, v24.8h
-    smull v2.4s, v1.4h, v0.h[4]
-    smull2 v16.4s, v1.8h, v0.h[4]
-    smlsl v2.4s, v23.4h, v0.h[4]
-    smlsl2 v16.4s, v23.8h, v0.h[4]
-    smull v25.4s, v1.4h, v0.h[4]
-    smull2 v26.4s, v1.8h, v0.h[4]
-    smlal v25.4s, v23.4h, v0.h[4]
-    smlal2 v26.4s, v23.8h, v0.h[4]
-    sqrshrn v1.4h, v2.4s, #12
-    sqrshrn2 v1.8h, v16.4s, #12
-    sqrshrn v23.4h, v25.4s, #12
-    sqrshrn2 v23.8h, v26.4s, #12
-    smax v28.8h, v28.8h, v1.8h
-    smin v29.8h, v29.8h, v1.8h
-    smax v28.8h, v28.8h, v23.8h
-    smin v29.8h, v29.8h, v23.8h
-    sqadd v6.8h, v20.8h, v5.8h
-    sqsub v5.8h, v20.8h, v5.8h
-    sqadd v7.8h, v4.8h, v23.8h
-    sqsub v23.8h, v4.8h, v23.8h
-    sqadd v3.8h, v24.8h, v1.8h
-    sqsub v1.8h, v24.8h, v1.8h
-    sqadd v18.8h, v27.8h, v19.8h
-    sqsub v19.8h, v27.8h, v19.8h
-    srshr v6.8h, v6.8h, #4
-    srshr v7.8h, v7.8h, #4
-    srshr v3.8h, v3.8h, #4
-    srshr v18.8h, v18.8h, #4
-    srshr v19.8h, v19.8h, #4
-    srshr v1.8h, v1.8h, #4
-    srshr v23.8h, v23.8h, #4
-    srshr v5.8h, v5.8h, #4
-    mvni v30.8h, #0x80, lsl #8
-    movi v31.8h, #0x80, lsl #8
-    cmeq v30.8h, v28.8h, v30.8h
-    cmeq v31.8h, v29.8h, v31.8h
-    orr v30.16b, v30.16b, v31.16b
-    umaxv h30, v30.8h
-    umov w9, v30.h[0]
-    mov %w[out], #0
-    cbnz w9, 9f
-    sxtl v21.4s, v6.4h
-    sxtl2 v17.4s, v6.8h
-    stp q21, q17, [%[residual], #0]
-    sxtl v22.4s, v7.4h
-    sxtl2 v2.4s, v7.8h
-    stp q22, q2, [%[residual], #32]
-    sxtl v16.4s, v3.4h
-    sxtl2 v25.4s, v3.8h
-    stp q16, q25, [%[residual], #64]
-    sxtl v26.4s, v18.4h
-    sxtl2 v20.4s, v18.8h
-    stp q26, q20, [%[residual], #96]
-    sxtl v4.4s, v19.4h
-    sxtl2 v24.4s, v19.8h
-    stp q4, q24, [%[residual], #128]
-    sxtl v27.4s, v1.4h
-    sxtl2 v21.4s, v1.8h
-    stp q27, q21, [%[residual], #160]
-    sxtl v17.4s, v23.4h
-    sxtl2 v22.4s, v23.8h
-    stp q17, q22, [%[residual], #192]
-    sxtl v2.4s, v5.4h
-    sxtl2 v16.4s, v5.8h
-    stp q2, q16, [%[residual], #224]
-    mov %w[out], #1
-9:
-END, "=&r", "r;r;r", "x9;v0..v7;v16..v31;cc")
-#asm("arm+neon", #string END
-    vld1.16 {d0-d1}, [%[table]]
-    vmov.i16 q1, #0
-    vmov.i16 q2, #0
-    mov r12, %[dequant]
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d6, q12
-    vqmovn.s32 d7, q13
-    vmax.s16 q1, q1, q3
-    vmin.s16 q2, q2, q3
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d8, q12
-    vqmovn.s32 d9, q13
-    vmax.s16 q1, q1, q4
-    vmin.s16 q2, q2, q4
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d10, q12
-    vqmovn.s32 d11, q13
-    vmax.s16 q1, q1, q5
-    vmin.s16 q2, q2, q5
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d12, q12
-    vqmovn.s32 d13, q13
-    vmax.s16 q1, q1, q6
-    vmin.s16 q2, q2, q6
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d14, q12
-    vqmovn.s32 d15, q13
-    vmax.s16 q1, q1, q7
-    vmin.s16 q2, q2, q7
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d16, q12
-    vqmovn.s32 d17, q13
-    vmax.s16 q1, q1, q8
-    vmin.s16 q2, q2, q8
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d18, q12
-    vqmovn.s32 d19, q13
-    vmax.s16 q1, q1, q9
-    vmin.s16 q2, q2, q9
-    vld1.32 {d24-d27}, [r12]!
-    vqmovn.s32 d20, q12
-    vqmovn.s32 d21, q13
-    vmax.s16 q1, q1, q10
-    vmin.s16 q2, q2, q10
-    vtrn.16 q3, q4
-    vtrn.16 q5, q6
-    vtrn.16 q7, q8
-    vtrn.16 q9, q10
-    vtrn.32 q3, q5
-    vtrn.32 q4, q6
-    vtrn.32 q7, q9
-    vtrn.32 q8, q10
-    vswp d7, d14
-    vswp d9, d16
-    vswp d11, d18
-    vswp d13, d20
-    vmull.s16 q12, d8, d0[0]
-    vmull.s16 q13, d9, d0[0]
-    vmlsl.s16 q12, d20, d0[1]
-    vmlsl.s16 q13, d21, d0[1]
-    vmull.s16 q14, d8, d0[1]
-    vmull.s16 q15, d9, d0[1]
-    vmlal.s16 q14, d20, d0[0]
-    vmlal.s16 q15, d21, d0[0]
-    vqrshrn.s32 d8, q12, #12
-    vqrshrn.s32 d9, q13, #12
-    vqrshrn.s32 d20, q14, #12
-    vqrshrn.s32 d21, q15, #12
-    vmax.s16 q1, q1, q4
-    vmin.s16 q2, q2, q4
-    vmax.s16 q1, q1, q10
-    vmin.s16 q2, q2, q10
-    vmull.s16 q12, d16, d0[2]
-    vmull.s16 q13, d17, d0[2]
-    vmlsl.s16 q12, d12, d0[3]
-    vmlsl.s16 q13, d13, d0[3]
-    vmull.s16 q14, d16, d0[3]
-    vmull.s16 q15, d17, d0[3]
-    vmlal.s16 q14, d12, d0[2]
-    vmlal.s16 q15, d13, d0[2]
-    vqrshrn.s32 d16, q12, #12
-    vqrshrn.s32 d17, q13, #12
-    vqrshrn.s32 d12, q14, #12
-    vqrshrn.s32 d13, q15, #12
-    vmax.s16 q1, q1, q8
-    vmin.s16 q2, q2, q8
-    vmax.s16 q1, q1, q6
-    vmin.s16 q2, q2, q6
-    vmull.s16 q12, d6, d1[0]
-    vmull.s16 q13, d7, d1[0]
-    vmlsl.s16 q12, d14, d1[0]
-    vmlsl.s16 q13, d15, d1[0]
-    vmull.s16 q14, d6, d1[0]
-    vmull.s16 q15, d7, d1[0]
-    vmlal.s16 q14, d14, d1[0]
-    vmlal.s16 q15, d15, d1[0]
-    vqrshrn.s32 d6, q12, #12
-    vqrshrn.s32 d7, q13, #12
-    vqrshrn.s32 d14, q14, #12
-    vqrshrn.s32 d15, q15, #12
-    vmax.s16 q1, q1, q3
-    vmin.s16 q2, q2, q3
-    vmax.s16 q1, q1, q7
-    vmin.s16 q2, q2, q7
-    vmull.s16 q12, d10, d1[1]
-    vmull.s16 q13, d11, d1[1]
-    vmlsl.s16 q12, d18, d1[2]
-    vmlsl.s16 q13, d19, d1[2]
-    vmull.s16 q14, d10, d1[2]
-    vmull.s16 q15, d11, d1[2]
-    vmlal.s16 q14, d18, d1[1]
-    vmlal.s16 q15, d19, d1[1]
-    vqrshrn.s32 d10, q12, #12
-    vqrshrn.s32 d11, q13, #12
-    vqrshrn.s32 d18, q14, #12
-    vqrshrn.s32 d19, q15, #12
-    vmax.s16 q1, q1, q5
-    vmin.s16 q2, q2, q5
-    vmax.s16 q1, q1, q9
-    vmin.s16 q2, q2, q9
-    vqadd.s16 q11, q4, q8
-    vqsub.s16 q8, q4, q8
-    vqadd.s16 q4, q10, q6
-    vqsub.s16 q6, q10, q6
-    vqadd.s16 q10, q7, q9
-    vqsub.s16 q9, q7, q9
-    vqadd.s16 q7, q3, q5
-    vqsub.s16 q5, q3, q5
-    vmull.s16 q12, d12, d1[0]
-    vmull.s16 q13, d13, d1[0]
-    vmlsl.s16 q12, d16, d1[0]
-    vmlsl.s16 q13, d17, d1[0]
-    vmull.s16 q14, d12, d1[0]
-    vmull.s16 q15, d13, d1[0]
-    vmlal.s16 q14, d16, d1[0]
-    vmlal.s16 q15, d17, d1[0]
-    vqrshrn.s32 d12, q12, #12
-    vqrshrn.s32 d13, q13, #12
-    vqrshrn.s32 d16, q14, #12
-    vqrshrn.s32 d17, q15, #12
-    vmax.s16 q1, q1, q6
-    vmin.s16 q2, q2, q6
-    vmax.s16 q1, q1, q8
-    vmin.s16 q2, q2, q8
-    vqadd.s16 q3, q10, q4
-    vqsub.s16 q4, q10, q4
-    vqadd.s16 q10, q7, q8
-    vqsub.s16 q8, q7, q8
-    vqadd.s16 q7, q5, q6
-    vqsub.s16 q6, q5, q6
-    vqadd.s16 q5, q9, q11
-    vqsub.s16 q11, q9, q11
-    vrshr.s16 q3, q3, #1
-    vrshr.s16 q10, q10, #1
-    vrshr.s16 q7, q7, #1
-    vrshr.s16 q5, q5, #1
-    vrshr.s16 q11, q11, #1
-    vrshr.s16 q6, q6, #1
-    vrshr.s16 q8, q8, #1
-    vrshr.s16 q4, q4, #1
-    vtrn.16 q3, q10
-    vtrn.16 q7, q5
-    vtrn.16 q11, q6
-    vtrn.16 q8, q4
-    vtrn.32 q3, q7
-    vtrn.32 q10, q5
-    vtrn.32 q11, q8
-    vtrn.32 q6, q4
-    vswp d7, d22
-    vswp d21, d12
-    vswp d15, d16
-    vswp d11, d8
-    vmull.s16 q12, d20, d0[0]
-    vmull.s16 q13, d21, d0[0]
-    vmlsl.s16 q12, d8, d0[1]
-    vmlsl.s16 q13, d9, d0[1]
-    vmull.s16 q14, d20, d0[1]
-    vmull.s16 q15, d21, d0[1]
-    vmlal.s16 q14, d8, d0[0]
-    vmlal.s16 q15, d9, d0[0]
-    vqrshrn.s32 d20, q12, #12
-    vqrshrn.s32 d21, q13, #12
-    vqrshrn.s32 d8, q14, #12
-    vqrshrn.s32 d9, q15, #12
-    vmax.s16 q1, q1, q10
-    vmin.s16 q2, q2, q10
-    vmax.s16 q1, q1, q4
-    vmin.s16 q2, q2, q4
-    vmull.s16 q12, d12, d0[2]
-    vmull.s16 q13, d13, d0[2]
-    vmlsl.s16 q12, d10, d0[3]
-    vmlsl.s16 q13, d11, d0[3]
-    vmull.s16 q14, d12, d0[3]
-    vmull.s16 q15, d13, d0[3]
-    vmlal.s16 q14, d10, d0[2]
-    vmlal.s16 q15, d11, d0[2]
-    vqrshrn.s32 d12, q12, #12
-    vqrshrn.s32 d13, q13, #12
-    vqrshrn.s32 d10, q14, #12
-    vqrshrn.s32 d11, q15, #12
-    vmax.s16 q1, q1, q6
-    vmin.s16 q2, q2, q6
-    vmax.s16 q1, q1, q5
-    vmin.s16 q2, q2, q5
-    vmull.s16 q12, d6, d1[0]
-    vmull.s16 q13, d7, d1[0]
-    vmlsl.s16 q12, d22, d1[0]
-    vmlsl.s16 q13, d23, d1[0]
-    vmull.s16 q14, d6, d1[0]
-    vmull.s16 q15, d7, d1[0]
-    vmlal.s16 q14, d22, d1[0]
-    vmlal.s16 q15, d23, d1[0]
-    vqrshrn.s32 d6, q12, #12
-    vqrshrn.s32 d7, q13, #12
-    vqrshrn.s32 d22, q14, #12
-    vqrshrn.s32 d23, q15, #12
-    vmax.s16 q1, q1, q3
-    vmin.s16 q2, q2, q3
-    vmax.s16 q1, q1, q11
-    vmin.s16 q2, q2, q11
-    vmull.s16 q12, d14, d1[1]
-    vmull.s16 q13, d15, d1[1]
-    vmlsl.s16 q12, d16, d1[2]
-    vmlsl.s16 q13, d17, d1[2]
-    vmull.s16 q14, d14, d1[2]
-    vmull.s16 q15, d15, d1[2]
-    vmlal.s16 q14, d16, d1[1]
-    vmlal.s16 q15, d17, d1[1]
-    vqrshrn.s32 d14, q12, #12
-    vqrshrn.s32 d15, q13, #12
-    vqrshrn.s32 d16, q14, #12
-    vqrshrn.s32 d17, q15, #12
-    vmax.s16 q1, q1, q7
-    vmin.s16 q2, q2, q7
-    vmax.s16 q1, q1, q8
-    vmin.s16 q2, q2, q8
-    vqadd.s16 q9, q10, q6
-    vqsub.s16 q6, q10, q6
-    vqadd.s16 q10, q4, q5
-    vqsub.s16 q5, q4, q5
-    vqadd.s16 q4, q11, q8
-    vqsub.s16 q8, q11, q8
-    vqadd.s16 q11, q3, q7
-    vqsub.s16 q7, q3, q7
-    vmull.s16 q12, d10, d1[0]
-    vmull.s16 q13, d11, d1[0]
-    vmlsl.s16 q12, d12, d1[0]
-    vmlsl.s16 q13, d13, d1[0]
-    vmull.s16 q14, d10, d1[0]
-    vmull.s16 q15, d11, d1[0]
-    vmlal.s16 q14, d12, d1[0]
-    vmlal.s16 q15, d13, d1[0]
-    vqrshrn.s32 d10, q12, #12
-    vqrshrn.s32 d11, q13, #12
-    vqrshrn.s32 d12, q14, #12
-    vqrshrn.s32 d13, q15, #12
-    vmax.s16 q1, q1, q5
-    vmin.s16 q2, q2, q5
-    vmax.s16 q1, q1, q6
-    vmin.s16 q2, q2, q6
-    vqadd.s16 q3, q4, q10
-    vqsub.s16 q10, q4, q10
-    vqadd.s16 q4, q11, q6
-    vqsub.s16 q6, q11, q6
-    vqadd.s16 q11, q7, q5
-    vqsub.s16 q5, q7, q5
-    vqadd.s16 q7, q8, q9
-    vqsub.s16 q9, q8, q9
-    vrshr.s16 q3, q3, #4
-    vrshr.s16 q4, q4, #4
-    vrshr.s16 q11, q11, #4
-    vrshr.s16 q7, q7, #4
-    vrshr.s16 q9, q9, #4
-    vrshr.s16 q5, q5, #4
-    vrshr.s16 q6, q6, #4
-    vrshr.s16 q10, q10, #4
-    vmvn.i16 q12, #0x8000
-    vmov.i16 q13, #0x8000
-    vceq.i16 q12, q1, q12
-    vceq.i16 q13, q2, q13
-    vorr q12, q12, q13
-    vorr d24, d24, d25
-    vmov r2, r3, d24
-    orrs r2, r2, r3
-    mov %[out], #0
-    bne 9f
-    mov r12, %[residual]
-    vmovl.s16 q12, d6
-    vmovl.s16 q13, d7
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d8
-    vmovl.s16 q13, d9
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d22
-    vmovl.s16 q13, d23
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d14
-    vmovl.s16 q13, d15
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d18
-    vmovl.s16 q13, d19
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d10
-    vmovl.s16 q13, d11
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d12
-    vmovl.s16 q13, d13
-    vst1.32 {d24-d27}, [r12]!
-    vmovl.s16 q12, d20
-    vmovl.s16 q13, d21
-    vst1.32 {d24-d27}, [r12]!
-    mov %[out], #1
-9:
-END, "=&r", "r;r;r", "r2;r3;r12;q0..q15;cc") {
+#asm("x86_64+ssse3", DCT8_X86, "=&r", "r;r;r", "rax;xmm0..xmm15;cc")
+#asm("aarch64", DCT8_A64, "=&r", "r;r;r", "x9;v0..v7;v16..v31;cc")
+#asm("arm+neon", DCT8_ARM, "=&r", "r;r;r", "r2;r3;r12;q0..q15;cc") {
     unused table
     block: [64]s64
     for i: 0..63 {

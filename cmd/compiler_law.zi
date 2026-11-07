@@ -1,0 +1,233 @@
+// Named-law rules over checked IR: effect classes and effect-law evaluation.
+// C keeps the remaining law evaluation and parallel-region checks.
+IR :: #import "compiler_ir";
+Services :: #import "compiler_services";
+Text :: #import "compiler_text";
+
+#scope_file
+Rank :: (name: string) -> s32 {
+    if name == "external" { return 3 }
+    if name == "mutating" { return 2 }
+    if name == "observing" { return 1 }
+    return 0
+}
+
+RankName :: (rank: s32) -> string {
+    if rank == 3 { return "external" }
+    if rank == 2 { return "mutating" }
+    if rank == 1 { return "observing" }
+    return "pure"
+}
+
+ReferencesGlobal :: (expression: *IR.ZirExpr) -> bool {
+    return expression.kind == IR.ZirExprKind.IDENT && expression.is_global_value != 0
+}
+
+WritesThroughPointer :: (fn: *IR.ZirFunction, root: s32) -> bool {
+    index := root
+    while index >= 0 && index < fn.expr_count {
+        expression := *fn.exprs[index]
+        if expression.kind == IR.ZirExprKind.POINTER_MEMBER ||
+           (expression.kind == IR.ZirExprKind.UNARY && IR.BufferText(expression.op[:]) == "*") { return true }
+        if expression.kind != IR.ZirExprKind.MEMBER { return false }
+        index = expression.left
+    }
+    return false
+}
+
+ImportedCallee :: (module: *IR.ZirModule, name: string) -> bool {
+    for i: 0..module.import_count - 1 {
+        imported := *module.imports[i]
+        if imported.kind == IR.ZirImportKind.EXTERN && IR.BufferText(imported.name[:]) == name { return true }
+    }
+    return false
+}
+
+NameMax :: 128
+Spelled :: struct { bytes: [NameMax]u8 }
+
+Trim :: (text: string) -> string {
+    range := Text.TrimRange(text)
+    return text[range.begin:range.end]
+}
+
+Find :: (text: string, wanted: string) -> s64 {
+    at: s64 = 0
+    while at + wanted.count <= text.count {
+        match := true
+        for i: 0..wanted.count - 1 { if text[at + i] != wanted[i] { match = false } }
+        if match { return at }
+        at += 1
+    }
+    return -1
+}
+
+Say :: (detail: *u8, size: u64, first: string, second: string = "", third: string = "",
+         fourth: string = "", fifth: string = "") {
+    parts: [5]string = .{first, second, third, fourth, fifth}
+    output := IR.CBuffer(detail, size)
+    for part: 0..4 {
+        text := parts[part]
+        IR.CopyText(output, text)
+        used := ifx text.count < output.count then text.count else output.count - 1
+        if used > 0 { output = output[used:output.count] }
+    }
+    IR.CopyText(output, "")
+}
+
+StatementWritesGlobal :: (module: *IR.ZirModule, fn: *IR.ZirFunction, index: s32) -> bool {
+    statement := fn.stmts[index]
+    if statement.kind != IR.ZirStmtKind.ASSIGN || statement.lhs_root < 0 { return false }
+    lhs := *fn.exprs[statement.lhs_root]
+    if lhs.kind != IR.ZirExprKind.IDENT { return false }
+    name := IR.CText(lhs.name)
+    for g: 0..module.global_count - 1 { if IR.BufferText(module.globals[g].name[:]) == name { return true } }
+    return false
+}
+
+BodyCallsExternal :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
+    for e: 0..fn.expr_count - 1 {
+        expression := fn.exprs[e]
+        name := IR.CText(expression.name)
+        if expression.kind != IR.ZirExprKind.CALL || name.count == 0 { continue }
+        owner: *IR.ZirModule = null
+        callee: *IR.ZirFunction = null
+        if Services.ResolveFunction(module, expression.name, null, *owner, *callee) <= 0 {
+            if ImportedCallee(module, name) { return true }
+            continue
+        }
+        if callee != null && callee.is_extern != 0 { return true }
+    }
+    return false
+}
+
+EvaluateEffect :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+    payload := Trim(IR.BufferText(law.payload[:]))
+    comparison := Find(payload, "==")
+    if comparison >= 0 {
+        name_text := Trim(payload[0:comparison])
+        name: Spelled
+        IR.CopyText(name.bytes[:], name_text)
+        expected_bytes: [16]u8
+        IR.CopyText(expected_bytes[:], Trim(payload[comparison + 2:payload.count]))
+        expected := IR.BufferText(expected_bytes[:])
+        spelled_name := IR.BufferText(name.bytes[:])
+        if Rank(expected) > 3 || expected.count == 0 || name_text.count == 0 {
+            Say(detail, size, "expected class pure, observing, mutating, or external")
+            return 1
+        }
+        owner: *IR.ZirModule = null
+        fn: *IR.ZirFunction = null
+        if Services.ResolveFunction(module, *name.bytes[0], null, *owner, *fn) <= 0 || fn == null {
+            if ImportedCallee(module, spelled_name) {
+                Say(detail, size, spelled_name, " is foreign; class is external")
+                return ifx expected == "external" then 0 else 1
+            }
+            Say(detail, size, "no visible procedure named ", spelled_name)
+            return 1
+        }
+        actual := IR.BufferText(fn.effect_class[:])
+        if actual == expected {
+            Say(detail, size, spelled_name, " is ", expected)
+            return 0
+        }
+        Say(detail, size, spelled_name, " is ", actual, ", not ", expected)
+        return 1
+    }
+    original := IR.BufferText(law.payload[:])
+    owner: *IR.ZirModule = null
+    fn: *IR.ZirFunction = null
+    if Services.ResolveFunction(module, *law.payload[0], null, *owner, *fn) <= 0 || fn == null {
+        if ImportedCallee(module, original) {
+            Say(detail, size, original, " is foreign; its effects are not visible")
+            return 2
+        }
+        Say(detail, size, "no visible procedure named ", original)
+        return 1
+    }
+    if fn.is_extern != 0 {
+        Say(detail, size, original, " is foreign; its effects are not visible")
+        return 2
+    }
+    if BodyCallsExternal(module, fn) {
+        Say(detail, size, original, " calls foreign code; its effects are not visible")
+        return 2
+    }
+    for s: 0..fn.stmt_count - 1 {
+        if StatementWritesGlobal(module, fn, s) {
+            Say(detail, size, original, " writes a file-scope global")
+            return 1
+        }
+    }
+    Say(detail, size, original, " reads only parameters and calls checked code")
+    return 0
+}
+
+SweepEffects :: (program: *IR.ZirProgram) -> bool {
+    changed := false
+    for m: 0..program.module_count - 1 {
+        module := *program.modules[m]
+        for f: 0..module.function_count - 1 {
+            fn := *module.functions[f]
+            rank := Rank(IR.BufferText(fn.effect_class[:]))
+            reads_global := false
+            if fn.is_extern != 0 { rank = 3 }
+            for s: 0..fn.stmt_count - 1 {
+                statement := fn.stmts[s]
+                if statement.kind == IR.ZirStmtKind.ASSIGN && statement.lhs_root >= 0 &&
+                   (ReferencesGlobal(*fn.exprs[statement.lhs_root]) ||
+                    WritesThroughPointer(fn, statement.lhs_root)) {
+                    if rank < 2 { rank = 2 }
+                }
+            }
+            for e: 0..fn.expr_count - 1 {
+                expression := fn.exprs[e]
+                if ReferencesGlobal(*expression) { reads_global = true }
+                name := IR.CText(expression.name)
+                if expression.kind != IR.ZirExprKind.CALL || name.count == 0 ||
+                   IR.CText(expression.slot_type).count != 0 { continue }
+                if Services.MapPrimitiveName(expression.name) != 0 {
+                    map_rank: s32 = ifx name == "MapSet" || name == "MapInit" ||
+                                           name == "MapDelete" || name == "MapClear" then 2 else 1
+                    if rank < map_rank { rank = map_rank }
+                } else if ImportedCallee(module, name) || name == "print" {
+                    rank = 3
+                } else {
+                    owner: *IR.ZirModule = null
+                    callee: *IR.ZirFunction = null
+                    if Services.ResolveFunction(module, expression.name, null, *owner, *callee) == 1 && callee != null {
+                        callee_rank := Rank(IR.BufferText(callee.effect_class[:]))
+                        if callee_rank == 3 { rank = 3 }
+                        else if callee_rank == 2 && rank < 2 { rank = 2 }
+                        else if callee_rank == 1 && rank < 1 { rank = 1 }
+                    }
+                }
+            }
+            if rank == 0 && reads_global { rank = 1 }
+            ranked := RankName(rank)
+            if IR.BufferText(fn.effect_class[:]) != ranked {
+                IR.CopyText(fn.effect_class[:], ranked)
+                changed = true
+            }
+        }
+    }
+    return changed
+}
+
+#scope_export
+#program_export
+effect_rank :: (name: *u8) -> s32 { return Rank(IR.CText(name)) }
+
+#program_export
+EvaluateEffectLaw :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+    return EvaluateEffect(module, law, detail, size)
+}
+
+#program_export
+DeriveEffectClasses :: (programs: **IR.ZirProgram, count: s32) {
+    for pass: 0..63 {
+        changed := false
+        for p: 0..count - 1 { if SweepEffects(programs[p]) { changed = true } }
+        if !changed { break }
+    }
+}

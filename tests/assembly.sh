@@ -6,8 +6,15 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/app.zi" <<'ZI'
+#scope_file
+BumpTemplate :: () -> string { return "leaq 1(%[value]), %[out]" }
+BUMP_TEMPLATE :: #run BumpTemplate();
+BUMP_OUTPUT :: "=r";
+BUMP_INPUT :: "r";
+BUMP_CLOBBERS :: "";
+#scope_export
 Pair :: struct { low: u64; high: u64; }
-Bump :: (value: s64) -> s64 #asm("x86_64", "leaq 1(%[value]), %[out]", "=r", "r", "", "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
+Bump :: (value: s64) -> s64 #asm("x86_64", BUMP_TEMPLATE, BUMP_OUTPUT, BUMP_INPUT, BUMP_CLOBBERS, "") #asm("aarch64", "add %[out], %[value], #1", "=r", "r", "", "") {
     return value + 1
 }
 Tied :: (value: s64) -> s64 #asm("x86_64", "addq $1, %[out]", "=r", "0", "cc", "") {
@@ -101,6 +108,21 @@ F :: () #asm("unknown", "", "", "", "", "") { return }
 ZI
 reject '#asm requires four to six literal strings' <<'ZI'
 F :: () #asm("x86_64", "", "") { return }
+ZI
+reject '#asm argument TEMPLATE is not a constant string' <<'ZI'
+TEMPLATE :: 42;
+F :: () #asm("x86_64", TEMPLATE, "", "") { return }
+ZI
+reject '#asm argument MISSING is not a constant string' <<'ZI'
+F :: () #asm("x86_64", MISSING, "", "") { return }
+ZI
+reject '#asm architecture and options must be literal strings' <<'ZI'
+ARCH :: "x86_64";
+F :: () #asm(ARCH, "", "", "") { return }
+ZI
+reject '#asm architecture and options must be literal strings' <<'ZI'
+OPTIONS :: "volatile";
+F :: () #asm("x86_64", "", "", "", "", OPTIONS) { return }
 ZI
 reject '#asm options must be empty or volatile' <<'ZI'
 F :: () #asm("x86_64", "", "", "", "", "magic") { return }

@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
 #include "compiler_scan.h"
 #include "compiler_source.h"
@@ -14,204 +13,8 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef struct ExpressionHooks ExpressionHooks;
-typedef struct SyntaxCursor SyntaxCursor;
-typedef int32_t PostfixKind;
-typedef int32_t PostfixError;
-typedef struct ExpressionChildren ExpressionChildren;
-typedef struct PostfixHooks PostfixHooks;
-typedef struct InitializerHooks InitializerHooks;
-typedef int32_t PrefixKind;
-typedef int32_t PrefixError;
-typedef struct PrefixHooks PrefixHooks;
 typedef int32_t StatementExpressionError;
 typedef struct StatementExpression StatementExpression;
-typedef struct ExpressionBegin {
-    void *context;
-    int64_t (*call)(void *);
-} ExpressionBegin;
-typedef struct ExpressionToken {
-    void *context;
-    String (*call)(void *);
-} ExpressionToken;
-typedef struct ExpressionPrefix {
-    void *context;
-    int32_t (*call)(void *);
-} ExpressionPrefix;
-typedef struct ExpressionAdvance {
-    void *context;
-    void (*call)(void *);
-} ExpressionAdvance;
-typedef struct ExpressionBinary {
-    void *context;
-    int32_t (*call)(void *, int64_t, String, int32_t, int32_t);
-} ExpressionBinary;
-typedef struct ExpressionConditionalError {
-    void *context;
-    void (*call)(void *);
-} ExpressionConditionalError;
-typedef struct ExpressionKind {
-    void *context;
-    TokenKind (*call)(void *);
-} ExpressionKind;
-typedef struct ExpressionParse {
-    void *context;
-    int32_t (*call)(void *, int32_t);
-} ExpressionParse;
-typedef struct ExpressionLink {
-    void *context;
-    void (*call)(void *, int32_t, int32_t);
-} ExpressionLink;
-typedef struct PostfixNode {
-    void *context;
-    int32_t (*call)(void *, int64_t, PostfixKind, String, int32_t, int32_t, int32_t, int32_t);
-} PostfixNode;
-typedef struct ExpressionArgument {
-    void *context;
-    void (*call)(void *, int32_t, String);
-} ExpressionArgument;
-typedef struct ExpressionDefaults {
-    void *context;
-    ExpressionChildren (*call)(void *, int32_t, int32_t, int32_t);
-} ExpressionDefaults;
-typedef struct ExpressionName {
-    void *context;
-    String (*call)(void *, int32_t);
-} ExpressionName;
-typedef struct PostfixDiagnostic {
-    void *context;
-    void (*call)(void *, PostfixError);
-} PostfixDiagnostic;
-typedef struct InitializerFieldType {
-    void *context;
-    String (*call)(void *, String, String, int32_t);
-} InitializerFieldType;
-typedef struct InitializerField {
-    void *context;
-    int32_t (*call)(void *, int64_t, String, bool, int32_t);
-} InitializerField;
-typedef struct InitializerNode {
-    void *context;
-    int32_t (*call)(void *, int64_t, String, int32_t);
-} InitializerNode;
-typedef struct TypeQuery {
-    void *context;
-    bool (*call)(void *, String);
-} TypeQuery;
-typedef struct PrefixArray {
-    void *context;
-    int32_t (*call)(void *, int64_t, String);
-} PrefixArray;
-typedef struct PrefixNode {
-    void *context;
-    int32_t (*call)(void *, int64_t, PrefixKind, String, String, int32_t, int32_t, int32_t, int32_t);
-} PrefixNode;
-typedef struct PrefixDiagnostic {
-    void *context;
-    void (*call)(void *, PrefixError);
-} PrefixDiagnostic;
-
-struct ExpressionHooks {
-    int32_t* depth;
-    int32_t* failed;
-    ExpressionBegin begin;
-    ExpressionToken token;
-    ExpressionPrefix prefix;
-    ExpressionAdvance advance;
-    ExpressionBinary binary;
-    ExpressionConditionalError conditional_error;
-};
-
-struct SyntaxCursor {
-    int32_t* depth;
-    int32_t* failed;
-    String source;
-    ExpressionBegin begin;
-    ExpressionToken token;
-    ExpressionKind kind;
-    ExpressionAdvance advance;
-    ExpressionParse parse;
-    ExpressionLink link;
-};
-
-enum {
-    PostfixKind_Index = 0,
-    PostfixKind_Slice = 1,
-    PostfixKind_Member = 2,
-    PostfixKind_Dereference = 3,
-    PostfixKind_Call = 4,
-};
-
-enum {
-    PostfixError_PointerMember = 0,
-    PostfixError_Increment = 1,
-    PostfixError_Question = 2,
-};
-
-struct ExpressionChildren {
-    int32_t first;
-    int32_t last;
-};
-
-struct PostfixHooks {
-    SyntaxCursor* cursor;
-    PostfixNode node;
-    ExpressionArgument argument;
-    ExpressionDefaults defaults;
-    ExpressionName name;
-    PostfixDiagnostic error;
-};
-
-struct InitializerHooks {
-    SyntaxCursor* cursor;
-    InitializerFieldType field_type;
-    InitializerField field;
-    InitializerNode node;
-};
-
-enum {
-    PrefixKind_Identifier = 0,
-    PrefixKind_Integer = 1,
-    PrefixKind_Float = 2,
-    PrefixKind_String = 3,
-    PrefixKind_This = 4,
-    PrefixKind_CompileTime = 5,
-    PrefixKind_ProcedureName = 6,
-    PrefixKind_Character = 7,
-    PrefixKind_Conditional = 8,
-    PrefixKind_SizeOf = 9,
-    PrefixKind_Cast = 10,
-    PrefixKind_Unary = 11,
-};
-
-enum {
-    PrefixError_ThisScope = 0,
-    PrefixError_CallerLocation = 1,
-    PrefixError_ProcedureScope = 2,
-    PrefixError_Character = 3,
-    PrefixError_Sizeof = 4,
-    PrefixError_Primitive = 5,
-    PrefixError_Increment = 6,
-    PrefixError_AddressOf = 7,
-    PrefixError_Cast = 8,
-    PrefixError_Literal = 9,
-    PrefixError_SingleQuote = 10,
-};
-
-struct PrefixHooks {
-    SyntaxCursor* cursor;
-    InitializerHooks* initializers;
-    PostfixHooks* postfix;
-    TypeQuery is_type;
-    TypeQuery is_record;
-    TypeQuery is_array;
-    PrefixArray array;
-    PrefixNode node;
-    PrefixDiagnostic error;
-    String scope;
-    String expected_type;
-    int64_t name_limit;
-};
 
 enum {
     StatementExpressionError_None = 0,
@@ -232,13 +35,56 @@ struct StatementExpression {
     StatementExpressionError error;
 };
 int32_t compiler_expression_BinaryPrecedence(String operator);
-String compiler_expression_BinarySpelling(String operator);
-int32_t compiler_expression_ParseBinary(ExpressionHooks* hooks, int32_t minimum);
-int32_t compiler_expression_ParsePostfix(PostfixHooks* hooks, int64_t start, int32_t initial);
-int32_t compiler_expression_ParseInitializer(InitializerHooks* hooks, int64_t start, String type, String open, String close);
-int32_t compiler_expression_ParsePrefix(PrefixHooks* hooks);
 int32_t compiler_expression_CharacterByte(String literal);
 StatementExpression compiler_expression_StatementParts(String source, StatementKind kind);
+
+/* Small procedures other modules inline; compiler_expression.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_EXPRESSION_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include "zir_bounds.h"
+static inline int32_t compiler_expression_CharacterByte_ziran_inline(String literal);
+#define compiler_expression_CharacterByte(...) compiler_expression_CharacterByte_ziran_inline(__VA_ARGS__)
+
+static inline int32_t
+compiler_expression_CharacterByte_ziran_inline(String literal)
+{
+    bool value_0 = (int64_t)(literal).length == 3LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 34;
+    if (value_0 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) < 128) {
+        return (int32_t)((uint8_t)literal.data[1]);
+    }
+    bool value_1 = (int64_t)(literal).length == 4LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
+    if (value_1 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 3) == 34) {
+        uint8_t escape = (uint8_t)literal.data[2];
+        if (escape == 48) {
+            return 0;
+        }
+        if (escape == 110) {
+            return 10;
+        }
+        if (escape == 114) {
+            return 13;
+        }
+        if (escape == 116) {
+            return 9;
+        }
+        if (escape == 34) {
+            return 34;
+        }
+        if (escape == 92) {
+            return 92;
+        }
+        return -1;
+    }
+    bool value_2 = (int64_t)(literal).length == 6LL && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 0) == 34 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 1) == 92;
+    if (value_2 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 2) == 120 && (uint8_t)ZIRAN_INDEX(literal.data, literal.length, 5) == 34) {
+        int32_t high = compiler_text_HexDigit((uint8_t)literal.data[3]);
+        int32_t low = compiler_text_HexDigit((uint8_t)literal.data[4]);
+        if (high >= 0 && low >= 0) {
+            return (int32_t)(((uint32_t)high * 16u) + (uint32_t)low);
+        }
+    }
+    return -1;
+}
+#endif
 
 #ifdef __cplusplus
 }

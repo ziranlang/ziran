@@ -1387,7 +1387,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             while(expression_length > 0 &&
                   isspace((unsigned char)expr[expression_length - 1]))
                 expr[--expression_length] = '\0';
-            if(find_unquoted_word(expr, "#this") != NULL)
+            if(find_unquoted(expr, "#this", true) != NULL)
                 die_at(Span(buffers->rel, line_no, 1),
                        "#this requires a procedure or type scope");
             if(cname[0] != '\0' && *expr != '\0') {
@@ -1422,10 +1422,11 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         /* Imports load only for what the visible scope
                          * cannot fold already, and for every size_of. */
                         int folded = 0;
+                        const char *folded_value = NULL;
                         for(int attempt = strstr(buffers->expanded, "size_of") != NULL;
                             attempt < 2 && !folded; attempt++) {
                             CompileValue typed;
-                            int fuel = 10000;
+                            int fuel = COMPILE_RUN_FUEL;
                             compile_value_clear(&typed);
                             if(attempt == 1 && compile_context.resolver != NULL &&
                                !compile_context.resolver(
@@ -1438,8 +1439,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                     &fuel, &typed) &&
                                 typed.kind != COMPILE_INVALID;
                             if(folded)
-                                copy_text(buffers->run_value, sizeof(buffers->run_value),
-                                          typed.literal);
+                                folded_value = KeepText(compile_literal(&typed));
                         }
                         if(!folded) {
                             int written = snprintf(buffers->run_value,
@@ -1453,10 +1453,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         }
                         free_visible_compile_module(&buffers->run_scope);
                         free(visible.items);
-                        expr = buffers->run_value;
+                        expr = folded ? (char *)folded_value : buffers->run_value;
                     }
                     if(!deferred_run &&
-                       find_unquoted_text(expr, "#ifx") != NULL) {
+                       find_unquoted(expr, "#ifx", false) != NULL) {
                         copy_text(buffers->selected_value, sizeof(buffers->selected_value), expr);
                         lower_compile_ifx_value(buffers->selected_value,
                                                 sizeof(buffers->selected_value), module,
@@ -1465,9 +1465,9 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         expr = buffers->selected_value;
                     }
                     if(!deferred_run &&
-                       find_unquoted_text(expr, "#ifx") == NULL &&
-                       find_unquoted_word(expr, "size_of") != NULL &&
-                       find_unquoted_word(expr, "type_of") == NULL) {
+                       find_unquoted(expr, "#ifx", false) == NULL &&
+                       find_unquoted(expr, "size_of", true) != NULL &&
+                       find_unquoted(expr, "type_of", true) == NULL) {
                         if(expr != buffers->selected_value)
                             copy_text(buffers->selected_value,
                                       sizeof(buffers->selected_value), expr);
@@ -1503,7 +1503,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         strcmp(expr, "null");
                     /* A platform predicate may negate or group
                      * `#defined`, as in `!#defined(_WIN32) && ...`. */
-                    if(find_unquoted_text(expr, "#defined") == NULL &&
+                    if(find_unquoted(expr, "#defined", false) == NULL &&
                        (!is_identifier_text(expr) || known_alias ||
                         using_alias)) {
                         def = ModuleAddDefine(module, cname, expr,
@@ -1587,7 +1587,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                                "#extern is not Jai syntax for a type declaration");
                     const char *opening = strchr(after, '{');
                     const char *closing = opening ?
-                        find_unquoted_text(opening + 1, "}") : NULL;
+                        find_unquoted(opening + 1, "}", false) : NULL;
                     if(closing != NULL) {
                         size_t body_length = (size_t)(closing - opening - 1);
                         if(ty->is_record_template) {
@@ -1995,16 +1995,16 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
             ZirGlobal *global = &module->globals[gi];
             copy_text(module->lookup_path, sizeof(module->lookup_path),
                       SpanPath(global->span));
-            if(find_unquoted_text(global->init, "#ifx") != NULL) {
+            if(find_unquoted(global->init, "#ifx", false) != NULL) {
                 size_t capacity;
                 char *edit = TextEditBegin(global->init, &capacity);
                 lower_compile_ifx_value(edit, capacity, module, &consts,
                                         global->span, 1);
                 global->init = TextEditEnd(edit);
             }
-            if(find_unquoted_text(global->init, "#ifx") == NULL &&
-               find_unquoted_word(global->init, "size_of") != NULL &&
-               find_unquoted_word(global->init, "type_of") == NULL) {
+            if(find_unquoted(global->init, "#ifx", false) == NULL &&
+               find_unquoted(global->init, "size_of", true) != NULL &&
+               find_unquoted(global->init, "type_of", true) == NULL) {
                 size_t capacity;
                 char *edit = TextEditBegin(global->init, &capacity);
                 lower_size_of_value(edit, capacity, module, global->span);
@@ -2017,7 +2017,7 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                       SpanPath(fn->span));
             int has_compile_ifx = 0;
             for(int si = 0; si < fn->stmt_count; si++)
-                if(find_unquoted_text(fn->stmts[si].text, "#ifx") != NULL) {
+                if(find_unquoted(fn->stmts[si].text, "#ifx", false) != NULL) {
                     has_compile_ifx = 1;
                     break;
                 }

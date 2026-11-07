@@ -45,6 +45,14 @@ int ParseExprTyped(ZirFunction *fn, const ZirModule *module,
                const char *expected_type);
 int EvaluateCompileExpression(const ZirModule *module, const char *source,
                               ZirSourceSpan span, int executing, int64_t *value);
+/* The step budget of one #run evaluation. */
+enum { COMPILE_RUN_FUEL = 8000000 };
+/* A #run expression's value as kept text: an integer in decimal, any other
+ * value as its literal, of any length. Runs COMPILE_RUN_FUEL steps at most;
+ * *EXHAUSTED says whether a failure ran out of them. */
+int EvaluateCompileRun(const ZirModule *module, const char *source,
+                       ZirSourceSpan span, const char **literal,
+                       const ZirModule **type_owner, int *exhausted);
 int EvaluateCompileConditionBound(const ZirModule *module, const char *source,
                                   ZirSourceSpan span,
                                   const char names[][ZIR_NAME_MAX],
@@ -66,10 +74,11 @@ int EvaluateBoundCondition(ZirBoundCondition *condition,
                            const char exprs[][ZIR_NAME_MAX],
                            const int64_t *values, int *truth);
 void FreeBoundCondition(ZirBoundCondition *condition);
-/* Aggregate results also return their declaring module as a borrowed pointer. */
+/* The value's literal as kept text, of any length. Aggregate results also
+ * return their declaring module as a borrowed pointer. */
 int EvaluateCompileLiteral(const ZirModule *module, const char *source,
-                           ZirSourceSpan span, int executing, char *literal,
-                           size_t literal_size,
+                           ZirSourceSpan span, int executing,
+                           const char **literal,
                            const ZirModule **type_owner);
 
 /* Finish compile-time expressions whose conditions depend on linked imports.

@@ -771,18 +771,6 @@ typedef struct EmitSlotWrappersBuffers {
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context);
 
-/* Slot signatures belong to their declaring module, even when a function
- * value is adapted in a caller with different imports or same-named types.
- * Resolve the source base type before constructing its C declarator. */
-static void
-resolve_slot_wrapper_type(void *context, const char *source,
-                          char *out, size_t size)
-{
-    const ZirModule *owner = context;
-    if(!NativeTypeAtUse(owner, source, out, size))
-        copy_text(out, size, source);
-}
-
 static void
 EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                     ZirTarget target, ZirResolveTarget resolver, void *context, EmitSlotWrappersBuffers *buffers)
@@ -801,8 +789,10 @@ EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunct
             split_top_level(slot->body, buffers->parameters[0], 64, sizeof(buffers->parameters[0])) : 0;
         char wrapper[ZIR_NAME_MAX];
         char resolved_result[ZIR_NAME_MAX];
+        /* Slot signatures resolve in their declaring module, even when a
+         * caller has different imports or same-named types. */
         slot_type_at_use(slot->procedure_return_type, target,
-                         resolve_slot_wrapper_type, (void *)slot_owner,
+                         resolve_type_at_use, (void *)slot_owner,
                          resolved_result, sizeof(resolved_result));
         slot_wrapper_name(module, fn, index, wrapper, sizeof(wrapper));
         fprintf(out, "static %s %s(void *context", resolved_result, wrapper);
@@ -810,7 +800,7 @@ EmitSlotWrappers_with_buffers(FILE *out, const ZirModule *module, const ZirFunct
         for(int argument = 0; argument < count; argument++) {
             const char *source = skip_ws(strchr(buffers->parameters[argument], ':') + 1);
             char resolved_type[ZIR_NAME_MAX];
-            slot_type_at_use(source, target, resolve_slot_wrapper_type,
+            slot_type_at_use(source, target, resolve_type_at_use,
                              (void *)slot_owner, resolved_type,
                              sizeof(resolved_type));
             fprintf(out, ", %s slot_arg_%d", resolved_type, argument);

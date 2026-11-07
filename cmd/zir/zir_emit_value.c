@@ -174,7 +174,8 @@ array_target_type(Emitter *e, const char *type, char *target_element,
                 exit(1);
             }
         } else {
-            slot_native_type(element, e->target, native, sizeof(native));
+            slot_type_at_use(element, e->target, e->target == ZIR_C ? resolve_type_at_use : NULL,
+                             (void *)e->module, native, sizeof(native));
         }
         copy_text(target_element, element_size, native);
     } else {

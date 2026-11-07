@@ -204,7 +204,7 @@ VALUE :: #run Loop();
 ZI
 expect_rejection 'unbounded compile-time loop was accepted' "$work/unbounded_loop.err" \
     "$ziran" check --root "$work" "$work/unbounded_loop.zi"
-rg -q '#run expression is not a constant' "$work/unbounded_loop.err"
+rg -q '#run expression ran more than [0-9]+ steps: Loop\(\)' "$work/unbounded_loop.err"
 
 cat > "$work/shared_fuel.zi" <<'ZI'
 Spin :: (limit: s64) -> s64 {
@@ -212,16 +212,21 @@ Spin :: (limit: s64) -> s64 {
     while i < limit { i += 1 }
     return i
 }
-Single :: #run Spin(600);
+Single :: #run Spin(400000);
 ZI
 "$ziran" check --root "$work" "$work/shared_fuel.zi"
+# Each call fits the step budget of one #run; ten together do not.
 cat >> "$work/shared_fuel.zi" <<'ZI'
-Pair :: () -> s64 { return Spin(600) + Spin(600) }
-Combined :: #run Pair();
+Many :: () -> s64 {
+    total: s64 = 0
+    for i: 0..9 { total += Spin(400000) }
+    return total
+}
+Combined :: #run Many();
 ZI
 expect_rejection 'nested compile-time calls reset the work limit' "$work/shared_fuel.err" \
     "$ziran" check --root "$work" "$work/shared_fuel.zi"
-rg -q '#run expression is not a constant' "$work/shared_fuel.err"
+rg -q '#run expression ran more than [0-9]+ steps: Many\(\)' "$work/shared_fuel.err"
 
 cat > "$work/impure_assert.zi" <<'ZI'
 counter: s64;

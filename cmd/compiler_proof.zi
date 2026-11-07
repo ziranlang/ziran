@@ -46,13 +46,8 @@ Context :: struct {
 
 C :: (text: string) -> Spelled { name: Spelled; IR.CopyText(name.bytes[:], text); return name }
 CLong :: (text: string) -> Long { long: Long; IR.CopyText(long.bytes[:], text); return long }
-// Diagnose BEFORE NAME AFTER.
-Report :: (span: IR.ZirSourceSpan, code: string, before: string, name := "", after := "") -> bool {
-    text: Long
-    IR.CopyText(text.bytes[:], before)
-    IR.CopyText(text.bytes[before.count:TextMax], name)
-    IR.CopyText(text.bytes[before.count + name.count:TextMax], after)
-    Services.Diagnose(span, code, Name(text.bytes[:]))
+Report :: (span: IR.ZirSourceSpan, code: string, message: string, name := "", tail := "") -> bool {
+    Services.Diagnose(span, code, message, name, tail)
     return false
 }
 Trim :: (text: string) -> string { range := Text.TrimRange(text); return text[range.begin:range.end] }

@@ -1801,7 +1801,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
                 const ZirExpr *place = &e->fn->exprs[st->lhs_root];
                 if(place->kind == ZIR_EXPR_MEMBER || place->kind == ZIR_EXPR_POINTER_MEMBER)
                     spelled_field_store(e->target,
-                                        field_record(e->module, e->fn->exprs[place->left].type),
+                                        field_record(e->module, e->fn->exprs[place->left].type, NULL),
                                         place->name, buffers->result, sizeof(buffers->result));
             }
             assign_value(e, buffers->lhs, e->fn->exprs[st->lhs_root].type, buffers->result);

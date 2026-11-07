@@ -15,16 +15,23 @@ below. Other compilers and <code>.zx</code> use the checked Ziran body. Define
     return value + 1
 }
 </code></pre>
-<p>Each <code>#asm</code> takes four to six literal strings: architecture, assembly template,
+<p>Each <code>#asm</code> takes four to six arguments: architecture, assembly template,
 output constraints, input constraints, and optionally clobbers and options
-(both default to <code>""</code>). Use semicolons to
-separate constraints and clobbers; commas remain available for the assembler's
-constraint alternatives. Options are <code>""</code> or <code>"volatile"</code>. Templates use GNU
+(both default to <code>""</code>). The architecture and options are literal strings.
+Templates, constraints and clobbers can also name compile-time string
+constants; options are <code>""</code> or <code>"volatile"</code>. Use semicolons to separate constraints and clobbers; commas
+remain available for the assembler's constraint alternatives. Templates use GNU
 extended assembly syntax, including named operands, register modifiers,
 multiple instructions, escaped newlines, and assembler directives. Templates
 are quoted as data in generated source. The native compiler and assembler
-validate instruction syntax and machine-specific constraints.
-Generated C uses positional operands internally, so source operand aliases
+validate instruction syntax and machine-specific constraints.</p>
+<p>A template constant can be generated in the same file with
+<code>TEMPLATE :: #run MakeTemplate();</code> and used as <code>#asm("x86_64", TEMPLATE, ...)</code>.
+The generator can use builders, loops, pointers and slices. Put its helpers
+under <code>#scope_file</code> and restore <code>#scope_export</code> before the public kernel;
+<code>tests/spec/asm_dct8.zi</code> generates three architectures from one transform
+description this way.</p>
+<p>Generated C uses positional operands internally, so source operand aliases
 may also be C keywords. Named matching inputs retain the same binding.</p>
 <p>Input operands follow parameter order and use the parameter names. Parameters
 must be scalars, pointers or slices of scalars; a slice operand is its data
@@ -202,7 +209,11 @@ rejection checks, and <code>tests/assembly_features.sh</code> for CPU selection,
 concurrent calls, unavailable features and isolated helpers. It runs ARMv7
 NEON and its masked fallback under <code>qemu-arm</code> with GCC and Clang
 (<code>ZIRAN_ARM_CC</code>, <code>ZIRAN_ARM_CLANG</code>, <code>ZIRAN_QEMU_ARM</code>; <code>ARM_REQUIRED=1</code> fails
-instead of skipping). <code>tests/zx_wasm.sh</code> builds SIMD128 and baseline modules
+instead of skipping). <code>tests/asm_dct8.sh</code> compares source and saved-IR C
+output and runs the DCT on ARM, Thumb and AArch64 with the available GNU/Linux
+and NDK cross compilers and QEMU emulators, including masked-NEON fallbacks
+with GCC and Clang. <code>ARM_REQUIRED=1</code> requires every ARM execution case.
+<code>tests/zx_wasm.sh</code> builds SIMD128 and baseline modules
 with <code>ZIRAN_WASM_CC</code> (default <code>clang</code>, <code>WASM_REQUIRED=1</code> to require it).
 <code>tests/go_assembly.sh</code> checks native and default Go builds, forced fallback,
 strict cgo pointer checking, startup dispatch, memory aliases, concurrency and
@@ -828,6 +839,21 @@ alone in its record body:</p>
 an empty type name, and JSON decoding retains anonymous struct error details.
 The annotation preserves ordinary checked Ziran fields and is retained in
 saved IR. Other targets keep their ordinary record representation.</p>
+<h3 id="c-header-spellings">C header spellings</h3>
+<p><code>#c "SPELLING"</code> lets a generated C header match C code that shares the
+records. On a field it replaces the C type, or an array's element type. Written
+last on an enum, it prefixes each C constant. Saved IR keeps it; Go and the
+<code>.zx</code> VM ignore it:</p>
+<pre><code class="language-jai">ExprKind :: enum s32 #c &quot;ZIR_EXPR_&quot; { Unknown; Ident }  // ZIR_EXPR_Ident
+Expr :: struct {
+    name: *u8 #c &quot;const char *&quot;
+    op: [8]u8 #c &quot;char&quot;                                    // char op[8]
+}
+</code></pre>
+<p>A <code>using</code> field spelled <code>#c "union"</code> (or <code>"struct"</code>) also lays its record's
+fields out as an anonymous C member over the same storage, so C reads
+<code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>. Run
+<code>sh tests/c_spelling.sh build/bin/ziran</code>.</p>
 <h3 id="native-scripts">Native scripts</h3>
 <p><code>ziran run --target=c tool.zi -- ARGS</code> runs a native tool in one command: it
 builds the program once into <code>$XDG_CACHE_HOME/ziran/native</code>, rebuilds it when
@@ -846,21 +872,6 @@ name, as a C program links a host's symbols by name, so one Ziran host module
 serves <code>ziran bundle</code> and the Go target alike.
 The portable host ABI copies returned string bytes into VM-managed storage,
 including strings inside records, arrays, slices, and mutable slice updates.
-<h3 id="c-header-spellings">C header spellings</h3>
-<p><code>#c "SPELLING"</code> lets a generated C header match C code that shares the
-records. On a field it replaces the C type, or an array's element type. Written
-last on an enum, it prefixes each C constant. Saved IR keeps it; Go and the
-<code>.zx</code> VM ignore it:</p>
-<pre><code class="language-jai">ExprKind :: enum s32 #c &quot;ZIR_EXPR_&quot; { Unknown; Ident }  // ZIR_EXPR_Ident
-Expr :: struct {
-    name: *u8 #c &quot;const char *&quot;
-    op: [8]u8 #c &quot;char&quot;                                    // char op[8]
-}
-</code></pre>
-<p>A <code>using</code> field spelled <code>#c "union"</code> (or <code>"struct"</code>) also lays its record's
-fields out as an anonymous C member over the same storage, so C reads
-<code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>. Run
-<code>sh tests/c_spelling.sh build/bin/ziran</code>.</p>
 A host can reuse its result buffers on its next call; saved strings retain
 their bytes for as long as the program uses them, including across instance
 runs. Returned fields and elements must remain valid until that next call.

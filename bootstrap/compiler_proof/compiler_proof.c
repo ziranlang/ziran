@@ -155,7 +155,7 @@ zir_f_5116a9a569c28f15_free(uint8_t* data)
 #endif
 static Spelled compiler_proof_C(String text) ZIRAN_MAYBE_UNUSED;
 static Long compiler_proof_CLong(String text) ZIRAN_MAYBE_UNUSED;
-static bool compiler_proof_Report(ZirSourceSpan span, String code, String before, String name, String after) ZIRAN_MAYBE_UNUSED;
+static bool compiler_proof_Report(ZirSourceSpan span, String code, String message, String name, String tail) ZIRAN_MAYBE_UNUSED;
 static String compiler_proof_Trim(String text) ZIRAN_MAYBE_UNUSED;
 static int32_t compiler_proof_Unsupported(Context* c, String reason) ZIRAN_MAYBE_UNUSED;
 static bool compiler_proof_Tick(Context* c, int32_t depth) ZIRAN_MAYBE_UNUSED;
@@ -209,18 +209,9 @@ compiler_proof_CLong(String text)
 }
 
 static bool
-compiler_proof_Report(ZirSourceSpan span, String code, String before, String name, String after)
+compiler_proof_Report(ZirSourceSpan span, String code, String message, String name, String tail)
 {
-    Long text = {0};
-    Slice value_0 = {text.bytes, 4096};
-    compiler_ir_CopyText(value_0, before);
-    Slice value_1 = {text.bytes, 4096};
-    compiler_ir_CopyText(SliceRange(value_1, (int64_t)(int64_t)(before).length, (int64_t)4096LL, sizeof(uint8_t)), name);
-    Slice value_2 = {text.bytes, 4096};
-    Slice value_3 = SliceRange(value_2, (int64_t)((int64_t)((uint64_t)((int64_t)(before).length) + (uint64_t)((int64_t)(name).length))), (int64_t)4096LL, sizeof(uint8_t));
-    compiler_ir_CopyText(value_3, after);
-    Slice value_4 = {text.bytes, 4096};
-    compiler_services_Diagnose(span, code, compiler_proof_Name(value_4));
+    compiler_services_Diagnose__overload_2(span, code, message, name, tail);
     return false;
 }
 
@@ -2501,7 +2492,7 @@ compiler_proof_GraphValid(ZirFunction* fn)
                 if (value_6 != NULL) { (seen).data = (uint8_t *)value_6; value_5 = true; }
             }
             if (value_5) {
-                if (value_4 > (seen).count) memset((seen).data + (seen).count, 0, (size_t)(value_4 - (seen).count));
+                if (value_4 > (seen).count) memset((seen).data + (seen).count, 0, (size_t)(value_4 - (seen).count) * sizeof(*(seen).data));
                 (seen).count = value_4;
             }
         }
@@ -2654,28 +2645,43 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
     }
     String proposition = value_1;
     if ((int64_t)(proposition).length == 0LL) {
-        return compiler_proof_Report(law->span, StringLiteral("proof.claim"), StringLiteral("theorem requires typed bindings => boolean proposition"), StringLiteral(""), StringLiteral(""));
+        ZirSourceSpan value_4 = law->span;
+        String value_5 = StringLiteral("proof.claim");
+        String value_6 = StringLiteral("theorem requires typed bindings => boolean proposition");
+        String value_7 = StringLiteral("");
+        String value_8 = StringLiteral("");
+        bool value_9 = false;
+        {
+            ZirSourceSpan span = value_4;
+            String code = value_5;
+            String message = value_6;
+            String name = value_7;
+            String tail = value_8;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_9 = false;
+        }
+        return value_9;
     }
-    String value_4 = StringRange(payload, (int64_t)0LL, (int64_t)arrow);
-    String value_5 = StringView(NULL, 0);
+    String value_11 = StringRange(payload, (int64_t)0LL, (int64_t)arrow);
+    String value_12 = StringView(NULL, 0);
     {
-        String text = value_4;
+        String text = value_11;
         SourceRange range = compiler_text_TrimRange(text);
-        value_5 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
+        value_12 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
     }
-    String args = value_5;
+    String args = value_12;
     Signature bindings = {0};
     bool ok = compiler_proof_ParseSignature(args, &(bindings));
     if (law->claim == ((void *)0) && ok) {
-        uint8_t* value_7 = zir_f_5116a9a569c28f15_calloc(1ULL, sizeof(ZirFunction));
-        law->claim = (ZirFunction*)(value_7);
+        uint8_t* value_14 = zir_f_5116a9a569c28f15_calloc(1ULL, sizeof(ZirFunction));
+        law->claim = (ZirFunction*)(value_14);
         if (law->claim == ((void *)0)) {
             return false;
         }
-        uint8_t* value_8 = compiler_services_KeepParameters(args);
-        law->claim->args_text = (const char *)(value_8);
-        Slice value_9 = {law->claim->return_type, 128};
-        compiler_ir_CopyText(value_9, StringLiteral("bool"));
+        uint8_t* value_15 = compiler_services_KeepParameters(args);
+        law->claim->args_text = (const char *)(value_15);
+        Slice value_16 = {law->claim->return_type, 128};
+        compiler_ir_CopyText(value_16, StringLiteral("bool"));
         law->claim->span = law->span;
         Long text = compiler_proof_CLong(proposition);
         int32_t root = zir_f_5116a9a569c28f15_ParseExpr(law->claim, module, &(text.bytes[0]), law->span);
@@ -2686,44 +2692,59 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
         ok = root >= 0 && s != ((void *)0);
     }
     ZirFunction* claim = law->claim;
-    bool value_10 = !ok || claim == ((void *)0);
-    bool value_11 = value_10;
-    if (!value_11) {
-        String value_12 = StringView(NULL, 0);
+    bool value_17 = !ok || claim == ((void *)0);
+    bool value_18 = value_17;
+    if (!value_18) {
+        String value_19 = StringView(NULL, 0);
         {
             ZirFunction* fn = claim;
-            value_12 = compiler_ir_CText((uint8_t*)fn->args_text);
+            value_19 = compiler_ir_CText((uint8_t*)fn->args_text);
         }
-        value_11 = (!StringEqual(value_12, args));
+        value_18 = (!StringEqual(value_19, args));
     }
-    bool value_14 = value_11;
-    bool value_15 = value_14;
-    if (!value_15) {
-        Slice value_16 = {claim->return_type, 128};
-        bool value_17 = !StringEqual(compiler_proof_Name(value_16), StringLiteral("bool"));
-        value_15 = value_17;
+    bool value_21 = value_18;
+    bool value_22 = value_21;
+    if (!value_22) {
+        Slice value_23 = {claim->return_type, 128};
+        bool value_24 = !StringEqual(compiler_proof_Name(value_23), StringLiteral("bool"));
+        value_22 = value_24;
     }
-    bool value_18 = value_15 || claim->stmt_count != 1 || ((ZirStmtKind)((claim->stmts[0]).kind)) != ((ZirStmtKind)(10));
-    bool value_19 = value_18;
-    bool value_20 = value_19;
-    if (!value_20) {
-        int32_t value_21 = (claim->stmts[0]).expr_root;
-        bool value_22 = false;
+    bool value_25 = value_22 || claim->stmt_count != 1 || ((ZirStmtKind)((claim->stmts[0]).kind)) != ((ZirStmtKind)(10));
+    bool value_26 = value_25;
+    bool value_27 = value_26;
+    if (!value_27) {
+        int32_t value_28 = (claim->stmts[0]).expr_root;
+        bool value_29 = false;
         {
             ZirFunction* fn = claim;
-            int32_t at = value_21;
-            value_22 = at >= 0 && at < fn->expr_count;
+            int32_t at = value_28;
+            value_29 = at >= 0 && at < fn->expr_count;
         }
-        value_20 = !value_22;
+        value_27 = !value_29;
     }
-    bool value_24 = value_20;
-    bool value_25 = value_24;
-    if (!value_25) {
-        bool value_26 = compiler_proof_GraphValid(claim);
-        value_25 = !value_26;
+    bool value_31 = value_27;
+    bool value_32 = value_31;
+    if (!value_32) {
+        bool value_33 = compiler_proof_GraphValid(claim);
+        value_32 = !value_33;
     }
-    if (value_25) {
-        return compiler_proof_Report(law->span, StringLiteral("proof.claim"), StringLiteral("malformed theorem proposition"), StringLiteral(""), StringLiteral(""));
+    if (value_32) {
+        ZirSourceSpan value_34 = law->span;
+        String value_35 = StringLiteral("proof.claim");
+        String value_36 = StringLiteral("malformed theorem proposition");
+        String value_37 = StringLiteral("");
+        String value_38 = StringLiteral("");
+        bool value_39 = false;
+        {
+            ZirSourceSpan span = value_34;
+            String code = value_35;
+            String message = value_36;
+            String name = value_37;
+            String tail = value_38;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_39 = false;
+        }
+        return value_39;
     }
     return true;
 }
@@ -2744,30 +2765,72 @@ compiler_proof_PrepareProof(ZirModule* module, ZirProof* proof)
     }
     if (value_3 || ((ZirProof*)law->proof) != ((void *)0)) {
         ZirSourceSpan value_6 = proof->span;
-        Slice value_7 = {proof->name, 128};
-        return compiler_proof_Report(value_6, StringLiteral("proof.identity"), StringLiteral("proof "), compiler_proof_Name(value_7), StringLiteral(" must name one visible, unproved theorem"));
+        String value_7 = StringLiteral("proof.identity");
+        String value_8 = StringLiteral("proof ");
+        Slice value_9 = {proof->name, 128};
+        String value_10 = compiler_proof_Name(value_9);
+        String value_11 = StringLiteral(" must name one visible, unproved theorem");
+        bool value_12 = false;
+        {
+            ZirSourceSpan span = value_6;
+            String code = value_7;
+            String message = value_8;
+            String name = value_10;
+            String tail = value_11;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_12 = false;
+        }
+        return value_12;
     }
     proof->owner = (const struct ZirModule *)(module);
-    bool value_8 = proof->step_count == 0;
-    bool value_9 = value_8;
-    if (value_9) {
-        bool value_10 = compiler_proof_ParseSteps(proof, owner);
-        value_9 = !value_10;
-    }
-    if (value_9) {
-        ZirSourceSpan value_11 = proof->span;
-        Slice value_12 = {proof->name, 128};
-        String value_13 = compiler_proof_Name(value_12);
-        return compiler_proof_Report(value_11, StringLiteral("proof.syntax"), StringLiteral("invalid proof steps for "), value_13, StringLiteral(""));
-    }
-    bool value_14 = proof->step_count > 4096 || proof->terms.stmt_count != 0;
+    bool value_14 = proof->step_count == 0;
     bool value_15 = value_14;
-    if (!value_15) {
-        bool value_16 = compiler_proof_GraphValid(&(proof->terms));
+    if (value_15) {
+        bool value_16 = compiler_proof_ParseSteps(proof, owner);
         value_15 = !value_16;
     }
     if (value_15) {
-        return compiler_proof_Report(proof->span, StringLiteral("proof.graph"), StringLiteral("invalid proof expression graph"), StringLiteral(""), StringLiteral(""));
+        ZirSourceSpan value_17 = proof->span;
+        String value_18 = StringLiteral("proof.syntax");
+        String value_19 = StringLiteral("invalid proof steps for ");
+        Slice value_20 = {proof->name, 128};
+        String value_21 = compiler_proof_Name(value_20);
+        String value_22 = StringLiteral("");
+        bool value_23 = false;
+        {
+            ZirSourceSpan span = value_17;
+            String code = value_18;
+            String message = value_19;
+            String name = value_21;
+            String tail = value_22;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_23 = false;
+        }
+        return value_23;
+    }
+    bool value_25 = proof->step_count > 4096 || proof->terms.stmt_count != 0;
+    bool value_26 = value_25;
+    if (!value_26) {
+        bool value_27 = compiler_proof_GraphValid(&(proof->terms));
+        value_26 = !value_27;
+    }
+    if (value_26) {
+        ZirSourceSpan value_28 = proof->span;
+        String value_29 = StringLiteral("proof.graph");
+        String value_30 = StringLiteral("invalid proof expression graph");
+        String value_31 = StringLiteral("");
+        String value_32 = StringLiteral("");
+        bool value_33 = false;
+        {
+            ZirSourceSpan span = value_28;
+            String code = value_29;
+            String message = value_30;
+            String name = value_31;
+            String tail = value_32;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_33 = false;
+        }
+        return value_33;
     }
     {
         int32_t range_first_12 = 0;
@@ -2777,25 +2840,40 @@ compiler_proof_PrepareProof(ZirModule* module, ZirProof* proof)
             ZirProofStep* step = &(proof->steps[s]);
             bool valid = ((ZirProofStepKind)(step->kind)) >= ((ZirProofStepKind)(1)) && ((ZirProofStepKind)(step->kind)) <= ((ZirProofStepKind)(7));
             if (((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(3)) || ((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(4))) {
-                bool value_17 = valid;
-                bool value_18 = value_17;
-                if (value_18) {
-                    ZirFunction* value_19 = &(proof->terms);
-                    int32_t value_20 = step->term_root;
-                    bool value_21 = false;
+                bool value_35 = valid;
+                bool value_36 = value_35;
+                if (value_36) {
+                    ZirFunction* value_37 = &(proof->terms);
+                    int32_t value_38 = step->term_root;
+                    bool value_39 = false;
                     {
-                        ZirFunction* fn = value_19;
-                        int32_t at = value_20;
-                        value_21 = at >= 0 && at < fn->expr_count;
+                        ZirFunction* fn = value_37;
+                        int32_t at = value_38;
+                        value_39 = at >= 0 && at < fn->expr_count;
                     }
-                    value_18 = value_21;
+                    value_36 = value_39;
                 }
-                valid = value_18;
+                valid = value_36;
             } else {
                 valid = valid && step->term_root == -1 && (((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(1)) || (step->target)[0] == 0);
             }
             if (!valid) {
-                return compiler_proof_Report(proof->span, StringLiteral("proof.graph"), StringLiteral("invalid proof step"), StringLiteral(""), StringLiteral(""));
+                ZirSourceSpan value_41 = proof->span;
+                String value_42 = StringLiteral("proof.graph");
+                String value_43 = StringLiteral("invalid proof step");
+                String value_44 = StringLiteral("");
+                String value_45 = StringLiteral("");
+                bool value_46 = false;
+                {
+                    ZirSourceSpan span = value_41;
+                    String code = value_42;
+                    String message = value_43;
+                    String name = value_44;
+                    String tail = value_45;
+                    compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+                    value_46 = false;
+                }
+                return value_46;
             }
             if (s == range_last_12) {
                 break;
@@ -3221,7 +3299,7 @@ ParseProofDeclaration(ZirModule* m, uint8_t* source, ZirSourceSpan span)
             if (value_4 != NULL) { (clean).data = (uint8_t *)value_4; value_3 = true; }
         }
         if (value_3) {
-            if (value_2 > (clean).count) memset((clean).data + (clean).count, 0, (size_t)(value_2 - (clean).count));
+            if (value_2 > (clean).count) memset((clean).data + (clean).count, 0, (size_t)(value_2 - (clean).count) * sizeof(*(clean).data));
             (clean).count = value_2;
         }
     }
@@ -3314,7 +3392,22 @@ PrepareLawProofs(ZirProgram** programs, int32_t count)
                                         return 0;
                                     }
                                 } else if (law->claim != ((void *)0)) {
-                                    compiler_proof_Report(law->span, StringLiteral("proof.claim"), StringLiteral("non-theorem law has a proposition graph"), StringLiteral(""), StringLiteral(""));
+                                    ZirSourceSpan value_2 = law->span;
+                                    String value_3 = StringLiteral("proof.claim");
+                                    String value_4 = StringLiteral("non-theorem law has a proposition graph");
+                                    String value_5 = StringLiteral("");
+                                    String value_6 = StringLiteral("");
+                                    bool value_7 = false;
+                                    {
+                                        ZirSourceSpan span = value_2;
+                                        String code = value_3;
+                                        String message = value_4;
+                                        String name = value_5;
+                                        String tail = value_6;
+                                        compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+                                        value_7 = false;
+                                    }
+                                    (void)value_7;
                                     return 0;
                                 }
                                 if (l == range_last_4) {
@@ -3328,13 +3421,13 @@ PrepareLawProofs(ZirProgram** programs, int32_t count)
                             int32_t range_last_20 = (int32_t)((uint32_t)(module->proof_count) - 1u);
                             int32_t n = range_first_20;
                             if (n <= range_last_20) for (;;) {
-                                bool value_2 = pass == 1LL;
-                                bool value_3 = value_2;
-                                if (value_3) {
-                                    bool value_4 = compiler_proof_PrepareProof(module, &(module->proofs[n]));
-                                    value_3 = !value_4;
+                                bool value_9 = pass == 1LL;
+                                bool value_10 = value_9;
+                                if (value_10) {
+                                    bool value_11 = compiler_proof_PrepareProof(module, &(module->proofs[n]));
+                                    value_10 = !value_11;
                                 }
-                                if (value_3) {
+                                if (value_10) {
                                     return 0;
                                 }
                                 if (n == range_last_20) {

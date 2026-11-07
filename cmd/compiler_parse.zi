@@ -1,0 +1,584 @@
+// Expression parsing into one function's IR. C keeps node storage, type
+// lookups, default arguments and diagnostics behind compiler_services.
+Expression :: #import "compiler_expression";
+IR :: #import "compiler_ir";
+Scan :: #import "compiler_scan";
+Services :: #import "compiler_services";
+Text :: #import "compiler_text";
+Type :: #import "compiler_type";
+
+// The root of TEXT's expression, added to FN: an unknown node when TEXT does
+// not parse, -1 when it is blank. A call expands its default arguments when
+// EXPAND_DEFAULTS is set, unless STMT_INDEX's scope shadows the callee.
+ParseExpression :: (fn: *IR.ZirFunction, module: *IR.ZirModule, text: string,
+    span: IR.ZirSourceSpan, expected_type: string, stmt_index: s32, expand_defaults: bool) -> s32 {
+    if Text.SkipSpace(text, 0, false) == text.count { return -1 }
+    p: Parser = .{fn = fn, module = module, span = span, source = text,
+        expected_type = expected_type, stmt_index = stmt_index,
+        expand_defaults = expand_defaults, span_cursor = span}
+    initial := fn.expr_count
+    Advance(*p)
+    result := ParseBinary(*p, 1)
+    unused Take(*p, ";")
+    if !p.failed && p.token.kind == Scan.TokenKind.Eof && result >= 0 { return result }
+    fn.expr_count = initial
+    if Services.AddExpr(fn, IR.ZirExprKind.UNKNOWN, text, span) == null { return -1 }
+    return fn.expr_count - 1
+}
+
+#scope_file
+// One expression's parse: the current token, and the span cursor nodes
+// resume from, so a long literal is not rescanned for every element.
+Parser :: struct {
+    fn: *IR.ZirFunction
+    module: *IR.ZirModule
+    span: IR.ZirSourceSpan
+    source: string
+    expected_type: string
+    stmt_index: s32
+    expand_defaults: bool
+    failed: bool
+    depth: s32
+    token: Scan.Scan
+    span_offset: s64
+    span_cursor: IR.ZirSourceSpan
+}
+
+Token :: (p: *Parser) -> string { return p.source[p.token.begin:p.token.end] }
+Advance :: (p: *Parser) {
+    p.token = Scan.NextToken(p.source, p.token.end, 1, 1)
+    // A token too long for C's token buffer fails the parse, as C's lexer
+    // did, except a long string literal.
+    if p.token.end - p.token.begin >= IR.ZIR_TEXT_MAX && p.token.kind != Scan.TokenKind.String {
+        p.failed = true
+    }
+}
+Take :: (p: *Parser, wanted: string) -> bool {
+    if Token(p) != wanted { return false }
+    Advance(p)
+    return true
+}
+Expect :: (p: *Parser, wanted: string) { if !Take(p, wanted) { p.failed = true } }
+Following :: (p: *Parser, distance: s32) -> string {
+    at := p.token.end
+    following: Scan.Scan
+    for index: 1..distance {
+        following = Scan.NextToken(p.source, at, 1, 1)
+        at = following.end
+    }
+    return p.source[following.begin:following.end]
+}
+TypeRange :: (p: *Parser, start: s64) -> string {
+    end := p.token.begin
+    if start < 0 || end < start || end - start >= IR.ZIR_NAME_MAX {
+        p.failed = true
+        return ""
+    }
+    return Trim(p.source[start:end])
+}
+JaiSyntax :: (p: *Parser, message: string) { Services.Fatal(p.span, "parse.jai_syntax", message) }
+
+// The span of source offset OFFSET, counted from the last node's.
+SpanAt :: (p: *Parser, offset: s64) -> IR.ZirSourceSpan {
+    at := p.span_offset
+    span := p.span_cursor
+    if offset < at {
+        for i: offset..at - 1 { if p.source[i] == 10 { span.line -= 1 } }
+        line_start := offset
+        while line_start > 0 && p.source[line_start - 1] != 10 { line_start -= 1 }
+        if line_start == 0 { span.column = p.span.column + cast(s32) offset }
+        else { span.column = cast(s32)(offset - line_start) + 1 }
+    } else {
+        for i: at..offset - 1 {
+            if p.source[i] == 10 { span.line += 1; span.column = 1 } else { span.column += 1 }
+        }
+    }
+    p.span_offset = offset
+    p.span_cursor = span
+    return span
+}
+
+// A node whose text runs from START to the current token.
+Node :: (p: *Parser, kind: IR.ZirExprKind, start: s64, name: string, op: string,
+    left: s32, right: s32) -> s32 {
+    end := p.token.begin
+    if end < start { end = start }
+    span := SpanAt(p, start)
+    node := Services.AddExpr(p.fn, kind, Trim(p.source[start:end]), span)
+    if node == null { p.failed = true; return -1 }
+    node.name = Name(name)
+    unused IR.CopyText(node.op[:], op)
+    node.left = left
+    node.right = right
+    return p.fn.expr_count - 1
+}
+// A kept name, cut to the IR's name size.
+Name :: (text: string) -> *u8 { return Services.KeepName(Cut(text)) }
+Cut :: (text: string) -> string {
+    if text.count >= IR.ZIR_NAME_MAX { return text[0:IR.ZIR_NAME_MAX - 1] }
+    return text
+}
+Link :: (p: *Parser, first: *s32, last: *s32, child: s32) {
+    if <<last >= 0 { p.fn.exprs[<<last].next_sibling = child } else { <<first = child }
+    <<last = child
+}
+
+ScalarName :: (name: string) -> bool {
+    return name == "void" || name == "string" || name == "isize" || name == "usize" ||
+        (name != "integer" && Type.ScalarByteWidth(name) > 0)
+}
+IsType :: (p: *Parser, name: string) -> bool {
+    if name.count >= IR.ZIR_NAME_MAX { return false }
+    return ScalarName(name) || p.module != null && Services.FindType(p.module, name, null) != null
+}
+IsRecord :: (p: *Parser, name: string) -> bool {
+    if name.count >= IR.ZIR_NAME_MAX || p.module == null { return false }
+    record := Services.FindType(p.module, name, null)
+    return record != null && record.is_enum == 0
+}
+IsArray :: (name: string) -> bool { return Type.ArrayElement(Cut(name)).valid }
+
+ParseBinary :: (p: *Parser, minimum: s32) -> s32 {
+    start := p.token.begin
+    left := ParsePrefix(p)
+    p.depth += 1
+    if p.depth > 128 {
+        p.failed = true
+        p.depth -= 1
+        return -1
+    }
+    while !p.failed {
+        operator := Token(p)
+        precedence := Expression.BinaryPrecedence(operator)
+        if precedence == 0 || precedence < minimum { break }
+        Advance(p)
+        right := ParseBinary(p, precedence + 1)
+        left = Node(p, IR.ZirExprKind.BINARY, start, "", operator, left, right)
+    }
+    if Token(p) == "?" {
+        JaiSyntax(p, "C-style conditional is not valid Jai syntax; use ifx ... then ... else ...")
+    }
+    p.depth -= 1
+    return left
+}
+
+ParsePostfix :: (p: *Parser, start: s64, initial: s32) -> s32 {
+    result := initial
+    while !p.failed {
+        if Take(p, "[") {
+            low: s32 = -1
+            if Token(p) != ":" { low = ParseBinary(p, 1) }
+            if Take(p, ":") {
+                high: s32 = -1
+                if Token(p) != "]" { high = ParseBinary(p, 1) }
+                Expect(p, "]")
+                result = Node(p, IR.ZirExprKind.SLICE, start, "", "", result, low)
+                if result >= 0 { p.fn.exprs[result].third = high }
+            } else {
+                Expect(p, "]")
+                result = Node(p, IR.ZirExprKind.INDEX, start, "", "", result, low)
+            }
+        } else if Token(p) == "->" {
+            JaiSyntax(p, "C-style pointer member access is not valid Jai syntax; use .field")
+        } else if Take(p, ".") {
+            if Take(p, "*") { result = Node(p, IR.ZirExprKind.UNARY, start, "", "*", -1, result) }
+            else {
+                if p.token.kind != Scan.TokenKind.Ident { p.failed = true }
+                name := Token(p)
+                Advance(p)
+                result = Node(p, IR.ZirExprKind.MEMBER, start, name, ".", result, -1)
+            }
+        } else if Take(p, "(") {
+            first: s32 = -1
+            last: s32 = -1
+            callee := result
+            name := ""
+            if callee >= 0 && p.fn.exprs[callee].kind == IR.ZirExprKind.IDENT {
+                name = IR.CText(p.fn.exprs[callee].name)
+            }
+            if Token(p) != ")" {
+                while true {
+                    argument := ""
+                    if p.token.kind == Scan.TokenKind.Ident && Following(p, 1) == "=" {
+                        argument = Token(p)
+                        Advance(p)
+                        Expect(p, "=")
+                    }
+                    child := ParseBinary(p, 1)
+                    if child < 0 { p.failed = true; break }
+                    p.fn.exprs[child].argument_name = Name(argument)
+                    Link(p, *first, *last, child)
+                    if !Take(p, ",") { break }
+                }
+            }
+            Expect(p, ")")
+            if !p.failed && p.expand_defaults &&
+                !Services.ExpandDefaults(p.fn, p.module, p.span, p.stmt_index, callee, *first, *last) {
+                p.failed = true
+            }
+            left := callee
+            if name.count > 0 { left = -1 }
+            result = Node(p, IR.ZirExprKind.CALL, start, name, "", left, -1)
+            if result >= 0 {
+                call := *p.fn.exprs[result]
+                call.first_child = first
+                if callee >= 0 && p.fn.exprs[callee].is_this != 0 { call.is_this = 1 }
+            }
+        } else if Token(p) == "++" || Token(p) == "--" {
+            JaiSyntax(p, "Jai has no increment or decrement operators; use += 1 or -= 1")
+        } else if Token(p) == "?" && p.token.begin > 0 && !Text.SpaceByte(p.source[p.token.begin - 1]) {
+            JaiSyntax(p, "postfix ? is not Jai syntax; handle the result explicitly")
+        } else { break }
+    }
+    return result
+}
+
+// The type of record TYPE's field NAME, or of field number ORDINAL when
+// unnamed, or an array TYPE's element type. A field of a record from another
+// module that names a type of that module is qualified as TYPE is.
+FieldType :: (p: *Parser, type_name: string, field_name: string, ordinal: s32) -> string {
+    type := Cut(type_name)
+    name := Cut(field_name)
+    owner: *IR.ZirModule = null
+    record: *IR.ZirType = null
+    if p.module != null { record = Services.FindType(p.module, type, *owner) }
+    field: IR.ZirTypeField
+    // TODO: [IR.ZIR_NAME_MAX]u8 once an imported constant is an array capacity.
+    qualified: [256]u8
+    field_type := ""
+    element := Type.ArrayElement(type)
+    if element.valid && element.element.count < IR.ZIR_NAME_MAX { field_type = element.element }
+    offset: u64 = 0
+    position: s32 = 0
+    while record != null && Services.NextField(record, *offset, *field) == 1 {
+        if (name.count > 0 && IR.BufferText(field.name[:]) == name) || (name.count == 0 && position == ordinal) {
+            field_type = IR.BufferText(field.type[:])
+            break
+        }
+        position += 1
+    }
+    dot := FindByte(type, 46)
+    if owner != null && owner != p.module && dot >= 0 {
+        declared := Services.FindType(owner, field_type, null)
+        spelled := QualifiedName(qualified[:], type[0:dot], field_type, IR.ZIR_NAME_MAX)
+        if declared != null && spelled.count > 0 && Services.FindType(p.module, spelled, null) == declared {
+            field_type = spelled
+        }
+    }
+    return IR.CText(Services.KeepName(field_type))
+}
+
+ParseInitializer :: (p: *Parser, start: s64, type: string, open: string, close: string) -> s32 {
+    first: s32 = -1
+    last: s32 = -1
+    ordinal: s32 = 0
+    Expect(p, open)
+    while !p.failed && Token(p) != close && p.token.kind != Scan.TokenKind.Eof {
+        field_start := p.token.begin
+        name := ""
+        named := false
+        if Token(p) == "." && Following(p, 2) == "=" {
+            if Scan.NextToken(p.source, p.token.end, 1, 1).kind == Scan.TokenKind.Ident { Advance(p); named = true }
+        }
+        if !named && p.token.kind == Scan.TokenKind.Ident { named = Following(p, 1) == "=" }
+        if named {
+            if p.token.kind != Scan.TokenKind.Ident { p.failed = true; break }
+            name = Token(p)
+            Advance(p)
+            Expect(p, "=")
+        }
+        value: s32 = -1
+        if Token(p) == "{" {
+            nested_type := FieldType(p, type, name, ordinal)
+            p.depth += 1
+            if p.depth > 128 {
+                p.failed = true
+                p.depth -= 1
+                return -1
+            }
+            value = ParseInitializer(p, p.token.begin, nested_type, "{", "}")
+            p.depth -= 1
+        } else { value = ParseBinary(p, 1) }
+        ordinal += 1
+        if value < 0 { p.failed = true; break }
+        op := ""
+        if named { op = "=" }
+        child := Node(p, IR.ZirExprKind.FIELD_INIT, field_start, name, op, -1, value)
+        if child < 0 { break }
+        Link(p, *first, *last, child)
+        if !Take(p, ",") { break }
+    }
+    Expect(p, close)
+    result := Node(p, IR.ZirExprKind.COMPOUND, start, type, "", -1, -1)
+    if result >= 0 { p.fn.exprs[result].first_child = first }
+    return result
+}
+
+// ELEMENT.[...], a literal whose array type counts its elements.
+TypedArray :: (p: *Parser, start: s64, element_name: string) -> s32 {
+    element := Cut(element_name)
+    single := ArrayName(1, element)
+    if single == null { p.failed = true; return -1 }
+    result := ParseInitializer(p, start, IR.CText(single), "[", "]")
+    if result < 0 || p.failed { return result }
+    count: s64 = 0
+    child := p.fn.exprs[result].first_child
+    while child >= 0 {
+        count += 1
+        child = p.fn.exprs[child].next_sibling
+    }
+    named := ArrayName(count, element)
+    if named == null { p.failed = true } else { p.fn.exprs[result].name = named }
+    return result
+}
+// "[COUNT]ELEMENT", kept, or null when it does not fit a name.
+ArrayName :: (count: s64, element: string) -> *u8 {
+    // TODO: [IR.ZIR_NAME_MAX]u8 once an imported constant is an array capacity.
+    buffer: [256]u8
+    digits := Decimal(buffer[1:], count)
+    total := digits + 2 + element.count
+    if total >= IR.ZIR_NAME_MAX { return null }
+    buffer[0] = 91
+    buffer[digits + 1] = 93
+    for i: 0..element.count - 1 { buffer[digits + 2 + i] = element[i] }
+    return Services.KeepName(TextView(buffer[0:total]))
+}
+// Writes VALUE's decimal digits at the start of OUTPUT; their count.
+Decimal :: (output: []u8, value: s64) -> s64 {
+    used: s64 = 1
+    rest := value / 10
+    while rest != 0 {
+        used += 1
+        rest /= 10
+    }
+    rest = value
+    for i: 0..used - 1 {
+        output[used - 1 - i] = cast(u8)(48 + rest % 10)
+        rest /= 10
+    }
+    return used
+}
+
+ParsePrefix :: (p: *Parser) -> s32 {
+    start := p.token.begin
+    original := Token(p)
+    original_kind := p.token.kind
+    scope := IR.BufferText(p.fn.name[:])
+    result: s32 = -1
+    p.depth += 1
+    if p.depth > 128 {
+        p.failed = true
+        p.depth -= 1
+        return -1
+    }
+    if Take(p, "#this") {
+        if scope.count == 0 { Services.Fatal(p.span, "parse.this", "#this requires a procedure or type scope") }
+        result = Node(p, IR.ZirExprKind.IDENT, start, scope, "", -1, -1)
+        if result >= 0 { p.fn.exprs[result].is_this = 1 }
+    } else if Token(p) == "#caller_location" {
+        Services.Fatal(p.span, "parse.caller_location", "#caller_location is only valid as a parameter default")
+    } else if Take(p, "#compile_time") {
+        result = Node(p, IR.ZirExprKind.COMPILE_TIME, start, "", "", -1, -1)
+    } else if Take(p, "#procedure_name") {
+        if scope.count == 0 { Services.Fatal(p.span, "parse.procedure_name", "#procedure_name() requires a procedure scope") }
+        Expect(p, "(")
+        Expect(p, ")")
+        result = Node(p, IR.ZirExprKind.STRING, start, "", "", -1, -1)
+        // TODO: [IR.ZIR_NAME_MAX]u8 once an imported constant is an array capacity.
+        buffer: [256]u8
+        buffer[0] = 34
+        for i: 0..scope.count - 1 { buffer[i + 1] = scope[i] }
+        buffer[scope.count + 1] = 34
+        if result >= 0 { p.fn.exprs[result].text = Services.Keep(TextView(buffer[0:scope.count + 2])) }
+    } else if Take(p, "#char") {
+        byte := Expression.CharacterByte(Token(p))
+        if p.token.kind != Scan.TokenKind.String || byte < 0 {
+            Services.Fatal(p.span, "parse.jai_char", "#char requires a one-byte string literal")
+        }
+        Advance(p)
+        result = Node(p, IR.ZirExprKind.INT, start, "", "", -1, -1)
+        digits: [4]u8
+        if result >= 0 { p.fn.exprs[result].text = Services.Keep(TextView(digits[0:Decimal(digits[:], byte)])) }
+    } else if Token(p) == "ifx" || Token(p) == "#ifx" {
+        op := "ifx"
+        if Token(p) == "#ifx" { op = "#ifx" }
+        Advance(p)
+        condition := ParseBinary(p, 2)
+        unused Take(p, "then")
+        selected := ParseBinary(p, 1)
+        unused Take(p, ";")
+        Expect(p, "else")
+        alternative := ParseBinary(p, 1)
+        result = Node(p, IR.ZirExprKind.CONDITIONAL, start, "", op, condition, selected)
+        if result >= 0 { p.fn.exprs[result].third = alternative }
+    } else if Token(p) == "sizeof" { JaiSyntax(p, "sizeof is not Jai syntax; use size_of(Type)") }
+    else if Take(p, "size_of") {
+        Expect(p, "(")
+        type_start := p.token.begin
+        nested: s32 = 0
+        while p.token.kind != Scan.TokenKind.Eof {
+            if Token(p) == ")" && nested == 0 { break }
+            if Token(p) == "(" { nested += 1 }
+            if Token(p) == ")" { nested -= 1 }
+            Advance(p)
+        }
+        type := TypeRange(p, type_start)
+        Expect(p, ")")
+        result = Node(p, IR.ZirExprKind.SIZE_OF, start, type, "", -1, -1)
+    } else if Take(p, "cast") {
+        Expect(p, "(")
+        type_start := p.token.begin
+        if Token(p) == "char" { JaiSyntax(p, "non-Jai primitive type spelling: char") }
+        while p.token.kind != Scan.TokenKind.Eof && Token(p) != ")" { Advance(p) }
+        type := TypeRange(p, type_start)
+        if !IsType(p, type) && (type.count == 0 || (type[0] != 91 && type[0] != 42)) { p.failed = true }
+        Expect(p, ")")
+        right := ParsePrefix(p)
+        result = Node(p, IR.ZirExprKind.CAST, start, type, "", -1, right)
+    } else if Token(p) == "++" || Token(p) == "--" {
+        JaiSyntax(p, "Jai has no increment or decrement operators; use += 1 or -= 1")
+    } else if Take(p, "<<") {
+        right := ParsePrefix(p)
+        result = Node(p, IR.ZirExprKind.UNARY, start, "", "*", -1, right)
+    } else if Token(p) == "+" || Token(p) == "-" || Token(p) == "!" || Token(p) == "~" || Token(p) == "*" {
+        op := UnarySpelling(Token(p))
+        Advance(p)
+        right := ParsePrefix(p)
+        result = Node(p, IR.ZirExprKind.UNARY, start, "", op, -1, right)
+    } else if Token(p) == "&" { JaiSyntax(p, "C-style address-of is not valid Jai syntax; use *value") }
+    else if Take(p, "(") {
+        typed := IsType(p, Token(p)) || Token(p) == "["
+        if typed && Token(p) != "." && Following(p, 1) != "." && !ArrayLiteralAhead(p) {
+            JaiSyntax(p, "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}")
+        }
+        result = ParseBinary(p, 1)
+        Expect(p, ")")
+        if !typed && Token(p) == "{" { JaiSyntax(p, "C-style literal is not valid Jai syntax; use Type.{...}") }
+    } else if Take(p, ".") {
+        if Token(p) == "{" {
+            result = ParseInitializer(p, start, "", "{", "}")
+        } else if Token(p) == "[" && IsArray(p.expected_type) {
+            result = ParseInitializer(p, start, p.expected_type, "[", "]")
+        } else if p.token.kind != Scan.TokenKind.Ident { p.failed = true }
+        else {
+            // TODO: [IR.ZIR_NAME_MAX]u8 once an imported constant is an array capacity.
+            buffer: [256]u8
+            name := QualifiedName(buffer[:], "", Token(p), IR.ZIR_NAME_MAX)
+            if name.count == 0 { p.failed = true }
+            Advance(p)
+            if !p.failed { result = Node(p, IR.ZirExprKind.IDENT, start, name, "", -1, -1) }
+        }
+    } else if Token(p) == "[" {
+        // Rows of a nested array name their own type: `[3]s32.[s32.[1, 2, 3], ...]`.
+        type_start := p.token.begin
+        while Token(p) == "[" && !p.failed {
+            Advance(p)
+            if Token(p) == "]" { p.failed = true }
+            Advance(p)
+            Expect(p, "]")
+        }
+        if p.token.kind != Scan.TokenKind.Ident { p.failed = true }
+        Advance(p)
+        if Token(p) == "." && p.token.kind != Scan.TokenKind.Eof && Following(p, 1) != "[" {
+            Advance(p)
+            if p.token.kind != Scan.TokenKind.Ident { p.failed = true }
+            Advance(p)
+        }
+        type := TypeRange(p, type_start)
+        if !p.failed && Token(p) == "." && Following(p, 1) == "[" && IsArray(type) {
+            Advance(p)
+            result = TypedArray(p, start, type)
+        } else { p.failed = true }
+    } else {
+        kind := IR.ZirExprKind.IDENT
+        if original_kind == Scan.TokenKind.Int { kind = IR.ZirExprKind.INT }
+        else if original_kind == Scan.TokenKind.Float { kind = IR.ZirExprKind.FLOAT }
+        else if original_kind == Scan.TokenKind.String { kind = IR.ZirExprKind.STRING }
+        else if original_kind == Scan.TokenKind.Char {
+            Services.Fatal(p.span, "parse.jai_char",
+                "single-quoted character literals are not valid Jai syntax; use #char \"x\"")
+        } else if original_kind != Scan.TokenKind.Ident {
+            p.failed = true
+            p.depth -= 1
+            return -1
+        }
+        Advance(p)
+        if kind == IR.ZirExprKind.IDENT && Token(p) == "." {
+            following := Following(p, 1)
+            if following == "{" {
+                if !IsRecord(p, original) { p.failed = true }
+                Advance(p)
+                result = ParseInitializer(p, start, original, "{", "}")
+            } else if following == "[" && IsType(p, original) {
+                Advance(p)
+                result = TypedArray(p, start, original)
+            } else if Scan.NextToken(p.source, p.token.end, 1, 1).kind == Scan.TokenKind.Ident &&
+                Following(p, 2) == "." {
+                // TODO: [IR.ZIR_NAME_MAX]u8 once an imported constant is an array capacity.
+                buffer: [256]u8
+                qualified := QualifiedName(buffer[:], original, following, IR.ZIR_NAME_MAX)
+                opener := Following(p, 3)
+                if qualified.count > 0 && IsType(p, qualified) && (opener == "[" || opener == "{") {
+                    Advance(p)
+                    Advance(p)
+                    Advance(p)
+                    if opener == "[" { result = TypedArray(p, start, qualified) }
+                    else if !IsRecord(p, qualified) { p.failed = true }
+                    else { result = ParseInitializer(p, start, qualified, "{", "}") }
+                }
+            }
+        }
+        if result < 0 && !p.failed {
+            name := ""
+            if kind == IR.ZirExprKind.IDENT { name = original }
+            result = Node(p, kind, start, name, "", -1, -1)
+        }
+    }
+    result = ParsePostfix(p, start, result)
+    p.depth -= 1
+    return result
+}
+
+// Whether the current `[` starts an array literal named by its element
+// type, such as `[3]s32.[` or `[2][4]Lib.Point.[`.
+ArrayLiteralAhead :: (p: *Parser) -> bool {
+    at: s32 = 0
+    while at < 64 && (at == 0 && Token(p) == "[" || at > 0 && Following(p, at) == "[") {
+        if Following(p, at + 1) == "]" || Following(p, at + 2) != "]" { return false }
+        at += 3
+    }
+    if at == 0 || !NameStart(Following(p, at)) { return false }
+    if Following(p, at + 1) == "." && Following(p, at + 2) != "[" {
+        if !NameStart(Following(p, at + 2)) { return false }
+        at += 2
+    }
+    return Following(p, at + 1) == "." && Following(p, at + 2) == "["
+}
+UnarySpelling :: (operator: string) -> string {
+    if operator == "*" { return "&" }
+    if operator == "+" { return "+" }
+    if operator == "-" { return "-" }
+    if operator == "!" { return "!" }
+    return "~"
+}
+QualifiedName :: (output: []u8, first: string, second: string, limit: s64) -> string {
+    count := first.count + 1 + second.count
+    if count >= limit || count > output.count { return "" }
+    for index: 0..first.count - 1 { output[index] = first[index] }
+    output[first.count] = 46
+    for index: 0..second.count - 1 { output[first.count + 1 + index] = second[index] }
+    return TextView(output[0:count])
+}
+NameStart :: (text: string) -> bool {
+    if text.count == 0 { return false }
+    first := text[0]
+    return first == 95 || (first >= 65 && first <= 90) || (first >= 97 && first <= 122)
+}
+Trim :: (source: string) -> string {
+    range := Text.TrimRange(source)
+    return source[range.begin:range.end]
+}
+FindByte :: (source: string, wanted: u8) -> s64 {
+    for at: 0..source.count - 1 { if source[at] == wanted { return at } }
+    return -1
+}

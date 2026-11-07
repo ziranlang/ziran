@@ -233,142 +233,6 @@ COMPILER_SCRATCH_RETURN(static, LawStatus, evaluate_bounds_law,
     EvaluateBoundsLawBuffers, RECOVERABLE, free,
     evaluate_bounds_law_with_buffers(module, law, detail, size, buffers))
 
-/* kind: effect ---------------------------------------------------------- */
-
-static int
-statement_writes_global(const ZirModule *module, const ZirFunction *fn,
-                        int index)
-{
-    const ZirStmt *st = &fn->stmts[index];
-    const char *name;
-    if(st->kind != ZIR_STMT_ASSIGN || st->lhs_root < 0)
-        return 0;
-    if(fn->exprs[st->lhs_root].kind != ZIR_EXPR_IDENT)
-        return 0;
-    name = fn->exprs[st->lhs_root].name;
-    for(int g = 0; g < module->global_count; g++)
-        if(strcmp(module->globals[g].name, name) == 0)
-            return 1;
-    return 0;
-}
-
-static int
-body_calls_external(const ZirModule *module, const ZirFunction *fn)
-{
-    for(int e = 0; e < fn->expr_count; e++) {
-        const ZirExpr *expr = &fn->exprs[e];
-        const ZirModule *owner = NULL;
-        const ZirFunction *callee = NULL;
-        if(expr->kind != ZIR_EXPR_CALL || !expr->name[0])
-            continue;
-        if(ResolveFunction(module, expr->name, &owner, &callee) <= 0) {
-            for(int i = 0; i < module->import_count; i++)
-                if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
-                   strcmp(module->imports[i].name, expr->name) == 0)
-                    return 1;
-            continue;
-        }
-        if(callee != NULL && callee->is_extern)
-            return 1;
-    }
-    return 0;
-}
-
-static const ZirImport *
-find_extern_import(const ZirModule *module, const char *name)
-{
-    for(int i = 0; i < module->import_count; i++)
-        if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
-           strcmp(module->imports[i].name, name) == 0)
-            return &module->imports[i];
-    return NULL;
-}
-
-/* `Proc == class` compares the derived effect class; a bare name keeps the
- * historical yes/no foreign check. */
-static LawStatus
-evaluate_effect_law(const ZirModule *module, const ZirLaw *law,
-                    char *detail, size_t size)
-{
-    const ZirModule *owner = NULL;
-    const ZirFunction *fn = NULL;
-    const ZirImport *import = NULL;
-    char payload[ZIR_TEXT_MAX];
-    char *comparison = NULL;
-    copy_text(payload, sizeof(payload), law->payload);
-    trim_in_place(payload);
-    comparison = strstr(payload, "==");
-    if(comparison != NULL) {
-        char name[ZIR_NAME_MAX], expected[16];
-        const char *wanted;
-        size_t name_length = (size_t)(comparison - payload);
-        *comparison = '\0';
-        trim_in_place(payload);
-        wanted = skip_ws(comparison + 2);
-        snprintf(name, sizeof(name), "%.*s", (int)name_length, payload);
-        snprintf(expected, sizeof(expected), "%s", wanted);
-        trim_in_place(expected);
-        if(effect_rank(expected) > 3 || expected[0] == '\0' ||
-           name[0] == '\0') {
-            snprintf(detail, size,
-                     "expected class pure, observing, mutating, or external");
-            return LAW_DISPROVED;
-        }
-        if(ResolveFunction(module, name, &owner, &fn) <= 0 || fn == NULL) {
-            import = find_extern_import(module, name);
-            if(import != NULL) {
-                snprintf(detail, size, "%s is foreign; class is external",
-                         name);
-                return strcmp(expected, "external") == 0 ?
-                       LAW_PROVED : LAW_DISPROVED;
-            }
-            snprintf(detail, size, "no visible procedure named %s", name);
-            return LAW_DISPROVED;
-        }
-        if(strcmp(fn->effect_class, expected) == 0) {
-            snprintf(detail, size, "%s is %s", name, expected);
-            return LAW_PROVED;
-        }
-        snprintf(detail, size, "%s is %s, not %s", name,
-                 fn->effect_class, expected);
-        return LAW_DISPROVED;
-    }
-    if(ResolveFunction(module, law->payload, &owner, &fn) <= 0 ||
-        fn == NULL) {
-        import = find_extern_import(module, law->payload);
-        if(import != NULL) {
-            snprintf(detail, size,
-                     "%s is foreign; its effects are not visible",
-                     law->payload);
-            return LAW_UNKNOWN;
-        }
-        snprintf(detail, size, "no visible procedure named %s",
-                 law->payload);
-        return LAW_DISPROVED;
-    }
-    if(fn->is_extern) {
-        snprintf(detail, size,
-                 "%s is foreign; its effects are not visible", law->payload);
-        return LAW_UNKNOWN;
-    }
-    if(body_calls_external(module, fn)) {
-        snprintf(detail, size,
-                 "%s calls foreign code; its effects are not visible",
-                 law->payload);
-        return LAW_UNKNOWN;
-    }
-    for(int s = 0; s < fn->stmt_count; s++)
-        if(statement_writes_global(module, fn, s)) {
-            snprintf(detail, size,
-                     "%s writes a file-scope global", law->payload);
-            return LAW_DISPROVED;
-        }
-    snprintf(detail, size,
-             "%s reads only parameters and calls checked code",
-             law->payload);
-    return LAW_PROVED;
-}
-
 /* kind: abi ------------------------------------------------------------- */
 
 /* Local portable-signature shape check; the VM's portable_type stays private
@@ -408,6 +272,17 @@ portable_signature_type(const ZirModule *module, const char *type, int depth)
         return status == 0;
     }
 }
+
+static const ZirImport *
+find_extern_import(const ZirModule *module, const char *name)
+{
+    for(int i = 0; i < module->import_count; i++)
+        if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
+           strcmp(module->imports[i].name, name) == 0)
+            return &module->imports[i];
+    return NULL;
+}
+
 static LawStatus
 evaluate_abi_law(const ZirModule *module, const ZirLaw *law,
                  char *detail, size_t size)
@@ -891,7 +766,7 @@ evaluate_law_uncached(const ZirModule *module, const ZirLaw *law,
     else if(!strcmp(law->kind, "bounds"))
         status = evaluate_bounds_law(module, law, detail, size);
     else if(!strcmp(law->kind, "effect"))
-        status = evaluate_effect_law(module, law, detail, size);
+        status = (LawStatus)EvaluateEffectLaw(module, law, detail, size);
     else if(!strcmp(law->kind, "abi"))
         status = evaluate_abi_law(module, law, detail, size);
     else if(!strcmp(law->kind, "size"))
@@ -1072,55 +947,6 @@ PrintLawResults(ZirProgram **programs, int count, FILE *out)
         }
 }
 
-/* ---- Effect classes (parallel contract, LANGUAGE_DIRECTION.md) ------- */
-
-static int
-vec_operation_name(const char *name)
-{
-    return !strcmp(name, "TextView") ||
-           !strcmp(name, "VecPush") || !strcmp(name, "VecReserve") || (!strcmp(name, "VecResize") || !strcmp(name, "VecResizeBounded")) || !strcmp(name, "VecClear") ||
-           !strcmp(name, "VecFree") || !strcmp(name, "VecSwap") ||
-           !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
-           !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
-           !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish");
-}
-
-int
-effect_rank(const char *name)
-{
-    return !strcmp(name, "external") ? 3 :
-           !strcmp(name, "mutating") ? 2 :
-           !strcmp(name, "observing") ? 1 : 0;
-}
-
-static const char *
-effect_name(int rank)
-{
-    return rank == 3 ? "external" : rank == 2 ? "mutating" :
-           rank == 1 ? "observing" : "pure";
-}
-
-static int
-expr_references_global(const ZirExpr *expr)
-{
-    return expr->kind == ZIR_EXPR_IDENT && expr->is_global_value;
-}
-
-static int
-lhs_writes_through_pointer(const ZirFunction *fn, int root)
-{
-    for(int index = root; index >= 0 && index < fn->expr_count;) {
-        const ZirExpr *expr = &fn->exprs[index];
-        if(expr->kind == ZIR_EXPR_POINTER_MEMBER ||
-           (expr->kind == ZIR_EXPR_UNARY && !strcmp(expr->op, "*")))
-            return 1;
-        if(expr->kind != ZIR_EXPR_MEMBER)
-            return 0;
-        index = expr->left;
-    }
-    return 0;
-}
-
 static const char *
 imported_callee_class(const ZirModule *module, const char *name)
 {
@@ -1131,87 +957,15 @@ imported_callee_class(const ZirModule *module, const char *name)
     return NULL;
 }
 
-/* One derivation sweep: fold each body's reads, writes, and callee classes
- * into the highest applicable rank. Iterated to a fixpoint by the caller. */
 static int
-sweep_effect_class(ZirProgram *program)
+vec_operation_name(const char *name)
 {
-    int changed = 0;
-    for(int m = 0; m < program->module_count; m++) {
-        ZirModule *module = &program->modules[m];
-        for(int f = 0; f < module->function_count; f++) {
-            ZirFunction *fn = &module->functions[f];
-            int rank = effect_rank(fn->effect_class);
-            int reads_global = 0;
-            if(fn->is_extern)
-                rank = 3;
-            for(int s = 0; s < fn->stmt_count; s++) {
-                const ZirStmt *st = &fn->stmts[s];
-                if(st->kind == ZIR_STMT_ASSIGN && st->lhs_root >= 0) {
-                    const ZirExpr *lhs = &fn->exprs[st->lhs_root];
-                    if(expr_references_global(lhs) ||
-                       lhs_writes_through_pointer(fn, st->lhs_root))
-                        rank = rank < 2 ? 2 : rank;
-                }
-            }
-            for(int e = 0; e < fn->expr_count; e++) {
-                const ZirExpr *expr = &fn->exprs[e];
-                const ZirModule *owner = NULL;
-                const ZirFunction *callee = NULL;
-                const char *imported;
-                if(expr_references_global(expr))
-                    reads_global = 1;
-                if(expr->kind != ZIR_EXPR_CALL || !expr->name[0] ||
-                   expr->slot_type[0])
-                    continue;
-                if(MapPrimitiveName(expr->name)) {
-                    int map_rank = !strcmp(expr->name, "MapSet") ||
-                        !strcmp(expr->name, "MapInit") || !strcmp(expr->name, "MapDelete") ||
-                        !strcmp(expr->name, "MapClear") ? 2 : 1;
-                    if(rank < map_rank) rank = map_rank;
-                    continue;
-                }
-                imported = imported_callee_class(module, expr->name);
-                if(imported != NULL || !strcmp(expr->name, "print")) {
-                    rank = 3;
-                    continue;
-                }
-                if(ResolveFunction(module, expr->name, &owner, &callee) == 1 &&
-                   callee != NULL) {
-                    int callee_rank = effect_rank(callee->effect_class);
-                    if(callee_rank == 3)
-                        rank = 3;
-                    else if(callee_rank == 2 && rank < 2)
-                        rank = 2;
-                    else if(callee_rank == 1 && rank < 1)
-                        rank = 1;
-                }
-            }
-            if(rank == 0 && reads_global)
-                rank = 1;
-            {
-                const char *name = effect_name(rank);
-                if(strcmp(fn->effect_class, name) != 0) {
-                    copy_text(fn->effect_class, sizeof(fn->effect_class),
-                              name);
-                    changed = 1;
-                }
-            }
-        }
-    }
-    return changed;
-}
-
-void
-DeriveEffectClasses(ZirProgram **programs, int count)
-{
-    for(int pass = 0; pass < 64; pass++) {
-        int changed = 0;
-        for(int p = 0; p < count; p++)
-            changed |= sweep_effect_class(programs[p]);
-        if(!changed)
-            break;
-    }
+    return !strcmp(name, "TextView") ||
+           !strcmp(name, "VecPush") || !strcmp(name, "VecReserve") || (!strcmp(name, "VecResize") || !strcmp(name, "VecResizeBounded")) || !strcmp(name, "VecClear") ||
+           !strcmp(name, "VecFree") || !strcmp(name, "VecSwap") ||
+           !strcmp(name, "VecPop") || !strcmp(name, "VecGet") ||
+           !strcmp(name, "VecClone") || !strcmp(name, "VecSlice") ||
+           !strcmp(name, "BuilderAppend") || !strcmp(name, "BuilderFinish");
 }
 
 /* True when the type is a pointer, a record with pointer fields, or a

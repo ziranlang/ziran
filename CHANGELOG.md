@@ -2,9 +2,23 @@
 
 ## [Unreleased]
 
+- Expression and initializer parsing build shared IR directly from Ziran,
+  removing the C callback parser. Compile-time quoted searches share the
+  Ziran source scanner.
+
+- `#run` evaluates text of any length with builders, pointers, slices and
+  folded loops, and iterates array literals directly.
+- `#asm` template, operand and clobber strings may name compile-time constants,
+  including templates generated in the same file. Local blocks retain these
+  strings through rechecking and saved IR; ARM NEON helpers support callers
+  built without NEON and with only 16 D registers.
+- Effect-class derivation and `#law ... effect` evaluation run in Ziran
+  instead of C, preserving law results and diagnostic details.
 - `.Member` resolves against an enum imported from another module, as in
   `F(.Two)` for a `B.Kind` parameter, and an imported constant such as
   `B.LIMIT` sizes an array.
+- Import linking, file-private renaming and the `#inline` self-call check
+  run in Ziran instead of C, with the same diagnostics and checked names.
 - The scalar proof kernel behind `#proof` is written in Ziran instead of C,
   with the same proof results, diagnostics and step budget.
 - Theorems and their `#proof` certificates are parsed, prepared and checked

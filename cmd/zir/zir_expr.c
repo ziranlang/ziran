@@ -7,113 +7,12 @@
 #include "zir_token.h"
 #include "zir_text.h"
 #include "compiler_expression.h"
+#include "compiler_parse.h"
 
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct ExprParser {
-    ZirLexer lexer;
-    ZirToken token;
-    ZirFunction *fn;
-    const ZirModule *module;
-    ZirSourceSpan span;
-    const char *source;
-    size_t begin;
-    const char *expected_type;
-    int stmt_index;
-    int expand_defaults;
-    int32_t failed, depth;
-    /* Span at source offset span_offset, so node spans resume from the last
-     * node instead of rescanning: a long literal makes one node per element. */
-    size_t span_offset;
-    ZirSourceSpan span_cursor;
-} ExprParser;
-
-static void
-next(ExprParser *p)
-{
-    p->token = LexerNext(&p->lexer);
-    /* A cut token cannot round-trip to source text, except a long string
-     * literal, whose full text is read from the source. */
-    if(p->token.truncated && p->token.kind != ZIR_TOKEN_STRING)
-        p->failed = 1;
-    p->begin = p->lexer.pos - p->token.length;
-}
-
-static int
-is(ExprParser *p, const char *s)
-{
-    return strcmp(p->token.text, s) == 0;
-}
-
-static int
-take(ExprParser *p, const char *s)
-{
-    if(!is(p, s)) return 0;
-    next(p);
-    return 1;
-}
-
-static ZirSourceSpan
-span_at(ExprParser *p, size_t offset)
-{
-    size_t at = p->span_offset;
-    ZirSourceSpan span = p->span_cursor;
-    if(offset < at) {
-        size_t line_start = offset;
-        for(size_t i = offset; i < at; i++)
-            if(p->source[i] == '\n') span.line--;
-        while(line_start > 0 && p->source[line_start - 1] != '\n') line_start--;
-        span.column = line_start == 0 ? p->span.column + (int)offset :
-            (int)(offset - line_start) + 1;
-    } else {
-        for(size_t i = at; i < offset; i++) {
-            if(p->source[i] == '\n') {
-                span.line++;
-                span.column = 1;
-            } else {
-                span.column++;
-            }
-        }
-    }
-    p->span_offset = offset;
-    p->span_cursor = span;
-    return span;
-}
-
-static int
-node(ExprParser *p, ZirExprKind kind, size_t start, const char *name,
-     const char *op, int left, int right)
-{
-    char buffer[ZIR_TEXT_MAX];
-    size_t n = p->begin > start ? p->begin - start : 0;
-    ZirSourceSpan span = span_at(p, start);
-    ZirExpr *e;
-    /* A long literal, such as a table of records, keeps all its text. */
-    char *text = n < sizeof(buffer) ? buffer : malloc(n + 1);
-    if(text == NULL) { p->failed = 1; return -1; }
-    memcpy(text, p->source + start, n);
-    text[n] = 0;
-    trim_in_place(text);
-    e = FunctionAddExpr(p->fn, kind, text, span);
-    if(text != buffer) free(text);
-    if(!e) { p->failed = 1; return -1; }
-    e->name = KeepName(name);
-    copy_text(e->op, sizeof(e->op), op);
-    e->left = left;
-    e->right = right;
-    return p->fn->expr_count - 1;
-}
-
-static int
-type_name(const ExprParser *p, const char *s)
-{
-    if(*ScalarType(s)) return 1;
-    return p->module != NULL && FindType(p->module, s, NULL) != NULL;
-}
-
-static int expression(ExprParser *p, int minimum);
 static int parse_expr(ZirFunction *fn, const ZirModule *module,
                       const char *text, ZirSourceSpan span,
                       const char *expected_type, int stmt_index,
@@ -198,11 +97,11 @@ next_token: ;
 }
 
 static int
-call_name_shadowed(const ExprParser *p, const char *name)
+call_name_shadowed(const ZirFunction *fn, int stmt_index, const char *name)
 {
-    if(p->stmt_index < 0 || strchr(name, '.') != NULL)
+    if(stmt_index < 0 || strchr(name, '.') != NULL)
         return 0;
-    const ZirParameters *parameters = ParametersOf(FunctionArgs(p->fn));
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     for(int i = 0; i < parameters->count; i++)
         if(parameters->items[i].name != NULL &&
            !strcmp(parameters->items[i].name, name))
@@ -210,8 +109,8 @@ call_name_shadowed(const ExprParser *p, const char *name)
     int depth = 0;
     int binding_depths[128];
     int bindings = 0;
-    for(int i = 0; i < p->stmt_index; i++) {
-        const ZirStmt *statement = &p->fn->stmts[i];
+    for(int i = 0; i < stmt_index; i++) {
+        const ZirStmt *statement = &fn->stmts[i];
         if(statement->kind == ZIR_STMT_BLOCK_CLOSE) {
             while(bindings > 0 && binding_depths[bindings - 1] == depth)
                 bindings--;
@@ -229,49 +128,46 @@ call_name_shadowed(const ExprParser *p, const char *name)
     }
     return bindings > 0;
 }
-/* Buffers append_default_arguments keeps on the heap so deep nesting fits the stack;
- * freed blocks are kept for reuse, one per nesting level. */
-typedef struct AppendDefaultArgumentsBuffers {
+/* Buffers ExpandDefaultArguments keeps on the heap so deep nesting fits the
+ * stack; freed blocks are kept for reuse, one per nesting level. */
+typedef struct ExpandDefaultsBuffers {
     char qualified_default[ZIR_TEXT_MAX];
     char location_default[ZIR_TEXT_MAX];
-} AppendDefaultArgumentsBuffers;
+} ExpandDefaultsBuffers;
 
-static void append_default_arguments(ExprParser *p, int callee,
-                         const char *name, int *first, int *last);
-
-static void
-append_default_arguments_with_buffers(ExprParser *p, int callee,
-                         const char *name, int *first, int *last, AppendDefaultArgumentsBuffers *buffers)
+static bool
+expand_defaults_with_buffers(ZirFunction *fn, const ZirModule *module,
+                             ZirSourceSpan span, int stmt_index, int callee,
+                             int32_t *first, int32_t *last,
+                             ExpandDefaultsBuffers *buffers)
 {
     char qualified[ZIR_NAME_MAX];
-    const char *target = name;
+    const char *target = callee >= 0 && fn->exprs[callee].kind == ZIR_EXPR_IDENT ?
+        fn->exprs[callee].name : "";
     if(!*target && callee >= 0 &&
-       p->fn->exprs[callee].kind == ZIR_EXPR_MEMBER) {
-        const ZirExpr *member = &p->fn->exprs[callee];
+       fn->exprs[callee].kind == ZIR_EXPR_MEMBER) {
+        const ZirExpr *member = &fn->exprs[callee];
         if(member->left < 0 ||
-           p->fn->exprs[member->left].kind != ZIR_EXPR_IDENT)
-            return;
+           fn->exprs[member->left].kind != ZIR_EXPR_IDENT)
+            return true;
         if(snprintf(qualified, sizeof(qualified), "%s.%s",
-                    p->fn->exprs[member->left].name, member->name) >=
-           (int)sizeof(qualified)) return;
+                    fn->exprs[member->left].name, member->name) >=
+           (int)sizeof(qualified)) return true;
         target = qualified;
     }
-    if(!*target || call_name_shadowed(p, target) ||
-       ZirDefaultExpansionDepth >= 32 || p->module == NULL)
-        return;
+    if(!*target || call_name_shadowed(fn, stmt_index, target) ||
+       ZirDefaultExpansionDepth >= 32 || module == NULL)
+        return true;
     const ZirModule *owner = NULL;
     const ZirFunction *function = NULL;
-    if(ResolveFunctionAt(p->module, target, SpanPath(p->span),
+    if(ResolveFunctionAt(module, target, SpanPath(span),
                          &owner, &function) != 1 ||
        function == NULL || !FunctionDefaultArgs(function)[0])
-        return;
+        return true;
     char (*parameters)[ZIR_TEXT_MAX] = calloc(64, sizeof(*parameters));
     char (*defaults)[ZIR_TEXT_MAX] = calloc(64, sizeof(*defaults));
-    if(parameters == NULL || defaults == NULL) {
-        free(parameters); free(defaults);
-        p->failed = 1;
-        return;
-    }
+    bool ok = parameters != NULL && defaults != NULL;
+    if(!ok) goto done;
     int count = split_top_level(FunctionArgs(function), parameters[0], 64,
                                 sizeof(parameters[0]));
     int default_count = split_top_level(FunctionDefaultArgs(function), defaults[0],
@@ -279,8 +175,8 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
     unsigned char used[64] = {0};
     if(count != default_count) goto done;
     for(int child = *first; child >= 0;
-        child = p->fn->exprs[child].next_sibling) {
-        const char *named = p->fn->exprs[child].argument_name;
+        child = fn->exprs[child].next_sibling) {
+        const char *named = fn->exprs[child].argument_name;
         int index = -1;
         if(*named) {
             for(int i = 0; i < count; i++) {
@@ -298,7 +194,7 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
         if(index < 0 || used[index]) goto done;
         used[index] = 1;
     }
-    for(int i = 0; i < count; i++) {
+    for(int i = 0; i < count && ok; i++) {
         if(used[i]) continue;
         char *assignment = top_level_assignment(defaults[i]);
         if(assignment == NULL) continue;
@@ -312,12 +208,9 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
         FunctionDefaultHelperName(function, i, helper_name,
                                   sizeof(helper_name));
         if(strcmp(value, "#caller_location") == 0) {
-            if(!CallerLocationLiteral(p->module, p->fn->exprs[callee].span,
-                                        buffers->location_default,
-                                        sizeof(buffers->location_default))) {
-                p->failed = 1;
-                break;
-            }
+            ok = CallerLocationLiteral(module, fn->exprs[callee].span,
+                                       buffers->location_default,
+                                       sizeof(buffers->location_default));
             value = buffers->location_default;
         } else if(DefaultIsLiteral(value)) {
             /* The literal itself: it reads the same at every call site. */
@@ -336,442 +229,39 @@ append_default_arguments_with_buffers(ExprParser *p, int callee,
                              helper_name) :
                     snprintf(helper_call, sizeof(helper_call), "%.*s.%s()",
                              (int)(dot - target), target, helper_name);
-                if(written < 0 || (size_t)written >= sizeof(helper_call)) {
-                    p->failed = 1;
-                    break;
-                }
+                ok = written >= 0 && (size_t)written < sizeof(helper_call);
                 value = helper_call;
-            } else if(!qualify_default_field_helpers(
-                          value, helper_name, target, SpanPath(p->span),
-                          buffers->qualified_default, sizeof(buffers->qualified_default))) {
-                p->failed = 1;
-                break;
             } else {
+                ok = qualify_default_field_helpers(
+                    value, helper_name, target, SpanPath(span),
+                    buffers->qualified_default, sizeof(buffers->qualified_default));
                 value = buffers->qualified_default;
             }
         }
+        if(!ok) break;
         ZirDefaultExpansionDepth++;
-        int child = parse_expr(p->fn, p->module, value, p->span,
-                               NULL, p->stmt_index, p->expand_defaults);
+        int child = parse_expr(fn, module, value, span, NULL, stmt_index, 1);
         ZirDefaultExpansionDepth--;
-        if(child < 0) { p->failed = 1; break; }
-        p->fn->exprs[child].argument_name = KeepName(parameter_name);
-        if(*last >= 0) p->fn->exprs[*last].next_sibling = child;
+        if(child < 0) { ok = false; break; }
+        fn->exprs[child].argument_name = KeepName(parameter_name);
+        if(*last >= 0) fn->exprs[*last].next_sibling = child;
         else *first = child;
         *last = child;
         used[i] = 1;
     }
 done:
     free(parameters); free(defaults);
+    return ok;
 }
 
-COMPILER_SCRATCH_VOID(static, append_default_arguments,
-    (ExprParser *p, int callee,
-                         const char *name, int *first, int *last),
-    AppendDefaultArgumentsBuffers, RECOVERABLE, free,
-    append_default_arguments_with_buffers(p, callee, name, first, last, buffers))
-
-static SyntaxCursor syntax_cursor(ExprParser *p);
-static const char *expression_name(String part);
-
-/* IR lookup and storage stay at the frontend boundary. Initializer grammar,
- * field ordering, delimiter handling, and recursive nesting are Ziran. */
-static String
-initializer_field_type(void *context, String type_part, String name_part,
-                       int32_t ordinal)
-{
-    ExprParser *p = context;
-    const char *type = expression_name(type_part);
-    const char *name = expression_name(name_part);
-    const ZirModule *owner = NULL;
-    const ZirType *record = p->module ? FindType(p->module, type, &owner) : NULL;
-    ZirTypeField field;
-    size_t offset = 0;
-    int position = 0;
-    char field_type[ZIR_NAME_MAX] = "";
-    ArrayElementType(type, field_type, sizeof(field_type), NULL);
-    while(record != NULL && TypeNextField(record, &offset, &field) == 1) {
-        if(name[0] ? !strcmp(field.name, name) : position == ordinal) {
-            copy_text(field_type, sizeof(field_type), field.type);
-            break;
-        }
-        position++;
-    }
-    if(owner != NULL && owner != p->module) {
-        const char *dot = strchr(type, '.');
-        const ZirType *declared = FindType(owner, field_type, NULL);
-        char qualified[ZIR_NAME_MAX];
-        int length = dot != NULL && declared != NULL ?
-            snprintf(qualified, sizeof(qualified), "%.*s.%s",
-                     (int)(dot - type), type, field_type) : -1;
-        if(length >= 0 && (size_t)length < sizeof(qualified) &&
-           FindType(p->module, qualified, NULL) == declared)
-            copy_text(field_type, sizeof(field_type), qualified);
-    }
-    const char *kept = KeepName(field_type);
-    return StringView(kept, strlen(kept));
-}
-
-static int32_t
-initializer_field(void *context, int64_t start, String name, bool named,
-                  int32_t value)
-{
-    return node(context, ZIR_EXPR_FIELD_INIT, (size_t)start,
-                expression_name(name), named ? "=" : "", -1, value);
-}
-
-static int32_t
-initializer_node(void *context, int64_t start, String type, int32_t first)
-{
-    ExprParser *p = context;
-    int result = node(p, ZIR_EXPR_COMPOUND, (size_t)start,
-                      expression_name(type), "", -1, -1);
-    if(result >= 0) p->fn->exprs[result].first_child = first;
-    return result;
-}
-
-static int
-record_initializer(ExprParser *p, size_t start, const char *type,
-                   const char *open, const char *close)
-{
-    SyntaxCursor cursor = syntax_cursor(p);
-    InitializerHooks hooks = {
-        .cursor = &cursor, .field_type = {p, initializer_field_type},
-        .field = {p, initializer_field}, .node = {p, initializer_node},
-    };
-    return compiler_expression_ParseInitializer(&hooks, start,
-        StringView(type, strlen(type)), StringView(open, strlen(open)),
-        StringView(close, strlen(close)));
-}
-
-static int
-typed_array_initializer(ExprParser *p, size_t start,
-                        const char *element_type)
-{
-    char type[ZIR_NAME_MAX];
-    int written = snprintf(type, sizeof(type), "[1]%s", element_type);
-    if(written < 0 || (size_t)written >= sizeof(type)) {
-        p->failed = 1;
-        return -1;
-    }
-    int result = record_initializer(p, start, type, "[", "]");
-    if(result < 0 || p->failed) return result;
-    int count = 0;
-    for(int child = p->fn->exprs[result].first_child; child >= 0;
-        child = p->fn->exprs[child].next_sibling)
-        count++;
-    char array_type[ZIR_NAME_MAX];
-    written = snprintf(array_type, sizeof(array_type), "[%d]%s", count, element_type);
-    p->fn->exprs[result].name = KeepName(array_type);
-    if(written < 0 || (size_t)written >= sizeof(array_type))
-        p->failed = 1;
-    return result;
-}
-static int prefix(ExprParser *p);
-
-/* These callbacks expose storage operations; expression grammar and recursion
- * are maintained in compiler_expression.zi. */
-static int64_t expression_begin(void *context)
-{
-    return ((ExprParser *)context)->begin;
-}
-
-static String expression_token(void *context)
-{
-    ExprParser *p = context;
-    if(p->token.truncated)
-        return StringView(p->lexer.src + p->begin, p->token.length);
-    return StringView(p->token.text, strlen(p->token.text));
-}
-
-static int32_t expression_prefix(void *context)
-{
-    return prefix(context);
-}
-
-static void expression_advance(void *context)
-{
-    next(context);
-}
-
-static TokenKind expression_kind(void *context)
-{
-    return (TokenKind)((ExprParser *)context)->token.kind;
-}
-
-static int32_t expression_parse(void *context, int32_t minimum)
-{
-    return expression(context, minimum);
-}
-
-static void expression_link(void *context, int32_t previous, int32_t next)
-{
-    ExprParser *p = context;
-    p->fn->exprs[previous].next_sibling = next;
-}
-
-static SyntaxCursor
-syntax_cursor(ExprParser *p)
-{
-    return (SyntaxCursor){
-        .depth = &p->depth, .failed = &p->failed,
-        .source = StringView(p->source, p->lexer.length),
-        .begin = {p, expression_begin}, .token = {p, expression_token},
-        .kind = {p, expression_kind}, .advance = {p, expression_advance},
-        .parse = {p, expression_parse}, .link = {p, expression_link},
-    };
-}
-
-static String expression_callee_name(void *context, int32_t callee)
-{
-    ExprParser *p = context;
-    const char *name = callee >= 0 &&
-        p->fn->exprs[callee].kind == ZIR_EXPR_IDENT ?
-        p->fn->exprs[callee].name : "";
-    return StringView(name, strlen(name));
-}
-
-static int32_t
-postfix_node(void *context, int64_t start, PostfixKind kind, String name_part,
-             int32_t left, int32_t right, int32_t third, int32_t first)
-{
-    ExprParser *p = context;
-    const char *name = expression_name(name_part);
-    int callee = left;
-    ZirExprKind ir_kind = kind == PostfixKind_Index ? ZIR_EXPR_INDEX :
-        kind == PostfixKind_Slice ? ZIR_EXPR_SLICE :
-        kind == PostfixKind_Member ? ZIR_EXPR_MEMBER :
-        kind == PostfixKind_Dereference ? ZIR_EXPR_UNARY : ZIR_EXPR_CALL;
-    const char *op = kind == PostfixKind_Member ? "." :
-                     kind == PostfixKind_Dereference ? "*" : "";
-    if(kind == PostfixKind_Dereference) { right = left; left = -1; }
-    if(kind == PostfixKind_Call && name[0]) left = -1;
-    int result = node(p, ir_kind, (size_t)start, name, op, left, right);
-    if(result >= 0) {
-        if(kind == PostfixKind_Slice) p->fn->exprs[result].third = third;
-        if(kind == PostfixKind_Call) {
-            p->fn->exprs[result].first_child = first;
-            if(callee >= 0 && p->fn->exprs[callee].is_this)
-                p->fn->exprs[result].is_this = 1;
-        }
-    }
-    return result;
-}
-
-static void expression_argument(void *context, int32_t child, String name)
-{
-    ExprParser *p = context;
-    p->fn->exprs[child].argument_name = expression_name(name);
-}
-
-static ExpressionChildren
-expression_defaults(void *context, int32_t callee, int32_t first, int32_t last)
-{
-    ExprParser *p = context;
-    if(p->expand_defaults) {
-        String name = expression_callee_name(p, callee);
-        append_default_arguments(p, callee, name.data, &first, &last);
-    }
-    return (ExpressionChildren){first, last};
-}
-
-static void expression_postfix_error(void *context, PostfixError error)
-{
-    ExprParser *p = context;
-    const char *message = error == PostfixError_PointerMember ?
-        "C-style pointer member access is not valid Jai syntax; use .field" :
-        error == PostfixError_Increment ?
-        "Jai has no increment or decrement operators; use += 1 or -= 1" :
-        "postfix ? is not Jai syntax; handle the result explicitly";
-    Diagnostic(p->span, "parse.jai_syntax", "%s", message);
-    exit(1);
-}
-
-static bool prefix_is_type(void *context, String name)
-{
-    if(name.length >= ZIR_NAME_MAX) return false;
-    return type_name(context, expression_name(name));
-}
-
-static bool prefix_is_record(void *context, String name)
-{
-    ExprParser *p = context;
-    if(name.length >= ZIR_NAME_MAX) return false;
-    const ZirType *type = p->module ?
-        FindType(p->module, expression_name(name), NULL) : NULL;
-    return type != NULL && !type->is_enum;
-}
-
-static bool prefix_is_array(void *context, String name)
-{
-    (void)context;
-    return ArrayElementType(expression_name(name), NULL, 0, NULL);
-}
-
-static int32_t prefix_array(void *context, int64_t start, String element)
-{
-    return typed_array_initializer(context, (size_t)start, expression_name(element));
-}
-
-static int32_t
-prefix_node(void *context, int64_t start, PrefixKind kind, String name,
-            String op, int32_t left, int32_t right, int32_t third, int32_t byte)
-{
-    ExprParser *p = context;
-    ZirExprKind ir_kind = kind == PrefixKind_Identifier || kind == PrefixKind_This ? ZIR_EXPR_IDENT :
-        kind == PrefixKind_Integer || kind == PrefixKind_Character ? ZIR_EXPR_INT :
-        kind == PrefixKind_Float ? ZIR_EXPR_FLOAT :
-        kind == PrefixKind_String || kind == PrefixKind_ProcedureName ? ZIR_EXPR_STRING :
-        kind == PrefixKind_CompileTime ? ZIR_EXPR_COMPILE_TIME :
-        kind == PrefixKind_Conditional ? ZIR_EXPR_CONDITIONAL :
-        kind == PrefixKind_SizeOf ? ZIR_EXPR_SIZE_OF :
-        kind == PrefixKind_Cast ? ZIR_EXPR_CAST : ZIR_EXPR_UNARY;
-    int result = node(p, ir_kind, (size_t)start,
-                      kind == PrefixKind_ProcedureName ? "" : expression_name(name),
-                      op.data, left, right);
-    if(result >= 0) {
-        ZirExpr *value = &p->fn->exprs[result];
-        if(kind == PrefixKind_This) value->is_this = 1;
-        if(kind == PrefixKind_Conditional) value->third = third;
-        if(kind == PrefixKind_Character) {
-            char digits[32];
-            snprintf(digits, sizeof(digits), "%d", byte);
-            value->text = KeepText(digits);
-        }
-        if(kind == PrefixKind_ProcedureName) {
-            char literal[ZIR_NAME_MAX + 3];
-            int written = snprintf(literal, sizeof(literal), "\"%s\"", p->fn->name);
-            if(written < 0 || (size_t)written >= sizeof(literal)) p->failed = 1;
-            else value->text = KeepText(literal);
-        }
-    }
-    return result;
-}
-
-static void expression_prefix_error(void *context, PrefixError error)
-{
-    ExprParser *p = context;
-    const char *message;
-    switch(error) {
-    case PrefixError_ThisScope:
-        Diagnostic(p->span, "parse.this",
-                   "#this requires a procedure or type scope");
-        exit(1);
-    case PrefixError_CallerLocation:
-        Diagnostic(p->span, "parse.caller_location",
-                   "#caller_location is only valid as a parameter default");
-        exit(1);
-    case PrefixError_ProcedureScope:
-        Diagnostic(p->span, "parse.procedure_name",
-                   "#procedure_name() requires a procedure scope");
-        exit(1);
-    case PrefixError_Character:
-        Diagnostic(p->span, "parse.jai_char",
-                   "#char requires a one-byte string literal");
-        exit(1);
-    case PrefixError_Sizeof:
-        message = "sizeof is not Jai syntax; use size_of(Type)";
-        break;
-    case PrefixError_Primitive:
-        message = "non-Jai primitive type spelling: char";
-        break;
-    case PrefixError_Increment:
-        message = "Jai has no increment or decrement operators; use += 1 or -= 1";
-        break;
-    case PrefixError_AddressOf:
-        message = "C-style address-of is not valid Jai syntax; use *value";
-        break;
-    case PrefixError_Cast:
-        message = "C-style cast or literal is not valid Jai syntax; use cast(Type) value or Type.{...}";
-        break;
-    case PrefixError_Literal:
-        message = "C-style literal is not valid Jai syntax; use Type.{...}";
-        break;
-    default:
-        Diagnostic(p->span, "parse.jai_char",
-                   "single-quoted character literals are not valid Jai syntax; use #char \"x\"");
-        exit(1);
-    }
-    Diagnostic(p->span, "parse.jai_syntax", "%s", message);
-    exit(1);
-}
-
-static int prefix(ExprParser *p)
-{
-    SyntaxCursor cursor = syntax_cursor(p);
-    InitializerHooks initializers = {
-        .cursor = &cursor, .field_type = {p, initializer_field_type},
-        .field = {p, initializer_field}, .node = {p, initializer_node},
-    };
-    PostfixHooks postfix = {
-        .cursor = &cursor, .node = {p, postfix_node},
-        .argument = {p, expression_argument}, .defaults = {p, expression_defaults},
-        .name = {p, expression_callee_name}, .error = {p, expression_postfix_error},
-    };
-    const char *expected = p->expected_type != NULL ? p->expected_type : "";
-    PrefixHooks hooks = {
-        .cursor = &cursor, .initializers = &initializers, .postfix = &postfix,
-        .is_type = {p, prefix_is_type}, .is_record = {p, prefix_is_record},
-        .is_array = {p, prefix_is_array}, .array = {p, prefix_array},
-        .node = {p, prefix_node}, .error = {p, expression_prefix_error},
-        .scope = StringView(p->fn->name, strlen(p->fn->name)),
-        .expected_type = StringView(expected, strlen(expected)),
-        .name_limit = ZIR_NAME_MAX,
-    };
-    return compiler_expression_ParsePrefix(&hooks);
-}
-
-static int32_t expression_binary(void *context, int64_t start, String op,
-                                 int32_t left, int32_t right)
-{
-    return node(context, ZIR_EXPR_BINARY, (size_t)start, "", op.data, left, right);
-}
-
-static void expression_conditional_error(void *context)
-{
-    ExprParser *p = context;
-    Diagnostic(p->span, "parse.jai_syntax",
-               "C-style conditional is not valid Jai syntax; use ifx ... then ... else ...");
-    exit(1);
-}
-
-static int
-expression(ExprParser *p, int minimum)
-{
-    ExpressionHooks hooks = {
-        .depth = &p->depth, .failed = &p->failed,
-        .begin = {p, expression_begin}, .token = {p, expression_token},
-        .prefix = {p, expression_prefix}, .advance = {p, expression_advance},
-        .binary = {p, expression_binary},
-        .conditional_error = {p, expression_conditional_error},
-    };
-    return compiler_expression_ParseBinary(&hooks, minimum);
-}
-
-static int
-parse_expr_text(ZirFunction *fn, const ZirModule *module, const char *text,
-                ZirSourceSpan span, const char *expected_type, int stmt_index,
-                int expand_defaults)
-{
-    ExprParser p = {0};
-    int initial = fn->expr_count, result;
-    if(!*skip_ws(text)) return -1;
-    p.fn = fn; p.module = module; p.span = span; p.source = text;
-    p.span_cursor = span;
-    p.expected_type = expected_type;
-    p.stmt_index = stmt_index;
-    p.expand_defaults = expand_defaults;
-    LexerInit(&p.lexer, text, SpanPath(span));
-    next(&p);
-    result = expression(&p, 1);
-    take(&p, ";");
-    if(p.failed || p.token.kind != ZIR_TOKEN_EOF || result < 0) {
-        fn->expr_count = initial;
-        if(!FunctionAddExpr(fn, ZIR_EXPR_UNKNOWN, text, span)) return -1;
-        return fn->expr_count - 1;
-    }
-    return result;
-}
+/* The default arguments a call to CALLEE omits, appended after LAST unless
+ * STMT_INDEX's scope shadows the callee; false when one does not parse. */
+COMPILER_SCRATCH_RETURN(, bool, ExpandDefaultArguments,
+    (ZirFunction *fn, const ZirModule *module, ZirSourceSpan span,
+     int32_t stmt_index, int32_t callee, int32_t *first, int32_t *last),
+    ExpandDefaultsBuffers, RECOVERABLE, free,
+    expand_defaults_with_buffers(fn, module, span, stmt_index, callee,
+                                 first, last, buffers))
 
 /* Text still holding raw-string markers is parsed in full. */
 static int
@@ -780,8 +270,11 @@ parse_expr(ZirFunction *fn, const ZirModule *module, const char *text,
            int expand_defaults)
 {
     char *expanded = RawTextExpand(text);
-    int result = parse_expr_text(fn, module, expanded != NULL ? expanded : text,
-                                 span, expected_type, stmt_index, expand_defaults);
+    const char *source = expanded != NULL ? expanded : text;
+    const char *expected = expected_type != NULL ? expected_type : "";
+    int result = compiler_parse_ParseExpression(fn, (ZirModule *)module,
+        StringView(source, strlen(source)), span,
+        StringView(expected, strlen(expected)), stmt_index, expand_defaults);
     free(expanded);
     return result;
 }
@@ -843,13 +336,16 @@ StructureFunction(ZirFunction *fn, const ZirModule *module)
     for(int i = 0; i < fn->stmt_count; i++) {
         ZirStmt *st = &fn->stmts[i];
         st->expr_root = st->lhs_root = -1;
-        if(st->kind == ZIR_STMT_BLOCK_OPEN) st->assembly_text = "";
         if(st->kind == ZIR_STMT_BLOCK_OPEN && !strncmp(st->text, "#asm", 4) &&
            !is_ident_char(st->text[4])) {
-            st->assembly_text = AssemblyBlockText(st->text, st->span);
+            /* Restructuring must retain constant strings already resolved in
+             * block metadata. The checker still compares it with the source. */
+            if(!st->assembly_text || !*st->assembly_text)
+                st->assembly_text = AssemblyBlockText(st->text, st->span);
             if(st->assembly_text == NULL) exit(1);
             continue;
         }
+        if(st->kind == ZIR_STMT_BLOCK_OPEN) st->assembly_text = "";
         if(st->is_using && st->kind == ZIR_STMT_EXPR) {
             st->expr_root = ParseExprNoDefaults(fn, module, "0", st->span);
             continue;

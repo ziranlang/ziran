@@ -1149,13 +1149,39 @@ typedef struct LowerOneCollectionBuffers {
 
 static int lower_one_collection(ZirFunction *fn, const ZirModule *module, int index);
 
+/* Whether TEXT is an array literal such as `s64.[1, 2]` or
+ * `[2]s32.[s32.[1, 2], s32.[3, 4]]`: a value with no storage to view, so
+ * the loop keeps it in a local of its own. */
+static int
+literal_collection(const char *text)
+{
+    int depth = 0;
+    for(const char *p = text; *p; p++) {
+        if(*p == '"' || *p == '\'') return 0;
+        if(*p == '[') depth++;
+        else if(*p == ']') depth--;
+        else if(depth == 0 && p[0] == '.' && p[1] == '[' && p > text) {
+            for(const char *q = p + 1; *q; q++) {
+                if(*q == '"' || *q == '\'') return 0;
+                if(*q == '[') depth++;
+                else if(*q == ']' && --depth == 0) {
+                    while(*++q == ' ' || *q == '\t') {}
+                    return *q == '\0';
+                }
+            }
+            return 0;
+        }
+    }
+    return 0;
+}
+
 static int
 lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int index, LowerOneCollectionBuffers *buffers)
 {
     const ZirStmt *header = &fn->stmts[index];
     int close = end_block(fn, index, fn->stmt_count);
     char value_name[ZIR_NAME_MAX], index_name[ZIR_NAME_MAX];
-    char view[ZIR_NAME_MAX];
+    char view[ZIR_NAME_MAX], items[ZIR_NAME_MAX];
     char count[ZIR_NAME_MAX], cursor[ZIR_NAME_MAX], item_index[ZIR_NAME_MAX];
     int reverse, pointer;
     if(close >= fn->stmt_count ||
@@ -1168,7 +1194,9 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
         snprintf(count, sizeof(count), "loop_count_%d", serial);
         snprintf(cursor, sizeof(cursor), "loop_cursor_%d", serial);
         snprintf(item_index, sizeof(item_index), "loop_index_%d", serial);
+        snprintf(items, sizeof(items), "loop_items_%d", serial);
         if(!range_name_used(fn, module, view) &&
+           !range_name_used(fn, module, items) &&
            !range_name_used(fn, module, count) &&
            !range_name_used(fn, module, cursor) &&
            !range_name_used(fn, module, item_index)) break;
@@ -1193,6 +1221,12 @@ lower_one_collection_with_buffers(ZirFunction *fn, const ZirModule *module, int 
     for(int i = 0; i < index; i++)
         if(!append(&buffers->out, &fn->stmts[i])) goto done;
     if(!range_line(&buffers->out, ZIR_STMT_BLOCK_OPEN, "{", span)) goto done;
+    if(literal_collection(buffers->collection)) {
+        if(snprintf(buffers->line, sizeof(buffers->line), "%s := %s", items,
+                    buffers->collection) >= (int)sizeof(buffers->line) ||
+           !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span)) goto done;
+        copy_text(buffers->collection, sizeof(buffers->collection), items);
+    }
     if(!direct &&
        (snprintf(buffers->line, sizeof(buffers->line), "%s := %s[:]", view, buffers->collection) >=
         (int)sizeof(buffers->line) || !range_line(&buffers->out, ZIR_STMT_DECL, buffers->line, span) ||

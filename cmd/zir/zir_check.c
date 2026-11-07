@@ -1245,7 +1245,7 @@ COMPILER_SCRATCH_RETURN(, int, lower_file_record_using,
 int
 evaluate_global_startup_literal(const ZirModule *module, int before,
                                 const char *source, ZirSourceSpan span,
-                                char *literal, size_t literal_size,
+                                const char **literal,
                                 const ZirModule **type_owner)
 {
     ZirDefine *values = calloc((size_t)module->define_count + before + 1,
@@ -1279,8 +1279,7 @@ evaluate_global_startup_literal(const ZirModule *module, int before,
     view.define_count = count;
     SymbolLookupsChanged();
     const ZirModule *evaluated_owner = NULL;
-    int ok = EvaluateCompileLiteral(&view, source, span, 0,
-                                    literal, literal_size,
+    int ok = EvaluateCompileLiteral(&view, source, span, 0, literal,
                                     &evaluated_owner);
     if(type_owner != NULL)
         *type_owner = evaluated_owner == &view ? module : evaluated_owner;

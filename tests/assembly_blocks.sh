@@ -6,7 +6,15 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
+# Imported constants exercise block metadata through source and saved IR.
+cat > "$work/metadata.zi" <<'ZI'
+TEMPLATE :: "popcnt %[value], %[total]";
+OUTPUT :: "=r:total";
+INPUT :: "r:value";
+CLOBBERS :: "cc";
+ZI
 cat > "$work/blocks.zi" <<'ZI'
+Metadata :: #import "metadata";
 Cell :: struct { value: s64; }
 #program_export
 Increment :: (class: s64) -> s64 {
@@ -20,7 +28,7 @@ ziran_assembly_block_0_1_0_0 :: () -> s64 { return 0 }
 #program_export
 Count :: (value: u64) -> s64 {
     total: s64
-    #asm("x86_64+popcnt", "popcnt %[value], %[total]", "=r:total", "r:value", "cc", "") #asm("aarch64+simd", "fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[total], v0.b[0]", "=r:total", "r:value", "v0", "") {
+    #asm("x86_64+popcnt", Metadata.TEMPLATE, Metadata.OUTPUT, Metadata.INPUT, Metadata.CLOBBERS, "") #asm("aarch64+simd", "fmov d0, %[value]\n\tcnt v0.8b, v0.8b\n\taddv b0, v0.8b\n\tumov %w[total], v0.b[0]", "=r:total", "r:value", "v0", "") {
         bits := value
         while bits != 0 {
             total += cast(s64)(bits & 1)
@@ -207,6 +215,10 @@ first=data.find(needle);second=data.find(needle,first+1)
 changed=data[:second]+data[second:].replace(needle,b'r:source=ghost',1)
 (out/'mismatch.zir').write_bytes(changed)
 (out/'unknown.zir').write_bytes(data.replace(needle,b'r:source=ghost'))
+# A named template still binds the payload to its constant's actual value.
+named=b'popcnt %[value], %[total]';assert data.count(named)==1
+replacement=b'movq   %[value], %[total]';assert len(named)==len(replacement)
+(out/'named-mismatch.zir').write_bytes(data.replace(named,replacement))
 def number(value):
     out=bytearray()
     while True:
@@ -227,12 +239,13 @@ length_at=skip_string(at+len(tag));assembly_tag,end=read_number(length_at)
 assert assembly_tag%2==0 and 0<assembly_tag//2<4096
 (out/'empty.zir').write_bytes(data[:length_at]+number(0)+data[end+assembly_tag//2:])
 PY
-for bad in mismatch unknown wrong-kind empty; do
+for bad in mismatch named-mismatch unknown wrong-kind empty; do
     if "$ziran" check --root "$work" "$work/$bad.zir" > "$work/$bad.log" 2>&1; then
         echo 'invalid saved assembly metadata accepted' >&2;exit 1
     fi
 done
 grep -Fq 'metadata does not match' "$work/mismatch.log"
+grep -Fq 'metadata does not match' "$work/named-mismatch.log"
 grep -Fq 'scalar/pointer locals' "$work/unknown.log"
 grep -Fq 'assembly metadata requires a block' "$work/wrong-kind.log"
 grep -Fq 'empty assembly block metadata' "$work/empty.log"

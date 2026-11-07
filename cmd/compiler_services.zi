@@ -6,6 +6,14 @@
 IR :: #import "compiler_ir";
 
 Diagnose :: (span: IR.ZirSourceSpan, code: string, message: string) { ZiranDiagnose(span, code, message) }
+// MESSAGE SUBJECT TAIL as one message, cut to fit.
+Diagnose :: (span: IR.ZirSourceSpan, code: string, message: string, subject: string, tail := "") {
+    text: [4096]u8
+    at: s64 = 0
+    parts: [3]string = .{message, subject, tail}
+    for i: 0..2 { if at < 4095 { IR.CopyText(text[at:4096], parts[i]); at += parts[i].count } }
+    ZiranDiagnose(span, code, IR.BufferText(text[:]))
+}
 // KeepText, KeepName and KeepParameters of a Ziran string.
 Keep :: (text: string) -> *u8 { return ZiranKeepText(text) }
 KeepName :: (text: string) -> *u8 { return ZiranKeepName(text) }
@@ -17,6 +25,7 @@ ResolveFunction :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.Zir
                     function: **IR.ZirFunction) -> s32 {
     return ResolveFunctionAt(module, name, path, owner, function)
 }
+MapPrimitiveName :: (name: *u8) -> s32 { return CMapPrimitiveName(name) }
 // ModuleAddImport; null when it cannot allocate.
 AddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, target: string,
               signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport {
@@ -33,6 +42,7 @@ CSpanPath :: (span: IR.ZirSourceSpan) -> *u8 #foreign compiler "SpanPath";
 SymbolLookupsChanged :: () #foreign compiler "SymbolLookupsChanged";
 ResolveFunctionAt :: (module: *IR.ZirModule, name: *u8, path: *u8, owner: **IR.ZirModule,
                       function: **IR.ZirFunction) -> s32 #foreign compiler "ResolveFunctionAt";
+CMapPrimitiveName :: (name: *u8) -> s32 #foreign compiler "MapPrimitiveName";
 ZiranAddImport :: (module: *IR.ZirModule, kind: IR.ZirImportKind, name: string, target: string,
                    signature: string, span: IR.ZirSourceSpan) -> *IR.ZirImport #foreign compiler "ZiranAddImport";
 
@@ -52,3 +62,38 @@ ZiranAllocate :: (count: s64, size: s64) -> *u8 #foreign compiler "ZiranAllocate
 ZiranWriteBytes :: (file: *u8, bytes: string) -> bool #foreign compiler "ZiranWriteBytes";
 ZiranMapType :: (module: *IR.ZirModule, name: string) -> bool #foreign compiler "ZiranMapType";
 ZiranVecType :: (module: *IR.ZirModule, name: string) -> bool #foreign compiler "ZiranVecType";
+
+// The expression parser (compiler_parse): node storage, type lookups,
+// default arguments and fatal diagnostics.
+#scope_export
+// FunctionAddExpr; null when it cannot allocate.
+AddExpr :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: string, span: IR.ZirSourceSpan) -> *IR.ZirExpr {
+    return FunctionAddExpr(fn, kind, Keep(text), span)
+}
+// MODULE's type NAME, setting OWNER, when not null, to its declaring module.
+FindType :: (module: *IR.ZirModule, name: string, owner: **IR.ZirModule) -> *IR.ZirType {
+    spelled: [256]u8
+    if name.count >= IR.ZIR_NAME_MAX || !IR.CopyText(spelled[:], name) { return null }
+    return CFindType(module, *spelled[0], owner)
+}
+NextField :: (record: *IR.ZirType, offset: *u64, field: *IR.ZirTypeField) -> s32 {
+    return TypeNextField(record, offset, field)
+}
+// Diagnose, then exit.
+Fatal :: (span: IR.ZirSourceSpan, code: string, message: string) {
+    ZiranDiagnose(span, code, message)
+    exit(1)
+}
+// ExpandDefaultArguments in zir_expr.c.
+ExpandDefaults :: (fn: *IR.ZirFunction, module: *IR.ZirModule, span: IR.ZirSourceSpan,
+                   stmt_index: s32, callee: s32, first: *s32, last: *s32) -> bool {
+    return ExpandDefaultArguments(fn, module, span, stmt_index, callee, first, last)
+}
+#scope_file
+FunctionAddExpr :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: *u8,
+                    span: IR.ZirSourceSpan) -> *IR.ZirExpr #foreign compiler "FunctionAddExpr";
+CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
+TypeNextField :: (record: *IR.ZirType, offset: *u64, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+exit :: (status: s32) #foreign compiler "exit";
+ExpandDefaultArguments :: (fn: *IR.ZirFunction, module: *IR.ZirModule, span: IR.ZirSourceSpan,
+                           stmt_index: s32, callee: s32, first: *s32, last: *s32) -> bool #foreign compiler "ExpandDefaultArguments";

@@ -398,11 +398,21 @@ NativeHeaderKeyword(const char *name)
     return keyword(name, c_keywords) || keyword(name, cpp_keywords);
 }
 
+/* C reserves names that begin with two underscores for its
+ * implementation, and the runtime's statement-expression macros name their
+ * temporaries that way, so a value spelled so is renamed as a keyword is. */
+static int
+c_reserved_name(ZirTarget target, const char *name)
+{
+    return target == ZIR_C && name[0] == '_' && name[1] == '_';
+}
+
 void
 TargetBindingName(const ZirFunction *fn, ZirTarget target,
                   const char *name, char *out, size_t size)
 {
     int reserved = keyword(name, target == ZIR_GO ? go_keywords : c_keywords) ||
+        c_reserved_name(target, name) ||
         (fn != NULL && keyword(name, target == ZIR_GO ? go_runtime_names : c_runtime_names));
     if(!reserved && (fn == NULL || !function_reads_global(fn, name))) {
         copy_text(out, size, name);
@@ -419,6 +429,12 @@ void
 TargetFieldName(const ZirType *record, ZirTarget target,
                 const char *name, char *out, size_t size)
 {
+    /* A field keeps a spelling C reserves: a foreign record's fields are
+     * named as its C header names them, and no macro can hide a field. */
+    if(c_reserved_name(target, name)) {
+        copy_text(out, size, name);
+        return;
+    }
     TargetBindingName(NULL, target, name, out, size);
     if(strcmp(out, name) == 0 || record == NULL) return;
     for(int serial = 0; ; serial++) {

@@ -36,6 +36,11 @@
   not every operation.
 - The portable VM holds `std/simd` vectors of up to 128 bits inline in its
   values: a 352p AV1 decode under `zi2zx run --vm` takes 4.9 s, from 6.5 s.
+- Under TinyCC on x86-64 (`ziran run`), `std/simd` operations run inline
+  rather than as calls, and small records copy through registers: a cached
+  1080p AV1 decode takes 503 ms, from 697 ms.
+- In C, locals, parameters and globals whose names begin with two
+  underscores, which C reserves, are renamed as keywords are.
 - zi2c writes the C for large programs far faster: it works out how each
   module's header includes its imports once, so Breeze's 921 modules lower in
   under a second instead of over two minutes, with the same output.

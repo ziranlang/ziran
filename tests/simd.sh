@@ -592,6 +592,34 @@ if test -x "$work/vm-run"; then
         { echo "vector values on the portable VM: wrong result" >&2; exit 1; }
 fi
 
+# A program's own names never meet the helpers' macro temporaries (TinyCC's
+# inline operations, the 256-bit split calls): values spelled __zi_* are
+# renamed in C, as keywords are.
+cat > "$work/names.zi" <<'ZI'
+Simd :: #import "simd"
+Wide :: () -> s16 {
+    __zi_a := Simd.Splat(s16x16, 2)
+    __zi_b := Simd.Splat(s16x16, 5)
+    return Simd.Lane(Simd.Sub(__zi_b, __zi_a), 15)
+}
+main :: () {
+    __zi_a := Simd.Splat(s32x4, 3)
+    __zi_b := Simd.Make(s32x4, 4, 5, 6, 7)
+    __zi_r := Simd.Mul(__zi_b, __zi_a)
+    zi_b_ := Simd.ShiftLeft(__zi_r, 1)
+    print("% % % %\n", Simd.Lane(__zi_r, 3), Simd.Lane(Simd.Add(zi_b_, __zi_a), 0),
+          Simd.Lane(Simd.Max(__zi_b, __zi_a), 0), Wide())
+}
+ZI
+"$ziran" build --target=c --entry names:main --root "$work" -o "$work/names" "$work/names.zi"
+printf '#include "names.h"\nint main(void) { names_main(); return 0; }\n' > "$work/names/main.c"
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR"; do
+    "${CC:-cc}" -std=c11 -Wno-psabi $flags -I"$work/names" "$work/names"/*.c -o "$work/names/app"
+    test "$("$work/names/app")" = "21 27 4 3" || { echo "names $flags: wrong result" >&2; exit 1; }
+done
+"$ziran" bundle --root "$work" --entry names:main -o "$work/names.zx" "$work/names.zi"
+test "$(ZIRAN_NATIVE_CACHE="$work/cache" "$ziran" run "$work/names.zx")" = "21 27 4 3"
+
 # Loads and gathers read a constant table in place, as index reads do,
 # instead of copying it into a local array at every call.
 cat > "$work/table.zi" <<'ZI'

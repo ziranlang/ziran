@@ -56,8 +56,8 @@ blank query, then trim Python <code>str.strip</code> whitespace (<code>IsSpace</
 U+001C..U+001F). Internal controls are ordinary tokenizer bytes; HF's regex
 whitespace uses <code>IsWhiteSpace</code> instead. The Photos integration unit compares
 this boundary against the actual pinned public tokenizer.</p>
-<p>Run local tests from this canonical package, using the current canonical
-toolchain (no dependency checkout/fetch):</p>
+<p>Run local tests on the locked toolchain, which <code>make check</code> fetches and builds
+on first use; <code>ZIRAN=path/to/ziran</code> runs them on another:</p>
 <pre><code class="language-sh">build-queue -- make check
 </code></pre>
 <p>The tiny public synthetic model and frozen goldens are independently encoded

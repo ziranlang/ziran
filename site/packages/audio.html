@@ -2,8 +2,11 @@
 <html lang="en">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Reusable Opus encoding/decoding, Ogg Opus inspection, best-quality sinc sample-rate conversion and WAV I/O, with a native audio command."><title>Audio for Ziran · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/audio"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
-<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Audio for Ziran</h1><p>Reusable Opus encoding/decoding, Ogg Opus inspection, best-quality sinc sample-rate conversion and WAV I/O, with a native audio command. There is no Kryon, Raylib, audio-device or runtime subprocess dependency. GUI hosts choose their own playback sink and call the same modules as command-line tools.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet. The repository is not public yet.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#overview">Overview</a><a href="#module-types">types</a><a href="#module-ogg">ogg</a><a href="#module-wav">wav</a><a href="#module-opus">opus</a><a href="#module-pipeline">pipeline</a><a href="#module-resample">resample</a></aside><div class="article-body api-body">
+<main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>Audio for Ziran</h1><p>Reusable Opus encoding/decoding, Ogg Opus inspection, best-quality sinc sample-rate conversion and WAV I/O, with a native audio command. There is no Kryon, Raylib, audio-device or runtime subprocess dependency. GUI hosts choose their own playback sink and call the same modules as command-line tools.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/audio">Repository ↗</a></p></div>
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-types">types</a><a href="#module-ogg">ogg</a><a href="#module-wav">wav</a><a href="#module-opus">opus</a><a href="#module-pipeline">pipeline</a><a href="#module-resample">resample</a></aside><div class="article-body api-body">
+<section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.audio]
+git = "https://github.com/ziranlang/audio.git"
+ref = "master"</code></pre></section>
 <section id="overview" class="prose"><h2>Overview</h2><h2 id="build-and-use">Build and use</h2>
 <p>Install Ziran plus the development/link libraries for <strong>libopus</strong> and
 <strong>libsamplerate</strong> (<code>libopus-dev</code> and <code>libsamplerate0-dev</code> on Debian-family
@@ -121,6 +124,58 @@ conversion and irregular streaming chunks share the same filter state/quality.</
 concurrently, or replace their borrowed storage. Use separate states for
 separate streams. The CLI conveniences are bounded whole-file operations;
 only the explicit state APIs stream PCM.</p>
+<h2 id="android">Android</h2>
+<p>The manifest pins the codec sources as <code>source = true</code> dependencies:
+<code>libopus</code> (xiph/opus v1.5.2) and <code>libsamplerate</code> (libsndfile/libsamplerate
+0.2.2). An NDK CMake build includes <code>native/AudioCodecs.cmake</code> and calls
+<code>ziran_audio_codecs("&lt;libopus&gt;" "&lt;libsamplerate&gt;")</code> with the paths from
+<code>ziran pkg path libopus</code> / <code>ziran pkg path libsamplerate</code>. It defines static,
+position-independent <code>opus</code> and <code>samplerate</code> targets (float API; no programs,
+tests or DNN extensions) to link into the app's native library. Generate the
+app's C with Breeze's Android defines, <code>--define ANDROID_BUILD</code> plus the ABI's
+<code>__aarch64__</code>, <code>__arm__</code>, <code>__i386__</code> or <code>__x86_64__</code>; <code>std</code> file mapping and
+renames need them on bionic.</p>
+<p><code>make android-test</code> (after <code>make test</code>) builds both libraries and the CLI with
+NDK 28.2.13676358 at API 21 for arm64-v8a, armeabi-v7a, x86 and x86_64
+(<code>ANDROID_NDK_HOME</code>, <code>ANDROID_API</code> and <code>ANDROID_ABIS</code> override this). With
+<code>ANDROID_SERIAL=SERIAL</code> it runs inspect, decode, resample and encode on that
+device and compares the output with the Linux CLI. On a Moto e6 play
+(armeabi-v7a, Android 9), decoded and resampled PCM16 matched Linux exactly
+and the device-encoded stream decoded on Linux at the source duration. The
+other three ABIs are build-tested only.</p>
+<h2 id="windows">Windows</h2>
+<p>The same recipe builds static <code>libopus.a</code> and <code>libsamplerate.a</code> for
+x86_64 MinGW. With the pinned sources from <code>ziran pkg path</code>:</p>
+<pre><code class="language-sh">cmake -S native -B build/windows/native -DCMAKE_SYSTEM_NAME=Windows \
+    -DCMAKE_SYSTEM_PROCESSOR=AMD64 -DCMAKE_C_COMPILER=x86_64-w64-mingw32-gcc \
+    -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY -DCMAKE_BUILD_TYPE=Release \
+    -DOPUS_DIR=&quot;$(ziran pkg path libopus)&quot; -DSAMPLERATE_DIR=&quot;$(ziran pkg path libsamplerate)&quot;
+cmake --build build/windows/native
+</code></pre>
+<p>The archives are <code>build/windows/native/libopus/libopus.a</code> and
+<code>build/windows/native/libsamplerate/src/libsamplerate.a</code> (a CMake consumer
+calls <code>ziran_audio_codecs</code> and links the <code>opus</code> target). Generate C with
+<code>--define _WIN32 --define __x86_64__</code>; no other define is needed. libopus
+keeps its default stack protector and <code>_FORTIFY_SOURCE=2</code>, so a MinGW link
+adds GCC's <code>-lssp</code> after the archives: decoder-only consumers link
+<code>libopus.a -lssp -lm</code>, full-pipeline consumers <code>libopus.a libsamplerate.a
+-lssp -lm</code>. With <code>-static -static-libgcc</code> the programs import only
+<code>kernel32</code>, <code>msvcrt</code> and <code>advapi32</code>.</p>
+<p><code>make windows-test</code> (after <code>make test</code>; <code>WINDOWS_CC</code> names the compiler)
+builds both archives and two codec programs, then runs them in a private
+Wine prefix under a private Xvfb display and compares them with the Linux
+CLI. The decoder-only program streams nine mono/stereo fixtures through
+<code>DecoderOpen</code>/<code>DecoderRead</code> in 997-frame chunks, rewinds with
+<code>DecoderRewind</code> and requires an identical second pass. Its inspection
+lines, five malformed-stream rejections and decoded frame counts matched
+Linux; PCM16 differed by at most 2 LSBs against the system libopus build
+(3 of 9 bit-exact). The full-pipeline program encoded <code>voice.wav</code> with the
+CLI's 24 kbps voice settings to the same size as Linux; Linux decoded it to
+the source duration. This was tested with Nix MinGW GCC 15.3.0 and Debian
+Wine 10.0, not on Windows hardware. Windows sinc resampling still returns
+<code>Unsupported</code>, so the pipeline accepts only 48-kHz input there. The <code>audio</code>
+CLI itself is not built for Windows: Ziran's <code>std/file_tree_linux</code> has no
+Win32 implementation.</p>
 <h2 id="validation-and-target-support">Validation and target support</h2>
 <p>Ogg inspection checks capture/version, CRC, stream serial, page sequence,
 BOS/EOS, continuation/lacing, bounded tags, TOC durations, granule monotonicity,
@@ -130,12 +185,16 @@ streams, multichannel mappings and nonzero initial timeline offsets. Inspection
 validates the container and declared packet duration; libopus validates packet
 payloads as they are decoded. It does not claim to validate an unheard packet's
 compressed bitstream. Rewind assumes the validated bytes stayed unchanged.</p>
-<p>Native codec and sinc execution is tested with Linux x86-64 C, libopus 1.5.2
-and libsamplerate 0.2.2. The SRC_DATA C-long ABI is represented by <code>isize</code> on
-Unix C targets. Windows sinc execution returns <code>Unsupported</code> before FFI.
-Other native/device platforms are unverified. Kryon's host integration enables
-native Opus on Linux and reports <code>Unsupported</code> on its unimplemented Android,
-Windows and macOS paths; browser playback uses the browser's own WebAudio decoder. Codec FFI and sinc are not
+<p>Native codec and sinc execution is tested with Linux x86-64 C against the
+system libopus 1.5.2 and libsamplerate 0.2.2, and on Android (see below). The
+SRC_DATA C-long ABI is represented by <code>isize</code> on Unix C targets, including
+32-bit Android. Windows sinc execution returns <code>Unsupported</code> before FFI,
+because Windows C <code>long</code> is 32 bits. Windows x86_64 codec execution is
+tested under Wine (see above); macOS codec execution is unverified. Kryon's
+native provider plays Ogg Opus through these modules on Linux, Android
+(Kryon commit 34e552d) and Windows MinGW (Kryon commit 34d0ce4, linking
+<code>libopus.a -lssp -lm</code>); macOS still reports <code>Unsupported</code>, and browser
+playback uses the browser's own WebAudio decoder. Codec FFI and sinc are not
 portable VM implementations; reachable native calls reject bundling instead
 of fabricating output. Portable Ogg/WAV modules execute from source and saved
 IR in C, Go and <code>.zx</code> without codec libraries. The CLI's variadic libopus
@@ -174,7 +233,7 @@ quality claim follows from these tests.</p>
 <div><code>PutLittle :: (output: []u8, at: s64, count: s64, value: u64)</code></div>
 <div><code>Magic :: (input: []u8, at: s64, text: string) -&gt; bool</code></div>
 <div><code>SwapSamples :: (pcm: *PCM, samples: *Vec(float32))</code><p>Move ownership between caller vector and PCM without copying samples.</p></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/types.zi">Source ↗</a></p></section>
 <section id="module-ogg"><p class="eyebrow">audio/src/ogg.zi</p><h2>ogg</h2><p>Import with <code>#import "audio/ogg"</code>.</p><div class="api-list">
 <div><code>OggCRC :: (page: []u8) -&gt; u32</code><p>Ogg CRC-32 (non-reflected), with the checksum field treated as zero.</p></div>
 <div><code>OggReader :: struct { input: []u8; at: s64; end: s64; body: s64; segment: s64; segments: s64; serial: u64; sequence: u64; granule: s64; flags: u8; packet: [65536]u8; packet_count: s64; done: bool; page_last: bool; last_complete: bool; }</code><p>Bounded packet iterator. Borrowed input must outlive this record. A returned packet is valid until the next call; never retain a view over NextPacket.</p></div>
@@ -185,11 +244,11 @@ quality claim follows from these tests.</p>
 <div><code>PageBuilder :: struct { body: [65025]u8; laces: [255]u8; count: s64; segments: s64; }</code><p>Efficient file muxing: accumulate up to 200 ms or 255 lacing entries in a page, amortizing the 27-byte header without changing Opus frame latency.</p></div>
 <div><code>PageAdd :: (page: *PageBuilder, packet: []u8) -&gt; s32</code></div>
 <div><code>PageFlush :: (page: *PageBuilder, output: *Vec(u8), final: bool, granule: s64, sequence: u32) -&gt; s32</code></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/ogg.zi">Source ↗</a></p></section>
 <section id="module-wav"><p class="eyebrow">audio/src/wav.zi</p><h2>wav</h2><p>Import with <code>#import "audio/wav"</code>.</p><div class="api-list">
 <div><code>WavDecode :: (input: []u8, max_frames: s64, output: *PCM) -&gt; s32</code><p>Canonical RIFF WAVE PCM16 or IEEE float32 mono/stereo. Unknown chunks are skipped with padding, but duplicate fmt/data, RF64 and compressed WAV reject.</p></div>
 <div><code>WavEncode :: (pcm: *PCM, output: *Vec(u8)) -&gt; s32</code><p>PCM16 output clips finite sinc/codec overshoots at the integer boundary.</p></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/wav.zi">Source ↗</a></p></section>
 <section id="module-opus"><p class="eyebrow">audio/src/opus.zi</p><h2>opus</h2><p>Import with <code>#import "audio/opus"</code>.</p><div class="api-list">
 <div><code>Encoder :: struct { handle: *void; channels: s32; frame_size: s32; lookahead: s32; }</code></div>
 <div><code>EncoderClose :: (encoder: *Encoder)</code></div>
@@ -201,10 +260,10 @@ quality claim follows from these tests.</p>
 <div><code>DecoderRewind :: (decoder: *Decoder) -&gt; s32</code><p>Rewind already validated, immutable borrowed input without rescanning it. Only the owning caller may mutate state; input must stay unchanged until close.</p></div>
 <div><code>DecoderRead :: (decoder: *Decoder, output: []float32, frames: *s64) -&gt; s32</code><p>Returns OK and frames=0 only at exact logical EOF. Output is caller-owned, interleaved and may be as small as one frame; the unused suffix is unchanged.</p></div>
 <div><code>Decode :: (input: []u8, max_frames: s64, output: *PCM) -&gt; s32</code></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/opus.zi">Source ↗</a></p></section>
 <section id="module-pipeline"><p class="eyebrow">audio/src/pipeline.zi</p><h2>pipeline</h2><p>Whole-buffer preprocessing and Ogg Opus encoding. Codec-only consumers import opus without pulling in the sample-rate converter.</p><p>Import with <code>#import "audio/pipeline"</code>.</p><div class="api-list">
 <div><code>Encode :: (pcm: *PCM, options: Options, output: *Vec(u8)) -&gt; s32</code></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/pipeline.zi">Source ↗</a></p></section>
 <section id="module-resample"><p class="eyebrow">audio/src/resample.zi</p><h2>resample</h2><p>Import with <code>#import "audio/resample"</code>.</p><div class="api-list">
 <div><code>SincData :: struct { input: *float32; output: *float32; input_frames: isize; output_frames: isize; input_used: isize; output_generated: isize; end_of_input: s32; ratio: float64; }</code><p>Public libsamplerate SRC_DATA ABI: C long maps to isize on supported Unix C targets. Windows is rejected before creating or processing native state.</p></div>
 <div><code>SincState :: struct { handle: *void; channels: s32; ratio: float64; ended: bool; }</code></div>
@@ -212,6 +271,6 @@ quality claim follows from these tests.</p>
 <div><code>SincClose :: (state: *SincState)</code></div>
 <div><code>SincProcess :: (state: *SincState, input: []float32, output: []float32, final: bool, used: *s64, generated: *s64) -&gt; s32</code><p>Caller supplies disjoint buffers. Respect both used and generated counts; keep feeding the unconsumed input, and drain with final=true until generated=0.</p></div>
 <div><code>Resample :: (pcm: *PCM, target_rate: s32, output: *PCM) -&gt; s32</code></div>
-</div></section>
+</div><p><a class="text-link" href="https://github.com/ziranlang/audio/blob/HEAD/src/resample.zi">Source ↗</a></p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

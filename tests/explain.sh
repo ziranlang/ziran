@@ -57,6 +57,9 @@ for path in sources:
 for path in (repo / "cmd").glob("*.zi"):
     text = path.read_text()
     emitted.update(re.findall(r'(?:PkgFailCode|Diagnostics\.Emit)\s*\(\s*"([A-Za-z0-9_.-]+)"', text))
+    # IR modules report through compiler_services, as Diagnose(span, "code", ...)
+    # or a wrapper spelled the same way.
+    emitted.update(re.findall(r'\b(?:Diagnose|Fatal|Fail|Report)\s*\([^"\n)]*,\s*"([A-Za-z0-9_.-]+)"', text))
 assert set(listing["codes"]) == emitted, (
     sorted(emitted - set(listing["codes"])),
     sorted(set(listing["codes"]) - emitted),

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `std/simd` in the portable VM (`zi2zx run --vm`) runs about a quarter
+  faster: each call site works out its operation and operands once.
 - Uncached `ziran run` of programs that use `std/simd` compiles in half the
   time: C that only names vector types includes their small types header,
   not every operation.

@@ -95,6 +95,7 @@ void
 free_evaluation_buffers(Vm *vm)
 {
     free_scalar_plans(vm);
+    vm_simd_free_sites(vm);
     while(vm->print_buffer_count > 0) {
         int slot = --vm->print_buffer_count;
         free(vm->print_buffers[slot]);

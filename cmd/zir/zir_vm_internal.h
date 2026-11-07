@@ -75,6 +75,7 @@ typedef struct VmPrintBuffers VmPrintBuffers;
 typedef struct RunFunctionBuffers RunFunctionBuffers;
 typedef struct CallSetup CallSetup;
 typedef struct VmScalarSite VmScalarSite;
+typedef struct VmSimdSite VmSimdSite;
 typedef struct InlineRecord InlineRecord;
 
 typedef struct Value {
@@ -582,6 +583,9 @@ typedef struct Vm {
     VmConstantSite *constant_tables;
     VmScalarSite *scalar_sites;
     size_t scalar_site_count, scalar_site_slots;
+    /* Prepared std/simd call sites (zir_vm_simd.c), hashed by expression. */
+    VmSimdSite **simd_sites;
+    size_t simd_site_count, simd_site_slots;
     size_t scalar_function_bytes;
     StringLiteral **literal_sites;
     Frame *active_frame;
@@ -712,6 +716,7 @@ void binary_value(Vm *vm, const char *op, const Value *left, const Value *right,
 Value eval(Frame *frame, int index, int depth);
 /* A checked zi_simd_* call (zir_vm_simd.c). */
 Value vm_simd_call(Frame *frame, const ZirExpr *expression, int depth);
+void vm_simd_free_sites(Vm *vm);
 int execute_scalar_function(Frame *frame, VmSignature *signature,
                              Value *result, Flow *flow);
 void pin_value(Vm *vm, Value value, int depth);

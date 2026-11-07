@@ -112,8 +112,10 @@ const SimdOp *
 SimdOpChecked(const char *name)
 {
     if(name == NULL || strncmp(name, "zi_simd_", 8)) return NULL;
+    /* The VM asks this of every call it evaluates: compare first bytes. */
+    name += 8;
     for(size_t i = 0; i < OP_COUNT; i++)
-        if(!strcmp(name + 8, ops[i].snake)) return &ops[i];
+        if(ops[i].snake[0] == name[0] && !strcmp(name, ops[i].snake)) return &ops[i];
     return NULL;
 }
 

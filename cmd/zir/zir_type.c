@@ -277,46 +277,45 @@ int ArrayElementType(const char *type, char *element, size_t element_size, int *
     return 1;
 }
 
-static const char *const vector_names[] = {
-    "u8x16", "s8x16", "u16x8", "s16x8", "u32x4", "s32x4", "u64x2", "s64x2",
-    "f32x4", "f64x2", "u8x32", "s8x32", "u16x16", "s16x16", "u32x8", "s32x8",
-    "u64x4", "s64x4", "f32x8", "f64x4"
+/* The vector types compiler_type.zi's VectorType accepts, which every
+ * backend spells the same way. The VM asks of each vector value it
+ * coerces, so this reads a table rather than parsing the spelling. */
+static const struct VectorSpelling {
+    const char *name, *lane;
+    int lanes, lane_bits;
+} vector_types[] = {
+    {"u8x16", "u8", 16, 8}, {"s8x16", "s8", 16, 8}, {"u16x8", "u16", 8, 16},
+    {"s16x8", "s16", 8, 16}, {"u32x4", "u32", 4, 32}, {"s32x4", "s32", 4, 32},
+    {"u64x2", "u64", 2, 64}, {"s64x2", "s64", 2, 64}, {"f32x4", "float32", 4, 32},
+    {"f64x2", "float64", 2, 64}, {"u8x32", "u8", 32, 8}, {"s8x32", "s8", 32, 8},
+    {"u16x16", "u16", 16, 16}, {"s16x16", "s16", 16, 16}, {"u32x8", "u32", 8, 32},
+    {"s32x8", "s32", 8, 32}, {"u64x4", "u64", 4, 64}, {"s64x4", "s64", 4, 64},
+    {"f32x8", "float32", 8, 32}, {"f64x4", "float64", 4, 64}
 };
 
 int VectorType(const char *type, ZirVector *vector)
 {
     if(type == NULL || (type[0] != 'u' && type[0] != 's' && type[0] != 'f'))
         return 0;
-    VectorShape shape = compiler_type_VectorType(type_text(type));
-    if(shape.lanes <= 0) return 0;
-    static const char *const lanes[] = {
-        "u8", "s8", "u16", "s16", "u32", "s32", "u64", "s64", "float32", "float64"
-    };
-    const char *lane = NULL;
-    for(size_t i = 0; i < sizeof(lanes) / sizeof(*lanes); i++)
-        if((size_t)shape.lane.length == strlen(lanes[i]) &&
-           !memcmp(shape.lane.data, lanes[i], (size_t)shape.lane.length))
-            lane = lanes[i];
-    const char *name = NULL;
-    for(size_t i = 0; i < sizeof(vector_names) / sizeof(*vector_names); i++)
-        if(!strcmp(type, vector_names[i])) name = vector_names[i];
-    if(lane == NULL || name == NULL) return 0;
-    if(vector != NULL) {
-        int bits = lane[0] == 'f' ? atoi(lane + 5) : atoi(lane + 1);
-        *vector = (ZirVector){.name = name, .lane = lane, .lanes = shape.lanes,
-            .lane_bits = bits, .bytes = shape.lanes * bits / 8,
-            .is_signed = lane[0] == 's', .is_float = lane[0] == 'f'};
+    for(size_t i = 0; i < sizeof(vector_types) / sizeof(*vector_types); i++) {
+        const struct VectorSpelling *spelling = &vector_types[i];
+        if(spelling->name[1] != type[1] || strcmp(type, spelling->name))
+            continue;
+        if(vector != NULL)
+            *vector = (ZirVector){.name = spelling->name, .lane = spelling->lane,
+                .lanes = spelling->lanes, .lane_bits = spelling->lane_bits,
+                .bytes = spelling->lanes * spelling->lane_bits / 8,
+                .is_signed = spelling->lane[0] == 's', .is_float = spelling->lane[0] == 'f'};
+        return 1;
     }
-    return 1;
+    return 0;
 }
 
 const char *VectorTypeName(const char *lane, int lanes)
 {
-    ZirVector vector;
-    for(size_t i = 0; i < sizeof(vector_names) / sizeof(*vector_names); i++)
-        if(VectorType(vector_names[i], &vector) && vector.lanes == lanes &&
-           lane != NULL && !strcmp(vector.lane, lane))
-            return vector.name;
+    for(size_t i = 0; lane != NULL && i < sizeof(vector_types) / sizeof(*vector_types); i++)
+        if(vector_types[i].lanes == lanes && !strcmp(vector_types[i].lane, lane))
+            return vector_types[i].name;
     return NULL;
 }
 

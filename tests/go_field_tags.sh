@@ -16,6 +16,9 @@ Record :: struct {
 Inline :: struct { value: s32 #go_tag "json:\"semi;colon\""; other: s32 }
 Box :: struct($T: Type) { value: T #go_tag "json:\"box,omitempty\""; }
 Number :: Box(s32)
+CODE_MAX :: 4
+// Checking writes the array size as [4]; the tag stays.
+Sized :: struct { code: [CODE_MAX]u8; id: s32 #go_tag "json:\"sized_id\""; }
 
 #program_export
 Answer :: () -> s32 {
@@ -66,6 +69,10 @@ func main() {
     data, err = json.Marshal(Inline{Value: 2, Other: 3})
     if err != nil || string(data) != `{"semi;colon":2,"Other":3}` {
         panic(string(data))
+    }
+    field, _ = reflect.TypeOf(Sized{}).FieldByName("ID")
+    if field.Tag.Get("json") != "sized_id" {
+        panic("tag on a record with a named array size")
     }
     data, err = json.Marshal(Number{Value: 42})
     if err != nil || string(data) != `{"box":42}` || Tags_Answer() != 42 {

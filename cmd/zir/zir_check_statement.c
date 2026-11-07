@@ -791,9 +791,8 @@ normalize_record_arrays_with_buffers(ZirModule *module, int templates_only,
         while((status = TypeNextField(record, &offset, &field)) == 1) {
             normalize_template_array(module, field.type, sizeof(field.type),
                 record->is_record_template ? record->template_params : NULL);
-            int length = snprintf(buffers->body + used, sizeof(buffers->body) - used,
-                                  "%s%s: %s\n", field.is_using ? "using " : "",
-                                  field.name, field.type);
+            int length = TypeFieldLine(&field, field.type, buffers->body + used,
+                                       sizeof(buffers->body) - used);
             if(length < 0 || (size_t)length >= sizeof(buffers->body) - used) {
                 Diagnostic(record->span, "check.record", "normalized record is too large: %s",
                            record->name);

@@ -12,9 +12,12 @@ cat > "$work/spell.zi" <<'EOF'
 Kind :: enum s32 #c "SPELL_KIND_" { Ident; Call :: 4; Index }
 Flag :: enum u8 #specified #c "SPELL_" { First :: 1; Second :: 2 }
 
+LABEL_MAX :: 6
+
 Node :: struct {
     name: *u8 #c "const char *"
     op: [4]u8 #c "char"
+    label: [LABEL_MAX]u8 #c "char"  // checking writes [6]; the spelling stays
     kind: Kind
     count: s64
 }
@@ -49,7 +52,7 @@ cp "$work/plain.zi" "$work/plain-root/spell.zi"
 
 "$bin/zi2c" --no-main --root "$work" -o "$work/c" "$work/spell.zi"
 header=$work/c/spell.h
-for line in 'const char * name;' 'char op[4];' 'SPELL_KIND_Ident = 0,' \
+for line in 'const char * name;' 'char op[4];' 'char label[6];' 'SPELL_KIND_Ident = 0,' \
     'SPELL_KIND_Call = 4,' 'SPELL_KIND_Index = 5,' 'SPELL_First = 1,'; do
     grep -qF "$line" "$header" || { echo "missing in C header: $line" >&2; exit 1; }
 done

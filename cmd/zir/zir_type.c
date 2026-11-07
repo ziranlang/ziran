@@ -443,6 +443,14 @@ int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
     return status;
 }
 
+int TypeFieldLine(const ZirTypeField *field, const char *type, char *out, size_t size)
+{
+    return snprintf(out, size, "%s%s: %s%s%s%s%s%s\n", field->is_using ? "using " : "",
+                    field->name, type, field->go_tag[0] ? " #go_tag " : "", field->go_tag,
+                    field->c_type[0] ? " #c \"" : "", field->c_type,
+                    field->c_type[0] ? "\"" : "");
+}
+
 int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
 {
     CompilerThread *thread = &CompilerThreadState;

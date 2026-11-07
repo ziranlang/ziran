@@ -78,6 +78,9 @@ typedef enum ZirExprKind {
 typedef struct ZirSourceSpan {
     CompilerContext *context; /* in-memory owner of the source-file number */
     int file; /* SourceFile number of the path; read it with SpanPath */
+/* FIELD as one record body line with TYPE as its type, keeping its using,
+ * #go_tag and #c spellings. Returns what snprintf returns. */
+int TypeFieldLine(const ZirTypeField *field, const char *type, char *out, size_t size);
     int line;
     int column;
     int end_line;

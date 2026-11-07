@@ -11,6 +11,8 @@
   matches C code that shares the records: `const char *` or `char name[N]`
   fields, and enum constants with a prefix such as `ZIR_EXPR_`. Saved IR is
   version 63.
+- A record whose array size names a constant, such as `[NAME_MAX]u8`, keeps
+  its fields' `#go_tag` and `#c` spellings; Go dropped the tags before.
 - `#if`, `#ifx`, `#assert` and `#run` share one compile-time evaluator, and
   enum values read integer literals as the language does (`0b10_1`, `1_000`).
 - `#asm` routines take slices, clobber ranges such as `xmm0..xmm7` and

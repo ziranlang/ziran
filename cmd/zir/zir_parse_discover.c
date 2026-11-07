@@ -1559,12 +1559,8 @@ InstantiateGenericRecordAt(ZirType *instance, const ZirType *generic,
         if(!SubstituteGenericType(field.type, type, sizeof(type),
                                    params, actual, parameter_count))
             return 0;
-        int length = snprintf(instance->body + used,
-            sizeof(instance->body) - used, "%s%s: %s%s%s%s%s%s\n",
-            field.is_using ? "using " : "", field.name, type,
-            field.go_tag[0] ? " #go_tag " : "", field.go_tag,
-            field.c_type[0] ? " #c \"" : "", field.c_type,
-            field.c_type[0] ? "\"" : "");
+        int length = TypeFieldLine(&field, type, instance->body + used,
+                                   sizeof(instance->body) - used);
         if(length < 0 || (size_t)length >= sizeof(instance->body) - used)
             return 0;
         used += (size_t)length;

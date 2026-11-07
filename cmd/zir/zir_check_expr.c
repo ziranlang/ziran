@@ -398,7 +398,9 @@ select_overload(Checker *c, int index)
     } else
         copy_text(base, sizeof(base), e->name);
     /* Every module the call can see, however many the file imports: an
-     * implicit import such as BuilderPrint's std/format comes last. */
+     * implicit import such as BuilderPrint's std/format comes last. A module
+     * imported more than once, such as `hash_map` and `std/hash_map`, is one
+     * module, so its overloads are candidates once. */
     const ZirModule **modules = calloc((size_t)c->module->import_count + 1, sizeof(*modules));
     if(modules == NULL) {
         c->failed = 1;
@@ -410,9 +412,14 @@ select_overload(Checker *c, int index)
     for(int i = 0; i < c->module->import_count; i++) {
         const ZirImport *import = &c->module->imports[i];
         if(import->resolved_module == NULL) continue;
-        if(alias[0] ? import->kind == ZIR_IMPORT_MODULE && !strcmp(import->name, alias) :
-                      import->kind == ZIR_IMPORT_OPEN ||
-                      (import->kind == ZIR_IMPORT_MODULE && import->is_using))
+        if(!(alias[0] ? import->kind == ZIR_IMPORT_MODULE && !strcmp(import->name, alias) :
+                        import->kind == ZIR_IMPORT_OPEN ||
+                        (import->kind == ZIR_IMPORT_MODULE && import->is_using)))
+            continue;
+        int seen = 0;
+        for(int m = 0; m < module_count && !seen; m++)
+            seen = modules[m] == import->resolved_module;
+        if(!seen)
             modules[module_count++] = import->resolved_module;
     }
     OverloadCandidate *candidates = NULL;

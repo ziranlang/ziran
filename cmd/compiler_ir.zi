@@ -387,3 +387,48 @@ ZirProgram :: struct {
     module_count: s32
     module_cap: s32
 }
+
+// C text the records keep, read and written from Ziran. A kept string is
+// NUL-terminated and lives as long as the program; a fixed buffer ends at
+// its first NUL byte.
+#scope_file
+TextDescriptor :: struct { data: *u8; length: usize }
+ByteDescriptor :: struct { data: *u8; length: s64 }
+#scope_export
+CText :: (value: *u8) -> string {
+    result := ""
+    if value == null { return result }
+    length: usize = 0
+    while value[length] != 0 { length += 1 }
+    descriptor := cast(*TextDescriptor)(*result)
+    descriptor.data = value
+    descriptor.length = length
+    return result
+}
+// The C buffer DATA[0:COUNT] as a byte slice.
+CBuffer :: (data: *u8, count: u64) -> []u8 {
+    result: []u8
+    descriptor := cast(*ByteDescriptor)(*result)
+    descriptor.data = data
+    descriptor.length = cast(s64)count
+    return result
+}
+BufferText :: (buffer: []u8) -> string {
+    length: s64 = 0
+    while length < buffer.count && buffer[length] != 0 { length += 1 }
+    return TextView(buffer[0:length])
+}
+// Copy TEXT into OUTPUT with a closing NUL, cut to fit as C's copy_text
+// does; false when it was cut or holds a NUL byte.
+CopyText :: (output: []u8, text: string) -> bool {
+    if output.count == 0 { return false }
+    length := text.count
+    if length >= output.count { length = output.count - 1 }
+    clean := length == text.count
+    for i: 0..length - 1 {
+        output[i] = text[i]
+        if text[i] == 0 { clean = false }
+    }
+    output[length] = 0
+    return clean
+}

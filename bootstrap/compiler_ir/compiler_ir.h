@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdbool.h>
+#include "zir_slice.h"
 #include "zir_string_types.h"
 
 #ifdef __cplusplus
@@ -38,6 +39,12 @@ typedef struct ZirType ZirType;
 typedef struct ZirTypeField ZirTypeField;
 typedef struct ZirModule ZirModule;
 typedef struct ZirProgram ZirProgram;
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+typedef struct TextDescriptor TextDescriptor;
+#endif
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+typedef struct ByteDescriptor ByteDescriptor;
+#endif
 
 enum {
     ZIR_IMPORT_OPEN = 1,
@@ -411,6 +418,61 @@ struct ZirProgram {
     int32_t module_count;
     int32_t module_cap;
 };
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+
+struct TextDescriptor {
+    uint8_t* data;
+    size_t length;
+};
+#endif
+#ifdef ZIRAN_COMPILER_IR_H_PRIVATE
+
+struct ByteDescriptor {
+    uint8_t* data;
+    int64_t length;
+};
+#endif
+String compiler_ir_CText(uint8_t* value);
+Slice compiler_ir_CBuffer(uint8_t* data, uint64_t count);
+String compiler_ir_BufferText(Slice buffer);
+bool compiler_ir_CopyText(Slice output, String text);
+
+/* Small procedures other modules inline; compiler_ir.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include "zir_bounds.h"
+static inline bool compiler_ir_CopyText_ziran_inline(Slice output, String text);
+#define compiler_ir_CopyText(...) compiler_ir_CopyText_ziran_inline(__VA_ARGS__)
+
+static inline bool
+compiler_ir_CopyText_ziran_inline(Slice output, String text)
+{
+    if ((int64_t)(output).length == 0LL) {
+        return false;
+    }
+    int64_t length = (int64_t)(text).length;
+    if (length >= (int64_t)(output).length) {
+        length = (int64_t)((uint64_t)((int64_t)(output).length) - UINT64_C(1));
+    }
+    bool clean = length == (int64_t)(text).length;
+    {
+        int64_t range_first_8 = 0LL;
+        int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
+        int64_t i = range_first_8;
+        if (i <= range_last_8) for (;;) {
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)] = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
+            if ((uint8_t)ZIRAN_INDEX(text.data, text.length, i) == 0) {
+                clean = false;
+            }
+            if (i == range_last_8) {
+                break;
+            }
+            i = (int64_t)((uint64_t)i + UINT64_C(1));
+        }
+    }
+    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)] = 0;
+    return clean;
+}
+#endif
 
 #ifdef __cplusplus
 }

@@ -12,11 +12,22 @@
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_stream.h"
+#include "zir_memory.h"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+/* Whether VALUE is exactly one quoted string literal. */
+static int
+one_string_literal(const char *value)
+{
+    if(value[0] != '"') return 0;
+    const char *p = value + 1;
+    while(*p && *p != '"') p += p[0] == '\\' && p[1] ? 2 : 1;
+    return *p == '"' && p[1] == 0;
+}
 
 /* Whether the header keeps declarations behind its _PRIVATE guard. */
 static int
@@ -2026,6 +2037,21 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         char name[LOWER_NAME_MAX];
         TargetDefineName(m, ZIR_C, d->name, name, sizeof(name));
         if(!d->is_public) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
+        if(one_string_literal(d->value)) {
+            /* A string constant takes the C spelling string expressions
+             * use: ASCII, with no ?? that strict C would read as a trigraph. */
+            ZirExpr expr = {0};
+            expr.kind = ZIR_EXPR_STRING;
+            expr.text = d->value;
+            expr.span = d->span;
+            size_t capacity = strlen(d->value) * 4 + 16;
+            char *literal = AllocateOrExit(capacity);
+            EmitStringLiteral(&expr, ZIR_C, literal, capacity);
+            fprintf(h, "#define %s %s\n", name, literal);
+            free(literal);
+            if(!d->is_public) fputs("#endif\n", h);
+            continue;
+        }
         if(!rewrite_body2(m, NULL, 0, d->value, buffers->value, sizeof(buffers->value)))
             c_rewrite_overflow(m->source_path, d->span.line);
         /* A table constant written over several lines stays one macro. */
@@ -2384,6 +2410,22 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    !rewrite_body2(m, NULL, 0, g->init, buffers->initw,
                                   sizeof(buffers->initw)))
                     c_rewrite_overflow(m->source_path, g->span.line);
+            }
+            /* A string global over the C99 literal limit, {"...", N}, keeps
+             * its bytes in a char array of their own. */
+            if(compound_text == NULL && !strcmp(g->type, "string") &&
+               !strncmp(buffers->initw, "{\"", 2) &&
+               CStringLiteralBytes(buffers->initw + 1) > C_STRING_LITERAL_MAX) {
+                const char *end = buffers->initw + 2;
+                while(*end && *end != '"') end += *end == '\\' ? 2 : 1;
+                char text_name[LOWER_NAME_MAX + 32];
+                char declaration[LOWER_NAME_MAX + 64];
+                snprintf(text_name, sizeof(text_name), "ziran_text_%s", name);
+                snprintf(declaration, sizeof(declaration), "static const char %s",
+                         text_name);
+                WriteCStringArray(c, 0, declaration, buffers->initw + 1);
+                compound_text = AllocateOrExit(strlen(text_name) + strlen(end) + 2);
+                sprintf(compound_text, "{%s%s", text_name, end + 1);
             }
             int zero = TypeHasZeroArray(m, g->type);
             /* The native engine places module globals itself (ZIR_GLOBAL). */

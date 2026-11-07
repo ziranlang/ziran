@@ -1031,6 +1031,50 @@ loose_operand(const Emitter *e, int child, const char *op, char *text, size_t si
         return;
     copy_text(text, size, bare(text, plain, sizeof(plain)));
 }
+
+size_t
+CStringLiteralBytes(const char *literal)
+{
+    size_t bytes = 0;
+    for(const char *p = literal + 1; *p && *p != '"'; bytes++)
+        p += *p != '\\' ? 1 : p[1] >= '0' && p[1] <= '7' ? 4 : 2;
+    return bytes;
+}
+
+void
+WriteCStringArray(FILE *out, int indent, const char *declaration,
+                  const char *literal)
+{
+    for(int i = 0; i < indent; i++) fputs("    ", out);
+    fprintf(out, "%s[] = {\n", declaration);
+    int count = 0;
+    for(const char *p = literal + 1; *p && *p != '"';) {
+        if(count == 0)
+            for(int i = 0; i <= indent; i++) fputs("    ", out);
+        if(*p == '\'') {
+            fputs("'\\'',", out);
+            p++;
+        } else if(*p == '\\' && p[1] == '"') {
+            fputs("'\"',", out);
+            p += 2;
+        } else {
+            int length = *p != '\\' ? 1 : p[1] >= '0' && p[1] <= '7' ? 4 : 2;
+            fprintf(out, "'%.*s',", length, p);
+            p += length;
+        }
+        /* Sixteen bytes a row keep every source line short. */
+        if(++count == 16) {
+            fputc('\n', out);
+            count = 0;
+        }
+    }
+    if(count == 0)
+        for(int i = 0; i <= indent; i++) fputs("    ", out);
+    fputs("0\n", out);
+    for(int i = 0; i < indent; i++) fputs("    ", out);
+    fputs("};\n", out);
+}
+
 /* Buffers emit_expr keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitExprBuffers {
@@ -1536,7 +1580,14 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             EmitStringLiteral(expr, e->target, literal, capacity);
             fresh(e, name);
             if(e->target == ZIR_C) {
-                line(e, "static const char %s[] = %s;", name, literal);
+                if(CStringLiteralBytes(literal) > C_STRING_LITERAL_MAX) {
+                    char declaration[ZIR_NAME_MAX + 32];
+                    format(declaration, sizeof(declaration),
+                           "static const char %s", name);
+                    WriteCStringArray(e->out, e->indent, declaration, literal);
+                } else {
+                    line(e, "static const char %s[] = %s;", name, literal);
+                }
                 format(buffers->result, sizeof(buffers->result),
                        "StringLiteral(%s)", name);
             } else {

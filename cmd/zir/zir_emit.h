@@ -159,6 +159,17 @@ void EmitRunGuards(int enabled);
 int EmitRunGuardsEnabled(void);
 /* Encode a checked literal for native expressions and constant byte arrays. */
 void EmitStringLiteral(const ZirExpr *expr, ZirTarget target, char *out, size_t size);
+/* C99 compilers need accept only 4095 characters in a string literal, even
+ * after concatenation, so GCC and Clang reject longer ones under -pedantic
+ * -Werror. A longer C literal is written as a char array instead, one
+ * character constant per byte and a final NUL as a literal has, so sizeof
+ * still measures it. LITERAL is EmitStringLiteral's C spelling: ASCII, with
+ * \n \t \r \" \\ \? and three-digit octal escapes. */
+#define C_STRING_LITERAL_MAX 4095
+size_t CStringLiteralBytes(const char *literal);
+/* Writes "DECLARATION[] = {...};" at INDENT levels of four spaces. */
+void WriteCStringArray(FILE *out, int indent, const char *declaration,
+                       const char *literal);
 void EmitSlotWrappers(FILE *out, const ZirModule *module, const ZirFunction *fn,
                          ZirTarget target, ZirResolveTarget resolver, void *context);
 void EmitSlotType(FILE *out, const ZirType *slot, ZirTarget target,

@@ -12,13 +12,18 @@
  * - inside a while body, before the body writes the counter again, the
  *   counter still satisfies the loop condition, such as i <= 7 or
  *   i < view.count, and it never goes below its smallest stored value when
- *   it only grows by constants within that loop.
+ *   it only grows by constants within that loop;
+ * - an integer field of a parameter, such as frame.count through a
+ *   pointer, reads one value from one statement to a later one when no
+ *   call and no write outside this call's own locals can run between them;
+ *   then a guard on it bounds a loop that reads it into its limit.
  *
  * Anything else keeps its check, so a program aborts exactly where it did. */
 
 enum {
     RANGE_DEPTH = 8, RANGE_BUDGET = 4096, RANGE_CONTEXT = 32, RANGE_HOPS = 48,
-    POLY_TERMS = 12, POLY_DEGREE = 3, POLY_DEPTH = 24, GUARD_FACTS = 32, POLY_BUDGET = 16384
+    POLY_TERMS = 12, POLY_DEGREE = 3, POLY_DEPTH = 24, GUARD_FACTS = 32, POLY_BUDGET = 16384,
+    FIELD_ATOMS = 64
 };
 
 typedef struct RangeFacts {
@@ -58,6 +63,16 @@ typedef struct RangeFacts {
      * operation in it not to have wrapped, each poly >= 0. */
     struct Poly *side;
     int sides;
+    /* Field reads: atom 2 * bindings + k is integer field field_name[k] of
+     * parameter field_base[k] as it reads in epoch field_epoch[k]. */
+    int fields;
+    int field_base[FIELD_ATOMS], field_epoch[FIELD_ATOMS];
+    const char *field_name[FIELD_ATOMS], *field_type[FIELD_ATOMS];
+    /* Per statement: it may write memory a pointer passed in reaches, by a
+     * call or a store outside this call's own locals. */
+    unsigned char *clobber;
+    int *last_clobber;   /* statement -> latest earlier clobber, or -1 */
+    unsigned char *dirty; /* per while: its condition or body may clobber */
 } RangeFacts;
 
 typedef struct Range {
@@ -74,7 +89,8 @@ typedef struct RangeMemo {
 typedef struct Term {
     int64_t coef;
     int degree;
-    int atom[POLY_DEGREE]; /* ascending binding ids; bindings + view is view.count */
+    int atom[POLY_DEGREE]; /* ascending ids: bindings, bindings + view for view.count,
+                            * then 2 * bindings + k for field read k */
 } Term;
 
 typedef struct Poly {
@@ -99,6 +115,7 @@ typedef struct GuardFacts {
 static int expr_range(const RangeFacts *f, int index, int depth, Range *out);
 static int condition_interval(const RangeFacts *f, int condition, int truth, int binding,
                               int statement, int depth, Range *out);
+static int field_atom(const RangeFacts *f, int index);
 
 static int
 type_range(const char *type, Range *out)
@@ -199,6 +216,9 @@ RangeFactsFree(RangeFacts *f)
     free(f->prev_guard);
     free(f->busy);
     free(f->computing);
+    free(f->clobber);
+    free(f->last_clobber);
+    free(f->dirty);
     free(f->memo);
     if(f->facts != NULL)
         for(int s = 0; s < 2 * f->statements; s++)
@@ -271,6 +291,31 @@ record_write(RangeFacts *f, int statement)
     f->last_write[binding] = statement;
 }
 
+/* Whether an assignment to destination index writes only storage of this
+ * call: a local or parameter, or a field or fixed-array element of one.
+ * Nothing a parameter points to was allocated here, so no pointer passed in
+ * reaches that storage. */
+static int
+writes_own_storage(const RangeFacts *f, int index)
+{
+    while(index >= 0 && index < f->fn->expr_count) {
+        const ZirExpr *expr = &f->fn->exprs[index];
+        const char *base;
+        int capacity = 0;
+        if(expr->kind == ZIR_EXPR_IDENT)
+            return !expr->is_global_value && f->binding_of[index] >= 0;
+        if((expr->kind != ZIR_EXPR_MEMBER && expr->kind != ZIR_EXPR_INDEX) || expr->left < 0)
+            return 0;
+        base = f->fn->exprs[expr->left].type;
+        if(base == NULL || base[0] == '*' ||
+           (expr->kind == ZIR_EXPR_INDEX &&
+            !(ArrayElementType(base, NULL, 0, &capacity) && capacity >= 0)))
+            return 0;
+        index = expr->left;
+    }
+    return 0;
+}
+
 static unsigned
 name_hash(const char *name, unsigned mask)
 {
@@ -318,9 +363,12 @@ RangeFactsBuild(const ZirFunction *fn)
     f->bindings = bindings;
     f->parent_of = malloc((size_t)fn->stmt_count * sizeof(int));
     f->prev_guard = malloc((size_t)fn->stmt_count * sizeof(int));
-    f->busy = calloc((size_t)bindings * 2, 1);
+    f->busy = calloc((size_t)bindings * 2 + FIELD_ATOMS, 1);
     f->computing = calloc((size_t)bindings, 1);
     f->facts = calloc((size_t)fn->stmt_count * 2, sizeof(*f->facts));
+    f->clobber = calloc((size_t)fn->stmt_count, 1);
+    f->last_clobber = malloc((size_t)fn->stmt_count * sizeof(int));
+    f->dirty = calloc((size_t)fn->stmt_count, 1);
     guards = malloc(((size_t)fn->stmt_count + 2) * sizeof(int));
     while(mask < (unsigned)bindings * 2u && mask < (1u << 30))
         mask <<= 1;
@@ -334,7 +382,7 @@ RangeFactsBuild(const ZirFunction *fn)
        !f->next_write || !f->unknown || !f->first_write || !f->last_write ||
        !f->increment_loop || !f->step_total || !f->binding_type || !scope || !opens ||
        !heads || !walk.pending || !f->parent_of || !f->prev_guard || !f->busy || !f->computing || !f->facts ||
-       !guards) {
+       !f->clobber || !f->last_clobber || !f->dirty || !guards) {
         free(guards);
         free(heads);
         free(scope);
@@ -391,6 +439,8 @@ RangeFactsBuild(const ZirFunction *fn)
             for(int x = ExprWalkFirst(&walk, roots[r]); x >= 0; x = ExprWalkNext(&walk)) {
                 const ZirExpr *expr = &fn->exprs[x];
                 f->statement_of[x] = s;
+                if(expr->kind == ZIR_EXPR_CALL)
+                    f->clobber[s] = 1;
                 if(expr->kind != ZIR_EXPR_IDENT || expr->name == NULL || expr->is_global_value ||
                    expr->is_function_value)
                     continue;
@@ -440,6 +490,21 @@ RangeFactsBuild(const ZirFunction *fn)
     for(int s = 0; s < fn->stmt_count; s++)
         if(fn->stmts[s].kind == ZIR_STMT_ASSIGN && fn->stmts[s].lhs_root >= 0)
             record_write(f, s);
+    /* Where memory a pointer passed in reaches may change: calls, and
+     * stores through pointers, slices or globals. */
+    for(int s = 0, last = -1; s < fn->stmt_count; s++) {
+        const ZirStmt *st = &fn->stmts[s];
+        if(st->kind == ZIR_STMT_ASSIGN && !writes_own_storage(f, st->lhs_root))
+            f->clobber[s] = 1;
+        f->last_clobber[s] = last;
+        if(!f->clobber[s])
+            continue;
+        last = s;
+        if(st->kind == ZIR_STMT_WHILE)
+            f->dirty[s] = 1;
+        for(int loop = f->loop_of[s]; loop >= 0; loop = f->loop_of[loop])
+            f->dirty[loop] = 1;
+    }
 #undef RANGE_SCOPE_PUSH
     free(guards);
     free(heads);
@@ -598,16 +663,21 @@ unchanged_since_condition(const RangeFacts *f, int binding, int loop, int at)
 }
 
 /* Guards also bound counts: atom bindings + view stands for view.count,
- * which changes only when view does. */
+ * which changes only when view does. A field read keeps its value within
+ * its epoch, so only its base must stay the same. */
 static int
 atom_binding(const RangeFacts *f, int atom)
 {
-    return atom >= f->bindings && atom < 2 * f->bindings ? atom - f->bindings : atom;
+    if(atom >= 2 * f->bindings)
+        return f->field_base[atom - 2 * f->bindings];
+    return atom >= f->bindings ? atom - f->bindings : atom;
 }
 
 static const char *
 atom_type(const RangeFacts *f, int atom)
 {
+    if(atom >= 2 * f->bindings)
+        return f->field_type[atom - 2 * f->bindings];
     return atom >= f->bindings ? "s64" : f->binding_type[atom];
 }
 
@@ -647,6 +717,8 @@ reads_binding(const RangeFacts *f, int index, int binding)
         if(expr->type == NULL)
             return 0;
     }
+    if(binding >= 2 * f->bindings)
+        return field_atom(f, index) == binding;
     if(binding >= f->bindings) {
         const ZirExpr *base;
         if(expr->kind != ZIR_EXPR_MEMBER || expr->name == NULL || strcmp(expr->name, "count"))
@@ -791,7 +863,7 @@ guard_narrow(const RangeFacts *f, int binding, int at, int depth, Range *value)
 {
     RangeFacts *g = (RangeFacts *)f;
     Range by;
-    if(at < 0 || at >= f->statements || binding < 0 || binding >= 2 * f->bindings ||
+    if(at < 0 || at >= f->statements || binding < 0 || binding >= 2 * f->bindings + f->fields ||
        f->busy[binding] || f->unknown[atom_binding(f, binding)] || depth > RANGE_DEPTH)
         return;
     g->busy[binding] = 1;
@@ -991,10 +1063,16 @@ expr_range(const RangeFacts *f, int index, int depth, Range *out)
            !strcmp(canonical(expr->type), canonical(f->binding_type[f->binding_of[index]])))
             return binding_range(f, f->binding_of[index], f->statement_of[index], depth + 1, out);
         break;
-    case ZIR_EXPR_MEMBER: {
-        int capacity = 0;
+    case ZIR_EXPR_MEMBER: case ZIR_EXPR_POINTER_MEMBER: {
+        int capacity = 0, field = field_atom(f, index);
         const char *base = fn->exprs[expr->left].type;
-        if(expr->name == NULL || strcmp(expr->name, "count") || base == NULL)
+        if(field >= 0 && has_whole) {
+            *out = whole;
+            guard_narrow(f, field, f->statement_of[index], depth, out);
+            return 1;
+        }
+        if(expr->kind != ZIR_EXPR_MEMBER || expr->name == NULL || strcmp(expr->name, "count") ||
+           base == NULL)
             break;
         if(ArrayElementType(base, NULL, 0, &capacity) && capacity >= 0) {
             out->low = out->high = capacity;
@@ -1252,9 +1330,76 @@ invariant(const RangeFacts *f, int binding)
            f->first_write[binding] < 0;
 }
 
+/* When a read of a pointer parameter's field at statement s sees the value
+ * every other read in the same epoch sees: 0 before any clobber, 2c + 2
+ * after clobber c, or 2w + 3 within an iteration of a while w that may
+ * clobber. A read sharing its statement with a clobber, or in the
+ * condition of such a while, has no epoch, -1: the write may come first. */
+static int
+field_epoch(const RangeFacts *f, int s)
+{
+    int epoch = f->last_clobber[s] >= 0 ? 2 * f->last_clobber[s] + 2 : 0;
+    if(f->clobber[s] || (f->fn->stmts[s].kind == ZIR_STMT_WHILE && f->dirty[s]))
+        return -1;
+    for(int loop = f->loop_of[s]; loop >= 0; loop = f->loop_of[loop])
+        if(f->dirty[loop]) {
+            if(2 * loop + 3 > epoch)
+                epoch = 2 * loop + 3;
+            break;
+        }
+    return epoch;
+}
+
+/* The atom of integer field read index, base.name for a parameter base
+ * nothing rebinds, or -1. Through a pointer the field holds one value
+ * within an epoch; a record parameter's field changes only when the
+ * parameter does, which invariant rules out. */
+static int
+field_atom(const RangeFacts *f, int index)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    const ZirExpr *expr = &f->fn->exprs[index];
+    int base, epoch, at = f->statement_of[index];
+    Range type;
+    if((expr->kind != ZIR_EXPR_MEMBER && expr->kind != ZIR_EXPR_POINTER_MEMBER) ||
+       expr->name == NULL || expr->left < 0 || f->fn->exprs[expr->left].kind != ZIR_EXPR_IDENT ||
+       at < 0 || expr->type == NULL || !integer_type(expr->type) || !type_range(expr->type, &type))
+        return -1;
+    base = f->binding_of[expr->left];
+    if(base < f->statements || !invariant(f, base))
+        return -1;
+    if(expr->kind == ZIR_EXPR_MEMBER) {
+        /* Counts of views are their own atoms. */
+        const char *record = f->fn->exprs[expr->left].type;
+        if(record == NULL || record[0] == '*' || SliceElementType(record, NULL, 0) ||
+           ArrayElementType(record, NULL, 0, NULL) || !strcmp(canonical(record), "string"))
+            return -1;
+    }
+    epoch = expr->kind == ZIR_EXPR_POINTER_MEMBER ? field_epoch(f, at) : 0;
+    if(epoch < 0)
+        return -1;
+    for(int k = 0; k < f->fields; k++)
+        if(f->field_base[k] == base && f->field_epoch[k] == epoch &&
+           !strcmp(f->field_name[k], expr->name) && !strcmp(f->field_type[k], expr->type))
+            return 2 * f->bindings + k;
+    if(f->fields >= FIELD_ATOMS)
+        return -1;
+    g->field_base[g->fields] = base;
+    g->field_epoch[g->fields] = epoch;
+    g->field_name[g->fields] = expr->name;
+    g->field_type[g->fields] = expr->type;
+    return 2 * f->bindings + g->fields++;
+}
+
 static int
 atom_range(const RangeFacts *f, int atom, int at, Range *out)
 {
+    if(atom >= 2 * f->bindings) {
+        if(!type_range(f->field_type[atom - 2 * f->bindings], out))
+            return 0;
+        guard_narrow(f, atom, at, 0, out);
+        return 1;
+    }
     if(atom >= f->bindings) {
         /* A count. */
         out->low = 0;
@@ -1400,10 +1545,15 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
         poly_atom(out, binding);
         return 1;
     }
-    case ZIR_EXPR_MEMBER: {
-        int capacity = 0, view;
+    case ZIR_EXPR_MEMBER: case ZIR_EXPR_POINTER_MEMBER: {
+        int capacity = 0, view, field = field_atom(f, index);
         const char *base = fn->exprs[expr->left].type;
-        if(expr->name == NULL || strcmp(expr->name, "count") || base == NULL)
+        if(field >= 0) {
+            poly_atom(out, field);
+            return 1;
+        }
+        if(expr->kind != ZIR_EXPR_MEMBER || expr->name == NULL || strcmp(expr->name, "count") ||
+           base == NULL)
             break;
         if(ArrayElementType(base, NULL, 0, &capacity) && capacity >= 0) {
             poly_constant(out, capacity, capacity);
@@ -1690,8 +1840,8 @@ static int
 poly_nonnegative(const RangeFacts *f, const Poly *p, int at, const Poly *facts, int count,
                  int depth)
 {
-    Range range;
-    if(poly_range(f, p, at, &range) && range.low >= 0)
+    int64_t low;
+    if(poly_bound(f, p, at, 0, &low) && low >= 0)
         return 1;
     if(p->count == 1 && p->term[0].degree == 1 && p->term[0].coef > 0 && p->k.low >= 0) {
         Poly then, other;
@@ -1947,7 +2097,7 @@ static int
 related_facts(const RangeFacts *f, const Poly *q, const Poly *limit, int at, Poly *facts, int count,
               int max)
 {
-    int marks = 2 * f->bindings, kept = 0, grown = 1;
+    int marks = 2 * f->bindings + FIELD_ATOMS, kept = 0, grown = 1;
     unsigned char *mark = calloc((size_t)marks + 1, 1), *keep = calloc((size_t)count + 1, 1);
     if(mark == NULL || keep == NULL) {
         free(mark);

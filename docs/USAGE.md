@@ -336,6 +336,17 @@ offset such as `(iy + 2 - radius) * stride + 2 - radius + k * stride + j`
 is proven too after `if radius < 1 || radius > 2 { return }`. Run
 `sh tests/loop_guard_ranges.sh build/bin/ziran`.
 
+Fields count as well. For `frame: *Frame`, after
+`if source.count != frame.count || destination.count != frame.count { return }`
+the copy `for i: 0..frame.count - 1 { destination[i] = source[i] }` needs no
+checks: the loop reads `frame.count` once, before its stores. A field read
+through a pointer keeps what guards showed until a call or a store through
+any pointer, slice or global could change it, so a read after `Grow(frame)`
+or `other.count = 0`, or in a loop body that stores through a slice, keeps
+its check. A record parameter's fields, such as `shape.width` for
+`shape: Shape`, change only with the parameter. Run
+`sh tests/field_guard_ranges.sh build/bin/ziran`.
+
 Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

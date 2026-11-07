@@ -613,7 +613,17 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   reads that keep their checks. A
   counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while
-  nothing reassigns the view. `tests/proven_index_ranges.sh` checks the
+  nothing reassigns the view. An integer field of a parameter counts too:
+  through a pointer, `frame.count` keeps one value from a read to a later
+  one when no call and no store through a pointer, slice or global can run
+  between them, so a guard on it bounds `for i: 0..frame.count - 1` while
+  the body stores through a slice; a record parameter's fields change only
+  with the parameter. `tests/field_guard_ranges.sh` checks four proven
+  functions and nine reads that keep their checks, after a store through
+  another pointer, a `*u64` or byte view of the record, a global or a slice
+  element, a call, a store earlier in the loop, or a guard on a sum of
+  fields that may wrap.
+  `tests/proven_index_ranges.sh` checks the
   unchecked reads and stores, and checks that eleven unprovable cases still
   abort on C, Go, native and portable targets.
   Generated C divides, takes remainders and shifts by a nonconstant operand

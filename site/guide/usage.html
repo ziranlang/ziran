@@ -299,6 +299,16 @@ reads, such as <code>gain &gt; 255</code>, do not crowd out the ones it needs. A
 offset such as <code>(iy + 2 - radius) * stride + 2 - radius + k * stride + j</code>
 is proven too after <code>if radius &lt; 1 || radius &gt; 2 { return }</code>. Run
 <code>sh tests/loop_guard_ranges.sh build/bin/ziran</code>.</p>
+<p>Fields count as well. For <code>frame: *Frame</code>, after
+<code>if source.count != frame.count || destination.count != frame.count { return }</code>
+the copy <code>for i: 0..frame.count - 1 { destination[i] = source[i] }</code> needs no
+checks: the loop reads <code>frame.count</code> once, before its stores. A field read
+through a pointer keeps what guards showed until a call or a store through
+any pointer, slice or global could change it, so a read after <code>Grow(frame)</code>
+or <code>other.count = 0</code>, or in a loop body that stores through a slice, keeps
+its check. A record parameter's fields, such as <code>shape.width</code> for
+<code>shape: Shape</code>, change only with the parameter. Run
+<code>sh tests/field_guard_ranges.sh build/bin/ziran</code>.</p>
 <p>Generated C keeps Ziran's integer rules: a zero divisor or a shift count
 outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift

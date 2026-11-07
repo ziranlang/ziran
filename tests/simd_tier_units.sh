@@ -84,18 +84,24 @@ for tier in avx2 sse41 ssse3; do
 done
 printf '#include "app.h"\nint main(void) { app_main(); return 0; }\n' > "$output/main.c"
 
+compilers=${CC:-cc}
+for candidate in clang clang-21 clang-20 clang-19 clang-18; do
+    if command -v "$candidate" >/dev/null 2>&1; then compilers="$compilers $candidate"; break; fi
+done
 expected=
-for flags in "-O2" "-O0" "-O2 -mavx2" "-O2 -DZIRAN_SIMD_SCALAR"; do
-    # shellcheck disable=SC2086
-    "${CC:-cc}" -std=c11 -Wall -Wextra -Werror -Wno-psabi $flags -I"$repo/include" -I"$output" \
-        "$output"/*.c -o "$output/app" -lm
-    for tier in 1 2 3 4; do
-        result=$(ZIRAN_SIMD_TIER=$tier "$output/app")
-        if test -z "$expected"; then expected=$result
-        elif test "$result" != "$expected"; then
-            echo "$flags tier $tier: $result, expected $expected" >&2
-            exit 1
-        fi
+for compiler in $compilers; do
+    for flags in "-O2" "-O0" "-O2 -mavx2" "-O2 -DZIRAN_SIMD_SCALAR"; do
+        # shellcheck disable=SC2086
+        "$compiler" -std=c11 -Wall -Wextra -Werror -Wno-psabi $flags -I"$repo/include" \
+            -I"$output" "$output"/*.c -o "$output/app" -lm
+        for tier in 1 2 3 4; do
+            result=$(ZIRAN_SIMD_TIER=$tier "$output/app")
+            if test -z "$expected"; then expected=$result
+            elif test "$result" != "$expected"; then
+                echo "$compiler $flags tier $tier: $result, expected $expected" >&2
+                exit 1
+            fi
+        done
     done
 done
 # The module variable stays one object the clones and the module share.

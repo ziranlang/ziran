@@ -581,7 +581,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   portable results.
   Generated C drops the bounds check on an array, slice or string index it
   proves in range from integer types, literals, `&`, `|`, `^`, `%`, `/`,
-  `>>`, `+`, `-` and `*`, and from loop conditions. A local's range follows
+  `>>`, `<<` by a constant, `+`, `-` and `*`, and from loop conditions. A local's range follows
   its initializer through any chain of locals, such as `line := row * 16`
   and `at := line + offset`, and a declaration without a value starts at
   zero. An enclosing `if` or `while` condition, earlier `&&` and `||`
@@ -608,8 +608,10 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   `cast(s64)(height - 1)` in `s32`, counts where the other facts show it did
   not. The search keeps only facts linked to the index's own values, so
   extra guard comparisons never lose a proof, and a fact times a bounded
-  value covers products such as `radius * stride`;
-  `tests/loop_guard_ranges.sh` checks eleven proven functions and eight
+  value covers products such as `radius * stride`. An `else` branch knows
+  that each branch before it in the chain was false, and `x != c` or a
+  false `x == c` moves an end of `x`'s range that equals `c`;
+  `tests/loop_guard_ranges.sh` checks thirteen proven functions and ten
   reads that keep their checks. A
   counter stays nonnegative when it only grows by
   literal steps in that loop. A slice or string count stays fixed while
@@ -619,12 +621,12 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   between them, so a guard on it bounds `for i: 0..frame.count - 1` while
   the body stores through a slice; a record parameter's fields change only
   with the parameter. `tests/field_guard_ranges.sh` checks four proven
-  functions and nine reads that keep their checks, after a store through
+  functions and ten reads that keep their checks, after a store through
   another pointer, a `*u64` or byte view of the record, a global or a slice
-  element, a call, a store earlier in the loop, or a guard on a sum of
-  fields that may wrap.
+  element, a call, even in an `else if` condition, a store earlier in the
+  loop, or a guard on a sum of fields that may wrap.
   `tests/proven_index_ranges.sh` checks the
-  unchecked reads and stores, and checks that eleven unprovable cases still
+  unchecked reads and stores, and checks that twelve unprovable cases still
   abort on C, Go, native and portable targets.
   Generated C divides, takes remainders and shifts by a nonconstant operand
   through a checked helper of the operand's width instead of the general

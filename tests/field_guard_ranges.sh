@@ -6,8 +6,8 @@
 # into its limit even when the loop body stores through a slice. A record
 # parameter's fields change only with the parameter. Any store through a
 # pointer, a cast pointer, a byte view, a slice element or a global, a call,
-# a store in the loop before the next read, or a guard on a sum that may wrap
-# keeps the check, and those reads still abort on C, Go, native and the
+# even in the condition of an else if before the read, a store in the loop
+# before the next read, or a guard on a sum that may wrap keeps the check, and those reads still abort on C, Go, native and the
 # portable VM from source and saved IR. Cast pointers run on C only.
 set -eu
 
@@ -87,6 +87,12 @@ InGuard :: (frame: *Frame, view: []s64) -> s64 {
     if frame.count < 0 || frame.count >= view.count || Grow(frame) { return -1 }
     return view[frame.count]
 }
+// The else if's call runs after the first branch read the count.
+Branch :: (frame: *Frame, view: []s64) -> s64 {
+    if frame.count < 0 || frame.count >= view.count { return -1 }
+    else if Grow(frame) { return -2 }
+    else { return view[frame.count] }
+}
 // The sum may wrap past the s64 range, so the guard bounds neither count.
 Wrapped :: (first: *Frame, second: *Frame, view: []s64) -> s64 {
     count := first.count + 1 + second.count
@@ -134,10 +140,11 @@ Fault :: (which: s64) -> s64 {
     if which == 5 { return Element(*frames[0], frames[0:1], view[0:4]) }
     if which == 6 { return InGuard(*frame, view[0:4]) }
     if which == 7 { return Wrapped(*big, *big, view[0:4]) }
+    if which == 8 { return Branch(*frame, view[0:4]) }
     return 0
 }
 ZI
-faults="Stored Called Looped Global Element InGuard Wrapped"
+faults="Stored Called Looped Global Element InGuard Wrapped Branch"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"

@@ -15,10 +15,13 @@
 # ifs, however many unrelated ones come first. A bound that holds a
 # value only a call gives, such as radius <= 2 for a box filter's radius,
 # also scales: (2 - radius) * stride is never negative while stride is not.
-# A write that
-# does reach the read, a branch past the last row and a guard whose s32 sum
-# may wrap keep their checks, and those reads still abort on C, Go, native
-# and the portable VM from source and saved IR.
+# An else branch runs where each branch before it was false, so after
+# if i == 0 and else if j == 0 it reads view[(i - 1) * width + j - 1], and
+# i != 8 inside for i: 0..8 leaves i <= 7. A write that
+# does reach the read, a branch past the last row, an else after i < 8, a
+# value ruled out inside the range rather than at its end and a guard whose
+# s32 sum may wrap keep their checks, and those reads still abort on C, Go,
+# native and the portable VM from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -252,6 +255,40 @@ Weak :: (view: []s32, width: s32, height: s32) -> s64 {
     }
     return total
 }
+// The first row reads the edge, the first column a constant, the rest the
+// sample above and to the left.
+Above :: (view: []s32, edge: []s32, width: s32, height: s32) -> s64 {
+    if width < 1 || width > 64 || height < 1 || height > 64 || edge.count < width ||
+        view.count < cast(s64)height * width {
+        return -1
+    }
+    total: s64
+    for i: 0..cast(s64)height - 1 {
+        for j: 0..cast(s64)width - 1 {
+            if i == 0 { total += edge[j] }
+            else if j == 0 { total += 1 }
+            else { total += view[(i - 1) * width + j - 1] }
+        }
+    }
+    return total
+}
+Except :: (t: [8]s64) -> s64 {
+    total: s64
+    for i: 0..8 { if i != 8 { total += t[i] } }
+    return total
+}
+// The else runs for i == 8.
+Equal :: (t: [8]s64) -> s64 {
+    total: s64
+    for i: 0..8 { if i < 8 { total += 1 } else { total += t[i] } }
+    return total
+}
+// Ruling out 0 leaves -1 in the range.
+Inner :: (t: [8]s64) -> s64 {
+    total: s64
+    for i: -1..7 { if i == 0 { total += 1 } else { total += t[i] } }
+    return total
+}
 #program_export
 Answer :: () -> s64 {
     v: [64]s32
@@ -284,6 +321,10 @@ Answer :: () -> s64 {
     t: [4]s64
     t[0] = 1; t[1] = 2; t[2] = 3; t[3] = 4
     if Bumped(t[:], 2) != 3 || Late(t[:], 3, 1) != 9 || Late(t[:], 4, 0) != 0 || Maybe(t[:], 2) != 3 { return 6 }
+    if Above(v[:], v[0:8], 8, 8) != 1358 || Above(v[:], v[0:7], 8, 8) != -1 { return 14 }
+    eight: [8]s64
+    for i: 0..7 { eight[i] = i + 1 }
+    if Except(eight) != 36 { return 15 }
     return 42
 }
 #program_export
@@ -301,10 +342,13 @@ Fault :: (which: s64) -> s64 {
     if which == 7 { return Wrap(e[:], 2147483647) }
     w: [64]u16
     if which == 8 { return Wider(w[:], 8, 2, 2, 3) }
+    eight: [8]s64
+    if which == 9 { return Equal(eight) }
+    if which == 10 { return Inner(eight) }
     return 0
 }
 ZI
-faults="Bumped Late Maybe Weak Flat Mirror Wrap Wider"
+faults="Bumped Late Maybe Weak Flat Mirror Wrap Wider Equal Inner"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"
@@ -355,7 +399,7 @@ C
         fi
         which=$((which + 1))
     done
-    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column Flip Box Window; do
+    for name in Plain Skip Rows Inside Decode Taps Reconstruct Column Flip Box Window Above Except; do
         sed -n "/^app_$name(/,/^}/p" "$output/app.c" > "$work/proven.c"
         test -s "$work/proven.c"
         if grep -q 'ZIRAN_INDEX\|SliceIndex' "$work/proven.c"; then

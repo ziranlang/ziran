@@ -638,7 +638,7 @@ compiler_type_Identifier(String source)
     if ((int64_t)(source).length == 0LL) {
         return false;
     }
-    uint8_t first = (uint8_t)ZIRAN_INDEX(source.data, source.length, 0);
+    uint8_t first = (uint8_t)source.data[0];
     if (first != 95 && !(first >= 97 && first <= 122) && !(first >= 65 && first <= 90)) {
         return false;
     }

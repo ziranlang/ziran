@@ -1468,7 +1468,7 @@ compiler_expression_ArrayLiteralAhead(SyntaxCursor* cursor)
                 value_8 = false;
                 goto value_9;
             }
-            uint8_t first = (uint8_t)ZIRAN_INDEX(text.data, text.length, 0);
+            uint8_t first = (uint8_t)text.data[0];
             value_8 = first == 95 || (first >= 65 && first <= 90) || (first >= 97 && first <= 122);
         value_9: ;
         }
@@ -1487,7 +1487,7 @@ compiler_expression_ArrayLiteralAhead(SyntaxCursor* cursor)
                 value_12 = false;
                 goto value_13;
             }
-            uint8_t first = (uint8_t)ZIRAN_INDEX(text.data, text.length, 0);
+            uint8_t first = (uint8_t)text.data[0];
             value_12 = first == 95 || (first >= 65 && first <= 90) || (first >= 97 && first <= 122);
         value_13: ;
         }
@@ -1506,7 +1506,7 @@ compiler_expression_NameStart(String text)
     if ((int64_t)(text).length == 0LL) {
         return false;
     }
-    uint8_t first = (uint8_t)ZIRAN_INDEX(text.data, text.length, 0);
+    uint8_t first = (uint8_t)text.data[0];
     return first == 95 || (first >= 65 && first <= 90) || (first >= 97 && first <= 122);
 }
 

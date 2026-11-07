@@ -266,7 +266,9 @@ copies it first only when a later argument could change it. Run
 it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
 <code>for i: 0..7</code> over a <code>[8]T</code> array or in <code>for i: 0..view.count-1</code> over a
 slice or string nothing reassigns, and values bounded by their type or by
-<code>&amp;</code>, <code>%</code> or <code>&gt;&gt;</code>, such as <code>table[x &amp; 255]</code> or <code>bytes[b]</code> for a <code>u8</code> <code>b</code> and 256-entry arrays.
+<code>&amp;</code>, <code>%</code>, <code>&gt;&gt;</code> or <code>&lt;&lt;</code> by a constant, such as <code>table[x &amp; 255]</code>,
+<code>bytes[(row &lt;&lt; 4) + t]</code> for <code>row</code> in <code>0..15</code> and <code>t</code> in <code>0..3</code>, or <code>bytes[b]</code>
+for a <code>u8</code> <code>b</code> and 256-entry arrays.
 Locals built from such values keep their ranges: after <code>line := row * 16</code>
 and <code>at := line + (offset &amp; 15)</code> for <code>row</code> in <code>0..15</code>, <code>bytes[at]</code> over a
 256-entry array needs no check, and a counter declared without a value
@@ -297,7 +299,10 @@ guard may also write <code>cast(s64)(height - 1) * stride</code>: inside the loo
 <code>||</code> guard works as well as a short one: comparisons about values no index
 reads, such as <code>gain &gt; 255</code>, do not crowd out the ones it needs. A window
 offset such as <code>(iy + 2 - radius) * stride + 2 - radius + k * stride + j</code>
-is proven too after <code>if radius &lt; 1 || radius &gt; 2 { return }</code>. Run
+is proven too after <code>if radius &lt; 1 || radius &gt; 2 { return }</code>. An <code>else</code>
+runs where each branch before it was false: after <code>if i == 0 { ... }</code> and
+<code>else if j == 0 { ... }</code>, the <code>else</code> reads <code>view[(i - 1) * width + j - 1]</code>
+without a check, and <code>if i != 8</code> inside <code>for i: 0..8</code> leaves <code>i &lt;= 7</code>. Run
 <code>sh tests/loop_guard_ranges.sh build/bin/ziran</code>.</p>
 <p>Fields count as well. For <code>frame: *Frame</code>, after
 <code>if source.count != frame.count || destination.count != frame.count { return }</code>

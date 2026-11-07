@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Generated C leaves out bounds checks that an `else` branch or a constant
+  left shift proves: `view[i - 1]` in the `else` of `if i == 0`, `t[i]`
+  under `if i != 8` in `for i: 0..8`, and `bytes[(row << 4) + t]`.
 - `ziran run` of a ZX bundle without a native cache starts about 18% sooner
   on 32-bit Android and 10% sooner on x86-64, with the same generated C.
 - Generated C keeps the bounds check behind a guard on a sum or product

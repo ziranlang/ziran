@@ -172,15 +172,14 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
         ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    bool value_0 = used > 0LL && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] >= 48 && ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] <= 57;
-    if (value_0 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
+    if (used > 0LL && ((uint8_t *)output.data)[0] >= 48 && ((uint8_t *)output.data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t value_1 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_1;
+            uint8_t value_0 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
+            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_0;
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)0)] = 77;
+        ((uint8_t *)output.data)[0] = 77;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
     ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;

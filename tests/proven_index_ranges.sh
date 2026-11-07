@@ -1,9 +1,10 @@
 #!/bin/sh
 # Generated C indexes arrays, slices and strings without a bounds check when
 # the index provably lies inside them: a counter its loop condition bounds,
-# a value its type or a mask, shift or remainder bounds, and locals built
-# from such values, such as line := row * 16 and at := line + offset, or a
-# counter declared without a value. Every index the
+# a value its type or a mask, shift or remainder bounds, a left shift by a
+# count that keeps it inside its type, and locals built from such values,
+# such as line := row * 16 and at := line + offset, or a counter declared
+# without a value. Every index the
 # proof cannot cover keeps its check and still aborts on C, Go, native and
 # the portable VM from source and saved IR.
 set -eu
@@ -42,15 +43,16 @@ Proven :: (t: [8]s64, bytes: [256]u8, view: []s64, text: string, x: u32, b: u8) 
     }
     return r
 }
-// Locals carry ranges: line is at most 15 * 16 and at at most 240 + 15.
-// A counter declared without a value starts at zero.
+// Locals carry ranges: line is at most 15 * 16 and at at most 240 + 15;
+// row << 4 is at most 240 too. A counter declared without a value starts at
+// zero.
 Chained :: (bytes: [256]u8, offsets: [4]s64) -> s64 {
     r: s64 = 0
     for row: 0..15 {
         line := row * 16
         for t: 0..3 {
             at := line + (offsets[t] & 15)
-            r += cast(s64) bytes[at]
+            r += cast(s64) bytes[at] + cast(s64) bytes[(row << 4) + t]
         }
     }
     count: s64
@@ -106,6 +108,13 @@ Rebound :: () -> s64 {
 Mask :: () -> s64 { t := Fill(); return t[Opaque(9) & 15] }
 Remainder :: () -> s64 { t := Fill(); return t[Opaque(-3) % 8] }
 Shift :: () -> s64 { t := Fill(); return t[Opaque(-32) >> 2] }
+// 2 << 62 wraps past the s64 range.
+Wrap :: () -> s64 {
+    t := Fill()
+    r: s64 = 0
+    for i: 0..3 { r += t[(i << 62) >> 60] }
+    return r
+}
 Shadow :: () -> s64 {
     t := Fill()
     r: s64 = 0
@@ -150,8 +159,9 @@ Answer :: () -> s64 {
     if got != 36 + 36 + 36 + 6 + 6 + 294 + 4 { return got }
     offsets: [4]s64
     for i: 0..3 { offsets[i] = i + 1 }
-    // Four reads of 1, 2, 3 and 0 in each of 16 rows, then 0..7 & 3.
-    if Chained(bytes, offsets) != 96 + 12 { return 1 }
+    // Four reads of 1, 2, 3 and 0, then of 0..3, in each of 16 rows, then
+    // 0..7 & 3.
+    if Chained(bytes, offsets) != 96 + 96 + 12 { return 1 }
     return 42
 }
 #program_export
@@ -167,10 +177,11 @@ Fault :: (which: s64) -> s64 {
     if which == 9 { return Shadow() }
     if which == 10 { return Past() }
     if which == 11 { return Overrun() }
+    if which == 12 { return Wrap() }
     return 0
 }
 ZI
-faults="Early Inclusive Nested Address Rebound Mask Remainder Shift Shadow Past Overrun"
+faults="Early Inclusive Nested Address Rebound Mask Remainder Shift Shadow Past Overrun Wrap"
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return %s() }\n' "$name" "$name" >> "$work/app.zi"
 done

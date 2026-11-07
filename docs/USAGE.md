@@ -300,7 +300,9 @@ Indexing stays checked in every build, but generated C leaves out a check
 it can prove always passes: a loop counter its condition bounds, such as `i` in
 `for i: 0..7` over a `[8]T` array or in `for i: 0..view.count-1` over a
 slice or string nothing reassigns, and values bounded by their type or by
-`&`, `%` or `>>`, such as `table[x & 255]` or `bytes[b]` for a `u8` `b` and 256-entry arrays.
+`&`, `%`, `>>` or `<<` by a constant, such as `table[x & 255]`,
+`bytes[(row << 4) + t]` for `row` in `0..15` and `t` in `0..3`, or `bytes[b]`
+for a `u8` `b` and 256-entry arrays.
 Locals built from such values keep their ranges: after `line := row * 16`
 and `at := line + (offset & 15)` for `row` in `0..15`, `bytes[at]` over a
 256-entry array needs no check, and a counter declared without a value
@@ -333,7 +335,10 @@ guard may also write `cast(s64)(height - 1) * stride`: inside the loop
 `||` guard works as well as a short one: comparisons about values no index
 reads, such as `gain > 255`, do not crowd out the ones it needs. A window
 offset such as `(iy + 2 - radius) * stride + 2 - radius + k * stride + j`
-is proven too after `if radius < 1 || radius > 2 { return }`. Run
+is proven too after `if radius < 1 || radius > 2 { return }`. An `else`
+runs where each branch before it was false: after `if i == 0 { ... }` and
+`else if j == 0 { ... }`, the `else` reads `view[(i - 1) * width + j - 1]`
+without a check, and `if i != 8` inside `for i: 0..8` leaves `i <= 7`. Run
 `sh tests/loop_guard_ranges.sh build/bin/ziran`.
 
 Fields count as well. For `frame: *Frame`, after

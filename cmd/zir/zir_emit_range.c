@@ -45,6 +45,7 @@ typedef struct RangeFacts {
     int bindings;
     int *parent_of;      /* statement -> innermost enclosing if/while/block, or -1 */
     int *prev_guard;     /* statement -> nearest earlier sibling if that always exits, or -1 */
+    int *prev_branch;    /* else branch -> the branch before it in its chain, or -1 */
     unsigned char *busy; /* per binding: its guard facts are being applied */
     unsigned char *computing; /* per binding: its own value is being worked out */
     int hops;            /* bindings being worked out, innermost question last */
@@ -113,6 +114,7 @@ typedef struct GuardFacts {
 } GuardFacts;
 
 static int expr_range(const RangeFacts *f, int index, int depth, Range *out);
+static void narrow(Range *value, Range by);
 static int condition_interval(const RangeFacts *f, int condition, int truth, int binding,
                               int statement, int depth, Range *out);
 static int field_atom(const RangeFacts *f, int index);
@@ -214,6 +216,7 @@ RangeFactsFree(RangeFacts *f)
     free(f->binding_type);
     free(f->parent_of);
     free(f->prev_guard);
+    free(f->prev_branch);
     free(f->busy);
     free(f->computing);
     free(f->clobber);
@@ -363,6 +366,7 @@ RangeFactsBuild(const ZirFunction *fn)
     f->bindings = bindings;
     f->parent_of = malloc((size_t)fn->stmt_count * sizeof(int));
     f->prev_guard = malloc((size_t)fn->stmt_count * sizeof(int));
+    f->prev_branch = malloc((size_t)fn->stmt_count * sizeof(int));
     f->busy = calloc((size_t)bindings * 2 + FIELD_ATOMS, 1);
     f->computing = calloc((size_t)bindings, 1);
     f->facts = calloc((size_t)fn->stmt_count * 2, sizeof(*f->facts));
@@ -381,7 +385,7 @@ RangeFactsBuild(const ZirFunction *fn)
     if(!f->statement_of || !f->binding_of || !f->block_end || !f->loop_of ||
        !f->next_write || !f->unknown || !f->first_write || !f->last_write ||
        !f->increment_loop || !f->step_total || !f->binding_type || !scope || !opens ||
-       !heads || !walk.pending || !f->parent_of || !f->prev_guard || !f->busy || !f->computing || !f->facts ||
+       !heads || !walk.pending || !f->parent_of || !f->prev_guard || !f->prev_branch || !f->busy || !f->computing || !f->facts ||
        !f->clobber || !f->last_clobber || !f->dirty || !guards) {
         free(guards);
         free(heads);
@@ -394,7 +398,8 @@ RangeFactsBuild(const ZirFunction *fn)
     for(int x = 0; x < fn->expr_count; x++)
         f->statement_of[x] = f->binding_of[x] = -1;
     for(int s = 0; s < fn->stmt_count; s++)
-        f->block_end[s] = f->loop_of[s] = f->next_write[s] = f->parent_of[s] = f->prev_guard[s] = -1;
+        f->block_end[s] = f->loop_of[s] = f->next_write[s] = f->parent_of[s] = f->prev_guard[s] =
+            f->prev_branch[s] = -1;
     /* guards[level] is the last exiting if at that nesting level. */
     guards[0] = -1;
     for(int b = 0; b < bindings; b++) {
@@ -468,6 +473,10 @@ RangeFactsBuild(const ZirFunction *fn)
                 heads[scope[scope_count].bucket] = scope[scope_count].previous;
             }
             f->block_end[open] = s;
+            /* An else branch runs where every branch before it was false. */
+            if(fn->stmts[open].kind == ZIR_STMT_IF && s + 1 < fn->stmt_count &&
+               fn->stmts[s + 1].kind == ZIR_STMT_IF && fn->stmts[s + 1].is_else)
+                f->prev_branch[s + 1] = open;
             /* After an if whose body always leaves, its condition was false. */
             if(fn->stmts[open].kind == ZIR_STMT_IF && !fn->stmts[open].is_else &&
                fn->stmts[open].expr_root >= 0 && s - 1 > open &&
@@ -845,6 +854,68 @@ condition_interval(const RangeFacts *f, int condition, int truth, int binding,
     return out->low <= out->high;
 }
 
+/* Whether binding differs from *point where condition, evaluated at
+ * statement, has value truth: x != c, x == c false, or either through !, a
+ * true && or a false ||. */
+static int
+condition_except(const RangeFacts *f, int condition, int truth, int binding, int statement,
+                 int depth, int64_t *point)
+{
+    const ZirExpr *expr;
+    Range whole, value;
+    int self, other;
+    if(condition < 0 || depth > 2 * RANGE_DEPTH || --((RangeFacts *)f)->budget < 0)
+        return 0;
+    expr = &f->fn->exprs[condition];
+    if(expr->kind == ZIR_EXPR_UNARY && !strcmp(expr->op, "!"))
+        return condition_except(f, expr->right, !truth, binding, statement, depth + 1, point);
+    if(expr->kind != ZIR_EXPR_BINARY)
+        return 0;
+    if(!strcmp(expr->op, "&&") || !strcmp(expr->op, "||"))
+        return (expr->op[0] == '&') == (truth != 0) &&
+               (condition_except(f, expr->left, truth, binding, statement, depth + 1, point) ||
+                condition_except(f, expr->right, truth, binding, statement, depth + 1, point));
+    if(strcmp(expr->op, truth ? "!=" : "=="))
+        return 0;
+    if(reads_binding(f, expr->left, binding)) {
+        self = expr->left;
+        other = expr->right;
+    } else if(reads_binding(f, expr->right, binding)) {
+        self = expr->right;
+        other = expr->left;
+    } else {
+        return 0;
+    }
+    if(f->fn->exprs[self].type == NULL || f->fn->exprs[other].type == NULL ||
+       !type_range(atom_type(f, binding), &whole) ||
+       !expr_range(f, other, depth + 1, &value) || value.low != value.high)
+        return 0;
+    if(strcmp(canonical(f->fn->exprs[self].type), canonical(f->fn->exprs[other].type))) {
+        Range compared;
+        if(strcmp(f->fn->exprs[other].type, "integer") ||
+           !type_range(f->fn->exprs[self].type, &compared) || !within(value, compared))
+            return 0;
+    }
+    *point = value.low;
+    return 1;
+}
+
+enum { RANGE_EXCEPT = 8 };
+
+/* Narrow binding by condition with value truth at statement; a value it
+ * rules out joins except, to trim an end of the range once all is known. */
+static void
+narrow_by(const RangeFacts *f, int condition, int truth, int binding, int statement, int depth,
+          Range *value, int64_t *except, int *excepts)
+{
+    Range by;
+    if(condition_interval(f, condition, truth, binding, statement, depth, &by))
+        narrow(value, by);
+    if(*excepts < RANGE_EXCEPT &&
+       condition_except(f, condition, truth, binding, statement, depth, &except[*excepts]))
+        (*excepts)++;
+}
+
 static void
 narrow(Range *value, Range by)
 {
@@ -862,36 +933,47 @@ static void
 guard_narrow(const RangeFacts *f, int binding, int at, int depth, Range *value)
 {
     RangeFacts *g = (RangeFacts *)f;
-    Range by;
+    int64_t except[RANGE_EXCEPT];
+    int excepts = 0, trimmed = 1;
     if(at < 0 || at >= f->statements || binding < 0 || binding >= 2 * f->bindings + f->fields ||
        f->busy[binding] || f->unknown[atom_binding(f, binding)] || depth > RANGE_DEPTH)
         return;
     g->busy[binding] = 1;
     for(int c = 0; c < f->contexts; c++)
-        if(f->context[c].statement == at &&
-           condition_interval(f, f->context[c].condition, f->context[c].truth, binding, at,
-                              depth + 1, &by))
-            narrow(value, by);
+        if(f->context[c].statement == at)
+            narrow_by(f, f->context[c].condition, f->context[c].truth, binding, at, depth + 1, value,
+                      except, &excepts);
     for(int x = at; x >= 0; x = f->parent_of[x]) {
         int open = f->parent_of[x];
         const ZirStmt *st;
         /* A counting loop's step also runs after continue. */
         for(int guard = f->fn->stmts[x].for_step ? -1 : f->prev_guard[x]; guard >= 0;
             guard = f->prev_guard[guard])
-            if(unchanged_between(f, binding, guard, at) &&
-               condition_interval(f, f->fn->stmts[guard].expr_root, 0, binding, guard,
-                                  depth + 1, &by))
-                narrow(value, by);
+            if(unchanged_between(f, binding, guard, at))
+                narrow_by(f, f->fn->stmts[guard].expr_root, 0, binding, guard, depth + 1, value,
+                          except, &excepts);
         if(open < 0)
             break;
         st = &f->fn->stmts[open];
+        for(int branch = st->kind == ZIR_STMT_IF && st->is_else ? f->prev_branch[open] : -1;
+            branch >= 0; branch = f->fn->stmts[branch].is_else ? f->prev_branch[branch] : -1)
+            if(f->fn->stmts[branch].expr_root >= 0 && unchanged_between(f, binding, branch, at))
+                narrow_by(f, f->fn->stmts[branch].expr_root, 0, binding, branch, depth + 1, value,
+                          except, &excepts);
         if(st->expr_root < 0)
             continue;
-        if(((st->kind == ZIR_STMT_IF && unchanged_between(f, binding, open, at)) ||
-            (st->kind == ZIR_STMT_WHILE &&
-             unchanged_since_condition(f, atom_binding(f, binding), open, at))) &&
-           condition_interval(f, st->expr_root, 1, binding, open, depth + 1, &by))
-            narrow(value, by);
+        if((st->kind == ZIR_STMT_IF && unchanged_between(f, binding, open, at)) ||
+           (st->kind == ZIR_STMT_WHILE &&
+            unchanged_since_condition(f, atom_binding(f, binding), open, at)))
+            narrow_by(f, st->expr_root, 1, binding, open, depth + 1, value, except, &excepts);
+    }
+    /* A value ruled out at an end of the range moves that end. */
+    while(trimmed) {
+        trimmed = 0;
+        for(int i = 0; i < excepts && value->low < value->high; i++) {
+            if(except[i] == value->low) { value->low++; trimmed = 1; }
+            else if(except[i] == value->high) { value->high--; trimmed = 1; }
+        }
     }
     g->busy[binding] = 0;
 }
@@ -1147,6 +1229,13 @@ expr_range(const RangeFacts *f, int index, int depth, Range *out)
                 result.low = 0;
                 result.high = a.high < b.high - 1 ? a.high : b.high - 1;
                 known = 1;
+            }
+        } else if(!strcmp(expr->op, "<<")) {
+            /* x << k is x * 2^k when that fits the type; a count outside
+             * the width aborts before the index. */
+            if(left && right && b.low >= 0 && b.high <= 62) {
+                Range scale = {INT64_C(1) << b.low, INT64_C(1) << b.high};
+                known = multiply_range(a, scale, &result);
             }
         } else if(!strcmp(expr->op, ">>")) {
             /* A shift count outside the width aborts before the index. */
@@ -1810,6 +1899,11 @@ gather_facts(const RangeFacts *f, int at, Poly *list, int max)
             add_valid_facts(f, guard, 0, at, list, &count, max, sided, &pending);
         if(open < 0)
             break;
+        for(int branch = f->fn->stmts[open].kind == ZIR_STMT_IF && f->fn->stmts[open].is_else ?
+                         f->prev_branch[open] : -1;
+            branch >= 0; branch = f->fn->stmts[branch].is_else ? f->prev_branch[branch] : -1)
+            if(f->fn->stmts[branch].expr_root >= 0)
+                add_valid_facts(f, branch, 0, at, list, &count, max, sided, &pending);
         if(f->fn->stmts[open].expr_root >= 0 &&
            (f->fn->stmts[open].kind == ZIR_STMT_IF || f->fn->stmts[open].kind == ZIR_STMT_WHILE))
             add_valid_facts(f, open, 1, at, list, &count, max, sided, &pending);

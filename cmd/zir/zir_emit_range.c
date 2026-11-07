@@ -56,6 +56,10 @@ typedef struct RangeFacts {
     /* Conditions that hold while a later operand of && or || runs. */
     struct { int condition, truth, statement; } context[RANGE_CONTEXT];
     int contexts;
+    /* While an initializer is evaluated for a read at a later statement, that
+     * statement, where its reads are taken when nothing writes them in
+     * between; -1 otherwise. Such answers hold only on paths reaching it. */
+    int read_at;
     /* Steps left for the current question; a long chain of bindings
      * stops being followed instead of taking exponential time. */
     int budget;
@@ -349,6 +353,7 @@ RangeFactsBuild(const ZirFunction *fn)
     if(f == NULL)
         return NULL;
     f->fn = fn;
+    f->read_at = -1;
     f->statements = fn->stmt_count;
     f->parameters = ParametersOf(FunctionArgs(fn))->count;
     int bindings = f->statements + f->parameters;
@@ -1048,9 +1053,32 @@ binding_range(const RangeFacts *f, int binding, int at, int depth, Range *out)
     g->hops--;
     g->computing[binding] = 0;
     /* A question cut short keeps a sound but wider answer; ask it again. */
-    if(ok && f->contexts == 0 && f->budget >= 0)
+    if(ok && f->contexts == 0 && f->budget >= 0 && f->read_at < 0)
         memo_store(f, key, *out);
     return ok;
+}
+
+/* The value of binding's initializer, read at statement at. A binding
+ * never written after it holds the value its reads had, and where nothing
+ * writes them before at, they still have it there, so what they hold at at
+ * narrows it too: at := row * stride + column fits in s32 once a later
+ * guard bounds row, stride and column. */
+static int
+initializer_range(const RangeFacts *f, int binding, int at, int depth, Range *out)
+{
+    RangeFacts *g = (RangeFacts *)f;
+    int root = f->fn->stmts[binding].expr_root;
+    Range later;
+    if(!expr_range(f, root, depth + 1, out))
+        return 0;
+    if(at <= binding || f->read_at >= 0 || f->first_write[binding] >= 0 ||
+       f->increment_loop[binding] != -1)
+        return 1;
+    g->read_at = at;
+    if(expr_range(f, root, depth + 1, &later))
+        narrow(out, later);
+    g->read_at = -1;
+    return 1;
 }
 
 static int
@@ -1070,7 +1098,7 @@ binding_base_range(const RangeFacts *f, int binding, int at, int depth, Range *o
     } else if(fn->stmts[binding].expr_root < 0) {
         /* A declaration without a value starts at zero. */
         value.low = value.high = 0;
-    } else if(!expr_range(f, fn->stmts[binding].expr_root, depth + 1, &value)) {
+    } else if(!initializer_range(f, binding, at, depth, &value)) {
         return 1;
     }
     for(int s = f->first_write[binding]; s >= 0; s = f->next_write[s]) {
@@ -1139,12 +1167,16 @@ expr_range(const RangeFacts *f, int index, int depth, Range *out)
             return 1;
         }
         break;
-    case ZIR_EXPR_IDENT:
-        if(f->binding_of[index] >= 0 && expr->type != NULL &&
-           f->binding_type[f->binding_of[index]] != NULL &&
-           !strcmp(canonical(expr->type), canonical(f->binding_type[f->binding_of[index]])))
-            return binding_range(f, f->binding_of[index], f->statement_of[index], depth + 1, out);
+    case ZIR_EXPR_IDENT: {
+        int binding = f->binding_of[index], at = f->statement_of[index];
+        if(binding >= 0 && expr->type != NULL && f->binding_type[binding] != NULL &&
+           !strcmp(canonical(expr->type), canonical(f->binding_type[binding]))) {
+            if(f->read_at > at && unchanged_between(f, binding, at, f->read_at))
+                at = f->read_at;
+            return binding_range(f, binding, at, depth + 1, out);
+        }
         break;
+    }
     case ZIR_EXPR_MEMBER: case ZIR_EXPR_POINTER_MEMBER: {
         int capacity = 0, field = field_atom(f, index);
         const char *base = fn->exprs[expr->left].type;
@@ -1625,11 +1657,19 @@ to_poly(const RangeFacts *f, int index, int at, int depth, Poly *out)
         if(invariant(f, binding) && binding < f->statements &&
            fn->stmts[binding].kind == ZIR_STMT_DECL && fn->stmts[binding].expr_root >= 0 &&
            fn->exprs[fn->stmts[binding].expr_root].kind != ZIR_EXPR_CONDITIONAL) {
-            int value = fn->stmts[binding].expr_root;
+            int value = fn->stmts[binding].expr_root, saved = f->read_at, expanded;
             if(expr_range(f, value, 0, &a) && within(a, own) &&
-               reads_unchanged(f, value, binding, at) && to_poly(f, value, at, depth + 1, out) &&
-               (out->count > 0 || out->k.low == out->k.high))
-                return 1;
+               reads_unchanged(f, value, binding, at)) {
+                /* What it reads holds the same values at at, so whether its
+                 * operations wrapped follows from their ranges there. */
+                if(saved < 0 && at > binding)
+                    ((RangeFacts *)f)->read_at = at;
+                expanded = to_poly(f, value, at, depth + 1, out) &&
+                           (out->count > 0 || out->k.low == out->k.high);
+                ((RangeFacts *)f)->read_at = saved;
+                if(expanded)
+                    return 1;
+            }
         }
         poly_atom(out, binding);
         return 1;

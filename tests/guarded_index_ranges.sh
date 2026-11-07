@@ -4,7 +4,8 @@
 # conditions prove it lies inside its slice or array: an if that returns
 # when input.count < (height + 3) * stride + width + 4, loops bounding row
 # and column, and && or || operands that rule values out before later ones
-# run. Guards that do not cover the read, or test a sum or product that may
+# run. A local such as at := row * stride + column declared before the
+# guard that bounds what it reads is bounded there too. Guards that do not cover the read, or test a sum or product that may
 # wrap, whether directly, through a local, an ifx choice or a loop limit,
 # keep its check, and those reads still abort on C, Go, native and the
 # portable VM from source and saved IR.
@@ -57,6 +58,18 @@ Neighbor :: (indices: []u8, stride: s32, row: s32, column: s32) -> s64 {
     total := cast(s64)indices[row * stride + column]
     if column > 0 { total += cast(s64)indices[row * stride + column - 1] }
     return total
+}
+// A coefficient-context-style neighbourhood: at is computed before the
+// guard that bounds row, column and stride, and at + 4 * stride bounds the
+// smaller offsets, as stride >= 4.
+Levels :: (levels: []u8, stride: s32, row: s32, column: s32) -> s64 {
+    at := row * stride + column
+    if row < 0 || column < 0 || stride < 4 || stride > 36 || row > 35 || column > 35 ||
+        cast(s64)at + 4 * cast(s64)stride >= levels.count {
+        return -1
+    }
+    return cast(s64)levels[at + 1] + cast(s64)levels[at + stride] + cast(s64)levels[at + 2 * stride] +
+        cast(s64)levels[at + 4] + cast(s64)levels[at + 4 * stride]
 }
 // An enclosing if and a fixed array a guard bounds.
 Inside :: (view: []s64, x: s64, n: s64) -> s64 {
@@ -131,6 +144,34 @@ Choice :: (view: []s64, a: s64, b: s64, flip: bool) -> s64 {
     at := ifx flip then a else b
     return view[at]
 }
+// Without row <= 35, row * stride may wrap to a negative at.
+Unbounded :: (levels: []u8, stride: s32, row: s32, column: s32) -> s64 {
+    at := row * stride + column
+    if row < 0 || column < 0 || stride < 4 || stride > 36 || column > 35 ||
+        cast(s64)at + 4 * cast(s64)stride >= levels.count {
+        return -1
+    }
+    return cast(s64)levels[at + 1]
+}
+// The guard bounds row after at was computed from an earlier row.
+Reset :: (levels: []u8, stride: s32, row: s32, column: s32) -> s64 {
+    at := row * stride + column
+    row = 0
+    if row < 0 || column < 0 || stride < 4 || stride > 36 || row > 35 || column > 35 ||
+        cast(s64)at + 4 * cast(s64)stride >= levels.count {
+        return -1
+    }
+    return cast(s64)levels[at + 1]
+}
+// One past the offset the guard bounds.
+Edge :: (levels: []u8, stride: s32, row: s32, column: s32) -> s64 {
+    at := row * stride + column
+    if row < 0 || column < 0 || stride < 4 || stride > 36 || row > 35 || column > 35 ||
+        at + 4 * stride >= levels.count {
+        return -1
+    }
+    return cast(s64)levels[at + 4 * stride + 1]
+}
 // A loop limit bounded only by a sum that may wrap.
 Limit :: (view: []s64, n: s64, m: s64) -> s64 {
     if n < 0 || m < 0 || n + m > view.count { return -1 }
@@ -151,6 +192,7 @@ Answer :: () -> s64 {
     window := Window(input[0:256], 16, 8, 8)
     neighbor := Neighbor(indices[0:64], 8, 3, 5)
     inside := Inside(view[0:4], 2, 8)
+    levels := Levels(indices[0:64], 8, 3, 5)
     expect: s64 = 0
     for row: 0..11 { for column: 0..11 { expect += cast(s64)((row * 16 + column) & 7) } }
     if block != expect { return 1 }
@@ -162,6 +204,9 @@ Answer :: () -> s64 {
     if inside != 7 + 28 { return 5 }
     if Block(input[0:187], 16, 8, 8, output[0:64]) != -1 { return 6 }
     if Neighbor(indices[0:64], 8, 7, 8) != -1 { return 7 }
+    if levels != 30 + 37 + 45 + 33 + 61 { return 8 }
+    if Levels(indices[0:61], 8, 3, 5) != -1 { return 9 }
+    if Edge(indices[0:64], 4, 11, 2) != cast(s64)indices[63] { return 10 }
     return 42
 }
 Fill :: () -> [8]s64 {
@@ -184,10 +229,14 @@ Fault :: (which: s64) -> s64 {
     if which == 8 { return Through(t[0:4], huge, 5) }
     if which == 9 { return Choice(t[0:4], huge, huge, true) }
     if which == 10 { return Limit(t[0:4], huge, huge) }
+    levels: [64]u8
+    if which == 11 { return Unbounded(levels[0:64], 32, 67108864, 0) }
+    if which == 12 { return Reset(levels[0:64], 32, 67108864, 0) }
+    if which == 13 { return Edge(levels[0:64], 4, 11, 3) }
     return 0
 }
 ZI
-faults="Short Moved Either Branch Other Wrapped Plane Through Choice Limit"
+faults="Short Moved Either Branch Other Wrapped Plane Through Choice Limit Unbounded Reset Edge"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"
@@ -238,7 +287,7 @@ C
         fi
         which=$((which + 1))
     done
-    for name in Block Window Neighbor Inside; do
+    for name in Block Window Neighbor Inside Levels; do
         sed -n "/^app_$name(/,/^}/p" "$output/app.c" > "$work/proven.c"
         test -s "$work/proven.c"
         if grep -q 'ZIRAN_INDEX\|SliceIndex' "$work/proven.c"; then

@@ -390,7 +390,12 @@ with `width` and `height` bounded the same way, `input[row * stride + column]`
 in `for row: 0..height + 3` and `for column: 0..width + 3` reads without a
 check. An enclosing `if` or `while` condition, earlier `&&` and `||`
 operands, and an earlier `if` that ends in `return`, `break` or `continue`
-all act as guards until a value they compare changes. Every step of the
+all act as guards until a value they compare changes. A local declared
+before the guard counts too: after `at := row * stride + column` and a
+guard bounding `row`, `column` and `4 <= stride <= 36` that returns when
+`cast(s64)at + 4 * cast(s64)stride >= levels.count`, `levels[at + 1]`,
+`levels[at + stride]` and `levels[at + 4 * stride]` need no check unless
+something writes `row`, `column` or `stride` in between. Every step of the
 guard and of the index must provably not wrap, so
 `if first + 1 + second > view.count { return }` does not prove `view[first]`. Run
 `sh tests/guarded_index_ranges.sh build/bin/ziran`.

@@ -17,6 +17,9 @@
   1080p frames 2-4% faster.
 - A unary operator inside a binary one keeps its grouping: Go read
   `a ^ -b` as `(a ^ 0) - b`, and C read a float `-(-x)` as `--x`.
+- A local such as `at := row * stride + column` declared before the guard
+  that bounds `row`, `column` and `stride` proves reads such as
+  `levels[at + stride]` in generated C, so they drop their bounds checks.
 - Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
   code running them handles: two in a `#target` procedure's AVX2 copy and
   in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and

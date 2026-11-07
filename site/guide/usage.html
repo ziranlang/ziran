@@ -349,7 +349,12 @@ with <code>width</code> and <code>height</code> bounded the same way, <code>inpu
 in <code>for row: 0..height + 3</code> and <code>for column: 0..width + 3</code> reads without a
 check. An enclosing <code>if</code> or <code>while</code> condition, earlier <code>&amp;&amp;</code> and <code>||</code>
 operands, and an earlier <code>if</code> that ends in <code>return</code>, <code>break</code> or <code>continue</code>
-all act as guards until a value they compare changes. Every step of the
+all act as guards until a value they compare changes. A local declared
+before the guard counts too: after <code>at := row * stride + column</code> and a
+guard bounding <code>row</code>, <code>column</code> and <code>4 &lt;= stride &lt;= 36</code> that returns when
+<code>cast(s64)at + 4 * cast(s64)stride &gt;= levels.count</code>, <code>levels[at + 1]</code>,
+<code>levels[at + stride]</code> and <code>levels[at + 4 * stride]</code> need no check unless
+something writes <code>row</code>, <code>column</code> or <code>stride</code> in between. Every step of the
 guard and of the index must provably not wrap, so
 <code>if first + 1 + second &gt; view.count { return }</code> does not prove <code>view[first]</code>. Run
 <code>sh tests/guarded_index_ranges.sh build/bin/ziran</code>.</p>

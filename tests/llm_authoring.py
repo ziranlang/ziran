@@ -320,7 +320,7 @@ def scrubbed_env(scratch):
     env = {k: v for k, v in os.environ.items() if k not in SECRET_ENV
            and not k.startswith(("HARMONY_DESKTOP", "DESKTOP_RECOVERY"))}
     env.update(TMPDIR=str(scratch), XDG_CACHE_HOME=str(scratch / "cache"),
-               GOCACHE=str(scratch / "go-cache"), GOPATH=str(scratch / "go-path"),
+               GOPATH=str(scratch / "go-path"),
                GOTMPDIR=str(scratch), GOTELEMETRY="off",
                ZIRAN_DESKTOP_RECOVERY="0", HARMONY_DESKTOP_RECOVERY="0", GO111MODULE="off",
                GOPROXY="off", GOSUMDB="off", GOTOOLCHAIN="local",

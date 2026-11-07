@@ -6,7 +6,7 @@ case "$ziran" in /*) ;; *) ziran="$repo/$ziran";; esac
 work="$repo/build/tests/safe-inference"
 mkdir -p "$work/tmp" "$work/source"
 export TMPDIR="$work/tmp" ZIRAN_DESKTOP_RECOVERY=0 HARMONY_DESKTOP_RECOVERY=0 YUE_DESKTOP_RECOVERY=0
-export GOCACHE="$work/go-cache" GOPATH="$work/go" GOTMPDIR="$work/tmp" GOMAXPROCS=2 GOFLAGS=-p=2 GOTOOLCHAIN=local
+export GOPATH="$work/go" GOTMPDIR="$work/tmp" GOMAXPROCS=2 GOFLAGS=-p=2 GOTOOLCHAIN=local
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS GOWORK
 cp "$repo/tests/safe_inference.zi" "$work/source/safe_inference.zi"
 "$ziran" ir --root "$work/source" -o "$work/ir" "$work/source/safe_inference.zi"

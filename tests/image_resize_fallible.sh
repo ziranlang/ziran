@@ -7,7 +7,7 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGE
 mkdir -p build/tests
 work=$(mktemp -d "$repo/build/tests/image-resize-fallible.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export TMPDIR="$work" GOCACHE="$work/go-cache" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
+export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 run_vm() {
     result=$("$@") || { printf '%s\n' "$result"; return 1; }
     test "$result" = 0 || { printf '%s\n' "$result"; return 1; }

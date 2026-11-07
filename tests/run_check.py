@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Run independent compiler checks with bounded parallelism.
 
-Every tests/*.sh script is a check. Each script uses its own mktemp directory,
-so separate scripts can safely run together after the toolchain is built.
+Every tests/*.sh script is a check. Each check gets its own TMPDIR, so the
+scratch directories its mktemp calls create never meet another check's, and
+separate checks can safely run together after the toolchain is built. Checks
+share the normal Go build cache, so the Go standard library and race runtime
+compile once rather than once per check.
 
 A long check declares its rough cost in a header line, `# check-cost: SECONDS`
 (its time in the sanitized CI run). Declared checks are spread over the shards
@@ -20,12 +23,18 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 
 
-def run_check(name, command, repo, env, log_dir):
+def run_check(name, command, repo, env, log_dir, scratch=None):
+    """Run one check, logging its output; with SCRATCH, give it a private
+    TMPDIR there that is removed afterwards."""
     started = time.monotonic()
     log = log_dir / (name + ".log")
+    private = Path(tempfile.mkdtemp(prefix=name + ".", dir=scratch)) if scratch else None
+    if private:
+        env = dict(env, TMPDIR=str(private))
     with log.open("w", encoding="utf-8") as output:
         try:
             result = subprocess.run(command, cwd=repo, env=env, stdout=output,
@@ -34,6 +43,8 @@ def run_check(name, command, repo, env, log_dir):
         except OSError as error:
             output.write(str(error) + "\n")
             code = 127
+    if private:
+        shutil.rmtree(private, ignore_errors=True)
     return dict(name=name, exit_code=code, seconds=time.monotonic() - started,
                 log=str(log))
 
@@ -96,10 +107,19 @@ def shard(value):
     return part, parts
 
 
+def default_jobs():
+    """The build queue's share of the cores, or every core this process may use."""
+    queued = os.environ.get("BUILD_QUEUE_JOBS", "")
+    if queued.isdigit() and int(queued) > 0:
+        return int(queued)
+    return len(os.sched_getaffinity(0)) if hasattr(os, "sched_getaffinity") else os.cpu_count() or 1
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bin-dir", type=Path, default=Path("build/bin"))
-    parser.add_argument("--jobs", type=positive_int, default=4)
+    parser.add_argument("--jobs", type=positive_int, default=default_jobs(),
+                        help="checks run at once (default: BUILD_QUEUE_JOBS or the CPU count)")
     parser.add_argument("--filter", default="", help="run checks whose name contains this text")
     parser.add_argument("--shard", type=shard, help="run only part N/M of the checks, as CI's parallel jobs do")
     parser.add_argument("--log-dir", type=Path, help="save full logs and results (default: BUILD/check-logs)")
@@ -152,13 +172,19 @@ def main():
         wrapper.chmod(0o755)
         env["ZIRAN_TEST_GO_REAL"] = go
         env["PATH"] = str(helpers) + os.pathsep + env.get("PATH", "")
+        if not env.get("GOCACHE"):
+            cache = subprocess.run([go, "env", "GOCACHE"], env=env, capture_output=True, text=True)
+            if cache.returncode == 0 and cache.stdout.strip() not in ("", "off"):
+                env["GOCACHE"] = cache.stdout.strip()
 
     print(f"Running {len(checks)} checks with {min(args.jobs, len(checks))} jobs", flush=True)
-    failed = 0
     results = []
+    failures = []
     started = time.monotonic()
-    with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-        futures = [pool.submit(run_check, name, command, repo, env, log_dir) for name, command in checks]
+    with tempfile.TemporaryDirectory(prefix="ziran-check.") as scratch, \
+            ThreadPoolExecutor(max_workers=args.jobs) as pool:
+        futures = [pool.submit(run_check, name, command, repo, env, log_dir, scratch)
+                   for name, command in checks]
         for future in as_completed(futures):
             result = future.result()
             results.append(result)
@@ -166,17 +192,22 @@ def main():
             reason = "" if code == 0 else f", exit {code}" + (" (timeout)" if code == 124 else "")
             print(f"{'PASS' if code == 0 else 'FAIL'} {name} ({elapsed:.1f}s{reason})", flush=True)
             if code:
-                failed += 1
-                output = failure_tail(result["log"])
-                if output:
-                    print(output, flush=True)
-                print(f"Full log: {result['log']}", flush=True)
+                failures.append(result)
 
+    # Parallel checks finish in any order; collect every failure's output here.
+    for result in sorted(failures, key=lambda result: result["name"]):
+        print(f"\n=== FAIL {result['name']} (exit {result['exit_code']})", flush=True)
+        output = failure_tail(result["log"])
+        if output:
+            print(output, flush=True)
+        print(f"Full log: {result['log']}", flush=True)
+    failed = len(failures)
     elapsed = time.monotonic() - started
     (log_dir / "results.json").write_text(json.dumps(dict(
         total=len(checks), failed=failed, seconds=elapsed,
         checks=sorted(results, key=lambda result: result["name"])), indent=2) + "\n")
-    print(f"{len(checks) - failed}/{len(checks)} passed in {elapsed:.1f}s",
+    print(f"{len(checks) - failed}/{len(checks)} passed in {elapsed:.1f}s"
+          + (": failed " + ", ".join(sorted(result["name"] for result in failures)) if failures else ""),
           flush=True)
     return 1 if failed else 0
 

@@ -24,7 +24,7 @@ func TestProbe(t *testing.T) {
     if Probe() != 7 || M_Main() != 0 { t.Fatal("export roots") }
 }
 GO
-(cd "$work/out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go test .)
+(cd "$work/out" && GO111MODULE=off go test .)
 
 # Exports whose signature needs a #c_call callback, which Go cannot express,
 # are left out unless the entry calls them; then the target check rejects them.

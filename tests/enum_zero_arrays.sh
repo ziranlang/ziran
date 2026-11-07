@@ -13,7 +13,6 @@ if test -z "$work"; then
 fi
 mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
-export GOCACHE="$work/go-cache"
 cat > "$work/zero_arrays.zi" <<'ZI'
 Mode :: enum { Idle :: 0; Running :: 7; }
 Narrow :: enum u8 { First :: 4; Last :: 200; }

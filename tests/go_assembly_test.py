@@ -16,7 +16,6 @@ for key in ('DISPLAY', 'WAYLAND_DISPLAY', 'XAUTHORITY', 'DBUS_SESSION_BUS_ADDRES
             'CGO_CFLAGS', 'CGO_CPPFLAGS', 'GOFLAGS', 'GOEXPERIMENT'):
     ENV.pop(key, None)
 WORK.mkdir(parents=True, exist_ok=True)
-ENV['GOCACHE'] = str(WORK/'go-cache')
 
 
 def run(args, *, cwd=ROOT, env=ENV, expected=None, ok=True):

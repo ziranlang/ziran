@@ -117,7 +117,11 @@ RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_he
 .PHONY: sanitize fuzz
 .PHONY: proof-model
 LEAN ?= lean
-CHECK_JOBS ?= 4
+# make check runs CHECK_JOBS checks at once (default: the build queue's
+# BUILD_QUEUE_JOBS, else every CPU); CHECK_FILTER runs only checks whose name
+# contains it; CHECK_SHARD=N/M runs part N of M, as CI does.
+CHECK_JOBS ?=
+CHECK_FILTER ?=
 CHECK_SHARD ?=
 all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
 	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm
@@ -435,74 +439,25 @@ $(STATEMENT_C)/.generated: cmd/compiler_statement.zi cmd/compiler_scan.zi cmd/co
 	touch $@
 
 .PHONY: check-bootstrap update-bootstrap
+# The checked-in bootstrap C must match what the current compiler generates
+# from cmd/compiler_*.zi; update-bootstrap refreshes it.
+BOOTSTRAP_MODULES := scan text source declaration enum type expression statement
+GENERATE_BOOTSTRAP = env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
+    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_$$module.zi
 check-bootstrap: $(BIN_DIR)/zi2c
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_scan.zi
-	cmp bootstrap/compiler_scan/compiler_scan.c $(BUILD_DIR)/bootstrap-check/compiler_scan.c
-	cmp bootstrap/compiler_scan/compiler_scan.h $(BUILD_DIR)/bootstrap-check/compiler_scan.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_text.zi
-	cmp bootstrap/compiler_text/compiler_text.c $(BUILD_DIR)/bootstrap-check/compiler_text.c
-	cmp bootstrap/compiler_text/compiler_text.h $(BUILD_DIR)/bootstrap-check/compiler_text.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_source.zi
-	cmp bootstrap/compiler_source/compiler_source.c $(BUILD_DIR)/bootstrap-check/compiler_source.c
-	cmp bootstrap/compiler_source/compiler_source.h $(BUILD_DIR)/bootstrap-check/compiler_source.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_declaration.zi
-	cmp bootstrap/compiler_declaration/compiler_declaration.c $(BUILD_DIR)/bootstrap-check/compiler_declaration.c
-	cmp bootstrap/compiler_declaration/compiler_declaration.h $(BUILD_DIR)/bootstrap-check/compiler_declaration.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_enum.zi
-	cmp bootstrap/compiler_enum/compiler_enum.c $(BUILD_DIR)/bootstrap-check/compiler_enum.c
-	cmp bootstrap/compiler_enum/compiler_enum.h $(BUILD_DIR)/bootstrap-check/compiler_enum.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_type.zi
-	cmp bootstrap/compiler_type/compiler_type.c $(BUILD_DIR)/bootstrap-check/compiler_type.c
-	cmp bootstrap/compiler_type/compiler_type.h $(BUILD_DIR)/bootstrap-check/compiler_type.h
-
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_expression.zi
-	cmp bootstrap/compiler_expression/compiler_expression.c $(BUILD_DIR)/bootstrap-check/compiler_expression.c
-	cmp bootstrap/compiler_expression/compiler_expression.h $(BUILD_DIR)/bootstrap-check/compiler_expression.h
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_statement.zi
-	cmp bootstrap/compiler_statement/compiler_statement.c $(BUILD_DIR)/bootstrap-check/compiler_statement.c
-	cmp bootstrap/compiler_statement/compiler_statement.h $(BUILD_DIR)/bootstrap-check/compiler_statement.h
+	@set -e; for module in $(BOOTSTRAP_MODULES); do \
+	    $(GENERATE_BOOTSTRAP); \
+	    for file in compiler_$$module.c compiler_$$module.h; do \
+	        cmp bootstrap/compiler_$$module/$$file $(BUILD_DIR)/bootstrap-check/$$file; \
+	    done; \
+	done; echo "bootstrap matches: $(BOOTSTRAP_MODULES)"
 
 update-bootstrap: $(BIN_DIR)/zi2c
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_scan.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_scan.c bootstrap/compiler_scan/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_scan.h bootstrap/compiler_scan/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_text.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_text.c bootstrap/compiler_text/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_text.h bootstrap/compiler_text/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_source.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_source.c bootstrap/compiler_source/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_source.h bootstrap/compiler_source/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_declaration.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_declaration.c bootstrap/compiler_declaration/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_declaration.h bootstrap/compiler_declaration/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_enum.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_enum.c bootstrap/compiler_enum/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_enum.h bootstrap/compiler_enum/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_type.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_type.c bootstrap/compiler_type/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_type.h bootstrap/compiler_type/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_expression.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_expression.c bootstrap/compiler_expression/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_expression.h bootstrap/compiler_expression/
-	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zi2c --no-main --root cmd \
-	    -o $(BUILD_DIR)/bootstrap-check cmd/compiler_statement.zi
-	cp $(BUILD_DIR)/bootstrap-check/compiler_statement.c bootstrap/compiler_statement/
-	cp $(BUILD_DIR)/bootstrap-check/compiler_statement.h bootstrap/compiler_statement/
+	@set -e; for module in $(BOOTSTRAP_MODULES); do \
+	    $(GENERATE_BOOTSTRAP); \
+	    cp $(BUILD_DIR)/bootstrap-check/compiler_$$module.c $(BUILD_DIR)/bootstrap-check/compiler_$$module.h \
+	        bootstrap/compiler_$$module/; \
+	done
 
 endif
 
@@ -547,7 +502,8 @@ $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(
 check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/vm-locale-test $(BIN_DIR)/zx-wasm-engine-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zx-wasm-engine-test
-	python3 tests/run_check.py --bin-dir $(BIN_DIR) --jobs $(CHECK_JOBS) $(if $(CHECK_SHARD),--shard $(CHECK_SHARD))
+	python3 tests/run_check.py --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
+	    $(if $(CHECK_FILTER),--filter $(CHECK_FILTER)) $(if $(CHECK_SHARD),--shard $(CHECK_SHARD))
 
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran

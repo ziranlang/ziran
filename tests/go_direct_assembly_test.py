@@ -16,7 +16,6 @@ for key in ('DISPLAY','WAYLAND_DISPLAY','XAUTHORITY','DBUS_SESSION_BUS_ADDRESS',
             'GOFLAGS','GOEXPERIMENT','CGO_CFLAGS','CGO_CPPFLAGS'):
     ENV.pop(key,None)
 WORK.mkdir(parents=True,exist_ok=True)
-ENV['GOCACHE'] = str(WORK/'go-cache')
 
 def run(args,cwd=ROOT,env=ENV):
     p=subprocess.run(list(map(str,args)),cwd=cwd,env=env,capture_output=True,text=True,timeout=180)

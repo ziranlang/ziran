@@ -112,9 +112,9 @@ func main() {
     if &result.Value[0] != &source[0] || result.Error != sentinel { panic("native record storage changed") }
 }
 GO
-    GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go run -race "$out"/*.go
+    GO111MODULE=off go run -race "$out"/*.go
     "$ziran" build --target=go --exe --pkg main --root "$work" --module-path std --entry binding:BindEntry -o "$work/$form-entry" "$input"
-    GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go build -o "$work/$form-entry-bin" "$work/$form-entry"/*.go
+    GO111MODULE=off go build -o "$work/$form-entry-bin" "$work/$form-entry"/*.go
     result=0
     "$work/$form-entry-bin" || result=$?
     test "$result" = 42

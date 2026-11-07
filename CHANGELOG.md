@@ -15,6 +15,9 @@
   `--module-path std=DIR`, as package tests pass it.
 - SIMD loads, stores, widening and 256-bit halves compile to single
   instructions instead of copies through memory.
+- `std/simd` under `ziran run`, TinyCC and `ZIRAN_SIMD_SCALAR` runs about
+  nine times faster: each operation works on its own lane type, and TinyCC
+  on x86-64 uses SSE2 for the common integer operations.
 - `Simd.Sign` and `Simd.AbsDiff`. 256-bit vectors run as two 128-bit halves
   without AVX2, and reductions, `MulWide`, `Narrow` and `AddPairs` use
   fewer instructions.

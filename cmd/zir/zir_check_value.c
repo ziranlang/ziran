@@ -883,6 +883,15 @@ typedef struct DefineVisit {
     struct DefineVisit *next;
 } DefineVisit;
 
+/* One lookup's visits: the first come from LOCAL, the rest from the heap.
+ * The list head is the field every step passes down. */
+enum { DEFINE_VISIT_LOCAL = 96 };
+typedef struct DefineVisits {
+    DefineVisit *head;
+    int used;
+    DefineVisit local[DEFINE_VISIT_LOCAL];
+} DefineVisits;
+
 static int exported_define_depth(const ZirModule *module, const char *name,
     int depth, const ZirDefine **definition, const ZirModule **owner,
     DefineVisit **visits);
@@ -936,7 +945,10 @@ exported_define_depth(const ZirModule *module, const char *name, int depth,
             return visit->status;
         }
     }
-    DefineVisit *visit = AllocateOrExit(sizeof(*visit));
+    DefineVisits *pool = (DefineVisits *)(void *)((char *)visits -
+                                                  offsetof(DefineVisits, head));
+    DefineVisit *visit = pool->used < DEFINE_VISIT_LOCAL ?
+        &pool->local[pool->used++] : AllocateOrExit(sizeof(*visit));
     *visit = (DefineVisit){.module = module, .depth = depth, .next = *visits};
     *visits = visit;
     visit->status = exported_define_uncached(module, name, depth,
@@ -946,18 +958,126 @@ exported_define_depth(const ZirModule *module, const char *name, int depth,
     return visit->status;
 }
 
+/* A lookup through an acyclic graph of `using` imports, visiting each
+ * module once. Its answer is the depth-keyed walk's unless that walk would
+ * enter a module at depth 32, so a visit that could, a cycle or a full table
+ * answers DEFINE_RETRY and the lookup walks by depth instead. HEIGHT is the
+ * longest chain of imports the module's own answer entered. */
+enum { DEFINE_ONCE_MAX = 64, DEFINE_RETRY = 2 };
+typedef struct DefineOnce {
+    const ZirModule *module;
+    int status, height, done;
+    const ZirDefine *definition;
+    const ZirModule *owner;
+} DefineOnce;
+typedef struct DefineOnces {
+    const char *name;
+    int count;
+    DefineOnce items[DEFINE_ONCE_MAX];
+} DefineOnces;
+
+static int
+define_once(DefineOnces *once, const ZirModule *module, int depth,
+            const ZirDefine **definition, const ZirModule **owner, int *height)
+{
+    if(depth >= 32)
+        return DEFINE_RETRY;
+    for(int i = 0; i < once->count; i++) {
+        const DefineOnce *seen = &once->items[i];
+        if(seen->module != module)
+            continue;
+        if(!seen->done || depth + seen->height >= 32)
+            return DEFINE_RETRY;
+        *definition = seen->definition;
+        *owner = seen->owner;
+        *height = seen->height;
+        return seen->status;
+    }
+    if(once->count == DEFINE_ONCE_MAX)
+        return DEFINE_RETRY;
+    DefineOnce *visit = &once->items[once->count++];
+    *visit = (DefineOnce){.module = module};
+    const ZirDefine *found = NULL;
+    const ZirModule *found_owner = NULL;
+    int status = 0, tallest = 0;
+    for(int d = 0; d < module->define_count && status == 0; d++) {
+        const ZirDefine *candidate = &module->defines[d];
+        if(!candidate->is_public || candidate->is_file_private ||
+           strcmp(candidate->name, once->name)) continue;
+        if(found != NULL && found != candidate)
+            status = -1;
+        else {
+            found = candidate;
+            found_owner = module;
+        }
+    }
+    if(status == 0 && found != NULL)
+        status = 1;
+    for(int i = 0; i < module->import_count && status == 0; i++) {
+        const ZirImport *import = &module->imports[i];
+        if(!import->is_using || !import->is_public ||
+           import->is_file_private || import->resolved_module == NULL)
+            continue;
+        const ZirDefine *candidate = NULL;
+        const ZirModule *candidate_owner = NULL;
+        int below = 0;
+        int result = define_once(once, import->resolved_module, depth + 1,
+                                 &candidate, &candidate_owner, &below);
+        if(result == DEFINE_RETRY)
+            return DEFINE_RETRY;
+        if(below + 1 > tallest)
+            tallest = below + 1;
+        if(result < 0 || (result == 1 && found != NULL && found != candidate))
+            status = -1;
+        else if(result == 1) {
+            found = candidate;
+            found_owner = candidate_owner;
+        }
+    }
+    if(status == 0)
+        status = found != NULL;
+    visit = &once->items[visit - once->items];
+    visit->status = status;
+    visit->height = tallest;
+    visit->definition = found;
+    visit->owner = found_owner;
+    visit->done = 1;
+    *definition = found;
+    *owner = found_owner;
+    *height = tallest;
+    return status;
+}
+
+static int
+exported_define_by_depth(const ZirModule *module, const char *name, int depth,
+                         const ZirDefine **definition, const ZirModule **owner)
+{
+    DefineVisits visits;
+    visits.head = NULL;
+    visits.used = 0;
+    int status = exported_define_depth(module, name, depth, definition, owner,
+                                       &visits.head);
+    for(DefineVisit *visit = visits.head; visit != NULL;) {
+        DefineVisit *next = visit->next;
+        if(visit < visits.local || visit >= visits.local + DEFINE_VISIT_LOCAL)
+            free(visit);
+        visit = next;
+    }
+    return status;
+}
+
 static int
 exported_define(const ZirModule *module, const char *name, int depth,
                 const ZirDefine **definition, const ZirModule **owner)
 {
-    DefineVisit *visits = NULL;
-    int status = exported_define_depth(module, name, depth, definition, owner, &visits);
-    while(visits != NULL) {
-        DefineVisit *next = visits->next;
-        free(visits);
-        visits = next;
-    }
-    return status;
+    DefineOnces once;
+    once.name = name;
+    once.count = 0;
+    int height = 0;
+    int status = define_once(&once, module, depth, definition, owner, &height);
+    if(status != DEFINE_RETRY)
+        return status;
+    return exported_define_by_depth(module, name, depth, definition, owner);
 }
 
 int

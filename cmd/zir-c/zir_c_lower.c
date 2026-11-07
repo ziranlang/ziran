@@ -790,18 +790,73 @@ resolve_body_symbol(void *context, const char *text, char *out, size_t size)
     rewrite_body2(symbols->module, symbols->symbols, symbols->count, text, out, size);
 }
 
+/* Whether C body text names identifier NAME outside its string and
+ * character literals and comments. */
+static int
+c_text_reads(const char *text, const char *name)
+{
+    size_t length = strlen(name);
+    for(const char *p = text; *p != '\0';) {
+        if(*p == '"' || *p == '\'') {
+            char quote = *p++;
+            while(*p != '\0' && *p != quote) p += p[0] == '\\' && p[1] != '\0' ? 2 : 1;
+            if(*p != '\0') p++;
+        } else if(p[0] == '/' && p[1] == '/') {
+            while(*p != '\0' && *p != '\n') p++;
+        } else if(p[0] == '/' && p[1] == '*') {
+            const char *end = strstr(p + 2, "*/");
+            p = end != NULL ? end + 2 : p + strlen(p);
+        } else if(isalpha((unsigned char)*p) || *p == '_') {
+            const char *start = p;
+            while(isalnum((unsigned char)*p) || *p == '_') p++;
+            if((size_t)(p - start) == length && !memcmp(start, name, length)) return 1;
+        } else {
+            p++;
+        }
+    }
+    return 0;
+}
+
+/* Every procedure body, out of line, a #target clone or a header's inline
+ * copy, starts by casting each parameter it never reads to void, so C that
+ * includes or builds it passes -Wextra's -Wunused-parameter. */
 static void
 lower_body(FILE *out, const ZirModule *module, const ZirCModuleSyms *symbols,
            int symbol_count, const ZirFunction *function)
 {
     BodySymbols context = {module, symbols, symbol_count,
                            SpanPath(function->span)};
-    if(!EmitBody(out, module, function, ZIR_C,
-                 resolve_body_symbol, &context, NULL, NULL)) {
+    TextStream stream;
+    char *text = NULL;
+    size_t size = 0;
+    FILE *body = TextStreamOpen(&stream, &text, &size);
+    if(body == NULL) { perror("procedure body text"); exit(1); }
+    int emitted = EmitBody(body, module, function, ZIR_C,
+                           resolve_body_symbol, &context, NULL, NULL);
+    if(TextStreamClose(&stream) != 0) { perror("procedure body text"); exit(1); }
+    if(!emitted) {
         Diagnostic(function->span, "zir_c.body",
                    "function has no checked typed body: %s", function->name);
         exit(1);
     }
+    char abi_args[ZIR_TEXT_MAX];
+    ArrayAbiArgs(function, abi_args, sizeof(abi_args));
+    const ZirParameters *parameters = ParametersOf(abi_args);
+    for(int i = 0; i < parameters->count; i++) {
+        const ZirParameter *parameter = &parameters->items[i];
+        char name[LOWER_NAME_MAX];
+        if(parameter->name == NULL || parameter->name[0] == '\0' ||
+           (parameter->type != NULL && !strcmp(parameter->type, "..any")))
+            continue;
+        TargetBindingName(function, ZIR_C, parameter->name, name, sizeof(name));
+        int identifier = isalpha((unsigned char)name[0]) || name[0] == '_';
+        for(const char *p = name; identifier && *p != '\0'; p++)
+            identifier = isalnum((unsigned char)*p) || *p == '_';
+        if(identifier && !c_text_reads(text, name))
+            fprintf(out, "    (void)%s;\n", name);
+    }
+    fputs(text, out);
+    free(text);
 }
 
 /* The x86-64 tiers a #target procedure gets a clone for, best first, with

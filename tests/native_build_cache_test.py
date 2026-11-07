@@ -81,7 +81,10 @@ library(21)
 build(48, set())  # The archive changed: reuse objects, but always relink.
 env['CFLAGS'] += ' -DBUMP=1'
 assert len(build(49)) == len(objects())
+# Only variables a compiler reads join the identity; session values do not.
 env['ZIRAN_CACHE_TEST_ENV'] = 'changed'
+build(49, set())
+env['SOURCE_DATE_EPOCH'] = '1'
 assert len(build(49)) == len(objects())
 build(49, set())
 
@@ -337,6 +340,8 @@ build(52, set())
 assert probe_log.read_text().splitlines() == ['pipe']
 profile = work/'probe-profile.jsonl'
 env['ZIRAN_PROFILE'] = str(profile)
+# A compiler-read variable gives a new identity that compiles every object.
+env['SOURCE_DATE_EPOCH'] = '2'
 build(52)
 build(52, set())
 counters = json.loads(profile.read_text().splitlines()[-1])['counters']

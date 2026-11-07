@@ -22,7 +22,6 @@ cmp "$work/source.zx" "$work/saved.zx"
 test "$("$ziran" run "$work/source.zx")" = 42
 test "$("$ziran" run "$work/saved.zx")" = 42
 
-export GOCACHE="$work/go-cache"
 for form in source saved; do
     if test "$form" = source; then
         input="$repo/tests/spec/utf8_copy_valid.zi"

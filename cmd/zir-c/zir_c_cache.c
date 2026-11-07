@@ -17,7 +17,8 @@
 
 /* This is an optional, local object cache, not a portable artifact format.
  * Missing/unsupported inputs always fall back to the regular compiler. */
-enum { MAX_ITEMS = 16384, MEMO_SLOTS = 32768, PROBE_LIMIT = 65536 };
+enum { MAX_ITEMS = 16384, MAX_FINGERPRINTS = 262144, MEMO_SLOTS = 32768, PROBE_LIMIT = 65536,
+       PROBE_SCAN_LIMIT = 1 << 24 };
 typedef struct Hash { uint32_t h[8]; uint64_t size; unsigned char block[64]; size_t used; } Hash;
 typedef struct Names {
     char **items;
@@ -31,8 +32,12 @@ typedef struct Fingerprint {
     unsigned char digest[32];
     struct stat info;
     int unsafe;
+    /* A file's flat __has_include names, which it can reach like includes. */
+    Names probes;
+    /* 0 file, 1 include candidates of one spelling. */
     int directory;
-    uint64_t epoch;
+    /* A present candidate changed after this build started. */
+    int recent;
     struct Fingerprint *next;
     struct Fingerprint *bucket_next;
 } Fingerprint;
@@ -41,9 +46,8 @@ struct CBuildCache {
     Names roots;
     char *output, *executable;
     struct timespec started;
-    Fingerprint *files, *directories, *lookups;
+    Fingerprint *files, *candidates;
     Fingerprint **slots;
-    uint64_t epoch;
     int fingerprints, piped;
 };
 
@@ -233,43 +237,62 @@ static Fingerprint *find_fingerprint(CBuildCache *cache,const char *path,int dir
         if(file->directory==directory && !strcmp(file->path,path)) return file;
     return NULL;
 }
-static Fingerprint *new_fingerprint(CBuildCache *cache, Fingerprint **list, const char *path)
+static Fingerprint *new_fingerprint(CBuildCache *cache, Fingerprint **list, const char *path, int kind)
 {
-    if(cache->fingerprints >= MAX_ITEMS) return NULL;
+    if(cache->fingerprints >= MAX_FINGERPRINTS) return NULL;
     Fingerprint *file = calloc(1,sizeof(*file));
     if(!file) return NULL;
     file->path = strdup(path);
     if(!file->path) { free(file); return NULL; }
     file->next = *list; *list=file; cache->fingerprints++;
-    file->directory=list==&cache->directories ? 1 : list==&cache->lookups ? 2 : 0;
+    file->directory=kind;
     size_t slot=memo_slot(path,file->directory);
     file->bucket_next=cache->slots[slot];cache->slots[slot]=file;
     return file;
+}
+/* Reads the argument after __has_include or __has_include_next. Returns the
+ * text after a flat literal probe, with its header name, or NULL for any other
+ * form, which keeps the file uncached. */
+static const char *literal_probe(const char *probe, char name[ZIR_PATH_MAX])
+{
+    if(!strncmp(probe,"_next",5)) probe+=5;
+    while(isspace((unsigned char)*probe)) probe++;
+    if(*probe++!='(') return NULL;
+    while(isspace((unsigned char)*probe)) probe++;
+    int end=*probe=='"' ? '"' : *probe=='<' ? '>' : 0;
+    if(!end) return NULL;
+    const char *begin=++probe;
+    while(*probe && *probe!=end) { if(*probe=='/' || *probe=='\n') return NULL;probe++; }
+    if(*probe!=end || probe==begin || probe-begin>=ZIR_PATH_MAX) return NULL;
+    memcpy(name,begin,(size_t)(probe-begin));name[probe-begin]=0;
+    probe++;
+    while(isspace((unsigned char)*probe)) probe++;
+    return *probe==')' ? probe+1 : NULL;
 }
 static int unsafe_text(const char *text)
 {
     const char *tokens[]={"__DATE__","__TIME__","__TIMESTAMP__",".incbin",".include","../"};
     for(size_t i=0;i<sizeof(tokens)/sizeof(*tokens);i++) if(strstr(text,tokens[i])) return 1;
-    const char *probe=text;
-    while((probe=strstr(probe,"__has_include"))) {
-        probe+=13;
-        if(!strncmp(probe,"_next",5)) probe+=5;
-        while(isspace((unsigned char)*probe)) probe++;
-        if(*probe++!='(') return 1;
-        while(isspace((unsigned char)*probe)) probe++;
-        int end=*probe=='"' ? '"' : *probe=='<' ? '>' : 0;
-        if(!end) return 1;
-        probe++;
-        const char *begin=probe;
-        while(*probe && *probe!=end) { if(*probe=='/' || *probe=='\n') return 1;probe++; }
-        if(*probe!=end || probe==begin) return 1;
-        probe++;
-        while(isspace((unsigned char)*probe)) probe++;
-        if(*probe++!=')') return 1;
-        /* Flat literal probes are covered by the names in every include root
-         * and dependency parent, even when that header is absent today. */
-    }
+    char name[ZIR_PATH_MAX];
+    for(const char *probe=text;(probe=strstr(probe,"__has_include"));)
+        if(!(probe=literal_probe(probe+13,name))) return 1;
     return 0;
+}
+/* Collect the probed names of a file whose text has a literal probe. */
+static int probe_names(FILE *input, off_t size, Names *names)
+{
+    if(size<0 || size>PROBE_SCAN_LIMIT) return 0;
+    char *text=malloc((size_t)size+1);
+    rewind(input);
+    int ok=text && fread(text,1,(size_t)size,input)==(size_t)size;
+    if(ok) {
+        text[size]=0;
+        char name[ZIR_PATH_MAX];
+        for(const char *probe=text;ok && (probe=strstr(probe,"__has_include"));)
+            ok=(probe=literal_probe(probe+13,name)) && add_name(names,name);
+    }
+    free(text);
+    return ok;
 }
 static Fingerprint *file_digest(CBuildCache *cache, const char *path)
 {
@@ -282,76 +305,60 @@ static Fingerprint *file_digest(CBuildCache *cache, const char *path)
     Hash hash = hash_new();
     char bytes[8192 + 33];
     size_t retained=0, length;
-    int unsafe=0;
+    int unsafe=0,probes=0;
+    Names names={0};
     while((length=fread(bytes+retained,1,8192,input))) {
         hash_bytes(&hash,bytes+retained,length);
         bytes[retained+length]=0;
         if(memchr(bytes,0,retained+length)) unsafe=1;
         if(unsafe_text(bytes)) unsafe=1;
+        if(strstr(bytes,"__has_include")) probes=1;
         size_t total=retained+length;
         retained=total<32 ? total : 32;
         memmove(bytes,bytes+total-retained,retained);
     }
+    if(probes && !unsafe && !probe_names(input,before.st_size,&names)) unsafe=1;
     int ok=!ferror(input) && fstat(fileno(input),&after)==0 && same_stat(&before,&after);
     fclose(input);
-    if(!ok) return NULL;
-    if(!file && !(file=new_fingerprint(cache,&cache->files,path))) return NULL;
+    if(!ok || (!file && !(file=new_fingerprint(cache,&cache->files,path,0)))) { free_names(&names);return NULL; }
+    free_names(&file->probes);file->probes=names;
     file->info=after;file->unsafe=unsafe;free(file->parent);file->parent=NULL;hash_finish(&hash,file->digest);
     return file;
 }
 
-/* Include lookup can change when a previously absent, higher-priority header
- * appears. Fingerprint the names in candidate parent directories, not their
- * mtimes or every file's bytes. Output/object writes cannot churn this key. */
-static Fingerprint *directory_digest(CBuildCache *cache, const char *path)
+/* An include spelling reaches the first candidate path that exists, in an
+ * include root or an including file's directory. Fingerprint which candidates
+ * exist for every spelling a dependency path can have (each of its suffixes),
+ * so only a new or removed file of that spelling changes the key. A file of
+ * another name, such as another module's new C unit, changes no object. */
+static Fingerprint *spelling_digest(CBuildCache *cache, const char *spelling, const char *root)
 {
-    Fingerprint *saved=find_fingerprint(cache,path,1);
+    char key[ZIR_PATH_MAX * 2];
+    if(strchr(spelling,'\n') || (root && strchr(root,'\n')) ||
+       snprintf(key,sizeof(key),"%s\n%s",root ? root : "",spelling)>=(int)sizeof(key)) return NULL;
+    Fingerprint *saved=find_fingerprint(cache,key,1);
     if(saved) return saved->unsafe ? NULL : saved;
-    Fingerprint *item=new_fingerprint(cache,&cache->directories,path);
+    Fingerprint *item=new_fingerprint(cache,&cache->candidates,key,1);
     if(!item) return NULL;
     item->unsafe=1;
     Hash hash=hash_new();
-    hash_text(&hash,path);
-    if(stat(path,&item->info)!=0) {
-        if(errno!=ENOENT && errno!=ENOTDIR) return NULL;
-        hash_text(&hash,"absent"); hash_finish(&hash,item->digest); item->unsafe=0; return item;
-    }
-    if(!S_ISDIR(item->info.st_mode)) { hash_text(&hash,"not a directory"); hash_finish(&hash,item->digest); item->unsafe=0; return item; }
-    hash_integer(&hash,item->info.st_dev);hash_integer(&hash,item->info.st_ino);
-    struct dirent **entries=NULL;
-    int count=scandir(path,&entries,NULL,alphasort),ok=count>=0;
-    char *resolved=realpath(path,NULL);
-    int output=resolved && !strcmp(resolved,cache->output);
-    free(resolved);
-    for(int i=0;i<count;i++) {
-        struct dirent *entry=entries[i];
-        const char *name=entry->d_name;
-        if(!strcmp(name,".") || !strcmp(name,"..") || (output && (!strcmp(name,".objects") || !strcmp(name,cache->executable)))) { free(entry); continue; }
-        hash_text(&hash,name);
-        unsigned char type=0;
-#ifdef DT_UNKNOWN
-        type=entry->d_type;
-#endif
-        char full[ZIR_PATH_MAX];
-        struct stat info;
-        if(snprintf(full,sizeof(full),"%s/%s",path,name)>=(int)sizeof(full)) ok=0;
-        else {
-            if(!type) {
-                if(lstat(full,&info)!=0) ok=0;
-                else type=S_ISLNK(info.st_mode) ? 10 : S_ISDIR(info.st_mode) ? 4 : S_ISREG(info.st_mode) ? 8 : 1;
-            }
-            hash_integer(&hash,type);
-            if(type==10) {
-                char target[ZIR_PATH_MAX];
-                ssize_t size=readlink(full,target,sizeof(target));
-                if(size<0 || size>=(ssize_t)sizeof(target)) ok=0;
-                else hash_bytes(&hash,target,(size_t)size);
-            }
+    int count=root ? 1 : cache->roots.count;
+    for(int r=0;r<count;r++) {
+        const char *directory=root ? root : cache->roots.items[r];
+        for(const char *relative=spelling;relative;relative=strchr(relative,'/')) {
+            while(*relative=='/') relative++;
+            if(!*relative) break;
+            char candidate[ZIR_PATH_MAX];
+            struct stat info;
+            if(snprintf(candidate,sizeof(candidate),"%s/%s",directory,relative)>=(int)sizeof(candidate)) return NULL;
+            hash_text(&hash,candidate);
+            if(stat(candidate,&info)==0) {
+                hash_integer(&hash,(uint64_t)(info.st_mode & S_IFMT));
+                if(!older(changed(&info),cache->started)) item->recent=1;
+            } else if(errno==ENOENT || errno==ENOTDIR) hash_integer(&hash,0);
+            else return NULL;
         }
-        free(entry);
     }
-    free(entries);
-    if(!ok) return NULL;
     hash_finish(&hash,item->digest);
     item->unsafe=0;
     return item;
@@ -380,6 +387,21 @@ static int native_executable(const char *path)
     fclose(file);
     return ok && (!memcmp(magic,"\177ELF",4) || !memcmp(magic,"\xcf\xfa\xed\xfe",4) ||
                   !memcmp(magic,"\xfe\xed\xfa\xcf",4) || !memcmp(magic,"\xca\xfe\xba\xbe",4));
+}
+/* Variables a C compiler or its tools read for object output.
+ * The rest of the environment (session, ticket and terminal values) must not
+ * make a later build in another shell recompile every object. */
+static int compiler_environment(const char *entry)
+{
+    const char *equals=strchr(entry,'=');
+    size_t length=equals ? (size_t)(equals-entry) : strlen(entry);
+    const char *names[]={"PATH","CPATH","C_INCLUDE_PATH","CPLUS_INCLUDE_PATH","OBJC_INCLUDE_PATH","OBJCPLUS_INCLUDE_PATH",
+        "COMPILER_PATH","LIBRARY_PATH","SOURCE_DATE_EPOCH","SDKROOT","DEVELOPER_DIR","ZERO_AR_DATE","LANG"};
+    for(size_t i=0;i<sizeof(names)/sizeof(*names);i++) if(strlen(names[i])==length && !strncmp(entry,names[i],length)) return 1;
+    const char *prefixes[]={"LC_","GCC_","COLLECT_","CC_","CCC_","CLANG_","LLVM_","RC_","LD_","DYLD_"};
+    for(size_t i=0;i<sizeof(prefixes)/sizeof(*prefixes);i++) if(!strncmp(entry,prefixes[i],strlen(prefixes[i]))) return 1;
+    const char *target="_DEPLOYMENT_TARGET";
+    return length>=strlen(target) && !strncmp(entry+length-strlen(target),target,strlen(target));
 }
 static int argument_value(const char *arg)
 {
@@ -553,7 +575,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     cache->output=realpath(output,NULL);cache->executable=strdup(executable);
     if(!cache->slots || !cache->output || !cache->executable || clock_gettime(CLOCK_REALTIME,&cache->started)!=0) goto fail;
     Hash hash=hash_new();
-    hash_text(&hash,"Ziran native object cache 3");
+    hash_text(&hash,"Ziran native object cache 4");
     hash_integer(&hash,(uint64_t)piped);
     char *cwd=getcwd(NULL,0);
     if(!cwd) goto fail;
@@ -566,7 +588,7 @@ CBuildCache *c_cache_open(char *const *args,int count,const char *output,const c
     if(!sorted) goto fail;
     memcpy(sorted,environ,(size_t)environments*sizeof(*sorted));
     qsort(sorted,(size_t)environments,sizeof(*sorted),compare_names);
-    for(int i=0;i<environments;i++) hash_text(&hash,sorted[i]);
+    for(int i=0;i<environments;i++) if(compiler_environment(sorted[i])) hash_text(&hash,sorted[i]);
     free(sorted);
     struct stat info;
     if(stat(compiler,&info)!=0) goto fail;
@@ -663,10 +685,22 @@ static int write_integer(FILE *file,uint32_t value)
     for(int i=0;i<4;i++) bytes[i]=(unsigned char)(value>>(8*i));
     return fwrite(bytes,1,4,file)==4;
 }
+static int spelling_key(CBuildCache *cache,Hash *hash,const char *spelling,const Names *parents,int *recordable)
+{
+    for(int p=-1;p<parents->count;p++) {
+        Fingerprint *item=spelling_digest(cache,spelling,p<0 ? NULL : parents->items[p]);
+        if(!item) return 0;
+        hash_bytes(hash,item->digest,32);
+        if(item->recent) *recordable=0;
+    }
+    return 1;
+}
+/* The include lookups of one object: every dependency's spellings and its
+ * probed names, in the include roots and each dependency's directory (where
+ * quoted includes look first). */
 static int lookup_digest(CBuildCache *cache,Names *dependencies,unsigned char digest[32],int recording)
 {
-    Names roots={0},parents={0};Hash hash=hash_new();int ok=1;
-    for(int i=0;i<cache->roots.count && ok;i++) ok=add_name(&roots,cache->roots.items[i]);
+    Names parents={0};Hash hash=hash_new();int ok=1,recordable=1;
     for(int i=0;i<dependencies->count && ok;i++) {
         Fingerprint *input=find_fingerprint(cache,dependencies->items[i],0);
         if(input && !input->parent) {
@@ -674,52 +708,16 @@ static int lookup_digest(CBuildCache *cache,Names *dependencies,unsigned char di
             if(resolved && !strstr(resolved,"/.objects/") && parent(resolved,directory)) input->parent=strdup(directory);
             free(resolved);
         }
-        ok=input && input->parent && add_name(&roots,input->parent) && add_name(&parents,input->parent);
+        ok=input && input->parent && add_name(&parents,input->parent);
     }
-    sort_names(&roots);
-    sort_names(&parents);
-    Hash key_hash=hash_new();unsigned char key_bytes[32];char key[65];
-    for(int i=0;i<parents.count;i++) hash_text(&key_hash,parents.items[i]);
-    hash_finish(&key_hash,key_bytes);
-    for(int i=0;i<32;i++) snprintf(key+i*2,3,"%02x",key_bytes[i]);
-    Fingerprint *saved=find_fingerprint(cache,key,2);
-    if(ok && saved) {
-        memcpy(digest,saved->digest,32);free_names(&roots);free_names(&parents);
-        return !recording || !saved->unsafe;
+    for(int i=0;i<dependencies->count && ok;i++) {
+        Fingerprint *input=find_fingerprint(cache,dependencies->items[i],0);
+        ok=spelling_key(cache,&hash,dependencies->items[i],&parents,&recordable);
+        for(int p=0;ok && p<input->probes.count;p++)
+            ok=spelling_key(cache,&hash,input->probes.items[p],&parents,&recordable);
     }
-    int recordable=1;
-    uint64_t epoch=++cache->epoch;
-    for(int i=0;i<parents.count && ok;i++) {
-        const char *absolute=parents.items[i];
-        for(int r=0;r<roots.count && ok;r++) {
-            /* Every suffix can be the spelling in an include directive. A
-             * parent may be absent today and gain a shadowing header later. */
-            const char *relative=absolute+1;
-            while(relative && ok) {
-                char candidate[ZIR_PATH_MAX];
-                if(snprintf(candidate,sizeof(candidate),"%s/%s",roots.items[r],relative)>=(int)sizeof(candidate)) { ok=0;break; }
-                Fingerprint *directory=directory_digest(cache,candidate);
-                if(!directory) ok=0;
-                else {
-                    if(directory->info.st_ino && !older(changed(&directory->info),cache->started)) recordable=0;
-                    if(directory->epoch!=epoch) { hash_bytes(&hash,directory->digest,32);directory->epoch=epoch; }
-                }
-                relative=strchr(relative,'/');if(relative) relative++;
-            }
-            Fingerprint *directory=ok ? directory_digest(cache,roots.items[r]) : NULL;
-            if(!directory) ok=0;
-            else {
-                if(directory->info.st_ino && !older(changed(&directory->info),cache->started)) recordable=0;
-                if(directory->epoch!=epoch) { hash_bytes(&hash,directory->digest,32);directory->epoch=epoch; }
-            }
-        }
-    }
-    free_names(&roots);free_names(&parents);
-    if(ok) {
-        hash_finish(&hash,digest);
-        Fingerprint *item=new_fingerprint(cache,&cache->lookups,key);
-        if(item) { memcpy(item->digest,digest,32);item->unsafe=!recordable; }
-    }
+    free_names(&parents);
+    if(ok) hash_finish(&hash,digest);
     return ok && (!recording || recordable);
 }
 
@@ -821,10 +819,10 @@ done:
 void c_cache_close(CBuildCache *cache)
 {
     if(!cache) return;
-    Fingerprint *lists[]={cache->files,cache->directories,cache->lookups};
+    Fingerprint *lists[]={cache->files,cache->candidates};
     for(size_t i=0;i<sizeof(lists)/sizeof(*lists);i++) {
         Fingerprint *item=lists[i];
-        while(item) { Fingerprint *next=item->next;free(item->path);free(item->parent);free(item);item=next; }
+        while(item) { Fingerprint *next=item->next;free(item->path);free(item->parent);free_names(&item->probes);free(item);item=next; }
     }
     free_names(&cache->roots);free(cache->slots);free(cache->output);free(cache->executable);free(cache);
 }

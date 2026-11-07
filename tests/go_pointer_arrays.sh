@@ -104,7 +104,7 @@ func main() {
 GO
     sed -i "s/RECORD/$record_type/g" "$out/main.go"
     gofmt -w "$out"/*.go
-    GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go run -race "$out"/*.go
+    GO111MODULE=off go run -race "$out"/*.go
 done
 cmp "$work/source-go/app.go" "$work/saved-go/app.go"
 

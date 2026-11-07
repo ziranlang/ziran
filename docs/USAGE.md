@@ -268,7 +268,10 @@ while the module's own `.c` keeps the one external definition, so a
 procedure's address is the same everywhere. Each module still compiles and
 caches on its own; editing such a procedure's body rebuilds the modules that
 call it. Procedures that call file-scope code, or that use string
-literals, constant tables or function values, stay out of line. Run
+literals, constant tables or function values, stay out of line. A C file that
+defines a module's procedures itself, such as a test mock, puts
+`#define ZIRAN_<MODULE>_H_SOURCE 1` (the header guard plus `_SOURCE`) before
+including that module's header, so the header leaves out its copies. Run
 `sh tests/cross_module_inline.sh build/bin/ziran`.
 
 `#inline` after a procedure's result asks generated C to always inline it:

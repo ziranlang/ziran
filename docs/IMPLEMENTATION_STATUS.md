@@ -43,6 +43,11 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   their objects. Linking runs on every build, regenerates requested maps and
   checks current library inputs. Source/saved-IR tests cover these options,
   prefix-tool replacement, option values and missing-library failure.
+  The identity hashes only environment variables a compiler reads, so another
+  shell or build-queue ticket reuses objects, and accepts a `#!` compiler
+  wrapper by its content. Adding a generated C file (a split unit or a new
+  module) rebuilds only that file. `tests/native_object_reuse.sh` checks a
+  one-module edit rebuilds one object across these cases.
 
 - Generated C public headers carry lightweight string value and caller
   location definitions. Sources include string operations, bounds checks and

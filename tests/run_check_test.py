@@ -37,6 +37,33 @@ class CheckRunnerTest(unittest.TestCase):
             self.assertEqual(passed["exit_code"], 0)
             self.assertEqual(Path(passed["log"]).read_text(), "ok\n")
 
+    def test_each_check_gets_a_private_tmpdir_that_is_removed(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            command = [sys.executable, "-c", "import os, tempfile; d = os.environ['TMPDIR']; "
+                       "assert os.path.isdir(d); print(d); print(tempfile.mkdtemp())"]
+            first = runner.run_check("one", command, root, {}, root, root)
+            second = runner.run_check("two", command, root, {}, root, root)
+            self.assertEqual((first["exit_code"], second["exit_code"]), (0, 0))
+            one = Path(first["log"]).read_text().split()
+            two = Path(second["log"]).read_text().split()
+            self.assertNotEqual(one[0], two[0])
+            self.assertTrue(one[1].startswith(one[0] + "/"))
+            self.assertFalse(Path(one[0]).exists() or Path(two[0]).exists())
+
+    def test_jobs_follow_the_build_queue_share(self):
+        saved = runner.os.environ.get("BUILD_QUEUE_JOBS")
+        try:
+            runner.os.environ["BUILD_QUEUE_JOBS"] = "6"
+            self.assertEqual(runner.default_jobs(), 6)
+            runner.os.environ["BUILD_QUEUE_JOBS"] = ""
+            self.assertGreaterEqual(runner.default_jobs(), 1)
+        finally:
+            if saved is None:
+                runner.os.environ.pop("BUILD_QUEUE_JOBS", None)
+            else:
+                runner.os.environ["BUILD_QUEUE_JOBS"] = saved
+
     def test_costly_checks_are_balanced_over_shards_and_start_first(self):
         names = ["a.sh", "b.sh", "c.sh", "d.sh", "e.sh", "f.sh", "g.sh"]
         checks = [(name, ["sh", name]) for name in names]

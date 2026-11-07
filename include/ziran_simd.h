@@ -5,7 +5,9 @@
  * lane on bit patterns, and the portable VM runs that same code. GCC and
  * Clang builds use native vectors with SSE2..AVX2, NEON or WebAssembly
  * SIMD128 instructions that give identical bits; other compilers, such as
- * TinyCC, and ZIRAN_SIMD_SCALAR builds keep lane arrays and call zi_ref.
+ * TinyCC, and ZIRAN_SIMD_SCALAR builds keep lane arrays and run plain C over
+ * each type's own lanes, TinyCC on x86-64 SSE2 assembly for the common
+ * integer helpers.
  *
  * Lanes are numbered from the lowest address. Viewing a vector as bytes
  * (Reinterpret, byte shifts) uses little-endian lanes on every host.
@@ -219,8 +221,8 @@ static inline uint64_t zi_int_to_float(uint64_t bits, int from, int to)
  * zero-extended to 64 bits. k holds the constant operands: a lane index,
  * byte count or shuffle indices; k[0] is also a scalar shift count. A scalar
  * lane operand (Splat, WithLane) is b[0]; Make reads its lanes from a.
- * Scalar results are out[0]. Programs whose every helper has a vector
- * body never call it.
+ * Scalar results are out[0]. Only ARMv7 NEON's float arithmetic calls it
+ * from a helper; elsewhere it is the oracle the tests check helpers against.
  */
 #if defined(__GNUC__)
 __attribute__((unused))

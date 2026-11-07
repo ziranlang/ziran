@@ -303,6 +303,16 @@ typedef struct SymbolVisit {
     struct SymbolVisit *next;
 } SymbolVisit;
 
+/* One lookup's visits. Most lookups visit a few dozen scopes, so they come
+ * from LOCAL and only the rest from the heap; the list head is the field
+ * every lookup passes down. */
+enum { SYMBOL_VISIT_LOCAL = 64 };
+typedef struct SymbolVisits {
+    SymbolVisit *head;
+    int used;
+    SymbolVisit local[SYMBOL_VISIT_LOCAL];
+} SymbolVisits;
+
 static SymbolVisit *
 symbol_visit(SymbolVisit **visits, const ZirModule *module, const char *name,
              const char *source_path, int depth, int *created)
@@ -315,7 +325,10 @@ symbol_visit(SymbolVisit **visits, const ZirModule *module, const char *name,
             *created = 0;
             return visit;
         }
-    SymbolVisit *visit = AllocateOrExit(sizeof(*visit));
+    SymbolVisits *pool = (SymbolVisits *)(void *)((char *)visits -
+                                                  offsetof(SymbolVisits, head));
+    SymbolVisit *visit = pool->used < SYMBOL_VISIT_LOCAL ?
+        &pool->local[pool->used++] : AllocateOrExit(sizeof(*visit));
     *visit = (SymbolVisit){.module = module, .name = name,
         .source_path = path, .entry_scope = depth == 0, .next = *visits};
     *visits = visit;
@@ -324,12 +337,13 @@ symbol_visit(SymbolVisit **visits, const ZirModule *module, const char *name,
 }
 
 static void
-free_symbol_visits(SymbolVisit *visits)
+free_symbol_visits(SymbolVisits *visits)
 {
-    while(visits != NULL) {
-        SymbolVisit *next = visits->next;
-        free(visits);
-        visits = next;
+    for(SymbolVisit *visit = visits->head; visit != NULL;) {
+        SymbolVisit *next = visit->next;
+        if(visit < visits->local || visit >= visits->local + SYMBOL_VISIT_LOCAL)
+            free(visit);
+        visit = next;
     }
 }
 
@@ -482,10 +496,12 @@ resolve_function_at(const ZirModule *module, const char *name,
                   const char *source_path, const ZirModule **owner,
                   const ZirFunction **function)
 {
-    SymbolVisit *visits = NULL;
+    SymbolVisits visits;
+    visits.head = NULL;
+    visits.used = 0;
     int status = resolve_function_depth(module, name, source_path, owner,
-                                       function, 0, &visits);
-    free_symbol_visits(visits);
+                                       function, 0, &visits.head);
+    free_symbol_visits(&visits);
     return status;
 }
 
@@ -603,9 +619,12 @@ ResolveGlobalAt(const ZirModule *module, const char *name,
                 const char *source_path, const ZirModule **owner,
                 const ZirGlobal **global)
 {
-    SymbolVisit *visits = NULL;
-    int status = resolve_global_depth(module, name, source_path, owner, global, 0, &visits);
-    free_symbol_visits(visits);
+    SymbolVisits visits;
+    visits.head = NULL;
+    visits.used = 0;
+    int status = resolve_global_depth(module, name, source_path, owner, global, 0,
+                                      &visits.head);
+    free_symbol_visits(&visits);
     return status;
 }
 

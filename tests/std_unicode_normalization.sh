@@ -7,7 +7,6 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/unicode-normalization.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export GOCACHE="$work/go-cache"
 export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 run_vm() {
     result=$("$@") || { printf '%s\n' "$result"; return 1; }

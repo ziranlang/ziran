@@ -104,9 +104,9 @@ func main() {
     if counter.Value != 0 || Methods_Answer() != 42 { panic("void method or ordinary calls") }
 }
 GO
-    GO111MODULE=off GOCACHE=/tmp/ziran-method-go-cache go run -race "$out"/*.go
+    GO111MODULE=off go run -race "$out"/*.go
     "$ziran" build --target=go --exe --pkg main --root "$work" --module-path std --entry methods:InterfaceEntry -o "$work/$form-entry" "$input"
-    test "$(GO111MODULE=off GOCACHE=/tmp/ziran-method-go-cache go run -race "$work/$form-entry"/*.go)" = 42
+    test "$(GO111MODULE=off go run -race "$work/$form-entry"/*.go)" = 42
     "$ziran" bundle --root "$work" --module-path std --entry methods:Answer -o "$work/$form.zx" "$input"
     test "$("$ziran" run "$work/$form.zx")" = 42
     "$ziran" build --target=c --exe --root "$work" --module-path std --entry methods:Answer -o "$work/$form-c" "$input"

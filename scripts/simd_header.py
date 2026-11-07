@@ -7,8 +7,10 @@
 Every helper computes exactly what zi_ref in include/ziran_simd.h does. GCC
 (12 or later) and Clang builds use native vectors and, where they give the
 same bits, SSE2..AVX2, NEON or WebAssembly SIMD128 instructions; any other
-build calls zi_ref. --test writes a program that checks every helper, in
-every x86-64 tier the build can run, against zi_ref.
+build (TinyCC, ZIRAN_SIMD_SCALAR) runs plain C over each type's own lanes,
+TinyCC on x86-64 SSE2 assembly for the common integer helpers.
+--test writes a program that checks every helper, in every x86-64 tier the
+build can run, against zi_ref.
 """
 import random
 import sys
@@ -1517,6 +1519,444 @@ def ops():
     ]
 
 
+# ---------------------------------------------------------------- lane arrays
+
+# Builds without native vectors (TinyCC under `ziran run`, ZIRAN_SIMD_SCALAR
+# and compilers without __builtin_shufflevector) compute each helper over its
+# own lane type, one statement per lane: TinyCC indexes a loop's lanes
+# through a counter in memory, but addresses a fixed lane directly.
+
+def calc(t):
+    """The unsigned type t's integer lanes compute in, past int promotion."""
+    return 'uint64_t' if t.bits == 64 else 'uint32_t'
+
+
+def lane(v, i):
+    return 'ZI_AT(%s, %d)' % (v, i)
+
+
+def per_lane(r, expr=None, stmt=None, setup=()):
+    """A body setting each lane i of r_ (type r) to expr(i), or running stmt(i)."""
+    lines = list(setup) + ['%s r_;' % r.c]
+    for i in range(r.lanes):
+        lines.append(stmt(i) if stmt else 'ZI_AT(r_, %d) = %s;' % (i, expr(i)))
+    lines.append('return r_;')
+    return '\n    '.join(lines)
+
+
+def block_lane(t, r, j, offset):
+    """The lane of t that result lane j of r reads, block by block."""
+    blocks = 2 if t.wide else 1
+    per, rper = t.lanes // blocks, r.lanes // blocks
+    return (j // rper) * per + j % rper + offset
+
+
+def clamp_lane(v, lo, hi, ctype):
+    return ('{ int v_ = %s; ZI_AT(r_, %%d) = (%s)(v_ < %d ? %d : v_ > %d ? %d : v_); }' %
+            (v, ctype, lo, lo, hi, hi))
+
+
+def scalar_body(op, t):
+    """op's lane-array body for t, or None where op.portable already is one."""
+    e, r = op.enum, op.result(t)
+    ct, w, W = t.ctype, calc(t), t.bits
+    a = lambda i: lane('a', i)
+    b = lambda i: lane('b', i)
+    if e in ('ZI_OP_ADD', 'ZI_OP_SUB', 'ZI_OP_MUL', 'ZI_OP_DIV'):
+        if t.float:
+            return per_lane(t, lambda i: '%s %s %s' % (a(i), op.c_op, b(i)))
+        return per_lane(t, lambda i: '(%s)((%s)%s %s (%s)%s)' % (ct, w, a(i), op.c_op, w, b(i)))
+    if e in ('ZI_OP_ADD_SAT', 'ZI_OP_SUB_SAT'):
+        hi = (1 << (W - 1)) - 1 if t.signed else (1 << W) - 1
+        lo = -(1 << (W - 1)) if t.signed else 0
+        c = '+' if e == 'ZI_OP_ADD_SAT' else '-'
+        return per_lane(t, stmt=lambda i: clamp_lane('(int)%s %s (int)%s' % (a(i), c, b(i)), lo, hi, ct) % i)
+    if e in ('ZI_OP_MIN', 'ZI_OP_MAX'):
+        # a < b ? a : b, so floats take b for NaN and for two zeros.
+        c = '<' if e == 'ZI_OP_MIN' else '>'
+        return per_lane(t, lambda i: '%s %s %s ? %s : %s' % (a(i), c, b(i), a(i), b(i)))
+    if e == 'ZI_OP_AVG':
+        return per_lane(t, lambda i: '(%s)(((uint32_t)%s + (uint32_t)%s + 1) >> 1)' % (ct, a(i), b(i)))
+    if e == 'ZI_OP_MUL_HIGH':
+        p = 'int32_t' if t.signed else 'uint32_t'
+        return per_lane(t, lambda i: '(%s)(((%s)%s * (%s)%s) >> 16)' % (ct, p, a(i), p, b(i)))
+    if e == 'ZI_OP_MUL_HIGH_ROUND':
+        return per_lane(t, lambda i: '(%s)(((int32_t)%s * (int32_t)%s + 0x4000) >> 15)' % (ct, a(i), b(i)))
+    bitwise = {'ZI_OP_AND': '&', 'ZI_OP_OR': '|', 'ZI_OP_XOR': '^', 'ZI_OP_AND_NOT': '& ~'}
+    if e in bitwise:
+        return per_lane(t, lambda i: '(%s)(%s %s%s)' % (ct, a(i), bitwise[e], b(i)))
+    if e == 'ZI_OP_NOT':
+        return per_lane(t, lambda i: '(%s)~%s' % (ct, a(i)))
+    if e in ('ZI_OP_ABS', 'ZI_OP_NEG') and t.float:
+        # The sign bit of each lane's bits.
+        sign = '0x80000000u' if W == 32 else 'UINT64_C(0x8000000000000000)'
+        change = '&= ~' if e == 'ZI_OP_ABS' else '^= '
+        lines = ['union { %s f; %s u; } v_;' % (t.c, t.u.c), 'v_.f = a;']
+        lines += ['ZI_AT(v_.u, %d) %s%s;' % (i, change, sign) for i in range(t.lanes)]
+        lines.append('return v_.f;')
+        return '\n    '.join(lines)
+    if e == 'ZI_OP_ABS':
+        return per_lane(t, lambda i: '(%s)(%s < 0 ? (%s)0 - (%s)%s : (%s)%s)' % (ct, a(i), w, w, a(i), w, a(i)))
+    if e == 'ZI_OP_NEG':
+        return per_lane(t, lambda i: '(%s)((%s)0 - (%s)%s)' % (ct, w, w, a(i)))
+    if e == 'ZI_OP_SIGN':
+        return per_lane(t, lambda i: '(%s)(%s < 0 ? (%s)0 - (%s)%s : %s == 0 ? (%s)0 : (%s)%s)' %
+                        (ct, b(i), w, w, a(i), b(i), w, w, a(i)))
+    if e == 'ZI_OP_ABS_DIFF':
+        return per_lane(r, lambda i: '(%s)(%s < %s ? (%s)%s - (%s)%s : (%s)%s - (%s)%s)' %
+                        (r.ctype, a(i), b(i), w, b(i), w, a(i), w, a(i), w, b(i)))
+    if isinstance(op, Compare):
+        return per_lane(r, lambda i: '(%s)-(%s %s %s)' % (r.ctype, a(i), op.c_op, b(i)))
+    if e == 'ZI_OP_SELECT':
+        m = lambda i: lane('m', i)
+        if t.float:
+            lines = ['union { %s f; %s u; } x_, y_, o_;' % (t.c, t.u.c), 'x_.f = a;', 'y_.f = b;']
+            lines += ['ZI_AT(o_.u, %d) = (%s & ZI_AT(x_.u, %d)) | (~%s & ZI_AT(y_.u, %d));' %
+                      (i, m(i), i, m(i), i) for i in range(t.lanes)]
+            lines.append('return o_.f;')
+            return '\n    '.join(lines)
+        return per_lane(t, lambda i: '(%s)((%s & (%s)%s) | (~%s & (%s)%s))' %
+                        (ct, m(i), t.utype, a(i), m(i), t.utype, b(i)))
+    if isinstance(op, Shift):
+        # A count of the lane width or more gives 0, or the sign for a
+        # signed ShiftRight.
+        zero = 'if(n >= %d) return ZI_N(zero_%s)();' % (W, t.name)
+        if op.kind == 'shl':
+            return per_lane(t, lambda i: '(%s)((%s)%s << s_)' % (ct, w, a(i)), setup=[zero, 'int s_ = (int)n;'])
+        if op.kind == 'shr' and not t.signed:
+            return per_lane(t, lambda i: '(%s)(%s >> s_)' % (ct, a(i)), setup=[zero, 'int s_ = (int)n;'])
+        if op.kind == 'shr':
+            return per_lane(t, lambda i: '(%s)(%s >> s_)' % (ct, a(i)),
+                            setup=['int s_ = n >= %d ? %d : (int)n;' % (W, W - 1)])
+        # (v >> n) plus the last bit shifted out.
+        if t.signed:
+            setup = ['if(n == 0) return a;',
+                     'int s_ = n >= %d ? %d : (int)n, t_ = n - 1 >= %d ? %d : (int)(n - 1);' % (W, W - 1, W, W - 1)]
+            return per_lane(t, lambda i: '(%s)((%s)(%s >> s_) + (%s)((%s >> t_) & 1))' % (ct, w, a(i), w, a(i)),
+                            setup=setup)
+        setup = ['if(n == 0) return a;', 'uint64_t m_ = n - 1;',
+                 'int s_ = n < %d ? (int)n : 0, t_ = m_ < %d ? (int)m_ : 0;' % (W, W),
+                 '%s h_ = n < %d ? ~(%s)0 : 0, q_ = m_ < %d ? 1 : 0;' % (w, W, w, W)]
+        return per_lane(t, lambda i: '(%s)((((%s)%s >> s_) & h_) + (((%s)%s >> t_) & q_))' % (ct, w, a(i), w, a(i)),
+                        setup=setup)
+    if isinstance(op, ShiftLanes):
+        c = lambda i: '(%s)%s' % (t.utype, b(i))
+        if op.left:
+            return per_lane(t, lambda i: '(%s)(%s >= %d ? 0 : (%s)%s << %s)' % (ct, c(i), W, w, a(i), c(i)))
+        if not t.signed:
+            return per_lane(t, lambda i: '(%s)(%s >= %d ? 0 : %s >> %s)' % (ct, c(i), W, a(i), c(i)))
+        return per_lane(t, lambda i: '(%s)(%s >> (%s >= %d ? %d : %s))' % (ct, a(i), c(i), W, W - 1, c(i)))
+    if e == 'ZI_OP_SPLAT':
+        return per_lane(t, lambda i: 'x')
+    if e == 'ZI_OP_ZERO':
+        return per_lane(t, lambda i: '0')
+    if isinstance(op, WidenHalf):
+        offset = t.block // 2 if op.high else 0
+        return per_lane(r, lambda j: '(%s)%s' % (r.ctype, a(block_lane(t, r, j, offset))))
+    if e == 'ZI_OP_WIDEN':
+        return per_lane(r, lambda i: '(%s)%s' % (r.ctype, a(i)))
+    if isinstance(op, MulWide):
+        offset = t.block // 2 if op.high else 0
+        rc = r.ctype
+        return per_lane(r, lambda j: '(%s)((%s)%s * (%s)%s)' % (
+            rc, rc, a(block_lane(t, r, j, offset)), rc, b(block_lane(t, r, j, offset))))
+    if e == 'ZI_OP_MADD':
+        return per_lane(r, lambda i: '(int32_t)((uint32_t)((int32_t)%s * %s) + (uint32_t)((int32_t)%s * %s))' %
+                        (a(2 * i), b(2 * i), a(2 * i + 1), b(2 * i + 1)))
+    if e == 'ZI_OP_MADD_SAT':
+        return per_lane(r, stmt=lambda i: clamp_lane('(int)%s * %s + (int)%s * %s' % (
+            a(2 * i), b(2 * i), a(2 * i + 1), b(2 * i + 1)), -32768, 32767, 'int16_t') % i)
+    if e == 'ZI_OP_ADD_PAIRS':
+        rc = r.ctype
+        return per_lane(r, lambda i: '(%s)((%s)%s + (%s)%s)' % (rc, rc, a(2 * i), rc, a(2 * i + 1)))
+    if e == 'ZI_OP_SAD':
+        def total(i):
+            terms = ['(%s > %s ? %s - %s : %s - %s)' % (a(k), b(k), a(k), b(k), b(k), a(k))
+                     for k in range(8 * i, 8 * i + 8)]
+            return '(uint64_t)(%s)' % '\n        + '.join(terms)
+        return per_lane(r, total)
+    if isinstance(op, Reduce):
+        if op.kind == 'add':
+            terms = ['(%s)%s' % (w, a(i)) for i in range(t.lanes)]
+            return 'return (%s)(%s);' % (ct, ' +\n        '.join(
+                ' + '.join(terms[i:i + 4]) for i in range(0, len(terms), 4)))
+        if op.kind == 'max_index':
+            lines = ['%s m_ = %s;' % (ct, a(0)), 'int best_ = 0;']
+            lines += ['if(%s > m_) { m_ = %s; best_ = %d; }' % (a(i), a(i), i) for i in range(1, t.lanes)]
+            return '\n    '.join(lines + ['return best_;'])
+        c = '<' if op.kind == 'min' else '>'
+        lines = ['%s m_ = %s;' % (ct, a(0))]
+        lines += ['if(%s %s m_) m_ = %s;' % (a(i), c, a(i)) for i in range(1, t.lanes)]
+        return '\n    '.join(lines + ['return m_;'])
+    if e == 'ZI_OP_ALL_ZERO':
+        return 'return (%s) == 0;' % ' |\n        '.join(
+            ' | '.join(a(i) for i in range(j, min(j + 8, t.lanes))) for j in range(0, t.lanes, 8))
+    if e == 'ZI_OP_BYTE_SHUFFLE':
+        return per_lane(t, lambda i: '%s < 16 ? ZI_AT(a, %d + %s) : 0' % (b(i), i & ~15, b(i)))
+    if isinstance(op, Half):
+        return 'union { %s w; %s h[2]; } u_;\n    u_.w = a;\n    return u_.h[%d];' % (
+            t.c, t.half.c, 1 if op.high else 0)
+    if isinstance(op, Combine):
+        return op.generic(t)
+    if isinstance(op, Interleave):
+        offset = t.block // 2 if op.high else 0
+        def pick(j):
+            k = j % t.block
+            at = (j // t.block) * t.block + k // 2 + offset
+            return (b if k % 2 else a)(at)
+        return per_lane(t, pick)
+    return None
+
+
+def narrow_scalar(t, r):
+    """Each lane clamped to r's range, block by block: a's lanes, then b's."""
+    hi = (1 << (r.bits - 1)) - 1 if r.signed else (1 << r.bits) - 1
+    lo = -(1 << (r.bits - 1)) if r.signed else 0
+    if t.bits == 64:
+        literal = 'INT64_C(%d)' if t.signed else 'UINT64_C(%d)'
+    else:
+        literal = '%d' if t.signed or t.bits < 32 else '%du'
+    high, low = literal % hi, literal % lo
+    rper = r.block
+
+    def pick(j):
+        k = j % rper
+        v = lane('a' if k < t.block else 'b', (j // rper) * t.block + k % t.block)
+        if t.signed:
+            return '(%s)(%s > %s ? %s : %s < %s ? %s : %s)' % (r.ctype, v, high, high, v, low, low, v)
+        return '(%s)(%s > %s ? %s : %s)' % (r.ctype, v, high, high, v)
+    return per_lane(r, pick)
+
+
+def convert_scalar(t, r):
+    """Integers to floats rounded; floats truncated, saturated, NaN as 0."""
+    if not t.float:
+        return per_lane(r, lambda i: '(%s)%s' % (r.ctype, lane('a', i)))
+    f = 'f' if t.bits == 32 else ''
+    if r.signed:
+        limit = ('2147483648.0' if r.bits == 32 else '9223372036854775808.0') + f
+        stmt = lambda i: ('{ %s v_ = %s; ZI_AT(r_, %d) = v_ != v_ ? 0 : v_ >= %s ? INT%d_MAX : '
+                          'v_ <= -%s ? INT%d_MIN : (%s)v_; }' %
+                          (t.ctype, lane('a', i), i, limit, r.bits, limit, r.bits, r.ctype))
+    else:
+        limit = ('4294967296.0' if r.bits == 32 else '18446744073709551616.0') + f
+        stmt = lambda i: ('{ %s v_ = %s; ZI_AT(r_, %d) = v_ != v_ || v_ <= 0 ? 0 : v_ >= %s ? UINT%d_MAX : (%s)v_; }' %
+                          (t.ctype, lane('a', i), i, limit, r.bits, r.ctype))
+    return per_lane(r, stmt=stmt)
+
+
+def reinterpret_bodies(t, r):
+    return [('ZI_VEC', 'return (%s)a;' % r.c),
+            ('ZI_LE', 'union { %s a; %s r; } u_;\n    u_.a = a;\n    return u_.r;' % (t.c, r.c)),
+            (None, 'unsigned char x_[%d];\n    zi_le_bytes_%s(a, x_);\n    return zi_le_lanes_%s(x_);' %
+             (t.bytes, t.name, r.name))]
+
+
+# ---------------------------------------------------------------- TinyCC x86-64
+
+# TinyCC calls every helper and passes vectors through memory. Its x86-64
+# assembler knows the SSE2 integer instructions MMX had (not movdqu, pshufd,
+# punpcklqdq or the byte shifts), so there the common integer helpers run
+# one instruction per 128-bit block. Each block moves as the two 64-bit
+# halves TinyCC itself stores, which keeps store-to-load forwarding.
+# TinyCC encodes pavgb and pavgw for MMX registers whatever the operands
+# say, and MMX code leaves the x87 state TinyCC's unsigned 64-bit
+# conversions use unusable, so Avg keeps its C.
+TCC_X64 = 'ZI_TCC_X64'
+TX_BITS = {8: 'b', 16: 'w', 32: 'd', 64: 'q'}
+
+
+def tx_body(r, sources, steps, scalars=(), dest='&r_', out=0, store_low=False):
+    """An asm body: load each source address's block into %xmm0.., run steps
+    (X0.. for registers, S0.. for scalar operands) and store %xmm{out} to dest.
+    r is the result type, or None when dest is the store's pointer."""
+    blocks = 2 if (r is not None and r.wide) or any(s[1] for s in sources) else 1
+    operands = [dest] + [s[0] for s in sources] + list(scalars)
+    text = []
+    for block in range(blocks):
+        at = 16 * block
+        for j, (_, _wide) in enumerate(sources):
+            text.append('movq %d(%%%d), X%d' % (at, j + 1, j))
+            if not store_low:
+                text.append('movhps %d(%%%d), X%d' % (at + 8, j + 1, j))
+        text += steps
+        text.append('movq X%d, %d(%%0)' % (out, at))
+        if not store_low:
+            text.append('movhps X%d, %d(%%0)' % (out, at + 8))
+    asm = '\\n\\t'.join(text)
+    for k in range(4):
+        asm = asm.replace('X%d' % k, '%%%%xmm%d' % k)
+    for k in range(len(scalars)):
+        asm = asm.replace('S%d' % k, '%%%d' % (1 + len(sources) + k))
+    lines = ['%s r_;' % r.c] if r is not None else []
+    lines.append('__asm__("%s" : : %s : "memory");' % (asm, ', '.join('"r"(%s)' % o for o in operands)))
+    if r is not None:
+        lines.append('return r_;')
+    return '\n    '.join(lines)
+
+
+def tcc_x64_body(op, t):
+    """op's body for TinyCC on x86-64, or None to keep the lane-array one."""
+    e, r, W = op.enum, op.result(t), t.bits
+    if t.float and e not in ('ZI_OP_SELECT', 'ZI_OP_LOAD', 'ZI_OP_LOAD_LOW', 'ZI_OP_STORE',
+                             'ZI_OP_STORE_LOW', 'ZI_OP_INTERLEAVE_LOW', 'ZI_OP_INTERLEAVE_HIGH'):
+        return None
+    x = TX_BITS[W]
+    wide = t.wide
+    a, b = ('&a', wide), ('&b', wide)
+    one = {
+        'ZI_OP_ADD': W < 64 and 'padd' + x,
+        'ZI_OP_SUB': W < 64 and 'psub' + x,
+        'ZI_OP_MUL': W == 16 and 'pmullw',
+        'ZI_OP_MUL_HIGH': W == 16 and t.signed and 'pmulhw',
+        'ZI_OP_AND': 'pand', 'ZI_OP_OR': 'por', 'ZI_OP_XOR': 'pxor',
+        'ZI_OP_EQ': W < 64 and 'pcmpeq' + x,
+        'ZI_OP_GT': W < 64 and t.signed and 'pcmpgt' + x,
+        'ZI_OP_MADD': 'pmaddwd',
+    }
+    if W < 32:
+        sat = ('s' if t.signed else 'us') + x
+        one['ZI_OP_ADD_SAT'] = 'padd' + sat
+        one['ZI_OP_SUB_SAT'] = 'psub' + sat
+    if (W == 16 and t.signed) or (W == 8 and not t.signed):
+        kind = 's' if t.signed else 'u'
+        one['ZI_OP_MIN'] = 'pmin%s%s' % (kind, x)
+        one['ZI_OP_MAX'] = 'pmax%s%s' % (kind, x)
+    if one.get(e):
+        return tx_body(r, [a, b], ['%s X1, X0' % one[e]])
+    if e == 'ZI_OP_LT' and W < 64 and t.signed:
+        return tx_body(r, [b, a], ['pcmpgt%s X1, X0' % x])
+    if e == 'ZI_OP_AND_NOT':
+        return tx_body(r, [a, b], ['pandn X0, X1'], out=1)
+    if e == 'ZI_OP_NOT':
+        return tx_body(r, [a], ['pcmpeqd X1, X1', 'pxor X1, X0'])
+    if e == 'ZI_OP_NEG' and W < 64:
+        return tx_body(r, [a], ['pxor X1, X1', 'psub%s X0, X1' % x], out=1)
+    if e == 'ZI_OP_ABS' and W == 16:
+        return tx_body(r, [a], ['pxor X1, X1', 'psubw X0, X1', 'pmaxsw X1, X0'])
+    if e == 'ZI_OP_ABS' and W < 64:
+        # (a ^ m) - m with m the sign mask.
+        return tx_body(r, [a], ['pxor X1, X1', 'pcmpgt%s X0, X1' % x, 'pxor X1, X0', 'psub%s X1, X0' % x])
+    if e in ('ZI_OP_MIN', 'ZI_OP_MAX') and W == 16:
+        # Unsigned: max = (a -sat b) + b, min = a - (a -sat b).
+        if e == 'ZI_OP_MAX':
+            return tx_body(r, [a, b], ['psubusw X1, X0', 'paddw X1, X0'])
+        return tx_body(r, [a, b, a], ['psubusw X1, X2', 'psubw X2, X0'])
+    if e in ('ZI_OP_MIN', 'ZI_OP_MAX') and t.signed and W in (8, 32):
+        # m = a > b (Max) or b > a (Min) picks a: (a & m) | (b & ~m).
+        mask = ['pcmpgt%s X1, X2' % x] if e == 'ZI_OP_MAX' else ['pcmpgt%s X0, X2' % x]
+        return tx_body(r, [a, b, a if e == 'ZI_OP_MAX' else b],
+                       mask + ['pand X2, X0', 'pandn X1, X2', 'por X2, X0'])
+    if e == 'ZI_OP_SELECT':
+        return tx_body(r, [('&m', wide), a, b], ['pand X0, X1', 'pandn X2, X0', 'por X1, X0'])
+    if isinstance(op, Shift) and op.kind != 'shr_round' and W > 8:
+        if op.kind == 'shl':
+            name = 'psll' + x
+        elif not t.signed:
+            name = 'psrl' + x
+        elif W < 64:
+            name = 'psra' + x
+        else:
+            return None
+        # A count past the lane width gives 0, or the sign, as Ziran's does.
+        return tx_body(r, [a], ['movq S0, X1', '%s X1, X0' % name], scalars=['n'])
+    if e in ('ZI_OP_INTERLEAVE_LOW', 'ZI_OP_INTERLEAVE_HIGH') and W < 64:
+        return tx_body(r, [a, b], ['punpck%s%s X1, X0' % ('l' if e == 'ZI_OP_INTERLEAVE_LOW' else 'h',
+                                                            {8: 'bw', 16: 'wd', 32: 'dq'}[W])])
+    if e == 'ZI_OP_LOAD':
+        return tx_body(r, [('p', wide)], [])
+    if e == 'ZI_OP_STORE':
+        return tx_body(None, [a], [], dest='p')
+    if e == 'ZI_OP_STORE_LOW':
+        return tx_body(None, [('&a', False)], [], dest='p', store_low=True)
+    if e == 'ZI_OP_LOAD_LOW':
+        # 64 bits into a zeroed vector.
+        lines = ['%s r_;' % r.c,
+                 '__asm__("movq (%%1), %%%%xmm0\\n\\tmovq %%%%xmm0, (%%0)\\n\\tpxor %%%%xmm0, %%%%xmm0\\n\\t'
+                 'movhps %%%%xmm0, 8(%%0)%s" : : "r"(&r_), "r"(p) : "memory");' %
+                 ('\\n\\tmovq %%xmm0, 16(%0)\\n\\tmovhps %%xmm0, 24(%0)' if wide else ''),
+                 'return r_;']
+        return '\n    '.join(lines)
+    if e in ('ZI_OP_SPLAT', 'ZI_OP_ZERO') and not t.float:
+        # Every 64-bit word holds the same lanes.
+        words = t.bytes // 8
+        if e == 'ZI_OP_ZERO':
+            w = '0'
+        else:
+            w = '(uint64_t)(%s)x * UINT64_C(0x%s)' % (t.utype, ('0' * (W // 4 - 1) + '1') * (64 // W))
+        return '\n    '.join(['union { %s v; uint64_t w[%d]; } r_;' % (t.c, words),
+                              'uint64_t w_ = %s;' % w] +
+                             ['r_.w[%d] = w_;' % i for i in range(words)] + ['return r_.v;'])
+    return None
+
+
+def lane_array_common(out):
+    """Byte views, byte shifts and Shuffle over lane arrays."""
+    out.append('#if ZI_VEC || (defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__) || \\')
+    out.append('    defined(__x86_64__) || defined(__i386__) || defined(_M_X64) || defined(_M_IX86) || defined(_M_ARM64)')
+    out.append('#define ZI_LE 1')
+    out.append('#else')
+    out.append('#define ZI_LE 0')
+    out.append('#endif')
+    out.append('/* TinyCC on x86-64 runs the common integer helpers in SSE2 assembly. */')
+    out.append('#if !ZI_VEC && defined(__TINYC__) && !defined(__GNUC__) && defined(__x86_64__) && \\')
+    out.append('    !defined(ZIRAN_SIMD_SCALAR)')
+    out.append('#define ZI_TCC_X64 1')
+    out.append('#else')
+    out.append('#define ZI_TCC_X64 0')
+    out.append('#endif')
+    out.append('#if !ZI_VEC')
+    out.append('#if !ZI_LE')
+    out.append('/* Big-endian hosts view lanes as little-endian bytes one at a time. */')
+    for t in TYPES:
+        size = t.bits // 8
+        out.append('static inline void zi_le_bytes_%s(%s a, unsigned char *o)\n{\n'
+                   '    for(int i = 0; i < %d; i++) {\n'
+                   '        uint64_t v = zi_bits_%s(ZI_AT(a, i));\n'
+                   '        for(int j = 0; j < %d; j++) o[i * %d + j] = (unsigned char)(v >> 8 * j);\n'
+                   '    }\n}' % (t.name, t.c, t.lanes, t.lane, size, size))
+        out.append('static inline %s zi_le_lanes_%s(const unsigned char *o)\n{\n    %s r;\n'
+                   '    for(int i = 0; i < %d; i++) {\n        uint64_t v = 0;\n'
+                   '        for(int j = %d; j >= 0; j--) v = v << 8 | o[i * %d + j];\n'
+                   '        ZI_AT(r, i) = zi_from_bits_%s(v);\n    }\n    return r;\n}' %
+                   (t.c, t.name, t.c, t.lanes, size - 1, size, t.lane))
+    out.append('#endif')
+    out.append('/* Each 128-bit block of the bytes of `low` then `high` (when `both`;')
+    out.append(' * zeros otherwise) from byte s on: AlignBytes, ShiftBytesRight with')
+    out.append(' * s = n, and ShiftBytesLeft with s = -n. */')
+    for t in INT:
+        n = t.bytes
+        out.append('static inline %s zi_bytes_from_%s(%s high, %s low, int64_t s, int both)\n{' % (t.c, t.name, t.c, t.c))
+        out.append('#if ZI_LE')
+        out.append('    union { %s v; unsigned char b[%d]; } h_, l_, r_;' % (t.c, n))
+        out.append('    h_.v = high;\n    l_.v = low;')
+        out.append('#else')
+        out.append('    struct { unsigned char b[%d]; } h_, l_, r_;' % n)
+        out.append('    zi_le_bytes_%s(high, h_.b);\n    zi_le_bytes_%s(low, l_.b);' % (t.name, t.name))
+        out.append('#endif')
+        out.append('    memset(r_.b, 0, %d);' % n)
+        out.append('    for(int k = 0; k < %d; k += 16) {' % n)
+        out.append('        /* Output bytes [start, stop) of the block come from low, then from high. */')
+        out.append('        int64_t start = s < 0 ? -s : 0, stop = s > 0 ? 16 - s : 16;')
+        out.append('        if(start < stop) memcpy(r_.b + k + start, l_.b + k + start + s, (size_t)(stop - start));')
+        out.append('        start = s < 16 ? 16 - s : 0;')
+        out.append('        stop = s > 16 ? 32 - s : 16;')
+        out.append('        if(both && start < stop) memcpy(r_.b + k + start, h_.b + k + start + s - 16, (size_t)(stop - start));')
+        out.append('    }')
+        out.append('#if ZI_LE')
+        out.append('    return r_.v;')
+        out.append('#else')
+        out.append('    return zi_le_lanes_%s(r_.b);' % t.name)
+        out.append('#endif')
+        out.append('}')
+    out.append('/* Shuffle picks lanes of each 128-bit block. */')
+    for t in TYPES:
+        params = ', '.join('int k%d' % i for i in range(t.block))
+        body = per_lane(t, lambda j: 'ZI_AT(a, %d + k%d)' % ((j // t.block) * t.block, j % t.block))
+        out.append('static inline %s zi_shuffle_lanes_%s(%s a, %s)\n{\n    %s\n}' % (t.c, t.name, t.c, params, body))
+    out.append('#endif')
+
+
 # ---------------------------------------------------------------- output
 
 def wide_params(params):
@@ -1652,8 +2092,17 @@ def plan(op, t):
     if generic is not None:
         bodies.append(('ZI_VEC', generic))
     portable = op.portable(t)
-    fallback = portable if portable is not None else '\n    '.join(ref_body(op, t))
-    bodies.append((None, fallback))
+    scalar = scalar_body(op, t)
+    if scalar is None:
+        if portable is None:
+            raise SystemExit('%s: no lane-array body' % op.name(t))
+        scalar = portable
+    elif generic is None and portable is not None:
+        bodies.append(('ZI_VEC', portable))
+    tx = tcc_x64_body(op, t)
+    if tx is not None:
+        bodies.append((TCC_X64, tx))
+    bodies.append((None, scalar))
     return bodies
 
 
@@ -1677,11 +2126,7 @@ def entries():
                                    '        ZI_N(%s)(ZI_N(high_%s)(a), ZI_N(high_%s)(b)));' %
                                    (r.half.name, h, t.name, t.name, h, t.name, t.name)))
                 bodies.append(('ZI_VEC', op.generic_pair(t, r)))
-                ref = ['uint64_t x_[32], y_[32], o_[32];', 'zi_unpack_%s(a, x_);' % t.name,
-                       'zi_unpack_%s(b, y_);' % t.name,
-                       'zi_ref(ZI_OP_NARROW, %s, %d, %s, %d, x_, y_, 0, 0, o_);' % (r.kind, r.lanes, t.kind, t.lanes),
-                       'return zi_pack_%s(o_);' % r.name]
-                bodies.append((None, '\n    '.join(ref)))
+                bodies.append((None, narrow_scalar(t, r)))
                 out.append((op, t, r, 'narrow_%s_%s' % (t.name, r.name), [(t.c, 'a'), (t.c, 'b')], bodies))
             continue
         if isinstance(op, Reinterpret):
@@ -1689,22 +2134,16 @@ def entries():
                 for r in TYPES:
                     if r.bytes != t.bytes or r == t:
                         continue
-                    ref = ['uint64_t x_[32], o_[32];', 'zi_unpack_%s(a, x_);' % t.name,
-                           'zi_ref(ZI_OP_REINTERPRET, %s, %d, %s, %d, x_, 0, 0, 0, o_);' % (r.kind, r.lanes, t.kind, t.lanes),
-                           'return zi_pack_%s(o_);' % r.name]
                     out.append((op, t, r, 'reinterpret_%s_%s' % (t.name, r.name), [(t.c, 'a')],
-                                [('ZI_VEC', 'return (%s)a;' % r.c), (None, '\n    '.join(ref))]))
+                                reinterpret_bodies(t, r)))
             continue
         if isinstance(op, Convert):
             for t in TYPES:
                 for r in TYPES:
                     if r.lanes != t.lanes or r.bits != t.bits or r.float == t.float:
                         continue
-                    ref = ['uint64_t x_[32], o_[32];', 'zi_unpack_%s(a, x_);' % t.name,
-                           'zi_ref(ZI_OP_CONVERT, %s, %d, %s, %d, x_, 0, 0, 0, o_);' % (r.kind, r.lanes, t.kind, t.lanes),
-                           'return zi_pack_%s(o_);' % r.name]
                     out.append((op, t, r, 'convert_%s_%s' % (t.name, r.name), [(t.c, 'a')],
-                                [('ZI_VEC', convert_generic(t, r)), (None, '\n    '.join(ref))]))
+                                [('ZI_VEC', convert_generic(t, r)), (None, convert_scalar(t, r))]))
             continue
         if isinstance(op, Gather):
             for t in op.types:
@@ -1770,9 +2209,9 @@ def macros(out):
         out.append('#define zi_shr_bytes_%s(a, n) zi_align_bytes_%s((%s){0}, a, n)' % (t.name, t.name, t.c))
         out.append('#define zi_shl_bytes_%s(a, n) zi_align_bytes_%s(a, (%s){0}, 16 - (n))' % (t.name, t.name, t.c))
         out.append('#else')
-        out.append('#define zi_align_bytes_%s(a, b, n) zi_bytes_ref_%s(ZI_OP_ALIGN_BYTES, a, b, n)' % (t.name, t.name))
-        out.append('#define zi_shr_bytes_%s(a, n) zi_bytes_ref_%s(ZI_OP_SHR_BYTES, a, a, n)' % (t.name, t.name))
-        out.append('#define zi_shl_bytes_%s(a, n) zi_bytes_ref_%s(ZI_OP_SHL_BYTES, a, a, n)' % (t.name, t.name))
+        out.append('#define zi_align_bytes_%s(a, b, n) zi_bytes_from_%s(a, b, n, 1)' % (t.name, t.name))
+        out.append('#define zi_shr_bytes_%s(a, n) zi_bytes_from_%s(a, a, n, 0)' % (t.name, t.name))
+        out.append('#define zi_shl_bytes_%s(a, n) zi_bytes_from_%s(a, a, -(int64_t)(n), 0)' % (t.name, t.name))
         out.append('#endif')
     for t in TYPES:
         params = ', '.join('i%d' % i for i in range(t.block))
@@ -1783,8 +2222,8 @@ def macros(out):
         out.append('#define zi_shuffle_%s(a, %s) ((%s)__builtin_shufflevector(a, (%s){0}, %s))' %
                    (t.name, params, t.c, t.c, ', '.join(idx)))
         out.append('#else')
-        out.append('#define zi_shuffle_%s(a, %s) zi_shuffle_ref_%s(a, (const int64_t[]){%s})' %
-                   (t.name, params, t.name, params))
+        out.append('#define zi_shuffle_%s(a, %s) zi_shuffle_lanes_%s(a, %s)' %
+                   (t.name, params, t.name, ', '.join('(i%d)' % i for i in range(t.block))))
         out.append('#endif')
 
 
@@ -1838,20 +2277,7 @@ def common(out):
                    (t.c, t.name, t.c, t.name))
     out.append('#endif')
     out.append('')
-    out.append('/* Lane arrays run the constant-operand macros through zi_ref. */')
-    out.append('#if !ZI_VEC')
-    for t in INT:
-        out.append('static inline %s zi_bytes_ref_%s(int op, %s a, %s b, int64_t n)\n{\n'
-                   '    uint64_t x_[32], y_[32], o_[32];\n    int64_t k_[32] = {0};\n'
-                   '    zi_unpack_%s(a, x_);\n    zi_unpack_%s(b, y_);\n    k_[0] = n;\n'
-                   '    zi_ref(op, %s, %d, %s, %d, x_, y_, 0, k_, o_);\n    return zi_pack_%s(o_);\n}' %
-                   (t.c, t.name, t.c, t.c, t.name, t.name, t.kind, t.lanes, t.kind, t.lanes, t.name))
-    for t in TYPES:
-        out.append('static inline %s zi_shuffle_ref_%s(%s a, const int64_t *k)\n{\n'
-                   '    uint64_t x_[32], o_[32];\n    zi_unpack_%s(a, x_);\n'
-                   '    zi_ref(ZI_OP_SHUFFLE, %s, %d, %s, %d, x_, 0, 0, k, o_);\n    return zi_pack_%s(o_);\n}' %
-                   (t.c, t.name, t.c, t.name, t.kind, t.lanes, t.kind, t.lanes, t.name))
-    out.append('#endif')
+    lane_array_common(out)
     out.append('/* Byte i of block `block` in AlignBytes: from low:high shifted by n. */')
     out.append('#define ZI_BYTE_FROM(block, i, size, n) ((i) + (n) < 16 ? (block) * 16 + (i) + (n) : (size) + (block) * 16 + (i) + (n) - 16)')
     macros(out)

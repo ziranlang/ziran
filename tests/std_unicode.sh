@@ -7,7 +7,6 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/unicode.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-export GOCACHE="$work/go-cache"
 export TMPDIR="$work" ZIRAN_NATIVE_DIR="$work" ZIRAN_NATIVE_CACHE=0
 for fixture in std_unicode unicode_conformance; do
 "$ziran" check --root tests/spec --module-path std "tests/spec/$fixture.zi"

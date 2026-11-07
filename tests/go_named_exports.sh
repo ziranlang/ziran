@@ -132,14 +132,14 @@ func TestTypedNamedExports(t *testing.T) {
     NativePanic(sentinel)
 }
 GO
-    (cd "$out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go build .)
-    (cd "$out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go test -list . .) > "$work/discovered.txt"
+    (cd "$out" && GO111MODULE=off go build .)
+    (cd "$out" && GO111MODULE=off go test -list . .) > "$work/discovered.txt"
     grep -q '^TestCollisionLeft$' "$work/discovered.txt"
     grep -q '^TestCollisionRight$' "$work/discovered.txt"
-    (cd "$out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go test -race -run 'Test(NamedExportPass|TypedNamedExports|CollisionLeft|CollisionRight)$|^FuzzNamedExport$' .)
-    (cd "$out" && GO111MODULE=off CGO_ENABLED=0 GOCACHE=/tmp/ziran-bind-go-cache go test -run 'Test(NamedExportPass|TypedNamedExports|CollisionLeft|CollisionRight)$|^FuzzNamedExport$' .)
-    (cd "$out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go test -run '^$' -bench '^BenchmarkNamedExport$' -benchtime=1x .)
-    if (cd "$out" && GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go test -run '^TestNamedExportFails$' .) > "$work/failure.log" 2>&1; then
+    (cd "$out" && GO111MODULE=off go test -race -run 'Test(NamedExportPass|TypedNamedExports|CollisionLeft|CollisionRight)$|^FuzzNamedExport$' .)
+    (cd "$out" && GO111MODULE=off CGO_ENABLED=0 go test -run 'Test(NamedExportPass|TypedNamedExports|CollisionLeft|CollisionRight)$|^FuzzNamedExport$' .)
+    (cd "$out" && GO111MODULE=off go test -run '^$' -bench '^BenchmarkNamedExport$' -benchtime=1x .)
+    if (cd "$out" && GO111MODULE=off go test -run '^TestNamedExportFails$' .) > "$work/failure.log" 2>&1; then
         cat "$work/failure.log" >&2
         ls "$out" >&2
         (cd "$out" && GO111MODULE=off go test -list . .) >&2
@@ -148,7 +148,7 @@ GO
     fi
     grep -q 'native assertion preserved' "$work/failure.log"
     "$ziran" build --target=go --exe --pkg main --root "$work" --module-path std --entry exports:Answer -o "$work/$form-entry" "$entry"
-    GO111MODULE=off GOCACHE=/tmp/ziran-bind-go-cache go build -o "$work/$form-bin" "$work/$form-entry"/*.go
+    GO111MODULE=off go build -o "$work/$form-bin" "$work/$form-entry"/*.go
     result=0
     "$work/$form-bin" || result=$?
     test "$result" = 42

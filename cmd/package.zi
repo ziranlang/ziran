@@ -560,6 +560,76 @@ PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, fol
     return true
 }
 
+// One usage line per command. `ziran COMMAND --help` prints it and does
+// nothing else; "" means the command is unknown.
+PkgUsage :: (command: string) -> string {
+    if command == "version" { return "usage: ziran version\n" }
+    if command == "guide" { return "usage: ziran guide\n" }
+    if command == "features" { return "usage: ziran features [--json] [--id FEATURE_ID]\n" }
+    if command == "capabilities" { return "usage: ziran capabilities [--target=c|go|zx] [--json]\n" }
+    if command == "explain" { return "usage: ziran explain CODE [--json] | ziran explain --list [--json]\n" }
+    if command == "api" {
+        return "usage: ziran api [--json] [--diagnostics=text|json] [--module NAME] [--symbol NAME|ID] [--imports-only] [--max-symbols N] [--max-bytes N] [--module-path DIR] [--define NAME] --root DIR file.zi|file.zir ...\n"
+    }
+    if command == "new" {
+        return "usage: ziran new DIR [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"
+    }
+    if command == "init" {
+        return "usage: ziran init [--template SOURCE[:NAME]] [--ref REF] [--name NAME] [--overrides FILE]\n"
+    }
+    if command == "lock" { return "usage: ziran lock\n" }
+    if command == "update" { return "usage: ziran update [PACKAGE]\n" }
+    if command == "fetch" { return "usage: ziran fetch [--locked] [--offline]\n" }
+    if command == "add" {
+        return "usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source]\n"
+    }
+    if command == "pkg" {
+        return "usage: ziran pkg path PACKAGE [--submodules] | ziran pkg list [PACKAGE] | ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI [--option Alias:key=value]...\n"
+    }
+    if command == "tool" { return "usage: ziran tool PACKAGE COMMAND [ARGS]\n" }
+    if command == "install" { return "usage: ziran install [--prefix DIR] [--locked] [--offline]\n" }
+    if command == "check" {
+        return "usage: ziran check [--project] [--lint] [--root DIR] [--entry module:function] [--module-path DIR] [file.zi ...]\n"
+    }
+    if command == "ir" {
+        return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi ...]\n"
+    }
+    if command == "build" {
+        return "usage: ziran build --target=c|go [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o DIR] [file.zi ...]; in a project: ziran build\n"
+    }
+    if command == "bundle" {
+        return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
+    }
+    if command == "run" {
+        return "usage: ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
+    }
+    if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
+    if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir\n" }
+    if command == "compile-commands" {
+        return "usage: ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] GENERATED_DIR\n"
+    }
+    if command == "edit" {
+        return "usage: ziran edit --root DIR [--module-path DIR] [--apply] request.json\n"
+    }
+    if command == "compact" || command == "expand" {
+        return "usage: ziran compact|expand [--map FILE.json] INPUT\n"
+    }
+    return ""
+}
+
+// Where a command's own flags end. Arguments after `--` belong to the
+// program or script it runs, `run` hands everything after its source file to
+// that script, and `tool` hands everything after PACKAGE to the tool.
+PkgFlagsEnd :: (command: string, arguments: []string) -> s32 {
+    end: s32 = PkgAfterSeparator(arguments)
+    if command == "run" {
+        script: s32 = ScriptArgumentEnd(arguments)
+        if script < end { end = script }
+    }
+    if command == "tool" && end > 2 { end = 2 }
+    return end
+}
+
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
     PkgSetDiagnosticFormat(arguments)
@@ -573,6 +643,15 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         return 0
     }
     command: string = arguments[0]
+    // Asking for help never runs the command, whatever it would change.
+    own_flags: []string = arguments[1:PkgFlagsEnd(command, arguments)]
+    if PkgHasArgument(own_flags, "--help") || PkgHasArgument(own_flags, "-h") {
+        usage: string = PkgUsage(command)
+        if usage.count > 0 {
+            PkgPrint(usage, false)
+            return 0
+        }
+    }
     if command == "new" || command == "init" {
         return Template(launcher, command, arguments[1:])
     }

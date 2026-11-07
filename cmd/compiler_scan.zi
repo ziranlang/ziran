@@ -128,6 +128,27 @@ NextToken :: (source: string, at: s64, line: s32, column: s32) -> Scan {
     return token
 }
 
+// As NextToken, after line comments and nested block comments, for raw
+// source tooling. NextToken itself keeps its expression-scanner semantics.
+NextCodeToken :: (source: string, at: s64, line: s32, column: s32) -> Scan {
+    cursor: Cursor = .{at, line, column}
+    depth: s32 = 0
+    while cursor.at < source.count {
+        byte := source[cursor.at]
+        next := Byte(source, cursor.at + 1)
+        if depth > 0 {
+            if byte == 47 && next == 42 { depth += 1; Advance(*cursor, source) }
+            else if byte == 42 && next == 47 { depth -= 1; Advance(*cursor, source) }
+        } else if byte == 47 && next == 47 {
+            while cursor.at < source.count && source[cursor.at] != 10 { Advance(*cursor, source) }
+            continue
+        } else if byte == 47 && next == 42 { depth = 1; Advance(*cursor, source) }
+        else if !Space(byte) { break }
+        Advance(*cursor, source)
+    }
+    return NextToken(source, cursor.at, cursor.line, cursor.column)
+}
+
 KindName :: (kind: TokenKind) -> string {
     if kind == .Eof { return "eof" }
     if kind == .Ident { return "ident" }

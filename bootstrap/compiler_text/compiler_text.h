@@ -15,6 +15,7 @@ typedef struct SourceRange SourceRange;
 typedef struct SourcePart SourcePart;
 typedef struct DecodedLiteral DecodedLiteral;
 typedef struct FormatStep FormatStep;
+typedef struct LiteralBits LiteralBits;
 
 struct SourceRange {
     int64_t begin;
@@ -38,11 +39,17 @@ struct FormatStep {
     bool present;
     int64_t next;
 };
+
+struct LiteralBits {
+    bool valid;
+    uint64_t value;
+};
 int32_t compiler_text_NameDistance(String a, String b, int32_t limit);
 bool compiler_text_SpaceByte(uint8_t byte);
 bool compiler_text_IdentifierByte(uint8_t byte);
 int64_t compiler_text_SkipSpace(String source, int64_t at, bool inline_only);
 SourceRange compiler_text_TrimRange(String source);
+LiteralBits compiler_text_IntegerLiteral(String source);
 int64_t compiler_text_BlockHeaderEnd(String source);
 int64_t compiler_text_CamelIdentifier(String source, Slice output);
 int64_t compiler_text_GoFieldIdentifier(String source, Slice output);

@@ -13,6 +13,11 @@ RejectDecode :: (source: string) -> bool {
     return !result.valid && result.count == 0
 }
 
+Integer :: (source: string, expected: u64) -> bool {
+    literal := IntegerLiteral(source)
+    return literal.valid && literal.value == expected
+}
+
 #program_export
 Answer :: () -> s32 {
     if !IdentifierByte(#char "_") || !IdentifierByte(#char "9") || IdentifierByte(0xff) { return 1 }
@@ -91,6 +96,11 @@ Answer :: () -> s32 {
     NameDistance("appl", "apple", 2) != 1 || NameDistance("name", "nmae", 2) != 2 ||
     NameDistance("abc", "xyz", 1) != 2 || NameDistance("a\0b", "a\0c", 2) != 1 ||
     NameDistance("x", "x", -1) != 128 || NameDistance("x", "x", 128) != 128 { return 33 }
+    if !Integer("0", 0) || !Integer("0x1F", 31) || !Integer("0b1_01", 5) || !Integer("017", 15) ||
+    !Integer("1_000", 1000) || !Integer("0_", 0) || !Integer("18446744073709551615", 0xffffffffffffffff) { return 34 }
+    if IntegerLiteral("").valid || IntegerLiteral("0x").valid || IntegerLiteral("08").valid ||
+    IntegerLiteral("0b2").valid || IntegerLiteral("12a").valid || IntegerLiteral("-1").valid ||
+    IntegerLiteral("_1").valid || IntegerLiteral("18446744073709551616").valid { return 35 }
     return 42
 }
 
@@ -140,6 +150,8 @@ Fingerprint :: () -> s64 {
             at = part.next
         }
         result = result * cast(u32)16777619 ^ cast(u32)TopLevelAssignment(source)
+        literal_bits := IntegerLiteral(source)
+        result = result * cast(u32)16777619 ^ cast(u32)literal_bits.valid ^ cast(u32)literal_bits.value
         range := TrimRange(source)
         result = result * cast(u32)16777619 ^ cast(u32)range.begin
         result = result * cast(u32)16777619 ^ cast(u32)range.end

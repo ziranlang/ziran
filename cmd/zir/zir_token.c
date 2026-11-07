@@ -29,11 +29,9 @@ LexerInit(ZirLexer *lx, const char *src, const char *path)
     lx->column = 1;
 }
 
-ZirToken
-LexerNext(ZirLexer *lx)
+static ZirToken
+take_token(ZirLexer *lx, Scan scan)
 {
-    Scan scan = compiler_scan_NextToken(StringView(lx->src, lx->length),
-                                        lx->pos, lx->line, lx->column);
     ZirToken token = {0};
     token.kind = (ZirTokenKind)scan.kind;
     token.span = Span(lx->path, scan.line, scan.column);
@@ -51,35 +49,18 @@ LexerNext(ZirLexer *lx)
     return token;
 }
 
-static void source_advance(ZirLexer *lexer)
+ZirToken
+LexerNext(ZirLexer *lx)
 {
-    if(lexer->src[lexer->pos++] == '\n') { lexer->line++; lexer->column=1; }
-    else lexer->column++;
+    return take_token(lx, compiler_scan_NextToken(StringView(lx->src, lx->length),
+                                                  lx->pos, lx->line, lx->column));
 }
 
-ZirToken LexerNextCode(ZirLexer *lexer)
+ZirToken
+LexerNextCode(ZirLexer *lx)
 {
-    for(;;) {
-        while(lexer->pos < lexer->length &&
-              (lexer->src[lexer->pos]==' ' ||
-               (lexer->src[lexer->pos]>='\t' && lexer->src[lexer->pos]<='\r')))
-            source_advance(lexer);
-        if(lexer->pos+1 >= lexer->length || lexer->src[lexer->pos]!='/') break;
-        if(lexer->src[lexer->pos+1]=='/') {
-            while(lexer->pos<lexer->length && lexer->src[lexer->pos]!='\n') source_advance(lexer);
-        } else if(lexer->src[lexer->pos+1]=='*') {
-            source_advance(lexer); source_advance(lexer);
-            int depth=1;
-            while(depth && lexer->pos<lexer->length) {
-                if(lexer->pos+1<lexer->length && lexer->src[lexer->pos]=='/' && lexer->src[lexer->pos+1]=='*') {
-                    source_advance(lexer); source_advance(lexer); depth++;
-                } else if(lexer->pos+1<lexer->length && lexer->src[lexer->pos]=='*' && lexer->src[lexer->pos+1]=='/') {
-                    source_advance(lexer); source_advance(lexer); depth--;
-                } else source_advance(lexer);
-            }
-        } else break;
-    }
-    return LexerNext(lexer);
+    return take_token(lx, compiler_scan_NextCodeToken(StringView(lx->src, lx->length),
+                                                      lx->pos, lx->line, lx->column));
 }
 
 const char *

@@ -47,6 +47,7 @@ struct Cursor {
 };
 #endif
 Scan compiler_scan_NextToken(String source, int64_t at, int32_t line, int32_t column);
+Scan compiler_scan_NextCodeToken(String source, int64_t at, int32_t line, int32_t column);
 String compiler_scan_KindName(TokenKind kind);
 
 #ifdef __cplusplus

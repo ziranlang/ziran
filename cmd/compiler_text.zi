@@ -5,6 +5,7 @@ SourceRange :: struct { begin: s64; end: s64 }
 SourcePart :: struct { begin: s64; end: s64; next: s64 }
 DecodedLiteral :: struct { valid: bool; count: s64 }
 FormatStep :: struct { valid: bool; argument: bool; present: bool; next: s64 }
+LiteralBits :: struct { valid: bool; value: u64 }
 
 // Bounded byte edit distance used by name diagnostics. An exceeded limit
 // returns limit + 1; invalid limits return 128. Compiler names are <128 bytes.
@@ -62,6 +63,35 @@ TrimRange :: (source: string) -> SourceRange {
     end := source.count
     while end > begin && SpaceByte(source[end - 1]) { end -= 1 }
     return .{begin, end}
+}
+
+// An unsigned integer literal as the language spells it: decimal, 0x hex,
+// 0b binary or a leading-0 octal, with _ separators after the prefix, up to
+// the full u64 range. All of SOURCE must be that literal.
+IntegerLiteral :: (source: string) -> LiteralBits {
+    if source.count == 0 || source[0] < #char "0" || source[0] > #char "9" { return .{} }
+    base: u64 = 10
+    at: s64 = 0
+    if source[0] == #char "0" && source.count > 1 {
+        base = 8
+        at = 1
+        if source[1] == #char "x" || source[1] == #char "X" { base = 16; at = 2 }
+        else if source[1] == #char "b" || source[1] == #char "B" { base = 2; at = 2 }
+    }
+    digits := false
+    value: u64 = 0
+    while at < source.count {
+        byte := source[at]
+        at += 1
+        if byte == #char "_" { continue }
+        digit := HexDigit(byte)
+        if digit < 0 || cast(u64)digit >= base { return .{} }
+        if value > (~cast(u64)0 - cast(u64)digit) / base { return .{} }
+        value = value * base + cast(u64)digit
+        digits = true
+    }
+    if !digits && base != 8 { return .{} }
+    return .{true, value}
 }
 
 BlockHeaderEnd :: (source: string) -> s64 {

@@ -3,6 +3,17 @@
 #include "zir_bounds.h"
 #include "zir_string.h"
 #include "compiler_text.h"
+#ifndef ZIRAN_HELPER_ZiDivU64
+#define ZIRAN_HELPER_ZiDivU64
+#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
+#define ZiDivU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })
+#else
+static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
+    if(!b) abort();
+    return a / b;
+}
+#endif
+#endif
 #ifndef ZIRAN_MAYBE_UNUSED
 #if defined(__GNUC__) || defined(__clang__)
 #define ZIRAN_MAYBE_UNUSED __attribute__((unused))
@@ -149,6 +160,69 @@ compiler_text_TrimRange(String source)
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
     return (SourceRange){.begin = begin, .end = end};
+}
+
+LiteralBits
+compiler_text_IntegerLiteral(String source)
+{
+    if ((int64_t)(source).length == 0LL || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) < 48 || (uint8_t)ZIRAN_INDEX(source.data, source.length, 0) > 57) {
+        return (LiteralBits){0};
+    }
+    uint64_t base = 10ULL;
+    int64_t at = 0LL;
+    if ((uint8_t)source.data[0] == 48 && (int64_t)(source).length > 1LL) {
+        base = 8ULL;
+        at = 1LL;
+        if ((uint8_t)source.data[1] == 120 || (uint8_t)source.data[1] == 88) {
+            base = 16ULL;
+            at = 2LL;
+        } else if ((uint8_t)source.data[1] == 98 || (uint8_t)source.data[1] == 66) {
+            base = 2ULL;
+            at = 2LL;
+        }
+    }
+    bool digits = false;
+    uint64_t value = 0ULL;
+    while (at < (int64_t)(source).length) {
+        uint8_t byte = (uint8_t)source.data[at];
+        at = (int64_t)((uint64_t)at + UINT64_C(1));
+        if (byte == 95) {
+            continue;
+        }
+        uint8_t value_0 = byte;
+        int32_t value_1 = 0;
+        {
+            uint8_t byte = value_0;
+            if (byte >= 48 && byte <= 57) {
+                value_1 = (int32_t)((uint32_t)(byte) - 48u);
+                goto value_2;
+            }
+            if (byte >= 97 && byte <= 102) {
+                value_1 = (int32_t)(((uint32_t)(byte) - 97u) + 10u);
+                goto value_2;
+            }
+            if (byte >= 65 && byte <= 70) {
+                value_1 = (int32_t)(((uint32_t)(byte) - 65u) + 10u);
+                goto value_2;
+            }
+            value_1 = -1;
+        value_2: ;
+        }
+        int32_t digit = value_1;
+        if (digit < 0 || (uint64_t)(digit) >= base) {
+            return (LiteralBits){0};
+        }
+        uint64_t value_3 = ZiDivU64(((uint64_t)(UINT64_C(18446744073709551615) - (uint64_t)(digit))), base);
+        if (value > value_3) {
+            return (LiteralBits){0};
+        }
+        value = (uint64_t)(((uint64_t)value * (uint64_t)base) + (uint64_t)(digit));
+        digits = true;
+    }
+    if (!digits && base != 8ULL) {
+        return (LiteralBits){0};
+    }
+    return (LiteralBits){.valid = true, .value = value};
 }
 
 int64_t

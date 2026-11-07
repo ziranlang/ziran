@@ -17,36 +17,16 @@ IdentifierStart :: (byte: u8) -> bool {
     return byte == #char "_" || (byte >= #char "a" && byte <= #char "z") ||
     (byte >= #char "A" && byte <= #char "Z")
 }
-Digit :: (byte: u8) -> s64 {
-    if byte >= #char "0" && byte <= #char "9" { return cast(s64)(byte - #char "0") }
-    if byte >= #char "a" && byte <= #char "f" { return cast(s64)(byte - #char "a") + 10 }
-    if byte >= #char "A" && byte <= #char "F" { return cast(s64)(byte - #char "A") + 10 }
-    return -1
-}
+// The whole token must be one integer literal of the language.
 Number :: (cursor: *Cursor, negative: bool) -> s64 {
-    base: u64 = 10
-    if cursor.source[cursor.at] == #char "0" {
-        base = 8
-        if cursor.at + 1 < cursor.source.count &&
-        (cursor.source[cursor.at + 1] == #char "x" || cursor.source[cursor.at + 1] == #char "X") {
-            base = 16
-            cursor.at += 2
-        }
-    }
     begin := cursor.at
+    while cursor.at < cursor.source.count && Text.IdentifierByte(cursor.source[cursor.at]) { cursor.at += 1 }
+    literal := Text.IntegerLiteral(cursor.source[begin:cursor.at])
     limit: u64 = 0x7fffffffffffffff
     if negative { limit += 1 }
-    magnitude: u64 = 0
-    while cursor.at < cursor.source.count {
-        digit := Digit(cursor.source[cursor.at])
-        if digit < 0 || cast(u64)digit >= base { break }
-        if magnitude > (limit - cast(u64)digit) / base { cursor.valid = false; return 0 }
-        magnitude = magnitude * base + cast(u64)digit
-        cursor.at += 1
-    }
-    if cursor.at == begin { cursor.valid = false; return 0 }
-    if negative { return cast(s64)(cast(u64)0 - magnitude) }
-    return cast(s64)magnitude
+    if !literal.valid || literal.value > limit { cursor.valid = false; return 0 }
+    if negative { return cast(s64)(cast(u64)0 - literal.value) }
+    return cast(s64)literal.value
 }
 Term :: (cursor: *Cursor, entries: []Entry) -> s64 {
     Space(cursor)

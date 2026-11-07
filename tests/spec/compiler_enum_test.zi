@@ -13,6 +13,7 @@ Invalid :: (body: string, backing: string) -> bool {
 Arithmetic :: () -> bool {
     if !Value("A, B, C = 10, D", "s64", "D", 11) ||
     !Value("A = 0x2a, B = 052, C = +42", "s64", "B", 42) ||
+    !Value("A = 0b10_1, B = 1_000 + A", "s64", "B", 1005) ||
     !Value("A = 3, B = A * 2, C = B / 2, D = C + B * 2 - 1", "s64", "D", 14) ||
     !Value("A = 1 + 2 * 3, B = A * 4 / 2 % 5", "s64", "B", 4) ||
     !Value("A = 1 << 1 + 2, B = A << 1 << 1", "s64", "B", 32) ||

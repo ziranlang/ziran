@@ -29,18 +29,6 @@ static inline int64_t ZiRemS64(int64_t a, int64_t b) {
 #endif
 #endif
 
-#ifndef ZIRAN_HELPER_ZiDivU64
-#define ZIRAN_HELPER_ZiDivU64
-#if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
-#define ZiDivU64(a, b) __extension__ ({ uint64_t __zi_a = (a), __zi_b = (b); if(!__zi_b) abort(); __zi_a / __zi_b; })
-#else
-static inline uint64_t ZiDivU64(uint64_t a, uint64_t b) {
-    if(!b) abort();
-    return a / b;
-}
-#endif
-#endif
-
 #ifndef ZIRAN_HELPER_ZiShl64
 #define ZIRAN_HELPER_ZiShl64
 #if defined(__TINYC__) || ((defined(__GNUC__) || defined(__clang__)) && !defined(__OPTIMIZE__))
@@ -73,7 +61,6 @@ static inline int64_t ZiShrS64(int64_t a, uint64_t s, int w) {
 #endif
 static void compiler_enum_Space(Cursor* cursor) ZIRAN_MAYBE_UNUSED;
 static bool compiler_enum_IdentifierStart(uint8_t byte) ZIRAN_MAYBE_UNUSED;
-static int64_t compiler_enum_Digit(uint8_t byte) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_enum_Number(Cursor* cursor, bool negative) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_enum_Term(Cursor* cursor, Slice entries) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_enum_Product(Cursor* cursor, Slice entries) ZIRAN_MAYBE_UNUSED;
@@ -94,89 +81,30 @@ compiler_enum_IdentifierStart(uint8_t byte)
 }
 
 static int64_t
-compiler_enum_Digit(uint8_t byte)
-{
-    if (byte >= 48 && byte <= 57) {
-        return (int64_t)(((uint8_t)((uint32_t)byte - 48u)));
-    }
-    if (byte >= 97 && byte <= 102) {
-        return (int64_t)((uint64_t)(((uint8_t)((uint32_t)byte - 97u))) + UINT64_C(10));
-    }
-    if (byte >= 65 && byte <= 70) {
-        return (int64_t)((uint64_t)(((uint8_t)((uint32_t)byte - 65u))) + UINT64_C(10));
-    }
-    return -1LL;
-}
-
-static int64_t
 compiler_enum_Number(Cursor* cursor, bool negative)
 {
-    uint64_t base = 10ULL;
-    if ((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at) == 48) {
-        base = 8ULL;
-        int64_t value_0 = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
+    int64_t begin = cursor->at;
+    while (true) {
+        int64_t value_0 = cursor->at;
         int64_t value_1 = (int64_t)(cursor->source).length;
         bool value_2 = value_0 < value_1;
-        if (value_2) {
-            bool value_3 = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, ((int64_t)((uint64_t)(cursor->at) + UINT64_C(1)))) == 120;
-            bool value_4 = value_3 || (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, ((int64_t)((uint64_t)(cursor->at) + UINT64_C(1)))) == 88;
-            value_2 = value_4;
-        }
-        if (value_2) {
-            base = 16ULL;
-            cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(2));
-        }
+        if (!(value_2 && compiler_text_IdentifierByte((uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at)))) { break; }
+        cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
     }
-    int64_t begin = cursor->at;
+    String value_3 = cursor->source;
+    LiteralBits literal = compiler_text_IntegerLiteral(StringRange(value_3, (int64_t)begin, (int64_t)cursor->at));
     uint64_t limit = 9223372036854775807ULL;
     if (negative) {
         limit = (uint64_t)((uint64_t)limit + UINT64_C(1));
     }
-    uint64_t magnitude = 0ULL;
-    while (true) {
-        int64_t value_5 = cursor->at;
-        int64_t value_6 = (int64_t)(cursor->source).length;
-        if (!(value_5 < value_6)) { break; }
-        uint8_t value_7 = (uint8_t)ZIRAN_INDEX(cursor->source.data, cursor->source.length, cursor->at);
-        int64_t value_8 = 0;
-        {
-            uint8_t byte = value_7;
-            if (byte >= 48 && byte <= 57) {
-                value_8 = (int64_t)(((uint8_t)((uint32_t)byte - 48u)));
-                goto value_9;
-            }
-            if (byte >= 97 && byte <= 102) {
-                value_8 = (int64_t)((uint64_t)(((uint8_t)((uint32_t)byte - 97u))) + UINT64_C(10));
-                goto value_9;
-            }
-            if (byte >= 65 && byte <= 70) {
-                value_8 = (int64_t)((uint64_t)(((uint8_t)((uint32_t)byte - 65u))) + UINT64_C(10));
-                goto value_9;
-            }
-            value_8 = -1LL;
-        value_9: ;
-        }
-        int64_t digit = value_8;
-        if (digit < 0LL || (uint64_t)(digit) >= base) {
-            break;
-        }
-        uint64_t value_10 = ZiDivU64(((uint64_t)((uint64_t)limit - (uint64_t)(digit))), base);
-        if (magnitude > value_10) {
-            cursor->valid = false;
-            return 0LL;
-        }
-        magnitude = (uint64_t)(((uint64_t)magnitude * (uint64_t)base) + (uint64_t)(digit));
-        cursor->at = (int64_t)((uint64_t)(cursor->at) + UINT64_C(1));
-    }
-    int64_t value_11 = cursor->at;
-    if (value_11 == begin) {
+    if (!literal.valid || literal.value > limit) {
         cursor->valid = false;
         return 0LL;
     }
     if (negative) {
-        return (int64_t)(((uint64_t)(UINT64_C(0) - (uint64_t)magnitude)));
+        return (int64_t)(((uint64_t)(UINT64_C(0) - (uint64_t)(literal.value))));
     }
-    return (int64_t)(magnitude);
+    return (int64_t)(literal.value);
 }
 
 static int64_t

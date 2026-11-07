@@ -42,6 +42,16 @@ int main(void)
     token = LexerNext(&lexer);
     assert(token.kind == ZIR_TOKEN_EOF && lexer.pos == end);
 
+    /* Raw source tooling skips line and nested block comments. */
+    LexerInit(&lexer, "// note\n /* outer /* inner */ */ x / /* open", "code.zi");
+    token = LexerNextCode(&lexer);
+    assert(token.kind == ZIR_TOKEN_IDENT && !strcmp(token.text, "x"));
+    assert(token.span.line == 2 && token.span.column == 26);
+    token = LexerNextCode(&lexer);
+    assert(token.kind == ZIR_TOKEN_OPERATOR && !strcmp(token.text, "/"));
+    token = LexerNextCode(&lexer);
+    assert(token.kind == ZIR_TOKEN_EOF && lexer.pos == lexer.length);
+
     /* Preserve complete cursor advancement even when text cannot fit. */
     const size_t lengths[] = {ZIR_TEXT_MAX - 1, ZIR_TEXT_MAX, ZIR_TEXT_MAX + 1,
                               ZIR_TEXT_MAX + 8192};

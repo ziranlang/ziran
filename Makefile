@@ -180,7 +180,7 @@ $(SCANNER_OBJECT): $(SCANNER_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(SCANNER_C)/compiler_scan.c
 
-$(call obj,cmd/zir/zir_text.c): $(TEXT_READY)
+$(call obj,cmd/zir/zir_text.c cmd/zir/zir_parse_condition.c): $(TEXT_READY)
 $(TEXT_OBJECT): $(TEXT_READY) $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $(TEXT_C)/compiler_text.c

@@ -771,8 +771,14 @@ def main():
     metadata['dirty_status_after'] = git('status', '--short')
     metadata['compiler_sources_changed_during_run'] = [name for name, previous in metadata['compiler_source_hashes'].items()
                                                        if not (ROOT / name).is_file() or digest(ROOT / name) != previous]
-    if metadata['revision'] != metadata['revision_after']:
-        raise RuntimeError('repository revision changed during benchmark; rerun on a stable revision')
+    # Other work may commit in this checkout meanwhile, so HEAD is only
+    # recorded. What was built and measured must stay unchanged: the hashed
+    # tools and inputs, and the headers the C builds above include.
+    built_headers = [name for name in metadata['compiler_sources_changed_during_run']
+                     if name.endswith('.h') and (name.startswith('include/') or Path(name).parent == Path('cmd/zir'))]
+    if built_headers:
+        raise RuntimeError('headers the benchmark built against changed during run: '
+                           + ', '.join(built_headers) + '; rerun on stable sources')
     if any(digest(path) != metadata['input_hashes'][str(path.relative_to(ROOT))] for path in inputs):
         raise RuntimeError('benchmark inputs changed during run; rerun on stable inputs')
     for path, identity in metadata['tools'].items():

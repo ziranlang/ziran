@@ -21,6 +21,12 @@
 - zi2c writes the C for large programs far faster: it works out how each
   module's header includes its imports once, so Breeze's 921 modules lower in
   under a second instead of over two minutes, with the same output.
+- Checking resolves constants through the symbol lookup cache, as it does
+  types and procedures: Breeze checks about 0.25 s faster, AV1 about 15%.
+  `ZIRAN_VERIFY_SYMBOL_LOOKUPS=1` verifies constant lookups too.
+- `tests/compiler_kernel_benchmarks.sh` no longer stops when another
+  commit lands during the run; it checks the tools, inputs and headers it
+  built and measured.
 - The slice lifetime check finishes in a fraction of the time on large
   programs: each pass rechecks only procedures whose callees or globals
   changed, and callee summaries and recorded writes are looked up directly.

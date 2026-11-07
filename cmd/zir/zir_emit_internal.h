@@ -210,7 +210,9 @@ int enum_type(const ZirModule *module, const char *type);
 int enum_flags_type(const ZirModule *module, const char *type);
 int record_type(const ZirModule *module, const char *type);
 const ZirType *field_record(const ZirModule *module, const char *type);
-void emit_field_path(const ZirModule *module, ZirTarget target, const char *base_type, const char *path, const char *base_expression, char *out, size_t size);
+/* The C or Go text for PATH's fields from BASE_EXPRESSION. A READ of a pointer
+ * field C spells its own way is cast to the field's Ziran type. */
+void emit_field_path(const ZirModule *module, ZirTarget target, const char *base_type, const char *path, int read, const char *base_expression, char *out, size_t size);
 const char *zero_value(const char *type, ZirTarget target);
 void number_prefix(const ZirModule *module, char *out, size_t size);
 int emitter_type_contains_vec(const ZirModule *module, const char *type, int depth);

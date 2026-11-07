@@ -1035,7 +1035,7 @@ emit_destination_with_buffers(Emitter *e, int index, char *out, size_t size, Emi
         else
             emit_destination(e, expr->left, buffers->base, sizeof(buffers->base));
         emit_field_path(e->module, e->target,
-                        e->fn->exprs[expr->left].type, expr->name,
+                        e->fn->exprs[expr->left].type, expr->name, 0,
                         buffers->base, out, size);
         e->pure = 1;
         return;

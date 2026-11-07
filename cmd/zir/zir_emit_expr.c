@@ -1277,7 +1277,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
             pure = base_pure;
             break;
         }
-        emit_field_path(e->module, e->target, base_type, expr->name,
+        emit_field_path(e->module, e->target, base_type, expr->name, 1,
                         buffers->a, buffers->result, sizeof(buffers->result));
         if(expr->is_move) {
             if(!emitter_type_contains_vec(e->module, expr->type, 0))
@@ -1734,7 +1734,7 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                  * moved on C, while Go copies into its string. */
                 char bytes[ZIR_NAME_MAX * 4];
                 emit_destination(e, expr->first_child, buffers->a, sizeof(buffers->a));
-                emit_field_path(e->module, e->target, text_type, "bytes",
+                emit_field_path(e->module, e->target, text_type, "bytes", 0,
                                 buffers->a, bytes, sizeof(bytes));
                 if(e->target == ZIR_GO)
                     format(out, size, "string(%s.Data[:%s.Count])", bytes, bytes);

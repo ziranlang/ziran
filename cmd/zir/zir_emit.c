@@ -1390,12 +1390,12 @@ typedef struct EmitFieldPathBuffers {
 } EmitFieldPathBuffers;
 
 void emit_field_path(const ZirModule *module, ZirTarget target,
-                const char *base_type, const char *path,
+                const char *base_type, const char *path, int read,
                 const char *base_expression, char *out, size_t size);
 
 static void
 emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
-                const char *base_type, const char *path,
+                const char *base_type, const char *path, int read,
                 const char *base_expression, char *out, size_t size, EmitFieldPathBuffers *buffers)
 {
     char current_type[ZIR_NAME_MAX];
@@ -1457,6 +1457,24 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
         format(buffers->next, sizeof(buffers->next), chain ? "%s%s%s" : "(%s)%s%s", buffers->result,
                target != ZIR_GO && *base == '*' ? "->" : ".", mapped);
         copy_text(buffers->result, sizeof(buffers->result), buffers->next);
+        ZirTypeField spelled;
+        if(dot == NULL && read && target == ZIR_C && record != NULL &&
+           TypeFindField(record, name, &spelled) == 1 &&
+           spelled.c_type[0] && spelled.type[0] == '*') {
+            /* C declares this pointer its own way, such as const char *
+             * for *u8; a read has the field's Ziran type. */
+            const char *leaf = spelled.type;
+            char native[ZIR_NAME_MAX], pointer[ZIR_NAME_MAX * 2];
+            while(*leaf == '*') leaf = skip_ws(leaf + 1);
+            if(NativeTypeAtUse(module, leaf, native, sizeof(native))) {
+                format(pointer, sizeof(pointer), "%.*s%s", (int)(leaf - spelled.type),
+                       spelled.type, native);
+                slot_native_type(pointer, target, native, sizeof(native));
+            } else
+                slot_native_type(spelled.type, target, native, sizeof(native));
+            format(buffers->next, sizeof(buffers->next), "((%s)%s)", native, buffers->result);
+            copy_text(buffers->result, sizeof(buffers->result), buffers->next);
+        }
         if(dot == NULL) break;
         size_t offset = 0;
         ZirTypeField field;
@@ -1479,10 +1497,10 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
 
 COMPILER_SCRATCH_VOID(, emit_field_path,
     (const ZirModule *module, ZirTarget target,
-                const char *base_type, const char *path,
+                const char *base_type, const char *path, int read,
                 const char *base_expression, char *out, size_t size),
     EmitFieldPathBuffers, RECOVERABLE, free,
-    emit_field_path_with_buffers(module, target, base_type, path, base_expression, out, size, buffers))
+    emit_field_path_with_buffers(module, target, base_type, path, read, base_expression, out, size, buffers))
 
 void
 EmitStringType(FILE *out)

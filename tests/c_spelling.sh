@@ -38,6 +38,14 @@ Weight :: (node: *Node, flag: Flag) -> s32 {
     return cast(s32) Pick(pair)
 }
 
+// A read sees the field's Ziran type; C's const char * is cast to *u8.
+#program_export
+Initial :: (node: *Node) -> u8 {
+    name := node.name
+    if name == null { return 0 }
+    return name[0]
+}
+
 #program_export
 Answer :: () -> s32 {
     node: Node
@@ -69,7 +77,7 @@ int main(void) {
     char *op = node.op;
     memcpy(op, "+=", 3);
     return Weight(&node, SPELL_Second) == 42 &&
-        Weight(&node, SPELL_First) == SPELL_KIND_Ident &&
+        Weight(&node, SPELL_First) == SPELL_KIND_Ident && Initial(&node) == 'c' &&
         SPELL_KIND_Index == 5 && strcmp(node.name, "call") == 0 ? 0 : 1;
 }
 EOF

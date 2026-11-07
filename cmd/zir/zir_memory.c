@@ -1,5 +1,6 @@
 #define ZIR_MEMORY_IMPLEMENTATION
 #include "zir_memory.h"
+#include "zir_thread.h"
 #include <stdint.h>
 
 typedef struct Allocation {
@@ -12,32 +13,34 @@ struct CompilerMemory {
     Allocation *items;
     CompilerMemory *parent, *resume;
 };
-static _Thread_local CompilerMemory *current, *active;
-static _Thread_local unsigned recovery_depth;
+_Thread_local CompilerThread CompilerThreadState;
 
 CompilerMemory *CompilerMemoryBegin(void)
 {
     CompilerMemory *memory = calloc(1, sizeof(*memory));
-    if(memory) { memory->parent = active; memory->resume = current; active = current = memory; recovery_depth++; }
+    if(memory) {
+        CompilerThread *thread = &CompilerThreadState;
+        memory->parent = thread->active_memory; memory->resume = thread->memory;
+        thread->active_memory = thread->memory = memory; thread->recovery_depth++;
+    }
     return memory;
 }
-CompilerMemory *CompilerMemoryPause(void)
-{
-    CompilerMemory *memory = current; current = NULL; return memory;
-}
-void CompilerMemoryResume(CompilerMemory *memory) { current = memory; }
-int CompilerMemoryRecovering(void) { return recovery_depth != 0; }
+CompilerMemory *CompilerMemoryPause(void) { return CompilerThreadPause(&CompilerThreadState); }
+void CompilerMemoryResume(CompilerMemory *memory) { CompilerThreadResume(&CompilerThreadState, memory); }
+int CompilerMemoryRecovering(void) { return CompilerThreadState.recovery_depth != 0; }
 
 static Allocation **find_allocation(void *pointer)
 {
-    for(CompilerMemory *memory = active; memory; memory = memory->parent)
+    for(CompilerMemory *memory = CompilerThreadState.active_memory; memory; memory = memory->parent)
         for(Allocation **item = &memory->items; *item; item = &(*item)->next)
             if((*item)->pointer == pointer) return item;
     return NULL;
 }
 static int track(void *pointer, int stream)
 {
-    if(!pointer || !current) return 1;
+    if(!pointer) return 1;
+    CompilerMemory *current = CompilerThreadState.memory;
+    if(!current) return 1;
     Allocation *item = malloc(sizeof(*item));
     if(!item) return 0;
     *item = (Allocation){.pointer = pointer, .stream = stream, .next = current->items};
@@ -112,9 +115,10 @@ void CompilerMemoryEnd(CompilerMemory *memory, int success)
             destroy(pointer);
         }
     }
-    active = memory->parent;
-    current = memory->resume;
-    recovery_depth--;
+    CompilerThread *thread = &CompilerThreadState;
+    thread->active_memory = memory->parent;
+    thread->memory = memory->resume;
+    thread->recovery_depth--;
     while(memory->items) {
         Allocation *item = memory->items; memory->items = item->next;
         if(!success) {

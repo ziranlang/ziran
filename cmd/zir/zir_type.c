@@ -1,5 +1,6 @@
 #include "zir_memory.h"
 #include "zir.h"
+#include "zir_thread.h"
 #include "compiler_type.h"
 #include <string.h>
 #include <stdlib.h>
@@ -38,9 +39,9 @@ typedef struct FieldSnapshots {
     size_t slots_count, count, capacity;
 } FieldSnapshots;
 static void free_record_fields(void *value);
-static FieldSnapshots *context_fields(void)
+static FieldSnapshots *context_fields(CompilerThread *thread)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_FIELDS, sizeof(FieldSnapshots), free_record_fields);
+    return CompilerThreadStorage(thread, COMPILER_FIELDS, sizeof(FieldSnapshots), free_record_fields);
 }
 static atomic_flag record_fields_lock = ATOMIC_FLAG_INIT;
 enum { FIELD_CURSOR_BITS = 12, FIELD_CURSOR_MASK = (1 << FIELD_CURSOR_BITS) - 1 };
@@ -78,13 +79,13 @@ named_field_slot(const RecordFields *fields, const char *name)
     return slot;
 }
 
-static RecordFields *fields_of(const ZirType *record)
+static RecordFields *fields_of(CompilerThread *thread, const ZirType *record)
 {
     size_t length = strnlen(record->body, sizeof(record->body));
     if(length == sizeof(record->body)) return NULL;
     const char *body = KeepText(record->body);
     /* The context cannot change here; look its storage up once. */
-    FieldSnapshots *snapshots = context_fields();
+    FieldSnapshots *snapshots = context_fields(thread);
     int is_union = record->is_union != 0;
     if(snapshots->slots_count == 0 || snapshots->count * 2 >= snapshots->slots_count) {
         size_t count = snapshots->slots_count ? snapshots->slots_count * 2 : 128;
@@ -168,16 +169,16 @@ static RecordFields *fields_of(const ZirType *record)
 /* The next field of a walk, borrowed from its immutable snapshot, or NULL with
  * the walk's status: 0 after the last field, -1 for a malformed record. */
 static const ZirTypeField *
-next_field_persistent(const ZirType *record, size_t *cursor, int *status)
+next_field_persistent(CompilerThread *thread, const ZirType *record, size_t *cursor, int *status)
 {
     *status = -1;
     if(record->is_enum || record->is_procedure_type) return NULL;
     RecordFields *fields;
     size_t index = 0;
     while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
-    if(*cursor == 0) fields = fields_of(record);
+    if(*cursor == 0) fields = fields_of(thread, record);
     else {
-        FieldSnapshots *snapshots = context_fields();
+        FieldSnapshots *snapshots = context_fields(thread);
         size_t id = *cursor >> FIELD_CURSOR_BITS;
         fields = id > 0 && id <= snapshots->count ? snapshots->ids[id - 1] : NULL;
         index = *cursor & FIELD_CURSOR_MASK;
@@ -198,14 +199,15 @@ next_field_persistent(const ZirType *record, size_t *cursor, int *status)
 }
 
 static int
-TypeFindField_persistent(const ZirType *record, const char *name, ZirTypeField *field)
+TypeFindField_persistent(CompilerThread *thread, const ZirType *record, const char *name,
+                         ZirTypeField *field)
 {
     if(record == NULL || name == NULL || record->is_enum || record->is_procedure_type) {
         memset(field, 0, sizeof(*field));
         return -1;
     }
     while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
-    RecordFields *fields = fields_of(record);
+    RecordFields *fields = fields_of(thread, record);
     atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
     /* Both the parsed fields and their name index are immutable. A rewrite
      * or relocation of a record is resolved by its interned body, just as
@@ -223,11 +225,11 @@ TypeFindField_persistent(const ZirType *record, const char *name, ZirTypeField *
 }
 
 static int
-TypeHasOnlyPrimitiveFields_persistent(const ZirType *record)
+TypeHasOnlyPrimitiveFields_persistent(CompilerThread *thread, const ZirType *record)
 {
     if(record == NULL || record->is_enum || record->is_procedure_type) return 0;
     while(atomic_flag_test_and_set_explicit(&record_fields_lock, memory_order_acquire)) {}
-    RecordFields *fields = fields_of(record);
+    RecordFields *fields = fields_of(thread, record);
     atomic_flag_clear_explicit(&record_fields_lock, memory_order_release);
     /* This fact depends on source spelling only. Named types, arrays and
      * generic applications still require resolution in their owning scope. */
@@ -387,12 +389,11 @@ int GoCHeader(const char *package, char *header, size_t header_size)
 
 int TypeNextFieldShared(const ZirType *record, size_t *cursor, const ZirTypeField **field)
 {
-    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
-    CompilerMemory *memory = CompilerMemoryPause();
+    CompilerThread *thread = &CompilerThreadState;
+    CompilerScope scope = CompilerThreadEnter(thread, record ? record->span.context : NULL);
     int status;
-    *field = next_field_persistent(record, cursor, &status);
-    CompilerMemoryResume(memory);
-    CompilerContextSelect(previous);
+    *field = next_field_persistent(thread, record, cursor, &status);
+    CompilerThreadLeave(thread, scope);
     return status;
 }
 
@@ -407,21 +408,19 @@ int TypeNextField(const ZirType *record, size_t *cursor, ZirTypeField *field)
 
 int TypeFindField(const ZirType *record, const char *name, ZirTypeField *field)
 {
-    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
-    CompilerMemory *memory = CompilerMemoryPause();
-    int result = TypeFindField_persistent(record, name, field);
-    CompilerMemoryResume(memory);
-    CompilerContextSelect(previous);
+    CompilerThread *thread = &CompilerThreadState;
+    CompilerScope scope = CompilerThreadEnter(thread, record ? record->span.context : NULL);
+    int result = TypeFindField_persistent(thread, record, name, field);
+    CompilerThreadLeave(thread, scope);
     return result;
 }
 
 int TypeHasOnlyPrimitiveFields(const ZirType *record)
 {
-    CompilerContext *previous = CompilerContextSelect(record ? record->span.context : NULL);
-    CompilerMemory *memory = CompilerMemoryPause();
-    int result = TypeHasOnlyPrimitiveFields_persistent(record);
-    CompilerMemoryResume(memory);
-    CompilerContextSelect(previous);
+    CompilerThread *thread = &CompilerThreadState;
+    CompilerScope scope = CompilerThreadEnter(thread, record ? record->span.context : NULL);
+    int result = TypeHasOnlyPrimitiveFields_persistent(thread, record);
+    CompilerThreadLeave(thread, scope);
     return result;
 }
 

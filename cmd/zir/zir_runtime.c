@@ -62,15 +62,11 @@ EmitRuntimeHeaders_with_buffers(const char *out_dir, const char *generated_path,
         changed = 0;
         for(size_t i = 0; i < count; i++) {
             if(!needed[i]) continue;
-            for(size_t j = 0; j < count; j++) {
-                char include[256];
-                if(needed[j]) continue;
-                snprintf(include, sizeof(include), "#include \"%s\"", ZirRuntimeHeaders[j].name);
-                if(strstr(ZirRuntimeHeaders[i].text, include) != NULL) {
+            for(size_t j = 0; j < count; j++)
+                if(!needed[j] && (ZirRuntimeHeaders[i].includes >> j & 1u)) {
                     needed[j] = 1;
                     changed = 1;
                 }
-            }
         }
     } while(changed);
     for(size_t i = 0; ok && i < count; i++) {

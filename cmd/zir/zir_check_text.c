@@ -1012,10 +1012,6 @@ scope_text(ZirFunction *fn, int view_node, int call, int s, int *serial)
 static const char *
 builder_text_module(const ZirModule *module, const ZirFunction *fn, int index)
 {
-    char scoped[ZIR_NAME_MAX];
-    const char *modules[] = {"vec", "std_vec", scoped};
-    if(!StandardScopedName("vec", scoped, sizeof(scoped)))
-        scoped[0] = '\0';
     const ZirExpr *e = &fn->exprs[index];
     if(module->standard_name[0] && !strcmp(module->standard_name, "vec"))
         return NULL;
@@ -1024,6 +1020,10 @@ builder_text_module(const ZirModule *module, const ZirFunction *fn, int index)
        strcmp(e->type, "string") || e->first_child < 0 ||
        fn->exprs[e->first_child].next_sibling >= 0)
         return NULL;
+    char scoped[ZIR_NAME_MAX];
+    const char *modules[] = {"vec", "std_vec", scoped};
+    if(!StandardScopedName("vec", scoped, sizeof(scoped)))
+        scoped[0] = '\0';
     for(size_t i = 0; i < sizeof(modules) / sizeof(*modules); i++) {
         char qualified[ZIR_NAME_MAX];
         const ZirModule *owner = NULL;

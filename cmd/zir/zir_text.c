@@ -125,7 +125,7 @@ static void free_parameter_lists(void *value)
 }
 static ParameterLists *context_parameters(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_PARAMETERS, sizeof(ParameterLists), free_parameter_lists);
+    return CompilerCurrentStorage(COMPILER_PARAMETERS, sizeof(ParameterLists), free_parameter_lists);
 }
 #define parameter_lists (*context_parameters())
 static atomic_flag parameter_lock = ATOMIC_FLAG_INIT;

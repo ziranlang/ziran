@@ -16,7 +16,7 @@ typedef struct ModuleIdentities {
 static void free_module_identities(void *value) { free(((ModuleIdentities *)value)->slots); }
 static ModuleIdentities *context_module_identities(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_NATIVE_IDENTITIES,
+    return CompilerCurrentStorage(COMPILER_NATIVE_IDENTITIES,
         sizeof(ModuleIdentities), free_module_identities);
 }
 #define module_identities (*context_module_identities())
@@ -1902,11 +1902,21 @@ simd_identifier(const char *start, size_t length)
     return last == start + 3 ? NATIVE_SIMD_TYPES : NATIVE_SIMD;
 }
 
+static int
+word_byte(char c)
+{
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+enum { C_NUMBER_HELPER_COUNT = sizeof(c_number_helpers) / sizeof(c_number_helpers[0]) };
+
 /* Scan whole identifier tokens, including those in literals and comments.
  * False positives only add an include; emitted runtime calls cannot be missed
- * through line length or mistaken for a suffix in a user's mangled name. */
+ * through line length or mistaken for a suffix in a user's mangled name.
+ * When calls is not NULL, the same pass marks each number helper called as a
+ * whole word: ReadSignedBits( is no call of SignedBits. */
 static unsigned
-native_runtime_includes(const char *text)
+native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT])
 {
     /* Each emitted identifier is compared against these literal names. Keep
      * their lengths with the table rather than calling strlen per token. */
@@ -1921,16 +1931,23 @@ native_runtime_includes(const char *text)
         RUNTIME_USE("memcpy", NATIVE_MEMORY), RUNTIME_USE("memmove", NATIVE_MEMORY)
     };
 #undef RUNTIME_USE
+    size_t helper_lengths[C_NUMBER_HELPER_COUNT];
+    for(size_t i = 0; calls != NULL && i < C_NUMBER_HELPER_COUNT; i++)
+        helper_lengths[i] = strlen(c_number_helpers[i].name);
     unsigned includes = 0;
     for(const char *p = text; *p;) {
-        if(!((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') || *p == '_')) {
+        if(!word_byte(*p)) {
             p++;
             continue;
         }
-        const char *start = p++;
-        while((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
-              (*p >= '0' && *p <= '9') || *p == '_') p++;
+        /* A whole word; identifiers start after any leading digits. */
+        const char *word = p;
+        while(*p >= '0' && *p <= '9') p++;
+        const char *start = p;
+        while(word_byte(*p)) p++;
         size_t length = (size_t)(p - start);
+        if(length == 0)
+            continue;
         if(!(includes & NATIVE_SIMD) && *start == 'z')
             includes |= simd_identifier(start, length);
         for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
@@ -1938,19 +1955,12 @@ native_runtime_includes(const char *text)
                *start == *uses[i].name &&
                !memcmp(start, uses[i].name, length))
                 includes |= uses[i].include;
+        if(calls != NULL && word == start && *p == '(')
+            for(size_t i = 0; i < C_NUMBER_HELPER_COUNT; i++)
+                if(helper_lengths[i] == length && !memcmp(start, c_number_helpers[i].name, length))
+                    calls[i] = 1;
     }
     return includes;
-}
-
-/* Whether text calls name, as a whole word: ReadSignedBits( is no call of
- * SignedBits. */
-static int
-calls_word(const char *text, const char *call)
-{
-    for(const char *at = strstr(text, call); at != NULL; at = strstr(at + 1, call))
-        if(at == text || !(isalnum((unsigned char)at[-1]) || at[-1] == '_'))
-            return 1;
-    return 0;
 }
 
 /* Resolve both dependency marks before writing the final native text. */
@@ -1958,22 +1968,17 @@ int
 EmitNativeHelpers(FILE *file, const char *text)
 {
     const char *mark, *numbers;
-    int needed[sizeof(c_number_helpers) / sizeof(c_number_helpers[0])] = {0};
+    int needed[C_NUMBER_HELPER_COUNT] = {0};
     int any = 0;
     mark = strstr(text, RUNTIME_INCLUDES_MARK);
     numbers = strstr(text, NUMBER_HELPERS_MARK);
     if(mark == NULL || (numbers != NULL && numbers < mark))
         return -1;
-    for(size_t i = 0; numbers && i < sizeof(needed) / sizeof(needed[0]); i++) {
-        char call[32];
-        format(call, sizeof(call), "%s(", c_number_helpers[i].name);
-        needed[i] = calls_word(text, call);
-    }
+    unsigned includes = native_runtime_includes(text, numbers ? needed : NULL);
     needed[0] |= needed[1];
     needed[7] |= needed[8];
     for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         any |= needed[i];
-    unsigned includes = native_runtime_includes(text);
     if(any) includes |= NATIVE_STDLIB;
     fwrite(text, 1, (size_t)(mark - text), file);
     if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);

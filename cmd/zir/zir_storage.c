@@ -1,5 +1,6 @@
 #include "zir_memory.h"
 #include "zir.h"
+#include "zir_thread.h"
 #include "zir_diagnostic.h"
 #include <stdarg.h>
 #include <stdatomic.h>
@@ -142,43 +143,43 @@ static void free_kept_texts(void *value)
     }
     free(texts->texts);
 }
-static KeptTexts *context_texts(void)
+static KeptTexts *context_texts(CompilerThread *thread)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_TEXTS, sizeof(KeptTexts), free_kept_texts);
+    return CompilerThreadStorage(thread, COMPILER_TEXTS, sizeof(KeptTexts), free_kept_texts);
 }
 static const char empty_text[] = "";
 
 /* Canonical return pointers remain immutable and alive after table growth or
  * individual program destruction within their live context. Other input addresses are hints only: compare current
  * bytes with the kept copy before reusing it. Keep addresses as integers so a
- * caller can free/reuse a buffer without leaving an expired pointer value. */
-typedef struct KeptText {
-    uintptr_t input;
-    const char *text;
-    size_t length;
-} KeptText;
-enum { KEPT_TEXT_CACHE_SIZE = 128 };
-static _Thread_local KeptText kept_text_cache[KEPT_TEXT_CACHE_SIZE];
-static _Thread_local uint64_t kept_text_cache_context;
-
-static KeptText *
-kept_text_cache_slot(const char *text)
+ * caller can free/reuse a buffer without leaving an expired pointer value.
+ * The recent inputs live in the thread's record, emptied when another context
+ * is selected; each call finds the record once and passes it down. */
+static CompilerThread *
+kept_texts_thread(void)
 {
-    uint64_t identity = CompilerContextIdentity();
-    if(kept_text_cache_context != identity) {
-        memset(kept_text_cache, 0, sizeof(kept_text_cache));
-        kept_text_cache_context = identity;
+    CompilerThread *thread = &CompilerThreadState;
+    uint64_t identity = CompilerThreadIdentity(thread);
+    if(thread->kept_identity != identity) {
+        memset(thread->kept, 0, sizeof(thread->kept));
+        thread->kept_identity = identity;
     }
+    return thread;
+}
+
+static CompilerKeptText *
+kept_text_cache_slot(CompilerThread *thread, const char *text)
+{
     uintptr_t hash = (uintptr_t)text;
     hash ^= hash >> 7;
     hash ^= hash >> 13;
-    return &kept_text_cache[hash & (KEPT_TEXT_CACHE_SIZE - 1)];
+    return &thread->kept[hash & (COMPILER_KEPT_TEXTS - 1)];
 }
 
 static const char *
-kept_text_cached(const char *text, size_t capacity)
+kept_text_cached(CompilerThread *thread, const char *text, size_t capacity)
 {
-    KeptText *entry = kept_text_cache_slot(text);
+    CompilerKeptText *entry = kept_text_cache_slot(thread, text);
     if(entry->input != (uintptr_t)text || !entry->text || entry->length >= capacity)
         return NULL;
     if(entry->text == text) {
@@ -193,10 +194,10 @@ kept_text_cached(const char *text, size_t capacity)
 }
 
 static void
-remember_kept_text(const char *input, const char *text, size_t length)
+remember_kept_text(CompilerThread *thread, const char *input, const char *text, size_t length)
 {
-    *kept_text_cache_slot(text) = (KeptText){(uintptr_t)text, text, length};
-    *kept_text_cache_slot(input) = (KeptText){(uintptr_t)input, text, length};
+    *kept_text_cache_slot(thread, text) = (CompilerKeptText){(uintptr_t)text, text, length};
+    *kept_text_cache_slot(thread, input) = (CompilerKeptText){(uintptr_t)input, text, length};
 }
 
 static uint64_t
@@ -243,36 +244,24 @@ kept_text_failed(void)
 }
 
 /* TEXT kept, cut to fit a CAPACITY-byte buffer as copy_text would. */
-static const char *keep_text(const char *text, size_t length);
+static const char *keep_text(CompilerThread *thread, const char *text, size_t length);
 
 static const char *
-keep_cut(const char *text, size_t capacity)
+keep_cut(CompilerThread *thread, const char *text, size_t capacity)
 {
     if(text == NULL || *text == '\0')
         return empty_text;
-    const char *cached = kept_text_cached(text, capacity);
+    const char *cached = kept_text_cached(thread, text, capacity);
     if(cached) return cached;
     size_t length = strnlen(text, capacity);
     if(length < capacity)
-        return keep_text(text, length);
+        return keep_text(thread, text, length);
     char *cut = AllocateOrExit(capacity);
     memcpy(cut, text, capacity - 1);
     cut[capacity - 1] = '\0';
-    const char *kept = keep_text(cut, capacity - 1);
+    const char *kept = keep_text(thread, cut, capacity - 1);
     free(cut);
     return kept;
-}
-
-static const char *
-KeepName_persistent(const char *text)
-{
-    return keep_cut(text, ZIR_NAME_MAX);
-}
-
-static const char *
-KeepParameters_persistent(const char *text)
-{
-    return keep_cut(text, ZIR_TEXT_MAX);
 }
 
 const char *
@@ -287,12 +276,12 @@ KeepNameFormat(const char *format, ...)
 }
 
 static const char *
-keep_text(const char *text, size_t length)
+keep_text(CompilerThread *thread, const char *text, size_t length)
 {
     ProfileCount("kept_text_lookup");
     /* VM instances share immutable spellings, but insertion and table growth
      * still mutate the context's table. Publish complete entries together. */
-    KeptTexts *texts = context_texts();
+    KeptTexts *texts = context_texts(thread);
     lock_table(&texts->lock);
     if(texts->count * 2 >= texts->slot_count) {
         size_t old_count = texts->slot_count;
@@ -311,7 +300,7 @@ keep_text(const char *text, size_t length)
     if(texts->texts[slot] != NULL) {
         const char *kept = texts->texts[slot];
         unlock_table(&texts->lock);
-        remember_kept_text(text, kept, length);
+        remember_kept_text(thread, text, kept, length);
         return kept;
     }
     if(texts->block == NULL ||
@@ -331,17 +320,17 @@ keep_text(const char *text, size_t length)
     texts->texts[slot] = copy;
     texts->count++;
     unlock_table(&texts->lock);
-    remember_kept_text(text, copy, length);
+    remember_kept_text(thread, text, copy, length);
     return copy;
 }
 
 static const char *
-KeepText_persistent(const char *text)
+KeepText_persistent(CompilerThread *thread, const char *text)
 {
     if(text == NULL || *text == '\0') return empty_text;
-    const char *cached = kept_text_cached(text, SIZE_MAX);
+    const char *cached = kept_text_cached(thread, text, SIZE_MAX);
     if(cached) return cached;
-    return keep_text(text, strlen(text));
+    return keep_text(thread, text, strlen(text));
 }
 
 ZirSourceSpan
@@ -450,26 +439,36 @@ RawTextExpand(const char *text)
 
 const char *KeepText(const char *text)
 {
-    CompilerMemory *memory = CompilerMemoryPause();
-    char *expanded = text != NULL ? RawTextExpand(text) : NULL;
-    const char *result = KeepText_persistent(expanded != NULL ? expanded : text);
+    if(text == NULL || *text == '\0') return empty_text;
+    CompilerThread *thread = kept_texts_thread();
+    /* Text without raw-text markers is kept as it is; a cached one needs
+     * no allocation, so memory tracking need not pause for it. */
+    if(strchr(text, '\x1f') == NULL) {
+        const char *cached = kept_text_cached(thread, text, SIZE_MAX);
+        if(cached) return cached;
+        CompilerMemory *memory = CompilerThreadPause(thread);
+        const char *result = keep_text(thread, text, strlen(text));
+        CompilerThreadResume(thread, memory);
+        return result;
+    }
+    CompilerMemory *memory = CompilerThreadPause(thread);
+    char *expanded = RawTextExpand(text);
+    const char *result = KeepText_persistent(thread, expanded != NULL ? expanded : text);
     free(expanded);
-    CompilerMemoryResume(memory);
+    CompilerThreadResume(thread, memory);
     return result;
 }
 
-const char *KeepName(const char *text)
+static const char *
+keep_cut_paused(const char *text, size_t capacity)
 {
-    CompilerMemory *memory = CompilerMemoryPause();
-    const char *result = KeepName_persistent(text);
-    CompilerMemoryResume(memory);
+    CompilerThread *thread = kept_texts_thread();
+    CompilerMemory *memory = CompilerThreadPause(thread);
+    const char *result = keep_cut(thread, text, capacity);
+    CompilerThreadResume(thread, memory);
     return result;
 }
 
-const char *KeepParameters(const char *text)
-{
-    CompilerMemory *memory = CompilerMemoryPause();
-    const char *result = KeepParameters_persistent(text);
-    CompilerMemoryResume(memory);
-    return result;
-}
+const char *KeepName(const char *text) { return keep_cut_paused(text, ZIR_NAME_MAX); }
+
+const char *KeepParameters(const char *text) { return keep_cut_paused(text, ZIR_TEXT_MAX); }

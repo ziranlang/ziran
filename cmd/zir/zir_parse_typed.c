@@ -620,7 +620,7 @@ static void free_expression_cache(void *value)
 }
 static ExpressionCache *expression_cache(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_EXPRESSIONS, sizeof(ExpressionCache), free_expression_cache);
+    return CompilerCurrentStorage(COMPILER_EXPRESSIONS, sizeof(ExpressionCache), free_expression_cache);
 }
 #define parse_cache (expression_cache()->entries)
 #define parse_cache_count (expression_cache()->count)
@@ -1614,8 +1614,7 @@ static const TypedSignature *
 typed_signature(const ZirFunction *fn)
 {
     CompilerMemory *memory = CompilerMemoryPause();
-    TypedSignatures *signatures = CompilerContextStorage(CompilerContextCurrent(),
-        COMPILER_SIGNATURES, sizeof(*signatures), free_typed_signatures);
+    TypedSignatures *signatures = CompilerCurrentStorage(COMPILER_SIGNATURES, sizeof(*signatures), free_typed_signatures);
     const char *args = FunctionArgs(fn), *defaults = FunctionDefaultArgs(fn);
     if(signatures->count * 2 >= signatures->capacity) {
         TypedSignatures grown = {

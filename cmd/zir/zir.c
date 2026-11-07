@@ -1,6 +1,7 @@
 #include "zir_memory.h"
 static void free_scratch_SameFileBytesBuffers(void *pointer);
 #include "zir.h"
+#include "zir_thread.h"
 #include "zir_string.h"
 #include "zir_parse.h"
 #include "zir_check.h"
@@ -1176,25 +1177,24 @@ typedef struct SymbolLookups {
     int verify;
 } SymbolLookups;
 static void free_symbol_lookups(void *value) { free(((SymbolLookups *)value)->items); }
-static SymbolLookups *context_symbol_lookups(void)
+static SymbolLookups *thread_symbol_lookups(CompilerThread *thread)
 {
-    SymbolLookups *lookups = CompilerContextStorage(CompilerContextCurrent(), COMPILER_SYMBOLS, sizeof(SymbolLookups), free_symbol_lookups);
+    SymbolLookups *lookups = CompilerThreadStorage(thread, COMPILER_SYMBOLS, sizeof(SymbolLookups), free_symbol_lookups);
     if(!lookups->generation) { lookups->generation = 1; lookups->verify = -1; }
     return lookups;
 }
-#define symbol_lookups (*context_symbol_lookups())
 static atomic_flag symbol_lookup_lock = ATOMIC_FLAG_INIT;
 
 void
 SymbolLookupsChanged(void)
 {
     while(atomic_flag_test_and_set_explicit(&symbol_lookup_lock, memory_order_acquire)) {}
-    if(++symbol_lookups.generation == 0) {
-        if(symbol_lookups.slots)
-            memset(symbol_lookups.items, 0,
-                   symbol_lookups.slots * sizeof(*symbol_lookups.items));
-        symbol_lookups.count = 0;
-        symbol_lookups.generation = 1;
+    SymbolLookups *lookups = thread_symbol_lookups(&CompilerThreadState);
+    if(++lookups->generation == 0) {
+        if(lookups->slots)
+            memset(lookups->items, 0, lookups->slots * sizeof(*lookups->items));
+        lookups->count = 0;
+        lookups->generation = 1;
     }
     atomic_flag_clear_explicit(&symbol_lookup_lock, memory_order_release);
 }
@@ -1214,11 +1214,11 @@ symbol_lookup_slot(const SymbolLookup *items, size_t slots, const ZirModule *mod
 }
 
 static SymbolLookup
-fresh_symbol_lookup(const ZirModule *module, const char *name,
-                    const char *path, LookupKind kind)
+fresh_symbol_lookup(const SymbolLookups *lookups, const ZirModule *module,
+                    const char *name, const char *path, LookupKind kind)
 {
     SymbolLookup answer = {.module = module, .name = name, .path = path,
-        .generation = symbol_lookups.generation, .kind = kind};
+        .generation = lookups->generation, .kind = kind};
     if(kind == LOOKUP_TYPE) {
         answer.symbol = find_type(module, name, &answer.owner);
         answer.status = answer.symbol != NULL;
@@ -1237,13 +1237,13 @@ fresh_symbol_lookup(const ZirModule *module, const char *name,
 }
 
 static const void *
-lookup_symbol_persistent(const ZirModule *module, const char *name,
+lookup_symbol_persistent(CompilerThread *thread, const ZirModule *module, const char *name,
               const char *path, LookupKind kind,
               const ZirModule **owner, int *status, const ZirImport **via)
 {
     while(atomic_flag_test_and_set_explicit(&symbol_lookup_lock, memory_order_acquire)) {}
     /* The context cannot change here; look its storage up once. */
-    SymbolLookups *lookups = context_symbol_lookups();
+    SymbolLookups *lookups = thread_symbol_lookups(thread);
     if(lookups->verify < 0) {
         const char *verify = getenv("ZIRAN_VERIFY_SYMBOL_LOOKUPS");
         lookups->verify = verify != NULL && !strcmp(verify, "1");
@@ -1281,7 +1281,7 @@ lookup_symbol_persistent(const ZirModule *module, const char *name,
                      kind == LOOKUP_FUNCTION ? "function_lookup_hit" :
                      "define_lookup_hit");
         if(lookups->verify) {
-            SymbolLookup fresh = fresh_symbol_lookup(module, name, path, kind);
+            SymbolLookup fresh = fresh_symbol_lookup(lookups, module, name, path, kind);
             if(fresh.symbol != lookup->symbol || fresh.owner != lookup->owner ||
                fresh.status != lookup->status || fresh.via != lookup->via) {
                 Diagnostic(module->span, "compiler.internal",
@@ -1296,7 +1296,7 @@ lookup_symbol_persistent(const ZirModule *module, const char *name,
                      "define_lookup_miss");
         if(lookup->name == NULL)
             lookups->count++;
-        *lookup = fresh_symbol_lookup(module, kept_name, kept_path, kind);
+        *lookup = fresh_symbol_lookup(lookups, module, kept_name, kept_path, kind);
     }
     const void *symbol = lookup->symbol;
     if(owner)
@@ -1314,12 +1314,11 @@ lookup_symbol(const ZirModule *module, const char *name, const char *path,
               LookupKind kind, const ZirModule **owner, int *status,
               const ZirImport **via)
 {
-    CompilerContext *previous = CompilerContextSelect(module->context);
-    CompilerMemory *memory = CompilerMemoryPause();
-    const void *result = lookup_symbol_persistent(module, name, path, kind,
+    CompilerThread *thread = &CompilerThreadState;
+    CompilerScope scope = CompilerThreadEnter(thread, module->context);
+    const void *result = lookup_symbol_persistent(thread, module, name, path, kind,
                                                   owner, status, via);
-    CompilerMemoryResume(memory);
-    CompilerContextSelect(previous);
+    CompilerThreadLeave(thread, scope);
     return result;
 }
 
@@ -2169,7 +2168,7 @@ static void free_generated_outputs(void *value)
 }
 static GeneratedOutputs *context_outputs(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_OUTPUTS,
+    return CompilerCurrentStorage(COMPILER_OUTPUTS,
         sizeof(GeneratedOutputs), free_generated_outputs);
 }
 #define generated_outputs (context_outputs()->paths)

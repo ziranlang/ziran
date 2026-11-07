@@ -24,7 +24,7 @@ typedef struct EnumSnapshots {
 static void free_enum_values(void *pointer);
 static EnumSnapshots *context_enums(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_ENUMS,
+    return CompilerCurrentStorage(COMPILER_ENUMS,
                                   sizeof(EnumSnapshots), free_enum_values);
 }
 #define enum_values (*context_enums())

@@ -40,10 +40,12 @@ typedef struct Field {
  * one call per field cost seconds on slow phones. */
 enum { SERIAL_BLOCK = 64 * 1024 };
 
-/* A string written once; later uses name its first-use index. */
+/* A string written once; later uses name its first-use index. A reader
+ * keeps each name or text string once, however often it is used. */
 typedef struct SerialString {
     const char *text;
     uint32_t length;
+    const char *kept;
 } SerialString;
 
 typedef struct Reader {
@@ -61,6 +63,8 @@ typedef struct Reader {
     uint32_t string_count, string_capacity;
     int last_line;
     int has_span;
+    /* The context selected for the whole read; spans and modules record it. */
+    CompilerContext *context;
 } Reader;
 
 typedef struct Writer {
@@ -75,6 +79,12 @@ typedef struct Writer {
     uint32_t string_count, string_capacity;
     uint32_t *slots;
     uint32_t slot_count;
+    /* Addresses written so far, hashed, each with its string's index plus
+     * one: kept spellings recur by address, and the written program does not
+     * change, so a known address needs no length scan, hash or comparison. */
+    uintptr_t *addresses;
+    uint32_t *address_strings;
+    uint32_t address_count, address_slot_count;
     /* Bytes a reader will charge against ZIR_READ_BUDGET for what is
      * written so far, and why writing stopped, if it did. */
     size_t charged;
@@ -549,11 +559,65 @@ writer_grow_strings(Writer *out)
     return 1;
 }
 
+static uint32_t
+address_slot(const Writer *out, uintptr_t address)
+{
+    uint32_t mask = out->address_slot_count - 1;
+    uint32_t at = (uint32_t)(((uint64_t)address * UINT64_C(0x9e3779b97f4a7c15)) >> 32) & mask;
+    while(out->address_strings[at] != 0 && out->addresses[at] != address)
+        at = (at + 1) & mask;
+    return at;
+}
+
+/* Index plus one of the string last written from ADDRESS, or 0. */
+static uint32_t
+writer_address_string(const Writer *out, const char *address)
+{
+    if(out->address_slot_count == 0) return 0;
+    return out->address_strings[address_slot(out, (uintptr_t)address)];
+}
+
+static int
+writer_remember_address(Writer *out, const char *address, uint32_t string)
+{
+    if((out->address_count + 1) * 2 > out->address_slot_count) {
+        uint32_t old_count = out->address_slot_count;
+        uintptr_t *old_addresses = out->addresses;
+        uint32_t *old_strings = out->address_strings;
+        uint32_t count = old_count ? old_count * 2 : 4096;
+        out->addresses = malloc((size_t)count * sizeof(*out->addresses));
+        out->address_strings = calloc(count, sizeof(*out->address_strings));
+        if(out->addresses == NULL || out->address_strings == NULL) {
+            free(out->addresses);
+            free(out->address_strings);
+            out->addresses = old_addresses;
+            out->address_strings = old_strings;
+            return 0;
+        }
+        out->address_slot_count = count;
+        for(uint32_t i = 0; i < old_count; i++)
+            if(old_strings[i] != 0) {
+                uint32_t at = address_slot(out, old_addresses[i]);
+                out->addresses[at] = old_addresses[i];
+                out->address_strings[at] = old_strings[i];
+            }
+        free(old_addresses);
+        free(old_strings);
+    }
+    uint32_t at = address_slot(out, (uintptr_t)address);
+    if(out->address_strings[at] == 0) out->address_count++;
+    out->addresses[at] = (uintptr_t)address;
+    out->address_strings[at] = string;
+    return 1;
+}
+
 static void
 writer_free_strings(Writer *out)
 {
     free(out->strings);
     free(out->slots);
+    free(out->addresses);
+    free(out->address_strings);
 }
 
 /* Charges COUNT records of SIZE bytes exactly as the reader will. */
@@ -574,31 +638,45 @@ writer_charge(Writer *out, size_t count, size_t size)
 static int
 write_string(Writer *out, const char *value, size_t capacity)
 {
+    if(capacity == 0)
+        return 0;
+    if(*value == '\0')
+        return write_u32(out, 0);
+    uint32_t known = writer_address_string(out, value);
+    if(known != 0) {
+        size_t length = out->strings[known - 1].length;
+        if(length >= capacity || !writer_charge(out, length, 1))
+            return 0;
+        return write_u32(out, (known - 1) * 2 + 1);
+    }
     size_t length = strnlen(value, capacity);
     if(length == capacity)
         return 0;
-    if(length == 0)
-        return write_u32(out, 0);
     if(!writer_charge(out, length, 1) || length > UINT32_MAX / 2)
         return 0;
     if(!writer_grow_strings(out))
         return 0;
     uint32_t slot;
-    uint32_t known = writer_string_slot(out, value, length, &slot);
-    if(known != 0)
-        return write_u32(out, (known - 1) * 2 + 1);
-    out->strings[out->string_count] = (SerialString){value, (uint32_t)length};
-    out->slots[slot] = ++out->string_count;
-    return write_u32(out, (uint32_t)length * 2) &&
-           write_bytes(out, value, length);
+    known = writer_string_slot(out, value, length, &slot);
+    if(known == 0) {
+        out->strings[out->string_count] = (SerialString){value, (uint32_t)length, NULL};
+        out->slots[slot] = ++out->string_count;
+        if(!write_u32(out, (uint32_t)length * 2) || !write_bytes(out, value, length))
+            return 0;
+        known = out->string_count;
+    } else if(!write_u32(out, (known - 1) * 2 + 1)) {
+        return 0;
+    }
+    return writer_remember_address(out, value, known);
 }
 
 /* Reads one string into the table and returns it through TEXT and LENGTH;
  * the table owns the bytes. */
 static int
-read_serial_string(Reader *reader, const char **text, uint32_t *length)
+read_serial_string_at(Reader *reader, const char **text, uint32_t *length, uint32_t *index_out)
 {
     uint32_t tag;
+    *index_out = UINT32_MAX;
     if(!read_u32(reader, &tag))
         return 0;
     if(tag == 0) {
@@ -621,6 +699,7 @@ read_serial_string(Reader *reader, const char **text, uint32_t *length)
         reader->budget -= reader->strings[index].length;
         *text = reader->strings[index].text;
         *length = reader->strings[index].length;
+        *index_out = index;
         return 1;
     }
     uint32_t size = tag / 2;
@@ -655,10 +734,30 @@ read_serial_string(Reader *reader, const char **text, uint32_t *length)
         return 0;
     }
     bytes[size] = '\0';
-    reader->strings[reader->string_count++] = (SerialString){bytes, size};
+    *index_out = reader->string_count;
+    reader->strings[reader->string_count++] = (SerialString){bytes, size, NULL};
     *text = bytes;
     *length = size;
     return 1;
+}
+
+static int
+read_serial_string(Reader *reader, const char **text, uint32_t *length)
+{
+    uint32_t index;
+    return read_serial_string_at(reader, text, length, &index);
+}
+
+/* KeepText of a string just read; each table entry is kept once. */
+static const char *
+reader_kept(Reader *reader, const char *text, uint32_t index)
+{
+    if(index == UINT32_MAX)
+        return KeepText(text);
+    SerialString *string = &reader->strings[index];
+    if(string->kept == NULL)
+        string->kept = KeepText(text);
+    return string->kept;
 }
 
 static void
@@ -733,7 +832,7 @@ read_span(Reader *reader, ZirSourceSpan *span)
         memcpy(reader->last_path, path, strlen(path) + 1);
     }
     reader->has_span = 1;
-    span->context = CompilerContextCurrent();
+    span->context = reader->context;
     span->file = reader->last_file;
     if(!read_u32(reader, &column) || !read_s32(reader, &end_line_delta) ||
        !read_s32(reader, &end_column_delta))
@@ -810,13 +909,18 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
             if(!read_string(reader, value, fields[i].size))
                 return 0;
         } else if(fields[i].kind == FIELD_NAME || fields[i].kind == FIELD_STATEMENT_NAME) {
-            char name[ZIR_TEXT_MAX];
-            if(!read_string(reader, name, fields[i].size))
+            const char *name;
+            uint32_t length, index;
+            if(!read_serial_string_at(reader, &name, &length, &index))
                 return 0;
+            if(length >= fields[i].size) {
+                reader->problem = "string exceeds field limit";
+                return 0;
+            }
             if(fields[i].kind == FIELD_STATEMENT_NAME &&
                ((ZirStmt *)record)->kind == ZIR_STMT_BLOCK_OPEN) {
                 if(*name) { reader->problem = "unexpected block binding name"; return 0; }
-            } else *(const char **)value = KeepText(name);
+            } else *(const char **)value = reader_kept(reader, name, index);
         } else if(fields[i].kind == FIELD_TEXT || fields[i].kind == FIELD_ASSEMBLY_TEXT ||
                   fields[i].kind == FIELD_STATEMENT_TEXT || fields[i].kind == FIELD_FUNCTION_ASSEMBLY) {
             if(fields[i].kind == FIELD_ASSEMBLY_TEXT && !assembly_block) {
@@ -824,15 +928,15 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
                 continue;
             }
             const char *text;
-            uint32_t length;
-            if(!read_serial_string(reader, &text, &length))
+            uint32_t length, index;
+            if(!read_serial_string_at(reader, &text, &length, &index))
                 return 0;
             if(fields[i].kind == FIELD_ASSEMBLY_TEXT &&
                (length == 0 || length >= fields[i].size)) {
                 reader->problem = length == 0 ? "empty assembly block metadata" : "string exceeds field limit";
                 return 0;
             }
-            *(const char **)value = KeepText(text);
+            *(const char **)value = reader_kept(reader, text, index);
         } else if(fields[i].kind == FIELD_STATEMENT_KIND) {
             uint32_t kind;
             if(!read_u32(reader, &kind)) return 0;
@@ -1021,7 +1125,7 @@ read_module(Reader *reader, ZirModule *module)
     uint32_t count;
     if(!read_fields(reader, module, module_fields, FIELD_COUNT(module_fields)))
         return 0;
-    module->context = CompilerContextCurrent();
+    module->context = reader->context;
     READ_ARRAY(reader, module, globals, global_count, global_fields);
     READ_ARRAY(reader, module, defines, define_count, define_fields);
     READ_ARRAY(reader, module, asserts, assert_count, assert_fields);
@@ -1401,6 +1505,7 @@ ProgramRead_in_context(FILE *in, const char *path)
     ZirProgram *program = NULL;
     if(in == NULL || path == NULL)
         return NULL;
+    reader.context = CompilerContextCurrent();
     reader.block = malloc(SERIAL_BLOCK);
     if(reader.block == NULL) {
         reader.problem = "out of memory reading IR";

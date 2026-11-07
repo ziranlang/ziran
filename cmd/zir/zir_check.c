@@ -323,14 +323,20 @@ check_file_scope_enum_names(const ZirModule *module,
 const char *
 ScalarType(const char *type)
 {
-    static const struct { const char *source, *type; } types[] = {
-        {"bool", "bool"}, {"void", "void"}, {"s8", "s8"}, {"u8", "u8"},
-        {"s16", "s16"}, {"u16", "u16"}, {"s32", "s32"}, {"u32", "u32"},
-        {"s64", "s64"}, {"u64", "u64"}, {"isize", "isize"}, {"usize", "usize"},
-        {"float32", "float32"}, {"float64", "float64"}, {"string", "string"}, {NULL, NULL}
+    /* Grouped by length so a lookup compares at most six names. */
+    static const char *const names[] = {
+        "s8", "u8", NULL,
+        "s16", "u16", "s32", "u32", "s64", "u64", NULL,
+        "bool", "void", NULL,
+        "isize", "usize", NULL,
+        "string", NULL,
+        "float32", "float64", NULL
     };
-    for(int i = 0; types[i].source; i++)
-        if(!strcmp(type, types[i].source)) return types[i].type;
+    static const unsigned char first[] = {0, 0, 0, 3, 10, 13, 16, 18};
+    size_t length = strnlen(type, 8);
+    if(length < 2 || length > 7) return "";
+    for(const char *const *name = &names[first[length]]; *name; name++)
+        if(!memcmp(type, *name, length)) return *name;
     return "";
 }
 

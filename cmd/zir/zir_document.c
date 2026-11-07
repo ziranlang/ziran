@@ -19,7 +19,7 @@ static void free_documents(void *value)
 }
 static DocumentStore *documents(void)
 {
-    return CompilerContextStorage(CompilerContextCurrent(), COMPILER_DOCUMENTS,
+    return CompilerCurrentStorage(COMPILER_DOCUMENTS,
                                   sizeof(DocumentStore), free_documents);
 }
 void DocumentDigest(const void *bytes, size_t count, char hex[65])

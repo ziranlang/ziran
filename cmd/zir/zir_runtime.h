@@ -5,6 +5,7 @@
 typedef struct ZirRuntimeHeader {
     const char *name;
     const char *text;
+    unsigned includes; /* bit j: text includes ZirRuntimeHeaders[j] */
 } ZirRuntimeHeader;
 
 extern const ZirRuntimeHeader ZirRuntimeHeaders[];

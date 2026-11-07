@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `ziran run` of a ZX bundle without a native cache starts about 18% sooner
+  on 32-bit Android and 10% sooner on x86-64, with the same generated C.
 - Generated C keeps the bounds check behind a guard on a sum or product
   that may wrap: `if first + 1 + second > view.count { return }` no longer
   removes the check of `view[first]`, through a local, an `ifx` choice or a

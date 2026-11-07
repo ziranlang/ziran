@@ -15,6 +15,7 @@ typedef struct ZxNative ZxNative;
 typedef struct ZxNativeHeader {
     const char *name;
     const char *text;
+    unsigned includes; /* bit j: text includes ZxNativeHeaders[j] */
 } ZxNativeHeader;
 extern const ZxNativeHeader ZxNativeHeaders[];
 

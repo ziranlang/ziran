@@ -105,27 +105,33 @@ typedef struct PortableMemoSlot {
     unsigned pass;
     int answer;
 } PortableMemoSlot;
-static _Thread_local PortableMemoSlot portable_memo[PORTABLE_MEMO_SLOTS];
-static _Thread_local unsigned portable_memo_pass;
+/* One thread-local record: emulated TLS makes each variable access a call. */
+typedef struct PortableMemo {
+    unsigned pass;
+    PortableMemoSlot slots[PORTABLE_MEMO_SLOTS];
+} PortableMemo;
+static _Thread_local PortableMemo portable_memo;
 
 static int
 portable_type(const ZirModule *module, const char *type)
 {
+    PortableMemo *memo = &portable_memo;
     uintptr_t key = ((uintptr_t)type >> 3) ^ ((uintptr_t)module >> 6);
-    PortableMemoSlot *slot = &portable_memo[(key ^ (key >> 9)) % PORTABLE_MEMO_SLOTS];
-    if(slot->pass == portable_memo_pass && slot->type == type && slot->module == module)
+    PortableMemoSlot *slot = &memo->slots[(key ^ (key >> 9)) % PORTABLE_MEMO_SLOTS];
+    if(slot->pass == memo->pass && slot->type == type && slot->module == module)
         return slot->answer;
     int answer = portable_type_path(module, type, NULL);
-    *slot = (PortableMemoSlot){module, type, portable_memo_pass, answer};
+    *slot = (PortableMemoSlot){module, type, memo->pass, answer};
     return answer;
 }
 
 static void
 portable_memo_begin(void)
 {
-    if(++portable_memo_pass == 0) {
-        memset(portable_memo, 0, sizeof(portable_memo));
-        portable_memo_pass = 1;
+    PortableMemo *memo = &portable_memo;
+    if(++memo->pass == 0) {
+        memset(memo->slots, 0, sizeof(memo->slots));
+        memo->pass = 1;
     }
 }
 

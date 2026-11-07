@@ -27,6 +27,8 @@ typedef enum CompilerStorage {
 } CompilerStorage;
 void *CompilerContextStorage(CompilerContext *context, CompilerStorage key,
                             size_t size, void (*destroy)(void *));
+/* The selected context's storage, found with one thread-state access. */
+void *CompilerCurrentStorage(CompilerStorage key, size_t size, void (*destroy)(void *));
 typedef struct CompilerScratch CompilerScratch;
 CompilerScratch *CompilerContextScratch(const void *key, void (*destroy)(void *));
 /* Each call site keeps this hint in thread-local storage. Context identities

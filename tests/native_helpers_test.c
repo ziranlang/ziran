@@ -16,7 +16,7 @@ int main(void)
         FILE *output = TextStreamOpen(&stream, &text, &size);
         assert(output != NULL);
         fputs("preserve", output);
-        assert(EmitNativeHelpers(output, invalid[i]) == -1);
+        assert(EmitNativeHelpers(output, invalid[i], NULL) == -1);
         assert(TextStreamClose(&stream) == 0);
         assert(size == 8 && !strcmp(text, "preserve"));
         free(text);
@@ -27,7 +27,7 @@ int main(void)
     FILE *output = TextStreamOpen(&stream, &text, &size);
     assert(output != NULL);
     assert(EmitNativeHelpers(output, "/* prefix */\n" RUNTIME_INCLUDES_MARK
-                             NUMBER_HELPERS_MARK "int value;\n") == 0);
+                             NUMBER_HELPERS_MARK "int value;\n", NULL) == 0);
     assert(TextStreamClose(&stream) == 0);
     assert(!strcmp(text, "/* prefix */\nint value;\n"));
     free(text);

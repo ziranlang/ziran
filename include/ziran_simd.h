@@ -217,11 +217,17 @@ static inline uint64_t zi_int_to_float(uint64_t bits, int from, int to)
  * lane operand (Splat, WithLane) is b[0]; Make reads its lanes from a.
  * Scalar results are out[0]. Only ARMv7 NEON's float arithmetic calls it
  * from a helper; elsewhere it is the oracle the tests check helpers against.
+ * TinyCC compiles a static inline function only where something calls it,
+ * so its programs, whose helpers never do, skip zi_ref.
  */
+#if defined(__TINYC__)
+static inline void
+#else
 #if defined(__GNUC__)
 __attribute__((unused))
 #endif
 static void
+#endif
 zi_ref(int op, int r, int rn, int ak, int an, const uint64_t *a,
        const uint64_t *b, const uint64_t *c, const int64_t *k, uint64_t *out)
 {

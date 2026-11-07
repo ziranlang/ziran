@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Generated C gets a copy of `ziran_simd_ops.h` holding only the SIMD
+  helpers the program calls, with the same object code. TinyCC compiles
+  the AV1 decoder's modules a third faster, which starts an uncached ZX
+  `ziran run` about 230 ms sooner on 32-bit Android.
 - Generated C leaves out bounds checks that an `else` branch or a constant
   left shift proves: `view[i - 1]` in the `else` of `if i == 0`, `t[i]`
   under `if i != 8` in `for i: 0..8`, and `bytes[(row << 4) + t]`.

@@ -127,7 +127,9 @@ char *EmitConstantTablesEnd(void);
 #define RUNTIME_INCLUDES_MARK "/* ziran runtime includes */\n"
 #define NUMBER_HELPERS_MARK "/* ziran numeric helpers */\n"
 #define CONSTANT_TABLES_MARK "/* ziran constant tables */\n"
-int EmitNativeHelpers(FILE *out, const char *text);
+/* With simd, also record the SIMD helper names the text holds. */
+struct ZirSimdUses;
+int EmitNativeHelpers(FILE *out, const char *text, struct ZirSimdUses *simd);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */
 void EmitGoNumberHelpers(FILE *out, const char *text, unsigned *written);

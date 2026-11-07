@@ -384,3 +384,119 @@ SimdSignature(const SimdOp *op, const char *result, const SimdOperand *operands,
     }
     return fail(message, unsupported);
 }
+
+/* ---- Helper names ---- */
+
+/* The tables outlive any one recoverable operation, so they use untracked
+ * memory from AllocateOrExit. */
+static void *
+grown(void *items, size_t used, size_t size)
+{
+    void *bigger = AllocateOrExit(size);
+    if(used) memcpy(bigger, items, used);
+    free(items);
+    return bigger;
+}
+
+static size_t
+name_hash(const char *name, size_t length)
+{
+    uint64_t hash = 1469598103934665603u;
+    for(size_t i = 0; i < length; i++)
+        hash = (hash ^ (unsigned char)name[i]) * 1099511628211u;
+    return (size_t)(hash ^ hash >> 32);
+}
+
+long
+SimdNamesFind(SimdNames *names, const char *name, size_t length, int add)
+{
+    if(add && (names->count + 1) * 2 > names->slot_count) {
+        size_t slot_count = names->slot_count ? names->slot_count * 2 : 256;
+        size_t *slots = AllocateOrExit(slot_count * sizeof(*slots));
+        memset(slots, 0, slot_count * sizeof(*slots));
+        for(size_t i = 0; i < names->count; i++) {
+            size_t at = name_hash(names->text[i], names->length[i]) & (slot_count - 1);
+            while(slots[at]) at = (at + 1) & (slot_count - 1);
+            slots[at] = i + 1;
+        }
+        free(names->slots);
+        names->slots = slots;
+        names->slot_count = slot_count;
+    }
+    if(names->slot_count == 0)
+        return -1;
+    size_t mask = names->slot_count - 1;
+    for(size_t at = name_hash(name, length) & mask;; at = (at + 1) & mask) {
+        size_t slot = names->slots[at];
+        if(slot != 0) {
+            if(names->length[slot - 1] == length && !memcmp(names->text[slot - 1], name, length))
+                return (long)(slot - 1);
+            continue;
+        }
+        if(!add)
+            return -1;
+        if(names->count == names->capacity) {
+            size_t capacity = names->capacity ? names->capacity * 2 : 64;
+            names->text = grown(names->text, names->count * sizeof(*names->text),
+                                         capacity * sizeof(*names->text));
+            names->length = grown(names->length, names->count * sizeof(*names->length),
+                                           capacity * sizeof(*names->length));
+            names->capacity = capacity;
+        }
+        names->text[names->count] = name;
+        names->length[names->count] = length;
+        names->slots[at] = ++names->count;
+        return (long)(names->count - 1);
+    }
+}
+
+void
+SimdNamesFree(SimdNames *names)
+{
+    free(names->text);
+    free(names->length);
+    free(names->slots);
+    memset(names, 0, sizeof(*names));
+}
+
+int
+SimdHelperWord(const char **word, size_t *length)
+{
+    static const char *const tiers[] = {"ssse3_", "sse41_", "avx2_"};
+    if(*length <= 3 || memcmp(*word, "zi_", 3) != 0)
+        return 0;
+    *word += 3;
+    *length -= 3;
+    for(size_t i = 0; i < sizeof(tiers) / sizeof(tiers[0]); i++) {
+        size_t tier = strlen(tiers[i]);
+        if(*length > tier && !memcmp(*word, tiers[i], tier)) {
+            *word += tier;
+            *length -= tier;
+            break;
+        }
+    }
+    if(*length > 3 && !memcmp(*word + *length - 3, "_p_", 3))
+        *length -= 3;
+    return 1;
+}
+
+void
+SimdUsesNote(ZirSimdUses *uses, const char *word, size_t length)
+{
+    if(!SimdHelperWord(&word, &length) || SimdNamesFind(&uses->names, word, length, 0) >= 0)
+        return;
+    /* The generated text goes away; keep a copy. */
+    char *copy = AllocateOrExit(length + 1);
+    memcpy(copy, word, length);
+    copy[length] = '\0';
+    SimdNamesFind(&uses->names, copy, length, 1);
+}
+
+void
+SimdUsesFree(ZirSimdUses *uses)
+{
+    for(size_t i = 0; i < uses->names.count; i++)
+        free((char *)uses->names.text[i]);
+    SimdNamesFree(&uses->names);
+    uses->header = 0;
+}

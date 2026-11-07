@@ -2,6 +2,7 @@
 #include "zir_memory.h"
 #include "zir_emit_internal.h"
 #include "zir_scalar.h"
+#include "zir_simd.h"
 
 static void readable_module_name(const char *name, char *out, size_t size, int upper);
 
@@ -1916,7 +1917,7 @@ enum { C_NUMBER_HELPER_COUNT = sizeof(c_number_helpers) / sizeof(c_number_helper
  * When calls is not NULL, the same pass marks each number helper called as a
  * whole word: ReadSignedBits( is no call of SignedBits. */
 static unsigned
-native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT])
+native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirSimdUses *simd)
 {
     /* Each emitted identifier is compared against these literal names. Keep
      * their lengths with the table rather than calling strlen per token. */
@@ -1948,8 +1949,12 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT])
         size_t length = (size_t)(p - start);
         if(length == 0)
             continue;
-        if(!(includes & NATIVE_SIMD) && *start == 'z')
-            includes |= simd_identifier(start, length);
+        if(*start == 'z') {
+            if(!(includes & NATIVE_SIMD))
+                includes |= simd_identifier(start, length);
+            if(simd != NULL)
+                SimdUsesNote(simd, start, length);
+        }
         for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
             if(!(includes & uses[i].include) && uses[i].length == length &&
                *start == *uses[i].name &&
@@ -1965,7 +1970,7 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT])
 
 /* Resolve both dependency marks before writing the final native text. */
 int
-EmitNativeHelpers(FILE *file, const char *text)
+EmitNativeHelpers(FILE *file, const char *text, ZirSimdUses *simd)
 {
     const char *mark, *numbers;
     int needed[C_NUMBER_HELPER_COUNT] = {0};
@@ -1974,7 +1979,7 @@ EmitNativeHelpers(FILE *file, const char *text)
     numbers = strstr(text, NUMBER_HELPERS_MARK);
     if(mark == NULL || (numbers != NULL && numbers < mark))
         return -1;
-    unsigned includes = native_runtime_includes(text, numbers ? needed : NULL);
+    unsigned includes = native_runtime_includes(text, numbers ? needed : NULL, simd);
     needed[0] |= needed[1];
     needed[7] |= needed[8];
     for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)

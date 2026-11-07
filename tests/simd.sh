@@ -339,6 +339,13 @@ for input in source saved; do
     done
     grep -q 'zi_add_sat_s16x8(' "$output/app.c"
     grep -q 'zi_simd_at(' "$output/app.c"
+    # The program's copy of the operations header keeps only the helpers it
+    # calls, which the builds above compiled.
+    grep -q 'zi_add_sat_s16x8' "$output/ziran_simd_ops.h"
+    if grep -q -e 'zi_sub_u64x4' -e '^/\*@' "$output/ziran_simd_ops.h"; then
+        echo "$input: ziran_simd_ops.h kept an unused helper or a segment mark" >&2
+        exit 1
+    fi
     # Go runs the same lanes through its port of the reference semantics.
     if command -v go >/dev/null 2>&1; then
         "$ziran" build --target=go --pkg main --entry app:main --exe --root "$root" \

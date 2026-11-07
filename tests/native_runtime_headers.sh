@@ -105,7 +105,7 @@ mkdir "$work/copied"
 cat > "$work/copy.c" <<'C'
 #include "zir_runtime.h"
 int main(int argc, char **argv) {
-    return argc == 3 && EmitRuntimeHeaders(argv[1], argv[2]) ? 0 : 1;
+    return argc == 3 && EmitRuntimeHeaders(argv[1], argv[2], 0) ? 0 : 1;
 }
 C
 cat > "$work/copied/use.c" <<'C'

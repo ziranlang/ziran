@@ -163,6 +163,8 @@ static void strip_alias_type(const ZirModule *m, const char *type,
 /* The program being lowered, for host capabilities bound to Ziran
  * providers in other modules. */
 static const ZirProgram *lowering_program;
+/* The SIMD helpers its generated files name, for its ziran_simd_ops.h. */
+static ZirSimdUses *lowering_simd;
 
 /* A host capability bound to an exported Ziran provider calls the
  * provider's C function, under whatever name collisions gave it. */
@@ -1973,7 +1975,7 @@ emit_header_inlines(FILE *h, const ZirModule *m, const ZirCModuleSyms *restab,
                 buffers->stem, buffers->guard);
         if(ModuleUsesVecOperations(m))
             fputs("#include \"zir_vec.h\"\n", h);
-        if(EmitNativeHelpers(h, section) != 0) { perror("inline header"); exit(1); }
+        if(EmitNativeHelpers(h, section, lowering_simd) != 0) { perror("inline header"); exit(1); }
         fputs("#endif\n", h);
         free(section);
     }
@@ -2267,7 +2269,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot replace C header output: %s", buffers->hpath);
         return 0;
     }
-    if(!EmitRuntimeHeaders(out_dir, buffers->hpath)) {
+    if(!EmitRuntimeHeaders(out_dir, buffers->hpath, lowering_simd)) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot write runtime headers beside %s", buffers->hpath);
         return 0;
@@ -2563,7 +2565,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
         source_text = joined;
     }
     c = GeneratedOutputOpen(buffers->cpath, buffers->ctemp, sizeof(buffers->ctemp));
-    int finished = c ? EmitNativeHelpers(c, source_text) : -1;
+    int finished = c ? EmitNativeHelpers(c, source_text, lowering_simd) : -1;
     free(source_text);
     if(c && fclose(c) != 0) finished = -1;
     if(finished != 0) {
@@ -2577,7 +2579,7 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                    "cannot replace C source output: %s", buffers->cpath);
         return 0;
     }
-    if(!EmitRuntimeHeaders(out_dir, buffers->cpath)) {
+    if(!EmitRuntimeHeaders(out_dir, buffers->cpath, lowering_simd)) {
         Diagnostic(m->span, "zir_c.global",
                    "cannot write runtime headers beside %s", buffers->cpath);
         return 0;
@@ -2627,7 +2629,9 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
             if(!fn->is_template && NativeProgramMain(&program->modules[i], fn) &&
                !CheckNativeEntry(fn, "c")) return 0;
         }
+    ZirSimdUses simd = {0};
     lowering_program = program;
+    lowering_simd = &simd;
     header_table_open(restab, restab_count);
     int lowered = 1;
     for(i = 0; lowered && i < program->module_count; i++)
@@ -2635,6 +2639,14 @@ c_lower_in_context(const ZirProgram *program, const char *root, const char *out_
                                out_dir, linked);
     header_table_close();
     lowering_program = NULL;
+    lowering_simd = NULL;
+    /* Every file is out, so the program's helpers are known. */
+    if(lowered && simd.header && !EmitSimdOps(out_dir, &simd)) {
+        Diagnostic(program->modules[0].span, "zir_c.global",
+                   "cannot write ziran_simd_ops.h in %s", out_dir);
+        lowered = 0;
+    }
+    SimdUsesFree(&simd);
     return lowered;
 }
 

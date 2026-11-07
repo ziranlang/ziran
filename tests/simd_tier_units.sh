@@ -33,6 +33,13 @@ Settle :: (v: s32x4, rounds: s32) -> s32x4 #inline {
     return w
 }
 
+// No std/simd of its own: the loop keeps it a call, to the copy in the unit.
+Spread :: (k: s32, rounds: s32) -> s32 #inline {
+    t := k
+    for i: 1..rounds { t = t * 3 + i }
+    return t
+}
+
 #scope_file
 Scale :: (x: s32) -> s32 { return x * 2 + 1 }
 #scope_export
@@ -48,7 +55,7 @@ ZI
         i=$((i + 1))
     done
     cat <<'ZI'
-    Simd.Store(out, 0, Settle(v, 3))
+    Simd.Store(out, 0, Settle(Simd.Add(v, Simd.Splat(s32x4, Spread(seed, 2))), 3))
 }
 ZI
 } > "$work/wide.zi"
@@ -89,8 +96,10 @@ for tier in avx2 sse41 ssse3; do
         fi
     done
 done
-# A clone calls its tier's copy of an #inline procedure using std/simd.
-grep -q 'wide_Settle_ziran_avx2(v, 3);' "$output/wide.c"
+# A clone calls its tier's copy of every #inline procedure, which its unit
+# defines, as it sees no other definition.
+grep -q 'wide_Settle_ziran_avx2(' "$output/wide.c"
+grep -q 'wide_Spread_ziran_avx2(seed, 2)' "$output/wide.c"
 printf '#include "app.h"\nint main(void) { app_main(); return 0; }\n' > "$output/main.c"
 
 compilers=${CC:-cc}
@@ -122,6 +131,10 @@ case "$expected" in *" 2 3") ;; *) echo "Wide.Calls counted $expected" >&2; exit
 nm "$work/wide.o" | grep -q ' T wide_Mix$'
 nm "$work/wide.o" | grep -q ' U wide_Mix_ziran_avx2$'
 nm "$work/avx2.o" | grep -q ' T wide_Mix_ziran_avx2$'
+if nm "$work/avx2.o" | grep -q ' U wide_\(Spread\|Settle\)'; then
+    echo "wide.avx2.c called an #inline procedure out of its unit" >&2
+    exit 1
+fi
 if nm "$work/avx2.o" | grep -q ' [TDB] wide_\(Mix\|Calls\)$'; then
     echo "wide.avx2.c defined the module's own symbols" >&2
     exit 1

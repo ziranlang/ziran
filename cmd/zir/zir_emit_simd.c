@@ -33,31 +33,12 @@ module_procedure(const ZirModule *module, const char *name)
     return found;
 }
 
-static int
-tier_copied(const ZirModule *module, const ZirFunction *fn, int depth)
-{
-    if(fn->inlining != ZIR_INLINE_ALWAYS || fn->simd_target || fn->is_template ||
-       fn->is_extern || (fn->assembly_text && *fn->assembly_text) || depth >= 8)
-        return 0;
-    for(int i = 0; i < fn->expr_count; i++)
-        if(fn->exprs[i].kind == ZIR_EXPR_CALL && SimdOpChecked(fn->exprs[i].name) != NULL)
-            return 1;
-    for(int i = 0; i < fn->expr_count; i++) {
-        const ZirExpr *x = &fn->exprs[i];
-        const ZirFunction *callee;
-        if(x->kind != ZIR_EXPR_CALL || x->slot_type[0])
-            continue;
-        callee = module_procedure(module, x->name);
-        if(callee != NULL && callee != fn && tier_copied(module, callee, depth + 1))
-            return 1;
-    }
-    return 0;
-}
-
 int
 SimdTierCopied(const ZirModule *module, const ZirFunction *fn)
 {
-    return tier_copied(module, fn, 0);
+    (void)module;
+    return fn->inlining == ZIR_INLINE_ALWAYS && !fn->simd_target && !fn->is_template &&
+           !fn->is_extern && !(fn->assembly_text && *fn->assembly_text);
 }
 
 int

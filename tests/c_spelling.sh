@@ -46,6 +46,19 @@ Initial :: (node: *Node) -> u8 {
     return name[0]
 }
 
+// A store casts the value to the field's C spelling: an assignment, a
+// record literal, and one whose call makes it store field by field.
+Same :: (text: *u8) -> *u8 { return text }
+
+#program_export
+Rename :: (node: *Node, text: *u8) -> s32 {
+    node.name = text
+    plain := Node.{name = text, kind = Kind.Index}
+    called := Node.{name = Same(text), kind = Kind.Call}
+    if plain.name != text || called.name != text { return 0 }
+    return 1
+}
+
 #program_export
 Answer :: () -> s32 {
     node: Node
@@ -78,7 +91,8 @@ int main(void) {
     memcpy(op, "+=", 3);
     return Weight(&node, SPELL_Second) == 42 &&
         Weight(&node, SPELL_First) == SPELL_KIND_Ident && Initial(&node) == 'c' &&
-        SPELL_KIND_Index == 5 && strcmp(node.name, "call") == 0 ? 0 : 1;
+        SPELL_KIND_Index == 5 && strcmp(node.name, "call") == 0 &&
+        Rename(&node, (uint8_t *)"renamed") && strcmp(node.name, "renamed") == 0 ? 0 : 1;
 }
 EOF
 ${CC:-cc} -std=c11 -Werror=discarded-qualifiers -Werror=pointer-sign \

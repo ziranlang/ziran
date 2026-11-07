@@ -213,6 +213,12 @@ const ZirType *field_record(const ZirModule *module, const char *type);
 /* The C or Go text for PATH's fields from BASE_EXPRESSION. A READ of a pointer
  * field C spells its own way is cast to the field's Ziran type. */
 void emit_field_path(const ZirModule *module, ZirTarget target, const char *base_type, const char *path, int read, const char *base_expression, char *out, size_t size);
+/* Whether RECORD's field NAME is a pointer C declares its own way, such as
+ * const char * for *u8: reads cast to the Ziran type, stores to the spelling. */
+int spelled_pointer_field(const ZirType *record, const char *name, ZirTypeField *field);
+/* VALUE, stored to RECORD's field NAME, cast in place to a spelled pointer
+ * field's C type on C. */
+void spelled_field_store(ZirTarget target, const ZirType *record, const char *name, char *value, size_t size);
 const char *zero_value(const char *type, ZirTarget target);
 void number_prefix(const ZirModule *module, char *out, size_t size);
 int emitter_type_contains_vec(const ZirModule *module, const char *type, int depth);

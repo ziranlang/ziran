@@ -1382,6 +1382,31 @@ field_record(const ZirModule *module, const char *type)
     while(*base == '*') base = skip_ws(base + 1);
     return FindType(module, base, NULL);
 }
+int
+spelled_pointer_field(const ZirType *record, const char *name, ZirTypeField *field)
+{
+    return record != NULL && TypeFindField(record, name, field) == 1 &&
+           field->c_type[0] && field->type[0] == '*';
+}
+
+void
+spelled_field_store(ZirTarget target, const ZirType *record, const char *name,
+                    char *value, size_t size)
+{
+    ZirTypeField field;
+    if(target != ZIR_C || !spelled_pointer_field(record, name, &field))
+        return;
+    size_t length = strlen(value), prefix = strlen(field.c_type) + 3;
+    if(length + prefix + 2 > size) {
+        Diagnostic(record->span, "emit.expression", "field value is too long");
+        exit(1);
+    }
+    memmove(value + prefix, value, length);
+    value[0] = '(';
+    memcpy(value + 1, field.c_type, prefix - 3);
+    memcpy(value + prefix - 2, ")(", 2);
+    memcpy(value + prefix + length, ")", 2);
+}
 /* Buffers emit_field_path keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct EmitFieldPathBuffers {
@@ -1458,11 +1483,8 @@ emit_field_path_with_buffers(const ZirModule *module, ZirTarget target,
                target != ZIR_GO && *base == '*' ? "->" : ".", mapped);
         copy_text(buffers->result, sizeof(buffers->result), buffers->next);
         ZirTypeField spelled;
-        if(dot == NULL && read && target == ZIR_C && record != NULL &&
-           TypeFindField(record, name, &spelled) == 1 &&
-           spelled.c_type[0] && spelled.type[0] == '*') {
-            /* C declares this pointer its own way, such as const char *
-             * for *u8; a read has the field's Ziran type. */
+        if(dot == NULL && read && target == ZIR_C &&
+           spelled_pointer_field(record, name, &spelled)) {
             const char *leaf = spelled.type;
             char native[ZIR_NAME_MAX], pointer[ZIR_NAME_MAX * 2];
             while(*leaf == '*') leaf = skip_ws(leaf + 1);

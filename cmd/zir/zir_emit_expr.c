@@ -634,8 +634,10 @@ c_brace_list(Emitter *e, const ZirExpr *expr, const char *type, int braced,
             e->fn->exprs[entry->right].kind == ZIR_EXPR_COMPOUND;
         emit_expr(e, entry->right, entry->type, value, sizeof(value));
         e->braced_initializer = 0;
-        if(!is_array)
+        if(!is_array) {
             TargetFieldName(record, e->target, entry->name, field, sizeof(field));
+            spelled_field_store(e->target, record, entry->name, value, sizeof(value));
+        }
         const char *shown = bare(value, plain, sizeof(plain));
         /* A list too long for one expression, such as a big table, is
          * stored element by element instead. */
@@ -1208,6 +1210,8 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
                 TargetFieldName(field_record(e->module, type), e->target,
                                 field->name, field_name, sizeof(field_name));
             emit_expr(e, field->right, field->type, buffers->a, sizeof(buffers->a));
+            spelled_field_store(e->target, field_record(e->module, type), field->name,
+                                buffers->a, sizeof(buffers->a));
             format(buffers->b, sizeof(buffers->b), "%s.%s", temp, field_name);
             assign_value(e, buffers->b, field->type, buffers->a);
         }

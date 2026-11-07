@@ -1766,33 +1766,38 @@ TCC_X64 = 'ZI_TCC_X64'
 TX_BITS = {8: 'b', 16: 'w', 32: 'd', 64: 'q'}
 
 
-def tx_body(r, sources, steps, scalars=(), dest='&r_', out=0, store_low=False):
-    """An asm body: load each source address's block into %xmm0.., run steps
-    (X0.. for registers, S0.. for scalar operands) and store %xmm{out} to dest.
-    r is the result type, or None when dest is the store's pointer."""
-    blocks = 2 if (r is not None and r.wide) or any(s[1] for s in sources) else 1
-    operands = [dest] + [s[0] for s in sources] + list(scalars)
-    text = []
-    for block in range(blocks):
-        at = 16 * block
-        for j, (_, _wide) in enumerate(sources):
-            text.append('movq %d(%%%d), X%d' % (at, j + 1, j))
-            if not store_low:
-                text.append('movhps %d(%%%d), X%d' % (at + 8, j + 1, j))
-        text += steps
-        text.append('movq X%d, %d(%%0)' % (out, at))
-        if not store_low:
-            text.append('movhps X%d, %d(%%0)' % (out, at + 8))
+def tx_asm(text, operands):
+    """An asm statement running text, with X0.. for %xmm0.. and %0.. for the
+    "r" operands in order."""
     asm = '\\n\\t'.join(text)
     for k in range(4):
         asm = asm.replace('X%d' % k, '%%%%xmm%d' % k)
-    for k in range(len(scalars)):
-        asm = asm.replace('S%d' % k, '%%%d' % (1 + len(sources) + k))
-    lines = ['%s r_;' % r.c] if r is not None else []
-    lines.append('__asm__("%s" : : %s : "memory");' % (asm, ', '.join('"r"(%s)' % o for o in operands)))
-    if r is not None:
-        lines.append('return r_;')
-    return '\n    '.join(lines)
+    return '__asm__("%s" : : %s : "memory");' % (asm, ', '.join('"r"(%s)' % o for o in operands))
+
+
+def tx_body(r, sources, steps, scalars=(), dest='&r_', out=0, store_low=False):
+    """Load each source address's block into %xmm0.., run steps (S0.. for
+    the scalar operands) and store %xmm{out} to dest, block by block. r is
+    the result type, or None when dest is the store's pointer."""
+    blocks = 2 if (r is not None and r.wide) or any(wide for _, wide in sources) else 1
+    text = []
+    for block in range(blocks):
+        at = 16 * block
+        for j in range(len(sources)):
+            text.append('movq %d(%%%d), X%d' % (at, j + 1, j))
+            if not store_low:
+                text.append('movhps %d(%%%d), X%d' % (at + 8, j + 1, j))
+        for step in steps:
+            for k in range(len(scalars)):
+                step = step.replace('S%d' % k, '%%%d' % (1 + len(sources) + k))
+            text.append(step)
+        text.append('movq X%d, %d(%%0)' % (out, at))
+        if not store_low:
+            text.append('movhps X%d, %d(%%0)' % (out, at + 8))
+    asm = tx_asm(text, [dest] + [s for s, _ in sources] + list(scalars))
+    if r is None:
+        return asm
+    return '%s r_;\n    %s\n    return r_;' % (r.c, asm)
 
 
 def tcc_x64_body(op, t):
@@ -1871,12 +1876,10 @@ def tcc_x64_body(op, t):
         return tx_body(None, [('&a', False)], [], dest='p', store_low=True)
     if e == 'ZI_OP_LOAD_LOW':
         # 64 bits into a zeroed vector.
-        lines = ['%s r_;' % r.c,
-                 '__asm__("movq (%%1), %%%%xmm0\\n\\tmovq %%%%xmm0, (%%0)\\n\\tpxor %%%%xmm0, %%%%xmm0\\n\\t'
-                 'movhps %%%%xmm0, 8(%%0)%s" : : "r"(&r_), "r"(p) : "memory");' %
-                 ('\\n\\tmovq %%xmm0, 16(%0)\\n\\tmovhps %%xmm0, 24(%0)' if wide else ''),
-                 'return r_;']
-        return '\n    '.join(lines)
+        text = ['movq (%1), X0', 'movq X0, (%0)', 'pxor X0, X0', 'movq X0, 8(%0)']
+        if wide:
+            text += ['movq X0, 16(%0)', 'movq X0, 24(%0)']
+        return '%s r_;\n    %s\n    return r_;' % (r.c, tx_asm(text, ['&r_', 'p']))
     if e in ('ZI_OP_SPLAT', 'ZI_OP_ZERO') and not t.float:
         # Every 64-bit word holds the same lanes.
         words = t.bytes // 8

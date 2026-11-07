@@ -20092,7 +20092,7 @@ ZI_FN zi_u8x16 ZI_N(load_low_u8x16)(const void * p)
     return (zi_u8x16)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_u8x16 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u8x16 r_;
@@ -20115,7 +20115,7 @@ ZI_FN zi_s8x16 ZI_N(load_low_s8x16)(const void * p)
     return (zi_s8x16)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_s8x16 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s8x16 r_;
@@ -20138,7 +20138,7 @@ ZI_FN zi_u16x8 ZI_N(load_low_u16x8)(const void * p)
     return (zi_u16x8)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_u16x8 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u16x8 r_;
@@ -20161,7 +20161,7 @@ ZI_FN zi_s16x8 ZI_N(load_low_s16x8)(const void * p)
     return (zi_s16x8)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_s16x8 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s16x8 r_;
@@ -20184,7 +20184,7 @@ ZI_FN zi_u32x4 ZI_N(load_low_u32x4)(const void * p)
     return (zi_u32x4)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_u32x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u32x4 r_;
@@ -20207,7 +20207,7 @@ ZI_FN zi_s32x4 ZI_N(load_low_s32x4)(const void * p)
     return (zi_s32x4)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_s32x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s32x4 r_;
@@ -20230,7 +20230,7 @@ ZI_FN zi_u64x2 ZI_N(load_low_u64x2)(const void * p)
     return (zi_u64x2)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_u64x2 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u64x2 r_;
@@ -20253,7 +20253,7 @@ ZI_FN zi_s64x2 ZI_N(load_low_s64x2)(const void * p)
     return (zi_s64x2)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_s64x2 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s64x2 r_;
@@ -20276,7 +20276,7 @@ ZI_FN zi_f32x4 ZI_N(load_low_f32x4)(const void * p)
     return (zi_f32x4)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_f32x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_f32x4 r_;
@@ -20299,7 +20299,7 @@ ZI_FN zi_f64x2 ZI_N(load_low_f64x2)(const void * p)
     return (zi_f64x2)(zi_u64x2){w_};
 #elif ZI_TCC_X64
     zi_f64x2 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_f64x2 r_;
@@ -20316,7 +20316,7 @@ ZI_FN zi_u8x32 ZI_N(load_low_u8x32)(const void * p)
     return (zi_u8x32)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_u8x32 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u8x32 r_;
@@ -20333,7 +20333,7 @@ ZI_FN zi_s8x32 ZI_N(load_low_s8x32)(const void * p)
     return (zi_s8x32)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_s8x32 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s8x32 r_;
@@ -20350,7 +20350,7 @@ ZI_FN zi_u16x16 ZI_N(load_low_u16x16)(const void * p)
     return (zi_u16x16)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_u16x16 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u16x16 r_;
@@ -20367,7 +20367,7 @@ ZI_FN zi_s16x16 ZI_N(load_low_s16x16)(const void * p)
     return (zi_s16x16)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_s16x16 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s16x16 r_;
@@ -20384,7 +20384,7 @@ ZI_FN zi_u32x8 ZI_N(load_low_u32x8)(const void * p)
     return (zi_u32x8)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_u32x8 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u32x8 r_;
@@ -20401,7 +20401,7 @@ ZI_FN zi_s32x8 ZI_N(load_low_s32x8)(const void * p)
     return (zi_s32x8)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_s32x8 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s32x8 r_;
@@ -20418,7 +20418,7 @@ ZI_FN zi_u64x4 ZI_N(load_low_u64x4)(const void * p)
     return (zi_u64x4)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_u64x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_u64x4 r_;
@@ -20435,7 +20435,7 @@ ZI_FN zi_s64x4 ZI_N(load_low_s64x4)(const void * p)
     return (zi_s64x4)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_s64x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_s64x4 r_;
@@ -20452,7 +20452,7 @@ ZI_FN zi_f32x8 ZI_N(load_low_f32x8)(const void * p)
     return (zi_f32x8)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_f32x8 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_f32x8 r_;
@@ -20469,7 +20469,7 @@ ZI_FN zi_f64x4 ZI_N(load_low_f64x4)(const void * p)
     return (zi_f64x4)(zi_u64x4){w_};
 #elif ZI_TCC_X64
     zi_f64x4 r_;
-    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovhps %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovhps %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
+    __asm__("movq (%1), %%xmm0\n\tmovq %%xmm0, (%0)\n\tpxor %%xmm0, %%xmm0\n\tmovq %%xmm0, 8(%0)\n\tmovq %%xmm0, 16(%0)\n\tmovq %%xmm0, 24(%0)" : : "r"(&r_), "r"(p) : "memory");
     return r_;
 #else
     zi_f64x4 r_;

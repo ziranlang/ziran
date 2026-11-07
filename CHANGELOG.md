@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- A local override checked out past its locked commit is validated against the
+  graph its root dependency locks, so exact transitive pins of that package
+  no longer fail with a dependency-count mismatch.
 - `std/simd` vectors such as `u8x16`, `s16x8` and `f32x4`, and 256-bit forms
   such as `s16x16`, with operations that give the same bits in C (SSE2 to
   AVX2, NEON and WebAssembly SIMD128), Go, bundles and the portable VM.

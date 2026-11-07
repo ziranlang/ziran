@@ -1114,6 +1114,10 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             // rather than an older revision's dependency inventory. Keep the
             // original node identity until incoming declarations are checked.
             selected: s32 = PkgFindById(locked, PkgLockId(item.url, commit, item.source))
+            // A newer local commit has no entry of its own: the root project's
+            // dependency selects this source for every incoming edge, so all
+            // locked revisions are checked against the graph locked for it.
+            if selected < 0 { selected = PkgRootSelection(locked, item.url, item.source) }
             if selected >= 0 && selected != index {
                 item.edges = locked.packages[selected].edges
                 item.edge_count = locked.packages[selected].edge_count
@@ -1183,6 +1187,18 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     }
     return locked.tool_path.count > 0 &&
         PkgApplyOverrideIdentities(root, overrides, current, locked)
+}
+
+// The locked entry a root dependency selects for one source, or -1.
+PkgRootSelection :: (locked: *PkgLock, url: string, source: bool) -> s32 {
+    index: s32 = 0
+    while index < locked.root_edge_count {
+        target: s32 = PkgFindById(locked, locked.root_edges[index].value)
+        if target >= 0 && locked.packages[target].source == source &&
+            PkgSameSource(locked.packages[target].url, url) { return target }
+        index += 1
+    }
+    return -1
 }
 
 PkgSelect :: (locked: *PkgLock, selector: string) -> s32 {

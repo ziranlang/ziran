@@ -509,6 +509,18 @@ main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 
         assert len([line for line in mapped if line.startswith("P\t") and line.endswith("\t" + str(leaf))]) == 1, mapped
         assert any(line.startswith("P\t" + extra_id + "\t") for line in mapped), mapped
         assert (app / "ziran.lock").read_bytes() == untouched
+    # A newer local commit of the overridden checkout has no lock entry of its
+    # own; the root dependency's locked graph still covers every revision.
+    write(leaf / "src/Value.zi", '#import "Extra/Value"\nRevision :: ExtraNumber + 1;\nValue :: struct { number: s32 }\n')
+    commit(leaf, env)
+    for packages in (production["packages"], list(reversed(production["packages"]))):
+        production["packages"] = packages
+        write(app / "ziran.lock", json.dumps(production))
+        untouched = (app / "ziran.lock").read_bytes()
+        call(ziran, "fetch", "--offline", cwd=app, env=env)
+        call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+             "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+        assert (app / "ziran.lock").read_bytes() == untouched
     # A changed declaration in the selected checkout still requires locking.
     write(leaf / "ziran.toml", dependency_manifest.replace('ref = "master"', f'ref = "{pins[0]}"'))
     call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)

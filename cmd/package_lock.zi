@@ -1,3 +1,4 @@
+Diagnostics :: #import "diagnostics"
 #import "package_common"
 #import "package_manifest"
 #import "package_source"
@@ -802,6 +803,17 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
         }
         return PkgWriteLock(root, old)
     }
+    return PkgResolveGraph(root, refresh, false, current, old, overrides, resolved) &&
+        PkgWriteLock(root, resolved)
+}
+
+// Resolve the declared graph into resolved, keeping the pins of old where a
+// declaration is unchanged. Offline resolution only accepts exact commits for
+// declarations that ziran.lock does not pin yet.
+PkgResolveGraph :: (root: string, refresh: string, offline: bool,
+    current: *PkgManifest, old: *PkgLock, overrides: *PkgOverrides,
+    resolved: *PkgLock) -> bool {
+    targeted: bool = refresh != "" && refresh != "*" && refresh != "ziran"
     if refresh != "" && refresh != "*" && refresh != "ziran" {
         found: bool = false
         index: s32 = 0
@@ -864,7 +876,7 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                     return false
                 }
                 item.commit = old.packages[previous].commit
-                item.path = PkgCheckout(next.url, item.commit, false)
+                item.path = PkgCheckout(next.url, item.commit, offline)
             } else if override.count > 0 {
                 item.commit = PkgOverrideIdentity(override)
                 item.path = override
@@ -875,10 +887,14 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
                 if previous >= 0 && PkgValidCommit(old.packages[previous].commit) && !next.refresh &&
                     (!PkgValidCommit(next.ref) || old.packages[previous].commit == next.ref) {
                     item.commit = old.packages[previous].commit
+                } else if offline && !PkgValidCommit(next.ref) {
+                    unused PkgFail(PkgJoin3("cannot resolve ", next.alias,
+                        PkgJoin3(" ", next.ref, " offline; ziran.lock does not pin it")))
+                    return false
                 } else {
                     item.commit = PkgRemoteCommit(next.url, next.ref)
                 }
-                item.path = PkgCheckout(next.url, item.commit, false)
+                item.path = PkgCheckout(next.url, item.commit, offline)
             }
             if (!PkgValidCommit(item.commit) && !PkgValidDevelopment(item.commit)) || item.path.count == 0 {
                 return false
@@ -970,11 +986,13 @@ PkgResolveLock :: (root: string, refresh: string) -> bool {
         old.tool_ref == resolved.tool_ref && refresh != "*" &&
         refresh != "ziran" {
         resolved.tool_commit = old.tool_commit
+    } else if offline {
+        unused PkgFail("cannot resolve the Ziran toolchain offline; ziran.lock does not pin it")
+        return false
     } else {
         resolved.tool_commit = PkgRemoteCommit(resolved.tool_url, resolved.tool_ref)
     }
-    if !PkgValidCommit(resolved.tool_commit) && !PkgValidDevelopment(resolved.tool_commit) { return false }
-    return PkgWriteLock(root, resolved)
+    return PkgValidCommit(resolved.tool_commit) || PkgValidDevelopment(resolved.tool_commit)
 }
 
 // Validation uses the saved graph. Only afterwards substitute actual local
@@ -1052,6 +1070,58 @@ PkgLockMismatch :: (item: *PkgLocked, override: string, detail: string) -> bool 
 
 PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
     locked_mode: bool, current: *PkgManifest) -> bool {
+    return PkgCheckoutLockedGraph(root, locked, offline, locked_mode, current, true)
+}
+
+// A local override is the developer's working source: when its declared
+// dependencies differ from the inventory ziran.lock records, resolve the graph
+// from the actual manifests in memory, as `ziran lock` would, without writing
+// the lock. Packages without an override, the root manifest and --locked builds
+// keep the exact lock check. On failure locked is unchanged and the caller
+// reports the original mismatch.
+PkgCheckoutOverrideGraph :: (root: string, locked: *PkgLock, offline: bool,
+    current: *PkgManifest, overrides: *PkgOverrides, name: string) -> bool {
+    old: *PkgLock = PkgNewLock()
+    resolved: *PkgLock = PkgNewLock()
+    if old == null || resolved == null ||
+       !PkgReadLock(PkgJoin(root, "/ziran.lock"), old) ||
+       !PkgResolveGraph(root, "", offline, current, old, overrides, resolved) ||
+       !PkgCheckoutLockedGraph(root, resolved, offline, false, current, false) {
+        return false
+    }
+    if !Diagnostics.IsJson() {
+        PkgPrint(PkgJoin3("ziran: note: the local override of ", name,
+            " declares dependencies ziran.lock does not record; resolved them for this build (run `ziran lock` before committing)\n"), true)
+    }
+    index: s32 = 0
+    while index < resolved.count {
+        locked.packages[index] = resolved.packages[index]
+        index += 1
+    }
+    index = 0
+    while index < resolved.root_edge_count {
+        locked.root_edges[index] = resolved.root_edges[index]
+        index += 1
+    }
+    index = 0
+    while index < resolved.root_ref_count {
+        locked.root_refs[index] = resolved.root_refs[index]
+        index += 1
+    }
+    locked.count = resolved.count
+    locked.root_name = resolved.root_name
+    locked.root_edge_count = resolved.root_edge_count
+    locked.root_ref_count = resolved.root_ref_count
+    locked.tool_url = resolved.tool_url
+    locked.tool_ref = resolved.tool_ref
+    locked.tool_commit = resolved.tool_commit
+    locked.tool_path = resolved.tool_path
+    locked.valid = true
+    return true
+}
+
+PkgCheckoutLockedGraph :: (root: string, locked: *PkgLock, offline: bool,
+    locked_mode: bool, current: *PkgManifest, resolve: bool) -> bool {
     overrides: *PkgOverrides = PkgNewOverrides()
     if overrides == null ||
        !PkgParseOverrides(PkgJoin(root, "/ziran.local.toml"), overrides) ||
@@ -1148,6 +1218,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
                     PkgJoin(", but ziran.lock records ", item.name)))
         }
         if item.manifest.dependency_count != item.edge_count {
+            if resolve && override.count > 0 &&
+               PkgCheckoutOverrideGraph(root, locked, offline, current, overrides, item.name) { return true }
             return PkgLockMismatch(item, override, "declares a different number of dependencies than ziran.lock records")
         }
         child: s32 = 0
@@ -1156,6 +1228,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
             id: string = PkgEdgeValue(*item.edges[0], item.edge_count, dep.alias)
             target: s32 = PkgFindById(locked, id)
             if target < 0 {
+                if resolve && override.count > 0 &&
+                   PkgCheckoutOverrideGraph(root, locked, offline, current, overrides, item.name) { return true }
                 return PkgLockMismatch(item, override,
                     PkgJoin3("declares ", dep.alias, ", but ziran.lock has no pin for it"))
             }
@@ -1164,6 +1238,8 @@ PkgCheckoutGraph :: (root: string, locked: *PkgLock, offline: bool,
                     PkgEdgeValue(*item.refs[0], item.ref_count, dep.alias),
                     PkgSourceOverride(overrides, current, locked, dep.git, dep.alias, root)) ||
                 locked.packages[target].source != dep.source {
+                if resolve && override.count > 0 &&
+                   PkgCheckoutOverrideGraph(root, locked, offline, current, overrides, item.name) { return true }
                 return PkgLockMismatch(item, override,
                     PkgJoin(PkgJoin(PkgJoin3("declares ", dep.alias, " "),
                         PkgJoin3(dep.ref, " from ", dep.git)),

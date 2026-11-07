@@ -437,13 +437,22 @@ main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 
         write(app / "ziran.toml", changed)
         call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
     write(app / "ziran.toml", manifest)
+    # An overridden package's own declarations are resolved from its working
+    # manifest for local commands, leaving ziran.lock untouched; those that
+    # name no readable package still fail.
+    saved_lock = (app / "ziran.lock").read_bytes()
     for changed in (provider_manifest.replace(pins[0], pins[1]),
-                    provider_manifest.replace(leaf.as_uri(), tool.as_uri()),
-                    provider_manifest.replace(f'ref = "{pins[0]}"', f'ref = "{pins[0]}"\nsource = true'),
-                    provider_manifest.replace('[dependencies.Library]', '[dependencies.Renamed]'),
+                    provider_manifest.replace('[dependencies.Library]', '[dependencies.Renamed]')):
+        write(provider / "ziran.toml", changed)
+        output = call(ziran, "pkg", "path", "direct", "--offline", cwd=app, env=env)
+        assert "declares dependencies ziran.lock does not record" in output, output
+        assert Path(output.strip().splitlines()[-1]) == leaf, output
+        assert (app / "ziran.lock").read_bytes() == saved_lock
+    for changed in (provider_manifest.replace(leaf.as_uri(), tool.as_uri()),
                     provider_manifest + '[dependencies.Extra]\ngit = "' + tool.as_uri() + '"\n'):
         write(provider / "ziran.toml", changed)
         call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
+        assert (app / "ziran.lock").read_bytes() == saved_lock
     write(provider / "ziran.toml", provider_manifest)
     write(leaf / "ziran.toml", leaf_manifest.replace('name = "Library"', 'name = "Other"'))
     call(ziran, "pkg", "path", "direct", cwd=app, env=env, succeed=False)
@@ -521,11 +530,62 @@ main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 
         call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
              "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
         assert (app / "ziran.lock").read_bytes() == untouched
-    # A changed declaration in the selected checkout still requires locking.
+    # A declaration the selected checkout cannot resolve still fails.
     write(leaf / "ziran.toml", dependency_manifest.replace('ref = "master"', f'ref = "{pins[0]}"'))
     call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
     write(leaf / "ziran.toml", dependency_manifest)
     print("PASS: override selects the unified locked dependency graph across divergent inventories", flush=True)
+    # The overridden checkout gains a dependency after the lock: a local build
+    # resolves it from the working manifest. Offline, an unpinned branch fails.
+    added = fixture / "added"
+    init(added, env)
+    write(added / "ziran.toml", '[package]\nname = "Added"\nmodule_roots = ["src"]\n[exports]\nValue = "src/Value.zi"\n')
+    write(added / "src/Value.zi", 'AddedNumber :: 4;\n')
+    commit(added, env)
+    gained_manifest = dependency_manifest + f'[dependencies.Added]\ngit = "{added.as_uri()}"\nref = "master"\n'
+    write(leaf / "ziran.toml", gained_manifest)
+    write(leaf / "src/Value.zi", '#import "Extra/Value"\n#import "Added/Value"\nRevision :: ExtraNumber + AddedNumber;\nValue :: struct { number: s32 }\n')
+    commit(leaf, env)
+    write(app / "ziran.lock", json.dumps(production))
+    untouched = (app / "ziran.lock").read_bytes()
+    refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    assert "offline" in refused, refused
+    output = call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+                  "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+    assert "declares dependencies ziran.lock does not record" in output, output
+    mapped = (app / "build/.ziran/module-map.tsv").read_text().splitlines()
+    assert len([line for line in mapped if line.startswith("P\t") and line.endswith("\t" + str(leaf))]) == 1, mapped
+    assert any("\tAdded/Value\t" in line for line in mapped), mapped
+    assert (app / "ziran.lock").read_bytes() == untouched
+    # It loses one: resolution needs nothing new, so it also works offline.
+    write(leaf / "ziran.toml", leaf_manifest)
+    write(leaf / "src/Value.zi", 'Revision :: 5;\nValue :: struct { number: s32 }\n')
+    commit(leaf, env)
+    call(ziran, "fetch", "--offline", cwd=app, env=env)
+    call(ziran, "build", "--project", "--target=c", "--entry", "main:main",
+         "-o", str(app / "build/c"), str(app / "src/main.zi"), cwd=app, env=env)
+    assert (app / "ziran.lock").read_bytes() == untouched
+    # The same inventory mismatch without an override, or with --locked,
+    # still fails the exact lock check.
+    write(leaf / "ziran.toml", dependency_manifest)
+    write(leaf / "src/Value.zi", '#import "Extra/Value"\nRevision :: ExtraNumber;\nValue :: struct { number: s32 }\n')
+    commit(leaf, env)
+    (app / "ziran.local.toml").unlink()
+    tampered = json.loads(untouched)
+    for package in tampered["packages"]:
+        if package["name"] == "Library" and package.get("dependencies"):
+            package["dependencies"].pop("Extra")
+            package["dependency_refs"].pop("Extra")
+    write(app / "ziran.lock", json.dumps(tampered))
+    refused = call(ziran, "fetch", "--offline", cwd=app, env=env, succeed=False)
+    assert "different number of dependencies" in refused, refused
+    refused = call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
+    assert "different number of dependencies" in refused, refused
+    # With the override back, the same lock resolves the working manifest.
+    write(app / "ziran.local.toml", build_local)
+    call(ziran, "fetch", "--offline", cwd=app, env=env)
+    write(app / "ziran.lock", json.dumps(production))
+    print("PASS: an override's changed dependency inventory resolves locally; without an override it still fails", flush=True)
 
 
 def check_transitive_add(ziran: str, root: Path, env: dict) -> None:

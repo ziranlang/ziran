@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- A local override whose own manifest gained, lost or changed dependencies
+  since `ziran.lock` builds locally: its graph is resolved from the working
+  manifests in memory, and the lock is left for `ziran lock`. Packages without
+  an override and `--locked` builds keep the exact check.
 - `ziran COMMAND --help` and `-h` print that command's usage and do nothing
   else; `ziran update --help` used to rewrite the lock.
 - A local override checked out past its locked commit is validated against the

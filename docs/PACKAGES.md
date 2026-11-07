@@ -296,13 +296,18 @@ repository's commit. A root dependency's override selects that source for
 all incoming edges, including transitive dependencies with different aliases
 or exact revision pins. These edges use one actual checkout and module type
 identity. The lock records each edge's declared ref separately, so changing a
-ref, URL, alias, source kind or dependency inventory still requires `ziran lock`.
+ref, URL, alias or source kind in the root manifest still requires `ziran lock`.
 Source-only edits and newer local commits can be used without changing those
 declarations; build commands derive local module identities from the actual
 checkout HEAD. When several locked revisions select a checkout whose commit
 is already in the lock, they use that commit's locked dependency graph before
-merging their identities. The lock on disk remains unchanged. Conflicting
-overrides for one source are refused.
+merging their identities. When an overridden checkout's own manifest declares
+other dependencies than the lock records, local commands resolve the graph
+from the working manifests in memory, as `ziran lock` would, keeping every
+unchanged pin, and print a note; with `--offline` a newly declared branch ref
+cannot be resolved. Packages without an override and `--locked` keep the exact
+check. The lock on disk remains unchanged. Conflicting overrides for one
+source are refused.
 
 After removing overrides, run `ziran lock` to resolve the declared revisions
 again. Development-only entries require their explicit overrides and cannot

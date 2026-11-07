@@ -250,91 +250,6 @@
   the compiler is not yet fully self-hosted.</p>
 </li>
 <li>
-<p>Compiler expression token recognition and cursor tracking are implemented
-  in <code>cmd/compiler_scan.zi</code>. The parser and checker use this implementation
-  through a C boundary that retains their source spans and fixed token buffers.
-  Fresh builds first compile a bootstrap compiler using a checked-in generated
-  scanner, then compile the maintained <code>.zi</code> scanner for every ordinary tool
-  and the portable runtime library. <code>make check-bootstrap</code> verifies the seed;
-  <code>make update-bootstrap</code> regenerates it after an intentional scanner change.
-  <code>tests/compiler_scan.sh</code> checks token kinds, escaped and multiline literals,
-  numeric spellings, source positions, and a reproducible corpus from source
-  and saved IR on C, Go, and <code>.zx</code>. It also checks bootstrap
-  output agreement, C frontend lookahead, null input, and token truncation.</p>
-</li>
-<li>
-<p>Shared compiler text rules are implemented in <code>cmd/compiler_text.zi</code>:
-  bounded name edit distance for checker suggestions, whitespace and
-  identifier bytes, trimming, native field names, C string
-  escaping, top-level argument splitting and assignments, UTF-8 string
-  decoding, print-format pieces, and operator procedure names. The frontend
-  keeps a C boundary for its buffers and interned parameter storage; float
-  formatting still uses C. Ordinary tools and the portable runtime library
-  link the freshly compiled Ziran implementation. Fresh builds use a generated
-  seed checked by <code>make check-bootstrap</code> and updated by <code>make update-bootstrap</code>.
-  <code>tests/compiler_text.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed escapes, UTF-8 boundaries, bounded
-  output, deterministic byte inputs, bootstrap agreement, and the C boundary.
-  Name-distance cases include embedded NUL bytes, invalid limits, and an
-  independent full-matrix oracle at the native boundary.
-  An unterminated quote in an argument list now stops at the source boundary
-  instead of reading beyond its terminating null. The parser, checker,
-  backends, and runtime still require further migration for full self-hosting.</p>
-</li>
-<li>
-<p>Source preprocessing and logical-line scanning are implemented in
-  <code>cmd/compiler_source.zi</code>: raw multiline strings, nested and line comments,
-  identifier and directive recognition, block-brace accounting, statement
-  classification and separators, record field separators, compact control
-  blocks, matching parentheses, procedure-header recognition and text,
-  type spacing, bounded procedure text buffers, compact procedure bodies,
-  and <code>#must</code> modifier scanning.
-  The C parser
-  keeps storage and diagnostics behind a small boundary. Ordinary tools and
-  the portable library compile the maintained Ziran source; fresh builds use
-  a generated seed verified by <code>make check-bootstrap</code>.
-  <code>tests/compiler_source.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including bounded outputs, in-place comment removal,
-  malformed delimiters, nested literals, and a reproducible input corpus.
-  Raw-string diagnostics now count escaped physical newlines in preceding
-  ordinary strings correctly. Declaration IR construction, checking,
-  native lowering, and the portable runtime still contain C and require
-  further migration.</p>
-</li>
-<li>
-<p>Declaration syntax is implemented in <code>cmd/compiler_declaration.zi</code>: default
-  and <code>using</code> parameter normalization, <code>#program_export</code>, named and open
-  module/package/file/directory imports, <code>#system_library</code>, Go method
-  symbols. It reuses the Ziran text and source
-  scanners and keeps borrowed source ranges and bounded output buffers.
-  The C boundary still constructs IR and stores library identities and source
-  diagnostics. Ordinary tools and the portable library link the compiled
-  Ziran implementation; fresh builds use a generated declaration seed checked
-  by <code>make check-bootstrap</code>. <code>tests/compiler_declaration.sh</code> checks source and
-  saved IR on C, Go, and <code>.zx</code>, including nested defaults,
-  the 64-parameter limit, <code>using</code> flags, rejected declarations, bounded output,
-  a reproducible byte corpus, seed agreement, and the C boundary.
-  The same module parses <code>using, only</code>, <code>except</code>, and <code>map</code> clauses, with
-  bounded name lists, complete output measurement, and exact binding offsets.
-  The C boundary retains checked storage and diagnostics; grammar no longer
-  has a separate C implementation. The declaration module checks compare
-  short output prefixes and rejected clauses across every target, and
-  <code>tests/using_modifiers.sh</code> exercises record and enum bindings end to end.</p>
-</li>
-<li>
-<p>Enum validation and constant evaluation are implemented in
-  <code>cmd/compiler_enum.zi</code>: member names and lookup, implicit values, references
-  to preceding members, integer literals, checked arithmetic and shifts,
-  duplicate rejection, and integer backing bounds. The parser, checker,
-  proofs, and portable runtime use the compiled Ziran implementation;
-  the C boundary retains only IR access and workspace allocation.
-  Enum expressions such as <code>1 + 2 * 3</code>, division by <code>-1</code>, and division or
-  remainder of the minimum signed value now accept valid results while
-  rejecting overflow. <code>tests/compiler_enum.sh</code> checks source and saved IR on
-  C, Go, and <code>.zx</code>, including malformed input, numeric
-  boundaries, bounded workspace, deterministic byte inputs, seed agreement,
-  and the C boundary. Fresh builds use a generated seed verified by
-  <code>make check-bootstrap</code>.</p>
-</li>
-<li>
 <p>Portable slices and arrays of imported records compare their element type
   identities across module aliases, retaining shared slice storage when
   callers and callees use different spellings for the same record.
@@ -343,111 +258,123 @@
   and rejection of distinct same-named records from source and saved IR.</p>
 </li>
 <li>
-<p>Type spelling and record-field parsing are implemented in
-  <code>cmd/compiler_type.zi</code>: <code>using</code> fields, quoted <code>#go_tag</code> metadata, slice
-  elements, fixed and constant-expression array capacities, builtin and map
-  primitive names, and Go foreign type and call symbols. Field scans
-  borrow bounded source ranges and stop at the IR buffer's terminator, so
-  listing a record does not repeatedly measure its entire body. The C
-  boundary retains IR access and checked copies into its fixed buffers.
-  <code>tests/compiler_type.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed input, numeric and output limits,
-  quoted separators, UTF-8 tag decoding, a deterministic byte corpus, seed
-  agreement, and the C boundary. Fresh builds compile the maintained Ziran
-  source using a generated seed verified by <code>make check-bootstrap</code>.</p>
+<p>Self-hosting moves the compiler core into Ziran one rule set at a time.
+  Each <code>cmd/compiler_*.zi</code> module owns its rules; C calls the generated code
+  through a thin boundary that keeps IR storage, spans and diagnostics, and
+  the replaced C is deleted. Fresh builds first compile a bootstrap compiler
+  from the seeds in <code>bootstrap/</code>, then rebuild every tool from the maintained
+  <code>.zi</code> sources. <code>make check-bootstrap</code> verifies the seeds and
+  <code>make update-bootstrap</code> regenerates them. Each <code>tests/compiler_&lt;module&gt;.sh</code>
+  checks source and saved IR on C, Go and <code>.zx</code>, a deterministic input corpus,
+  seed agreement and the C boundary.</p>
 </li>
-<li>
-<p>Primary, prefix, binary, postfix, and initializer parsing are implemented in
-  <code>cmd/compiler_expression.zi</code>:
-  precedence, left associativity, recursive right operands, shared nesting
-  limits, and rejection of C-style conditionals. The same module parses
-  calls with named arguments, chained calls, indexing, open-ended slices,
-  member access, postfix dereferencing, named and positional record/array
-  fields, and recursive nested initializers. Names borrow the original source
-  rather than a reused token buffer. Primary and prefix rules cover literals,
-  scope directives, <code>size_of</code>, casts, <code>ifx</code>, unary operators, parenthesized
-  expressions, and local or imported typed literals. The same module decodes
-  one-byte <code>#char</code> literals and extracts declaration, assignment, return,
-  unused, and control-flow expressions from statements. Source ranges are
-  bounded and borrowed, so long statements retain their full text.
-  The C boundary retains IR storage, type lookup, default expansion, and
-  diagnostics; callback slots expose those operations
-  to the Ziran grammar without sharing C IR layouts. Ordinary tools compile
-  the maintained Ziran source; fresh builds use a generated seed verified by
-  <code>make check-bootstrap</code>.
-  <code>tests/compiler_expression.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including precedence, literal escapes, malformed
-  statements, chained calls, named arguments, nested initializers, open slices,
-  prefix forms, scope errors, nesting limits, deterministic byte inputs,
-  seed agreement, borrowed ranges, and the C frontend boundary. The compiler
-  still requires further migration before it is fully self-hosted.</p>
-</li>
-<li>
-<p>Loop syntax is implemented in <code>cmd/compiler_statement.zi</code>: forward and
-  reverse integer ranges, collection iteration and pointer bindings, named
-  <code>while</code> headers, named <code>break</code> and <code>continue</code> targets, and identifier
-  reference and mutation scanning. Header fields borrow bounded source
-  ranges, with matching delimiters and explicit name, text, and nesting
-  limits. Oversized binders are rejected instead of silently truncated.
-  Quoted <code>:=</code> no longer changes an assignment or call into a declaration,
-  and separators inside quoted strings and nested expressions stay out of
-  loop-header syntax. The C boundary retains IR storage, scope binding, and
-  loop lowering. Fresh builds use a generated seed verified by
-  <code>make check-bootstrap</code>; ordinary tools compile the maintained Ziran source.
-  <code>tests/compiler_statement.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including malformed headers, borrowed ranges,
-  limits, deterministic byte inputs, seed agreement, and the C scope boundary.
-  The checker, lowering, backends, and portable runtime still require
-  further migration before the compiler is fully self-hosted.</p>
-</li>
-<li>
-<p>Foreign declaration grammar and target spelling are implemented in
-  <code>cmd/compiler_declaration.zi</code>: procedure and foreign-type declarations,
-  alternate symbols, Go method bindings,
-  result/field/deferred/variadic modifiers, host-name restrictions, and the
-  final <code>..any</code> parameter. Directives are scanned as tokens; quoted defaults
-  and symbols cannot masquerade as modifiers or procedure bodies. Names and
-  symbols borrow bounded source, and target output reports its full length
-  while writing only the caller's bounded prefix. The C boundary retains
-  library visibility, target classification, diagnostics, and IR storage.
-  <code>tests/compiler_declaration.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, including rejection cases, prefix output, borrowed
-  ranges, deterministic input, and exact generated-seed agreement.</p>
-</li>
-<li>
-<p>Optional <code>then</code>, one-line <code>else</code>, and compile-time <code>#if</code>/<code>else #if</code> headers
-  are implemented in <code>cmd/compiler_statement.zi</code>. Control-header splitting
-  respects strings, grouped expressions, nested <code>ifx</code> arms, and member names
-  such as <code>flags.then</code>. Returned headers and bodies borrow bounded input;
-  the C boundary copies them into source lines and the logical-line queue.
-  <code>tests/compiler_statement.sh</code> checks source and saved IR on all four targets,
-  bounded input, deterministic inputs, seed agreement, source spans, and
-  elimination of unselected compile-time branches through the real frontend.
-  Procedures with slice parameters and defaults keep both signatures in sync
-  when checking normalizes parameter spacing, so checked IR remains writable;
-  <code>tests/default_arguments.sh</code> covers omitted and explicit defaults from source
-  and saved IR.</p>
-</li>
-<li>
-<p>Multiple-result syntax and declaration rewrites are implemented in
-  <code>cmd/compiler_declaration.zi</code>: named and positional result types, canonical
-  results-record spelling, template parameters in first-use order, result
-  fields, multiple-value returns, and inferred or assigned result bindings.
-  Types and names borrow bounded input; generated text reports its full length
-  while writing only the caller's bounded prefix. More than 16 results and
-  oversized generated names are rejected instead of being silently truncated.
-  The same module checks scope-independent defaults, expands <code>BuilderPrint</code>
-  into bounded <code>Append</code> statements, removes <code>#symmetric</code> and generates swapped
-  operator wrappers, lowers <code>#procedure_name()</code>, and rewrites hoisted local
-  names. Local name rewriting preserves literals, comments, named field and
-  argument labels, and member names even when spaces surround the dot.
-  The C boundary retains diagnostics, allocation, copying into source queues,
-  and declaration IR construction. Ordinary tools compile the maintained Ziran
-  source; fresh builds use its checked generated seed.
-  <code>tests/compiler_declaration.sh</code> checks source and saved IR on C, Go, and <code>.zx</code>, bounded prefixes, borrowed ranges, deterministic
-  inputs, the C boundary, and seed agreement. <code>tests/multiple_results.sh</code>,
-  <code>tests/generic_multiple_results.sh</code>, <code>tests/operators.sh</code>,
-  <code>tests/local_procedures.sh</code>, <code>tests/default_arguments.sh</code>, and
-  <code>tests/format_builder.sh</code> exercise the frontend and generated programs.
-  Semantic checking, IR construction, lowering, native backends, and the
-  portable runtime still contain C; the compiler is not fully self-hosted.</p>
-</li>
+</ul>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Module</th>
+<th>Rules it owns</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>compiler_scan.zi</code></td>
+<td>Tokens and cursor positions; the C lexer's comment skipping</td>
+</tr>
+<tr>
+<td><code>compiler_text.zi</code></td>
+<td>Whitespace and identifier bytes, trimming, integer literals (decimal, <code>0x</code>, <code>0b</code>, octal, <code>_</code>), C string escapes, top-level argument splitting, UTF-8, print formats, operator names, name distance</td>
+</tr>
+<tr>
+<td><code>compiler_source.zi</code></td>
+<td>Raw strings, comments, statement kinds and separators, braces, procedure headers and modifiers</td>
+</tr>
+<tr>
+<td><code>compiler_declaration.zi</code></td>
+<td>Parameters, imports and <code>using</code> clauses, foreign declarations, multiple results, defaults, <code>BuilderPrint</code>, <code>#symmetric</code>, local renames</td>
+</tr>
+<tr>
+<td><code>compiler_enum.zi</code></td>
+<td>Enum members, values and checked constant arithmetic</td>
+</tr>
+<tr>
+<td><code>compiler_type.zi</code></td>
+<td>Type spelling, record fields, <code>#go_tag</code>, array capacities, foreign type symbols</td>
+</tr>
+<tr>
+<td><code>compiler_expression.zi</code></td>
+<td>Expression and initializer grammar, <code>#char</code>, statement expressions</td>
+</tr>
+<tr>
+<td><code>compiler_statement.zi</code></td>
+<td>Loop and control headers, <code>then</code>/<code>else</code>, <code>#if</code> headers, name references</td>
+</tr>
+</tbody>
+</table></div>
+<p>C files in <code>cmd/zir</code>, with line counts on 2026-11-07. <em>Boundary</em> means the
+  rules live in Ziran and C keeps storage, spans and diagnostics. <em>C</em> means
+  there is no Ziran counterpart yet. One small overlap remains:
+  <code>find_unquoted_text</code> in <code>zir_parse_condition.c</code> repeats the quote skipping
+  of <code>compiler_source.zi</code>.</p>
+<div class="table-scroll"><table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Files (lines)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Frontend boundary</td>
+<td><code>zir_token.c</code> 70, <code>zir_text.c</code> 431, <code>zir_enum.c</code> 131, <code>zir_type.c</code> 470, <code>zir_parse_declaration.c</code> 926, <code>zir_cleanup.c</code> 1272, <code>zir_expr.c</code> 880</td>
+<td>Boundary; <code>zir_expr.c</code> builds IR nodes through callback slots</td>
+</tr>
+<tr>
+<td>Parser main loop</td>
+<td><code>zir_parse.c</code> 732, <code>zir_parse_source.c</code> 2274, <code>zir_parse_discover.c</code> 1713</td>
+<td>C, calling the Ziran scanners per line</td>
+</tr>
+<tr>
+<td>Compile-time evaluation</td>
+<td><code>zir_parse_typed.c</code> 2227, <code>zir_parse_condition.c</code> 767, <code>zir_parse_eval.c</code> 649</td>
+<td>C; one typed evaluator serves <code>#if</code>, <code>#ifx</code>, <code>#assert</code>, <code>#run</code> and constants</td>
+</tr>
+<tr>
+<td>Checker</td>
+<td><code>zir_check.c</code> 1644, <code>zir_check_expr.c</code> 2987, <code>zir_check_statement.c</code> 2210, <code>zir_check_text.c</code> 2050, <code>zir_check_value.c</code> 1733, <code>zir_check_link.c</code> 1570, <code>zir_check_program.c</code> 1044, <code>zir_check_function.c</code> 931, <code>zir_check_simd.c</code> 367</td>
+<td>C</td>
+</tr>
+<tr>
+<td>Borrows, laws, proofs</td>
+<td><code>zir_borrow.c</code> 2005, <code>zir_law.c</code> 2117, <code>zir_proof.c</code> 779, <code>zir_proof_kernel.c</code> 368</td>
+<td>C</td>
+</tr>
+<tr>
+<td>C and Go output</td>
+<td><code>zir_emit.c</code> 2053, <code>zir_emit_expr.c</code> 2144, <code>zir_emit_statement.c</code> 2096, <code>zir_emit_range.c</code> 2417, <code>zir_emit_value.c</code> 1316, <code>zir_emit_call.c</code> 1234, <code>zir_emit_simd_go.c</code> 1261, <code>zir_emit_gpu.c</code> 843, <code>zir_emit_simd.c</code> 458, <code>zir_asm.c</code> 1996, <code>zir_simd.c</code> 562, <code>zir_runtime.c</code> 274</td>
+<td>C</td>
+</tr>
+<tr>
+<td>IR, loading, storage</td>
+<td><code>zir.c</code> 2392, <code>zir_serial.c</code> 1811, <code>zir_load.c</code> 1285, <code>zir_storage.c</code> 474, <code>zir_edit.c</code> 338, <code>zir_body.c</code> 286, <code>zir_packages.c</code> 275, <code>zir_sha256.c</code> 258, <code>zir_diagnostic.c</code> 236, <code>zir_profile.c</code> 229, <code>zir_context.c</code> 166, <code>zir_files.c</code> 154, <code>zir_memory.c</code> 131, <code>zir_native.c</code> 127, <code>zir_document.c</code> 120, <code>zir_overlay.c</code> 43, <code>zir_semantic.c</code> 29</td>
+<td>C</td>
+</tr>
+<tr>
+<td>Bundles and VM</td>
+<td><code>zir_bundle.c</code> 3075, <code>zir_bundle_assets.c</code> 204, <code>zir_vm_eval.c</code> 3697, <code>zir_vm_run.c</code> 2079, <code>zir_vm_verify.c</code> 1442, <code>zir_vm.c</code> 1352, <code>zir_vm_simd.c</code> 667</td>
+<td>C</td>
+</tr>
+<tr>
+<td>Bundle hosts</td>
+<td><code>zir_host.c</code> 934, <code>zir_zx_host.c</code> 783, <code>zir_zx_native_run.c</code> 899, <code>zir_zx_native_lower.c</code> 704, <code>zir_zx_native.c</code> 510, <code>zir_zx_wasm.c</code> 152, <code>zir_zx_wasm_web.c</code> 136</td>
+<td>C platform glue</td>
+</tr>
+</tbody>
+</table></div>
+<p>The parser, checker, backends and runtime still contain C, so the compiler
+  is not yet self-hosted.</p>
+<ul>
 <li>
 <p>Portable imported callback signatures resolve their parameter and return
   types in their defining module. Record and enum parameters and record

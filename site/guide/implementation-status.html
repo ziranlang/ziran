@@ -1463,8 +1463,11 @@
   call or address in the statement, after a global read when the moved call
   may write any global (through an assignment, a pointer, an address, a
   global argument or a foreign, template or recursive callee, found
-  transitively), in loop and <code>else if</code> conditions, in
-  <code>&amp;&amp;</code>, <code>||</code> and <code>ifx</code> arms and in <code>for</code> steps. A <code>string</code> local declared
+  transitively), in <code>while</code> conditions, in <code>ifx</code> arms whose type is not
+  a number or <code>bool</code>, and in <code>for</code> steps. An <code>else if</code> condition is first
+  split into an <code>else</code> block holding a plain <code>if</code>, and the second operand of
+  <code>&amp;&amp;</code> or <code>||</code>, or a scalar <code>ifx</code> arm, into a local assigned inside an <code>if</code>
+  (<code>text_cond_N</code>, <code>text_arm_N</code>), so the call moves before that statement. A <code>string</code> local declared
   from such a result becomes a <code>Text</code> local when its name has one binding in
   the function, no defer follows in its block and every use after the
   declaration inside that block reads it the same way; each use then lends a

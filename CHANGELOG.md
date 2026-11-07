@@ -46,6 +46,8 @@
   `Painter :: #type (label: string) -> s32 #reads;`, only holds procedures
   that read their strings, so Text passed through it is freed too. Saved IR
   is format 62.
+- Text read in an `else if` condition, after `&&` or `||`, or in an `ifx`
+  that gives a number or `bool` is freed when its block closes.
 - A global holding a `Vec` or `Text`, alone or in a record, can be assigned,
   which frees its old value, and moved into a local or returned, which
   leaves it empty.

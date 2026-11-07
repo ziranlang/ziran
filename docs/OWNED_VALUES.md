@@ -95,10 +95,13 @@ it. A read may pass through an `ifx` arm, a local, a procedure that returns
 its argument where that result is only read, or a record literal field
 handed to a callee whose record parameter only reads that field, followed
 transitively. Results computed after another call in the same expression,
-after a global the producing call may write, in a loop or `else if`
-condition, or in an `&&`, `||` or `ifx` arm stay detached so nothing runs
+after a global the producing call may write, in a `while` condition or
+`for` step, or in an `ifx` arm giving a string stay detached so nothing runs
 earlier than written; literals, `-1` and globals it leaves alone may come
-first. `tests/text_scoped_arguments.sh` shows no allocations left in 1000 rounds of such reads and keeps stored, pushed,
+first. An `else if` becomes an `else` block holding a plain `if`, and the
+second operand of `&&` or `||` or a scalar `ifx` arm runs as statements
+that leave its value in a local, so results read there are scoped to their
+own blocks (`tests/text_condition_arms.sh`). `tests/text_scoped_arguments.sh` shows no allocations left in 1000 rounds of such reads and keeps stored, pushed,
 returned, aliased, deferred and global arguments and locals alive.
 `tests/owned_text_results.sh` counts 1000 allocations kept in 1000 rounds of
 three `Text` results used as strings, from the one read after a call, and

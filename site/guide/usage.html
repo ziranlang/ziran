@@ -912,11 +912,15 @@ other views of parameters or at literals, as in <code>v = s[1:3]</code>, and sti
 only be read. A callee or local that stores, returns, aliases or defers the
 string, or a foreign callee not marked <code>#reads</code>, keeps it. The result is
 never computed earlier than written, so one after another call in its
-expression, after a global its procedure may change, in a loop or <code>else if</code>
-condition, or in an <code>&amp;&amp;</code>, <code>||</code> or <code>ifx</code> arm keeps its bytes. Literals such
-as <code>-1</code>, other globals and a local's address, as in
-<code>BuilderPrint(*out, "%", Render(a))</code>, may come first.
-<code>tests/text_scoped_arguments.sh</code> checks both kinds.</p>
+expression, after a global its procedure may change, in a <code>while</code> condition
+or <code>for</code> step, or in an <code>ifx</code> arm that gives a string keeps its bytes.
+Literals such as <code>-1</code>, other globals and a local's address, as in
+<code>BuilderPrint(*out, "%", Render(a))</code>, may come first. An <code>else if</code>
+condition, the second operand of <code>&amp;&amp;</code> or <code>||</code>, and an <code>ifx</code> arm that gives
+a number or <code>bool</code> run on their own just before the statement, still only
+when reached, so a result read there is freed too.
+<code>tests/text_scoped_arguments.sh</code> and <code>tests/text_condition_arms.sh</code> check
+these.</p>
 <p>A foreign procedure that only reads its string and byte arguments during
 the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
 <pre><code>MeasureWidth :: (value: string, font: s32) -&gt; s32 #reads #foreign host_api;

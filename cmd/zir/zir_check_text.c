@@ -680,7 +680,8 @@ takes_address(const ZirFunction *fn, int index)
 }
 
 /* Whether CHILD of PARENT runs after only settled siblings, so the
- * statement may evaluate CHILD's call first. */
+ * statement may evaluate CHILD's call first. A condition and the first
+ * operand of `&&` or `||` always run; their other arms may not. */
 static int
 earlier_settled(const ZirFunction *fn, int parent, int child, int globals)
 {
@@ -688,7 +689,7 @@ earlier_settled(const ZirFunction *fn, int parent, int child, int globals)
     if(e->kind == ZIR_EXPR_CONDITIONAL ||
        (e->kind == ZIR_EXPR_BINARY &&
         (!strcmp(e->op, "&&") || !strcmp(e->op, "||"))))
-        return 0;
+        return child == e->left;
     int order[3] = {e->left, e->right, e->third};
     for(int i = 0; i < 3; i++) {
         if(order[i] == child)
@@ -706,12 +707,14 @@ earlier_settled(const ZirFunction *fn, int parent, int child, int globals)
 }
 
 /* The statement whose evaluation can start with CALL, or -1. GLOBALS says
- * CALL writes no global, so earlier global reads see the same values. */
+ * CALL writes no global, so earlier global reads see the same values. When
+ * CALL could start an else-if condition, *ELSE_IF names that statement. */
 static int
 hoist_statement(const ZirFunction *fn, const Parents *parents, int call,
-                int globals)
+                int globals, int *else_if)
 {
     int node = call;
+    *else_if = -1;
     while(parents->of[node] >= 0) {
         if(!earlier_settled(fn, parents->of[node], node, globals))
             return -1;
@@ -729,6 +732,8 @@ hoist_statement(const ZirFunction *fn, const Parents *parents, int call,
         return s;
     case ZIR_STMT_IF:
         /* An else-if condition only runs when earlier branches fail. */
+        if(st->is_else)
+            *else_if = s;
         return st->is_else ? -1 : s;
     case ZIR_STMT_ASSIGN:
         /* A for-loop step is where continue jumps; it stays first. */
@@ -751,40 +756,65 @@ name_used(const ZirFunction *fn, const char *name)
     return 0;
 }
 
+/* Opens COUNT empty statements at S, each with S's old span and no
+ * expressions, or answers NULL. */
+static ZirStmt *
+insert_statements(ZirFunction *fn, int s, int count)
+{
+    ZirSourceSpan span = s < fn->stmt_count ? fn->stmts[s].span :
+        fn->stmt_count > 0 ? fn->stmts[fn->stmt_count - 1].span : fn->span;
+    if(fn->stmt_count + count > fn->stmt_cap) {
+        int capacity = fn->stmt_cap > 0 ? fn->stmt_cap : 16;
+        while(capacity < fn->stmt_count + count)
+            capacity *= 2;
+        ZirStmt *stmts = realloc(fn->stmts, (size_t)capacity * sizeof(ZirStmt));
+        if(stmts == NULL)
+            return NULL;
+        fn->stmts = stmts;
+        fn->stmt_cap = capacity;
+    }
+    memmove(&fn->stmts[s + count], &fn->stmts[s],
+            (size_t)(fn->stmt_count - s) * sizeof(ZirStmt));
+    fn->stmt_count += count;
+    for(int i = 0; i < count; i++) {
+        ZirStmt *st = &fn->stmts[s + i];
+        StmtReset(st);
+        st->expr_root = st->lhs_root = -1;
+        st->span = span;
+    }
+    return &fn->stmts[s];
+}
+
+/* A fresh local name built from PREFIX. */
+static void
+fresh_name(const ZirFunction *fn, const char *prefix, int *serial,
+           char *name, size_t size)
+{
+    do snprintf(name, size, "%s_%d", prefix, ++*serial);
+    while(name_used(fn, name));
+}
+
 /* Declares a scoped local holding Text call CALL before statement S and
  * turns VIEW, the node that used CALL's string, into a view of that local. */
 static int
 scope_text(ZirFunction *fn, int view_node, int call, int s, int *serial)
 {
     char name[ZIR_NAME_MAX];
-    do snprintf(name, sizeof(name), "text_scope_%d", ++*serial);
-    while(name_used(fn, name));
+    fresh_name(fn, "text_scope", serial, name, sizeof(name));
     ZirExpr *local = FunctionAddExpr(fn, ZIR_EXPR_IDENT, name, fn->exprs[view_node].span);
     if(local == NULL)
         return 0;
     local->name = KeepName(name);
     local->type = fn->exprs[call].type;
     int view = (int)(local - fn->exprs);
-    if(fn->stmt_count + 1 > fn->stmt_cap) {
-        int capacity = fn->stmt_cap > 0 ? fn->stmt_cap * 2 : 16;
-        ZirStmt *stmts = realloc(fn->stmts, (size_t)capacity * sizeof(ZirStmt));
-        if(stmts == NULL)
-            return 0;
-        fn->stmts = stmts;
-        fn->stmt_cap = capacity;
-    }
-    memmove(&fn->stmts[s + 1], &fn->stmts[s],
-            (size_t)(fn->stmt_count - s) * sizeof(ZirStmt));
-    fn->stmt_count++;
-    ZirStmt *decl = &fn->stmts[s];
-    memset(decl, 0, sizeof(*decl));
+    ZirStmt *decl = insert_statements(fn, s, 1);
+    if(decl == NULL)
+        return 0;
     decl->kind = ZIR_STMT_DECL;
     decl->text = fn->exprs[call].text;
     decl->name = KeepName(name);
     decl->type = fn->exprs[call].type;
     decl->expr_root = call;
-    decl->lhs_root = -1;
-    decl->span = fn->stmts[s + 1].span;
     ZirExpr *moved = &fn->exprs[call];
     moved->next_sibling = -1;
     moved->argument_index = -1;
@@ -879,6 +909,189 @@ block_end(const ZirFunction *fn, int s)
         }
     }
     return fn->stmt_count;
+}
+
+/* Whether a local of TYPE can carry an ifx result out of its branches:
+ * a value with no string to outlive the arm's Text. */
+static int
+scalar_type(const char *type)
+{
+    static const char *const names[] = {
+        "bool", "s8", "s16", "s32", "s64", "u8", "u16", "u32", "u64",
+        "float32", "float64", "int", "float",
+    };
+    if(type == NULL)
+        return 0;
+    for(size_t i = 0; i < sizeof(names) / sizeof(*names); i++)
+        if(!strcmp(type, names[i]))
+            return 1;
+    return 0;
+}
+
+/* The `&&` or `||` whose second operand holds NODE, or the scalar ifx
+ * whose arm does, when it is what keeps NODE from starting its statement,
+ * or -1. Every step below it must settle under GLOBALS. */
+static int
+blocking_arm(const ZirFunction *fn, const Parents *parents, int node, int globals)
+{
+    while(parents->of[node] >= 0) {
+        int parent = parents->of[node];
+        const ZirExpr *e = &fn->exprs[parent];
+        if(!earlier_settled(fn, parent, node, globals)) {
+            if(node == e->left)
+                return -1;
+            if(e->kind == ZIR_EXPR_BINARY &&
+               (!strcmp(e->op, "&&") || !strcmp(e->op, "||")))
+                return parent;
+            return e->kind == ZIR_EXPR_CONDITIONAL && scalar_type(e->type) ?
+                parent : -1;
+        }
+        node = parent;
+    }
+    return -1;
+}
+
+/* A new read of local NAME of TYPE, or -1. */
+static int
+local_read(ZirFunction *fn, const char *name, const char *type, ZirSourceSpan span)
+{
+    ZirExpr *read = FunctionAddExpr(fn, ZIR_EXPR_IDENT, name, span);
+    if(read == NULL)
+        return -1;
+    read->name = name;
+    read->type = type;
+    return (int)(read - fn->exprs);
+}
+
+/* Runs ARM, an `&&`, `||` or ifx inside statement S, as statements before
+ * S that leave its value in a fresh local, and reads that local instead:
+ *     cond := L; if cond { cond = R }       for L && R
+ *     cond := L; if !cond { cond = R }      for L || R
+ *     arm: T; if C { arm = A } else { arm = B }   for ifx C A else B
+ * Each arm becomes a statement root, so its Text calls scope to its block. */
+static int
+rewrite_arm(ZirFunction *fn, int arm, int s, int *serial)
+{
+    char local[ZIR_NAME_MAX];
+    const ZirExpr e = fn->exprs[arm];
+    int conditional = e.kind == ZIR_EXPR_CONDITIONAL;
+    fresh_name(fn, conditional ? "text_arm" : "text_cond", serial, local, sizeof(local));
+    const char *name = KeepName(local);
+    int test = conditional ? e.left : local_read(fn, name, e.type, e.span);
+    if(test >= 0 && !conditional && !strcmp(e.op, "||")) {
+        ZirExpr *negated = FunctionAddExpr(fn, ZIR_EXPR_UNARY, e.text, e.span);
+        if(negated == NULL)
+            return 0;
+        snprintf(negated->op, sizeof(negated->op), "!");
+        negated->right = test;
+        negated->type = e.type;
+        test = (int)(negated - fn->exprs);
+    }
+    int first = local_read(fn, name, e.type, e.span);
+    int second = conditional ? local_read(fn, name, e.type, e.span) : 0;
+    ZirStmt *st = test < 0 || first < 0 || second < 0 ? NULL :
+        insert_statements(fn, s, conditional ? 7 : 4);
+    if(st == NULL)
+        return 0;
+    const char *text = e.text ? e.text : KeepText(name);
+    st[0].kind = ZIR_STMT_DECL;
+    st[0].name = name;
+    st[0].type = e.type;
+    st[0].text = text;
+    st[0].expr_root = conditional ? -1 : e.left;
+    st[1].kind = ZIR_STMT_IF;
+    st[1].text = text;
+    st[1].expr_root = test;
+    st[2].kind = ZIR_STMT_ASSIGN;
+    st[2].text = text;
+    st[2].lhs_root = first;
+    st[2].expr_root = e.right;
+    snprintf(st[2].assignment_op, sizeof(st[2].assignment_op), "=");
+    st[3].kind = ZIR_STMT_BLOCK_CLOSE;
+    st[3].text = KeepText("}");
+    if(conditional) {
+        st[4].kind = ZIR_STMT_IF;
+        st[4].is_else = 1;
+        st[4].text = KeepText("else {");
+        st[5].kind = ZIR_STMT_ASSIGN;
+        st[5].text = text;
+        st[5].lhs_root = second;
+        st[5].expr_root = e.third;
+        snprintf(st[5].assignment_op, sizeof(st[5].assignment_op), "=");
+        st[6].kind = ZIR_STMT_BLOCK_CLOSE;
+        st[6].text = KeepText("}");
+    }
+    ZirExpr *read = &fn->exprs[arm];
+    read->kind = ZIR_EXPR_IDENT;
+    read->name = name;
+    read->text = KeepText(name);
+    read->op[0] = '\0';
+    read->left = read->right = read->third = read->first_child = -1;
+    read->is_global_value = read->is_move = read->text_owned = 0;
+    return 1;
+}
+
+/* Turns else-if statement S into an else block holding a plain if, so
+ * statements can run before its condition:
+ *     } else if C { ... } else { ... }
+ * becomes
+ *     } else { if C { ... } else { ... } }                              */
+static int
+split_else_if(ZirFunction *fn, int s)
+{
+    int end = block_end(fn, s);
+    while(end + 1 < fn->stmt_count && fn->stmts[end + 1].kind == ZIR_STMT_IF &&
+          fn->stmts[end + 1].is_else)
+        end = block_end(fn, end + 1);
+    if(end >= fn->stmt_count)
+        return 0;
+    ZirStmt *close = insert_statements(fn, end + 1, 1);
+    if(close == NULL)
+        return 0;
+    close->kind = ZIR_STMT_BLOCK_CLOSE;
+    close->text = KeepText("}");
+    close->span = fn->stmts[end].span;
+    ZirStmt *inner = insert_statements(fn, s + 1, 1);
+    if(inner == NULL)
+        return 0;
+    ZirStmt *outer = &fn->stmts[s];
+    *inner = *outer;
+    inner->is_else = 0;
+    const char *text = inner->text ? inner->text : "";
+    if(!strncmp(text, "else", 4)) {
+        text += 4;
+        while(isspace((unsigned char)*text))
+            text++;
+        inner->text = KeepText(text);
+    }
+    outer->expr_root = -1;
+    outer->text = KeepText("else {");
+    return 1;
+}
+
+/* When CALL's Text could be scoped but for an else-if condition or a
+ * conditional arm above it, rewrites the closest such place that can move
+ * before its statement. Answers 1 after a rewrite, 0 when none applies and
+ * -1 when it fails. ELSE_IF and GLOBALS come from CALL's hoist_statement. */
+static int
+rewrite_condition(TextScope *scope, const ZirModule *module, ZirFunction *fn,
+                  const Parents *parents, int call, int globals, int else_if,
+                  int *serial)
+{
+    for(int node = call;;) {
+        if(else_if >= 0)
+            return split_else_if(fn, else_if) ? 1 : -1;
+        node = blocking_arm(fn, parents, node, globals);
+        if(node < 0)
+            return 0;
+        globals = !global_address_taken(fn) &&
+            !tree_writes_globals(scope, module, fn, node);
+        if(scope->failed)
+            return -1;
+        int s = hoist_statement(fn, parents, node, globals, &else_if);
+        if(s >= 0)
+            return rewrite_arm(fn, node, s, serial) ? 1 : -1;
+    }
 }
 
 /* Whether TYPE is a fixed array of strings, such as `[9]string`. */
@@ -1082,9 +1295,18 @@ scope_function(TextScope *scope, const ZirModule *module, ZirFunction *fn)
                 free(parents.of);
                 return 0;
             }
-            int s = hoist_statement(fn, &parents, x, globals);
-            if(s < 0)
+            int else_if;
+            int s = hoist_statement(fn, &parents, x, globals, &else_if);
+            if(s < 0) {
+                int rewritten = rewrite_condition(scope, module, fn, &parents, x,
+                                                  globals, else_if, &serial);
+                if(rewritten < 0) {
+                    free(parents.of);
+                    return 0;
+                }
+                done = !rewritten;
                 continue;
+            }
             int call = vec_module ? builder_text_call(fn, x, vec_module) :
                 fn->exprs[x].first_child;
             if(call < 0 || !scope_text(fn, x, call, s, &serial)) {

@@ -1089,11 +1089,15 @@ other views of parameters or at literals, as in `v = s[1:3]`, and still
 only be read. A callee or local that stores, returns, aliases or defers the
 string, or a foreign callee not marked `#reads`, keeps it. The result is
 never computed earlier than written, so one after another call in its
-expression, after a global its procedure may change, in a loop or `else if`
-condition, or in an `&&`, `||` or `ifx` arm keeps its bytes. Literals such
-as `-1`, other globals and a local's address, as in
-`BuilderPrint(*out, "%", Render(a))`, may come first.
-`tests/text_scoped_arguments.sh` checks both kinds.
+expression, after a global its procedure may change, in a `while` condition
+or `for` step, or in an `ifx` arm that gives a string keeps its bytes.
+Literals such as `-1`, other globals and a local's address, as in
+`BuilderPrint(*out, "%", Render(a))`, may come first. An `else if`
+condition, the second operand of `&&` or `||`, and an `ifx` arm that gives
+a number or `bool` run on their own just before the statement, still only
+when reached, so a result read there is freed too.
+`tests/text_scoped_arguments.sh` and `tests/text_condition_arms.sh` check
+these.
 
 A foreign procedure that only reads its string and byte arguments during
 the call says so with `#reads` before `#foreign`:

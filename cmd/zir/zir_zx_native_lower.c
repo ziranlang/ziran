@@ -458,12 +458,30 @@ write_registration(const char *directory, const unsigned char identity[32])
     return fclose(out) == 0 && ok;
 }
 
+/* Procedures' #asm variants compile only for a bundle its host trusts with
+ * them; every other program takes each procedure's portable body. Every
+ * source includes the guard first, so nothing in the program undoes it. */
+static int
+write_guard(const char *include, const char *text, int native_assembly)
+{
+    static const char portable[] = "#define ZIRAN_NO_ASM 1\n";
+    size_t size = strlen(text) + sizeof(portable);
+    char *guard = malloc(size);
+    if(guard == NULL)
+        return 0;
+    snprintf(guard, size, "%s%s", native_assembly ? "" : portable, text);
+    int ok = write_text(include, "zx_guard.h", guard);
+    free(guard);
+    return ok;
+}
+
 /* Returns 1 when written, 0 on failure, and -1 when the program must first
  * be pruned to its entry. */
 static int
 lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *entry,
               const char *const *capability_modules, const char *const *capability_functions,
-              size_t capability_count, ZxNativeTarget target, const unsigned char identity[32],
+              size_t capability_count, ZxNativeTarget target, int native_assembly,
+              const unsigned char identity[32],
               const char *directory, int pruned, ZxNativeBuild *build)
 {
     char include[ZIR_PATH_MAX];
@@ -533,11 +551,11 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
         ok = text != NULL;
         if(ok) {
             snprintf(text, sizeof(linked_guard_header) + sizeof(section), linked_guard_header, section);
-            ok = write_text(include, "zx_guard.h", text) && write_registration(directory, identity);
+            ok = write_guard(include, text, native_assembly) && write_registration(directory, identity);
         }
         free(text);
     } else if(ok) {
-        ok = write_text(include, "zx_guard.h", guard_header);
+        ok = write_guard(include, guard_header, native_assembly);
     }
 done:
     CompilerContextSelect(previous);
@@ -566,14 +584,14 @@ int
 ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
               const ZirFunction *entry, const char *const *capability_modules,
               const char *const *capability_functions, size_t capability_count,
-              ZxNativeTarget target, const unsigned char identity[32],
+              ZxNativeTarget target, int native_assembly, const unsigned char identity[32],
               const char *directory, ZxNativeBuild *build)
 {
     if(target == ZX_NATIVE_LINKED && identity == NULL)
         return 0;
     ZirProgram *linked = NULL;
     int ok = lower_program((ZirProgram *)program, entry_owner, entry, capability_modules,
-                           capability_functions, capability_count, target, identity,
+                           capability_functions, capability_count, target, native_assembly, identity,
                            directory, 0, build);
     if(ok < 0) {
         ZxNativeRemoveTree(directory);
@@ -594,7 +612,7 @@ ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
         build->pruned = 1;
         ok = function != NULL &&
              lower_program(linked, owner, function, capability_modules, capability_functions,
-                           capability_count, target, identity, directory, 1, build) > 0;
+                           capability_count, target, native_assembly, identity, directory, 1, build) > 0;
         if(function == NULL)
             snprintf(build->error, sizeof(build->error), "cannot link entry %s", entry->name);
     }
@@ -670,7 +688,7 @@ ZxNativeWriteLinked(const ZirProgram *program, const ZirModule *entry_owner,
 {
     ZxNativeBuild build = {0};
     int ok = ZxNativeLower(program, entry_owner, entry, capability_modules, capability_functions,
-                           capability_count, ZX_NATIVE_LINKED, identity, directory, &build);
+                           capability_count, ZX_NATIVE_LINKED, 0, identity, directory, &build);
     char path[ZIR_PATH_MAX];
     snprintf(path, sizeof(path), "%s/zx_native.json", directory);
     FILE *out = ok ? fopen(path, "wb") : NULL;

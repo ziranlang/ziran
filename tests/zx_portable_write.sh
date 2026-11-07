@@ -47,7 +47,8 @@ for name in ('file','pipe'):
     run=subprocess.run([ziran,'run',str(work/(name+'.zx'))],capture_output=True,text=True)
     assert run.returncode==0,run.stderr
     assert run.stdout.strip()=='42',run.stdout
-    assert (work/(name+'.zx')).read_bytes().count(b'NATIVE_FN_CANARY')==0
+    # Procedures keep their #asm variants, which bundle files never run.
+    assert (work/(name+'.zx')).read_bytes().count(b'NATIVE_FN_CANARY')==1
     # The asset still contains the same bytes that were removed as native
     # metadata from the IR; only the intended fields are transformed.
     assert (work/(name+'.zx')).read_bytes().count(b'NATIVE_BLOCK_CANARY')==1

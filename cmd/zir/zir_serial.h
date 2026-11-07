@@ -5,8 +5,9 @@
 
 /* Versioned, pointer-free checked IR serialization. */
 int ProgramWrite(const ZirProgram *program, FILE *out);
-/* The portable view keeps checked bodies and omits native instruction
- * templates. Measurement allocates no payload buffer; both calls borrow an
+/* The portable view keeps checked bodies and procedure #asm variants, which
+ * run only where the host trusts the bundle, and writes local #asm blocks as
+ * plain blocks. Measurement allocates no payload buffer; both calls borrow an
  * immutable checked program and report the exact number of serialized bytes.
  * Measure first; write the same unchanged program after successful measurement. */
 int ProgramMeasurePortable(const ZirProgram *program, size_t *size);

@@ -102,6 +102,11 @@ const ZirFunction *BundleEntry(const Bundle *bundle);
  * where compiled code is available (`zi2zx run --vm`). */
 void BundleUsePortableVm(int enabled);
 /* Native engine builds: the SHA-256 naming the bundle's compiled code, and
+/* Lets the bundle's procedure #asm variants run as native code. Call it
+ * only for a bundle built from local source in this process, as
+ * `zi2zx run FILE.zi` does; it does nothing for a bundle that links
+ * libraries. Every other bundle runs each procedure's portable body. */
+void BundleTrustNativeAssembly(Bundle *bundle);
  * its program written as C that a host links ahead of time
  * (ZxNativeWriteLinked), which returns that identity too. */
 void BundleIdentity(const Bundle *bundle, unsigned char identity[32]);

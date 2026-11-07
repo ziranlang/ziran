@@ -14,7 +14,9 @@ target names are not aliases.
 
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
-modules. `zi2zx run [--vm] FILE` validates and executes
+modules. `zi2zx run [--vm] FILE` validates and executes a bundle file, or
+builds one in memory from `FILE.zi` with the bundle options, its folder as
+the default root and its `main` as the default entry, and executes
 zero-argument integer, bool, or void entry functions, as native code where
 the platform compiles it and on the portable VM elsewhere or with `--vm`.
 Integer entries support `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, and `u64`;
@@ -47,11 +49,17 @@ function calls from the entry, keeps record and enum declarations used by
 those functions (including types from imported modules and nested record
 fields), and retains imported startup paths even when no symbol from them is
 called. It removes other unreachable functions, modules, types, and imports before
-writing the payload. Bundle serialization omits native `#asm` variants and
-writes their checked local bodies as ordinary blocks. Typed expression graphs,
-source locations, certificates, capabilities and assets remain intact. Source
-and saved `.zir` keep their native variants for native builds, without changing
-the saved-IR encoding.
+writing the payload. Bundle serialization keeps procedures' `#asm` variants
+and writes local `#asm` blocks as their checked bodies in ordinary blocks.
+Only `zi2zx run FILE.zi` and `ziran run FILE.zi`, which build the bundle from
+local source in memory, run those variants natively; a bundle file, however
+it was built or obtained, and the portable VM run each procedure's portable
+body, so a downloaded bundle cannot run instructions of its own. A run that
+links libraries from other bundles runs no variants either. Code compiled
+with the variants is cached apart from the same bundle run without them.
+Typed expression graphs, source locations, certificates, capabilities and
+assets remain intact. Source and saved `.zir` keep every native variant for
+native builds. Run `sh tests/zx_native_asm.sh build/bin/ziran`.
 
 The bundle writer first validates and measures the portable payload, then
 streams it directly to the destination. It needs neither a temporary payload

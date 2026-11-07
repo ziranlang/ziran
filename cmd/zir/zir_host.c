@@ -41,6 +41,8 @@ struct Bundle {
     /* 1 while a bundle opened on its cached native code is unchecked, -1
      * when its later check failed. */
     int unchecked;
+    /* Set by BundleTrustNativeAssembly: procedures' #asm variants compile. */
+    int native_assembly;
     /* An unchecked bundle owns its capability names: checking it later may
      * move the imports that instances' names would otherwise borrow. */
     char *capability_text;
@@ -60,6 +62,14 @@ void
 BundleUsePortableVm(int enabled)
 {
     portable_vm = enabled != 0;
+}
+
+void
+BundleTrustNativeAssembly(Bundle *bundle)
+{
+    /* A library is a bundle of its own, so its variants never run. */
+    if(bundle != NULL && bundle->library_count == 0)
+        bundle->native_assembly = 1;
 }
 
 const ZirProgram *
@@ -225,6 +235,23 @@ bundle_identity(const Bundle *bundle, unsigned char identity[32])
     add_identity(&hash, bundle);
     Sha256End(&hash, identity);
 }
+
+#ifdef ZIRAN_NATIVE_ZX
+/* Code compiled with a trusted bundle's #asm variants is cached apart from
+ * the same bytes opened untrusted, which never link it. */
+static void
+native_identity(const Bundle *bundle, unsigned char identity[32])
+{
+    if(!bundle->native_assembly)
+        return;
+    static const char marker[] = "native #asm";
+    Sha256 hash;
+    Sha256Begin(&hash);
+    Sha256Add(&hash, identity, 32);
+    Sha256Add(&hash, marker, sizeof(marker) - 1);
+    Sha256End(&hash, identity);
+}
+#endif
 
 static pthread_mutex_t check_lock = PTHREAD_MUTEX_INITIALIZER;
 
@@ -707,6 +734,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
      * gone. Only an explicit portable VM request runs the VM here. */
     if(!portable_vm) {
         int missing = 1;
+        native_identity(bundle, identity);
         if(unchecked)
             instance->native = ZxNativeOpenCached(&entry, identity,
                                                   instance->capability_names,
@@ -716,7 +744,7 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
             instance->native = ZxNativeOpen(bundle->program, bundle->entry_owner, bundle->entry,
                                             identity, instance->capability_names,
                                             instance->capability_names + count, count,
-                                            dispatch, &instance->set);
+                                            dispatch, &instance->set, bundle->native_assembly);
         if(instance->native == NULL) {
             BundleInstanceClose(instance);
             return NULL;

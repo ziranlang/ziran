@@ -50,7 +50,8 @@ from pathlib import Path
 import sys
 for name in ('common', 'thin', 'standalone'):
     data=(Path(sys.argv[1])/(name+'.zx')).read_bytes()
-    assert b'LIBRARY_NATIVE_FN' not in data and b'LIBRARY_NATIVE_BLOCK' not in data
+    # Procedures keep their #asm variants; local blocks become plain blocks.
+    assert (b'LIBRARY_NATIVE_FN' in data) == (name != 'thin') and b'LIBRARY_NATIVE_BLOCK' not in data
 PY
 mkdir -p "$work/wrong"
 cat > "$work/wrong/common.zi" <<'ZI'

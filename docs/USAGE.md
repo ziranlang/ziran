@@ -139,6 +139,12 @@ TinyCC compiles `x86_64` variants whose features are among `sse2`, `ssse3`,
 `sse4.1`, `sse4.2` and `popcnt`, whose constraints are general registers,
 memory or immediates, and whose clobbers are general or `xmm0`-`xmm15`
 registers; it detects the features with `cpuid`. It skips other variants.
+`ziran run FILE.zi` compiles the program with TinyCC and runs these
+variants. A `.zx` bundle keeps them, but a bundle file, wherever it came
+from, and the portable VM always run the portable body, so a downloaded
+bundle cannot run instructions of its own; run
+`sh tests/zx_native_asm.sh build/bin/ziran`. Under `ziran run` the DCT
+kernel above takes 28 ns a block against 1.8 µs for its portable body.
 
 Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,

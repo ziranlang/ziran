@@ -125,7 +125,13 @@ faster than its portable body.</p>
 <p>TinyCC compiles <code>x86_64</code> variants whose features are among <code>sse2</code>, <code>ssse3</code>,
 <code>sse4.1</code>, <code>sse4.2</code> and <code>popcnt</code>, whose constraints are general registers,
 memory or immediates, and whose clobbers are general or <code>xmm0</code>-<code>xmm15</code>
-registers; it detects the features with <code>cpuid</code>. It skips other variants.</p>
+registers; it detects the features with <code>cpuid</code>. It skips other variants.
+<code>ziran run FILE.zi</code> compiles the program with TinyCC and runs these
+variants. A <code>.zx</code> bundle keeps them, but a bundle file, wherever it came
+from, and the portable VM always run the portable body, so a downloaded
+bundle cannot run instructions of its own; run
+<code>sh tests/zx_native_asm.sh build/bin/ziran</code>. Under <code>ziran run</code> the DCT
+kernel above takes 28 ns a block against 1.8 µs for its portable body.</p>
 <p>Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers

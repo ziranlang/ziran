@@ -115,11 +115,13 @@ typedef struct ZxNativeBuild {
  * empty): one source per module, the host trampolines and entry points in
  * zx_native_host.c, and the headers compiled code sees in zx_include.
  * Linked code also gets zx_native_program.c, which registers it under
- * `identity`. */
+ * `identity`. Procedures' #asm variants compile only with
+ * `native_assembly`; otherwise every procedure runs its portable body. */
 int ZxNativeLower(const ZirProgram *program, const ZirModule *entry_owner,
                   const ZirFunction *entry, const char *const *capability_modules,
                   const char *const *capability_functions, size_t capability_count,
-                  ZxNativeTarget target, const unsigned char identity[32],
+                  ZxNativeTarget target, int native_assembly,
+                  const unsigned char identity[32],
                   const char *directory, ZxNativeBuild *build);
 void ZxNativeBuildFree(ZxNativeBuild *build);
 void ZxNativeRemoveTree(const char *path);

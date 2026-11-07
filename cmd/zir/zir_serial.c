@@ -23,7 +23,7 @@ typedef enum FieldKind {
     FIELD_STATEMENT_KIND, /* high flag bit announces optional block metadata */
     FIELD_STATEMENT_NAME, /* shares storage with optional block annotation */
     FIELD_STATEMENT_TEXT, /* portable output normalizes native blocks to { */
-    FIELD_FUNCTION_ASSEMBLY, /* portable output omits procedure variants */
+    FIELD_FUNCTION_ASSEMBLY, /* procedure variants; hosts decide whether they run */
     FIELD_ASSEMBLY_TEXT,
     FIELD_U64,
     FIELD_SPAN
@@ -884,7 +884,6 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
             if(fields[i].kind == FIELD_ASSEMBLY_TEXT &&
                (out->portable || !StatementHasAssembly(record)))
                 continue;
-            if(out->portable && fields[i].kind == FIELD_FUNCTION_ASSEMBLY) text = "";
             if(out->portable && fields[i].kind == FIELD_STATEMENT_TEXT && StatementHasAssembly(record)) text = "{";
             size_t limit = fields[i].kind == FIELD_ASSEMBLY_TEXT ? fields[i].size : SIZE_MAX;
             if(!write_string(out, text ? text : "", limit))

@@ -22,13 +22,16 @@ extern const ZxNativeHeader ZxNativeHeaders[];
 /* Compile and initialize one instance. Capability i names the function
  * trampolines pass to `host`. `identity` is a SHA-256 of the bundle's bytes
  * and its libraries; with it, compiled code is cached and reused across
- * launches. Returns NULL after a diagnostic when the program cannot be
- * compiled or its module initializers fail. */
+ * launches. Procedures' #asm variants compile only with `native_assembly`,
+ * whose code must be cached under an identity of its own. Returns NULL
+ * after a diagnostic when the program cannot be compiled or its module
+ * initializers fail. */
 ZxNative *ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
                        const ZirFunction *entry, const unsigned char identity[32],
                        const char *const *capability_modules,
                        const char *const *capability_functions,
-                       size_t capability_count, VmHostCall host, void *context);
+                       size_t capability_count, VmHostCall host, void *context,
+                       int native_assembly);
 /* Whether compiled code for `identity` is cached. Only this compiler writes
  * it, from a checked program, so a host may open those bytes unchecked. */
 int ZxNativeCached(const unsigned char identity[32]);

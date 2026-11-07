@@ -78,7 +78,8 @@ int main(int argc, char **argv)
     FILE *memory = ZirWriteMemory(&portable, &portable_size);
     assert(memory && ProgramWritePortable(program, memory, &written) && fclose(memory) == 0);
     assert(measured == written && written == portable_size);
-    assert(!memmem(portable, portable_size, "NATIVE_FN_CANARY", 16));
+    /* Procedures keep their #asm variants; local blocks become plain blocks. */
+    assert(memmem(portable, portable_size, "NATIVE_FN_CANARY", 16));
     assert(!memmem(portable, portable_size, "NATIVE_BLOCK_CANARY", 19));
     assert(memmem(portable, portable_size, "literal #asm survives", 21));
     free(portable);
@@ -127,11 +128,11 @@ int main(int argc, char **argv)
         assert(BundleAssetSize(bundle, 0) == sizeof(asset_data));
         assert(!memcmp(BundleAssetData(bundle, 0), asset_data, sizeof(asset_data)));
         const ZirProgram *loaded = BundleProgram(bundle);
-        int blocks = 0;
+        int blocks = 0, variants = 0;
         for(int m = 0; m < loaded->module_count; m++)
             for(int f = 0; f < loaded->modules[m].function_count; f++) {
                 const ZirFunction *fn = &loaded->modules[m].functions[f];
-                assert(!fn->assembly_text || !*fn->assembly_text);
+                variants += fn->assembly_text && *fn->assembly_text;
                 for(int s = 0; s < fn->stmt_count; s++) {
                     assert(!StatementHasAssembly(&fn->stmts[s]));
                     if(fn->stmts[s].kind == ZIR_STMT_BLOCK_OPEN) {
@@ -139,7 +140,7 @@ int main(int argc, char **argv)
                     }
                 }
             }
-        assert(blocks > 0);
+        assert(blocks > 0 && variants == 1);
         BundleInstance *instance = BundleInstantiate(bundle, NULL, 0);
         assert(instance);
         for(int i = 0; i < 2; i++) {

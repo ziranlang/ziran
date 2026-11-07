@@ -373,7 +373,7 @@ milliseconds(void)
 /* Lower the program and compile it, into the cache when there is one. */
 static int
 compile(ZxNative *native, const ZirProgram *program, const ZirModule *entry_owner,
-        const ZirFunction *entry, const char *object)
+        const ZirFunction *entry, int native_assembly, const char *object)
 {
     char directory[ZIR_PATH_MAX];
     if(!make_directory(directory, sizeof(directory))) {
@@ -385,7 +385,7 @@ compile(ZxNative *native, const ZirProgram *program, const ZirModule *entry_owne
     ZxNativeBuild build = {0};
     int ok = ZxNativeLower(program, entry_owner, entry, native->capability_modules,
                            native->capability_functions, native->capability_count,
-                           ZX_NATIVE_TINYCC, NULL, directory, &build);
+                           ZX_NATIVE_TINYCC, native_assembly, NULL, directory, &build);
     if(!ok)
         snprintf(native->error, sizeof(native->error), "%s", build.error);
     double lowered = milliseconds();
@@ -428,7 +428,7 @@ native_open(const ZirProgram *program, const ZirModule *entry_owner,
             const ZirFunction *entry, const unsigned char identity[32],
             const char *const *capability_modules,
             const char *const *capability_functions, size_t capability_count,
-            VmHostCall host, void *context, int *missing)
+            VmHostCall host, void *context, int native_assembly, int *missing)
 {
     ZxNative *native = ZxNativeNew(entry, capability_modules, capability_functions,
                                    capability_count, host, context);
@@ -466,7 +466,7 @@ native_open(const ZirProgram *program, const ZirModule *entry_owner,
         return NULL;
     }
     if(!ok) {
-        ok = compile(native, program, entry_owner, entry, cached ? object : NULL);
+        ok = compile(native, program, entry_owner, entry, native_assembly, cached ? object : NULL);
         if(cached)
             cache_prune(folder);
     }
@@ -487,13 +487,13 @@ ZxNativeOpen(const ZirProgram *program, const ZirModule *entry_owner,
              const ZirFunction *entry, const unsigned char identity[32],
              const char *const *capability_modules,
              const char *const *capability_functions, size_t capability_count,
-             VmHostCall host, void *context)
+             VmHostCall host, void *context, int native_assembly)
 {
     int missing = 0;
     if(program == NULL || entry_owner == NULL || entry == NULL || host == NULL)
         return NULL;
     return native_open(program, entry_owner, entry, identity, capability_modules,
-                       capability_functions, capability_count, host, context, &missing);
+                       capability_functions, capability_count, host, context, native_assembly, &missing);
 }
 
 ZxNative *
@@ -506,5 +506,5 @@ ZxNativeOpenCached(const ZirFunction *entry, const unsigned char identity[32],
     if(entry == NULL || host == NULL || identity == NULL)
         return NULL;
     return native_open(NULL, NULL, entry, identity, capability_modules,
-                       capability_functions, capability_count, host, context, missing);
+                       capability_functions, capability_count, host, context, 0, missing);
 }

@@ -28,6 +28,7 @@ usage(void)
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zx run [--vm] file.zx\n"
+            "       zi2zx run [--vm] [bundle options] [--root DIR] [--entry module:function] file.zi ...\n"
 #ifdef ZIRAN_NATIVE_ZX
             "       zi2zx native-c [--embedded] -o DIR file.zx ...\n"
 #endif
@@ -75,13 +76,17 @@ include_library_assets(ZxAssets *assets, const Bundle *library)
     return 1;
 }
 
+/* `zi2zx bundle` writes the bundle to its -o file. `zi2zx run FILE.zi`
+ * writes it to INTO instead, with FILE's folder as the default root and
+ * its main as the default entry, and *LOCAL reports whether all of its code
+ * came from source, without libraries from other bundles. */
 static int
-bundle_command(int argc, char **argv)
+bundle_to(int argc, char **argv, FILE *into, int *local)
 {
     const char *root = NULL;
     const char *output = NULL;
     const char *entry = NULL;
-    int first_file = 0;
+    int first_file = -1;
     int count, result = 1;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     ProgramSet set = {0};
@@ -154,7 +159,23 @@ bundle_command(int argc, char **argv)
             break;
         }
     }
-    if(root == NULL || output == NULL || first_file == 0 ||
+    char default_root[ZIR_PATH_MAX], default_entry[ZIR_NAME_MAX * 2];
+    if(into != NULL && first_file >= 0) {
+        const char *source = argv[first_file], *slash = strrchr(source, '/');
+        const char *stem = slash ? slash + 1 : source, *dot = strrchr(stem, '.');
+        if(root == NULL) {
+            int length = slash ? (int)(slash - source) : 1;
+            snprintf(default_root, sizeof(default_root), "%.*s",
+                     length ? length : 1, slash ? source : ".");
+            root = default_root;
+        }
+        if(entry == NULL) {
+            snprintf(default_entry, sizeof(default_entry), "%.*s:main",
+                     (int)(dot ? (size_t)(dot - stem) : strlen(stem)), stem);
+            entry = default_entry;
+        }
+    }
+    if(root == NULL || (output == NULL) == (into == NULL) || first_file < 0 ||
        !split_entry(entry, entry_module, entry_function)) {
         usage();
         return 1;
@@ -246,6 +267,16 @@ bundle_command(int argc, char **argv)
         checking_program = context;
         output_program = include_libraries ? context : thin;
     }
+    if(into != NULL) {
+        if(!BundleWriteInContext(into, output_program, checking_program,
+                                 entry_module, entry_function, &assets)) {
+            Diagnostic(Span("<command>", 1, 1), "zx.output", "cannot write bundle");
+            goto done;
+        }
+        *local = library_count == 0;
+        result = 0;
+        goto done;
+    }
     file = fopen(output, "wb");
     if(file == NULL) {
         Diagnostic(Span(output, 1, 1), "zx.output",
@@ -291,6 +322,40 @@ run_job(void *argument)
     return NULL;
 }
 
+static int
+is_source(const char *path)
+{
+    size_t length = strlen(path);
+    return (length > 3 && strcmp(path + length - 3, ".zi") == 0) ||
+           (length > 4 && strcmp(path + length - 4, ".zir") == 0);
+}
+
+/* Source runs as a bundle built here in memory. It is the only kind whose
+ * #asm variants may run natively; a bundle file never is. */
+static Bundle *
+open_source(int argc, char **argv)
+{
+    FILE *memory = tmpfile();
+    int local = 0;
+    Bundle *bundle = NULL;
+    if(memory == NULL) {
+        Diagnostic(Span("<command>", 1, 1), "zx.output", "cannot create a temporary bundle");
+        return NULL;
+    }
+    if(bundle_to(argc, argv, memory, &local) == 0 && fflush(memory) == 0) {
+        long size = ftell(memory);
+        unsigned char *data = size > 0 ? malloc((size_t)size) : NULL;
+        rewind(memory);
+        if(data != NULL && fread(data, 1, (size_t)size, memory) == (size_t)size)
+            bundle = BundleOpenBytes(data, (size_t)size);
+        free(data);
+    }
+    fclose(memory);
+    if(bundle != NULL && local)
+        BundleTrustNativeAssembly(bundle);
+    return bundle;
+}
+
 /* The portable runner nests about 4 KB of C stack for each Ziran call,
  * and recursion may go as deep as the stack allows, so the program runs
  * on a thread with room for some 60,000 nested calls. Pages are only used
@@ -303,17 +368,22 @@ run_command(int argc, char **argv)
     for(; argc > 0 && !strncmp(argv[0], "--", 2); argc--, argv++) {
         if(!strcmp(argv[0], "--vm"))
             BundleUsePortableVm(1);
-        else if(strncmp(argv[0], "--diagnostics=", 14) || !SetDiagnosticFormat(argv[0] + 14)) {
+        else if(strncmp(argv[0], "--diagnostics=", 14))
+            break;
+        else if(!SetDiagnosticFormat(argv[0] + 14)) {
             usage();
             return 1;
         }
     }
-    if(argc != 1) {
+    int source = 0;
+    for(int i = 0; i < argc; i++)
+        source |= is_source(argv[i]);
+    if(!source && argc != 1) {
         usage();
         return 1;
     }
     RunJob job = {0};
-    job.bundle = BundleOpen(argv[0]);
+    job.bundle = source ? open_source(argc, argv) : BundleOpen(argv[0]);
     if(job.bundle == NULL)
         return 1;
     int ran_on_thread = 0;
@@ -478,7 +548,7 @@ main(int argc, char **argv)
     SetDiagnosticFormatFromArguments(argc, argv);
     if(argc > 1 && strcmp(argv[1], "bundle") == 0) {
         CommandLowerPriority();
-        return bundle_command(argc - 2, argv + 2);
+        return bundle_to(argc - 2, argv + 2, NULL, NULL);
     }
     if(argc > 1 && strcmp(argv[1], "run") == 0)
         return run_command(argc - 2, argv + 2);

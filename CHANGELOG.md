@@ -14,6 +14,9 @@
   `q0..q1`, and one variant per line; the checker rejects undeclared or
   reserved registers, and `-DZIRAN_ASM_CHECK` runs every variant against
   the portable body. TinyCC assembles SSE2-SSE4.2 variants.
+- `ziran run FILE.zi` runs `#asm` variants with TinyCC. Bundles keep them,
+  but a bundle file always runs the portable bodies, so a downloaded bundle
+  cannot run instructions of its own.
 - `-DZIRAN_NO_HEADER_INLINE` keeps generated C calls on the external
   definitions instead of header inline copies, so link-time interposition
   such as `ld --wrap` sees every call again.

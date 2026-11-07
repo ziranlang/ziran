@@ -3,6 +3,7 @@
 #include "zir_borrow.h"
 #include "zir_diagnostic.h"
 #include "zir_text.h"
+#include "zir_profile.h"
 
 #include <stdint.h>
 #include <stdio.h>
@@ -33,12 +34,42 @@ typedef struct GlobalBits {
 
 typedef struct BorrowMutation BorrowMutation;
 
+typedef struct IndexList {
+    int *items;
+    int count, capacity;
+} IndexList;
+
+/* A function's writes to one parameter or global; slots without items are
+ * empty. */
+typedef struct MutationRoot {
+    BorrowMutation *items;
+} MutationRoot;
+
 typedef struct BorrowFunction {
     const ZirModule *module;
     const ZirFunction *fn;
     Origin returned;
     Origin *locals;
     BorrowMutation *mutations;
+    /* The same writes found by what they write, so recording one compares
+     * it only with the writes to its own parameter or global. Open
+     * addressing, capacity a power of two. */
+    MutationRoot *mutation_roots;
+    size_t mutation_root_capacity, mutation_root_count;
+    /* What the last check of this function read, so a pass checks it again
+     * only when something it depends on has changed since: the clock when
+     * that check began, the summaries and global bindings it read, whether
+     * it scanned the globals that retain views, and whether the check
+     * changed state of its own. */
+    unsigned long checked_at;
+    IndexList callees;
+    IndexList globals_read;
+    int scanned_views;
+    int stale;
+    /* The clock when returned or mutations last changed, and the check
+     * that last listed this summary as read. */
+    unsigned long summary_changed_at;
+    unsigned long listed_by;
 } BorrowFunction;
 
 typedef struct BorrowBinding BorrowBinding;
@@ -61,6 +92,7 @@ struct BorrowMutation {
     int global;
     BorrowPath *path;
     BorrowMutation *next;
+    BorrowMutation *next_same_root;
 };
 
 typedef struct BorrowSource {
@@ -86,6 +118,10 @@ struct BorrowBinding {
     int address_known;
     int parameter;
     int view_listed;
+    /* For globals: the clock when this state last changed, and the check
+     * that last listed it as read. */
+    unsigned long changed_at;
+    unsigned long listed_by;
 };
 
 typedef struct ActiveTextBorrow {
@@ -155,6 +191,11 @@ typedef struct BorrowCheck {
     int depth;
     int changed;
     int failed;
+    /* Counts changes to summaries and global bindings; checks counts the
+     * function checks begun. */
+    unsigned long clock;
+    unsigned long views_changed_at;
+    unsigned long checks;
 } BorrowCheck;
 
 static uint64_t
@@ -217,6 +258,53 @@ reject(BorrowCheck *check, ZirSourceSpan span, const char *message)
     check->failed = 1;
 }
 
+static void
+list_index(BorrowCheck *check, IndexList *list, int index)
+{
+    if(list->count == list->capacity) {
+        int capacity = list->capacity ? list->capacity * 2 : 8;
+        int *grown = realloc(list->items, (size_t)capacity * sizeof(*grown));
+        if(grown == NULL) {
+            reject(check, check->current->fn->span, "out of memory checking slice lifetimes");
+            return;
+        }
+        list->items = grown;
+        list->capacity = capacity;
+    }
+    list->items[list->count++] = index;
+}
+
+/* The function being checked depends on global binding index from now on. */
+static void
+read_global(BorrowCheck *check, int index)
+{
+    BorrowBinding *global = &check->globals[index];
+    if(global->listed_by == check->checks) return;
+    global->listed_by = check->checks;
+    list_index(check, &check->current->globals_read, index);
+}
+
+/* The summary being worked out for fn, or NULL when fn is not checked here.
+ * The function being checked depends on that summary from now on. */
+static BorrowFunction *
+function_summary(BorrowCheck *check, const ZirFunction *fn)
+{
+    int index = fn != NULL ? pointer_index_get(&check->function_index, fn, NULL) : -1;
+    if(index < 0) return NULL;
+    BorrowFunction *summary = &check->functions[index];
+    if(summary->listed_by != check->checks) {
+        summary->listed_by = check->checks;
+        list_index(check, &check->current->callees, index);
+    }
+    return summary;
+}
+
+static void
+summary_changed(BorrowCheck *check)
+{
+    check->current->summary_changed_at = ++check->clock;
+}
+
 /* Mutation checks visit view globals in index order, as a scan of every
  * global would, so the same view is reported first. */
 static void
@@ -241,6 +329,7 @@ list_view_global(BorrowCheck *check, int index)
     }
     check->view_globals[position] = index;
     view->view_listed = 1;
+    check->views_changed_at = ++check->clock;
 }
 
 static uint64_t *
@@ -311,20 +400,25 @@ merge(BorrowCheck *check, Origin a, Origin b)
     return result;
 }
 
-static void
+static int
+same_origin(Origin left, Origin right)
+{
+    return left.parameters == right.parameters &&
+        left.pointees == right.pointees && left.lent == right.lent &&
+        left.depth == right.depth && left.invalid == right.invalid &&
+        left.unknown == right.unknown && left.globals == right.globals;
+}
+
+/* Returns whether destination changed. */
+static int
 accumulate(BorrowCheck *check, Origin *destination, Origin source)
 {
     Origin next = merge(check, *destination, source);
-    if(next.parameters != destination->parameters ||
-       next.pointees != destination->pointees ||
-       next.lent != destination->lent ||
-       next.depth != destination->depth ||
-       next.invalid != destination->invalid ||
-       next.unknown != destination->unknown ||
-       next.globals != destination->globals) {
-        *destination = next;
-        check->changed = 1;
-    }
+    if(same_origin(next, *destination))
+        return 0;
+    *destination = next;
+    check->changed = 1;
+    return 1;
 }
 
 static BorrowPlace
@@ -428,6 +522,19 @@ static int
 same_place(BorrowPlace left, BorrowPlace right)
 {
     return left.root == right.root && same_path(left.path, right.path);
+}
+
+/* Whether a global binding's analysis state differs from before. */
+static int
+global_state_differs(const BorrowBinding *before, const BorrowBinding *after)
+{
+    return !same_origin(before->origin, after->origin) ||
+        before->global_backing_state != after->global_backing_state ||
+        !same_place(before->text_backing, after->text_backing) ||
+        before->text_backings != after->text_backings ||
+        !same_place(before->address_backing, after->address_backing) ||
+        before->address_known != after->address_known ||
+        before->view_listed != after->view_listed;
 }
 
 static BorrowSource *
@@ -569,7 +676,9 @@ global_binding(BorrowCheck *check, const char *name)
     if(ResolveGlobal(check->current->module, name, &owner, &global) != 1)
         return NULL;
     int i = pointer_index_get(&check->global_index, owner, global);
-    return i >= 0 ? &check->globals[i] : NULL;
+    if(i < 0) return NULL;
+    read_global(check, i);
+    return &check->globals[i];
 }
 
 static BorrowBinding *
@@ -777,6 +886,40 @@ reference_parameter(BorrowCheck *check, BorrowPlace place)
     }
 }
 
+static MutationRoot *
+mutation_root(BorrowFunction *function, int parameter, int global)
+{
+    size_t mask = function->mutation_root_capacity - 1;
+    uint64_t hash = ((uint64_t)(uint32_t)global << 32 | (uint32_t)parameter) *
+                    UINT64_C(0x9E3779B97F4A7C15);
+    size_t slot = (size_t)(hash ^ (hash >> 29)) & mask;
+    while(function->mutation_roots[slot].items != NULL &&
+          (function->mutation_roots[slot].items->parameter != parameter ||
+           function->mutation_roots[slot].items->global != global))
+        slot = (slot + 1) & mask;
+    return &function->mutation_roots[slot];
+}
+
+/* Room for one more root. Returns 0 only when memory is exhausted. */
+static int
+reserve_mutation_root(BorrowFunction *function)
+{
+    if((function->mutation_root_count + 1) * 4 <= function->mutation_root_capacity * 3)
+        return 1;
+    MutationRoot *old = function->mutation_roots;
+    size_t old_capacity = function->mutation_root_capacity;
+    size_t capacity = old_capacity ? old_capacity * 2 : 16;
+    MutationRoot *grown = calloc(capacity, sizeof(*grown));
+    if(grown == NULL) return 0;
+    function->mutation_roots = grown;
+    function->mutation_root_capacity = capacity;
+    for(size_t i = 0; i < old_capacity; i++)
+        if(old[i].items != NULL)
+            *mutation_root(function, old[i].items->parameter, old[i].items->global) = old[i];
+    free(old);
+    return 1;
+}
+
 static void
 record_mutation(BorrowCheck *check, BorrowPlace place)
 {
@@ -787,14 +930,26 @@ record_mutation(BorrowCheck *check, BorrowPlace place)
     BorrowPath *path = place.path;
     /* Recursive pointer paths must converge to a finite conservative summary. */
     if(path != NULL && path->depth > 32) path = NULL;
-    for(BorrowMutation *item = check->current->mutations; item != NULL; item = item->next)
-        if(item->parameter == parameter && item->global == global &&
-           (item->path == NULL || same_path(item->path, path))) return;
-    BorrowMutation *item = calloc(1, sizeof(*item));
-    if(item == NULL) { reject(check, check->current->fn->span, "out of memory checking text mutation effects"); return; }
-    *item = (BorrowMutation){parameter, global, path, check->current->mutations};
-    check->current->mutations = item;
+    BorrowFunction *function = check->current;
+    MutationRoot *root = function->mutation_root_capacity != 0 ?
+        mutation_root(function, parameter, global) : NULL;
+    for(BorrowMutation *known = root != NULL ? root->items : NULL; known != NULL;
+        known = known->next_same_root)
+        if(known->path == NULL || same_path(known->path, path)) return;
+    BorrowMutation *item = NULL;
+    if(root != NULL && root->items != NULL)
+        item = calloc(1, sizeof(*item));
+    else if(reserve_mutation_root(function)) {
+        root = mutation_root(function, parameter, global);
+        item = calloc(1, sizeof(*item));
+    }
+    if(item == NULL) { reject(check, function->fn->span, "out of memory checking text mutation effects"); return; }
+    *item = (BorrowMutation){parameter, global, path, function->mutations, root->items};
+    if(root->items == NULL) function->mutation_root_count++;
+    root->items = item;
+    function->mutations = item;
     check->changed = 1;
+    summary_changed(check);
 }
 
 static void
@@ -815,8 +970,10 @@ check_mutation(BorrowCheck *check, BorrowPlace destination, ZirSourceSpan span)
      * summary, so a later call can check the actual argument's storage. */
     int backing_global = destination.root->global_index;
     if(backing_global < 0) return;
+    check->current->scanned_views = 1;
     for(int v = 0; v < check->view_global_count; v++) {
         int g = check->view_globals[v];
+        read_global(check, g);
         BorrowBinding *view = &check->globals[g];
         /* Most globals retain no view of this destination. Test the known
          * origin first rather than hashing their type on every mutation. */
@@ -945,8 +1102,7 @@ check_call_mutations(BorrowCheck *check, const ZirExpr *expression)
     if((callee != NULL && callee->is_extern) ||
        (callee == NULL && binding(check, name) == NULL &&
         foreign_call(check, check->current->module, name))) return;
-    int summary_index = callee != NULL ? pointer_index_get(&check->function_index, callee, NULL) : -1;
-    BorrowFunction *summary = summary_index >= 0 ? &check->functions[summary_index] : NULL;
+    BorrowFunction *summary = function_summary(check, callee);
     if(summary != NULL && !callee->is_extern) {
         /* Propagate writes even when there is no live borrow in this caller:
          * a caller of this procedure still needs its transitive summary. */
@@ -1168,10 +1324,7 @@ text_view_backings(BorrowCheck *check, int index)
     if(ResolveFunction(check->current->module, expression->name,
                        &owner, &callee) <= 0)
         return NULL;
-    BorrowFunction *summary = NULL;
-    for(int i = 0; i < check->count; i++)
-        if(check->functions[i].fn == callee)
-            summary = &check->functions[i];
+    BorrowFunction *summary = function_summary(check, callee);
     if(summary == NULL)
         return NULL;
     BorrowSource *result = NULL;
@@ -1204,10 +1357,7 @@ call_origin(BorrowCheck *check, const ZirExpr *expression)
     const ZirFunction *callee = NULL;
     if(ResolveFunction(check->current->module, expression->name, &owner, &callee) <= 0)
         return (Origin){0, 0, 1};
-    BorrowFunction *summary = NULL;
-    for(int i = 0; i < check->count; i++)
-        if(check->functions[i].fn == callee)
-            summary = &check->functions[i];
+    BorrowFunction *summary = function_summary(check, callee);
     if(summary == NULL)
         return (Origin){0, 0, 1};
     Origin result = {0};
@@ -1474,11 +1624,36 @@ reject_return(BorrowCheck *check, ZirSourceSpan span, Origin source)
 
 static void check_function(BorrowCheck *check, BorrowFunction *function);
 
+/* Whether checking function again could change anything: its own last
+ * check changed something, or a summary, global binding or the list of
+ * view-retaining globals it read has changed since that check began. */
+static int
+inputs_changed(const BorrowCheck *check, const BorrowFunction *function)
+{
+    if(function->stale ||
+       (function->scanned_views && check->views_changed_at > function->checked_at))
+        return 1;
+    for(int i = 0; i < function->callees.count; i++)
+        if(check->functions[function->callees.items[i]].summary_changed_at >
+           function->checked_at)
+            return 1;
+    for(int i = 0; i < function->globals_read.count; i++)
+        if(check->globals[function->globals_read.items[i]].changed_at >
+           function->checked_at)
+            return 1;
+    return 0;
+}
+
 static void
 check_function(BorrowCheck *check, BorrowFunction *function)
 {
     const ZirFunction *fn = function->fn;
     check->current = function;
+    function->checked_at = check->clock;
+    function->callees.count = 0;
+    function->globals_read.count = 0;
+    function->scanned_views = 0;
+    check->checks++;
     check->binding_count = 0;
     check->active_count = 0;
     check->depth = 1;
@@ -1570,6 +1745,7 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                 binding(check, assignment_root->name);
             if(destination->kind == ZIR_EXPR_IDENT &&
                destination->type[0] == '*' && assignment_target != NULL) {
+                BorrowBinding before = *assignment_target;
                 assignment_target->address_backing =
                     address_backing(check, statement->expr_root,
                                     &assignment_target->address_known);
@@ -1582,6 +1758,9 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                     assignment_target->address_backing = (BorrowPlace){0};
                     assignment_target->address_known = 0;
                 }
+                if(assignment_target->global_index >= 0 &&
+                   global_state_differs(&before, assignment_target))
+                    assignment_target->changed_at = ++check->clock;
             }
             if(view_type(check, destination->type)) {
                 const ZirExpr *root = destination_root(fn, statement->lhs_root);
@@ -1618,6 +1797,8 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                     target->text_backing = first_source(target->text_backings);
                 } else if(target != NULL && target->global_index >= 0 &&
                           static_storage) {
+                    BorrowBinding before = *target;
+                    Origin before_origin = check->global_origins[target->global_index];
                     BorrowSource *backings =
                         text_view_backings(check, statement->expr_root);
                     BorrowPlace backing = first_source(backings);
@@ -1642,6 +1823,10 @@ check_function(BorrowCheck *check, BorrowFunction *function)
                     }
                     target->text_backings = merge_sources(check,
                         target->text_backings, backings);
+                    if(!same_origin(before_origin,
+                                    check->global_origins[target->global_index]) ||
+                       global_state_differs(&before, target))
+                        target->changed_at = ++check->clock;
                 }
                 if(text_view_type(check, destination->type) &&
                    (!static_storage || source.globals != NULL) && target != NULL &&
@@ -1655,7 +1840,8 @@ check_function(BorrowCheck *check, BorrowFunction *function)
             Origin source = expression_origin(check, statement->expr_root);
             if(source.invalid || source.unknown || source.depth > 0)
                 reject_return(check, statement->span, source);
-            accumulate(check, &function->returned, source);
+            if(accumulate(check, &function->returned, source))
+                summary_changed(check);
         }
         if(statement->kind == ZIR_STMT_IF || statement->kind == ZIR_STMT_WHILE ||
            statement->kind == ZIR_STMT_BLOCK_OPEN)
@@ -1669,8 +1855,8 @@ check_function(BorrowCheck *check, BorrowFunction *function)
 }
 
 
-int
-CheckSliceLifetimes(ZirProgram **programs, int count)
+static int
+check_slice_lifetimes(ZirProgram **programs, int count)
 {
     BorrowCheck check = {0};
     for(int p = 0; p < count; p++)
@@ -1730,11 +1916,23 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
             }
         }
     }
+    /* Repeat passes until summaries settle. A function whose last check
+     * changed nothing, and whose inputs have not changed since, would
+     * change nothing again, so each pass checks only the others. */
+    for(int i = 0; i < check.count; i++)
+        check.functions[i].stale = 1;
     do {
         check.changed = 0;
         for(int i = 0; i < check.count && !check.failed; i++) {
-            if(check.functions[i].fn->checked && !check.functions[i].fn->is_extern)
-                check_function(&check, &check.functions[i]);
+            BorrowFunction *function = &check.functions[i];
+            if(!function->fn->checked || function->fn->is_extern ||
+               !inputs_changed(&check, function))
+                continue;
+            int changed = check.changed;
+            check.changed = 0;
+            check_function(&check, function);
+            function->stale = check.changed;
+            check.changed |= changed;
         }
     } while(check.changed && !check.failed);
     for(int i = 0; i < check.count; i++) {
@@ -1744,6 +1942,9 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
             free(check.functions[i].mutations);
             check.functions[i].mutations = next;
         }
+        free(check.functions[i].mutation_roots);
+        free(check.functions[i].callees.items);
+        free(check.functions[i].globals_read.items);
     }
     while(check.global_bits != NULL) {
         GlobalBits *next = check.global_bits->next;
@@ -1769,4 +1970,13 @@ CheckSliceLifetimes(ZirProgram **programs, int count)
     free(check.global_index.slots);
     free(check.view_globals);
     return !check.failed;
+}
+
+int
+CheckSliceLifetimes(ZirProgram **programs, int count)
+{
+    uint64_t started = ProfileStart();
+    int passed = check_slice_lifetimes(programs, count);
+    ProfileEnd("check.slice_lifetimes", started);
+    return passed;
 }

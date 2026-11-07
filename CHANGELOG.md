@@ -10,6 +10,11 @@
 - zi2c writes the C for large programs far faster: it works out how each
   module's header includes its imports once, so Breeze's 921 modules lower in
   under a second instead of over two minutes, with the same output.
+- The slice lifetime check finishes in a fraction of the time on large
+  programs: each pass rechecks only procedures whose callees or globals
+  changed, and callee summaries and recorded writes are looked up directly.
+  `ZIRAN_PROFILE` now reports the slice lifetime and law gate checks as
+  their own phases.
 - `#reads` follows strings through field paths: a record parameter copied into
   a local record's field is followed to its later uses, a later `=` into the
   field replaces the string, and nested record fields are checked. Fresh Text

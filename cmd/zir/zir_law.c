@@ -10,6 +10,7 @@
 #include "zir_text.h"
 #include "zir_law.h"
 #include "zir_proof.h"
+#include "zir_profile.h"
 
 #include <ctype.h>
 #include <stdio.h>
@@ -954,8 +955,8 @@ check_law_identity(const ZirProgram *program)
     return failures;
 }
 
-int
-CheckLawGates(ZirProgram **programs, int count)
+static int
+check_law_gates(ZirProgram **programs, int count)
 {
     int failures = 0;
     if(!PrepareLawProofs(programs, count)) return 0;
@@ -987,6 +988,15 @@ CheckLawGates(ZirProgram **programs, int count)
             }
         }
     return failures == 0;
+}
+
+int
+CheckLawGates(ZirProgram **programs, int count)
+{
+    uint64_t started = ProfileStart();
+    int passed = check_law_gates(programs, count);
+    ProfileEnd("check.laws", started);
+    return passed;
 }
 
 static void

@@ -15,8 +15,9 @@ below. Other compilers and <code>.zx</code> use the checked Ziran body. Define
     return value + 1
 }
 </code></pre>
-<p>Each <code>#asm</code> takes exactly six literal strings: architecture, assembly template,
-output constraints, input constraints, clobbers, and options. Use semicolons to
+<p>Each <code>#asm</code> takes four to six literal strings: architecture, assembly template,
+output constraints, input constraints, and optionally clobbers and options
+(both default to <code>""</code>). Use semicolons to
 separate constraints and clobbers; commas remain available for the assembler's
 constraint alternatives. Options are <code>""</code> or <code>"volatile"</code>. Templates use GNU
 extended assembly syntax, including named operands, register modifiers,
@@ -26,7 +27,9 @@ validate instruction syntax and machine-specific constraints.
 Generated C uses positional operands internally, so source operand aliases
 may also be C keywords. Named matching inputs retain the same binding.</p>
 <p>Input operands follow parameter order and use the parameter names. Parameters
-must be scalars or pointers. A scalar or pointer result has operand name
+must be scalars, pointers or slices of scalars; a slice operand is its data
+pointer, so pass the count separately. Pointer and slice parameters imply a
+<code>"memory"</code> clobber. A scalar or pointer result has operand name
 <code>out</code>; a record result has one operand named <code>out_FIELD</code> per declared field,
 in field order. Result fields must be named scalars or pointers. Void results
 have no output constraints. Outputs require <code>=</code> constraints, including
@@ -61,6 +64,66 @@ destination architecture. Append required CPU features with <code>+</code>, for 
     return total
 }
 </code></pre>
+<p>A kernel can list one variant per line between its header and its portable body,
+long templates as <code>#string</code> text. The body is required: it runs on every other
+target (Go, WebAssembly, <code>.zx</code>) and is the reference the variants are tested
+against.</p>
+<pre><code class="language-zi">// dst[i] = saturate(dst[i] + src[i]), eight lanes per block.
+AddSaturate :: (dst: []s16, src: []s16, blocks: s64)
+#asm(&quot;x86_64&quot;, #string END
+    xorl %%eax, %%eax
+1:  cmpq %[blocks], %%rax
+    jge 2f
+    movq %%rax, %%rcx
+    shlq $4, %%rcx
+    movdqu (%[dst],%%rcx), %%xmm0
+    movdqu (%[src],%%rcx), %%xmm1
+    paddsw %%xmm1, %%xmm0
+    movdqu %%xmm0, (%[dst],%%rcx)
+    incq %%rax
+    jmp 1b
+2:
+END, &quot;&quot;, &quot;r;r;r&quot;, &quot;rax;rcx;xmm0..xmm1;cc&quot;)
+#asm(&quot;aarch64&quot;, #string END
+    cbz %[blocks], 2f
+    mov x9, %[dst]
+    mov x10, %[src]
+    mov x11, %[blocks]
+1:  ld1 {v0.8h}, [x9]
+    ld1 {v1.8h}, [x10], #16
+    sqadd v0.8h, v0.8h, v1.8h
+    st1 {v0.8h}, [x9], #16
+    subs x11, x11, #1
+    b.ne 1b
+2:
+END, &quot;&quot;, &quot;r;r;r&quot;, &quot;x9..x11;v0..v1;cc&quot;) {
+    for i: 0..blocks * 8 - 1 {
+        sum := cast(s32)dst[i] + src[i]
+        if sum &gt; 32767 { sum = 32767 }
+        if sum &lt; -32768 { sum = -32768 }
+        dst[i] = cast(s16)sum
+    }
+}
+</code></pre>
+<p>Clobbers name registers or numbered ranges: <code>xmm0..xmm7</code>, <code>x9..x11</code>,
+<code>v0..v3</code>, and on ARMv7 <code>q0..q1</code>, which stands for <code>d0..d3</code>. The checker
+requires every register a template names to be a clobber or pinned by a
+constraint (<code>"a"</code> holds <code>rax</code>), every <code>%[name]</code> and <code>%N</code> to be an operand, and
+no clobber to overlap a pinned register. Templates may read, but never
+clobber, the stack, frame and platform registers: <code>rbp</code>/<code>rsp</code> on x86-64,
+<code>x18</code>/<code>x29</code>/<code>sp</code> on AArch64, <code>r7</code>/<code>r11</code>/<code>sp</code>/<code>pc</code> on ARMv7.</p>
+<p>Build generated C with <code>-DZIRAN_ASM_CHECK</code> to test the variants: each call of
+such a procedure runs its portable body, then every variant the CPU supports
+on copies of the same inputs, compares results and the memory its slice and
+pointer parameters reach, and aborts with <code>#asm check failed: AddSaturate
+variant "x86_64" differs from its portable body in dst</code> on a difference.
+Callers receive the portable results. Run it over random and edge-case
+inputs; <code>tests/asm_routines.sh</code> shows the pattern. Local <code>#asm</code> blocks are not
+checked this way.</p>
+<p>TinyCC compiles <code>x86_64</code> variants whose features are among <code>sse2</code>, <code>ssse3</code>,
+<code>sse4.1</code>, <code>sse4.2</code> and <code>popcnt</code>, whose constraints are general registers,
+memory or immediates, and whose clobbers are general or <code>xmm0</code>-<code>xmm15</code>
+registers; it detects the features with <code>cpuid</code>. It skips other variants.</p>
 <p>Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
@@ -85,7 +148,7 @@ and <a href="https://www.kernel.org/doc/html/latest/arch/arm64/elf_hwcaps.html">
 <p><code>arm+neon</code> variants need ARMv7-A or later with a hard-float ABI (Linux
 <code>armhf</code>, Android <code>armeabi-v7a</code> from API 18). Their helpers run in ARM state, so
 Thumb-2 callers work, and the caller keeps the build's FPU option. Name the
-NEON registers you use in the clobbers (<code>d0;d1</code> for <code>q0</code>). Write <code>vld1</code>/<code>vst1</code>
+NEON registers you use in the clobbers (<code>q0</code> or <code>d0;d1</code>). Write <code>vld1</code>/<code>vst1</code>
 without <code>:64</code>/<code>:128</code> alignment qualifiers unless the address is known to be
 aligned: a qualified access to a misaligned address faults.</p>
 <p>A WebAssembly engine rejects a whole module that holds SIMD instructions it
@@ -101,7 +164,7 @@ carry them through <code>block (v128) -&gt; (v128)</code> and <code>loop (v128) 
 crashes on any typed block in inline assembly. Use <code>v128.load 0:p2align=0</code> for
 unaligned data.</p>
 <p>Assembly and the fallback must implement the same behavior; checking the
-fallback does not prove their equivalence. These variants do not yet provide
+fallback does not prove their equivalence, so test with <code>ZIRAN_ASM_CHECK</code>. These variants do not yet provide
 <code>asm goto</code>, naked functions, standalone assembler files, or direct Go ABI
 assembler output. Saved IR preserves the variants; <code>.zx</code>
 executes only portable code. Rebuild older IR/bundles with the current compiler.</p>

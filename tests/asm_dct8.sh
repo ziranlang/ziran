@@ -11,7 +11,11 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
-python3 "$repo/tests/asm_dct8_templates.py" "$repo/tests/spec/asm_dct8.zi"
+# tests/asm_dct8_templates.zi generates the three templates from one
+# description of the transform; --write regenerates them.
+"$ziran" build --root "$repo/tests" --module-path "$repo/std" --target=c --exe \
+    --entry asm_dct8_templates:main -o "$work/generator" "$repo/tests/asm_dct8_templates.zi"
+"$work/generator/asm_dct8_templates" "$repo/tests/spec/asm_dct8.zi"
 cp "$repo/tests/spec/asm_dct8.zi" "$work/dct8.zi"
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/dct8.zi"
 

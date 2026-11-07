@@ -1,7 +1,7 @@
 // AV1's 8-bit 8x8 DCT_DCT inverse transform as a typed #asm routine, the
 // real-kernel check of #asm: SSSE3, AArch64 and ARMv7 NEON variants beside
 // the portable body, compared with AV1's s64 reference by
-// tests/asm_dct8.sh. tests/asm_dct8_templates.py generates the templates.
+// tests/asm_dct8.sh. tests/asm_dct8_templates.zi generates the templates.
 
 // The 8-bit DCT_DCT 8x8 inverse transform of AV1 7.13.3 at 16-bit lanes:
 // the row pass, Round2 by 1, the column pass and Round2 by 4, row-major

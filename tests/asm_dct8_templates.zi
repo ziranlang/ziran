@@ -1,0 +1,476 @@
+// The InverseDct8x8 #asm templates of tests/spec/asm_dct8.zi: x86-64 SSSE3,
+// AArch64 and ARMv7 NEON from one description of the transform, with the
+// registers each step frees reused by the next.
+// Usage: asm_dct8_templates [--write] FILE checks FILE's templates, or with
+// --write rewrites them.
+#import "std/file"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec";
+
+#scope_file
+X86 :: 0;
+A64 :: 1;
+ARM :: 2;
+
+// Rotations by 799/4017, 3406/2276, 2896/2896 and 1567/3784. The NEON
+// variants read cosine and sine from lanes of the table's first row,
+// [799, 4017, 3406, 2276, 2896, 1567, 3784, 0]; x86 multiplies pairs from
+// byte 16 + 32 * key (x = a*c - b*s) and 32 + 32 * key (y = a*s + b*c).
+K799 :: 0;
+K3406 :: 1;
+K2896 :: 2;
+K1567 :: 3;
+CosLane :: s64.[0, 2, 4, 5];
+SinLane :: s64.[1, 3, 4, 6];
+// x86 table offsets: the rounding dwords and the pmulhrsw factors.
+ROUND :: 144;
+HALF :: 160;
+SIXTEENTH :: 176;
+
+Gen :: struct {
+    arch: s64;
+    free: [24]s64;
+    count: s64;
+    failed: bool;
+    text: Vec(u8);
+}
+
+Release :: (g: *Gen, r: s64) {
+    i: s64 = 0
+    while i < g.count { if g.free[i] == r { g.failed = true }; i += 1 }
+    g.free[g.count] = r
+    g.count += 1
+}
+
+Take :: (g: *Gen) -> s64 {
+    if g.count == 0 { g.failed = true; return 0 }
+    r := g.free[0]
+    i: s64 = 1
+    while i < g.count { g.free[i - 1] = g.free[i]; i += 1 }
+    g.count -= 1
+    return r
+}
+
+// Start an instruction line, which the caller then prints into g.text; the
+// template is the lines joined by newlines.
+Line :: (g: *Gen) {
+    if g.text.count > 0 { BuilderAppend(g.text, "\n") }
+    BuilderAppend(g.text, "    ")
+}
+
+Put :: (g: *Gen, line: string) {
+    Line(g)
+    BuilderAppend(g.text, line)
+}
+
+Label :: (g: *Gen, name: string) {
+    BuilderAppend(g.text, "\n")
+    BuilderAppend(g.text, name)
+}
+
+// x86 operands: %%xmmN registers and N(%[name]) memory.
+X :: (r: s64) -> string {
+    name: Vec(u8)
+    BuilderPrint(*name, "%%%%xmm%", r)
+    return BuilderFinish(name)
+}
+
+Memory :: (offset: s64, operand: string) -> string {
+    name: Vec(u8)
+    if offset != 0 { BuilderPrint(*name, "%", offset) }
+    BuilderPrint(*name, "(%%[%])", operand)
+    return BuilderFinish(name)
+}
+
+E :: (g: *Gen, op: string, a: string, b: string) {
+    Line(g); BuilderPrint(*g.text, "% %, %", op, a, b)
+}
+
+XMAX :: "%%xmm13";
+XMIN :: "%%xmm14";
+
+Track :: (g: *Gen, r: s64) {
+    if g.arch == X86 {
+        E(g, "pmaxsw", X(r), XMAX)
+        E(g, "pminsw", X(r), XMIN)
+    } else if g.arch == A64 {
+        Line(g); BuilderPrint(*g.text, "smax v28.8h, v28.8h, v%.8h", r)
+        Line(g); BuilderPrint(*g.text, "smin v29.8h, v29.8h, v%.8h", r)
+    } else {
+        Line(g); BuilderPrint(*g.text, "vmax.s16 q1, q1, q%", r)
+        Line(g); BuilderPrint(*g.text, "vmin.s16 q2, q2, q%", r)
+    }
+}
+
+Prologue :: (g: *Gen) {
+    if g.arch == X86 {
+        E(g, "movdqu", Memory(ROUND, "table"), "%%xmm12")
+        E(g, "pxor", XMAX, XMAX)
+        E(g, "pxor", XMIN, XMIN)
+    } else if g.arch == A64 {
+        Put(g, "ld1 {v0.8h}, [%[table]]")
+        Put(g, "movi v28.8h, #0")
+        Put(g, "movi v29.8h, #0")
+    } else {
+        Put(g, "vld1.16 {d0-d1}, [%[table]]")
+        Put(g, "vmov.i16 q1, #0")
+        Put(g, "vmov.i16 q2, #0")
+        Put(g, "mov r12, %[dequant]")
+    }
+}
+
+// Row i of the dequantized s32 block, narrowed to eight s16 lanes.
+LoadRow :: (g: *Gen, i: s64) -> s64 {
+    v := Take(g)
+    if g.arch == X86 {
+        t := Take(g)
+        E(g, "movdqu", Memory(32 * i, "dequant"), X(v))
+        E(g, "movdqu", Memory(32 * i + 16, "dequant"), X(t))
+        E(g, "packssdw", X(t), X(v))
+        Release(g, t)
+    } else if g.arch == A64 {
+        a := Take(g)
+        b := Take(g)
+        Line(g); BuilderPrint(*g.text, "ldp q%, q%, [%%[dequant], #%]", a, b, 32 * i)
+        Line(g); BuilderPrint(*g.text, "sqxtn v%.4h, v%.4s", v, a)
+        Line(g); BuilderPrint(*g.text, "sqxtn2 v%.8h, v%.4s", v, b)
+        Release(g, a)
+        Release(g, b)
+    } else {
+        Put(g, "vld1.32 {d24-d27}, [r12]!")
+        Line(g); BuilderPrint(*g.text, "vqmovn.s32 d%, q12", 2 * v)
+        Line(g); BuilderPrint(*g.text, "vqmovn.s32 d%, q13", 2 * v + 1)
+    }
+    Track(g, v)
+    return v
+}
+
+// x86: interleave a and b's low and high halves into a and a new register.
+Pair :: (g: *Gen, low: string, high: string, rows: []s64, o: s64, a: s64, b: s64, out: []s64) {
+    t := Take(g)
+    E(g, "movdqa", X(rows[a]), X(t))
+    E(g, low, X(rows[b]), X(rows[a]))
+    E(g, high, X(rows[b]), X(t))
+    Release(g, rows[b])
+    out[o] = rows[a]
+    out[o + 1] = t
+}
+
+// AArch64: trn1 and trn2 of a and b into two new registers.
+Step :: (g: *Gen, size: string, a: s64, b: s64, out: []s64, x: s64, y: s64) {
+    t0 := Take(g)
+    t1 := Take(g)
+    Line(g); BuilderPrint(*g.text, "trn1 v%.%, v%.%, v%.%", t0, size, a, size, b, size)
+    Line(g); BuilderPrint(*g.text, "trn2 v%.%, v%.%, v%.%", t1, size, a, size, b, size)
+    Release(g, a)
+    Release(g, b)
+    out[x] = t0
+    out[y] = t1
+}
+
+// Transpose the eight rows in r, leaving the columns in r.
+Transpose :: (g: *Gen, r: []s64) {
+    p: [8]s64
+    q: [8]s64
+    if g.arch == X86 {
+        for m: 0..3 { Pair(g, "punpcklwd", "punpckhwd", r, 2 * m, 2 * m, 2 * m + 1, p[:]) }
+        Pair(g, "punpckldq", "punpckhdq", p[:], 0, 0, 2, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 2, 1, 3, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 4, 4, 6, q[:])
+        Pair(g, "punpckldq", "punpckhdq", p[:], 6, 5, 7, q[:])
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 0, 0, 4, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 2, 1, 5, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 4, 2, 6, r)
+        Pair(g, "punpcklqdq", "punpckhqdq", q[:], 6, 3, 7, r)
+    } else if g.arch == A64 {
+        for m: 0..3 { Step(g, "8h", r[2 * m], r[2 * m + 1], p[:], 2 * m, 2 * m + 1) }
+        bases := s64.[0, 4]
+        for base: bases {
+            Step(g, "4s", p[base], p[base + 2], q[:], base, base + 2)
+            Step(g, "4s", p[base + 1], p[base + 3], q[:], base + 1, base + 3)
+        }
+        for k: 0..3 { Step(g, "2d", q[k], q[k + 4], r, k, k + 4) }
+    } else {
+        for m: 0..3 {
+            Line(g); BuilderPrint(*g.text, "vtrn.16 q%, q%", r[2 * m], r[2 * m + 1])
+        }
+        firsts := s64.[0, 1, 4, 5]
+        for a: firsts {
+            Line(g); BuilderPrint(*g.text, "vtrn.32 q%, q%", r[a], r[a + 2])
+        }
+        for k: 0..3 {
+            Line(g); BuilderPrint(*g.text, "vswp d%, d%", 2 * r[k] + 1, 2 * r[k + 4])
+        }
+    }
+}
+
+// Lanes x and y of t become a*c - b*s and a*s + b*c, Round2 by 12, from
+// a = t[x] and b = t[y]; returns in p and q, which may swap x and y.
+Butterfly :: (g: *Gen, t: []s64, x: s64, y: s64, p: s64, q: s64, key: s64) {
+    a := t[x]
+    b := t[y]
+    if g.arch == X86 {
+        t0 := Take(g)
+        t1 := Take(g)
+        k := Take(g)
+        E(g, "movdqa", X(a), X(t0))
+        E(g, "punpcklwd", X(b), X(t0))
+        E(g, "punpckhwd", X(b), X(a))
+        E(g, "movdqa", X(t0), X(b))
+        E(g, "movdqa", X(a), X(t1))
+        E(g, "movdqu", Memory(16 + 32 * key, "table"), X(k))
+        E(g, "pmaddwd", X(k), X(t0))
+        E(g, "pmaddwd", X(k), X(a))
+        E(g, "movdqu", Memory(32 + 32 * key, "table"), X(k))
+        E(g, "pmaddwd", X(k), X(b))
+        E(g, "pmaddwd", X(k), X(t1))
+        products := s64.[t0, a, b, t1]
+        for r: products { E(g, "paddd", "%%xmm12", X(r)) }
+        for r: products { E(g, "psrad", "$12", X(r)) }
+        E(g, "packssdw", X(a), X(t0))
+        E(g, "packssdw", X(t1), X(b))
+        Track(g, t0)
+        Track(g, b)
+        Release(g, a)
+        Release(g, t1)
+        Release(g, k)
+        t[p] = t0
+        t[q] = b
+        return
+    }
+    if g.arch == A64 {
+        c := CosLane[key]
+        s := SinLane[key]
+        w: [4]s64
+        for i: 0..3 { w[i] = Take(g) }
+        Line(g); BuilderPrint(*g.text, "smull v%.4s, v%.4h, v0.h[%]", w[0], a, c)
+        Line(g); BuilderPrint(*g.text, "smull2 v%.4s, v%.8h, v0.h[%]", w[1], a, c)
+        Line(g); BuilderPrint(*g.text, "smlsl v%.4s, v%.4h, v0.h[%]", w[0], b, s)
+        Line(g); BuilderPrint(*g.text, "smlsl2 v%.4s, v%.8h, v0.h[%]", w[1], b, s)
+        Line(g); BuilderPrint(*g.text, "smull v%.4s, v%.4h, v0.h[%]", w[2], a, s)
+        Line(g); BuilderPrint(*g.text, "smull2 v%.4s, v%.8h, v0.h[%]", w[3], a, s)
+        Line(g); BuilderPrint(*g.text, "smlal v%.4s, v%.4h, v0.h[%]", w[2], b, c)
+        Line(g); BuilderPrint(*g.text, "smlal2 v%.4s, v%.8h, v0.h[%]", w[3], b, c)
+        Line(g); BuilderPrint(*g.text, "sqrshrn v%.4h, v%.4s, #12", a, w[0])
+        Line(g); BuilderPrint(*g.text, "sqrshrn2 v%.8h, v%.4s, #12", a, w[1])
+        Line(g); BuilderPrint(*g.text, "sqrshrn v%.4h, v%.4s, #12", b, w[2])
+        Line(g); BuilderPrint(*g.text, "sqrshrn2 v%.8h, v%.4s, #12", b, w[3])
+        Track(g, a)
+        Track(g, b)
+        for i: 0..3 { Release(g, w[i]) }
+    } else {
+        c := CosLane[key]
+        s := SinLane[key]
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q12, d%, d%[%]", 2 * a, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q13, d%, d%[%]", 2 * a + 1, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmlsl.s16 q12, d%, d%[%]", 2 * b, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmlsl.s16 q13, d%, d%[%]", 2 * b + 1, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q14, d%, d%[%]", 2 * a, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmull.s16 q15, d%, d%[%]", 2 * a + 1, s / 4, s % 4)
+        Line(g); BuilderPrint(*g.text, "vmlal.s16 q14, d%, d%[%]", 2 * b, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vmlal.s16 q15, d%, d%[%]", 2 * b + 1, c / 4, c % 4)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q12, #12", 2 * a)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q13, #12", 2 * a + 1)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q14, #12", 2 * b)
+        Line(g); BuilderPrint(*g.text, "vqrshrn.s32 d%, q15, #12", 2 * b + 1)
+        Track(g, a)
+        Track(g, b)
+    }
+    t[p] = a
+    t[q] = b
+}
+
+// t[x], t[y] = t[x] + t[y], t[x] - t[y], saturating.
+Hadamard :: (g: *Gen, t: []s64, x: s64, y: s64) {
+    a := t[x]
+    b := t[y]
+    r := Take(g)
+    if g.arch == X86 {
+        E(g, "movdqa", X(a), X(r))
+        E(g, "paddsw", X(b), X(a))
+        E(g, "psubsw", X(b), X(r))
+        Release(g, b)
+        t[x] = a
+        t[y] = r
+        return
+    }
+    if g.arch == A64 {
+        Line(g); BuilderPrint(*g.text, "sqadd v%.8h, v%.8h, v%.8h", r, a, b)
+        Line(g); BuilderPrint(*g.text, "sqsub v%.8h, v%.8h, v%.8h", b, a, b)
+    } else {
+        Line(g); BuilderPrint(*g.text, "vqadd.s16 q%, q%, q%", r, a, b)
+        Line(g); BuilderPrint(*g.text, "vqsub.s16 q%, q%, q%", b, a, b)
+    }
+    Release(g, a)
+    t[x] = r
+    t[y] = b
+}
+
+// AV1's 8-point inverse DCT over the eight registers in p, in place.
+Dct8 :: (g: *Gen, p: []s64) {
+    t: [8]s64
+    order := s64.[0, 4, 2, 6, 1, 5, 3, 7]
+    for i: 0..7 { t[i] = p[order[i]] }
+    Butterfly(g, t[:], 4, 7, 4, 7, K799)
+    Butterfly(g, t[:], 5, 6, 5, 6, K3406)
+    Butterfly(g, t[:], 0, 1, 1, 0, K2896)
+    Butterfly(g, t[:], 2, 3, 2, 3, K1567)
+    Hadamard(g, t[:], 4, 5)
+    Hadamard(g, t[:], 7, 6)
+    Hadamard(g, t[:], 0, 3)
+    Hadamard(g, t[:], 1, 2)
+    Butterfly(g, t[:], 6, 5, 5, 6, K2896)
+    for i: 0..3 {
+        Hadamard(g, t[:], i, 7 - i)
+        p[i] = t[i]
+        p[7 - i] = t[7 - i]
+    }
+}
+
+// Round2(v, bits) in every lane.
+RoundShift :: (g: *Gen, r: []s64, bits: s64) {
+    if g.arch == X86 {
+        k := Take(g)
+        E(g, "movdqu", Memory(ifx bits == 1 then HALF else SIXTEENTH, "table"), X(k))
+        for i: 0..7 { E(g, "pmulhrsw", X(k), X(r[i])) }
+        Release(g, k)
+        return
+    }
+    for i: 0..7 {
+        if g.arch == A64 { Line(g); BuilderPrint(*g.text, "srshr v%.8h, v%.8h, #%", r[i], r[i], bits) }
+        else { Line(g); BuilderPrint(*g.text, "vrshr.s16 q%, q%, #%", r[i], r[i], bits) }
+    }
+}
+
+// Return 0 and write nothing when any lane saturated; otherwise widen the
+// rows into the residual and return 1.
+Finish :: (g: *Gen, rows: []s64) {
+    if g.arch == X86 {
+        k := Take(g)
+        t := Take(g)
+        E(g, "pcmpeqd", X(k), X(k))
+        E(g, "psrlw", "$1", X(k))
+        E(g, "pcmpeqw", XMAX, X(k))
+        E(g, "pcmpeqd", X(t), X(t))
+        E(g, "psllw", "$15", X(t))
+        E(g, "pcmpeqw", XMIN, X(t))
+        E(g, "por", X(t), X(k))
+        E(g, "pmovmskb", X(k), "%%eax")
+        Put(g, "movl $0, %[out]")
+        Put(g, "testl %%eax, %%eax")
+        Put(g, "jnz 9f")
+        for i: 0..7 {
+            v := rows[i]
+            E(g, "movdqa", X(v), X(t))
+            E(g, "punpcklwd", X(v), X(t))
+            E(g, "psrad", "$16", X(t))
+            E(g, "punpckhwd", X(v), X(v))
+            E(g, "psrad", "$16", X(v))
+            E(g, "movdqu", X(t), Memory(32 * i, "residual"))
+            E(g, "movdqu", X(v), Memory(32 * i + 16, "residual"))
+        }
+        Put(g, "movl $1, %[out]")
+    } else if g.arch == A64 {
+        Put(g, "mvni v30.8h, #0x80, lsl #8")
+        Put(g, "movi v31.8h, #0x80, lsl #8")
+        Put(g, "cmeq v30.8h, v28.8h, v30.8h")
+        Put(g, "cmeq v31.8h, v29.8h, v31.8h")
+        Put(g, "orr v30.16b, v30.16b, v31.16b")
+        Put(g, "umaxv h30, v30.8h")
+        Put(g, "umov w9, v30.h[0]")
+        Put(g, "mov %w[out], #0")
+        Put(g, "cbnz w9, 9f")
+        for i: 0..7 {
+            a := Take(g)
+            b := Take(g)
+            Line(g); BuilderPrint(*g.text, "sxtl v%.4s, v%.4h", a, rows[i])
+            Line(g); BuilderPrint(*g.text, "sxtl2 v%.4s, v%.8h", b, rows[i])
+            Line(g); BuilderPrint(*g.text, "stp q%, q%, [%%[residual], #%]", a, b, 32 * i)
+            Release(g, a)
+            Release(g, b)
+        }
+        Put(g, "mov %w[out], #1")
+    } else {
+        Put(g, "vmvn.i16 q12, #0x8000")
+        Put(g, "vmov.i16 q13, #0x8000")
+        Put(g, "vceq.i16 q12, q1, q12")
+        Put(g, "vceq.i16 q13, q2, q13")
+        Put(g, "vorr q12, q12, q13")
+        Put(g, "vorr d24, d24, d25")
+        Put(g, "vmov r2, r3, d24")
+        Put(g, "orrs r2, r2, r3")
+        Put(g, "mov %[out], #0")
+        Put(g, "bne 9f")
+        Put(g, "mov r12, %[residual]")
+        for i: 0..7 {
+            Line(g); BuilderPrint(*g.text, "vmovl.s16 q12, d%", 2 * rows[i])
+            Line(g); BuilderPrint(*g.text, "vmovl.s16 q13, d%", 2 * rows[i] + 1)
+            Put(g, "vst1.32 {d24-d27}, [r12]!")
+        }
+        Put(g, "mov %[out], #1")
+    }
+    Label(g, "9:")
+}
+
+// The whole kernel for one architecture: rows, columns, then the check.
+Program :: (arch: s64) -> string {
+    g: Gen
+    g.arch = arch
+    if arch == X86 {
+        for i: 0..11 { Release(*g, i) }
+        Release(*g, 15)
+    } else if arch == A64 {
+        for i: 1..7 { Release(*g, i) }
+        for i: 16..27 { Release(*g, i) }
+    } else {
+        for i: 3..11 { Release(*g, i) }
+    }
+    Prologue(*g)
+    rows: [8]s64
+    for i: 0..7 { rows[i] = LoadRow(*g, i) }
+    Transpose(*g, rows[:])
+    Dct8(*g, rows[:])
+    RoundShift(*g, rows[:], 1)
+    Transpose(*g, rows[:])
+    Dct8(*g, rows[:])
+    RoundShift(*g, rows[:], 4)
+    Finish(*g, rows[:])
+    if g.failed { return "" }
+    return BuilderFinish(g.text)
+}
+
+#scope_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    write := argc == 3 && TextFromCString(argv[1]) == "--write"
+    if argc != 2 && !write { print("usage: asm_dct8_templates [--write] FILE\n"); return 2 }
+    path := TextFromCString(argv[argc - 1])
+    text, ok := ReadEntireFile(path)
+    if !ok { print("%: cannot read\n", path); return 1 }
+    targets := string.["x86_64+ssse3", "aarch64", "arm+neon"]
+    changed := false
+    for target, index: targets {
+        generated := Program(index)
+        if generated == "" { print("the % registers ran out or were freed twice\n", target); return 1 }
+        header: Vec(u8)
+        BuilderPrint(*header, "#asm(\"%\", #string END\n", target)
+        start := TextFind(text, BuilderFinish(header))
+        if start < 0 { print("%: no % template\n", path, target); return 1 }
+        body := TextFind(text, "\n", start) + 1
+        end := TextFind(text, "\nEND,", body)
+        if end < 0 { print("%: the % template has no END\n", path, target); return 1 }
+        if text[body:end] == generated { continue }
+        if !write {
+            print("%: the % template differs from tests/asm_dct8_templates.zi\n", path, target)
+            return 1
+        }
+        updated: Vec(u8)
+        BuilderAppend(updated, text[0:body])
+        BuilderAppend(updated, generated)
+        BuilderAppend(updated, text[end:text.count])
+        text = BuilderFinish(updated)
+        changed = true
+    }
+    if changed && !WriteEntireFile(path, text) { print("%: cannot write\n", path); return 1 }
+    return 0
+}

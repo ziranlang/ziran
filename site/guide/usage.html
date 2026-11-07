@@ -280,7 +280,8 @@ in <code>for row: 0..height + 3</code> and <code>for column: 0..width + 3</code>
 check. An enclosing <code>if</code> or <code>while</code> condition, earlier <code>&amp;&amp;</code> and <code>||</code>
 operands, and an earlier <code>if</code> that ends in <code>return</code>, <code>break</code> or <code>continue</code>
 all act as guards until a value they compare changes. Every step of the
-index must provably not wrap. Run
+guard and of the index must provably not wrap, so
+<code>if first + 1 + second &gt; view.count { return }</code> does not prove <code>view[first]</code>. Run
 <code>sh tests/guarded_index_ranges.sh build/bin/ziran</code>.</p>
 <p>An <code>if</code> inside a loop only adds to what the loop proves. After
 <code>if flag &gt; 3 { continue }</code>, <code>if i &gt;= 32 { continue }</code> or

@@ -315,7 +315,8 @@ in `for row: 0..height + 3` and `for column: 0..width + 3` reads without a
 check. An enclosing `if` or `while` condition, earlier `&&` and `||`
 operands, and an earlier `if` that ends in `return`, `break` or `continue`
 all act as guards until a value they compare changes. Every step of the
-index must provably not wrap. Run
+guard and of the index must provably not wrap, so
+`if first + 1 + second > view.count { return }` does not prove `view[first]`. Run
 `sh tests/guarded_index_ranges.sh build/bin/ziran`.
 
 An `if` inside a loop only adds to what the loop proves. After

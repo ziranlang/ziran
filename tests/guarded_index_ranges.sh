@@ -4,8 +4,10 @@
 # conditions prove it lies inside its slice or array: an if that returns
 # when input.count < (height + 3) * stride + width + 4, loops bounding row
 # and column, and && or || operands that rule values out before later ones
-# run. Guards that do not cover the read keep its check, and those reads
-# still abort on C, Go, native and the portable VM from source and saved IR.
+# run. Guards that do not cover the read, or test a sum or product that may
+# wrap, whether directly, through a local, an ifx choice or a loop limit,
+# keep its check, and those reads still abort on C, Go, native and the
+# portable VM from source and saved IR.
 set -eu
 
 ziran=${1:?pass the ziran command}
@@ -103,6 +105,39 @@ Other :: (view: []s64, stride: s64, wide: s64, row: s64) -> s64 {
     }
     return view[row * wide]
 }
+// first + 1 + second may wrap past the s64 range, so the guard bounds
+// neither term.
+Wrapped :: (view: []s64, first: s64, second: s64) -> s64 {
+    if first < 0 || second < 0 { return -1 }
+    count := first + 1 + second
+    if count > view.count { return -1 }
+    return view[first]
+}
+// Nor does a product that may wrap bound the column.
+Plane :: (view: []s64, row: s64, stride: s64, column: s64) -> s64 {
+    if row < 0 || stride < 0 || column < 0 || row * stride + column >= view.count { return -1 }
+    return view[column]
+}
+// A local holding a sum that may wrap.
+Through :: (view: []s64, a: s64, b: s64) -> s64 {
+    if a < 0 || b < 0 { return -1 }
+    total := a * 2 + b
+    if total >= view.count { return -1 }
+    return view[b]
+}
+// An ifx choice of terms of a sum that may wrap.
+Choice :: (view: []s64, a: s64, b: s64, flip: bool) -> s64 {
+    if a < 0 || b < 0 || a + b >= view.count { return -1 }
+    at := ifx flip then a else b
+    return view[at]
+}
+// A loop limit bounded only by a sum that may wrap.
+Limit :: (view: []s64, n: s64, m: s64) -> s64 {
+    if n < 0 || m < 0 || n + m > view.count { return -1 }
+    total: s64 = 0
+    for i: 0..n - 1 { total += view[i] }
+    return total
+}
 #program_export
 Answer :: () -> s64 {
     input: [256]u16
@@ -143,10 +178,16 @@ Fault :: (which: s64) -> s64 {
     if which == 3 { return Either(t[0:4], -1, 4) }
     if which == 4 { return Branch(t[0:4], 1, 4) }
     if which == 5 { return Other(t[0:8], 1, 8, 3) }
+    huge: s64 = 6917529027641081856
+    if which == 6 { return Wrapped(t[0:4], huge, huge) }
+    if which == 7 { return Plane(t[0:4], 4611686018427387905, 3, 100) }
+    if which == 8 { return Through(t[0:4], huge, 5) }
+    if which == 9 { return Choice(t[0:4], huge, huge, true) }
+    if which == 10 { return Limit(t[0:4], huge, huge) }
     return 0
 }
 ZI
-faults="Short Moved Either Branch Other"
+faults="Short Moved Either Branch Other Wrapped Plane Through Choice Limit"
 which=1
 for name in $faults; do
     printf '#program_export\nRun%s :: () -> s64 { return Fault(%d) }\n' "$name" "$which" >> "$work/app.zi"

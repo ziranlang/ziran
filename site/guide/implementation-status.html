@@ -632,8 +632,9 @@
   bound what they compare until it changes. Their comparisons of sums and
   products, such as <code>input.count &lt; (height + 3) * stride + width + 4</code>, prove
   indexes such as <code>row * stride + column</code> below a slice count or array length
-  when no step can wrap; <code>tests/guarded_index_ranges.sh</code> checks four proven
-  functions and five reads that keep their checks. A local or parameter
+  when no step of the guard or the index can wrap, so <code>first + 1 + second</code>
+  bounds neither term; <code>tests/guarded_index_ranges.sh</code> checks four proven
+  functions and ten reads that keep their checks. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing <code>while</code> condition
   until the body writes it again; a write followed by <code>continue</code>, <code>break</code>,

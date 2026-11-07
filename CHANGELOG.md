@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Generated C keeps the bounds check behind a guard on a sum or product
+  that may wrap: `if first + 1 + second > view.count { return }` no longer
+  removes the check of `view[first]`, through a local, an `ifx` choice or a
+  loop limit either.
 - String constants and string globals longer than 4095 bytes build as strict
   C (GCC and Clang `-pedantic -Werror`, TinyCC). Header string constants
   are escaped like other C strings, so `??` text no longer forms a trigraph.

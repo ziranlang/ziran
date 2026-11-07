@@ -589,8 +589,9 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   bound what they compare until it changes. Their comparisons of sums and
   products, such as `input.count < (height + 3) * stride + width + 4`, prove
   indexes such as `row * stride + column` below a slice count or array length
-  when no step can wrap; `tests/guarded_index_ranges.sh` checks four proven
-  functions and five reads that keep their checks. A local or parameter
+  when no step of the guard or the index can wrap, so `first + 1 + second`
+  bounds neither term; `tests/guarded_index_ranges.sh` checks four proven
+  functions and ten reads that keep their checks. A local or parameter
   counts only when every write to it is a visible assignment and nothing
   takes its address. A counter is bounded by an enclosing `while` condition
   until the body writes it again; a write followed by `continue`, `break`,

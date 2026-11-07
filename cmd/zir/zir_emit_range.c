@@ -1281,6 +1281,26 @@ poly_range(const RangeFacts *f, const Poly *p, int at, Range *out)
     return 1;
 }
 
+/* The least value of p at statement at, or with upper its greatest, when
+ * no term's range overflows and that end of their sum does not; 0 when that
+ * end is not known. With nonnegative terms, first + 1 + second has a least
+ * value even when its greatest overflows. */
+static int
+poly_bound(const RangeFacts *f, const Poly *p, int at, int upper, int64_t *out)
+{
+    int64_t bound = upper ? p->k.high : p->k.low;
+    for(int i = 0; i < p->count; i++) {
+        Range term = {p->term[i].coef, p->term[i].coef}, atom;
+        for(int a = 0; a < p->term[i].degree; a++)
+            if(!atom_range(f, p->term[i].atom[a], at, &atom) || !range_multiply(term, atom, &term))
+                return 0;
+        if(!add_checked(bound, upper ? term.high : term.low, &bound))
+            return 0;
+    }
+    *out = bound;
+    return 1;
+}
+
 /* Every written binding root reads keeps its value from statement from to
  * statement at. */
 static int
@@ -1305,13 +1325,13 @@ static int
 record_sides(const RangeFacts *f, const Poly *p, Range whole, int at)
 {
     RangeFacts *g = (RangeFacts *)f;
-    Range range;
     Poly bound;
-    if(poly_range(f, p, at, &range) && within(range, whole))
+    int64_t low, high;
+    /* An end whose bound overflows may lie outside whole too. */
+    int low_known = poly_bound(f, p, at, 0, &low), high_known = poly_bound(f, p, at, 1, &high);
+    if(low_known && high_known && low >= whole.low && high <= whole.high)
         return 1;
-    if(!poly_range(f, p, at, &range))
-        range = (Range){INT64_MIN, INT64_MAX};
-    if(range.low < whole.low) {
+    if(!low_known || low < whole.low) {
         /* p - low >= 0 */
         if(whole.low == INT64_MIN || g->sides >= GUARD_SIDES)
             return 0;
@@ -1320,7 +1340,7 @@ record_sides(const RangeFacts *f, const Poly *p, Range whole, int at)
             return 0;
         g->sides++;
     }
-    if(range.high > whole.high) {
+    if(!high_known || high > whole.high) {
         /* high - p >= 0 */
         if(whole.high == INT64_MAX || g->sides >= GUARD_SIDES)
             return 0;

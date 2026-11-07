@@ -119,7 +119,9 @@ pointer parameters reach, and aborts with <code>#asm check failed: AddSaturate
 variant "x86_64" differs from its portable body in dst</code> on a difference.
 Callers receive the portable results. Run it over random and edge-case
 inputs; <code>tests/asm_routines.sh</code> shows the pattern. Local <code>#asm</code> blocks are not
-checked this way.</p>
+checked this way. <code>tests/spec/asm_dct8.zi</code> is a complete kernel: AV1's 8x8
+inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, about ten times
+faster than its portable body.</p>
 <p>TinyCC compiles <code>x86_64</code> variants whose features are among <code>sse2</code>, <code>ssse3</code>,
 <code>sse4.1</code>, <code>sse4.2</code> and <code>popcnt</code>, whose constraints are general registers,
 memory or immediates, and whose clobbers are general or <code>xmm0</code>-<code>xmm15</code>

@@ -19,11 +19,14 @@ ZI
 cat > "$work/app.zi" <<'ZI'
 Left :: #import "left";
 Right :: #import "right";
+// An inferred member takes the imported enum's type as the code names it.
+Pick :: (value: Right.Color) -> s64 { if value == .Red { return 1 } return 0 }
 #program_export
 Answer :: () -> s64 {
-    left: Left.Color = Left.Color.Red
+    left: Left.Color = .Red
     right: Right.Color = Right.Color.Red
-    if Left.Read(Left.Get()) != 20 || Right.Read(Right.Get()) != 22 {
+    if Left.Read(Left.Get()) != 20 || Right.Read(Right.Get()) != 22 ||
+       Pick(.Red) != 1 {
         return 0
     }
     return Left.Read(left) + Right.Read(right)

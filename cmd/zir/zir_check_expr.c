@@ -1243,13 +1243,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                (size_t)length < sizeof(qualified)) {
                 const ZirType *enumeration = FindType(c->module, qualified,
                                                       NULL);
-                if(enumeration != NULL && enumeration->is_enum) {
-                    if(lower_enum_reference(c, e, enumeration, e->name, 0)) {
-                        e->type = KeepName(qualified);
-                        return e->type;
-                    }
-                    return "";
-                }
+                if(enumeration != NULL && enumeration->is_enum)
+                    return lower_enum_reference(c, e, enumeration, qualified,
+                                                e->name, 0) ? e->type : "";
             }
         }
     }
@@ -1280,11 +1276,9 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
        c->fn->exprs[e->left].kind == ZIR_EXPR_IDENT) {
         const ZirType *enumeration = FindType(c->module,
             c->fn->exprs[e->left].name, NULL);
-        if(enumeration != NULL && enumeration->is_enum) {
-            if(lower_enum_reference(c, e, enumeration, e->name, 0))
-                return e->type;
-            return "";
-        }
+        if(enumeration != NULL && enumeration->is_enum)
+            return lower_enum_reference(c, e, enumeration,
+                                        c->fn->exprs[e->left].name, e->name, 0) ? e->type : "";
     }
     if(e->kind == ZIR_EXPR_IDENT && e->name[0] == '.') {
         const ZirType *enumeration = FindType(c->module, c->expected_type, NULL);
@@ -1292,9 +1286,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
             error(c, e->span, "inferred enum member needs an enum type", e->name);
             return "";
         }
-        if(lower_enum_reference(c, e, enumeration, e->name + 1, 0))
-            return e->type;
-        return "";
+        return lower_enum_reference(c, e, enumeration, c->expected_type,
+                                    e->name + 1, 0) ? e->type : "";
     }
     if(e->kind == ZIR_EXPR_CONDITIONAL && !strcmp(e->op, "#ifx")) {
         error(c, e->span, "unlowered #ifx expression", e->text);
@@ -1717,7 +1710,8 @@ expression_type_with_buffers(Checker *c, int index, ExpressionTypeBuffers *buffe
                 break;
             }
             if(enum_member == 1) {
-                if(!lower_enum_reference(c, e, enumeration, source_member, 1))
+                if(!lower_enum_reference(c, e, enumeration, enumeration->name,
+                                         source_member, 1))
                     break;
                 type = "integer";
                 break;

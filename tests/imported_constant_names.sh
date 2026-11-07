@@ -9,6 +9,7 @@ trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/left.zi" <<'ZI'
 VALUE :: 20;
 range :: 1;
+LIMIT :: 4;
 Get :: () -> s64 { return VALUE }
 ZI
 cat > "$work/right.zi" <<'ZI'
@@ -22,6 +23,10 @@ Right :: #import "right";
 #program_export
 Answer :: () -> s64 {
     if Left.range + Right.ziran_keyword_range_0 != 3 { return 0 }
+    // An imported constant bounds an array.
+    buffer: [Left.LIMIT]u8
+    buffer[3] = 2
+    if buffer.count + cast(s64) buffer[3] != 6 { return 0 }
     return Left.Get() + Right.Get()
 }
 ZI

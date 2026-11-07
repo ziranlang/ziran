@@ -447,6 +447,16 @@ integer_expression(const ZirModule *module, const ZirFunction *expression,
     const ZirExpr *node = &expression->exprs[index];
     if(node->kind == ZIR_EXPR_IDENT)
         return constant_value(module, node->name, depth + 1, value, wide);
+    if(node->kind == ZIR_EXPR_MEMBER && node->left >= 0 &&
+       expression->exprs[node->left].kind == ZIR_EXPR_IDENT) {
+        /* An imported constant, as in [B.LIMIT]u8. */
+        char qualified[ZIR_NAME_MAX];
+        int length = snprintf(qualified, sizeof(qualified), "%s.%s",
+                              expression->exprs[node->left].name, node->name);
+        if(length < 0 || (size_t)length >= sizeof(qualified))
+            return -1;
+        return constant_value(module, qualified, depth + 1, value, wide);
+    }
     if(node->kind == ZIR_EXPR_SIZE_OF) {
         size_t size, alignment;
         if(!layout_type(module, node->name, depth + 1,
@@ -1495,9 +1505,11 @@ rewrite_checked_text(Checker *c, const ZirExpr *expr, const char *replacement)
     return 1;
 }
 
+/* SPELLING names the enum as the reference sees it, such as B.Kind for an
+ * enum imported as B; the member takes that type. */
 int
 lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
-                     const char *member, int opened)
+                     const char *spelling, const char *member, int opened)
 {
     int64_t value;
     char replacement[64];
@@ -1512,7 +1524,7 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
      * with its type, while an opened member (using Enum) is a plain integer,
      * so the text holds its value. */
     char qualified[ZIR_NAME_MAX * 2 + 2];
-    snprintf(qualified, sizeof(qualified), "%s.%s", enumeration->name, member);
+    snprintf(qualified, sizeof(qualified), "%s.%s", spelling, member);
     if(!rewrite_checked_text(c, expr, opened ? replacement : qualified)) {
         error(c, expr->span, "cannot lower enum member", expr->text);
         return 0;
@@ -1521,7 +1533,7 @@ lower_enum_reference(Checker *c, ZirExpr *expr, const ZirType *enumeration,
     expr->name = "";
     expr->kind = ZIR_EXPR_INT;
     expr->left = expr->right = expr->third = -1;
-    expr->type = KeepName(enumeration->name);
+    expr->type = KeepName(spelling);
     return 1;
 }
 

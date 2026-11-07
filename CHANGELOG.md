@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- `.Member` resolves against an enum imported from another module, as in
+  `F(.Two)` for a `B.Kind` parameter, and an imported constant such as
+  `B.LIMIT` sizes an array.
 - The scalar proof kernel behind `#proof` is written in Ziran instead of C,
   with the same proof results, diagnostics and step budget.
 - Theorems and their `#proof` certificates are parsed, prepared and checked

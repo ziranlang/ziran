@@ -314,6 +314,10 @@
 <td><code>compiler_proof_kernel.zi</code></td>
 <td>Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget</td>
 </tr>
+<tr>
+<td><code>compiler_bundle.zi</code></td>
+<td>The <code>.zx</code> container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk</td>
+</tr>
 </tbody>
 </table></div>
 <p>C files in <code>cmd/zir</code>, with line counts on 2026-11-07. <em>Boundary</em> means the
@@ -366,8 +370,13 @@
 <td>C</td>
 </tr>
 <tr>
-<td>Bundles and VM</td>
-<td><code>zir_bundle.c</code> 3075, <code>zir_bundle_assets.c</code> 204, <code>zir_vm_eval.c</code> 3697, <code>zir_vm_run.c</code> 2079, <code>zir_vm_verify.c</code> 1442, <code>zir_vm.c</code> 1352, <code>zir_vm_simd.c</code> 667</td>
+<td>Bundles</td>
+<td><code>zir_bundle.c</code> 3037, <code>zir_bundle_assets.c</code> 107</td>
+<td>Boundary for the <code>.zx</code> format; IR linking, pruning and the law and capability checks are C</td>
+</tr>
+<tr>
+<td>VM</td>
+<td><code>zir_vm_eval.c</code> 3697, <code>zir_vm_run.c</code> 2079, <code>zir_vm_verify.c</code> 1442, <code>zir_vm.c</code> 1352, <code>zir_vm_simd.c</code> 667</td>
 <td>C</td>
 </tr>
 <tr>

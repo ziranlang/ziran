@@ -4,6 +4,9 @@
 
 - The scalar proof kernel behind `#proof` is written in Ziran instead of C,
   with the same proof results, diagnostics and step budget.
+- The `.zx` container (header, law and waiver tables, assets and their
+  limits) is written and read by Ziran code instead of C; bundles keep the
+  same bytes.
 - Record fields and enums take `#c "SPELLING"` so a generated C header
   matches C code that shares the records: `const char *` or `char name[N]`
   fields, and enum constants with a prefix such as `ZIR_EXPR_`. Saved IR is
@@ -29,6 +32,9 @@
 - A local such as `at := row * stride + column` declared before the guard
   that bounds `row`, `column` and `stride` proves reads such as
   `levels[at + stride]` in generated C, so they drop their bounds checks.
+- Generated C skips the zero fill of a local declared without a value when
+  every element is provably stored before anything reads it, such as a
+  block filled row by row with `Simd.Store` in `for i: 0..7`.
 - Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
   code running them handles: two in a `#target` procedure's AVX2 copy and
   in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and

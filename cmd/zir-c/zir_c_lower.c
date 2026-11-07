@@ -1919,8 +1919,10 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     emit_inlining_attributes(h, m);
     if(ModuleUsesSlices(m))
         fputs("#include \"zir_slice.h\"\n", h);
+    /* Declarations need only the vector types; bodies include the
+     * operations where they call them. */
     if(ModuleHeaderUsesVectors(m))
-        fputs("#include \"ziran_simd.h\"\n", h);
+        fputs("#include \"ziran_simd_types.h\"\n", h);
     EmitStringType(h);
     for(i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];

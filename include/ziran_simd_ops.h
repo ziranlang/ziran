@@ -5,27 +5,6 @@
 #ifndef ZIRAN_SIMD_OPS_COMMON_H
 #define ZIRAN_SIMD_OPS_COMMON_H
 #if ZI_VEC
-#define ZI_AT(v, i) (v)[i]
-typedef uint8_t zi_u8x16 __attribute__((vector_size(16), aligned(1)));
-typedef int8_t zi_s8x16 __attribute__((vector_size(16), aligned(1)));
-typedef uint16_t zi_u16x8 __attribute__((vector_size(16), aligned(2)));
-typedef int16_t zi_s16x8 __attribute__((vector_size(16), aligned(2)));
-typedef uint32_t zi_u32x4 __attribute__((vector_size(16), aligned(4)));
-typedef int32_t zi_s32x4 __attribute__((vector_size(16), aligned(4)));
-typedef uint64_t zi_u64x2 __attribute__((vector_size(16), aligned(8)));
-typedef int64_t zi_s64x2 __attribute__((vector_size(16), aligned(8)));
-typedef float zi_f32x4 __attribute__((vector_size(16), aligned(4)));
-typedef double zi_f64x2 __attribute__((vector_size(16), aligned(8)));
-typedef uint8_t zi_u8x32 __attribute__((vector_size(32), aligned(1)));
-typedef int8_t zi_s8x32 __attribute__((vector_size(32), aligned(1)));
-typedef uint16_t zi_u16x16 __attribute__((vector_size(32), aligned(2)));
-typedef int16_t zi_s16x16 __attribute__((vector_size(32), aligned(2)));
-typedef uint32_t zi_u32x8 __attribute__((vector_size(32), aligned(4)));
-typedef int32_t zi_s32x8 __attribute__((vector_size(32), aligned(4)));
-typedef uint64_t zi_u64x4 __attribute__((vector_size(32), aligned(8)));
-typedef int64_t zi_s64x4 __attribute__((vector_size(32), aligned(8)));
-typedef float zi_f32x8 __attribute__((vector_size(32), aligned(4)));
-typedef double zi_f64x4 __attribute__((vector_size(32), aligned(8)));
 typedef uint16_t zi_w_u16x8 __attribute__((vector_size(32)));
 typedef uint16_t zi_w_s16x8 __attribute__((vector_size(32)));
 typedef uint32_t zi_w_u32x4 __attribute__((vector_size(32)));
@@ -38,28 +17,6 @@ typedef uint32_t zi_w_u32x8 __attribute__((vector_size(64)));
 typedef uint32_t zi_w_s32x8 __attribute__((vector_size(64)));
 typedef uint64_t zi_w_u64x4 __attribute__((vector_size(64)));
 typedef uint64_t zi_w_s64x4 __attribute__((vector_size(64)));
-#else
-#define ZI_AT(x, i) (x).v[i]
-typedef struct { uint8_t v[16]; } zi_u8x16;
-typedef struct { int8_t v[16]; } zi_s8x16;
-typedef struct { uint16_t v[8]; } zi_u16x8;
-typedef struct { int16_t v[8]; } zi_s16x8;
-typedef struct { uint32_t v[4]; } zi_u32x4;
-typedef struct { int32_t v[4]; } zi_s32x4;
-typedef struct { uint64_t v[2]; } zi_u64x2;
-typedef struct { int64_t v[2]; } zi_s64x2;
-typedef struct { float v[4]; } zi_f32x4;
-typedef struct { double v[2]; } zi_f64x2;
-typedef struct { uint8_t v[32]; } zi_u8x32;
-typedef struct { int8_t v[32]; } zi_s8x32;
-typedef struct { uint16_t v[16]; } zi_u16x16;
-typedef struct { int16_t v[16]; } zi_s16x16;
-typedef struct { uint32_t v[8]; } zi_u32x8;
-typedef struct { int32_t v[8]; } zi_s32x8;
-typedef struct { uint64_t v[4]; } zi_u64x4;
-typedef struct { int64_t v[4]; } zi_s64x4;
-typedef struct { float v[8]; } zi_f32x8;
-typedef struct { double v[4]; } zi_f64x4;
 #endif
 
 /* Lane values and the zero-extended bit patterns zi_ref computes on. */

@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+- Uncached `ziran run` of programs that use `std/simd` compiles in half the
+  time: C that only names vector types includes their small types header,
+  not every operation.
 - zi2c writes the C for large programs far faster: it works out how each
   module's header includes its imports once, so Breeze's 921 modules lower in
   under a second instead of over two minutes, with the same output.

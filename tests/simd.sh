@@ -525,6 +525,44 @@ if test -x "$work/vm-run"; then
     grep -q "out of bounds" "$work/outside-vm.err"
 fi
 
+# A module that only names vector types includes the small types header;
+# only the module that calls vector operations pays for the ops header.
+# #cold keeps lib's procedures out of line; inlined copies would bring
+# their operations, and the ops header, into the caller.
+mkdir "$work/split"
+cat > "$work/split/lib.zi" <<'ZI'
+Simd :: #import "simd"
+Pair :: struct { v: s32x4 }
+Make :: (x: s32) -> Pair #cold {
+    p: Pair
+    p.v = Simd.Add(Simd.Splat(s32x4, x), Simd.Splat(s32x4, 1))
+    return p
+}
+Total :: (v: s32x4) -> s32 #cold { return Simd.Lane(v, 0) + Simd.Lane(v, 3) }
+ZI
+cat > "$work/split/user.zi" <<'ZI'
+Lib :: #import "lib"
+main :: () {
+    p := Lib.Make(20)
+    v: s32x4 = p.v
+    print("%\n", Lib.Total(v))
+}
+ZI
+"$ziran" build --target=c --entry user:main --root "$work/split" \
+    -o "$work/split/c" "$work/split/user.zi"
+grep -q '#include "ziran_simd_types.h"' "$work/split/c/lib.h"
+grep -q '#include "ziran_simd.h"' "$work/split/c/lib.c"
+if grep -q '#include "ziran_simd.h"' "$work/split/c/lib.h" "$work/split/c/user.h" "$work/split/c/user.c"; then
+    echo "a module that only names vector types included the SIMD ops header" >&2
+    exit 1
+fi
+printf '#include "user.h"\nint main(void) { user_main(); return 0; }\n' > "$work/split/c/main.c"
+for flags in "-O2" "-O2 -DZIRAN_SIMD_SCALAR" "-O1 -D__TINYC__"; do
+    "${CC:-cc}" -std=c11 -Wno-psabi $flags -I"$work/split/c" "$work/split/c"/*.c -o "$work/split/app"
+    test "$("$work/split/app")" = 42 ||
+        { echo "split SIMD headers $flags: wrong result" >&2; exit 1; }
+done
+
 reject() {
     printf 'Simd :: #import "simd"\nmain :: () {\n    a := Simd.Splat(s16x8, 3)\n    %s\n}\n' "$1" > "$work/bad.zi"
     if "$ziran" ir --root "$work" -o "$work/bad-ir" "$work/bad.zi" 2> "$work/bad.err"; then

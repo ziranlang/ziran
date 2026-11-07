@@ -362,7 +362,7 @@ $(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) | 
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
     include/zir_vec.h include/ziran_parallel.h include/ziran_gpu.h include/ziran_simd.h \
-    include/ziran_simd_ops.h
+    include/ziran_simd_types.h include/ziran_simd_ops.h
 
 $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
 	mkdir -p $(dir $@)

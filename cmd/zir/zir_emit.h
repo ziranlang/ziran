@@ -94,7 +94,7 @@ void EmitGlobalSlotWrappers(FILE *out, const ZirModule *module,
 /* C private ABI names and source-shaped arguments for array values. */
 int ModuleUsesSlices(const ZirModule *module);
 /* The module's declarations name a SIMD vector type, so its C header
- * includes ziran_simd.h. */
+ * includes ziran_simd_types.h. */
 int ModuleHeaderUsesVectors(const ZirModule *module);
 int ModuleUsesVecOperations(const ZirModule *module);
 void TargetBindingName(const ZirFunction *fn, ZirTarget target,

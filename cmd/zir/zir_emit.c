@@ -1862,18 +1862,19 @@ static const struct {
 
 enum {
     NATIVE_BOUNDS = 1, NATIVE_STRING = 2, NATIVE_STDIO = 4,
-    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32
+    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32, NATIVE_SIMD_TYPES = 64
 };
 
-/* SIMD names: the vector types (zi_s16x8), their helpers (zi_add_s16x8,
- * zi_narrow_s16x8_u8x16) and the access checks. */
-static int
+/* SIMD names: NATIVE_SIMD_TYPES for a vector type alone (zi_s16x8), and
+ * NATIVE_SIMD for its helpers (zi_add_s16x8, zi_narrow_s16x8_u8x16) and
+ * the access checks, which need every operation's definition. */
+static unsigned
 simd_identifier(const char *start, size_t length)
 {
     if(length < 8 || memcmp(start, "zi_", 3)) return 0;
     if((length == 10 && !memcmp(start, "zi_simd_at", 10)) ||
        (length == 20 && !memcmp(start, "zi_simd_gather_check", 20)))
-        return 1;
+        return NATIVE_SIMD;
     const char *last = start + length;
     while(last > start + 3 && last[-1] != '_') last--;
     char name[8];
@@ -1881,7 +1882,8 @@ simd_identifier(const char *start, size_t length)
     if(tail == 0 || tail >= sizeof(name)) return 0;
     memcpy(name, last, tail);
     name[tail] = '\0';
-    return VectorType(name, NULL);
+    if(!VectorType(name, NULL)) return 0;
+    return last == start + 3 ? NATIVE_SIMD_TYPES : NATIVE_SIMD;
 }
 
 /* Scan whole identifier tokens, including those in literals and comments.
@@ -1913,8 +1915,8 @@ native_runtime_includes(const char *text)
         while((*p >= 'a' && *p <= 'z') || (*p >= 'A' && *p <= 'Z') ||
               (*p >= '0' && *p <= '9') || *p == '_') p++;
         size_t length = (size_t)(p - start);
-        if(!(includes & NATIVE_SIMD) && *start == 'z' && simd_identifier(start, length))
-            includes |= NATIVE_SIMD;
+        if(!(includes & NATIVE_SIMD) && *start == 'z')
+            includes |= simd_identifier(start, length);
         for(size_t i = 0; i < sizeof(uses) / sizeof(uses[0]); i++)
             if(!(includes & uses[i].include) && uses[i].length == length &&
                *start == *uses[i].name &&
@@ -1959,7 +1961,9 @@ EmitNativeHelpers(FILE *file, const char *text)
     if(any) includes |= NATIVE_STDLIB;
     fwrite(text, 1, (size_t)(mark - text), file);
     if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);
+    /* Code that only names vectors needs their types, not every helper. */
     if(includes & NATIVE_SIMD) fputs("#include \"ziran_simd.h\"\n", file);
+    else if(includes & NATIVE_SIMD_TYPES) fputs("#include \"ziran_simd_types.h\"\n", file);
     if(includes & NATIVE_STRING) fputs("#include \"zir_string.h\"\n", file);
     if(!(includes & NATIVE_STRING)) {
         if((includes & NATIVE_STDIO) && !(includes & NATIVE_BOUNDS))

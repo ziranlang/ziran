@@ -25,14 +25,8 @@
 #include <stdint.h>
 #include <string.h>
 
-/* Native vectors need __builtin_shufflevector: Clang, or GCC 12 and later. */
-#if !defined(ZIRAN_SIMD_SCALAR) && !defined(__TINYC__) && \
-    (defined(__clang__) || (defined(__GNUC__) && __GNUC__ >= 12)) && \
-    defined(__BYTE_ORDER__) && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define ZI_VEC 1
-#else
-#define ZI_VEC 0
-#endif
+/* ZI_VEC and the vector types. */
+#include "ziran_simd_types.h"
 
 #if ZI_VEC && (defined(__x86_64__) || (defined(__i386__) && defined(__SSE2__)))
 #define ZI_X86 1

@@ -15,6 +15,14 @@
 #define TCC_TARGET_ARM 1
 #define TCC_ARM_EABI 1
 #define TCC_ARM_VFP 1
+/* The CPU's architecture version: ARMv7 builds constants with movw and movt
+ * rather than loading them from beside the code, and ARMv6 and later copy
+ * small structures in place. */
+#if defined(__ARM_ARCH) && __ARM_ARCH >= 7
+#define CONFIG_TCC_CPUVER 7
+#elif defined(__ARM_ARCH) && __ARM_ARCH >= 6
+#define CONFIG_TCC_CPUVER 6
+#endif
 #if defined(__ARM_PCS_VFP)
 #define TCC_ARM_HARDFLOAT 1
 #endif

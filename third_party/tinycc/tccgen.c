@@ -3749,6 +3749,9 @@ ST_FUNC void vstore(void)
 #ifdef CONFIG_TCC_BCHECK
             && !tcc_state->do_bounds_check
 #endif
+#ifdef TCC_NATIVE_STRUCT_COPY_MAX
+            && size <= TCC_NATIVE_STRUCT_COPY_MAX
+#endif
             ) {
             gen_struct_copy(size);
         } else

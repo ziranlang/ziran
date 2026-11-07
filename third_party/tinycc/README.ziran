@@ -14,6 +14,11 @@ Local changes, to be offered upstream:
   padding the callee expects, and released 4 bytes too many afterwards.
   copy_params now pads the first stack argument from the end of the split
   structure (plan->core_stack_end).
+- arm-gen.c: on ARMv6 and later (CONFIG_TCC_CPUVER 6 or more), which load
+  and store words at any address, gen_struct_copy moves a structure of up
+  to 32 bytes through lr, a word (then a halfword and a byte) at a time,
+  rather than calling __aeabi_memmove. tccgen.c leaves a larger structure
+  to memmove where the target sets TCC_NATIVE_STRUCT_COPY_MAX.
 - x86_64-gen.c: gen_struct_copy moves a structure of up to 39 bytes through
   a free register, 8 bytes (then 4, 2 and 1) at a time, rather than with
   movs, which is slow to start.

@@ -131,6 +131,14 @@ enum {
 /* maximum alignment (for aligned attribute support) */
 #define MAX_ALIGN     8
 
+/* ARMv6 and later load and store words and halfwords at any address, so a
+   small structure is copied in place rather than through memmove. */
+#if CONFIG_TCC_CPUVER >= 6
+#define TCC_TARGET_NATIVE_STRUCT_COPY
+#define TCC_NATIVE_STRUCT_COPY_MAX 32
+ST_FUNC void gen_struct_copy(int size);
+#endif
+
 #define CHAR_IS_UNSIGNED
 
 #define ARM_SOFTFP_FLOAT 0
@@ -2369,6 +2377,38 @@ ST_FUNC void gen_vla_alloc(CType *type, int align) {
     }
 #endif
 }
+
+#ifdef TCC_TARGET_NATIVE_STRUCT_COPY
+/* Ziran, 2026-11-07: with the destination and source addresses on top of
+   the stack (above the destination itself, which stays as the result), a
+   structure of up to TCC_NATIVE_STRUCT_COPY_MAX bytes moves through lr, a
+   word (then a halfword and a byte) at a time, rather than through a call
+   to __aeabi_memmove: 16- and 32-byte vector values are copied this way
+   constantly. The prolog saves lr, which calcaddr already uses as scratch. */
+ST_FUNC void gen_struct_copy(int size)
+{
+    uint32_t d, s;
+    int at = 0;
+    gv2(RC_INT, RC_INT);
+    d = intr(vtop[-1].r) << 16;
+    s = intr(vtop->r) << 16;
+    for (; at + 4 <= size; at += 4) {
+        o(0xE590E000 | s | at); /* ldr lr, [s, #at] */
+        o(0xE580E000 | d | at); /* str lr, [d, #at] */
+    }
+    if (size & 2) {
+        o(0xE1D0E0B0 | s | (at & 0xF0) << 4 | (at & 0xF)); /* ldrh lr, [s, #at] */
+        o(0xE1C0E0B0 | d | (at & 0xF0) << 4 | (at & 0xF)); /* strh lr, [d, #at] */
+        at += 2;
+    }
+    if (size & 1) {
+        o(0xE5D0E000 | s | at); /* ldrb lr, [s, #at] */
+        o(0xE5C0E000 | d | at); /* strb lr, [d, #at] */
+    }
+    vpop();
+    vpop();
+}
+#endif
 
 /* end of ARM code generator */
 /*************************************************************/

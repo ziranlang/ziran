@@ -46,6 +46,11 @@
 - Go output computes each `std/simd` operation in its own typed code, which
   Go inlines, instead of through one general lane interpreter: a 352p AV1
   decode built as Go takes 44 ms, from 346 ms.
+- Under TinyCC on every target, as on x86-64, `std/simd` operations run
+  inline, and vector loads and stores copy in place rather than through
+  memcpy. On 32-bit ARM, small records copy through registers and constants
+  build with movw and movt: a cached 352p AV1 decode under `ziran run` on a
+  Cortex-A53 phone takes 1.8 s, from 3.6 s.
 - In C, locals, parameters and globals whose names begin with two
   underscores, which C reserves, are renamed as keywords are.
 - Under TinyCC and unoptimized C builds, checked division, shifts and index

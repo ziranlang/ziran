@@ -12,7 +12,7 @@ Every helper computes exactly what zi_ref in include/ziran_simd.h does. GCC
 (12 or later) and Clang builds use native vectors and, where they give the
 same bits, SSE2..AVX2, NEON or WebAssembly SIMD128 instructions; any other
 build (TinyCC, ZIRAN_SIMD_SCALAR) runs plain C over each type's own lanes.
-TinyCC on x86-64 runs every helper as an inline macro, the common integer
+TinyCC runs every helper as an inline macro, on x86-64 the common integer
 ones as SSE2 assembly.
 --test writes a program that checks every helper, in every x86-64 tier the
 build can run, against zi_ref; tests/simd_go.sh checks the Go helpers.
@@ -1760,18 +1760,18 @@ def reinterpret_bodies(t, r):
              (t.bytes, t.name, r.name))]
 
 
-# ---------------------------------------------------------------- TinyCC x86-64
+# ---------------------------------------------------------------- TinyCC
 
 # TinyCC inlines nothing: a helper function costs a call, with its vectors
-# copied in and out. On x86-64 every helper is a statement-expression macro
-# there instead, evaluating each argument once as a call does. The common
-# integer helpers are one asm statement that reads each vector argument in
-# place through a memory operand and writes the result into a local the
-# expression yields, which TinyCC reads in place again; TinyCC never reuses
-# a finished block's stack slots. The rest run their lane-array C on
-# argument locals. Macro temporaries are spelled __zi_*, which C reserves
-# for the implementation and the C emitter never gives a program's value,
-# so no argument can name one.
+# copied in and out. Every helper is a statement-expression macro there
+# instead, evaluating each argument once as a call does. On x86-64 the
+# common integer helpers are one asm statement that reads each vector
+# argument in place through a memory operand and writes the result into a
+# local the expression yields, which TinyCC reads in place again; TinyCC
+# never reuses a finished block's stack slots. The rest run their
+# lane-array C on argument locals. Macro temporaries are spelled __zi_*,
+# which C reserves for the implementation and the C emitter never gives a
+# program's value, so no argument can name one.
 # TinyCC's assembler knows the SSE2 integer instructions MMX had, pshufd and
 # pmuludq (not movdqu, punpcklqdq or the byte shifts), so these run one
 # instruction per 128-bit block. Each block loads as the two 64-bit halves
@@ -1784,6 +1784,7 @@ def reinterpret_bodies(t, r):
 # TinyCC encodes pavgb and pavgw for MMX registers whatever the operands
 # say, and MMX code leaves the x87 state TinyCC's unsigned 64-bit
 # conversions use unusable, so Avg keeps its C.
+TCC = 'ZI_TCC'
 TCC_X64 = 'ZI_TCC_X64'
 TX_BITS = {8: 'b', 16: 'w', 32: 'd', 64: 'q'}
 
@@ -1867,9 +1868,33 @@ def tcc_lane_macro(ret, params, body):
     return '__extension__ ({ %s %s })' % (decls, text) if decls else '__extension__ ({ %s })' % text
 
 
-def tcc_x64_macro(op, t, ret, params, bodies):
+def tcc_macro(op, t, ret, params, bodies):
+    """The TinyCC macro body for a helper on any target. TinyCC copies a
+    structure at any address, in place or through memmove, so the memory
+    helpers copy through structures of bytes rather than calling memcpy."""
+    if isinstance(op, Reinterpret):
+        return '__extension__ ({ union { %s from; %s to; } __zi_u; __zi_u.from = (a); __zi_u.to; })' % (t.c, ret.c)
+    if isinstance(op, Memory):
+        # LoadLow and StoreLow move the low 64 bits whatever the width.
+        block = 'struct __zi_m { unsigned char b[%d]; };' % (8 if op.low else t.bytes)
+        if op.store:
+            return ('__extension__ ({ %s void *__zi_p = (p); union { %s v; struct __zi_m m; } __zi_u; '
+                    '__zi_u.v = (a); *(struct __zi_m *)__zi_p = __zi_u.m; })' % (block, t.c))
+        return ('__extension__ ({ %s const void *__zi_p = (p); union { %s v; struct __zi_m m; } __zi_u%s; '
+                '__zi_u.m = *(const struct __zi_m *)__zi_p; __zi_u.v; })' % (block, t.c, ' = {0}' if op.low else ''))
+    if isinstance(op, Gather):
+        lane = '__zi_r.m[%d] = *(const struct __zi_m *)(__zi_p + 4 * (int64_t)ZI_AT(__zi_a, %d));'
+        return ('__extension__ ({ struct __zi_m { unsigned char b[4]; }; const char *__zi_p = (const char *)(p); '
+                '%s __zi_a = (a); union { %s v; struct __zi_m m[%d]; } __zi_r; %s __zi_r.v; })' %
+                (t.c, ret.c, t.lanes, ' '.join(lane % (i, i) for i in range(t.lanes))))
+    # TinyCC builds have no native vectors, so every other condition is
+    # false there and the final body runs.
+    return tcc_lane_macro(ret.c if isinstance(ret, T) else ret, params, bodies[-1][1])
+
+
+def tcc_x64_macro(op, t, ret, params):
     """The TinyCC x86-64 macro body for a helper, or None to keep its
-    lane-array function."""
+    tcc_macro."""
     asm = tcc_x64_asm(op, t, ret, params)
     if asm is not None:
         return asm
@@ -1883,18 +1908,14 @@ def tcc_x64_macro(op, t, ret, params, bodies):
                          for k in range(t.lanes // 2))
         return ('__extension__ ({ const char *__zi_p = (const char *)(p); %s __zi_a = (a); '
                 'union { %s v; uint64_t w[%d]; } __zi_r; %s __zi_r.v; })' % (t.c, ret.c, t.lanes // 2, words))
-    # TinyCC builds have no native vectors, so every other condition is
-    # false there and the final body runs.
-    return tcc_lane_macro(ret.c if isinstance(ret, T) else ret, params, bodies[-1][1])
+    return None
 
 
 def tcc_x64_asm(op, t, ret, params):
     """The TinyCC x86-64 assembly macro for a helper, or None."""
-    if isinstance(op, Reinterpret):
-        return '__extension__ ({ union { %s from; %s to; } __zi_u; __zi_u.from = (a); __zi_u.to; })' % (t.c, ret.c)
     if isinstance(op, Narrow):
         return tcc_x64_narrow(t, ret, params)
-    if isinstance(op, (Convert, Gather)):
+    if isinstance(op, (Convert, Gather, Reinterpret)):
         return None
     e, r, W = op.enum, op.result(t), t.bits
     if t.float and e not in ('ZI_OP_SELECT', 'ZI_OP_LOAD', 'ZI_OP_LOAD_LOW', 'ZI_OP_STORE',
@@ -2035,9 +2056,14 @@ def lane_array_common(out):
     out.append('#else')
     out.append('#define ZI_LE 0')
     out.append('#endif')
-    out.append('/* TinyCC on x86-64 runs the common integer helpers in SSE2 assembly. */')
-    out.append('#if !ZI_VEC && defined(__TINYC__) && !defined(__GNUC__) && defined(__x86_64__) && \\')
-    out.append('    !defined(ZIRAN_SIMD_SCALAR)')
+    out.append('/* TinyCC runs the helpers as macros, on x86-64 the common integer ones in')
+    out.append(' * SSE2 assembly. */')
+    out.append('#if !ZI_VEC && defined(__TINYC__) && !defined(__GNUC__) && !defined(ZIRAN_SIMD_SCALAR)')
+    out.append('#define ZI_TCC 1')
+    out.append('#else')
+    out.append('#define ZI_TCC 0')
+    out.append('#endif')
+    out.append('#if ZI_TCC && defined(__x86_64__)')
     out.append('#define ZI_TCC_X64 1')
     out.append('#else')
     out.append('#define ZI_TCC_X64 0')
@@ -2452,32 +2478,49 @@ def header():
     common(out)
     out.append('')
     items = entries()
-    tcc = [tcc_x64_macro(op, t, ret, params, bodies) for op, t, ret, name, params, bodies in items]
+    tcc = [tcc_macro(op, t, ret, params, bodies) for op, t, ret, name, params, bodies in items]
+    x64 = [tcc_x64_macro(op, t, ret, params) for op, t, ret, name, params, bodies in items]
+    guards = [TCC if any_ else TCC_X64 if x else None for any_, x in zip(tcc, x64)]
     out.append('/* ---- operations for ZI_TIER ---- */')
-    unless_tcc_macro(out, items, tcc, lambda op, t, ret, name, params, bodies: prototype(out, ret, name, params))
+    unless_tcc_macro(out, items, guards, lambda op, t, ret, name, params, bodies: prototype(out, ret, name, params))
     out.append('')
-    out.append('/* TinyCC on x86-64 runs these as macros; see tcc_x64_macro. */')
+    out.append('/* TinyCC runs these as macros; see tcc_macro and tcc_x64_macro. */')
+
+    def define(item, macro):
+        out.append('#define zi_%s(%s) %s' % (item[3], ', '.join(n for _c, n in item[4]), macro))
     out.append('#if %s' % TCC_X64)
-    for (op, t, ret, name, params, bodies), macro in zip(items, tcc):
+    for item, macro in zip(items, x64):
         if macro:
-            out.append('#define zi_%s(%s) %s' % (name, ', '.join(n for _c, n in params), macro))
+            define(item, macro)
+    out.append('#elif %s' % TCC)
+    for item, macro, x in zip(items, tcc, x64):
+        if macro and x:
+            define(item, macro)
+    out.append('#endif')
+    out.append('#if %s' % TCC)
+    for item, macro, x in zip(items, tcc, x64):
+        if macro and not x:
+            define(item, macro)
     out.append('#endif')
     out.append('')
     split_macros(out, items)
     out.append('')
-    unless_tcc_macro(out, items, tcc, lambda op, t, ret, name, params, bodies:
+    unless_tcc_macro(out, items, guards, lambda op, t, ret, name, params, bodies:
                      function(out, ret, name, params, bodies))
     return '\n'.join(out) + '\n'
 
 
-def unless_tcc_macro(out, items, tcc, write):
-    """write(*item) for every helper, those with a TinyCC x86-64 macro
-    outside that build."""
-    inside = False
-    for item, macro in zip(items, tcc):
-        if bool(macro) != inside:
-            inside = bool(macro)
-            out.append('#if !%s' % TCC_X64 if inside else '#endif')
+def unless_tcc_macro(out, items, guards, write):
+    """write(*item) for every helper, each one a TinyCC build runs as a
+    macro (its guard, ZI_TCC or ZI_TCC_X64) outside that build."""
+    inside = None
+    for item, guard in zip(items, guards):
+        if guard != inside:
+            if inside:
+                out.append('#endif')
+            if guard:
+                out.append('#if !%s' % guard)
+            inside = guard
         write(*item)
     if inside:
         out.append('#endif')

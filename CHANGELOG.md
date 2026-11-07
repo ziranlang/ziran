@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- `#asm` routines take slices, clobber ranges such as `xmm0..xmm7` and
+  `q0..q1`, and one variant per line; the checker rejects undeclared or
+  reserved registers, and `-DZIRAN_ASM_CHECK` runs every variant against
+  the portable body. TinyCC assembles SSE2-SSE4.2 variants.
 - `-DZIRAN_NO_HEADER_INLINE` keeps generated C calls on the external
   definitions instead of header inline copies, so link-time interposition
   such as `ld --wrap` sees every call again.

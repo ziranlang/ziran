@@ -271,6 +271,9 @@
  DEF_WLX(popcnt)
  DEF_WLX(tzcnt)
  DEF_WLX(lzcnt)
+#ifdef TCC_TARGET_X86_64
+ DEF_BWLX(crc32)
+#endif
 
  DEF_WLX(lar)
  DEF_WLX(lsl)

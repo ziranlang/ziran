@@ -18,7 +18,13 @@ typedef struct Assembly {
     const char *part[6];
     int architecture;
     uint64_t features;
+    int tinycc; /* TinyCC's assembler and constraints can build it */
 } Assembly;
+
+static void assembly_string(FILE *out, const char *text);
+static int operand_list(const char *text, const char **items);
+static int tinycc_variant(const Assembly *assembly);
+static void assembly_predicate(FILE *out, const Assembly *assembly);
 
 enum { ASM_X86_64, ASM_X86, ASM_AARCH64, ASM_ARM, ASM_WASM32 };
 static const struct { const char *name, *guard; } architectures[] = {
@@ -128,18 +134,22 @@ assembly_target(Assembly *assembly, ZirSourceSpan span)
     return 1;
 }
 
+/* Four to six literal strings: clobbers and options may be left out. A
+ * template can be a raw #string body of any length; the source reader keeps
+ * a long one aside behind a marker, which KeepText expands. */
 static int
 read_assembly(const char **cursor, Assembly *assembly, ZirSourceSpan span)
 {
     const char *at = skip_ws(*cursor);
     if(strncmp(at, "#asm", 4) || *skip_ws(at + 4) != '(')
-        return assembly_error(span, "#asm requires six literal strings in parentheses");
+        return assembly_error(span, "#asm requires four to six literal strings in parentheses");
     at = skip_ws(at + 4) + 1;
+    for(int i = 0; i < 6; i++) assembly->part[i] = "";
     for(int i = 0; i < 6; i++) {
         at = skip_ws(at);
         const char *start = at;
         if(*at++ != '"')
-            return assembly_error(span, "#asm requires six literal strings in parentheses");
+            return assembly_error(span, "#asm requires four to six literal strings in parentheses");
         while(*at && *at != '"') {
             if(*at == '\\' && at[1]) at++;
             at++;
@@ -147,24 +157,43 @@ read_assembly(const char **cursor, Assembly *assembly, ZirSourceSpan span)
         if(*at != '"') return assembly_error(span, "unterminated #asm string");
         at++;
         size_t length = (size_t)(at - start), decoded_length = 0;
-        char literal[ZIR_TEXT_MAX];
-        unsigned char decoded[ZIR_TEXT_MAX];
-        if(length >= sizeof(literal))
-            return assembly_error(span, "#asm string exceeds size limit");
+        char *literal = malloc(length + 1);
+        unsigned char *decoded = malloc(length + 1);
+        if(literal == NULL || decoded == NULL) {
+            free(literal); free(decoded);
+            return assembly_error(span, "out of memory reading #asm");
+        }
         memcpy(literal, start, length);
         literal[length] = 0;
-        if(!DecodeStringLiteral(literal, decoded, sizeof(decoded) - 1, &decoded_length) ||
-           memchr(decoded, 0, decoded_length) != NULL)
+        char *expanded = strchr(literal, '\x1f') ? RawTextExpand(literal) : NULL;
+        int valid;
+        if(expanded) {
+            /* A marker stands for the body of a long literal, quotes and
+             * escapes included; decode that body like any other. */
+            free(decoded);
+            decoded = malloc(strlen(expanded) + 1);
+            valid = decoded != NULL &&
+                DecodeStringLiteral(expanded, decoded, strlen(expanded), &decoded_length);
+            free(expanded);
+        } else valid = DecodeStringLiteral(literal, decoded, length, &decoded_length);
+        free(literal);
+        if(!valid || memchr(decoded, 0, decoded_length) != NULL) {
+            free(decoded);
             return assembly_error(span, "invalid #asm string (embedded NUL is forbidden)");
+        }
         decoded[decoded_length] = 0;
         assembly->part[i] = KeepText((const char *)decoded);
+        free(decoded);
         at = skip_ws(at);
-        if(*at++ != (i == 5 ? ')' : ','))
-            return assembly_error(span, "#asm requires exactly six literal strings");
+        char next = *at++;
+        if(next == ')' && i >= 3) break;
+        if(next != (i == 5 ? ')' : ','))
+            return assembly_error(span, "#asm requires four to six literal strings");
     }
     if(!assembly_target(assembly, span)) return 0;
     if(*assembly->part[5] && strcmp(assembly->part[5], "volatile"))
         return assembly_error(span, "#asm options must be empty or volatile");
+    assembly->tinycc = tinycc_variant(assembly);
     *cursor = at;
     return 1;
 }
@@ -279,6 +308,14 @@ operand_type(const char *type)
            strcmp(scalar, "string");
 }
 
+/* A slice parameter reaches assembly as its data pointer. */
+static int
+slice_operand(const char *type)
+{
+    char element[ZIR_NAME_MAX];
+    return type && SliceElementType(type, element, sizeof(element)) && operand_type(element);
+}
+
 /* A declaration can bind a scalar or a record. Resolve that choice at each
  * specialization; known aggregates still cannot be input/block operands. */
 static int
@@ -303,6 +340,411 @@ template_result_type(const ZirFunction *fn)
             return 1;
     }
     return 0;
+}
+
+/* Registers, as families a clobber covers: an x86 vector register whatever
+ * its width (xmm3, ymm3, zmm3), an AArch64 one (v3, q3, d3, s3, h3, b3), a
+ * general register in any width, and an ARMv7 q register as its d halves.
+ * Slots: x86 rax rbx rcx rdx rsi rdi rbp rsp r8..r15, vectors 16..47, k
+ * 48..55, mm 56..63, st 64; AArch64 x0..x30, sp 31, vectors 32..63; ARMv7
+ * r0..r15, d16..47 for d0..d31. Other architectures are not modelled. */
+typedef struct RegisterSet { uint64_t bits[2]; } RegisterSet;
+
+static int
+modelled(int architecture)
+{
+    return architecture == ASM_X86_64 || architecture == ASM_X86 ||
+        architecture == ASM_AARCH64 || architecture == ASM_ARM;
+}
+
+static void
+register_add(RegisterSet *set, int slot) { set->bits[slot >> 6] |= UINT64_C(1) << (slot & 63); }
+
+static int
+register_has(const RegisterSet *set, int slot) { return (set->bits[slot >> 6] >> (slot & 63)) & 1; }
+
+/* The decimal number spelled by text[0..length), or -1. */
+static int
+register_number(const char *text, size_t length)
+{
+    if(length == 0 || length > 2 || (length == 2 && text[0] == '0')) return -1;
+    int value = 0;
+    for(size_t i = 0; i < length; i++) {
+        if(!isdigit((unsigned char)text[i])) return -1;
+        value = value * 10 + text[i] - '0';
+    }
+    return value;
+}
+
+/* Slots name[0..length) covers: the count (0 when it names no register),
+ * filling slots. */
+static int
+register_slots(int architecture, const char *name, size_t length, int slots[2])
+{
+    char text[16];
+    if(length == 0 || length >= sizeof(text)) return 0;
+    for(size_t i = 0; i < length; i++) text[i] = (char)tolower((unsigned char)name[i]);
+    text[length] = 0;
+    if(architecture == ASM_X86_64 || architecture == ASM_X86) {
+        static const char *const legacy[8][5] = {
+            {"rax", "eax", "ax", "al", "ah"}, {"rbx", "ebx", "bx", "bl", "bh"},
+            {"rcx", "ecx", "cx", "cl", "ch"}, {"rdx", "edx", "dx", "dl", "dh"},
+            {"rsi", "esi", "si", "sil", ""}, {"rdi", "edi", "di", "dil", ""},
+            {"rbp", "ebp", "bp", "bpl", ""}, {"rsp", "esp", "sp", "spl", ""}};
+        for(int r = 0; r < 8; r++)
+            for(int w = 0; w < 5; w++)
+                if(*legacy[r][w] && !strcmp(text, legacy[r][w])) { slots[0] = r; return 1; }
+        int n;
+        if(text[0] == 'r') {
+            size_t digits = 1;
+            while(isdigit((unsigned char)text[digits])) digits++;
+            n = register_number(text + 1, digits - 1);
+            const char *suffix = text + digits;
+            if(n >= 8 && n <= 15 && (!*suffix || !strcmp(suffix, "d") || !strcmp(suffix, "w") || !strcmp(suffix, "b"))) {
+                slots[0] = n; return 1;
+            }
+            return 0;
+        }
+        if((!strncmp(text, "xmm", 3) || !strncmp(text, "ymm", 3) || !strncmp(text, "zmm", 3)) &&
+           (n = register_number(text + 3, length - 3)) >= 0 && n < 32) { slots[0] = 16 + n; return 1; }
+        if(text[0] == 'k' && (n = register_number(text + 1, length - 1)) >= 0 && n < 8) { slots[0] = 48 + n; return 1; }
+        if(!strncmp(text, "mm", 2) && (n = register_number(text + 2, length - 2)) >= 0 && n < 8) { slots[0] = 56 + n; return 1; }
+        if(!strcmp(text, "st")) { slots[0] = 64; return 1; }
+        return 0;
+    }
+    if(architecture == ASM_AARCH64) {
+        int n = register_number(text + 1, length - 1);
+        if((text[0] == 'x' || text[0] == 'w') && n >= 0 && n <= 30) { slots[0] = n; return 1; }
+        if(strchr("vqdshb", text[0]) && n >= 0 && n < 32) { slots[0] = 32 + n; return 1; }
+        if(!strcmp(text, "lr")) { slots[0] = 30; return 1; }
+        if(!strcmp(text, "fp")) { slots[0] = 29; return 1; }
+        if(!strcmp(text, "sp") || !strcmp(text, "wsp")) { slots[0] = 31; return 1; }
+        return 0;
+    }
+    if(architecture == ASM_ARM) {
+        static const char *const aliases[] = {"ip", "r12", "sp", "r13", "lr", "r14", "pc", "r15", "fp", "r11", "sl", "r10", "sb", "r9"};
+        for(size_t i = 0; i < sizeof(aliases) / sizeof(*aliases); i += 2)
+            if(!strcmp(text, aliases[i])) return register_slots(architecture, aliases[i + 1], strlen(aliases[i + 1]), slots);
+        int n = register_number(text + 1, length - 1);
+        if(text[0] == 'r' && n >= 0 && n <= 15) { slots[0] = n; return 1; }
+        if(text[0] == 'd' && n >= 0 && n < 32) { slots[0] = 16 + n; return 1; }
+        if(text[0] == 's' && n >= 0 && n < 32) { slots[0] = 16 + n / 2; return 1; }
+        if(text[0] == 'q' && n >= 0 && n < 16) { slots[0] = 16 + 2 * n; slots[1] = 17 + 2 * n; return 2; }
+        return 0;
+    }
+    return 0;
+}
+
+/* Registers templates may read without declaring them, and clobbers may
+ * never name: the stack pointer always, and the frame pointer, which GCC
+ * and Clang reserve in frame-pointer builds (Thumb-2 uses r7, ARM r11);
+ * AArch64 x18 is the platform register on Android. */
+static int
+register_reserved(int architecture, int slot)
+{
+    switch(architecture) {
+    case ASM_X86_64: case ASM_X86: return slot == 6 || slot == 7;
+    case ASM_AARCH64: return slot == 18 || slot == 29 || slot == 31;
+    case ASM_ARM: return slot == 7 || slot == 11 || slot == 13 || slot == 15;
+    default: return 0;
+    }
+}
+
+static const char *
+register_clobber_name(int architecture, int slot, char *out, size_t size)
+{
+    static const char *const x86[] = {"rax", "rbx", "rcx", "rdx", "rsi", "rdi", "rbp", "rsp"};
+    static const char *const x86_32[] = {"eax", "ebx", "ecx", "edx", "esi", "edi", "ebp", "esp"};
+    if(architecture == ASM_X86_64 || architecture == ASM_X86) {
+        if(slot < 8) snprintf(out, size, "%s", architecture == ASM_X86 ? x86_32[slot] : x86[slot]);
+        else if(slot < 16) snprintf(out, size, "r%d", slot);
+        else if(slot < 48) snprintf(out, size, "xmm%d", slot - 16);
+        else if(slot < 56) snprintf(out, size, "k%d", slot - 48);
+        else if(slot < 64) snprintf(out, size, "mm%d", slot - 56);
+        else snprintf(out, size, "st");
+    } else if(architecture == ASM_AARCH64) {
+        if(slot < 31) snprintf(out, size, "x%d", slot);
+        else snprintf(out, size, "v%d", slot - 32);
+    } else {
+        if(slot == 14) snprintf(out, size, "lr");
+        else if(slot < 16) snprintf(out, size, "r%d", slot);
+        else snprintf(out, size, "d%d", slot - 16);
+    }
+    return out;
+}
+
+/* Parse one clobber item: a register, a range such as xmm0..xmm15 or
+ * q0..q7, "cc" or "memory". Slots go into set; 0 with a diagnostic when the
+ * item is unknown or reserved. */
+static int
+clobber_item(int architecture, const char *item, RegisterSet *set, int *memory, ZirSourceSpan span)
+{
+    if(!strcmp(item, "memory")) { *memory = 1; return 1; }
+    if(!strcmp(item, "cc")) return 1;
+    if(!modelled(architecture)) return 1;
+    if((architecture == ASM_X86_64 || architecture == ASM_X86) &&
+       (!strcmp(item, "dirflag") || !strcmp(item, "fpsr") || !strcmp(item, "flags")))
+        return 1;
+    const char *dots = strstr(item, "..");
+    size_t first_length = dots ? (size_t)(dots - item) : strlen(item);
+    int slots[2], count = register_slots(architecture, item, first_length, slots);
+    if(count == 0) {
+        Diagnostic(span, "check.assembly", "unknown #asm clobber '%s' for %s", item,
+                   architectures[architecture].name);
+        return 0;
+    }
+    int last = slots[count - 1];
+    if(dots) {
+        /* Both ends share a spelling, as xmm0..xmm15 or d8..d15 do. */
+        const char *second = dots + 2;
+        size_t prefix = 0;
+        while(prefix < first_length && !isdigit((unsigned char)item[prefix])) prefix++;
+        int other[2], other_count = register_slots(architecture, second, strlen(second), other);
+        if(other_count == 0 || strncmp(item, second, prefix) || isdigit((unsigned char)second[prefix]) == 0 ||
+           other[other_count - 1] < slots[0]) {
+            Diagnostic(span, "check.assembly", "invalid #asm clobber range '%s'", item);
+            return 0;
+        }
+        last = other[other_count - 1];
+    }
+    for(int slot = slots[0]; slot <= last; slot++) {
+        if(register_reserved(architecture, slot)) {
+            char name[16];
+            Diagnostic(span, "check.assembly", "#asm cannot clobber %s, the stack, frame or platform register",
+                       register_clobber_name(architecture, slot, name, sizeof(name)));
+            return 0;
+        }
+        register_add(set, slot);
+    }
+    return 1;
+}
+
+/* All clobbers of a variant; 0 after a diagnostic. */
+static int
+clobber_set(const Assembly *assembly, RegisterSet *set, int *memory, ZirSourceSpan span)
+{
+    const char *items[ASSEMBLY_OPERANDS];
+    int count = operand_list(assembly->part[4], items);
+    memset(set, 0, sizeof(*set));
+    *memory = 0;
+    if(count < 0) return assembly_error(span, "#asm permits at most 30 clobbers separated by semicolons");
+    for(int i = 0; i < count; i++)
+        if(!clobber_item(assembly->architecture, items[i], set, memory, span)) return 0;
+    return 1;
+}
+
+/* The expanded clobber list as C strings: ranges become registers, ARMv7 q
+ * registers their d halves, and memory is added where operands imply it. */
+static void
+emit_clobbers(FILE *out, const Assembly *assembly, int implied_memory)
+{
+    RegisterSet set;
+    int memory = 0, first = 1;
+    const char *items[ASSEMBLY_OPERANDS];
+    int count = operand_list(assembly->part[4], items);
+    if(!modelled(assembly->architecture)) {
+        for(int i = 0; i < count; i++) {
+            if(!first) fputs(", ", out);
+            assembly_string(out, items[i]);
+            first = 0;
+            memory |= !strcmp(items[i], "memory");
+        }
+    } else {
+        if(!clobber_set(assembly, &set, &memory, (ZirSourceSpan){0})) exit(1);
+        for(int slot = 0; slot < 128; slot++) {
+            if(!register_has(&set, slot)) continue;
+            char name[16];
+            if(!first) fputs(", ", out);
+            assembly_string(out, register_clobber_name(assembly->architecture, slot, name, sizeof(name)));
+            first = 0;
+        }
+        for(int i = 0; i < count; i++)
+            if(!strcmp(items[i], "cc")) { fputs(first ? "\"cc\"" : ", \"cc\"", out); first = 0; }
+    }
+    if(memory || implied_memory) fputs(first ? "\"memory\"" : ", \"memory\"", out);
+}
+
+/* Registers a constraint fixes, which the template may then name. */
+static void
+pinned_registers(int architecture, const char *constraint, RegisterSet *set)
+{
+    if(architecture != ASM_X86_64 && architecture != ASM_X86) return;
+    for(const char *at = constraint; *at; at++) {
+        const char *fixed = strchr("abcdSD", *at);
+        if(*at && fixed) register_add(set, (int)(fixed - "abcdSD"));
+        if(*at == 'A') { register_add(set, 0); register_add(set, 3); }
+        if(*at == 't' || *at == 'u') register_add(set, 64);
+    }
+}
+
+/* Check that every register a template names directly is declared, and
+ * every operand it references exists. x86 templates name registers as
+ * %%reg; AArch64 and ARMv7 ones as bare words, with ranges such as
+ * {d0-d3}. names holds the operand aliases, outputs first. */
+static int
+check_template(const Assembly *assembly, const char *const *names, int count,
+               const RegisterSet *allowed, ZirSourceSpan span)
+{
+    const char *text = assembly->part[1];
+    int architecture = assembly->architecture;
+    int x86 = architecture == ASM_X86_64 || architecture == ASM_X86;
+    int previous_slot = -1;
+    for(const char *at = text; *at;) {
+        /* Comments run to the end of the line. */
+        if((x86 && at[0] == '#') || (architecture == ASM_AARCH64 && at[0] == '/' && at[1] == '/') ||
+           (architecture == ASM_ARM && at[0] == '@')) {
+            while(*at && *at != '\n') at++;
+            continue;
+        }
+        if(at[0] == '%' && at[1] == '%') {
+            at += 2;
+            if(!x86) continue;
+            const char *start = at;
+            while(isalnum((unsigned char)*at)) at++;
+            int slots[2], used = register_slots(architecture, start, (size_t)(at - start), slots);
+            for(int i = 0; i < used; i++) {
+                /* The stack and frame pointers may be read, never clobbered. */
+                if(register_reserved(architecture, slots[i])) continue;
+                if(!register_has(allowed, slots[i])) {
+                    Diagnostic(span, "check.assembly",
+                               "#asm template uses %%%.*s, which its clobbers and constraints do not declare",
+                               (int)(at - start), start);
+                    return 0;
+                }
+            }
+            continue;
+        }
+        if(at[0] == '%') {
+            /* An operand: %[name], %w[name], %0, %x1. */
+            const char *operand = at + 1;
+            while(isalpha((unsigned char)*operand)) operand++;
+            if(*operand == '[') {
+                const char *end = strchr(operand, ']');
+                int found = 0;
+                for(int i = 0; end && i < count && !found; i++)
+                    found = strlen(names[i]) == (size_t)(end - operand - 1) &&
+                        !strncmp(names[i], operand + 1, (size_t)(end - operand - 1));
+                if(!found) {
+                    Diagnostic(span, "check.assembly", "#asm template names unknown operand %%%.*s",
+                               end ? (int)(end - at) : 1, end ? at + 1 : "[");
+                    return 0;
+                }
+                at = end + 1;
+            } else if(isdigit((unsigned char)*operand)) {
+                int index = 0;
+                while(isdigit((unsigned char)*operand)) index = index * 10 + *operand++ - '0';
+                if(index >= count) {
+                    Diagnostic(span, "check.assembly", "#asm template operand %%%d exceeds its %d operands", index, count);
+                    return 0;
+                }
+                at = operand;
+            } else at = operand > at + 1 ? operand : at + 1;
+            previous_slot = -1;
+            continue;
+        }
+        if(x86 || !modelled(architecture)) { at++; continue; }
+        if(isalpha((unsigned char)*at) || *at == '_') {
+            const char *start = at;
+            while(isalnum((unsigned char)*at) || *at == '_') at++;
+            /* Type suffixes (.s16, .8h) and directives are not registers. */
+            int suffix = start > text && (start[-1] == '.' || isdigit((unsigned char)start[-1]));
+            int slots[2], used = suffix ? 0 : register_slots(architecture, start, (size_t)(at - start), slots);
+            int range_from = previous_slot;
+            previous_slot = -1;
+            if(used == 0) continue;
+            if(used == 1 && register_reserved(architecture, slots[0])) continue;
+            int low = range_from >= 0 && range_from < slots[0] ? range_from : slots[0];
+            for(int slot = low; slot <= slots[used - 1]; slot++)
+                if(!register_has(allowed, slot)) {
+                    Diagnostic(span, "check.assembly",
+                               "#asm template uses %.*s, which its clobbers do not declare",
+                               (int)(at - start), start);
+                    return 0;
+                }
+            /* A range continues to the next register: {d0-d3}, {v0.8h-v3.8h}. */
+            const char *next = at;
+            while(*next == '.' || isalnum((unsigned char)*next)) next++;
+            if(*next == '-') { previous_slot = slots[used - 1]; at = next; }
+            continue;
+        }
+        if(*at != '-' && *at != ' ') previous_slot = -1;
+        at++;
+    }
+    return 1;
+}
+
+/* Check one variant's clobbers and template; aliases name its operands,
+ * outputs first, with their constraints. */
+static int
+check_variant(const Assembly *assembly, const char *const *aliases,
+              const char *const *constraints, int count, ZirSourceSpan span)
+{
+    RegisterSet clobbers, allowed;
+    int memory;
+    if(!clobber_set(assembly, &clobbers, &memory, span)) return 0;
+    allowed = clobbers;
+    for(int i = 0; i < count; i++) {
+        RegisterSet pinned = {{0}};
+        pinned_registers(assembly->architecture, constraints[i], &pinned);
+        for(int slot = 0; slot < 128; slot++) {
+            if(!register_has(&pinned, slot)) continue;
+            if(register_has(&clobbers, slot)) {
+                char name[16];
+                Diagnostic(span, "check.assembly", "#asm clobbers %s, which operand %s already holds",
+                           register_clobber_name(assembly->architecture, slot, name, sizeof(name)), aliases[i]);
+                return 0;
+            }
+            register_add(&allowed, slot);
+        }
+    }
+    return check_template(assembly, aliases, count, &allowed, span);
+}
+
+/* TinyCC (`ziran run`, CC=tcc) assembles x86-64 GNU syntax through SSE4.2
+ * with xmm0..xmm15 and allocates general registers and memory operands; it
+ * has no AVX encoding and no "x" constraint. Other variants keep to GCC and
+ * Clang. CPU features it can select read cpuid leaf 1 directly. */
+static const struct { const char *name; char reg; int bit; } tinycc_features[] = {
+    {"sse2", 'd', 26}, {"ssse3", 'c', 9}, {"sse4.1", 'c', 19}, {"sse4.2", 'c', 20}, {"popcnt", 'c', 23}
+};
+
+static int
+tinycc_feature(size_t feature)
+{
+    for(size_t i = 0; i < sizeof(tinycc_features) / sizeof(*tinycc_features); i++)
+        if(!strcmp(tinycc_features[i].name, cpu_features[feature].name)) return (int)i;
+    return -1;
+}
+
+static int
+tinycc_variant(const Assembly *assembly)
+{
+    if(assembly->architecture != ASM_X86_64) return 0;
+    for(size_t i = 0; i < CPU_FEATURES; i++)
+        if((assembly->features & (UINT64_C(1) << i)) && tinycc_feature(i) < 0) return 0;
+    for(int part = 2; part <= 3; part++) {
+        const char *items[ASSEMBLY_OPERANDS];
+        int count = operand_list(assembly->part[part], items);
+        if(count < 0) return 0;
+        for(int i = 0; i < count; i++)
+            for(const char *at = items[i]; *at && *at != ':'; at++) {
+                if(*at == '[') { at = strchr(at, ']'); if(!at) return 0; continue; }
+                if(!strchr("=+&%,0123456789abcdSDAqrRpmgieNMI", *at)) return 0;
+            }
+    }
+    const char *items[ASSEMBLY_OPERANDS];
+    int count = operand_list(assembly->part[4], items);
+    for(int i = 0; i < count; i++) {
+        if(!strcmp(items[i], "memory") || !strcmp(items[i], "cc")) continue;
+        const char *dots = strstr(items[i], "..");
+        int slots[2];
+        size_t length = dots ? (size_t)(dots - items[i]) : strlen(items[i]);
+        if(register_slots(ASM_X86_64, items[i], length, slots) != 1 || slots[0] >= 32) return 0;
+        if(dots && (register_slots(ASM_X86_64, dots + 2, strlen(dots + 2), slots) != 1 || slots[0] >= 32))
+            return 0;
+        if(!strncmp(items[i], "ymm", 3) || !strncmp(items[i], "zmm", 3)) return 0;
+    }
+    return 1;
 }
 
 typedef struct BlockBinding {
@@ -415,6 +857,13 @@ CheckAssemblyBlock(const ZirFunction *fn, int statement,
                 return assembly_error(st->span, "duplicate or shadowed #asm block variant");
         architectures_seen[variants] = assembly.architecture;
         features_seen[variants] = assembly.features;
+        const char *aliases[ASSEMBLY_OPERANDS], *constraints[ASSEMBLY_OPERANDS];
+        for(int i = 0; i < current.inputs + current.outputs; i++) {
+            aliases[i] = current.items[i].alias;
+            constraints[i] = current.items[i].constraint;
+        }
+        if(!check_variant(&assembly, aliases, constraints, current.inputs + current.outputs, st->span))
+            return 0;
         if(!variants) first = current;
         if(first.inputs != current.inputs || first.outputs != current.outputs)
             return assembly_error(st->span, "#asm block variants must bind the same operands in the same order");
@@ -573,9 +1022,10 @@ CheckAssembly(const ZirModule *module, const ZirFunction *fn)
         return assembly_error(fn->span, "#asm needs scalar/pointer operands or a record of scalar/pointer results (at most 30 operands)");
     }
     for(int i = 0; i < parameters->count; i++) {
-        if(!parameters->items[i].name || !template_operand_type(fn, parameters->items[i].type)) {
+        if(!parameters->items[i].name || (!template_operand_type(fn, parameters->items[i].type) &&
+                                          !slice_operand(parameters->items[i].type))) {
             free(outputs);
-            return assembly_error(fn->span, "#asm parameters must be named scalars or pointers");
+            return assembly_error(fn->span, "#asm parameters must be named scalars, pointers or slices of scalars");
         }
         for(int j = 0; j < outputs->count; j++)
             if(!strcmp(parameters->items[i].name, outputs->names[j])) {
@@ -621,6 +1071,12 @@ CheckAssembly(const ZirModule *module, const ZirFunction *fn)
         if(!ok) {
             assembly_error(fn->span, "#asm outputs need = constraints; use tied inputs for read/write operands");
             break;
+        }
+        if(!deferred_outputs) {
+            const char *aliases[ASSEMBLY_OPERANDS], *constraints[ASSEMBLY_OPERANDS];
+            for(int i = 0; i < no; i++) { aliases[i] = outputs->names[i]; constraints[i] = out[i]; }
+            for(int i = 0; i < ni; i++) { aliases[no + i] = parameters->items[i].name; constraints[no + i] = in[i]; }
+            if(!check_variant(&assembly, aliases, constraints, no + ni, fn->span)) { ok = 0; break; }
         }
     }
     free(outputs);
@@ -683,8 +1139,8 @@ assembly_operand_text(FILE *out, const char *text, const char **names, int count
 static void
 assembly_guard(FILE *out, const Assembly *assembly)
 {
-    fprintf(out, "!defined(ZIRAN_NO_ASM) && (defined(__GNUC__) || defined(__clang__)) && (%s)",
-            architectures[assembly->architecture].guard);
+    fprintf(out, "!defined(ZIRAN_NO_ASM) && (((defined(__GNUC__) || defined(__clang__)) && !defined(__TINYC__))%s) && (%s)",
+            assembly->tinycc ? " || defined(__TINYC__)" : "", architectures[assembly->architecture].guard);
     if(!assembly->features) return;
     if(assembly->architecture <= ASM_X86)
         fputs(" && !defined(_MSC_VER)", out);
@@ -721,6 +1177,14 @@ assembly_tier(const Assembly *assembly)
 static void
 assembly_includes(FILE *out, const Assembly *assembly)
 {
+    /* The selection cache; TinyCC has no __atomic_load_n, and on x86-64,
+     * its only assembly target, plain int accesses are atomic and ordered. */
+    fputs("#ifndef ZIRAN_ASM_LOAD\n#if defined(__TINYC__)\n"
+          "#define ZIRAN_ASM_LOAD(p) (*(volatile int *)(p))\n"
+          "#define ZIRAN_ASM_STORE(p, v) (*(volatile int *)(p) = (v))\n#else\n"
+          "#define ZIRAN_ASM_LOAD(p) __atomic_load_n((p), __ATOMIC_ACQUIRE)\n"
+          "#define ZIRAN_ASM_STORE(p, v) __atomic_store_n((p), (v), __ATOMIC_RELEASE)\n"
+          "#endif\n#endif\n", out);
     if(assembly_tier(assembly))
         fputs("#if !defined(ZIRAN_NO_ASM)\n#include <stdlib.h>\n#endif\n", out);
     if(!assembly->features ||
@@ -735,6 +1199,9 @@ assembly_includes(FILE *out, const Assembly *assembly)
 static void
 assembly_attribute(FILE *out, const Assembly *assembly)
 {
+    /* TinyCC assembles any instruction it knows and never inlines; it has no
+     * target attribute. Only x86-64 variants are TinyCC variants. */
+    if(assembly->tinycc) fputs("\n#if !defined(__TINYC__)\n", out);
     for(int compiler = 0; compiler < (assembly->architecture == ASM_ARM ? 2 : 1); compiler++) {
         if(assembly->architecture == ASM_ARM)
             fputs(compiler ? "#else\n" : "#if defined(__clang__)\n", out);
@@ -752,6 +1219,7 @@ assembly_attribute(FILE *out, const Assembly *assembly)
         if(assembly->architecture == ASM_ARM) fputc('\n', out);
     }
     if(assembly->architecture == ASM_ARM) fputs("#endif\n", out);
+    if(assembly->tinycc) fputs("\n#endif\n", out);
 }
 
 /* Clang assembles inline ARM templates for the translation unit's FPU, not
@@ -877,19 +1345,19 @@ assembly_body(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarg
     }
     operand_list(assembly->part[3], constraints);
     fputs("\n            : ", out);
+    int memory = 0;
     for(int i = 0; i < parameters->count; i++) {
         char name[ZIR_NAME_MAX * 4];
         TargetBindingName(fn, target, parameters->items[i].name, name, sizeof(name));
         if(i) fputs(", ", out);
         assembly_operand_text(out, constraints[i], names, outputs->count, 0);
-        fprintf(out, " (%s)", name);
+        int slice = slice_operand(parameters->items[i].type);
+        fprintf(out, slice ? " ((%s).data)" : " (%s)", name);
+        memory |= slice || (parameters->items[i].type && parameters->items[i].type[0] == '*');
     }
-    int nc = operand_list(assembly->part[4], constraints);
+    /* Assembly may reach any memory a pointer or slice operand points to. */
     fputs("\n            : ", out);
-    for(int i = 0; i < nc; i++) {
-        if(i) fputs(", ", out);
-        assembly_string(out, constraints[i]);
-    }
+    emit_clobbers(out, assembly, memory);
     fputs(");\n        return", out);
     if(outputs->count) fprintf(out, " %s", result_name);
     fputs(";\n", out);
@@ -905,15 +1373,22 @@ assembly_helpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
     if(!outputs || !CheckAssembly(module, fn) || !assembly_outputs(module, fn, outputs)) exit(1);
     const char *cursor = fn->assembly_text;
     int ordinal = 0;
+    if(!available)
+        fputs("#if defined(ZIRAN_ASM_CHECK) && !defined(ZIRAN_NO_ASM)\n"
+              "#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\n#endif\n", out);
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
-        if(runtime_selected(&assembly)) {
+        int selected = runtime_selected(&assembly);
+        /* A check build calls every variant on its own, inline ones too. */
+        if(selected || !available) {
             assembly_includes(out, &assembly);
-            fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
+            fputs(selected ? "#if " : "#if defined(ZIRAN_ASM_CHECK) && ", out);
+            assembly_guard(out, &assembly); fputc('\n', out);
             char helper[ZIR_NAME_MAX];
             assembly_helper_name(module, fn, target, ordinal, helper, sizeof(helper));
-            assembly_attribute(out, &assembly);
+            if(selected) assembly_attribute(out, &assembly);
+            else fputs("__attribute__((noinline, unused))", out);
             fprintf(out, " static %s\n%s(%s)\n{\n", result_type, helper, args);
             assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
             fputs("}\n#endif\n", out);
@@ -921,6 +1396,122 @@ assembly_helpers(FILE *out, const ZirModule *module, const ZirFunction *fn,
         ordinal++;
     }
     free(outputs);
+}
+
+/* The memory a parameter's assembly may change, which a check compares:
+ * a slice's elements, or the scalar a pointer points to. Writes the byte
+ * count and address as C expressions; 0 when there is none. */
+static int
+check_region(const ZirFunction *fn, ZirTarget target, const ZirParameter *parameter,
+             char *size, char *address, size_t length)
+{
+    char name[ZIR_NAME_MAX * 4], element[ZIR_NAME_MAX];
+    const char *type = parameter->type;
+    TargetBindingName(fn, target, parameter->name, name, sizeof(name));
+    if(type && SliceElementType(type, element, sizeof(element)) && operand_type(element)) {
+        const char *scalar = element[0] == '*' ? "void *" : TargetType(ScalarType(element), target);
+        snprintf(size, length, "(size_t)(%s).length * sizeof(%s)", name, scalar);
+        snprintf(address, length, "(%s).data", name);
+        return 1;
+    }
+    if(!type || type[0] != '*') return 0;
+    const char *pointee = skip_ws(type + 1);
+    if(!operand_type(pointee) || (pointee[0] != '*' && !strcmp(ScalarType(pointee), "void"))) return 0;
+    snprintf(size, length, "sizeof(*(%s))", name);
+    snprintf(address, length, "(void *)(%s)", name);
+    return 1;
+}
+
+static void
+check_failure(FILE *out, const ZirFunction *fn, const Assembly *assembly, const char *what)
+{
+    fputs(" {\n                    fprintf(stderr, \"ziran: #asm check failed: %s variant \\\"%s\\\" differs from its portable body in %s\\n\", ", out);
+    assembly_string(out, fn->name); fputs(", ", out);
+    assembly_string(out, assembly->part[0]); fputs(", ", out);
+    assembly_string(out, what);
+    fputs(");\n                    abort();\n                }\n", out);
+}
+
+/* A ZIRAN_ASM_CHECK build runs the portable body and then each variant
+ * this CPU can run on the same inputs, aborts on any difference in the
+ * result or the memory check_region covers, and returns the portable
+ * result. ZIRAN_SIMD_TIER limits which variants run as it does dispatch. */
+static void
+assembly_check(FILE *out, const ZirModule *module, const ZirFunction *fn, ZirTarget target,
+               const char *result_type, const AssemblyOutputs *outputs)
+{
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
+    char native[ZIR_NAME_MAX * 4], flag[ZIR_NAME_MAX], call[ZIR_TEXT_MAX];
+    char size[ZIR_NAME_MAX * 6], address[ZIR_NAME_MAX * 6];
+    size_t used = 0;
+    NativeCFunctionName(module, fn, native, sizeof(native));
+    ArrayAbiName(fn, 65, flag, sizeof(flag));
+    call[0] = 0;
+    for(int i = 0; i < parameters->count; i++) {
+        char name[ZIR_NAME_MAX * 4];
+        TargetBindingName(fn, target, parameters->items[i].name, name, sizeof(name));
+        used += (size_t)snprintf(call + used, sizeof(call) - used, "%s%s", i ? ", " : "", name);
+        if(used >= sizeof(call)) exit(1);
+    }
+    fprintf(out, "#if defined(ZIRAN_ASM_CHECK) && !defined(ZIRAN_NO_ASM)\n    {\n"
+                 "#if defined(__TINYC__)\n        static int %s;\n#else\n        static __thread int %s;\n#endif\n"
+                 "        if(!%s) {\n", flag, flag, flag);
+    for(int i = 0; i < parameters->count; i++) {
+        if(!check_region(fn, target, &parameters->items[i], size, address, sizeof(size))) continue;
+        fprintf(out, "            size_t ziran_size_%d = %s;\n"
+                     "            unsigned char *ziran_in_%d = malloc(ziran_size_%d + 1), *ziran_port_%d = malloc(ziran_size_%d + 1);\n"
+                     "            if(!ziran_in_%d || !ziran_port_%d) abort();\n"
+                     "            if(ziran_size_%d) memcpy(ziran_in_%d, %s, ziran_size_%d);\n",
+                i, size, i, i, i, i, i, i, i, i, address, i);
+    }
+    fprintf(out, "            %s = 1;\n            ", flag);
+    if(outputs->count) fprintf(out, "%s ziran_portable = ", result_type);
+    fprintf(out, "%s(%s);\n            %s = 0;\n", native, call, flag);
+    for(int i = 0; i < parameters->count; i++)
+        if(check_region(fn, target, &parameters->items[i], size, address, sizeof(size)))
+            fprintf(out, "            if(ziran_size_%d) memcpy(ziran_port_%d, %s, ziran_size_%d);\n", i, i, address, i);
+    const char *cursor = fn->assembly_text;
+    int ordinal = 0;
+    while(*skip_ws(cursor)) {
+        Assembly assembly;
+        if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
+        char helper[ZIR_NAME_MAX];
+        assembly_helper_name(module, fn, target, ordinal++, helper, sizeof(helper));
+        fputs("#if ", out); assembly_guard(out, &assembly); fputs("\n            if(", out);
+        if(runtime_selected(&assembly)) assembly_predicate(out, &assembly);
+        else fputc('1', out);
+        fputs(") {\n", out);
+        for(int i = 0; i < parameters->count; i++)
+            if(check_region(fn, target, &parameters->items[i], size, address, sizeof(size)))
+                fprintf(out, "                if(ziran_size_%d) memcpy(%s, ziran_in_%d, ziran_size_%d);\n", i, address, i, i);
+        fputs("                ", out);
+        if(outputs->count) fprintf(out, "%s ziran_variant = ", result_type);
+        fprintf(out, "%s(%s);\n", helper, call);
+        if(outputs->count && outputs->record) {
+            const ZirType *record = FindType(module, fn->return_type, NULL);
+            for(int i = 0; i < outputs->count; i++) {
+                char field[ZIR_NAME_MAX * 4];
+                TargetFieldName(record, target, outputs->fields[i].name, field, sizeof(field));
+                fprintf(out, "                if(memcmp(&ziran_variant.%s, &ziran_portable.%s, sizeof(ziran_portable.%s)))",
+                        field, field, field);
+                check_failure(out, fn, &assembly, outputs->fields[i].name);
+            }
+        } else if(outputs->count) {
+            fputs("                if(memcmp(&ziran_variant, &ziran_portable, sizeof(ziran_portable)))", out);
+            check_failure(out, fn, &assembly, "its result");
+        }
+        for(int i = 0; i < parameters->count; i++)
+            if(check_region(fn, target, &parameters->items[i], size, address, sizeof(size))) {
+                fprintf(out, "                if(ziran_size_%d && memcmp(%s, ziran_port_%d, ziran_size_%d))", i, address, i, i);
+                check_failure(out, fn, &assembly, parameters->items[i].name);
+            }
+        fputs("            }\n#endif\n", out);
+    }
+    for(int i = 0; i < parameters->count; i++)
+        if(check_region(fn, target, &parameters->items[i], size, address, sizeof(size)))
+            fprintf(out, "            if(ziran_size_%d) memcpy(%s, ziran_port_%d, ziran_size_%d);\n"
+                         "            free(ziran_in_%d); free(ziran_port_%d);\n", i, address, i, i, i, i);
+    fprintf(out, "            return%s;\n        }\n    }\n#else\n", outputs->count ? " ziran_portable" : "");
 }
 
 /* Clang before 19 has no "lzcnt" for __builtin_cpu_supports, so it reads
@@ -948,6 +1539,13 @@ assembly_predicate(FILE *out, const Assembly *assembly)
         else if(!strcmp(cpu_features[i].name, "lzcnt"))
             fprintf(out, "(\n#if defined(__clang__) && __clang_major__ < 19\n%s\n#else\n"
                          "__builtin_cpu_supports(\"lzcnt\")\n#endif\n)", lzcnt_cpuid);
+        else if(assembly->tinycc)
+            fprintf(out, "(\n#if defined(__TINYC__)\n__extension__ ({\n"
+                         "    unsigned int zir_a = 1u, zir_b, zir_c = 0u, zir_d;\n"
+                         "    __asm__(\"cpuid\" : \"+a\"(zir_a), \"=b\"(zir_b), \"+c\"(zir_c), \"=d\"(zir_d));\n"
+                         "    (zir_%c >> %du) & 1u; })\n#else\n__builtin_cpu_supports(\"%s\")\n#endif\n)",
+                    tinycc_features[tinycc_feature(i)].reg, tinycc_features[tinycc_feature(i)].bit,
+                    cpu_features[i].name);
         else fprintf(out, "__builtin_cpu_supports(\"%s\")", cpu_features[i].name);
         first = 0;
     }
@@ -971,6 +1569,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
     const ZirParameters *parameters = ParametersOf(FunctionArgs(fn));
     const char *cursor = fn->assembly_text;
     int features = 0;
+    if(!available) assembly_check(out, module, fn, target, result_type, outputs);
     while(*skip_ws(cursor)) {
         Assembly assembly;
         if(!read_assembly(&cursor, &assembly, fn->span)) exit(1);
@@ -986,10 +1585,11 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
         ArrayAbiName(fn, -1, state, sizeof(state));
         ArrayAbiName(fn, 64, selected, sizeof(selected));
         fprintf(out, "\n    {\n        static int %s;\n"
-                     "        int %s = __atomic_load_n(&%s, __ATOMIC_ACQUIRE);\n"
+                     "        int %s = ZIRAN_ASM_LOAD(&%s);\n"
                      "        if(%s == 0) {\n            %s = 1;\n",
                      state, selected, state, selected, selected);
-        fputs("#if defined(__x86_64__) || defined(__i386__)\n            __builtin_cpu_init();\n#endif\n", out);
+        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(__TINYC__)\n"
+              "            __builtin_cpu_init();\n#endif\n", out);
         cursor = fn->assembly_text;
         int ordinal = 0;
         while(*skip_ws(cursor)) {
@@ -1003,7 +1603,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
             }
             ordinal++;
         }
-        fprintf(out, "            __atomic_store_n(&%s, %s, __ATOMIC_RELEASE);\n        }\n", state, selected);
+        fprintf(out, "            ZIRAN_ASM_STORE(&%s, %s);\n        }\n", state, selected);
         cursor = fn->assembly_text;
         ordinal = 0;
         while(*skip_ws(cursor)) {
@@ -1037,6 +1637,7 @@ assembly_function(FILE *out, const ZirModule *module, const ZirFunction *fn, Zir
         assembly_body(out, module, fn, target, result_type, &assembly, outputs, available);
         fputs("    }\n#endif\n", out);
     }
+    if(!available) fputs("#endif\n", out);
     free(outputs);
 }
 
@@ -1079,7 +1680,7 @@ EmitAssemblyAvailable(FILE *out, const ZirFunction *fn, int statement)
         fputs("#if ", out); assembly_guard(out, &assembly); fputc('\n', out);
         if(runtime_selected(&assembly)) {
             if(assembly.architecture == ASM_X86 || assembly.architecture == ASM_X86_64)
-                fputs("    __builtin_cpu_init();\n", out);
+                fputs("#if !defined(__TINYC__)\n    __builtin_cpu_init();\n#endif\n", out);
             fputs("    if(", out); assembly_predicate(out, &assembly); fputs(") return 1;\n", out);
         } else fputs("    return 1;\n", out);
         fputs("#endif\n", out);
@@ -1119,7 +1720,7 @@ block_returns_register(const BlockBindings *bindings)
 }
 
 static void
-block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
+block_assembly_body(FILE *out, const ZirFunction *fn, int statement, ZirTarget target,
                     const Assembly *assembly, const BlockBindings *bindings, int helper,
                     ZirAssemblyOperandResolver resolver, void *context)
 {
@@ -1149,13 +1750,13 @@ block_assembly_body(FILE *out, const ZirFunction *fn, ZirTarget target,
             }
         }
     }
-    const char *clobbers[ASSEMBLY_OPERANDS];
-    int count = operand_list(assembly->part[4], clobbers);
-    fputs("\n            : ", out);
-    for(int i = 0; i < count; i++) {
-        if(i) fputs(", ", out);
-        assembly_string(out, clobbers[i]);
+    int memory = 0;
+    for(int i = 0; i < bindings->outputs + bindings->inputs; i++) {
+        const char *type = block_binding_type(fn, statement, bindings->items[i].name);
+        memory |= type && type[0] == '*';
     }
+    fputs("\n            : ", out);
+    emit_clobbers(out, assembly, memory);
     fputs(");\n", out);
 }
 
@@ -1220,7 +1821,7 @@ assembly_block_helpers(FILE *out, const ZirModule *module,
                 if(first_argument == bindings.outputs + bindings.inputs) fputs("void", out);
                 fputs(")\n{\n", out);
                 if(first_argument) fprintf(out, "    %s ziran_result;\n", returned);
-                block_assembly_body(out, fn, target, &assembly, &bindings, 1, NULL, NULL);
+                block_assembly_body(out, fn, statement, target, &assembly, &bindings, 1, NULL, NULL);
                 if(first_argument) fputs("    return ziran_result;\n", out);
                 fputs("}\n#endif\n", out);
             }
@@ -1260,10 +1861,10 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
             assembly_guard(out, &assembly); fputc(')', out);
         }
         fprintf(out, "\n        static int %s;\n"
-                     "        int %s = __atomic_load_n(&%s, __ATOMIC_ACQUIRE);\n"
+                     "        int %s = ZIRAN_ASM_LOAD(&%s);\n"
                      "        if(%s == 0) {\n            %s = 1;\n",
                      state, selected, state, selected, selected);
-        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER)\n"
+        fputs("#if (defined(__x86_64__) || defined(__i386__)) && !defined(_MSC_VER) && !defined(__TINYC__)\n"
               "            __builtin_cpu_init();\n#endif\n", out);
         cursor = st->assembly_text;
         int variant = 0;
@@ -1276,7 +1877,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
             fprintf(out, ") %s = %d;\n#endif\n", selected, variant + 2);
             variant++;
         }
-        fprintf(out, "            __atomic_store_n(&%s, %s, __ATOMIC_RELEASE);\n        }\n#endif\n", state, selected);
+        fprintf(out, "            ZIRAN_ASM_STORE(&%s, %s);\n        }\n#endif\n", state, selected);
     }
     cursor = st->assembly_text;
     int variant = 0;
@@ -1307,7 +1908,7 @@ assembly_block(FILE *out, const ZirModule *module, const ZirFunction *fn,
                 fprintf(out, "%s%s%s", i > first_argument ? ", " : "", i < bindings.outputs || AssemblyInputNeedsStorage(bindings.items[i].constraint) ? "&" : "", name);
             }
             fputs(");\n", out);
-        } else block_assembly_body(out, fn, target, &assembly, &bindings, 0, resolver, context);
+        } else block_assembly_body(out, fn, statement, target, &assembly, &bindings, 0, resolver, context);
         fprintf(out, "            %s = 1;\n        }\n#endif\n", done);
         variant++;
     }

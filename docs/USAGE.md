@@ -16,8 +16,9 @@ Increment :: (value: $T) -> T #asm("x86_64", "add $1, %[out]", "=r", "0", "cc", 
 }
 ```
 
-Each `#asm` takes exactly six literal strings: architecture, assembly template,
-output constraints, input constraints, clobbers, and options. Use semicolons to
+Each `#asm` takes four to six literal strings: architecture, assembly template,
+output constraints, input constraints, and optionally clobbers and options
+(both default to `""`). Use semicolons to
 separate constraints and clobbers; commas remain available for the assembler's
 constraint alternatives. Options are `""` or `"volatile"`. Templates use GNU
 extended assembly syntax, including named operands, register modifiers,
@@ -28,7 +29,9 @@ Generated C uses positional operands internally, so source operand aliases
 may also be C keywords. Named matching inputs retain the same binding.
 
 Input operands follow parameter order and use the parameter names. Parameters
-must be scalars or pointers. A scalar or pointer result has operand name
+must be scalars, pointers or slices of scalars; a slice operand is its data
+pointer, so pass the count separately. Pointer and slice parameters imply a
+`"memory"` clobber. A scalar or pointer result has operand name
 `out`; a record result has one operand named `out_FIELD` per declared field,
 in field order. Result fields must be named scalars or pointers. Void results
 have no output constraints. Outputs require `=` constraints, including
@@ -69,6 +72,72 @@ Count :: (value: u64) -> s64 #asm("x86_64+popcnt", "popcnt %[value], %[out]", "=
 }
 ```
 
+A kernel can list one variant per line between its header and its portable body,
+long templates as `#string` text. The body is required: it runs on every other
+target (Go, WebAssembly, `.zx`) and is the reference the variants are tested
+against.
+
+```zi
+// dst[i] = saturate(dst[i] + src[i]), eight lanes per block.
+AddSaturate :: (dst: []s16, src: []s16, blocks: s64)
+#asm("x86_64", #string END
+    xorl %%eax, %%eax
+1:  cmpq %[blocks], %%rax
+    jge 2f
+    movq %%rax, %%rcx
+    shlq $4, %%rcx
+    movdqu (%[dst],%%rcx), %%xmm0
+    movdqu (%[src],%%rcx), %%xmm1
+    paddsw %%xmm1, %%xmm0
+    movdqu %%xmm0, (%[dst],%%rcx)
+    incq %%rax
+    jmp 1b
+2:
+END, "", "r;r;r", "rax;rcx;xmm0..xmm1;cc")
+#asm("aarch64", #string END
+    cbz %[blocks], 2f
+    mov x9, %[dst]
+    mov x10, %[src]
+    mov x11, %[blocks]
+1:  ld1 {v0.8h}, [x9]
+    ld1 {v1.8h}, [x10], #16
+    sqadd v0.8h, v0.8h, v1.8h
+    st1 {v0.8h}, [x9], #16
+    subs x11, x11, #1
+    b.ne 1b
+2:
+END, "", "r;r;r", "x9..x11;v0..v1;cc") {
+    for i: 0..blocks * 8 - 1 {
+        sum := cast(s32)dst[i] + src[i]
+        if sum > 32767 { sum = 32767 }
+        if sum < -32768 { sum = -32768 }
+        dst[i] = cast(s16)sum
+    }
+}
+```
+
+Clobbers name registers or numbered ranges: `xmm0..xmm7`, `x9..x11`,
+`v0..v3`, and on ARMv7 `q0..q1`, which stands for `d0..d3`. The checker
+requires every register a template names to be a clobber or pinned by a
+constraint (`"a"` holds `rax`), every `%[name]` and `%N` to be an operand, and
+no clobber to overlap a pinned register. Templates may read, but never
+clobber, the stack, frame and platform registers: `rbp`/`rsp` on x86-64,
+`x18`/`x29`/`sp` on AArch64, `r7`/`r11`/`sp`/`pc` on ARMv7.
+
+Build generated C with `-DZIRAN_ASM_CHECK` to test the variants: each call of
+such a procedure runs its portable body, then every variant the CPU supports
+on copies of the same inputs, compares results and the memory its slice and
+pointer parameters reach, and aborts with `#asm check failed: AddSaturate
+variant "x86_64" differs from its portable body in dst` on a difference.
+Callers receive the portable results. Run it over random and edge-case
+inputs; `tests/asm_routines.sh` shows the pattern. Local `#asm` blocks are not
+checked this way.
+
+TinyCC compiles `x86_64` variants whose features are among `sse2`, `ssse3`,
+`sse4.1`, `sse4.2` and `popcnt`, whose constraints are general registers,
+memory or immediates, and whose clobbers are general or `xmm0`-`xmm15`
+registers; it detects the features with `cpuid`. It skips other variants.
+
 Feature variants use isolated functions compiled for the requested ISA. The
 ordinary caller keeps the build's baseline ISA, checks CPU availability once,
 and caches its selection with atomic accesses. x86 GCC/Clang GNU-ABI drivers
@@ -95,7 +164,7 @@ and [ARM64 hardware capabilities](https://www.kernel.org/doc/html/latest/arch/ar
 `arm+neon` variants need ARMv7-A or later with a hard-float ABI (Linux
 `armhf`, Android `armeabi-v7a` from API 18). Their helpers run in ARM state, so
 Thumb-2 callers work, and the caller keeps the build's FPU option. Name the
-NEON registers you use in the clobbers (`d0;d1` for `q0`). Write `vld1`/`vst1`
+NEON registers you use in the clobbers (`q0` or `d0;d1`). Write `vld1`/`vst1`
 without `:64`/`:128` alignment qualifiers unless the address is known to be
 aligned: a qualified access to a misaligned address faults.
 
@@ -113,7 +182,7 @@ crashes on any typed block in inline assembly. Use `v128.load 0:p2align=0` for
 unaligned data.
 
 Assembly and the fallback must implement the same behavior; checking the
-fallback does not prove their equivalence. These variants do not yet provide
+fallback does not prove their equivalence, so test with `ZIRAN_ASM_CHECK`. These variants do not yet provide
 `asm goto`, naked functions, standalone assembler files, or direct Go ABI
 assembler output. Saved IR preserves the variants; `.zx`
 executes only portable code. Rebuild older IR/bundles with the current compiler.

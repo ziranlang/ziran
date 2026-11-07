@@ -297,8 +297,8 @@ done
 awk 'BEGIN {
     print "// Four."
     printf "Four :: () -> s64 #asm(\"x86_64\", \""
-    for (n = 0; n < 52; n++) { if (n) print ""; printf "        movq %%r10, %%r11 ; pad pad pad pad pad" }
-    print "\", \"=r:out\", \"\", \"\", \"\") { return 0 }"
+    for (n = 0; n < 52; n++) { if (n) print ""; printf "        movq %%%%r10, %%%%r11 ; pad pad pad pad pad" }
+    print "\", \"=r:out\", \"\", \"r10;r11\", \"\") { return 0 }"
     print ""
     print "// Five."
     print "Five :: () -> s64 { return 5 }"

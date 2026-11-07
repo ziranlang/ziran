@@ -99,8 +99,8 @@ reject() {
 reject 'unknown #asm architecture' <<'ZI'
 F :: () #asm("unknown", "", "", "", "", "") { return }
 ZI
-reject '#asm requires exactly six literal strings' <<'ZI'
-F :: () #asm("x86_64", "", "", "", "") { return }
+reject '#asm requires four to six literal strings' <<'ZI'
+F :: () #asm("x86_64", "", "") { return }
 ZI
 reject '#asm options must be empty or volatile' <<'ZI'
 F :: () #asm("x86_64", "", "", "", "", "magic") { return }
@@ -114,7 +114,7 @@ ZI
 reject 'duplicate or too many #asm architecture variants' <<'ZI'
 F :: () #asm("x86_64", "", "", "", "", "") #asm("x86_64", "", "", "", "", "") { return }
 ZI
-reject '#asm parameters must be named scalars or pointers' <<'ZI'
+reject '#asm parameters must be named scalars, pointers or slices of scalars' <<'ZI'
 F :: (value: string) #asm("x86_64", "", "", "r", "", "") { unused value }
 ZI
 reject 'embedded NUL is forbidden' <<'ZI'
@@ -130,7 +130,7 @@ reject '#asm requires an ordinary procedure with a portable body' <<'ZI'
 libc :: #system_library "libc";
 F :: (value: s32) -> s32 #asm("x86_64", "", "=r", "r", "", "") #foreign libc "abs";
 ZI
-reject '#asm parameters must be named scalars or pointers' <<'ZI'
+reject '#asm parameters must be named scalars, pointers or slices of scalars' <<'ZI'
 F :: (value: $T) -> s64 #asm("x86_64", "", "=r", "r", "", "") { return 0 }
 Answer :: () -> s64 { text: string = "aggregate"; return F(text) }
 ZI

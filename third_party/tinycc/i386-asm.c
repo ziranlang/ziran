@@ -46,6 +46,8 @@
 
 #define OPC_0F        0x100 /* Is secondary map (0x0f prefix) */
 #define OPC_48        0x200 /* Always has REX prefix */
+#define OPC_0F38      0x400 /* Is the 0x0f 0x38 map */
+#define OPC_0F3A      0x800 /* Is the 0x0f 0x3a map */
 #ifdef TCC_TARGET_X86_64
 # define OPC_WLQ     0x1000  /* accepts w, l, q or no suffix */
 # define OPC_BWLQ    (OPC_B | OPC_WLQ) /* accepts b, w, l, q or no suffix */
@@ -225,10 +227,16 @@ static const uint8_t segment_prefixes[] = {
 
 static const ASMInstr asm_instrs[] = {
 #define ALT(x) x
-/* This removes a 0x0f in the second byte */
-#define O(o) ((uint64_t) ((((o) & 0xff00) == 0x0f00) ? ((((o) >> 8) & ~0xff) | ((o) & 0xff)) : (o)))
+/* An opcode in the 0x0f 0x38 or 0x0f 0x3a map, as 0x660f3800 */
+#define MAP3(o) (((o) & 0xffff00) == 0x0f3800 || ((o) & 0xffff00) == 0x0f3a00)
+/* This removes a 0x0f in the second byte, or 0x0f 0x38/0x3a in the
+   second and third */
+#define O(o) ((uint64_t) (MAP3(o) ? ((((o) >> 16) & 0xff00) | ((o) & 0xff)) \
+                         : (((o) & 0xff00) == 0x0f00) ? ((((o) >> 8) & ~0xff) | ((o) & 0xff)) : (o)))
 /* This constructs instr_type from opcode, type and group.  */
-#define T(o,i,g) ((i) | ((g) << OPC_GROUP_SHIFT) | ((((o) & 0xff00) == 0x0f00) ? OPC_0F : 0))
+#define T(o,i,g) ((i) | ((g) << OPC_GROUP_SHIFT) | ((((o) & 0xff00) == 0x0f00) ? OPC_0F : 0) \
+                  | ((((o) & 0xffff00) == 0x0f3800) ? OPC_0F38 : 0) \
+                  | ((((o) & 0xffff00) == 0x0f3a00) ? OPC_0F3A : 0))
 #define DEF_ASM_OP0(name, opcode)
 #define DEF_ASM_OP0L(name, opcode, group, instr_type) { TOK_ASM_ ## name, O(opcode), T(opcode, instr_type, group), 0, { 0 } },
 #define DEF_ASM_OP1(name, opcode, group, instr_type, op0) { TOK_ASM_ ## name, O(opcode), T(opcode, instr_type, group), 1, { op0 }},
@@ -289,6 +297,17 @@ static int asm_parse_numeric_reg(int t, unsigned int *type)
     if (t >= TOK_IDENT && t < tok_ident) {
 	const char *s = table_ident[t - TOK_IDENT]->str;
 	char c;
+	if (!strncmp(s, "xmm", 3)) {
+	    /* xmm0..xmm7 are tokens; xmm8..xmm15 need a REX prefix */
+	    s += 3;
+	    if (*s < '0' || *s > '9' || (s[0] == '0' && s[1]))
+	      return -1;
+	    reg = atoi(s);
+	    if (reg < 8 || reg > 15 || (s[1] && (s[1] < '0' || s[1] > '9' || s[2])))
+	      return -1;
+	    *type = OP_SSE;
+	    return reg;
+	}
 	*type = OP_REG64;
 	if (*s == 'c') {
 	    s++;
@@ -873,6 +892,11 @@ again:
     if ((pa->instr_type & OPC_BWLQ) == OPC_B)
         autosize = NBWLX-2;
 #endif
+#ifdef TCC_TARGET_X86_64
+    /* crc32 takes its size from its source, not the accumulator */
+    if (s == autosize && opcode == TOK_ASM_crc32 && (ops[0].type & OP_REG))
+        s = reg_to_size[ops[0].type & OP_REG];
+#endif
     if (s == autosize) {
 	/* Check for register operands providing hints about the size.
 	   Start from the end, i.e. destination operands.  This matters
@@ -967,6 +991,10 @@ again:
     }
     if (pa->instr_type & OPC_0F)
         v = ((v & ~0xff) << 8) | 0x0f00 | (v & 0xff);
+    else if (pa->instr_type & OPC_0F38)
+        v = 0x0f3800 | (v & 0xff);
+    else if (pa->instr_type & OPC_0F3A)
+        v = 0x0f3a00 | (v & 0xff);
     if ((v == 0x69 || v == 0x6b) && nb_ops == 2) {
         /* kludge for imul $im, %reg */
         nb_ops = 3;
@@ -1733,6 +1761,14 @@ ST_FUNC void asm_clobber(uint8_t *clobber_regs, const char *str)
 	!strcmp(str, "flags"))
         return;
     reg = tok_alloc_const(str);
+    /* TinyCC keeps no value in a vector register across a statement,
+       and all of them are call-clobbered. */
+    if (reg >= TOK_ASM_xmm0 && reg <= TOK_ASM_xmm7)
+        return;
+#ifdef TCC_TARGET_X86_64
+    if (asm_parse_numeric_reg(reg, &type) >= 0 && type == OP_SSE)
+        return;
+#endif
     if (reg >= TOK_ASM_eax && reg <= TOK_ASM_edi) {
         reg -= TOK_ASM_eax;
     } else if (reg >= TOK_ASM_ax && reg <= TOK_ASM_di) {

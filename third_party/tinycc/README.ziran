@@ -22,8 +22,13 @@ Local changes, to be offered upstream:
 - x86_64-gen.c: gen_struct_copy moves a structure of up to 39 bytes through
   a free register, 8 bytes (then 4, 2 and 1) at a time, rather than with
   movs, which is slow to start.
-- x86_64-asm.h: the assembler knows the SSE2 instructions pmuludq and
-  pshufd.
+- x86_64-asm.h, i386-asm.c, i386-tok.h: the x86-64 assembler encodes the
+  0F 38 and 0F 3A opcode maps (OPC_0F38, OPC_0F3A) and the SSE2, SSSE3,
+  SSE4.1 and SSE4.2 instructions that #asm kernels use, crc32 included;
+  movaps and movups no longer take a 66 prefix, and pavgb/pavgw accept xmm
+  operands. %xmm8-%xmm15 parse as SSE registers, and an xmm clobber is
+  accepted because TinyCC spills every value before inline assembly.
+  tests/asm_tinycc_encoding.sh compares each encoding with GNU as.
 - tccgen.c: init_putz zeroes a local of up to eight words, such as a two-word
   structure initialized in braces, with stores in place rather than a call
   to memset.

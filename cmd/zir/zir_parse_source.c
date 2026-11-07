@@ -557,6 +557,10 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                         }
                         cont =
                             (last == '}' && starts_word(lt, "else")) ||
+                            /* A procedure's #asm variants may each take a line
+                             * between its header and its body. */
+                            (mode == TOP && last != '{' && last != '}' &&
+                             strncmp(lt, "#asm", 4) == 0 && !is_ident_char(lt[4])) ||
                             *lt == '.' || *lt == ',' || *lt == '+' ||
                             *lt == '/' || *lt == '%' ||
                             (*lt == '-' && lt[1] != '>') ||

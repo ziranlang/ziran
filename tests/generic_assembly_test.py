@@ -73,7 +73,7 @@ def main():
     cases = [
         ('input-count', 'constraint counts', 'F :: (x:$T)->T #asm("x86_64","","=r","","",""){return x}'),
         ('duplicate', 'duplicate or too many', 'F :: (x:$T)->T #asm("x86_64","","=r","r","","") #asm("x86_64","","=r","r","",""){return x}'),
-        ('known-input', 'named scalars or pointers', 'F :: (x:$T, text:string)->T #asm("x86_64","","=r","r;r","",""){return x}'),
+        ('known-input', 'named scalars, pointers or slices of scalars', 'F :: (x:$T, text:string)->T #asm("x86_64","","=r","r;r","",""){return x}'),
         ('known-result', 'scalar/pointer operands', 'F :: (x:$T)->string #asm("x86_64","","=r","r","",""){return "bad"}'),
         ('qualified-result', 'constraint counts', 'ops :: #import "generic_assembly_ops"\nF :: (x: $Pair) -> ops.Pair #asm("x86_64", "", "=r", "r", "", "") { return ops.Pair.{0, 0} }'),
         ('missing-local', 'scalar/pointer locals', 'F :: (x:$T){#asm("x86_64","","=r:missing","","",""){}}'),

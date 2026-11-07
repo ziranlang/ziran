@@ -36,9 +36,10 @@ expected=9091
 test "$("$ziran" run "$work/zx_wasm_test.zx")" = "$expected"
 
 # The VM-only library is what web hosts embed; the private headers hide
-# the compiler's internal symbols from the wasm link.
+# the compiler's internal symbols from the wasm link. A host `make sanitize`
+# passes its sanitizers down, which have no wasm runtime.
 make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
-    CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' \
+    CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' SANITIZE_FLAGS= \
     FRAMEFLAGS='-Wframe-larger-than=16384' \
     WASM_PRIVATE_HEADERS="$work/private" \
     "$work/lib/libziran-vm.a"

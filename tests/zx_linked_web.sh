@@ -65,8 +65,9 @@ ZI
 python3 "$repo/scripts/linked-zx.py" "$work/programs" --output "$work/objects" \
     --cc "$emcc" --nm "$emnm" --cflags=-O2 > "$work/objects.txt" 2> /dev/null
 
+# Host sanitizers from `make sanitize` have no wasm runtime.
 make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
-    CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' \
+    CC="$emcc" AR="$emar" OBJCOPY=true CFLAGS='-O2' SANITIZE_FLAGS= \
     FRAMEFLAGS='-Wframe-larger-than=16384' \
     WASM_PRIVATE_HEADERS="$work/private" \
     "$work/lib/libziran.a" > "$work/lib.log" 2>&1 || { tail -20 "$work/lib.log"; exit 1; }

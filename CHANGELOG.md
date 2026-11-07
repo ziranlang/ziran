@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- `ziran COMMAND --help` and `-h` print that command's usage and do nothing
+  else; `ziran update --help` used to rewrite the lock.
 - A local override checked out past its locked commit is validated against the
   graph its root dependency locks, so exact transitive pins of that package
   no longer fail with a dependency-count mismatch.

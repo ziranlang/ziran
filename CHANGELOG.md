@@ -13,6 +13,8 @@
   tier's copy of each `#inline` procedure of the module, which ran SSE2
   code or a call out of the tier's file before. The AV1 decoder decodes
   1080p frames 2-4% faster.
+- A unary operator inside a binary one keeps its grouping: Go read
+  `a ^ -b` as `(a ^ 0) - b`, and C read a float `-(-x)` as `--x`.
 - Native SIMD vectors such as `s16xN` hold as many 128-bit blocks as the
   code running them handles: two in a `#target` procedure's AVX2 copy and
   in AVX2 builds, one elsewhere. Loops step by `Simd.Lanes(s16xN)`, and

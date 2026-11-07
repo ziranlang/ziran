@@ -1983,11 +1983,20 @@ emit_expr_with_buffers(Emitter *e, int index, const char *expected, char *out, s
         else
             emit_expr(e,expr->right,e->fn->exprs[expr->right].type,buffers->a,sizeof(buffers->a));
         pure = e->pure;
-        if(width(type) && !strcmp(expr->op,"-")) number(e,type,"0",NULL,buffers->a,e->fn->exprs[expr->right].type,2,buffers->result,sizeof(buffers->result));
-        else if(width(type) && !strcmp(expr->op,"~")) {
+        /* Integer - and ~ are a subtraction and an exclusive or, such as Go's
+         * 0 - b, so an enclosing operator has to group them. */
+        if(width(type) && !strcmp(expr->op,"-")) {
+            number(e,type,"0",NULL,buffers->a,e->fn->exprs[expr->right].type,2,buffers->result,sizeof(buffers->result));
+            atom = 0;
+        } else if(width(type) && !strcmp(expr->op,"~")) {
             number(e,type,buffers->a,e->fn->exprs[expr->right].type,e->target==ZIR_GO?"^uint64(0)":"UINT64_MAX",NULL,10,buffers->result,sizeof(buffers->result));
+            atom = 0;
         } else if(!strcmp(expr->op, "&") || !strcmp(expr->op, "*"))
             format(buffers->result, sizeof(buffers->result), "%s(%s)", expr->op, buffers->a);
+        /* A prefix binds tighter than any binary operator, but - -x must not
+         * become the token --. */
+        else if(buffers->a[0] == expr->op[0] && (expr->op[0] == '-' || expr->op[0] == '+'))
+            format(buffers->result,sizeof(buffers->result),"%s(%s)",expr->op,buffers->a);
         else format(buffers->result,sizeof(buffers->result),"%s%s",expr->op,buffers->a);
         break;
     case ZIR_EXPR_CAST: {

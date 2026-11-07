@@ -19,6 +19,11 @@ uint8_t* compiler_services_SpanPath(ZirSourceSpan span);
 void compiler_services_LookupsChanged(void);
 int32_t compiler_services_ResolveFunction(ZirModule* module, uint8_t* name, uint8_t* path, ZirModule** owner, ZirFunction** function);
 ZirImport* compiler_services_AddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span);
+int32_t compiler_services_SourceFile(String path);
+uint8_t* compiler_services_Allocate(int64_t count, int64_t size);
+bool compiler_services_WriteBytes(uint8_t* file, String bytes);
+bool compiler_services_MapTypeParts(ZirModule* module, String name);
+bool compiler_services_VecElementType(ZirModule* module, String name);
 
 #ifdef __cplusplus
 }

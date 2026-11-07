@@ -106,6 +106,71 @@ zir_f_91ae99e11753ff79_ZiranAddImport(ZirModule* module, ZirImportKind kind, Str
 signature, span);
 }
 #endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranSourceFile_fc41f75d
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranSourceFile_fc41f75d
+#ifdef __APPLE__
+int32_t zir_foreign_zir_f_91ae99e11753ff79_ZiranSourceFile(String path) __asm__("_ZiranSourceFile");
+#else
+int32_t zir_foreign_zir_f_91ae99e11753ff79_ZiranSourceFile(String path) __asm__("ZiranSourceFile");
+#endif
+static int32_t
+zir_f_91ae99e11753ff79_ZiranSourceFile(String path)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ZiranSourceFile(path);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranAllocate_25445163
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranAllocate_25445163
+#ifdef __APPLE__
+uint8_t* zir_foreign_zir_f_91ae99e11753ff79_ZiranAllocate(int64_t count, int64_t size) __asm__("_ZiranAllocate");
+#else
+uint8_t* zir_foreign_zir_f_91ae99e11753ff79_ZiranAllocate(int64_t count, int64_t size) __asm__("ZiranAllocate");
+#endif
+static uint8_t*
+zir_f_91ae99e11753ff79_ZiranAllocate(int64_t count, int64_t size)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ZiranAllocate(count, size);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranWriteBytes_66044e63
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranWriteBytes_66044e63
+#ifdef __APPLE__
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranWriteBytes(uint8_t* file, String bytes) __asm__("_ZiranWriteBytes");
+#else
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranWriteBytes(uint8_t* file, String bytes) __asm__("ZiranWriteBytes");
+#endif
+static bool
+zir_f_91ae99e11753ff79_ZiranWriteBytes(uint8_t* file, String bytes)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ZiranWriteBytes(file, bytes);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranMapType_7c66604b
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranMapType_7c66604b
+#ifdef __APPLE__
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranMapType(ZirModule* module, String name) __asm__("_ZiranMapType");
+#else
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranMapType(ZirModule* module, String name) __asm__("ZiranMapType");
+#endif
+static bool
+zir_f_91ae99e11753ff79_ZiranMapType(ZirModule* module, String name)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ZiranMapType(module, name);
+}
+#endif
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranVecType_f256f687
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_ZiranVecType_f256f687
+#ifdef __APPLE__
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranVecType(ZirModule* module, String name) __asm__("_ZiranVecType");
+#else
+bool zir_foreign_zir_f_91ae99e11753ff79_ZiranVecType(ZirModule* module, String name) __asm__("ZiranVecType");
+#endif
+static bool
+zir_f_91ae99e11753ff79_ZiranVecType(ZirModule* module, String name)
+{
+    return zir_foreign_zir_f_91ae99e11753ff79_ZiranVecType(module, name);
+}
+#endif
 
 void
 compiler_services_Diagnose(ZirSourceSpan span, String code, String message)
@@ -153,4 +218,34 @@ ZirImport*
 compiler_services_AddImport(ZirModule* module, ZirImportKind kind, String name, String target, String signature, ZirSourceSpan span)
 {
     return zir_f_91ae99e11753ff79_ZiranAddImport(module, kind, name, target, signature, span);
+}
+
+int32_t
+compiler_services_SourceFile(String path)
+{
+    return zir_f_91ae99e11753ff79_ZiranSourceFile(path);
+}
+
+uint8_t*
+compiler_services_Allocate(int64_t count, int64_t size)
+{
+    return zir_f_91ae99e11753ff79_ZiranAllocate(count, size);
+}
+
+bool
+compiler_services_WriteBytes(uint8_t* file, String bytes)
+{
+    return zir_f_91ae99e11753ff79_ZiranWriteBytes(file, bytes);
+}
+
+bool
+compiler_services_MapTypeParts(ZirModule* module, String name)
+{
+    return zir_f_91ae99e11753ff79_ZiranMapType(module, name);
+}
+
+bool
+compiler_services_VecElementType(ZirModule* module, String name)
+{
+    return zir_f_91ae99e11753ff79_ZiranVecType(module, name);
 }

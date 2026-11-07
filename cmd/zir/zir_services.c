@@ -51,3 +51,45 @@ ZiranAddImport(ZirModule *module, ZirImportKind kind, String name,
     free(kept_signature);
     return import;
 }
+
+/* Saved IR (cmd/compiler_serial.zi). */
+int
+ZiranSourceFile(String path)
+{
+    char *copy = terminated(path);
+    int file = SourceFile(copy);
+    free(copy);
+    return file;
+}
+
+void *
+ZiranAllocate(int64_t count, int64_t size)
+{
+    if(count <= 0 || size <= 0 || (uint64_t)count > SIZE_MAX / (uint64_t)size) return NULL;
+    return calloc((size_t)count, (size_t)size);
+}
+
+bool
+ZiranWriteBytes(void *file, String bytes)
+{
+    return bytes.length == 0 ||
+           fwrite(bytes.data, 1, (size_t)bytes.length, file) == (size_t)bytes.length;
+}
+
+bool
+ZiranMapType(const ZirModule *module, String name)
+{
+    char *copy = terminated(name);
+    int valid = MapTypeParts(module, copy, NULL, 0, NULL, 0);
+    free(copy);
+    return valid;
+}
+
+bool
+ZiranVecType(const ZirModule *module, String name)
+{
+    char *copy = terminated(name);
+    int valid = VecElementType(module, copy, NULL, 0);
+    free(copy);
+    return valid;
+}

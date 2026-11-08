@@ -76,10 +76,12 @@ static void *worker(void *argument)
     const char *invalid[] = {
         "/* unfinished", "Answer :: () {", "#string END\nunfinished\n",
         "Answer :: () { if true { return }", "Bad :: struct {",
-        "Tag :: enum s32 { First; Last }\nAnswer :: () {"
+        "Tag :: enum s32 { First; Last }\nAnswer :: () {",
+        "Good :: () -> s32 { return 1 + 2 }\nBad :: () { for }",
+        "Good :: () -> s32 { return 1 + 2 }\nBad :: () {"
     };
     for(int i = 0; i < 24; i++) {
-        assert(!parse_source_text("bad.zi", invalid[i % 6]));
+        assert(!parse_source_text("bad.zi", invalid[i % (sizeof(invalid) / sizeof(*invalid))]));
         ZirProgram *program = parse_source_text("good.zi", "Answer :: () -> s32 { return 42 }\n");
         inspect(program, "good.zi");
         ProgramFree(program);

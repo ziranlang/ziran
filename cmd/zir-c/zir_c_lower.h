@@ -9,16 +9,25 @@ typedef struct ZirCFunctionSym {
     char c[ZIR_NAME_MAX * 3];
 } ZirCFunctionSym;
 
+typedef struct ZirCHeaderUse {
+    const ZirModule *module;
+    unsigned char use; /* 1 public layout, 2 private layout */
+} ZirCHeaderUse;
+
+typedef struct ZirCHeaderUses {
+    ZirCHeaderUse *items;
+    int count;
+} ZirCHeaderUses;
+
 typedef struct ZirCModuleSyms {
     char module_stem[ZIR_PATH_MAX];  /* source path minus .zi */
     char module_slash[ZIR_PATH_MAX];
     ZirCFunctionSym *fns;            /* one entry per function, no fixed cap */
     int fn_count;
-    /* The program's first module, the one the stem names, and how its
-     * header includes each of its imports, worked out once for lowering
-     * every module that reaches it. */
+    /* The program's first module, the one the stem names, and its header's
+     * declaration dependencies, worked out once for every lowering. */
     const ZirModule *module;
-    unsigned char *header_uses;
+    ZirCHeaderUses header_uses;
 } ZirCModuleSyms;
 
 /* Lower a ZirProgram to C source (.c/.h). restab/restab_count resolve

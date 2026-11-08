@@ -53,16 +53,20 @@ if test -n "$ndk"; then
             *) emulator=${ZIRAN_QEMU_ARM:-qemu-arm}; cpu=cortex-a15; isa_flags=-mfpu=vfpv3-d16 ;;
         esac
         if command -v "$emulator" >/dev/null 2>&1; then
+            # Bionic's static libc uses ELF TLS. API 29's crtbegin reserves
+            # its TLS slots (64-byte alignment on AArch64, 32 on ARMv7).
+            # Keep the assembly-only coverage above at API 24.
+            runtime_triple=${triple%24}29
             for mode in "" -DZIRAN_ASM_CHECK -DZIRAN_NO_ASM; do
-                "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/$triple-clang" $isa_flags -static -std=c11 -O3 -Wall -Werror $mode \
-                    -I"$work/c" -I"$repo/include" "$work/c/dct8.c" "$work/host.c" -o "$work/$triple"
-                actual=$("$emulator" -cpu "$cpu" "$work/$triple") || {
-                    echo "asm-dct8: $triple $mode execution failed" >&2; exit 1;
+                "$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin/$runtime_triple-clang" $isa_flags -static -std=c11 -O3 -Wall -Werror $mode \
+                    -I"$work/c" -I"$repo/include" "$work/c/dct8.c" "$work/host.c" -o "$work/$runtime_triple"
+                actual=$("$emulator" -cpu "$cpu" "$work/$runtime_triple") || {
+                    echo "asm-dct8: $runtime_triple $mode execution failed" >&2; exit 1;
                 }
                 test "$actual" = "$expected"
             done
             arm_ran=$((arm_ran + 1))
-            echo "asm-dct8: $triple native, checked and portable executions matched"
+            echo "asm-dct8: $runtime_triple native, checked and portable executions matched"
         else
             echo "asm-dct8: $emulator is unavailable; skipping $triple execution"
         fi

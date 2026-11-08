@@ -2,6 +2,7 @@
  * modules. A Ziran string arrives as a String view with no closing NUL. */
 #include "zir.h"
 #include "zir_diagnostic.h"
+#include "zir_memory.h"
 
 #include <stdlib.h>
 #include <string.h>

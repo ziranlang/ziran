@@ -1303,9 +1303,25 @@ module_import(const ZirModule *m, const char *alias, size_t length)
     return NULL;
 }
 
+/* Keep declaration owners, including those reached through public reexports.
+ * Import edges alone do not describe the types a generated layout names. */
+static void
+header_owner_use(ZirCHeaderUses *uses, const ZirModule *owner, unsigned char use)
+{
+    for(int i = 0; i < uses->count; i++) {
+        if(uses->items[i].module != owner) continue;
+        if(use == 1) uses->items[i].use = 1;
+        return;
+    }
+    ZirCHeaderUse *items = realloc(uses->items, (size_t)(uses->count + 1) * sizeof(*items));
+    if(items == NULL) { DiagnosticOutOfMemory(); exit(1); }
+    uses->items = items;
+    uses->items[uses->count++] = (ZirCHeaderUse){owner, use};
+}
+
 static void
 header_type_use(const ZirModule *m, const char *type, unsigned char use,
-                unsigned char *uses)
+                ZirCHeaderUses *uses)
 {
     if(type == NULL) return;
     char base[ZIR_NAME_MAX];
@@ -1325,14 +1341,12 @@ header_type_use(const ZirModule *m, const char *type, unsigned char use,
     }
     const ZirModule *owner = NULL;
     if(FindType(m, base, &owner) == NULL || owner == NULL) return;
-    for(int i = 0; i < m->import_count; i++)
-        if(m->imports[i].resolved_module == owner && uses[i] != 1)
-            uses[i] = use;
+    if(owner != m) header_owner_use(uses, owner, use);
 }
 
 static void
 header_parameters_use(const ZirModule *m, const char *args, unsigned char use,
-                      unsigned char *uses)
+                      ZirCHeaderUses *uses)
 {
     const ZirParameters *parameters = ParametersOf(args);
     for(int i = 0; i < parameters->count; i++)
@@ -1417,14 +1431,12 @@ header_visible_types(const ZirModule *m)
     return visible;
 }
 
-/* How M's header includes each import, one entry per import: 1
- * unconditionally, when the import is required or a public declaration
- * names one of its types; 2 behind M's _PRIVATE guard, when only private
- * types do; 0 not at all. Each type the header names resolves once. */
+/* Declaration owners and required imports the header needs: public layout
+ * dependencies are unconditional; private ones stay behind _PRIVATE. */
 static void
-header_import_uses(const ZirModule *m, unsigned char *uses)
+header_import_uses(const ZirModule *m, ZirCHeaderUses *uses)
 {
-    memset(uses, 0, (size_t)m->import_count);
+    memset(uses, 0, sizeof(*uses));
     unsigned char *visible = header_visible_types(m);
     for(int i = 0; i < m->type_count; i++) {
         const ZirType *type = &m->types[i];
@@ -1457,8 +1469,24 @@ header_import_uses(const ZirModule *m, unsigned char *uses)
     }
     for(int i = 0; i < m->import_count; i++) {
         const ZirImport *imp = &m->imports[i];
-        if(imp->kind != ZIR_IMPORT_OPEN && imp->kind != ZIR_IMPORT_MODULE) uses[i] = 0;
-        else if(imp->required) uses[i] = 1;
+        if((imp->kind == ZIR_IMPORT_OPEN || imp->kind == ZIR_IMPORT_MODULE) &&
+           imp->required && imp->resolved_module != NULL)
+            header_owner_use(uses, imp->resolved_module, 1);
+    }
+    /* Preserve direct-import order; append owners reached only by reexport.
+     * Include order also determines which side of a cycle is read first. */
+    int ordered = 0;
+    for(int i = 0; i < m->import_count; i++) {
+        const ZirImport *imp = &m->imports[i];
+        if(imp->kind != ZIR_IMPORT_OPEN && imp->kind != ZIR_IMPORT_MODULE) continue;
+        for(int j = ordered; j < uses->count; j++) {
+            if(uses->items[j].module != imp->resolved_module) continue;
+            ZirCHeaderUse item = uses->items[j];
+            memmove(uses->items + ordered + 1, uses->items + ordered,
+                    (size_t)(j - ordered) * sizeof(item));
+            uses->items[ordered++] = item;
+            break;
+        }
     }
     free(visible);
 }
@@ -1469,8 +1497,8 @@ header_import_uses(const ZirModule *m, unsigned char *uses)
  * hold indexes. */
 typedef struct HeaderNode {
     const ZirModule *module;
-    const unsigned char *uses;
-    unsigned char *owned;
+    const ZirCHeaderUses *uses;
+    ZirCHeaderUses *owned;
     unsigned visit;
     int order, low, depth, on_stack;
 } HeaderNode;
@@ -1497,7 +1525,7 @@ header_slot(const ZirModule *m)
 }
 
 static int
-header_insert(const ZirModule *m, const unsigned char *uses)
+header_insert(const ZirModule *m, const ZirCHeaderUses *uses)
 {
     if(2 * (header_table.count + 1) > header_table.slot_count) {
         int slot_count = header_table.slot_count ? 2 * header_table.slot_count : 256;
@@ -1528,7 +1556,7 @@ header_node(const ZirModule *m)
         int found = header_table.slots[header_slot(m)];
         if(found) return found - 1;
     }
-    unsigned char *uses = AllocateOrExit(m->import_count > 0 ? (size_t)m->import_count : 1);
+    ZirCHeaderUses *uses = AllocateOrExit(sizeof(*uses));
     header_import_uses(m, uses);
     int node = header_insert(m, uses);
     header_table.nodes[node].owned = uses;
@@ -1541,14 +1569,16 @@ header_table_open(const ZirCModuleSyms *restab, int restab_count)
     for(int i = 0; i < restab_count; i++)
         if(restab[i].module != NULL && !(header_table.slot_count &&
                                          header_table.slots[header_slot(restab[i].module)]))
-            header_insert(restab[i].module, restab[i].header_uses);
+            header_insert(restab[i].module, &restab[i].header_uses);
 }
 
 static void
 header_table_close(void)
 {
-    for(int i = 0; i < header_table.count; i++)
+    for(int i = 0; i < header_table.count; i++) {
+        if(header_table.nodes[i].owned) free(header_table.nodes[i].owned->items);
         free(header_table.nodes[i].owned);
+    }
     free(header_table.nodes);
     free(header_table.slots);
     free(header_table.work);
@@ -1571,7 +1601,10 @@ header_work_push(int *used, int node)
 static int
 header_use(const ZirModule *m, const ZirImport *imp)
 {
-    return header_table.nodes[header_node(m)].uses[imp - m->imports];
+    const ZirCHeaderUses *uses = header_table.nodes[header_node(m)].uses;
+    for(int i = 0; i < uses->count; i++)
+        if(uses->items[i].module == imp->resolved_module) return uses->items[i].use;
+    return 0;
 }
 
 /* An imported module whose header this header includes unconditionally. */
@@ -1830,10 +1863,10 @@ header_cycle_walk(InlineNames *names, const ZirModule *m, const ZirModule *root,
     header_table.nodes[node].order = header_table.nodes[node].low = (*order)++;
     header_table.nodes[node].on_stack = 1;
     header_work_push(stacked, node);
-    const unsigned char *uses = header_table.nodes[node].uses;
-    for(int i = 0; i < m->import_count; i++) {
-        const ZirModule *to = m->imports[i].resolved_module;
-        if(to == NULL || uses[i] != 1) continue;
+    const ZirCHeaderUses *uses = header_table.nodes[node].uses;
+    for(int i = 0; i < uses->count; i++) {
+        const ZirModule *to = uses->items[i].module;
+        if(uses->items[i].use != 1) continue;
         int next = header_node(to), low;
         if(header_table.nodes[next].visit != visit) {
             header_cycle_walk(names, to, root, order, stacked);
@@ -2128,15 +2161,13 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
     if(ModuleHeaderUsesVectors(m))
         fputs("#include \"ziran_simd_types.h\"\n", h);
     EmitStringType(h);
-    for(i = 0; i < m->import_count; i++) {
-        const ZirImport *imp = &m->imports[i];
-        int use = header_use(m, imp);
-        if(!use) continue;
+    const ZirCHeaderUses *uses = header_table.nodes[header_node(m)].uses;
+    for(i = 0; i < uses->count; i++) {
+        int use = uses->items[i].use;
+        char stem[ZIR_PATH_MAX];
+        stem_from_source(uses->items[i].module->source_path, stem, sizeof(stem));
         if(use == 2) fprintf(h, "#ifdef %s_PRIVATE\n", buffers->guard);
-        if(imp->kind == ZIR_IMPORT_OPEN) {
-            fprintf(h, "#include \"%s.h\"\n", imp->target);
-        } else if(imp->kind == ZIR_IMPORT_MODULE)
-            fprintf(h, "#include \"%s.h\"\n", imp->target);
+        fprintf(h, "#include \"%s.h\"\n", stem);
         if(use == 2) fputs("#endif\n", h);
     }
     /* C modules can be embedded by C++ hosts; their exported symbols must
@@ -2810,10 +2841,7 @@ c_build_syms(const ZirProgram *program, ZirCModuleSyms *out)
         }
     }
     out->module = &program->modules[0];
-    out->header_uses = malloc(out->module->import_count > 0 ? (size_t)out->module->import_count : 1);
-    if(out->header_uses == NULL)
-        return 0;
-    header_import_uses(out->module, out->header_uses);
+    header_import_uses(out->module, &out->header_uses);
     return 1;
 }
 
@@ -2822,7 +2850,7 @@ c_free_syms(ZirCModuleSyms *syms, int count)
 {
     for(int i = 0; i < count; i++) {
         free(syms[i].fns);
-        free(syms[i].header_uses);
+        free(syms[i].header_uses.items);
     }
 }
 

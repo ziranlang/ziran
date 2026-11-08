@@ -1,0 +1,4 @@
+// Parsing Good interns expression names through the C services bridge.
+// Recovery from the later malformed header must not free those temporaries twice.
+Good :: () -> s32 { return 1 + 2 }
+Bad :: () { for }

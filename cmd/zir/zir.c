@@ -2292,7 +2292,8 @@ starts_with_marker(const char *path, const char *marker)
 
 /* Generated sources mirror their package directories, so pruning visits
  * subdirectories too. Hidden entries, such as the native object cache, and
- * links to directories elsewhere are never entered. */
+ * links to directories elsewhere are never entered. Only regular files can
+ * carry our marker; opening a retained runtime FIFO would block the build. */
 static int
 prune_generated(const char *directory_path, const char *marker, int depth)
 {
@@ -2316,6 +2317,7 @@ prune_generated(const char *directory_path, const char *marker, int depth)
             if(depth < 32 && prune_generated(path, marker, depth + 1) != 0) failed = 1;
             continue;
         }
+        if(!listed || !S_ISREG(info.st_mode)) continue;
         int written = 0;
         for(int i = 0; i < generated_output_count && !written; i++)
             written = strcmp(generated_outputs[i], path) == 0;

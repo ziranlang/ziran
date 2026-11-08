@@ -62,6 +62,8 @@ RawBundleAssetData :: (bundle: *void, index: usize) -> *u8 #foreign runtime "Bun
 RawBundleAssetSize :: (bundle: *void, index: usize) -> usize #foreign runtime "BundleAssetSize";
 RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
     count: usize) -> *void #foreign runtime "BundleInstantiate";
+RawBundleInstantiateLimited :: (bundle: *void, bindings: *HostBinding,
+    count: usize, max_steps: s32) -> *void #foreign runtime "BundleInstantiateLimited";
 RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
@@ -170,6 +172,17 @@ InstantiateBundle :: (bundle: *void, bindings: *HostBinding,
         return null
     }
     return RawBundleInstantiate(bundle, bindings, narrowed)
+}
+
+// Portable VM with one positive budget covering global initialization and runs.
+#program_export
+InstantiateBundleLimited :: (bundle: *void, bindings: *HostBinding,
+    count: u64, max_steps: s32) -> *void {
+    narrowed := cast(usize)count
+    if cast(u64)narrowed != count || max_steps <= 0 {
+        return null
+    }
+    return RawBundleInstantiateLimited(bundle, bindings, narrowed, max_steps)
 }
 
 #program_export

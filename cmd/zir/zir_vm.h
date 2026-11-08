@@ -35,6 +35,12 @@ VmInstance *VmInstanceOpenVerified(const ZirProgram *program,
                                   const ZirModule *module,
                                   const ZirFunction *entry,
                                   VmHostCall host, void *context);
+/* Positive cumulative statement budget, installed before global initializers. */
+VmInstance *VmInstanceOpenVerifiedLimited(const ZirProgram *program,
+                                         const ZirModule *module,
+                                         const ZirFunction *entry,
+                                         VmHostCall host, void *context,
+                                         int max_steps);
 int VmInstanceRun(VmInstance *instance, long long *result, int *has_result);
 /* Bounds later runs to MAX_STEPS statements; zero removes the bound. */
 void VmInstanceLimitSteps(VmInstance *instance, int max_steps);

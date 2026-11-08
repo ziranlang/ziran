@@ -128,6 +128,12 @@ const char *BundleLawWaiverReason(const Bundle *bundle, size_t index);
 BundleInstance *BundleInstantiate(const Bundle *bundle,
                                    const HostBinding *bindings,
                                    size_t binding_count);
+/* Explicit portable execution with a positive, cumulative statement budget.
+ * The budget covers global initialization and all subsequent entry runs.
+ * Initialization failure returns NULL; this never selects a compiled engine. */
+BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
+                                         const HostBinding *bindings,
+                                         size_t binding_count, int max_steps);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
 /* Bound each subsequent run to max_steps units of work, so a runaway bundle

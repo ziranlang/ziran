@@ -148,6 +148,14 @@ BundleInstance *BundleInstantiate(const Bundle *bundle,
     return (BundleInstance *)&token;
 }
 
+BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
+                                        const RuntimeHostBinding *bindings,
+                                        size_t count, int max_steps)
+{
+    assert(max_steps == 19);
+    return BundleInstantiate(bundle, bindings, count);
+}
+
 int BundleInstanceRun(BundleInstance *instance, long long *result, int *has_result)
 {
     assert(instance == (BundleInstance *)&token);
@@ -196,6 +204,9 @@ int main(void)
     assert(BundleAssetLength(bundle, expected_index) == (uint64_t)SIZE_MAX);
     void *instance = InstantiateBundle(bundle, NULL, expected_count);
     assert(instance == &token);
+    assert(InstantiateBundleLimited(bundle, NULL, expected_count, 19) == &token);
+    assert(InstantiateBundleLimited(bundle, NULL, expected_count, 0) == NULL);
+    assert(InstantiateBundleLimited(bundle, NULL, expected_count, -1) == NULL);
     int64_t result = 0;
     int32_t has_result = 0;
     assert(RunBundleInstance(instance, &result, &has_result) == 1);
@@ -221,6 +232,7 @@ int main(void)
         assert(BundleAssetBytes(bundle, too_large) == NULL);
         assert(BundleAssetLength(bundle, too_large) == 0);
         assert(InstantiateBundle(bundle, NULL, too_large) == NULL);
+        assert(InstantiateBundleLimited(bundle, NULL, too_large, 19) == NULL);
         assert(calls == previous_calls);
     }
     printf("Bundle host ABI layout, calls and narrowing passed (%zu-bit size_t)\n",

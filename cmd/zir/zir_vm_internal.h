@@ -651,6 +651,7 @@ struct VmInstance {
     Vm vm;
     const ZirModule *module;
     const ZirFunction *entry;
+    int cumulative_steps; /* Limited opens include initialization and every run. */
 };
 
 struct Frame {

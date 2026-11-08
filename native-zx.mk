@@ -76,6 +76,7 @@ $(ZIRAN_VM_HOST_OBJECT): cmd/zir/zir_host.c $(BUILD_DIR)/.compiler-flags native-
 	@mkdir -p $(dir $@)
 	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) $(DEPFLAGS) -c -o $@ $<
 $(BUILD_DIR)/libziran-vm.a: $(ZIRAN_VM_LIB_OBJECTS) Makefile native-zx.mk
-	$(RM) $@
-	$(AR) rcs $@ $(ZIRAN_VM_LIB_OBJECTS)
+	@set -e; temporary="$@.tmp"; trap 'rm -f "$$temporary"' EXIT HUP INT TERM; \
+	    rm -f "$$temporary"; $(AR) rcs "$$temporary" $(ZIRAN_VM_LIB_OBJECTS); \
+	    mv -f "$$temporary" "$@"
 all: $(BUILD_DIR)/libziran-vm.a

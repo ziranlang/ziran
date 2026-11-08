@@ -1898,7 +1898,8 @@ free_runtime_buffers(Vm *vm)
 
 static VmInstance *
 VmInstanceOpenVerified_in_context(const ZirProgram *program, const ZirModule *module,
-                       const ZirFunction *entry, VmHostCall host, void *context)
+                       const ZirFunction *entry, VmHostCall host, void *context,
+                       int max_steps)
 {
     VmInstance *instance = calloc(1, sizeof(*instance));
     if(instance == NULL)
@@ -1906,6 +1907,8 @@ VmInstanceOpenVerified_in_context(const ZirProgram *program, const ZirModule *mo
     instance->vm.program = program;
     instance->vm.host = host;
     instance->vm.host_context = context;
+    instance->vm.max_steps = max_steps;
+    instance->cumulative_steps = max_steps > 0;
     profile_open(&instance->vm);
     instance->entry = entry;
     instance->module = module;
@@ -1936,7 +1939,8 @@ VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_resul
        instance->vm.failed)
         return 0;
     Vm *vm = &instance->vm;
-    vm->steps = 0;
+    if(!instance->cumulative_steps)
+        vm->steps = 0;
     vm->stack_floor = NULL;
     vm->failed_function = NULL;
     memset(&vm->failed_span, 0, sizeof(vm->failed_span));
@@ -2065,7 +2069,21 @@ VmRun(const ZirProgram *program, const char *entry_module,
 VmInstance *VmInstanceOpenVerified(const ZirProgram *program, const ZirModule *module, const ZirFunction *entry, VmHostCall host, void *context)
 {
     CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
-    VmInstance * result = VmInstanceOpenVerified_in_context(program, module, entry, host, context);
+    VmInstance * result = VmInstanceOpenVerified_in_context(program, module, entry, host, context, 0);
+    CompilerContextSelect(previous);
+    return result;
+}
+
+VmInstance *
+VmInstanceOpenVerifiedLimited(const ZirProgram *program, const ZirModule *module,
+                              const ZirFunction *entry, VmHostCall host,
+                              void *context, int max_steps)
+{
+    if(max_steps <= 0)
+        return NULL;
+    CompilerContext *previous = CompilerContextSelect(program ? program->context : NULL);
+    VmInstance *result = VmInstanceOpenVerified_in_context(program, module, entry,
+                                                          host, context, max_steps);
     CompilerContextSelect(previous);
     return result;
 }

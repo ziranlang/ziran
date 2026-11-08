@@ -631,6 +631,13 @@ check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR
 	python3 tests/run_check.py --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
 	    $(if $(CHECK_FILTER),--filter $(CHECK_FILTER)) $(if $(CHECK_SHARD),--shard $(CHECK_SHARD))
 
+.PHONY: check-bundle-step-limit
+check-bundle-step-limit: $(BIN_DIR)/ziran $(BUILD_DIR)/libziran-vm.a $(BUILD_DIR)/libziran.a
+	env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY -u DBUS_SESSION_BUS_ADDRESS \
+	    ZIRAN_VM_LIB="$(abspath $(BUILD_DIR)/libziran-vm.a)" \
+	    ZIRAN_LIB="$(abspath $(BUILD_DIR)/libziran.a)" \
+	    sh tests/bundle_step_limit.sh "$(abspath $(BIN_DIR)/ziran)"
+
 zx-wasm-test: all
 	env -u DISPLAY -u WAYLAND_DISPLAY tests/zx_wasm.sh $(BIN_DIR)/ziran
 

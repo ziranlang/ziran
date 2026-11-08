@@ -89,7 +89,16 @@ entry function. The standalone `zi2zx run` command has no host bindings and
 rejects a call that needs one. A run is not bounded: like the program's native
 builds, it continues until the entry returns. Only the web playground stops a
 run after 1,000,000 statements (`VmRunBounded`), so a runaway loop cannot hang
-the page, and it says so in the diagnostic. A function holds as many locals as
+the page, and it says so in the diagnostic. Embedding hosts can instead call
+`BundleInstantiateLimited(bundle, bindings, count, max_steps)` with a positive
+statement budget. This explicitly selects the portable VM and applies one
+cumulative budget to global initialization and every entry run; initialization
+failure returns `NULL`. In Ziran, `std/bundle_host` exposes the same operation as
+`InstantiateBundleLimited`. The ordinary `BundleInstantiate` and later
+`BundleInstanceLimitSteps` retain their per-entry limit behavior. Hosts needing
+the portable engine alone link `build/libziran-vm.a`, built by
+`make build/libziran-vm.a`; that archive excludes the native code compiler.
+A function holds as many locals as
 it declares. Calls nest until the C stack is nearly full, where the thread's
 stack bounds are known (Linux); `zi2zx run` runs the program on a 256 MiB
 stack, room for about 60,000 nested calls, and a runaway recursion stops with

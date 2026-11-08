@@ -558,9 +558,9 @@ validate_bindings(const Bundle *bundle, const BindingSet *set)
     return 1;
 }
 
-BundleInstance *
-BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
-                  size_t binding_count)
+static BundleInstance *
+instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
+                   size_t binding_count, int max_steps)
 {
     if(bundle == NULL || (binding_count != 0 && bindings == NULL) ||
        binding_count > SIZE_MAX / sizeof(HostBinding))
@@ -605,6 +605,21 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
     if(!validate_bindings(bundle, &instance->set)) {
         BundleInstanceClose(instance);
         return NULL;
+    }
+    if(max_steps > 0) {
+#ifdef ZIRAN_COMPILED_ZX
+        if(!check_unchecked((Bundle *)bundle)) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+#endif
+        instance->vm = VmInstanceOpenVerifiedLimited(bundle->program, bundle->entry_owner,
+            bundle->entry, dispatch, &instance->set, max_steps);
+        if(instance->vm == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        return instance;
     }
 #ifdef ZIRAN_COMPILED_ZX
     unsigned char identity[32];
@@ -676,6 +691,19 @@ BundleInstantiate(const Bundle *bundle, const HostBinding *bindings,
         return NULL;
     }
     return instance;
+}
+
+BundleInstance *
+BundleInstantiate(const Bundle *bundle, const HostBinding *bindings, size_t binding_count)
+{
+    return instantiate_bundle(bundle, bindings, binding_count, 0);
+}
+
+BundleInstance *
+BundleInstantiateLimited(const Bundle *bundle, const HostBinding *bindings,
+                          size_t binding_count, int max_steps)
+{
+    return max_steps > 0 ? instantiate_bundle(bundle, bindings, binding_count, max_steps) : NULL;
 }
 
 int

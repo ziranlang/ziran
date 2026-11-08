@@ -251,6 +251,10 @@ copy_function(ZirFunction *target, const ZirFunction *source)
     *target = *source;
     target->stmts = NULL;
     target->exprs = NULL;
+    /* These private arrays contain only the live nodes, not the source's
+     * spare storage. Later checking/lowering can append to either array. */
+    target->stmt_cap = source->stmt_count;
+    target->expr_cap = source->expr_count;
     if(source->stmt_count > 0) {
         target->stmts = malloc((size_t)source->stmt_count * sizeof(*target->stmts));
         if(target->stmts == NULL)

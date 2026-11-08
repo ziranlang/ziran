@@ -28,9 +28,53 @@ has_type(const ZirModule *module, const char *name)
     return 0;
 }
 
+/* Linkers copy checked functions before later lowering can append nodes.
+ * Exercise both nonempty and empty arrays, including growth beyond the
+ * source's spare capacity, without changing the original checked graph. */
+static void
+linked_function_growth(void)
+{
+    static const char source[] =
+        "Answer :: () -> s32 { if false { print(\"dead\") }; return 42 }\n"
+        "Empty :: () { if false { print(\"dead\") } }\n";
+    ZirProgram *program = parse_source_text("growth.zi", source);
+    assert(program != NULL);
+    ZirProgram *set[] = {program};
+    assert(CheckPrograms(set, 1));
+    for(int native = 0; native < 2; native++) {
+        for(int f = 0; f < 2; f++) {
+            ZirFunction *original = &program->modules[0].functions[f];
+            int exprs = original->expr_count, stmts = original->stmt_count;
+            ZirProgram *linked = native ? NativeLink(program, "growth", original->name) :
+                                         BundleLink(program, "growth", original->name);
+            assert(linked != NULL);
+            ZirFunction *copy = &module_named(linked, "growth")->functions[0];
+            int copied_exprs = copy->expr_count, copied_stmts = copy->stmt_count;
+            assert(copied_exprs < exprs && copied_stmts < stmts);
+            assert(!copied_exprs || copy->exprs != original->exprs);
+            assert(!copied_stmts || copy->stmts != original->stmts);
+            const char *first_text = copied_exprs ? copy->exprs[0].text : "";
+            ZirStmtKind first_kind = copied_stmts ? copy->stmts[0].kind : ZIR_STMT_UNKNOWN;
+            int additions = original->expr_cap + original->stmt_cap + 1;
+            for(int i = 0; i < additions; i++) {
+                assert(FunctionAddExpr(copy, ZIR_EXPR_INT, "7", original->span));
+                assert(FunctionAddStmt(copy, ZIR_STMT_RETURN, "return 7", original->span));
+            }
+            assert(copy->expr_count == copied_exprs + additions);
+            assert(copy->stmt_count == copied_stmts + additions);
+            assert(original->expr_count == exprs && original->stmt_count == stmts);
+            if(copied_exprs) assert(!strcmp(copy->exprs[0].text, first_text));
+            if(copied_stmts) assert(copy->stmts[0].kind == first_kind);
+            ProgramFree(linked);
+        }
+    }
+    ProgramFree(program);
+}
+
 int
 main(void)
 {
+    linked_function_growth();
     static const char shapes[] =
         "Point :: struct {\n"
         "    x: s32\n"

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- Linked functions keep their copied statement and expression capacities
+  consistent with their storage, preventing heap corruption when later
+  lowering appends nodes after dead-code pruning.
+
 - Expression and initializer parsing build shared IR directly from Ziran,
   removing the C callback parser. Compile-time quoted searches share the
   Ziran source scanner.

@@ -76,15 +76,31 @@ PathInfo :: struct {
     device_minor: u32
 }
 
-// The path's kind, owner UID, permissions, size and modification time. A link is
-// followed unless follow_links is false, when it reports kind Link.
-PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
+// A failed query has zero info. Only ENOENT/ENOTDIR mean missing;
+// error otherwise preserves the positive Linux errno (EINVAL for invalid text).
+PathQueryResult :: struct {
     info: PathInfo
+    valid: bool
+    missing: bool
+    error: s32
+}
+
+// Follows links by default. Invalid text contains NUL or exceeds 4095 bytes.
+PathQuery :: (path: string, follow_links: bool = true) -> PathQueryResult {
+    result: PathQueryResult
     name: [4096]u8
-    if !CopyCString(path, name[:]) { return info }
+    if path.count > 4095 || !CopyCString(path, name[:]) {
+        result.error = 22 // EINVAL
+        return result
+    }
     record: StatxRecord
     flags: s32 = ifx follow_links then 0 else NO_FOLLOW
-    if StatxRaw(CURRENT_DIRECTORY, *name[0], flags, BASIC_STATS, *record) != 0 { return info }
+    if StatxRaw(CURRENT_DIRECTORY, *name[0], flags, BASIC_STATS, *record) != 0 {
+        result.error = <<ErrnoRaw()
+        result.missing = result.error == 2 || result.error == 20 // ENOENT / ENOTDIR
+        return result
+    }
+    info: PathInfo
     info.metadata_mask = cast(u32)record.words[0]
     mode := cast(s32)((record.words[3] >> 32) & 65535)
     type := mode & 61440
@@ -111,7 +127,15 @@ PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
     info.device_minor = cast(u32)(record.words[17] >> 32)
     info.identity_valid = (info.metadata_mask & 961) == 961 && info.size >= 0 &&
         modified_fraction < 1000000000 && changed_fraction < 1000000000
-    return info
+    result.info = info
+    result.valid = true
+    return result
+}
+
+// The path's metadata, or zero info on any failure. Use PathQuery when the
+// distinction between a missing path and another error matters.
+PathStatus :: (path: string, follow_links: bool = true) -> PathInfo {
+    return PathQuery(path, follow_links).info
 }
 
 // A complete identity of a regular file without following its final symlink.

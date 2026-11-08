@@ -1,14 +1,16 @@
 #!/bin/sh
-# std file_tree_linux built for wasm32 with Emscripten and run under Node.
+# std file_tree_linux built for wasm32 with Emscripten and run under a Node-compatible JS runtime.
 # size_t and ssize_t are 32 bits there, so a libc binding declared with u64 or
 # s64 for getcwd, readlink or write links with a function signature mismatch
 # and traps when called. Skipped without emcc (EMCC names another one).
 set -eu
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 ziran=${1:?pass ziran}
+# Select a Node-compatible runtime, such as Bun, without a PATH shim.
+js_runtime=${JS_RUNTIME:-node}
 emcc=${EMCC:-emcc}
-if ! command -v "$emcc" > /dev/null 2>&1 || ! command -v node > /dev/null 2>&1; then
-    echo 'std file_tree_linux on wasm32: skipped (needs emcc and node)'
+if ! command -v "$emcc" > /dev/null 2>&1 || ! command -v "$js_runtime" > /dev/null 2>&1; then
+    echo "std file_tree_linux on wasm32: skipped (needs emcc and JS_RUNTIME=$js_runtime)"
     exit 0
 fi
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -50,7 +52,7 @@ JS
 # ReplaceFile writes through a 64 KiB stack buffer, the whole default stack.
 "$emcc" -I"$repo/include" "$work/c"/*.c --pre-js "$work/fixture.js" \
     -sENVIRONMENT=node -sEXIT_RUNTIME=1 -sSTACK_SIZE=1048576 -o "$work/tree.js"
-node "$work/tree.js" > "$work/out"
+"$js_runtime" "$work/tree.js" > "$work/out"
 cat > "$work/expected" <<'OUT'
 cwd /work
 tree copied

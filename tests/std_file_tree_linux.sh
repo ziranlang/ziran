@@ -7,7 +7,17 @@ ziran=${1:?pass ziran}
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/std-file-tree-linux.XXXXXX")
-trap 'rm -rf "$work"' EXIT HUP INT TERM
+cleanup() {
+    for form in source saved; do
+        if test -d "$work/run-$form/denied"; then chmod 700 "$work/run-$form/denied"; fi
+    done
+    rm -rf "$work"
+}
+trap cleanup EXIT HUP INT TERM
+export HOME="$work/home" XDG_CONFIG_HOME="$work/home/config" XDG_DATA_HOME="$work/home/data"
+export XDG_CACHE_HOME="$work/home/cache" XDG_STATE_HOME="$work/home/state" XDG_RUNTIME_DIR="$work/runtime"
+mkdir -p "$HOME" "$XDG_CONFIG_HOME" "$XDG_DATA_HOME" "$XDG_CACHE_HOME" "$XDG_STATE_HOME" "$XDG_RUNTIME_DIR"
+chmod 700 "$HOME" "$XDG_RUNTIME_DIR"
 cat > "$work/file_tree_test.zi" <<'ZI'
 #import "file_tree_linux"
 #import "text_tools"
@@ -67,6 +77,28 @@ TemporaryLifetime :: () -> bool {
 #program_export
 main :: () -> s32 {
     uid := User()
+    queried := PathQuery("parent/note")
+    if !queried.valid || queried.missing || queried.error != 0 || queried.info.kind != .File ||
+        queried.info.size != 5 || queried.info.owner_uid != uid { return 32 }
+    missing := PathQuery("parent/absent")
+    not_directory := PathQuery("parent/note/child")
+    empty := PathQuery("")
+    if missing.valid || !missing.missing || missing.error != 2 || missing.info.kind != .Missing ||
+        not_directory.valid || !not_directory.missing || not_directory.error != 20 ||
+        empty.valid || !empty.missing || empty.error != 2 { return 33 }
+    broken := PathQuery("parent/broken")
+    broken_link := PathQuery("parent/broken",false)
+    if broken.valid || !broken.missing || broken.error != 2 ||
+        !broken_link.valid || broken_link.missing || broken_link.error != 0 || broken_link.info.kind != .Link { return 34 }
+    loop := PathQuery("parent/loop")
+    if loop.valid || loop.missing || loop.error != 40 || loop.info.kind != .Missing { return 35 }
+    nul := PathQuery("parent\0bad")
+    if nul.valid || nul.missing || nul.error != 22 || nul.info.kind != .Missing { return 36 }
+    if uid != 0 {
+        denied := PathQuery("denied/child")
+        if denied.valid || denied.missing || denied.error != 13 || denied.info.kind != .Missing ||
+            PathStatus("denied/child").kind != .Missing { return 37 }
+    } else { print("file_tree_linux: EACCES fixture skipped for root (DAC bypass)\n") }
     parent := ResolvePath("parent")
     if parent.count == 0 || parent[0] != #char "/" { return 1 }
     info := PathStatus("parent")
@@ -135,6 +167,8 @@ main :: () -> s32 {
     too_long: Vec(u8)
     for i: 0..4095 { VecPush(too_long, #char "a") }
     long_name := BuilderFinish(too_long)
+    long_query := PathQuery(long_name)
+    if long_query.valid || long_query.missing || long_query.error != 22 || long_query.info.kind != .Missing { return 38 }
     if CreateTemporaryDirectory("parent", long_name) != "" || ResolvePath(long_name) != "" { return 14 }
     for i: 0..63 {
         temporary := CreateTemporaryDirectory("parent", "repeat-")
@@ -217,6 +251,9 @@ for form in source saved; do
         "$output"/*.c "$work/uid.c" -Wl,--wrap=geteuid -Wl,--wrap=statx -lm -o "$work/test-$form"
     run=$work/run-$form
     mkdir -p "$run/parent/target"
+    mkdir -p "$run/denied"
+    printf private > "$run/denied/child"
+    chmod 000 "$run/denied"
     chmod 700 "$run/parent"
     printf hello > "$run/parent/note"
     ln -s target "$run/parent/link"
@@ -227,4 +264,4 @@ for form in source saved; do
     (cd "$run" && umask 022 && "$work/test-$form")
     test "$(find "$run/parent" -mindepth 1 -maxdepth 1 | wc -l)" -eq 6
 done
-echo 'file_tree_linux: C source and saved IR metadata, complete no-follow snapshots, canonical paths and private temporary directories passed'
+echo 'file_tree_linux: C source and saved IR explicit query errors, metadata, complete no-follow snapshots, canonical paths and private temporary directories passed'

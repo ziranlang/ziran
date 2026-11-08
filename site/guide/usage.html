@@ -1653,7 +1653,18 @@ replaces a file atomically, takes <code>flock</code> locks and matches shell wil
 not total nanoseconds. Missing paths return zero for both fields. Programs that
 combine them into a signed 64-bit timestamp must check multiplication/addition
 overflow for their supported date range.
-<code>PathStatus(path, false)</code> reports a symbolic link's own metadata.
+<code>PathStatus(path, false)</code> reports a symbolic link's own metadata. <code>PathStatus</code>
+returns zero <code>PathInfo</code> on any failure. Use
+<code>PathQuery(path: string, follow_links: bool = true) -&gt; PathQueryResult</code> when
+absence must be distinguished from inaccessible paths. The result contains
+<code>info: PathInfo</code>, <code>valid: bool</code>, <code>missing: bool</code> and <code>error: s32</code>.
+Success sets <code>valid = true</code>, <code>missing = false</code> and <code>error = 0</code>. Failure leaves
+zero <code>info</code> and sets <code>valid = false</code>; <code>error</code> is the positive Linux errno and
+<code>missing</code> is true only for ENOENT (2) or ENOTDIR (20). EACCES (13), ELOOP (40)
+and other errors are not absence. Embedded NUL or paths exceeding 4095 bytes
+return EINVAL (22), with <code>missing = false</code>. Empty paths reach the OS and return
+ENOENT. Following a dangling symlink reports absence; <code>follow_links = false</code>
+queries the link itself. These queries are snapshots; later operations can fail.
 <code>ListDirectory(path, names)</code> appends independently owned names to the caller's
 <code>Vec(string)</code>. Call <code>FreeDirectoryNames(names)</code> to free every name and the vector
 storage and reset it to empty. Empty, repeated and null releases are harmless;
@@ -1677,7 +1688,9 @@ absolute path or empty on failure. The prefix must be one name component;
 six random characters follow it. Permissions are 0700 restricted by umask.
 Keep the parent and its ancestors stable during creation, and call <code>RemoveTree</code>
 when finished. Run <code>sh tests/std_file_tree_linux.sh build/bin/ziran</code> for C source
-and saved-IR ownership, canonicalization and private-directory tests.
+and saved-IR query success/errno (including inaccessible parents), ownership,
+canonicalization and private-directory tests. The EACCES assertion requires a
+non-root user; root runs explicitly report that assertion as skipped.
 <code>std/text_tools.zi</code> finds, splits, trims, replaces and joins text, and decodes
 bounded hexadecimal into a caller-owned byte vector on any target.
 <code>std/stdio_linux.zi</code> writes to standard output or standard error and reads all

@@ -1924,7 +1924,18 @@ replaces a file atomically, takes `flock` locks and matches shell wildcards.
 not total nanoseconds. Missing paths return zero for both fields. Programs that
 combine them into a signed 64-bit timestamp must check multiplication/addition
 overflow for their supported date range.
-`PathStatus(path, false)` reports a symbolic link's own metadata.
+`PathStatus(path, false)` reports a symbolic link's own metadata. `PathStatus`
+returns zero `PathInfo` on any failure. Use
+`PathQuery(path: string, follow_links: bool = true) -> PathQueryResult` when
+absence must be distinguished from inaccessible paths. The result contains
+`info: PathInfo`, `valid: bool`, `missing: bool` and `error: s32`.
+Success sets `valid = true`, `missing = false` and `error = 0`. Failure leaves
+zero `info` and sets `valid = false`; `error` is the positive Linux errno and
+`missing` is true only for ENOENT (2) or ENOTDIR (20). EACCES (13), ELOOP (40)
+and other errors are not absence. Embedded NUL or paths exceeding 4095 bytes
+return EINVAL (22), with `missing = false`. Empty paths reach the OS and return
+ENOENT. Following a dangling symlink reports absence; `follow_links = false`
+queries the link itself. These queries are snapshots; later operations can fail.
 `ListDirectory(path, names)` appends independently owned names to the caller's
 `Vec(string)`. Call `FreeDirectoryNames(names)` to free every name and the vector
 storage and reset it to empty. Empty, repeated and null releases are harmless;
@@ -1948,7 +1959,9 @@ absolute path or empty on failure. The prefix must be one name component;
 six random characters follow it. Permissions are 0700 restricted by umask.
 Keep the parent and its ancestors stable during creation, and call `RemoveTree`
 when finished. Run `sh tests/std_file_tree_linux.sh build/bin/ziran` for C source
-and saved-IR ownership, canonicalization and private-directory tests.
+and saved-IR query success/errno (including inaccessible parents), ownership,
+canonicalization and private-directory tests. The EACCES assertion requires a
+non-root user; root runs explicitly report that assertion as skipped.
 `std/text_tools.zi` finds, splits, trims, replaces and joins text, and decodes
 bounded hexadecimal into a caller-owned byte vector on any target.
 `std/stdio_linux.zi` writes to standard output or standard error and reads all

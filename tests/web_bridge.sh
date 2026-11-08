@@ -3,16 +3,19 @@ set -eu
 
 # The browser bridge (std/web.zi with web/ziran_web.js) drives real JS
 # objects from WebAssembly: properties, methods, construction, callbacks,
-# promises, typed arrays, and errors. Needs emcc and node; skips without them.
+# promises, typed arrays, and errors. Needs emcc and a Node-compatible JS runtime; skips without them.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 bin=$(CDPATH= cd -- "$(dirname -- "$ziran")" && pwd)
+# Select a Node-compatible runtime, such as Bun, without a PATH shim.
+js_runtime=${JS_RUNTIME:-node}
 emcc=${EMCC:-$HOME/emsdk/upstream/emscripten/emcc}
-if [ ! -x "$emcc" ] || ! command -v node >/dev/null 2>&1; then
-    echo "web bridge test skipped: emcc or node is unavailable"
+if [ ! -x "$emcc" ] || ! command -v "$js_runtime" >/dev/null 2>&1; then
+    echo "web bridge test skipped: emcc or JS_RUNTIME ($js_runtime) is unavailable"
     exit 0
 fi
-work=$(mktemp -d)
+mkdir -p "$repo/build"
+work=$(mktemp -d "$repo/build/web-bridge.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cache=${EM_CACHE:-$repo/build/emscripten-cache}
 
@@ -272,7 +275,7 @@ if ! EM_CACHE=$cache "$emcc" -O1 -sMEMORY64=$memory -I"$repo/include" -iquote "$
     cat "$work/compile.log" >&2
     exit 1
 fi
-if ! output=$(node "$work/app.js" 2>&1); then
+if ! output=$("$js_runtime" "$work/app.js" 2>&1); then
     echo "$output" >&2
     exit 1
 fi

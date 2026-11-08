@@ -2642,11 +2642,14 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 fprintf(c, "void %s(void);\n", name);
             }
         }
-        fprintf(c, "\nstatic %sint %s_state;", EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", init_name);
+        /* Private helpers use prefixes outside the ziran_init_ namespace:
+         * appending suffixes collides with modules named mail_state or
+         * mail_constructor when mail imports them. */
+        fprintf(c, "\nstatic %sint ziran_state_%s;", EmitRunGuardsEnabled() ? "ZIR_GLOBAL " : "", init_name);
         fprintf(c, "\nvoid\n%s(void)\n{\n"
-                   "    if(%s_state == 2) return;\n"
-                   "    if(%s_state == 1) abort();\n"
-                   "    %s_state = 1;\n",
+                   "    if(ziran_state_%s == 2) return;\n"
+                   "    if(ziran_state_%s == 1) abort();\n"
+                   "    ziran_state_%s = 1;\n",
                 init_name, init_name, init_name, init_name);
         for(i = 0; i < m->import_count; i++) {
             const ZirModule *dependency = m->imports[i].resolved_module;
@@ -2662,12 +2665,12 @@ lower_module_with_buffers(const ZirModule *m, const ZirCModuleSyms *restab,
                 function_c_name(m, &m->functions[i], name, sizeof(name));
                 fprintf(c, "    %s();\n", name);
             }
-        fprintf(c, "    %s_state = 2;\n}\n", init_name);
+        fprintf(c, "    ziran_state_%s = 2;\n}\n", init_name);
     }
     /* The native engine runs module initializers when an instance starts. */
     if(startup_count && !EmitRunGuardsEnabled()) {
         fprintf(c, "\n__attribute__((constructor)) static void\n"
-                   "%s_constructor(void)\n{\n"
+                   "ziran_constructor_%s(void)\n{\n"
                    "    %s();\n}\n", init_name, init_name);
     }
     if(split)

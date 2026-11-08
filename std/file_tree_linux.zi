@@ -26,6 +26,7 @@ MakeDirectoryRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "mkdir";
 RemoveDirectoryRaw :: (path: *u8) -> s32 #foreign libc "rmdir";
 UnlinkRaw :: (path: *u8) -> s32 #foreign libc "unlink";
 ChangeModeRaw :: (path: *u8, mode: u32) -> s32 #foreign libc "chmod";
+ChangeFileModeRaw :: (fd: s32, mode: u32) -> s32 #foreign libc "fchmod";
 OpenRaw :: (path: *u8, flags: s32, mode: s32) -> s32 #foreign libc "open";
 CloseRaw :: (fd: s32) -> s32 #foreign libc "close";
 FlockRaw :: (fd: s32, operation: s32) -> s32 #foreign libc "flock";
@@ -271,9 +272,22 @@ ReleaseNames :: (names: *Vec(string), from: s64) {
 }
 
 #scope_export
+// Release every independently owned name returned by ListDirectory and the
+// vector storage, resetting the vector to empty. Do not mix borrowed strings
+// or duplicate ownership into this vector. Empty, repeated and null calls are
+// harmless; all borrowed views of its names expire at this call.
+FreeDirectoryNames :: (names: *Vec(string)) {
+    if names == null { return }
+    ReleaseNames(names, 0)
+    owned: Vec(string)
+    VecSwap(owned, <<names)
+    VecFree(owned)
+}
+
 // The names in a folder, without "." and "..", sorted by their bytes.
 // Appends independently owned entry names in sorted order. The caller owns
-// each nonempty string as well as the Vec; failed scans append nothing.
+// each nonempty string as well as the Vec; release both with FreeDirectoryNames.
+// Failed scans append nothing.
 ListDirectory :: (path: string, names: *Vec(string)) -> bool {
     if names == null { return false }
     cursor := OpenDirectory(path)
@@ -374,14 +388,92 @@ CopyTree :: (source: string, target: string) -> bool {
     return SetPathMode(target, info.mode)
 }
 
+// Copy the symbolic link itself, including a dangling or directory link.
+// The native symlink operation fails when TARGET is occupied.
+CopySymbolicLink :: (source: string, target: string) -> bool {
+    return CopyLink(source, target)
+}
+
+// Copy to an exclusively created private file, preserving permission bits on
+// success. An incomplete file remains private. Links
+// are copied as links. Failure may leave a partial new file; never removes
+// a destination. Keep source and destination ancestors stable during copying.
+CopyFileNew :: (source: string, target: string) -> bool {
+    info := PathStatus(source, false)
+    if info.kind == .Link { return CopySymbolicLink(source, target) }
+    if info.kind != .File { return false }
+    input := OpenRead(source)
+    if !input.valid { return false }
+    output := OpenExclusivePrivate(target)
+    if !output.valid { unused CloseFile(input); return false }
+    chunk: [65536]u8
+    offset: s64 = 0
+    ok := true
+    while true {
+        count := ReadAt(input, chunk[:], offset)
+        if count < 0 { ok = false; break }
+        if count == 0 { break }
+        if WriteAt(output, chunk[0:count], offset) != count { ok = false; break }
+        offset += count
+    }
+    if !CloseFile(input) { ok = false }
+    // Apply mode through the owned descriptor, never through a replaced path.
+    if ok && ChangeFileModeRaw(output.fd, cast(u32)info.mode) != 0 { ok = false }
+    if !CloseFile(output) { ok = false }
+    return ok
+}
+
+// Copy into a new directory under an existing parent, with exclusive child
+// creation and links preserved. Reject self/descendant destinations, including
+// aliases through symlink parents. Failure may leave a partial new tree, with
+// no rollback deletion. Ancestors and source entries must remain stable.
+CopyTreeNew :: (source: string, target: string) -> bool {
+    info := PathStatus(source, false)
+    if info.kind == .Link { return CopySymbolicLink(source, target) }
+    if info.kind != .Directory { return false }
+    canonical := ResolvePath(source)
+    defer { ReleaseOwnedText(canonical) }
+    parent := ResolvePath(PathParent(target))
+    defer { ReleaseOwnedText(parent) }
+    name := PathName(target)
+    if canonical.count == 0 || parent.count == 0 || name == "" || name == "." || name == ".." { return false }
+    if parent == canonical || (parent.count > canonical.count &&
+        parent[0:canonical.count] == canonical &&
+        (canonical == "/" || parent[canonical.count] == #char "/")) { return false }
+    destination := JoinPath(parent, name)
+    defer { ReleaseOwnedText(destination) }
+    return CopyTreeNewContents(canonical, destination, info.mode)
+}
+
 #scope_file
+CopyTreeNewContents :: (source: string, target: string, mode: s32) -> bool {
+    name: [4096]u8
+    if !CopyCString(target, name[:]) || MakeDirectoryRaw(*name[0], 448) != 0 { return false }
+    names: Vec(string)
+    defer { ReleaseNames(*names, 0) }
+    if !ListDirectory(source, *names) { return false }
+    for index: 0..names.count-1 {
+        from := JoinPath(source, names[index])
+        defer { ReleaseOwnedText(from) }
+        to := JoinPath(target, names[index])
+        defer { ReleaseOwnedText(to) }
+        info := PathStatus(from, false)
+        ok := false
+        if info.kind == .Directory { ok = CopyTreeNewContents(from, to, info.mode) }
+        else if info.kind == .File { ok = CopyFileNew(from, to) }
+        else if info.kind == .Link { ok = CopySymbolicLink(from, to) }
+        if !ok { return false }
+    }
+    return SetPathMode(target, mode)
+}
+
 CopyLink :: (source: string, target: string) -> bool {
     name: [4096]u8
     destination: [4096]u8
     link: [4096]u8
     if !CopyCString(source, name[:]) || !CopyCString(target, link[:]) { return false }
-    count := cast(s64)ReadLinkRaw(*name[0], *destination[0], 4095)
-    if count < 0 { return false }
+    count := cast(s64)ReadLinkRaw(*name[0], *destination[0], 4096)
+    if count < 0 || count >= 4096 { return false }
     destination[count] = 0
     return SymbolicLinkRaw(*destination[0], *link[0]) == 0
 }

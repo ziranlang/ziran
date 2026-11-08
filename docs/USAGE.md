@@ -1802,10 +1802,13 @@ bundle and through native C and Go mocks.
 `#import "std/file"` gives one set of file operations on every native C
 target: it uses `std/file_linux.zi` on Linux, Android, the web, and Windows.
 The shared operations are `OpenRead`, `OpenWrite`,
-`OpenUpdate`, `OpenReplace`, `Read`, `Write`, `ReadAt`, `WriteAt`,
+`OpenUpdate`, `OpenReplace`, `OpenNew`, `Read`, `Write`, `ReadAt`, `WriteAt`,
 `FileSize`, `CloseFile`, `RemoveFile`, `RenameNoReplace`, `PathExists`,
 `DirectoryExists`, `CreateDirectory`, `CreatePrivateDirectory`, and the
-directory cursor. Two helpers read and replace whole files:
+directory cursor. `OpenNew(path)` exclusively creates a writable file
+(0644 restricted by umask); an occupied file or symbolic link fails unchanged.
+Check the returned handle's `valid` field and close successful handles with
+`CloseFile`. Two helpers read and replace whole files:
 
 ```jai
 #import "std/file"
@@ -1922,6 +1925,21 @@ not total nanoseconds. Missing paths return zero for both fields. Programs that
 combine them into a signed 64-bit timestamp must check multiplication/addition
 overflow for their supported date range.
 `PathStatus(path, false)` reports a symbolic link's own metadata.
+`ListDirectory(path, names)` appends independently owned names to the caller's
+`Vec(string)`. Call `FreeDirectoryNames(names)` to free every name and the vector
+storage and reset it to empty. Empty, repeated and null releases are harmless;
+borrowed views expire on release. Do not mix borrowed strings or duplicate
+ownership into that vector.
+`CopySymbolicLink(source, target)` copies the link itself, including dangling
+and directory links. `CopyFileNew(source, target)` and `CopyTreeNew(source, target)`
+copy a file or tree exclusively, preserving links and refusing occupied
+destinations. Tree destinations require an existing parent; self and descendant
+copies are rejected, including through parent aliases. Keep ancestors and source
+entries stable during copying. On failure these functions return false and may
+leave a partial new destination; they do not delete it. Copy files start with
+0600 permissions and directories with 0700 (restricted by umask); source
+permission bits are applied after each successful copy. `CopyFile` still replaces
+files and `CopyTree` still merges into existing directories.
 `ResolvePath(path)` returns the canonical absolute path with symbolic links and
 dot components resolved, or empty for a missing or invalid path.
 `CreateTemporaryDirectory(parent, prefix = "ziran-")` atomically creates a unique

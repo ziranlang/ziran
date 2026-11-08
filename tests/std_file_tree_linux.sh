@@ -32,14 +32,24 @@ Drop :: (text: string) {
 TemporaryCycle :: () -> bool {
     child := CreateTemporaryDirectory("parent","lifetime-")
     if child == "" { return false }
+    names: Vec(string)
+    FreeDirectoryNames(*names)
+    FreeDirectoryNames(null)
+    if !ListDirectory(child,*names) || names.count != 0 { return false }
+    FreeDirectoryNames(*names)
     payload := JoinPath(child,"payload")
     handle := OpenExclusivePrivate(payload)
     if !handle.valid { unused RemoveTree(child); Drop(payload); Drop(child); return false }
     closed := CloseFile(handle)
-    names: Vec(string)
     listed := ListDirectory(child,*names)
     valid := listed && names.count == 1 && names[0] == "payload"
-    for at: 0..names.count-1 { Drop(names[at]) }
+    FreeDirectoryNames(*names)
+    FreeDirectoryNames(*names)
+    valid = valid && names.count == 0 && names.capacity == 0
+    // Reuse the emptied vector, including ListDirectory's append behavior.
+    listed = ListDirectory(child,*names) && ListDirectory(child,*names)
+    valid = valid && listed && names.count == 2 && names[0] == "payload" && names[1] == "payload"
+    FreeDirectoryNames(*names)
     removed := RemoveTree(child)
     Drop(payload); Drop(child)
     return closed && valid && removed
@@ -50,7 +60,7 @@ TemporaryLifetime :: () -> bool {
     for at: 0..1999 { if !TemporaryCycle() { return false } }
     after := Heap()
     growth := ifx after.used > before.used then after.used-before.used else 0
-    print("file_tree_linux: 2000 create/list/remove cycles retain % heap bytes\n",growth)
+    print("file_tree_linux: 2000 create/list/free/reuse/remove cycles retain % heap bytes\n",growth)
     return growth <= 8192
 }
 

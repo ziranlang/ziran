@@ -1,0 +1,23 @@
+#import "std/file"
+
+#program_export
+main :: () -> s32 {
+    file := OpenNew("created")
+    if !file.valid || WriteTextAt(file, "new bytes", 0) != 9 || !CloseFile(file) { return 1 }
+    text, ok := ReadEntireFile("created")
+    if !ok || text != "new bytes" { return 2 }
+    // A failed handle follows the existing I/O and close contract.
+    occupied := OpenNew("occupied")
+    if occupied.valid || CloseFile(occupied) || WriteTextAt(occupied, "bad", 0) != -1 { return 3 }
+    text, ok = ReadEntireFile("occupied")
+    if !ok || text != "keep these bytes" { return 4 }
+    linked := OpenNew("link")
+    if linked.valid || CloseFile(linked) || !PathIsLink("link") { return 5 }
+    text, ok = ReadEntireFile("link")
+    if !ok || text != "keep these bytes" { return 6 }
+    dangling := OpenNew("dangling")
+    if dangling.valid || CloseFile(dangling) || !PathIsLink("dangling") || PathExists("missing") { return 7 }
+    if OpenNew("absent/child").valid || OpenNew("occupied/child").valid ||
+        OpenNew("").valid || OpenNew("nul\0suffix").valid || PathExists("nul") { return 8 }
+    return 0
+}

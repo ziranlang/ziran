@@ -534,6 +534,13 @@ OpenReplace :: (path: string) -> FileHandle {
     return OpenWithFlags(path, 577)
 }
 
+// Create a writable file only when the path is unoccupied, including by a
+// symbolic link. Creation is exclusive in the same native open operation.
+#program_export
+OpenNew :: (path: string) -> FileHandle {
+    return OpenWithFlags(path, 193) // O_CREAT | O_EXCL | O_WRONLY
+}
+
 #program_export
 OpenExclusivePrivate :: (path: string) -> FileHandle {
     result: FileHandle

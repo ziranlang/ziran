@@ -1539,10 +1539,13 @@ bundle and through native C and Go mocks.</p>
 <p><code>#import "std/file"</code> gives one set of file operations on every native C
 target: it uses <code>std/file_linux.zi</code> on Linux, Android, the web, and Windows.
 The shared operations are <code>OpenRead</code>, <code>OpenWrite</code>,
-<code>OpenUpdate</code>, <code>OpenReplace</code>, <code>Read</code>, <code>Write</code>, <code>ReadAt</code>, <code>WriteAt</code>,
+<code>OpenUpdate</code>, <code>OpenReplace</code>, <code>OpenNew</code>, <code>Read</code>, <code>Write</code>, <code>ReadAt</code>, <code>WriteAt</code>,
 <code>FileSize</code>, <code>CloseFile</code>, <code>RemoveFile</code>, <code>RenameNoReplace</code>, <code>PathExists</code>,
 <code>DirectoryExists</code>, <code>CreateDirectory</code>, <code>CreatePrivateDirectory</code>, and the
-directory cursor. Two helpers read and replace whole files:</p>
+directory cursor. <code>OpenNew(path)</code> exclusively creates a writable file
+(0644 restricted by umask); an occupied file or symbolic link fails unchanged.
+Check the returned handle's <code>valid</code> field and close successful handles with
+<code>CloseFile</code>. Two helpers read and replace whole files:</p>
 <pre><code class="language-jai">#import &quot;std/file&quot;
 
 if WriteEntireFile(&quot;notes.txt&quot;, &quot;hello\n&quot;) {
@@ -1651,6 +1654,21 @@ not total nanoseconds. Missing paths return zero for both fields. Programs that
 combine them into a signed 64-bit timestamp must check multiplication/addition
 overflow for their supported date range.
 <code>PathStatus(path, false)</code> reports a symbolic link's own metadata.
+<code>ListDirectory(path, names)</code> appends independently owned names to the caller's
+<code>Vec(string)</code>. Call <code>FreeDirectoryNames(names)</code> to free every name and the vector
+storage and reset it to empty. Empty, repeated and null releases are harmless;
+borrowed views expire on release. Do not mix borrowed strings or duplicate
+ownership into that vector.
+<code>CopySymbolicLink(source, target)</code> copies the link itself, including dangling
+and directory links. <code>CopyFileNew(source, target)</code> and <code>CopyTreeNew(source, target)</code>
+copy a file or tree exclusively, preserving links and refusing occupied
+destinations. Tree destinations require an existing parent; self and descendant
+copies are rejected, including through parent aliases. Keep ancestors and source
+entries stable during copying. On failure these functions return false and may
+leave a partial new destination; they do not delete it. Copy files start with
+0600 permissions and directories with 0700 (restricted by umask); source
+permission bits are applied after each successful copy. <code>CopyFile</code> still replaces
+files and <code>CopyTree</code> still merges into existing directories.
 <code>ResolvePath(path)</code> returns the canonical absolute path with symbolic links and
 dot components resolved, or empty for a missing or invalid path.
 <code>CreateTemporaryDirectory(parent, prefix = "ziran-")</code> atomically creates a unique

@@ -1,0 +1,44 @@
+#import "std/file_tree_linux"
+#import "std/file"
+
+#program_export
+main :: () -> s32 {
+    if !CopyFileNew("source/data", "file-copy") { return 1 }
+    text, ok := ReadEntireFile("file-copy")
+    if !ok || text != "source bytes" || PathStatus("file-copy").mode != 416 { return 2 }
+    if CopyFileNew("source/data", "occupied") || CopyFileNew("source/data", "occupied-dir") ||
+        CopyFileNew("source/data", "occupied-link") || CopyFileNew("source/data", "occupied-dangling") ||
+        CopyFileNew("source/data", "source/data") { return 3 }
+    if !CopySymbolicLink("source/dangling", "link-copy") ||
+        !CopySymbolicLink("source/directory-link", "directory-link-copy") ||
+        !CopySymbolicLink("source/file-link", "file-link-copy") { return 4 }
+    if CopySymbolicLink("source/dangling", "occupied") || CopySymbolicLink("source/dangling", "occupied-dir") ||
+        CopySymbolicLink("source/dangling", "occupied-link") || CopySymbolicLink("source/dangling", "occupied-dangling") { return 5 }
+    if !CopyTreeNew("source", "tree-copy") || !CopyTreeNew("source", "source-sibling") { return 6 }
+    text, ok = ReadEntireFile("tree-copy/nested/data")
+    if !ok || text != "nested bytes" || !PathIsLink("tree-copy/dangling") ||
+        !PathIsLink("tree-copy/directory-link") || !PathIsLink("tree-copy/file-link") { return 7 }
+    if CopyTreeNew("source", "occupied") || CopyTreeNew("source", "occupied-dir") ||
+        CopyTreeNew("source", "occupied-link") || CopyTreeNew("source", "occupied-dangling") { return 8 }
+    if CopyTreeNew("source", "source") || CopyTreeNew("source", "source/child") ||
+        CopyTreeNew("source", "source/nested/child") || CopyTreeNew("source", "alias/child") ||
+        CopyTreeNew("source", "alias/nested/../child") || CopyTreeNew("source", "source/.") ||
+        CopyTreeNew("source", "source/nested/..") { return 9 }
+    if PathExists("source/child") || PathExists("source/nested/child") { return 10 }
+    if !CopyTreeNew("source/directory-link", "root-link-copy") ||
+        !PathIsLink("root-link-copy") || !CopyFileNew("source/dangling", "root-dangling-copy") { return 11 }
+    if CopyFileNew("missing", "invalid-copy") || CopyFileNew("source/data", "absent/child") ||
+        CopyTreeNew("source", "absent/child") || CopyTreeNew("source", "bad\0suffix") ||
+        CopySymbolicLink("source/data", "not-a-link-copy") { return 12 }
+    // A failed partial copy reports false without deleting what it created.
+    if CopyTreeNew("unsupported", "partial") || PathStatus("partial").kind != .Directory ||
+        PathStatus("partial").mode != 448 { return 13 }
+    text, ok = ReadEntireFile("partial/a-file")
+    if !ok || text != "partial bytes" { return 14 }
+    // The established replacing and merging APIs retain their behavior.
+    if !CopyFile("source/data", "replace") || !CopyTree("source", "merge") { return 15 }
+    if CopyFileNew("fail-read", "partial-file") || PathStatus("partial-file").mode != 384 { return 16 }
+    text, ok = ReadEntireFile("partial-file")
+    if !ok || text != "pri" { return 17 }
+    return 0
+}

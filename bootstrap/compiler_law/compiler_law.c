@@ -18,10 +18,10 @@ static bool compiler_law_WritesThroughPointer(ZirFunction* fn, int32_t root) ZIR
 static bool compiler_law_ImportedCallee(ZirModule* module, String name) ZIRAN_MAYBE_UNUSED;
 static String compiler_law_Trim(String text) ZIRAN_MAYBE_UNUSED;
 static int64_t compiler_law_Find(String text, String wanted) ZIRAN_MAYBE_UNUSED;
-static void compiler_law_Say(uint8_t* detail, uint64_t size, String first, String second, String third, String fourth, String fifth) ZIRAN_MAYBE_UNUSED;
+static void compiler_law_Say(uint8_t* detail, size_t size, String first, String second, String third, String fourth, String fifth) ZIRAN_MAYBE_UNUSED;
 static bool compiler_law_StatementWritesGlobal(ZirModule* module, ZirFunction* fn, int32_t index) ZIRAN_MAYBE_UNUSED;
 static bool compiler_law_BodyCallsExternal(ZirModule* module, ZirFunction* fn) ZIRAN_MAYBE_UNUSED;
-static int32_t compiler_law_EvaluateEffect(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size) ZIRAN_MAYBE_UNUSED;
+static int32_t compiler_law_EvaluateEffect(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size) ZIRAN_MAYBE_UNUSED;
 static bool compiler_law_SweepEffects(ZirProgram* program) ZIRAN_MAYBE_UNUSED;
 
 static int32_t
@@ -153,7 +153,7 @@ compiler_law_Find(String text, String wanted)
 }
 
 static void
-compiler_law_Say(uint8_t* detail, uint64_t size, String first, String second, String third, String fourth, String fifth)
+compiler_law_Say(uint8_t* detail, size_t size, String first, String second, String third, String fourth, String fifth)
 {
     String parts[5] = {first, second, third, fourth, fifth};
     Slice output = compiler_ir_CBuffer(detail, size);
@@ -248,7 +248,7 @@ compiler_law_BodyCallsExternal(ZirModule* module, ZirFunction* fn)
 }
 
 static int32_t
-compiler_law_EvaluateEffect(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size)
+compiler_law_EvaluateEffect(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
 {
     Slice value_0 = {law->payload, 4096};
     String value_1 = compiler_ir_BufferText(value_0);
@@ -604,7 +604,7 @@ effect_rank(uint8_t* name)
 }
 
 int32_t
-EvaluateEffectLaw(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size)
+EvaluateEffectLaw(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
 {
     return compiler_law_EvaluateEffect(module, law, detail, size);
 }

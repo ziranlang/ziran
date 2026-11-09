@@ -248,7 +248,7 @@ FieldType :: (p: *Parser, type_name: string, field_name: string, ordinal: s32) -
     field_type := ""
     element := Type.ArrayElement(type)
     if element.valid && element.element.count < IR.ZIR_NAME_MAX { field_type = element.element }
-    offset: u64 = 0
+    offset: usize = 0
     position: s32 = 0
     while record != null && Services.NextField(record, *offset, *field) == 1 {
         if (name.count > 0 && IR.BufferText(field.name[:]) == name) || (name.count == 0 && position == ordinal) {

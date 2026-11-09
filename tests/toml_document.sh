@@ -31,6 +31,7 @@ echo 'TOML reading passed source, saved IR, portable VM and C/Go execution'
 cat > "$work/valid.toml" <<'TOML'
 [package]
 'name' = "native-manifest"
+links = ["gio-2.0", "gdk_pixbuf-2.0"]
 module_roots = [
   'src',
   "generated",

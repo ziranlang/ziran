@@ -211,15 +211,15 @@ zir_f_91ae99e11753ff79_CFindType(ZirModule* module, uint8_t* name, ZirModule** o
     return zir_foreign_zir_f_91ae99e11753ff79_CFindType(module, name, owner);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_fd1d4dc9
-#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_fd1d4dc9
+#ifndef ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_37a0826c
+#define ZIR_FOREIGN_zir_f_91ae99e11753ff79_TypeNextField_37a0826c
 #ifdef __APPLE__
-int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
+int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("_TypeNextField");
 #else
-int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field) __asm__("TypeNextField");
+int32_t zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field) __asm__("TypeNextField");
 #endif
 static int32_t
-zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, uint64_t* offset, ZirTypeField* field)
+zir_f_91ae99e11753ff79_TypeNextField(ZirType* record, size_t* offset, ZirTypeField* field)
 {
     return zir_foreign_zir_f_91ae99e11753ff79_TypeNextField(record, offset, field);
 }
@@ -376,7 +376,7 @@ compiler_services_FindType(ZirModule* module, String name, ZirModule** owner)
 }
 
 int32_t
-compiler_services_NextField(ZirType* record, uint64_t* offset, ZirTypeField* field)
+compiler_services_NextField(ZirType* record, size_t* offset, ZirTypeField* field)
 {
     return zir_f_91ae99e11753ff79_TypeNextField(record, offset, field);
 }

@@ -140,6 +140,9 @@ level tables. Pass their folder to the project command that needs them:</p>
 <pre><code class="language-sh">ziran bundle --project --module-path build/gen --entry app:main -o app.zx src/app.zi
 ziran check --project --module-path build/gen
 </code></pre>
+<p><code>module_roots</code> and repeated <code>--module-path DIR</code> have no fixed folder-count
+limit. Storage follows the input size, subject to manifest-size, allocation and
+operating-system argument limits.</p>
 <p>Each <code>--module-path DIR</code> (repeatable) adds <code>DIR/NAME.zi</code> and
 <code>DIR/NAME/module.zi</code> to your package's own modules, as if they were under a
 <code>module_roots</code> folder. Everything else still resolves from <code>ziran.lock</code>. The

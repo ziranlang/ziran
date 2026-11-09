@@ -1093,20 +1093,48 @@ main :: () -> s32 {
         call(ziran, "fetch", "--offline", cwd=app, env=env)
         call(ziran, "check", "--project", cwd=app, env=env)
 
-        # Many module roots resolve (Harmony lists 17; the old limit was 16),
-        # and an overlong list names module_roots instead of a fetch failure.
-        extra = [f"root{i:02}" for i in range(24)]
+        # Root counts follow the manifest input, including beyond 256.
+        extra = [f"root{i:03}" for i in range(273)]
         for name in extra:
             (app / name).mkdir()
         listed = ", ".join(['"src"'] + [f'"{name}"' for name in extra])
         write(app / "ziran.toml", base_manifest.replace('module_roots = ["src"]', f"module_roots = [{listed}]"))
+        write(app / extra[-1] / "WideLast.zi", "#program_export\nValue :: () -> s32 { return 42 }\n")
+        write(app / "src/WideRoots.zi", '#import "WideLast"\n#program_export\nResult :: () -> s32 { return Value() }\n')
         call(ziran, "pkg", "list", "--offline", cwd=app, env=env)
-        call(ziran, "check", "--project", cwd=app, env=env)
-        overlong = ", ".join(f'"over{i:02}"' for i in range(80))
-        write(app / "ziran.toml", base_manifest.replace('module_roots = ["src"]', f"module_roots = [{overlong}]"))
-        refused = call(ziran, "pkg", "list", "--offline", cwd=app, env=env, succeed=False)
-        assert "module_roots must be an array of at most 64" in refused, refused
-        assert "cannot fetch locked packages" not in refused, refused
+        call(ziran, "check", "--project", "src/WideRoots.zi", cwd=app, env=env)
+        call(ziran, "ir", "--project", "-o", "wide-ir", "src/WideRoots.zi", cwd=app, env=env)
+        write(app / "src/WideScript.zi", '#import "WideLast"\n#program_export\nmain :: () -> s32 { return Value() - 42 }\n')
+        call(ziran, "run", "--project", "--target=c", "src/WideScript.zi", cwd=app, env=env)
+        (app / "src/WideScript.zi").unlink()
+        # Project-generated folders use the same repeatable ordinary roots.
+        write(app / "ziran.toml", base_manifest)
+        folders = [v for name in extra for v in ("--module-path", str(app / name))]
+        call(ziran, "check", "--project", *folders, "src/WideRoots.zi", cwd=app, env=env)
+        # A dependency manifest also maps its final ordinary root.
+        provider = providers[0]
+        previous = (provider / "ziran.toml").read_text()
+        dep_roots = [f"wide{i:03}" for i in range(273)]
+        for name in dep_roots:
+            (provider / name).mkdir()
+        dep_list = ", ".join(['"src"'] + [f'"{n}"' for n in dep_roots])
+        wide_manifest = previous.replace('module_roots = ["src"]', f"module_roots = [{dep_list}]")
+        wide_manifest = wide_manifest.replace('[exports]', f'[exports]\nWideDep = "{dep_roots[-1]}/WideDep.zi"')
+        write(provider / "ziran.toml", wide_manifest)
+        write(provider / dep_roots[-1] / "WideDep.zi", "Value :: () -> s32 { return 42 }\n")
+        write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\nA = "{provider}"\n')
+        write(app / "src/DependencyRoots.zi", '#import "A/WideDep"\nResult :: () -> s32 { return Value() }\n')
+        call(ziran, "check", "--project", "src/DependencyRoots.zi", cwd=app, env=env)
+        write(provider / "ziran.toml", previous)
+        for name in dep_roots:
+            shutil.rmtree(provider / name)
+        (app / "src/DependencyRoots.zi").unlink()
+        write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+        for malformed in ('[""]', '[1]', '"src"'):
+            write(app / "ziran.toml", base_manifest.replace('module_roots = ["src"]', f"module_roots = {malformed}"))
+            refused = call(ziran, "pkg", "list", "--offline", cwd=app, env=env, succeed=False)
+            assert "module_roots must be an array of non-empty strings" in refused, refused
+        (app / "src/WideRoots.zi").unlink()
         write(app / "ziran.toml", base_manifest)
         for name in extra:
             shutil.rmtree(app / name)
@@ -1613,6 +1641,14 @@ level = "3"
         for verb in ("run", "build", "check"):
             handed = call(ziran, verb, "desktop", cwd=tooled, env=env).splitlines()
             assert f"project=Tooled entry=src/app.zi args={verb} desktop links=gio-2.0 gdk_pixbuf-2.0" in handed, handed
+        # A lifecycle tool receives every generated-root argument unchanged.
+        wide_folders = [tooled / "build" / f"generated{i:03}" for i in range(273)]
+        for folder in wide_folders:
+            folder.mkdir(parents=True)
+        wide_args = [part for folder in wide_folders for part in ("--module-path", str(folder))]
+        handed = call(ziran, "check", "--project", *wide_args, cwd=tooled, env=env)
+        expected = "args=check " + " ".join(wide_args) + " links="
+        assert expected in handed, handed
         # Arguments after `--` reach the tool as they are.
         handed = call(ziran, "run", "--", "--locked", cwd=tooled, env=env).splitlines()
         assert "project=Tooled entry=src/app.zi args=run -- --locked links=gio-2.0 gdk_pixbuf-2.0" in handed, handed

@@ -406,7 +406,7 @@ CText :: (value: *u8) -> string {
     return result
 }
 // The C buffer DATA[0:COUNT] as a byte slice.
-CBuffer :: (data: *u8, count: u64) -> []u8 {
+CBuffer :: (data: *u8, count: usize) -> []u8 {
     result: []u8
     descriptor := cast(*ByteDescriptor)(*result)
     descriptor.data = data

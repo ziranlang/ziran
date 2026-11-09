@@ -5,6 +5,8 @@
 #include "zir_diagnostic.h"
 #include "zir_vm.h"
 #include "zir_check.h"
+#include "zir_sha256.h"
+#include "zir_vm_internal.h"
 /* Bundles run as compiled code: compiled at run time with TinyCC on native
  * platforms, or linked into the host ahead of time in the browser. */
 #if defined(ZIRAN_NATIVE_ZX) || defined(ZIRAN_LINKED_ZX)
@@ -44,6 +46,8 @@ struct Bundle {
     Capability capabilities[];
 };
 
+static void bundle_identity(const Bundle *bundle, unsigned char identity[32]);
+
 #ifdef ZIRAN_COMPILED_ZX
 static int check_unchecked(Bundle *bundle);
 #endif
@@ -80,6 +84,20 @@ const ZirFunction *
 BundleEntry(const Bundle *bundle)
 {
     return bundle != NULL ? bundle->entry : NULL;
+}
+
+const char *
+BundleEntryModuleName(const Bundle *bundle)
+{
+    return bundle != NULL && bundle->entry_owner != NULL ?
+        bundle->entry_owner->name : NULL;
+}
+
+const char *
+BundleEntryFunctionName(const Bundle *bundle)
+{
+    return bundle != NULL && bundle->entry != NULL ?
+        bundle->entry->name : NULL;
 }
 
 static int
@@ -159,7 +177,7 @@ cache_capabilities(Bundle **slot)
 }
 
 static int
-find_entry(Bundle *bundle, const char *entry_module, const char *entry_function)
+find_bundle_entry(Bundle *bundle, const char *entry_module, const char *entry_function)
 {
     const ZirModule *owner = NULL;
     const ZirFunction *entry = NULL;
@@ -178,7 +196,6 @@ find_entry(Bundle *bundle, const char *entry_module, const char *entry_function)
     return entry != NULL;
 }
 
-#ifdef ZIRAN_COMPILED_ZX
 /* A bundle and the libraries it links name one native program. */
 static void
 add_identity(Sha256 *hash, const Bundle *bundle)
@@ -195,6 +212,18 @@ bundle_identity(const Bundle *bundle, unsigned char identity[32])
     Sha256Begin(&hash);
     add_identity(&hash, bundle);
     Sha256End(&hash, identity);
+}
+
+void
+BundleCodeIdentity(const Bundle *bundle, unsigned char identity[32])
+{
+    if(identity == NULL)
+        return;
+    if(bundle == NULL) {
+        memset(identity, 0, 32);
+        return;
+    }
+    bundle_identity(bundle, identity);
 }
 
 #ifdef ZIRAN_NATIVE_ZX
@@ -214,6 +243,7 @@ native_identity(const Bundle *bundle, unsigned char identity[32])
 }
 #endif
 
+#ifdef ZIRAN_COMPILED_ZX
 static pthread_mutex_t check_lock = PTHREAD_MUTEX_INITIALIZER;
 
 /* Checks a bundle opened unchecked the first time something needs its
@@ -230,7 +260,7 @@ check_unchecked(Bundle *bundle)
         snprintf(function, sizeof(function), "%s", bundle->entry->name);
         int ok = BundleCheckTrusted(&bundle->program, bundle->own_module_count, &bundle->laws) &&
                  VmVerify(bundle->program, module, function) &&
-                 find_entry(bundle, module, function);
+                 find_bundle_entry(bundle, module, function);
         size_t count = 0;
         Capability *list = ok ? BundleLinkedCapabilities(bundle->program,
             bundle->program->module_count, 0, &count) : NULL;
@@ -312,7 +342,6 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name,
         programs[i] = libraries[i]->program;
     }
     int trusted = 0;
-#ifdef ZIRAN_COMPILED_ZX
     /* Native code caches are keyed by the bytes that code depends on:
      * everything before the assets. Compiled code cached or linked for
      * these exact bytes means this compiler checked them before, so they
@@ -325,6 +354,7 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name,
         Sha256Add(&hash, bytes, end);
         Sha256End(&hash, bundle->digest);
     }
+#ifdef ZIRAN_COMPILED_ZX
     if(end > 0 && count == 0 && !portable_vm) {
         unsigned char identity[32];
         bundle_identity(bundle, identity);
@@ -358,7 +388,7 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name,
     if(bundle->program == NULL || !share_library_functions(bundle) ||
        !share_library_assets(bundle) ||
        (!trusted && !VmVerify(bundle->program, entry_module, entry_function)) ||
-       !find_entry(bundle, entry_module, entry_function) || !cache_capabilities(&bundle))
+       !find_bundle_entry(bundle, entry_module, entry_function) || !cache_capabilities(&bundle))
         goto failed;
     return bundle;
 failed:
@@ -477,6 +507,92 @@ BundleCapabilityFunction(const Bundle *bundle, size_t index)
         bundle->capabilities[index].function.data : NULL;
 }
 
+static const ZirImport *
+capability_declaration(const Bundle *bundle, size_t index)
+{
+    if(bundle == NULL || index >= bundle->capability_count)
+        return NULL;
+    const char *module_name = bundle->capabilities[index].module.data;
+    const char *function_name = bundle->capabilities[index].function.data;
+    for(int m = 0; m < bundle->program->module_count; m++) {
+        const ZirModule *module = &bundle->program->modules[m];
+        if(strcmp(module->name, module_name) != 0)
+            continue;
+        for(size_t i = 0; i < (size_t)module->import_count; i++)
+            if(strcmp(module->imports[i].name, function_name) == 0)
+                return &module->imports[i];
+    }
+    return NULL;
+}
+
+int
+BundleCapabilityAbiAt(const Bundle *bundle, size_t index,
+                      BundleCapabilityAbi *abi)
+{
+    const ZirImport *declaration = bundle != NULL && abi != NULL ?
+        capability_declaration(bundle, index) : NULL;
+    if(declaration == NULL)
+        return 0;
+    *abi = (BundleCapabilityAbi){
+        .module = BundleCapabilityModule(bundle, index),
+        .function = BundleCapabilityFunction(bundle, index),
+        .signature = declaration->signature,
+        .arguments = declaration->args,
+        .return_type = declaration->return_type,
+        .variable_arguments = declaration->is_varargs != 0,
+        .reads_arguments = declaration->reads_arguments != 0
+    };
+    return 1;
+}
+
+static int
+same_optional_text(const char *left, const char *right)
+{
+    left = left != NULL ? left : "";
+    right = right != NULL ? right : "";
+    return strcmp(left, right) == 0;
+}
+
+static int
+same_capability_abi(const Bundle *bundle, size_t index,
+                    const Bundle *candidate)
+{
+    BundleCapabilityAbi left, right;
+    if(!BundleCapabilityAbiAt(bundle, index, &left))
+        return 0;
+    for(size_t i = 0; i < candidate->capability_count; i++) {
+        if(!BundleCapabilityAbiAt(candidate, i, &right))
+            return 0;
+        if(strcmp(left.module, right.module) == 0 &&
+           strcmp(left.function, right.function) == 0 &&
+           same_optional_text(left.signature, right.signature) &&
+           same_optional_text(left.arguments, right.arguments) &&
+           same_optional_text(left.return_type, right.return_type) &&
+           left.variable_arguments == right.variable_arguments &&
+           left.reads_arguments == right.reads_arguments)
+            return 1;
+    }
+    return 0;
+}
+
+int
+BundleAbiCompatible(const Bundle *left, const Bundle *right)
+{
+    if(left == NULL || right == NULL ||
+       !same_optional_text(BundleEntryModuleName(left), BundleEntryModuleName(right)) ||
+       !same_optional_text(BundleEntryFunctionName(left), BundleEntryFunctionName(right)) ||
+       !same_optional_text(left->entry->args_text, right->entry->args_text) ||
+       !same_optional_text(left->entry->return_type, right->entry->return_type))
+        return 0;
+    for(size_t i = 0; i < left->capability_count; i++)
+        if(!same_capability_abi(left, i, right))
+            return 0;
+    for(size_t i = 0; i < right->capability_count; i++)
+        if(!same_capability_abi(right, i, left))
+            return 0;
+    return 1;
+}
+
 typedef struct BindingSet {
     const HostBinding *bindings;
     size_t count;
@@ -560,7 +676,7 @@ validate_bindings(const Bundle *bundle, const BindingSet *set)
 
 static BundleInstance *
 instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
-                   size_t binding_count, int max_steps)
+                   size_t binding_count, int max_steps, int portable_only)
 {
     if(bundle == NULL || (binding_count != 0 && bindings == NULL) ||
        binding_count > SIZE_MAX / sizeof(HostBinding))
@@ -615,6 +731,21 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
 #endif
         instance->vm = VmInstanceOpenVerifiedLimited(bundle->program, bundle->entry_owner,
             bundle->entry, dispatch, &instance->set, max_steps);
+        if(instance->vm == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        return instance;
+    }
+    if(portable_only) {
+#ifdef ZIRAN_COMPILED_ZX
+        if(!check_unchecked((Bundle *)bundle)) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+#endif
+        instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
+                                              bundle->entry, dispatch, &instance->set);
         if(instance->vm == NULL) {
             BundleInstanceClose(instance);
             return NULL;
@@ -680,7 +811,8 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
     if(ZxWasmPlatformActive() != NULL) {
         instance->wasm = ZxWasmOpen(bundle->program, bundle->entry_owner,
                                     bundle->entry, bundle->capabilities,
-                                    bundle->capability_count);
+                                    bundle->capability_count, dispatch,
+                                    &instance->set);
         if(instance->wasm != NULL)
             return instance;
     }
@@ -696,14 +828,21 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
 BundleInstance *
 BundleInstantiate(const Bundle *bundle, const HostBinding *bindings, size_t binding_count)
 {
-    return instantiate_bundle(bundle, bindings, binding_count, 0);
+    return instantiate_bundle(bundle, bindings, binding_count, 0, 0);
 }
 
 BundleInstance *
 BundleInstantiateLimited(const Bundle *bundle, const HostBinding *bindings,
                           size_t binding_count, int max_steps)
 {
-    return max_steps > 0 ? instantiate_bundle(bundle, bindings, binding_count, max_steps) : NULL;
+    return max_steps > 0 ? instantiate_bundle(bundle, bindings, binding_count, max_steps, 0) : NULL;
+}
+
+BundleInstance *
+BundleInstantiatePortable(const Bundle *bundle, const HostBinding *bindings,
+                          size_t binding_count)
+{
+    return instantiate_bundle(bundle, bindings, binding_count, 0, 1);
 }
 
 int
@@ -769,6 +908,1083 @@ BundleInstanceClose(BundleInstance *instance)
     VmInstanceClose(instance->vm);
     free(instance->owned_bindings);
     free(instance);
+}
+
+struct BundleState {
+    BundleStateValue *values;
+    size_t count;
+    size_t bytes;
+};
+
+enum {
+    BUNDLE_STATE_MAX_BYTES = 16 * 1024 * 1024
+};
+
+typedef struct StateBudget {
+    size_t used;
+    int failed;
+} StateBudget;
+
+static void
+state_budget_add(StateBudget *budget, size_t bytes)
+{
+    if(budget->used > BUNDLE_STATE_MAX_BYTES ||
+       bytes > (size_t)BUNDLE_STATE_MAX_BYTES - budget->used)
+        budget->failed = 1;
+    else
+        budget->used += bytes;
+}
+
+static void
+release_borrowed_host_value(VmHostValue *value, int depth)
+{
+    if(depth >= VM_MAX_DEPTH)
+        return;
+    if(value->kind == VM_HOST_ARRAY || value->kind == VM_HOST_SLICE) {
+        for(size_t i = 0; i < value->length && value->elements != NULL; i++)
+            release_borrowed_host_value(&value->elements[i], depth + 1);
+        free(value->elements);
+        value->elements = NULL;
+        return;
+    }
+    if(value->kind != VM_HOST_RECORD || value->fields == NULL)
+        return;
+    VmHostField *fields = (VmHostField *)value->fields;
+    for(size_t i = 0; i < value->field_count; i++)
+        release_borrowed_host_value(&fields[i].value, depth + 1);
+    free(fields);
+    value->fields = NULL;
+}
+
+static void
+release_owned_state_value(VmHostValue *value, int depth)
+{
+    if(depth >= VM_MAX_DEPTH)
+        return;
+    if(value->kind == VM_HOST_ARRAY) {
+        for(size_t i = 0; i < value->length && value->elements != NULL; i++)
+            release_owned_state_value(&value->elements[i], depth + 1);
+        free(value->elements);
+        value->elements = NULL;
+    } else if(value->kind == VM_HOST_RECORD && value->fields != NULL) {
+        VmHostField *fields = (VmHostField *)value->fields;
+        for(size_t i = 0; i < value->field_count; i++)
+            release_owned_state_value(&fields[i].value, depth + 1);
+        for(size_t i = 0; i < value->field_count; i++)
+            free((void *)fields[i].name);
+        free(fields);
+        value->fields = NULL;
+    } else if(value->kind == VM_HOST_STRING)
+        free((void *)value->data);
+    value->data = NULL;
+    free((void *)value->type);
+    value->type = NULL;
+}
+
+static int
+state_type_portable(const char *type)
+{
+    return type != NULL && type[0] != '*' && !SliceElementType(type, NULL, 0);
+}
+
+static const char *
+clone_state_name(const char *name, StateBudget *budget)
+{
+    if(name == NULL)
+        return NULL;
+    size_t length = strlen(name);
+    if(length == SIZE_MAX)
+        return NULL;
+    if(budget != NULL) {
+        state_budget_add(budget, length + 1);
+        if(budget->failed)
+            return NULL;
+    }
+    char *copied = malloc(length + 1);
+    if(copied == NULL)
+        return NULL;
+    memcpy(copied, name, length + 1);
+    return copied;
+}
+
+static int
+state_value_portable(const VmHostValue *value, int depth)
+{
+    if(depth >= VM_MAX_DEPTH || !state_type_portable(value->type) ||
+       value->kind == VM_HOST_POINTER || value->kind == VM_HOST_SLICE ||
+       (value->kind == VM_HOST_STRING && value->data == NULL &&
+        value->length != 0))
+        return 0;
+    if(value->kind == VM_HOST_ARRAY) {
+        if(value->length != 0 && value->elements == NULL)
+            return 0;
+        for(size_t i = 0; i < value->length; i++)
+            if(!state_value_portable(&value->elements[i], depth + 1))
+                return 0;
+        return 1;
+    }
+    if(value->kind == VM_HOST_RECORD) {
+        if(value->field_count != 0 && value->fields == NULL)
+            return 0;
+        for(size_t i = 0; i < value->field_count; i++)
+            if(!state_value_portable(&value->fields[i].value, depth + 1))
+                return 0;
+    }
+    return 1;
+}
+
+static int
+clone_state_value(const VmHostValue *input, VmHostValue *output,
+                  int depth, StateBudget *budget)
+{
+    if(depth >= VM_MAX_DEPTH || !state_type_portable(input->type) ||
+       input->kind == VM_HOST_POINTER || input->kind == VM_HOST_SLICE ||
+       (input->kind == VM_HOST_STRING && input->data == NULL &&
+        input->length != 0))
+        return 0;
+    *output = *input;
+    output->type = clone_state_name(input->type, budget);
+    output->data = NULL;
+    output->elements = NULL;
+    output->fields = NULL;
+    if(output->type == NULL)
+        return 0;
+    if(input->kind == VM_HOST_STRING) {
+        if(input->length == 0) {
+            output->data = NULL;
+            return 1;
+        }
+        if(input->length == SIZE_MAX)
+            goto fail;
+        state_budget_add(budget, input->length + 1);
+        if(budget->failed)
+            goto fail;
+        unsigned char *data = malloc(input->length + 1);
+        if(data == NULL)
+            goto fail;
+        memcpy(data, input->data, input->length);
+        data[input->length] = 0;
+        output->data = data;
+        return 1;
+    }
+    if(input->kind == VM_HOST_ARRAY) {
+        if(input->length == 0) {
+            output->elements = NULL;
+            return 1;
+        }
+        if(input->elements == NULL ||
+           input->length > SIZE_MAX / sizeof(*output->elements))
+            goto fail;
+        state_budget_add(budget, input->length * sizeof(*output->elements));
+        if(budget->failed)
+            goto fail;
+        output->elements = calloc(input->length, sizeof(*output->elements));
+        if(output->elements == NULL)
+            goto fail;
+        for(size_t i = 0; i < input->length; i++) {
+            if(!clone_state_value(&input->elements[i], &output->elements[i],
+                                  depth + 1, budget)) {
+                goto fail;
+            }
+        }
+        return 1;
+    }
+    if(input->kind != VM_HOST_RECORD)
+        return 1;
+    if(input->field_count == 0) {
+        output->fields = NULL;
+        return 1;
+    }
+    if(input->fields == NULL || input->field_count > SIZE_MAX / sizeof(VmHostField))
+        goto fail;
+    state_budget_add(budget, input->field_count * sizeof(VmHostField));
+    if(budget->failed)
+        goto fail;
+    output->fields = calloc(input->field_count, sizeof(VmHostField));
+    if(output->fields == NULL)
+        goto fail;
+    for(size_t i = 0; i < input->field_count; i++) {
+        const char *name = clone_state_name(input->fields[i].name, budget);
+        if(name == NULL) {
+            goto fail;
+        }
+        ((VmHostField *)output->fields)[i].name = name;
+        if(!clone_state_value(&input->fields[i].value,
+                              (VmHostValue *)&output->fields[i].value,
+                              depth + 1, budget)) {
+            goto fail;
+        }
+    }
+    return 1;
+fail:
+    release_owned_state_value(output, depth);
+    return 0;
+}
+
+static void
+state_close(BundleState *state)
+{
+    if(state != NULL) {
+        for(size_t i = 0; i < state->count; i++) {
+            release_owned_state_value(&state->values[i].value, 0);
+            free((void *)state->values[i].module);
+            free((void *)state->values[i].name);
+            free((void *)state->values[i].type);
+        }
+        free(state->values);
+        free(state);
+    }
+}
+
+static int
+clone_state_metadata(BundleStateValue *value, StateBudget *budget)
+{
+    const char *module = clone_state_name(value->module, budget);
+    const char *name = clone_state_name(value->name, budget);
+    const char *type = clone_state_name(value->type, budget);
+    if(module == NULL || name == NULL || type == NULL) {
+        free((void *)module);
+        free((void *)name);
+        free((void *)type);
+        release_owned_state_value(&value->value, 0);
+        return 0;
+    }
+    value->module = module;
+    value->name = name;
+    value->type = type;
+    return 1;
+}
+
+static uint16_t
+little_u16(const unsigned char *bytes)
+{
+    return (uint16_t)bytes[0] | (uint16_t)bytes[1] << 8;
+}
+
+static uint32_t
+little_u32(const unsigned char *bytes)
+{
+    return (uint32_t)bytes[0] | (uint32_t)bytes[1] << 8 |
+           (uint32_t)bytes[2] << 16 | (uint32_t)bytes[3] << 24;
+}
+
+static uint64_t
+little_u64(const unsigned char *bytes)
+{
+    return (uint64_t)little_u32(bytes) |
+           (uint64_t)little_u32(bytes + 4) << 32;
+}
+
+static void
+put_little_u32(unsigned char *bytes, uint32_t value)
+{
+    for(size_t i = 0; i < 4; i++)
+        bytes[i] = (unsigned char)(value >> (8 * i));
+}
+
+static void
+put_little_u64(unsigned char *bytes, uint64_t value)
+{
+    for(size_t i = 0; i < 8; i++)
+        bytes[i] = (unsigned char)(value >> (8 * i));
+}
+
+static const ZirModule *
+program_module(const ZirProgram *program, const char *name)
+{
+    if(program == NULL || name == NULL)
+        return NULL;
+    for(int i = 0; i < program->module_count; i++)
+        if(strcmp(program->modules[i].name, name) == 0)
+            return &program->modules[i];
+    return NULL;
+}
+
+static const ZirGlobal *
+module_global(const ZirModule *module, const char *name)
+{
+    if(module == NULL || name == NULL)
+        return NULL;
+    for(int i = 0; i < module->global_count; i++)
+        if(strcmp(module->globals[i].name, name) == 0)
+            return &module->globals[i];
+    return NULL;
+}
+
+static void
+release_raw_state_value(VmHostValue *value, int depth)
+{
+    if(value == NULL || depth >= VM_MAX_DEPTH)
+        return;
+    if(value->kind == VM_HOST_ARRAY) {
+        for(size_t i = 0; i < value->length && value->elements != NULL; i++)
+            release_raw_state_value(&value->elements[i], depth + 1);
+        free(value->elements);
+    } else if(value->kind == VM_HOST_RECORD && value->fields != NULL) {
+        VmHostField *fields = (VmHostField *)value->fields;
+        for(size_t i = 0; i < value->field_count; i++)
+            release_raw_state_value(&fields[i].value, depth + 1);
+        for(size_t i = 0; i < value->field_count; i++)
+            free((void *)fields[i].name);
+        free((void *)value->fields);
+    } else if(value->kind == VM_HOST_STRING) {
+        free((void *)value->data);
+    }
+    value->elements = NULL;
+    value->fields = NULL;
+    value->data = NULL;
+    free((void *)value->type);
+    value->type = NULL;
+}
+
+static int
+wasm_read_scalar(const ZxWasm *wasm, size_t address, const char *type,
+                 VmHostValue *value)
+{
+    const char *scalar = ScalarType(type);
+    if(!strcmp(scalar, "string")) {
+        unsigned char bytes[8];
+        if(!ZxWasmReadState(wasm, address, bytes, sizeof(bytes)))
+            return 0;
+        uint64_t handle = little_u64(bytes);
+        uint32_t data_address = (uint32_t)handle;
+        uint32_t length = (uint32_t)(handle >> 32);
+        value->kind = VM_HOST_STRING;
+        value->length = length;
+        if(length == 0)
+            return 1;
+        if(length > BUNDLE_STATE_MAX_BYTES ||
+           data_address > SIZE_MAX - length)
+            return 0;
+        unsigned char *data = malloc(length);
+        if(data == NULL ||
+           !ZxWasmReadState(wasm, data_address, data, length)) {
+            free(data);
+            return 0;
+        }
+        value->data = data;
+        return 1;
+    }
+    if(!strcmp(scalar, "float64") || !strcmp(scalar, "float32")) {
+        unsigned char bytes[8] = {0};
+        if(!ZxWasmReadState(wasm, address, bytes,
+                            !strcmp(scalar, "float32") ? 4 : 8))
+            return 0;
+        value->kind = VM_HOST_REAL;
+        if(!strcmp(scalar, "float32")) {
+            uint32_t bits = little_u32(bytes);
+            float number;
+            memcpy(&number, &bits, sizeof(number));
+            value->real = number;
+        } else {
+            uint64_t bits = little_u64(bytes);
+            memcpy(&value->real, &bits, sizeof(value->real));
+        }
+        return 1;
+    }
+    unsigned char bytes[8] = {0};
+    size_t width = 1;
+    if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64"))
+        width = 8;
+    else if(!strcmp(scalar, "s32") || !strcmp(scalar, "u32"))
+        width = 4;
+    else if(!strcmp(scalar, "s16") || !strcmp(scalar, "u16"))
+        width = 2;
+    if(!ZxWasmReadState(wasm, address, bytes, width))
+        return 0;
+    uint64_t number = width == 8 ? little_u64(bytes) : little_u32(bytes);
+    if(type[0] == 'u') {
+        value->kind = VM_HOST_UNSIGNED;
+        value->bits = number;
+        value->integer = (int64_t)number;
+    } else {
+        value->kind = VM_HOST_INTEGER;
+        value->integer = (int64_t)number;
+        value->bits = number;
+    }
+    return 1;
+}
+
+static int
+wasm_export_state_value(const ZxWasm *wasm, const ZirModule *owner,
+                        const char *type, size_t address,
+                        VmHostValue *value, int depth)
+{
+    size_t size, alignment;
+    if(depth >= VM_MAX_DEPTH || !TypeLayout(owner, type, &size, &alignment))
+        return 0;
+    value->type = clone_state_name(type, NULL);
+    if(value->type == NULL)
+        return 0;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        size_t element_size, element_alignment;
+        if(capacity < 0 || capacity > BUNDLE_STATE_MAX_BYTES ||
+           !TypeLayout(owner, element, &element_size, &element_alignment))
+            return 0;
+        value->kind = VM_HOST_ARRAY;
+        value->length = (size_t)capacity;
+        if(capacity == 0)
+            return 1;
+        value->elements = calloc((size_t)capacity, sizeof(*value->elements));
+        if(value->elements == NULL)
+            return 0;
+        for(int i = 0; i < capacity; i++)
+            if(!wasm_export_state_value(wasm, owner, element,
+                                        address + (size_t)i * element_size,
+                                        &value->elements[i], depth + 1))
+                return 0;
+        return 1;
+    }
+    const ZirModule *record_owner = NULL;
+    const ZirType *record = FindType(owner, type, &record_owner);
+    if(record != NULL && !record->is_enum && !record->is_procedure_type &&
+       !record->is_extern && !record->is_map && !record->is_record_template &&
+       !record->is_type_instance && !record->is_union) {
+        record_owner = record_owner ? record_owner : owner;
+        value->kind = VM_HOST_RECORD;
+        size_t cursor = 0;
+        ZirTypeField field;
+        int count = 0;
+        while(TypeNextField(record, &cursor, &field) == 1) {
+            if(++count > VM_MAX_FIELDS)
+                return 0;
+        }
+        value->field_count = (size_t)count;
+        if(count == 0)
+            return 1;
+        VmHostField *fields = calloc((size_t)count, sizeof(*fields));
+        value->fields = fields;
+        if(fields == NULL)
+            return 0;
+        cursor = 0;
+        int index = 0;
+        size_t field_offset = 0;
+        while(TypeNextField(record, &cursor, &field) == 1) {
+            size_t field_size, field_alignment;
+            if(!TypeLayout(record_owner, field.type, &field_size,
+                           &field_alignment))
+                return 0;
+            size_t pad = field_offset % field_alignment;
+            if(pad != 0)
+                field_offset += field_alignment - pad;
+            fields[index].name = clone_state_name(field.name, NULL);
+            if(fields[index].name == NULL)
+                return 0;
+            if(!wasm_export_state_value(wasm, record_owner, field.type,
+                                        address + field_offset,
+                                        &fields[index].value, depth + 1))
+                return 0;
+            field_offset += field_size;
+            index++;
+        }
+        return 1;
+    }
+    return wasm_read_scalar(wasm, address, type, value);
+}
+
+static int
+wasm_write_state_value(ZxWasm *wasm, const ZirModule *owner,
+                       const char *type, size_t address,
+                       const VmHostValue *value, int depth)
+{
+    size_t size, alignment;
+    if(depth >= VM_MAX_DEPTH || value == NULL || value->type == NULL ||
+       strcmp(value->type, type) != 0 ||
+       !TypeLayout(owner, type, &size, &alignment))
+        return 0;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        size_t element_size, element_alignment;
+        if(capacity < 0 || value->kind != VM_HOST_ARRAY ||
+            value->length != (size_t)capacity ||
+            (capacity != 0 && value->elements == NULL) ||
+            !TypeLayout(owner, element, &element_size, &element_alignment))
+            return 0;
+        for(int i = 0; i < capacity; i++)
+            if(!wasm_write_state_value(wasm, owner, element,
+                                       address + (size_t)i * element_size,
+                                       &value->elements[i], depth + 1))
+                return 0;
+        return 1;
+    }
+    const ZirModule *record_owner = NULL;
+    const ZirType *record = FindType(owner, type, &record_owner);
+    if(record != NULL && !record->is_enum && !record->is_procedure_type &&
+       !record->is_extern && !record->is_map && !record->is_record_template &&
+       !record->is_type_instance && !record->is_union) {
+        record_owner = record_owner ? record_owner : owner;
+        if(value->kind != VM_HOST_RECORD ||
+           (value->field_count != 0 && value->fields == NULL))
+            return 0;
+        size_t cursor = 0, field_offset = 0;
+        ZirTypeField field;
+        while(TypeNextField(record, &cursor, &field) == 1) {
+            size_t field_size, field_alignment;
+            if(!TypeLayout(record_owner, field.type, &field_size,
+                           &field_alignment))
+                return 0;
+            size_t pad = field_offset % field_alignment;
+            if(pad != 0)
+                field_offset += field_alignment - pad;
+            const VmHostValue *found = NULL;
+            for(size_t i = 0; i < value->field_count; i++)
+                if(value->fields[i].name != NULL &&
+                   strcmp(value->fields[i].name, field.name) == 0) {
+                    found = &value->fields[i].value;
+                    break;
+                }
+            if(found == NULL ||
+               !wasm_write_state_value(wasm, record_owner, field.type,
+                                       address + field_offset, found,
+                                       depth + 1))
+                return 0;
+            field_offset += field_size;
+        }
+        return 1;
+    }
+    const char *scalar = ScalarType(type);
+    if(!strcmp(scalar, "string")) {
+        if(value->kind != VM_HOST_STRING ||
+           (value->data == NULL && value->length != 0) ||
+           value->length > UINT32_MAX)
+            return 0;
+        size_t data = ZxWasmAllocateState(wasm, value->length);
+        if(data == 0 || data > UINT32_MAX)
+            return 0;
+        if(value->length != 0 &&
+           !ZxWasmWriteState(wasm, data, value->data, value->length))
+            return 0;
+        unsigned char bytes[8];
+        put_little_u64(bytes, ((uint64_t)value->length << 32) | (uint32_t)data);
+        return ZxWasmWriteState(wasm, address, bytes, sizeof(bytes));
+    }
+    unsigned char bytes[8] = {0};
+    size_t width = 1;
+    if(!strcmp(scalar, "float64"))
+        width = 8;
+    else if(!strcmp(scalar, "float32") || !strcmp(scalar, "s32") ||
+            !strcmp(scalar, "u32"))
+        width = 4;
+    else if(!strcmp(scalar, "s16") || !strcmp(scalar, "u16"))
+        width = 2;
+    else if(!strcmp(scalar, "s64") || !strcmp(scalar, "u64"))
+        width = 8;
+    if(!strcmp(scalar, "float32")) {
+        float number = (float)value->real;
+        uint32_t bits;
+        memcpy(&bits, &number, sizeof(bits));
+        put_little_u32(bytes, bits);
+    } else if(!strcmp(scalar, "float64")) {
+        uint64_t bits;
+        memcpy(&bits, &value->real, sizeof(bits));
+        put_little_u64(bytes, bits);
+    } else {
+        if(value->kind != VM_HOST_INTEGER && value->kind != VM_HOST_UNSIGNED)
+            return 0;
+        uint64_t number = value->kind == VM_HOST_UNSIGNED ?
+            value->bits : (uint64_t)value->integer;
+        put_little_u64(bytes, number);
+    }
+    return ZxWasmWriteState(wasm, address, bytes, width);
+}
+
+int
+BundleInstanceExportState(BundleInstance *instance, BundleState **state)
+{
+    if(state == NULL)
+        return 0;
+    *state = NULL;
+    if(instance != NULL && instance->wasm != NULL) {
+        const ZirProgram *program = ZxWasmProgram(instance->wasm);
+        size_t count = ZxWasmStateCount(instance->wasm);
+        BundleState *exported = calloc(1, sizeof(*exported));
+        if(exported == NULL)
+            return 0;
+        exported->values = calloc(count ? count : 1,
+                                  sizeof(*exported->values));
+        if(exported->values == NULL) {
+            free(exported);
+            return 0;
+        }
+        StateBudget budget = {0};
+        for(size_t i = 0; i < count; i++) {
+            const char *module_name, *global_name, *type_name;
+            size_t address, size;
+            if(!ZxWasmStateAt(instance->wasm, i, &module_name, &global_name,
+                              &type_name, &address, &size))
+                goto fail;
+            const ZirModule *owner = program_module(program, module_name);
+            const ZirGlobal *declaration = module_global(owner, global_name);
+            if(owner == NULL || declaration == NULL || size == 0 ||
+               !state_type_portable(type_name)) {
+                Diagnostic(Span("<host>", 1, 1), "zx.state",
+                           "component state %s:%s is not owned portable state",
+                           module_name, global_name);
+                goto fail;
+            }
+            BundleStateValue value = {
+                .module = module_name,
+                .name = global_name,
+                .type = type_name
+            };
+            VmHostValue borrowed = {0};
+            int raw = wasm_export_state_value(instance->wasm, owner,
+                                              type_name, address, &borrowed, 0);
+            int portable = raw && state_value_portable(&borrowed, 0);
+            int cloned = portable &&
+                clone_state_value(&borrowed, &value.value, 0, &budget);
+            if(!cloned) {
+                Diagnostic(declaration->span, "zx.state",
+                           "component state %s:%s exceeds portable state limits",
+                           module_name, global_name);
+                release_raw_state_value(&borrowed, 0);
+                goto fail;
+            }
+            release_raw_state_value(&borrowed, 0);
+            if(!clone_state_metadata(&value, &budget))
+                goto fail;
+            exported->values[exported->count++] = value;
+        }
+        exported->bytes = budget.used;
+        *state = exported;
+        return 1;
+fail:
+        state_close(exported);
+        return 0;
+    }
+    if(instance == NULL || instance->vm == NULL)
+        return 0;
+    Vm *vm = &instance->vm->vm;
+    BundleState *exported = calloc(1, sizeof(*exported));
+    if(exported == NULL)
+        return 0;
+    exported->values = calloc(vm->global_count ? (size_t)vm->global_count : 1,
+                              sizeof(*exported->values));
+    if(exported->values == NULL) {
+        free(exported);
+        return 0;
+    }
+    StateBudget budget = {0};
+    for(int i = 0; i < vm->global_count; i++) {
+        GlobalSlot *slot = &vm->globals[i];
+        VmHostValue borrowed = {0};
+        if(!VmValueHostArgument(slot->module, slot->type, slot->value,
+                                &borrowed, 0) ||
+           !state_type_portable(slot->type) ||
+           borrowed.kind == VM_HOST_POINTER ||
+           borrowed.kind == VM_HOST_SLICE) {
+            Diagnostic(slot->declaration->span, "zx.state",
+                       "component state %s:%s is not owned portable state",
+                       slot->module->name, slot->declaration->name);
+            release_borrowed_host_value(&borrowed, 0);
+            state_close(exported);
+            return 0;
+        }
+        BundleStateValue value = {
+            .module = slot->module->name,
+            .name = slot->declaration->name,
+            .type = slot->type,
+            .value = {0}
+        };
+        if(!clone_state_value(&borrowed, &value.value, 0, &budget)) {
+            Diagnostic(slot->declaration->span, "zx.state",
+                       "component state %s:%s exceeds portable state limits",
+                       slot->module->name, slot->declaration->name);
+            release_borrowed_host_value(&borrowed, 0);
+            state_close(exported);
+            return 0;
+        }
+        release_borrowed_host_value(&borrowed, 0);
+        if(!clone_state_metadata(&value, &budget)) {
+            state_close(exported);
+            return 0;
+        }
+        exported->values[exported->count++] = value;
+    }
+    exported->bytes = budget.used;
+    *state = exported;
+    return 1;
+}
+
+int
+BundleInstanceImportState(BundleInstance *instance, const BundleState *state)
+{
+    if(instance != NULL && instance->wasm != NULL && state != NULL) {
+        const ZirProgram *program = ZxWasmProgram(instance->wasm);
+        size_t count = ZxWasmStateCount(instance->wasm);
+        for(size_t i = 0; i < count; i++) {
+            const char *module_name, *global_name, *type_name;
+            size_t address, size;
+            const BundleStateValue *found = NULL;
+            if(!ZxWasmStateAt(instance->wasm, i, &module_name, &global_name,
+                              &type_name, &address, &size))
+                return 0;
+            for(size_t value = 0; value < state->count; value++)
+                if(strcmp(state->values[value].module, module_name) == 0 &&
+                   strcmp(state->values[value].name, global_name) == 0) {
+                    found = &state->values[value];
+                    break;
+                }
+            const ZirModule *owner = program_module(program, module_name);
+            const ZirGlobal *declaration = module_global(owner, global_name);
+            if(found == NULL || declaration == NULL ||
+               strcmp(found->type, type_name) != 0 || size == 0 ||
+               !state_type_portable(type_name) ||
+               !state_value_portable(&found->value, 0) ||
+               !wasm_write_state_value(instance->wasm, owner, type_name,
+                                       address, &found->value, 0)) {
+                Diagnostic(declaration ? declaration->span : Span("<host>", 1, 1),
+                           "zx.state",
+                           "component state %s:%s is incompatible with replacement",
+                           module_name, global_name);
+                return 0;
+            }
+        }
+        return 1;
+    }
+    if(instance == NULL || instance->vm == NULL || state == NULL)
+        return 0;
+    Vm *vm = &instance->vm->vm;
+    Value *imported = state->count <= SIZE_MAX / sizeof(*imported) ?
+        calloc(state->count ? state->count : 1, sizeof(*imported)) : NULL;
+    size_t *positions = state->count <= SIZE_MAX / sizeof(*positions) ?
+        calloc(state->count ? state->count : 1, sizeof(*positions)) : NULL;
+    if(imported == NULL || positions == NULL) {
+        free(imported);
+        free(positions);
+        return 0;
+    }
+    for(size_t i = 0; i < state->count; i++) {
+        const BundleStateValue *value = &state->values[i];
+        GlobalSlot *slot = NULL;
+        for(int g = 0; g < vm->global_count; g++) {
+            GlobalSlot *candidate = &vm->globals[g];
+            if(strcmp(candidate->module->name, value->module) == 0 &&
+               strcmp(candidate->declaration->name, value->name) == 0) {
+                slot = candidate;
+                break;
+            }
+        }
+        if(slot == NULL || strcmp(slot->type, value->type) != 0 ||
+           !state_type_portable(slot->type) ||
+           !state_value_portable(&value->value, 0)) {
+            Diagnostic(Span("<host>", 1, 1), "zx.state",
+                       slot == NULL ?
+                       "component state %s:%s (%s/%d) is absent from the replacement" :
+                       "component state %s:%s (%s/%d) is incompatible with replacement %s/%d",
+                       value->module, value->name, value->type,
+                       (int)value->value.kind,
+                       slot != NULL ? slot->type : "",
+                       slot != NULL ? (int)slot->value.kind : 0);
+            free(imported);
+            free(positions);
+            return 0;
+        }
+        positions[i] = (size_t)(slot - vm->globals);
+        imported[i] = VmValueHostReturn(vm, slot->module, slot->type,
+                                         &value->value, 0);
+        if(vm->failed) {
+            Diagnostic(Span("<host>", 1, 1), "zx.state",
+                       "component state %s:%s is incompatible with the replacement",
+                       value->module, value->name);
+            vm->failed = 0;
+            free(imported);
+            free(positions);
+            return 0;
+        }
+    }
+    for(size_t i = 0; i < state->count; i++)
+        vm->globals[positions[i]].value = imported[i];
+    free(imported);
+    free(positions);
+    return 1;
+}
+
+size_t
+BundleStateCount(const BundleState *state)
+{
+    return state != NULL ? state->count : 0;
+}
+
+size_t
+BundleStateValueBytes(const BundleState *state)
+{
+    return state != NULL ? state->bytes : 0;
+}
+
+int
+BundleStateValueAt(const BundleState *state, size_t index,
+                   BundleStateValue *value)
+{
+    if(state == NULL || index >= state->count || value == NULL)
+        return 0;
+    *value = state->values[index];
+    return 1;
+}
+
+BundleStateValue *
+BundleStateValueRef(BundleState *state, size_t index)
+{
+    return state != NULL && index < state->count ? &state->values[index] : NULL;
+}
+
+int
+BundleStateFind(const BundleState *state, const char *module,
+                const char *name, size_t *index)
+{
+    if(state == NULL || module == NULL || name == NULL || index == NULL)
+        return 0;
+    for(size_t i = 0; i < state->count; i++)
+        if(strcmp(state->values[i].module, module) == 0 &&
+           strcmp(state->values[i].name, name) == 0) {
+            *index = i;
+            return 1;
+        }
+    return 0;
+}
+
+int
+BundleStateSetInteger(BundleState *state, size_t index, int64_t value)
+{
+    if(state == NULL || index >= state->count ||
+       state->values[index].value.kind != VM_HOST_INTEGER)
+        return 0;
+    state->values[index].value.integer = value;
+    state->values[index].value.bits = (uint64_t)value;
+    return 1;
+}
+
+int
+BundleStateSetUnsigned(BundleState *state, size_t index, uint64_t value)
+{
+    if(state == NULL || index >= state->count ||
+       state->values[index].value.kind != VM_HOST_UNSIGNED)
+        return 0;
+    state->values[index].value.bits = value;
+    state->values[index].value.integer = (int64_t)value;
+    return 1;
+}
+
+int
+BundleStateSetReal(BundleState *state, size_t index, double value)
+{
+    if(state == NULL || index >= state->count ||
+       state->values[index].value.kind != VM_HOST_REAL)
+        return 0;
+    state->values[index].value.real = value;
+    return 1;
+}
+
+int
+BundleStateSetString(BundleState *state, size_t index,
+                     const unsigned char *data, size_t length)
+{
+    if(state == NULL || index >= state->count ||
+       state->values[index].value.kind != VM_HOST_STRING ||
+       (data == NULL && length != 0) || length == SIZE_MAX)
+        return 0;
+    unsigned char *copied = NULL;
+    if(length != 0) {
+        copied = malloc(length + 1);
+        if(copied == NULL)
+            return 0;
+        memcpy(copied, data, length);
+        copied[length] = 0;
+    }
+    free((void *)state->values[index].value.data);
+    state->values[index].value.data = copied;
+    state->values[index].value.length = length;
+    return 1;
+}
+
+void
+BundleStateClose(BundleState *state)
+{
+    state_close(state);
+}
+
+struct BundleComponent {
+    Bundle *bundle;
+    BundleInstance *instance;
+    int max_steps;
+    uint64_t generation;
+    int closed;
+    size_t references;
+};
+
+struct BundleComponentHandle {
+    BundleComponent *component;
+    uint64_t generation;
+};
+
+static void
+component_release(BundleComponent *component)
+{
+    if(component != NULL && --component->references == 0)
+        free(component);
+}
+
+static size_t
+component_live_value_bytes(const BundleComponent *component)
+{
+    if(component == NULL || component->closed || component->instance == NULL)
+        return 0;
+    Vm *vm = &component->instance->vm->vm;
+    if(vm->global_count < 0 ||
+       (size_t)vm->global_count > SIZE_MAX / sizeof(Value))
+        return 0;
+    size_t bytes = (size_t)vm->global_count * sizeof(Value);
+    size_t allocated = vm->record_bytes;
+    if(allocated > SIZE_MAX - vm->array_bytes)
+        return SIZE_MAX;
+    allocated += vm->array_bytes;
+    if(allocated > SIZE_MAX - vm->string_bytes)
+        return SIZE_MAX;
+    allocated += vm->string_bytes;
+    return allocated <= SIZE_MAX - bytes ? bytes + allocated : SIZE_MAX;
+}
+
+BundleComponent *
+BundleComponentOpen(const Bundle *bundle, const HostBinding *bindings,
+                    size_t binding_count, int max_steps)
+{
+    if(bundle == NULL || max_steps <= 0)
+        return NULL;
+    Bundle *retained = (Bundle *)bundle;
+    if(retained->references == SIZE_MAX)
+        return NULL;
+    retained->references++;
+    BundleComponent *component = calloc(1, sizeof(*component));
+    if(component == NULL) {
+        BundleClose(retained);
+        return NULL;
+    }
+    component->bundle = retained;
+    component->references = 1;
+    component->max_steps = max_steps;
+    component->instance = instantiate_bundle(retained, bindings, binding_count,
+                                              max_steps, 1);
+    if(component->instance == NULL) {
+        BundleClose(retained);
+        free(component);
+        return NULL;
+    }
+    return component;
+}
+
+BundleComponentHandle *
+BundleComponentAcquire(BundleComponent *component)
+{
+    if(component == NULL || component->closed ||
+       component->references == SIZE_MAX)
+        return NULL;
+    component->references++;
+    BundleComponentHandle *handle = malloc(sizeof(*handle));
+    if(handle == NULL) {
+        component_release(component);
+        return NULL;
+    }
+    *handle = (BundleComponentHandle){component, component->generation};
+    return handle;
+}
+
+int
+BundleComponentHandleValid(const BundleComponentHandle *handle)
+{
+    return handle != NULL && handle->component != NULL &&
+           !handle->component->closed &&
+           handle->generation == handle->component->generation;
+}
+
+int
+BundleComponentRun(BundleComponentHandle *handle, long long *result,
+                   int *has_result)
+{
+    return BundleComponentHandleValid(handle) &&
+           BundleInstanceRun(handle->component->instance, result, has_result);
+}
+
+int
+BundleComponentReplace(BundleComponent *component, const Bundle *replacement,
+                       BundleStateMigrate migrate, BundleComponentVerify verify,
+                       void *context, BundleComponentHandle **new_handle)
+{
+    if(component == NULL || component->closed || replacement == NULL ||
+       !BundleAbiCompatible(component->bundle, replacement))
+        return 0;
+    if(new_handle != NULL)
+        *new_handle = NULL;
+    Bundle *retained = (Bundle *)replacement;
+    if(retained->references == SIZE_MAX)
+        return 0;
+    BundleComponentHandle *handle = NULL;
+    if(new_handle != NULL) {
+        handle = malloc(sizeof(*handle));
+        if(handle == NULL)
+            return 0;
+    }
+    retained->references++;
+    BundleState *old_state = NULL, *new_state = NULL;
+    BundleInstance *candidate = instantiate_bundle(
+        retained, component->instance->set.bindings,
+        component->instance->set.count, component->max_steps, 1);
+    int ok = candidate != NULL &&
+             BundleInstanceExportState(component->instance, &old_state) &&
+             BundleInstanceExportState(candidate, &new_state) &&
+             (migrate == NULL || migrate(context, old_state, new_state)) &&
+             BundleInstanceImportState(candidate, new_state) &&
+             (verify == NULL || verify(context, candidate));
+    if(ok) {
+        BundleInstanceClose(component->instance);
+        BundleClose(component->bundle);
+        component->bundle = retained;
+        component->instance = candidate;
+        component->generation++;
+        if(new_handle != NULL) {
+            component->references++;
+            *handle = (BundleComponentHandle){component, component->generation};
+            *new_handle = handle;
+            handle = NULL;
+        }
+    } else {
+        BundleInstanceClose(candidate);
+        BundleClose(retained);
+    }
+    BundleStateClose(old_state);
+    BundleStateClose(new_state);
+    free(handle);
+    return ok;
+}
+
+size_t
+BundleComponentLiveValueBytes(const BundleComponent *component)
+{
+    return component_live_value_bytes(component);
+}
+
+void
+BundleComponentClose(BundleComponent *component)
+{
+    if(component == NULL || component->closed)
+        return;
+    component->closed = 1;
+    BundleInstanceClose(component->instance);
+    component->instance = NULL;
+    BundleClose(component->bundle);
+    component->bundle = NULL;
+    component_release(component);
+}
+
+void
+BundleComponentHandleClose(BundleComponentHandle *handle)
+{
+    if(handle != NULL) {
+        component_release(handle->component);
+        free(handle);
+    }
 }
 
 int

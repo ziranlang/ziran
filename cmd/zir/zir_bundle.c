@@ -981,23 +981,69 @@ COMPILER_SCRATCH_RETURN(static, int, prune_record_fields,
     PruneRecordFieldsBuffers, RECOVERABLE, free,
     prune_record_fields_with_buffers(program, entry_module, entry_function, buffers))
 
+/* Sets *FLAG, and *CHANGED when it was clear. */
+static void
+mark(unsigned char *flag, int *changed)
+{
+    if(!*flag) *flag = 1, *changed = 1;
+}
+
+/* The index of MODULE in PROGRAM, or -1. */
+static int
+module_index(const ZirProgram *program, const ZirModule *module)
+{
+    for(int m = 0; m < program->module_count; m++)
+        if(module == &program->modules[m]) return m;
+    return -1;
+}
+
+/* Keeps FUNCTION of OWNER; 0 when it is outside PROGRAM. */
+static int
+keep_function(const ZirProgram *program, const ZirModule *owner,
+              const ZirFunction *function, unsigned char **keep, int *changed)
+{
+    int m = module_index(program, owner);
+    for(int f = 0; m >= 0 && f < owner->function_count; f++)
+        if(function == &owner->functions[f]) {
+            mark(&keep[m][f], changed);
+            return 1;
+        }
+    return 0;
+}
+
+/* Keeps the exported Ziran implementations of IMPORT, a host capability
+ * bound to `ziran:MODULE`, and counts them. */
+static int
+keep_host_provider(const ZirProgram *program, const ZirImport *import,
+                   unsigned char **keep, int *changed)
+{
+    int found = 0;
+    for(int m = 0; m < program->module_count; m++) {
+        const ZirModule *provider = &program->modules[m];
+        if(strcmp(provider->name, import->target + 6) != 0) continue;
+        for(int f = 0; f < provider->function_count; f++) {
+            const ZirFunction *implementation = &provider->functions[f];
+            if(strcmp(implementation->name, import->extern_symbol) == 0 &&
+               implementation->exported && !implementation->is_extern) {
+                found++;
+                mark(&keep[m][f], changed);
+            }
+        }
+    }
+    return found;
+}
+
 static int
 mark_type_pointer(const ZirProgram *program, const ZirModule *owner,
                   const ZirType *type, unsigned char **keep_types,
                   int *changed)
 {
-    for(int m = 0; m < program->module_count; m++) {
-        if(owner != &program->modules[m])
-            continue;
-        for(int t = 0; t < owner->type_count; t++)
-            if(type == &owner->types[t]) {
-                if(!keep_types[m][t]) {
-                    keep_types[m][t] = 1;
-                    *changed = 1;
-                }
-                return 1;
-            }
-    }
+    int m = module_index(program, owner);
+    for(int t = 0; m >= 0 && t < owner->type_count; t++)
+        if(type == &owner->types[t]) {
+            mark(&keep_types[m][t], changed);
+            return 1;
+        }
     return 0;
 }
 
@@ -1092,9 +1138,9 @@ static void mark_proof_function(const ZirProgram *program, const ZirModule *scop
                                 const char *name, unsigned char **keep)
 {
     const ZirModule *owner = NULL; const ZirFunction *fn = NULL;
-    if(ResolveFunction(scope, name, &owner, &fn) != 1) return;
-    for(int m = 0; m < program->module_count; m++)
-        if(owner == &program->modules[m]) keep[m][fn - owner->functions] = 1;
+    int changed = 0;
+    if(ResolveFunction(scope, name, &owner, &fn) == 1)
+        keep_function(program, owner, fn, keep, &changed);
 }
 static int mark_proof_graph(const ZirProgram *program, const ZirModule *scope,
                             const ZirFunction *graph, unsigned char **keep,
@@ -1407,13 +1453,7 @@ mark_global_functions(const ZirProgram *program, const ZirModule *module,
             used |= reexports_module(imported, owner, 0);
             continue;
         }
-        for(int m = 0; m < program->module_count; m++)
-            if(owner == &program->modules[m])
-                for(int f = 0; f < owner->function_count; f++)
-                    if(function == &owner->functions[f] && !keep[m][f]) {
-                        keep[m][f] = 1;
-                        *changed = 1;
-                    }
+        keep_function(program, owner, function, keep, changed);
     }
     free(probe->exprs);
     free(probe);
@@ -1450,21 +1490,16 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
         return 1;
     /* A module kept only for a program export that a foreign call binds
      * to is still reached through this import when output is reloaded. */
-    for(int m = 0; m < program->module_count; m++) {
-        if(import->resolved_module != &program->modules[m])
-            continue;
-        for(int f = 0; f < program->modules[m].function_count; f++)
-            if(keep_all[m][f] && program->modules[m].functions[f].exported &&
-               !program->modules[m].functions[f].is_extern)
-                return 1;
-    }
-    for(int m = 0; m < program->module_count; m++)
-        if(import->resolved_module == &program->modules[m] &&
-           uses_imported_constant(uses, module, keep,
-               keep_types[module - program->modules],
-               keep_defines[module - program->modules],
-               keep_defines[m], import->resolved_module))
+    int r = module_index(program, import->resolved_module);
+    for(int f = 0; r >= 0 && f < program->modules[r].function_count; f++)
+        if(keep_all[r][f] && program->modules[r].functions[f].exported &&
+           !program->modules[r].functions[f].is_extern)
             return 1;
+    if(r >= 0 && uses_imported_constant(uses, module, keep,
+                     keep_types[module - program->modules],
+                     keep_defines[module - program->modules],
+                     keep_defines[r], import->resolved_module))
+        return 1;
     for(int f = 0; f < module->function_count; f++) {
         if(!keep[f])
             continue;
@@ -1496,27 +1531,12 @@ import_is_used(const ZirProgram *program, const ZirModule *module,
                 return 1;
         }
     }
-    for(int m = 0; m < program->module_count; m++) {
-        if(import->resolved_module != &program->modules[m])
-            continue;
-        for(int t = 0; t < program->modules[m].type_count; t++)
-            if(keep_types[m][t])
-                return 1;
-        break;
-    }
+    for(int t = 0; r >= 0 && t < program->modules[r].type_count; t++)
+        if(keep_types[r][t])
+            return 1;
     return 0;
 }
 
-static int
-import_has_startup_path(const ZirProgram *program,
-                        const unsigned char *startup_path,
-                        const ZirImport *import)
-{
-    for(int m = 0; m < program->module_count; m++)
-        if(import->resolved_module == &program->modules[m])
-            return startup_path[m] != 0;
-    return 0;
-}
 /* Buffers link_checked_entry keeps on the heap so deep nesting fits the stack;
  * freed blocks are kept for reuse, one per nesting level. */
 typedef struct LinkCheckedEntryBuffers {
@@ -1630,10 +1650,9 @@ link_checked_entry_with_buffers(const ZirProgram *program, const char *entry_mod
                 if(length >= ZIR_NAME_MAX) continue;
                 char name[ZIR_NAME_MAX]; memcpy(name, start, length); name[length] = 0;
                 const ZirModule *owner = NULL; const ZirFunction *fn = NULL;
+                int changed = 0;
                 if(ResolveFunction(module, name, &owner, &fn) == 1)
-                    for(int target = 0; target < program->module_count; target++)
-                        if(owner == &program->modules[target])
-                            keep[target][fn - owner->functions] = 1;
+                    keep_function(program, owner, fn, keep, &changed);
             }
         }
     }
@@ -1657,25 +1676,15 @@ resolve_reachability:
                    mark_global_functions(program, module, &module->globals[g],
                                          keep, &changed, NULL) < 0)
                     goto failed;
-            if(active)
-                for(int f = 0; f < module->function_count; f++)
-                    if(module->functions[f].is_global_initializer &&
-                       !keep[m][f]) {
-                        keep[m][f] = 1;
-                        changed = 1;
-                    }
-            if(active)
-                for(int i = 0; i < module->import_count; i++) {
-                    const ZirModule *dependency =
-                        module->imports[i].resolved_module;
-                    if(!ModuleNeedsStartup(dependency)) continue;
-                    for(int d = 0; d < program->module_count; d++)
-                        if(dependency == &program->modules[d] &&
-                           !startup_path[d]) {
-                            startup_path[d] = 1;
-                            changed = 1;
-                        }
-                }
+            for(int f = 0; active && f < module->function_count; f++)
+                if(module->functions[f].is_global_initializer)
+                    mark(&keep[m][f], &changed);
+            for(int i = 0; active && i < module->import_count; i++) {
+                const ZirModule *dependency = module->imports[i].resolved_module;
+                int d = module_index(program, dependency);
+                if(d >= 0 && ModuleNeedsStartup(dependency))
+                    mark(&startup_path[d], &changed);
+            }
             for(int f = 0; f < module->function_count; f++) {
                 const ZirFunction *function = &module->functions[f];
                 if(!keep[m][f])
@@ -1684,156 +1693,72 @@ resolve_reachability:
                     const ZirExpr *expression = &function->exprs[e];
                     const ZirModule *owner = NULL;
                     const ZirFunction *callee = NULL;
-                    int target_m = -1, target_f = -1;
                     if(expression->kind != ZIR_EXPR_CALL &&
                        !expression->is_function_value)
                         continue;
                     if(expression->kind == ZIR_EXPR_CALL &&
-                       expression->slot_type[0] != '\0')
-                        continue;
-                    if(expression->kind == ZIR_EXPR_CALL &&
-                       builtin_call(expression->name))
+                       (expression->slot_type[0] != '\0' ||
+                        builtin_call(expression->name)))
                         continue;
                     /* A module's bound host capability keeps its program
                      * export even where an imported module's function of
                      * the same name takes the call: the binding is still
                      * verified. Without this such a bundle failed
                      * verification, so no bundle that was valid changes. */
+                    const ZirImport *external = NULL, *unbound = NULL;
                     for(int i = 0; i < module->import_count; i++) {
-                        const ZirImport *bound = &module->imports[i];
-                        if(bound->kind != ZIR_IMPORT_EXTERN ||
-                           bound->extern_kind != ZIR_EXTERN_HOST ||
-                           strncmp(bound->target, "ziran:", 6) != 0 ||
-                           strcmp(bound->name, expression->name) != 0)
+                        const ZirImport *import = &module->imports[i];
+                        if(import->kind != ZIR_IMPORT_EXTERN ||
+                           strcmp(import->name, expression->name) != 0)
                             continue;
-                        for(int candidate = 0;
-                            candidate < program->module_count;
-                            candidate++) {
-                            const ZirModule *provider =
-                                &program->modules[candidate];
-                            if(strcmp(provider->name, bound->target + 6) != 0)
-                                continue;
-                            for(int export = 0;
-                                export < provider->function_count;
-                                export++) {
-                                const ZirFunction *implementation =
-                                    &provider->functions[export];
-                                if(strcmp(implementation->name,
-                                          bound->extern_symbol) == 0 &&
-                                   implementation->exported &&
-                                   !implementation->is_extern &&
-                                   !keep[candidate][export]) {
-                                    keep[candidate][export] = 1;
-                                    changed = 1;
-                                }
-                            }
-                        }
+                        external = import;
+                        if(import->extern_kind == ZIR_EXTERN_HOST &&
+                           strncmp(import->target, "ziran:", 6) == 0 &&
+                           keep_host_provider(program, import, keep, &changed) != 1 &&
+                           unbound == NULL)
+                            unbound = import;
                     }
                     if(ResolveFunction(module, expression->name,
-                                       &owner, &callee) != 1 ||
-                       owner == NULL || callee == NULL) {
-                        int external = 0;
-                        const ZirImport *external_import = NULL;
-                        for(int i = 0; i < module->import_count; i++)
-                            if(module->imports[i].kind == ZIR_IMPORT_EXTERN &&
-                               strcmp(module->imports[i].name,
-                                      expression->name) == 0) {
-                                external = 1;
-                                const ZirImport *import = &module->imports[i];
-                                external_import = import;
-                                if(import->extern_kind == ZIR_EXTERN_HOST &&
-                                   strncmp(import->target, "ziran:", 6) == 0) {
-                                    int found = 0;
-                                    for(int candidate = 0;
-                                        candidate < program->module_count;
-                                        candidate++) {
-                                        const ZirModule *provider =
-                                            &program->modules[candidate];
-                                        if(strcmp(provider->name,
-                                                  import->target + 6) != 0)
-                                            continue;
-                                        for(int export = 0;
-                                            export < provider->function_count;
-                                            export++) {
-                                            const ZirFunction *implementation =
-                                                &provider->functions[export];
-                                            if(strcmp(implementation->name,
-                                                      import->extern_symbol) == 0 &&
-                                               implementation->exported &&
-                                               !implementation->is_extern) {
-                                                found++;
-                                                if(!keep[candidate][export]) {
-                                                    keep[candidate][export] = 1;
-                                                    changed = 1;
-                                                }
-                                            }
-                                        }
-                                    }
-                                    if(found != 1) {
-                                        Diagnostic(import->span, "zx.bind",
-                                                   "bound Ziran host provider is missing or ambiguous: %s",
-                                                   import->name);
-                                        goto failed;
-                                    }
-                                }
-                            }
-                        if(external) {
-                            /* A native link resolves a foreign call to the
-                             * program export with the same linker symbol.
-                             * Host-library imports carry no stripped C
-                             * symbol; their symbol is the declared name. */
-                            const char *symbol =
-                                external_import->extern_symbol[0] ?
-                                external_import->extern_symbol :
-                                external_import->name;
-                            if(native)
-                                for(int candidate = 0;
-                                    candidate < program->module_count;
-                                    candidate++)
-                                    for(int export = 0; export <
-                                        program->modules[candidate].function_count;
-                                        export++) {
-                                        const ZirFunction *implementation =
-                                            &program->modules[candidate].functions[export];
-                                        const char *provided =
-                                            implementation->export_symbol[0] ?
-                                            implementation->export_symbol :
-                                            implementation->name;
-                                        if(implementation->exported &&
-                                           !implementation->is_extern &&
-                                           strcmp(provided, symbol) == 0 &&
-                                           !keep[candidate][export]) {
-                                            keep[candidate][export] = 1;
-                                            changed = 1;
-                                        }
-                                    }
+                                       &owner, &callee) == 1 &&
+                       owner != NULL && callee != NULL) {
+                        if(keep_function(program, owner, callee, keep, &changed))
                             continue;
-                        }
-                        Diagnostic(expression->span, "zx.call",
-                                   "unresolved portable call: %s",
-                                   expression->name);
-                        goto failed;
-                    }
-                    for(int candidate = 0; candidate < program->module_count;
-                        candidate++)
-                        if(owner == &program->modules[candidate])
-                            target_m = candidate;
-                    if(target_m >= 0)
-                        for(int candidate = 0;
-                            candidate < program->modules[target_m].function_count;
-                            candidate++)
-                            if(callee == &program->modules[target_m].functions[candidate])
-                                target_f = candidate;
-                    if(target_f < 0) {
                         Diagnostic(expression->span, "zx.call",
                                    "call is outside the linked program: %s",
                                    expression->name);
                         goto failed;
                     }
-                    if(!keep[target_m][target_f]) {
-                        keep[target_m][target_f] = 1;
-                        changed = 1;
+                    if(unbound != NULL) {
+                        Diagnostic(unbound->span, "zx.bind",
+                                   "bound Ziran host provider is missing or ambiguous: %s",
+                                   unbound->name);
+                        goto failed;
                     }
+                    if(external == NULL) {
+                        Diagnostic(expression->span, "zx.call",
+                                   "unresolved portable call: %s",
+                                   expression->name);
+                        goto failed;
+                    }
+                    /* A native link resolves a foreign call to the program
+                     * export with the same linker symbol. Host-library
+                     * imports carry no stripped C symbol; their symbol is
+                     * the declared name. */
+                    const char *symbol = external->extern_symbol[0] ?
+                                         external->extern_symbol : external->name;
+                    for(int candidate = 0; native && candidate < program->module_count;
+                        candidate++)
+                        for(int export = 0; export <
+                            program->modules[candidate].function_count; export++) {
+                            const ZirFunction *implementation =
+                                &program->modules[candidate].functions[export];
+                            const char *provided = implementation->export_symbol[0] ?
+                                                   implementation->export_symbol :
+                                                   implementation->name;
+                            if(implementation->exported && !implementation->is_extern &&
+                               strcmp(provided, symbol) == 0)
+                                mark(&keep[candidate][export], &changed);
+                        }
                 }
             }
         }
@@ -2066,20 +1991,13 @@ resolve_reachability:
             const ZirModule *module = &program->modules[m];
             for(int i = 0; i < module->import_count; i++) {
                 const ZirModule *dependency = module->imports[i].resolved_module;
-                if((module->imports[i].kind != ZIR_IMPORT_OPEN &&
-                    module->imports[i].kind != ZIR_IMPORT_MODULE) ||
-                   dependency == NULL ||
-                   (!(module->law_count || module->proof_count) &&
-                    !uses_imported_constant(&uses, module, keep[m], keep_types[m],
-                                           keep_defines[m],
-                                           keep_defines[dependency - program->modules],
-                                           dependency)))
-                    continue;
-                for(int d = 0; d < program->module_count; d++)
-                    if(dependency == &program->modules[d] && !keep_modules[d]) {
-                        keep_modules[d] = 1;
-                        changed = 1;
-                    }
+                int d = module_index(program, dependency);
+                if((module->imports[i].kind == ZIR_IMPORT_OPEN ||
+                    module->imports[i].kind == ZIR_IMPORT_MODULE) && d >= 0 &&
+                   (module->law_count || module->proof_count ||
+                    uses_imported_constant(&uses, module, keep[m], keep_types[m],
+                                           keep_defines[m], keep_defines[d], dependency)))
+                    mark(&keep_modules[d], &changed);
             }
         }
     }
@@ -2093,22 +2011,15 @@ resolve_reachability:
             const ZirModule *module = &program->modules[m];
             for(int i = 0; i < module->import_count; i++) {
                 const ZirImport *import = &module->imports[i];
-                if(import->resolved_module == NULL)
-                    continue;
+                int d = module_index(program, import->resolved_module);
                 /* A plain import keeps a re-exporting module only while it
                  * still leads to something retained. */
-                if(!import->is_using &&
-                   ((import->kind != ZIR_IMPORT_OPEN &&
-                     import->kind != ZIR_IMPORT_MODULE) ||
-                    !reexports_kept(program, import->resolved_module, keep,
-                                    keep_types)))
-                    continue;
-                for(int d = 0; d < program->module_count; d++)
-                    if(import->resolved_module == &program->modules[d] &&
-                       !keep_modules[d]) {
-                        keep_modules[d] = 1;
-                        changed = 1;
-                    }
+                if(d >= 0 && (import->is_using ||
+                              ((import->kind == ZIR_IMPORT_OPEN ||
+                                import->kind == ZIR_IMPORT_MODULE) &&
+                               reexports_kept(program, import->resolved_module, keep,
+                                              keep_types))))
+                    mark(&keep_modules[d], &changed);
             }
         }
     }
@@ -2126,7 +2037,7 @@ resolve_reachability:
     for(int m = 0; m < program->module_count; m++) {
         const ZirModule *source = &program->modules[m];
         ZirModule *target;
-        int kept_functions = 0, kept_types = 0, kept_imports = 0;
+        int kept_functions = 0, kept_types = 0;
         int kept_defines = 0;
         for(int f = 0; f < source->function_count; f++)
             kept_functions += keep[m][f] != 0;
@@ -2215,30 +2126,22 @@ resolve_reachability:
                 if(keep_types[m][t])
                     target->types[next++] = source->types[t];
         }
-        for(int i = 0; i < source->import_count; i++)
-            kept_imports += source->law_count || source->proof_count || source->imports[i].is_using ||
-                           import_has_startup_path(program, startup_path,
-                                                   &source->imports[i]) ||
-                           import_is_used(program, source, keep[m], keep, &uses,
-                                           keep_types, keep_defines,
-                                           &source->imports[i]) ||
-                           law_names_import(source, &source->imports[i]);
-        if(kept_imports > 0) {
-            target->imports = calloc((size_t)kept_imports,
+        if(source->import_count > 0) {
+            target->imports = calloc((size_t)source->import_count,
                                      sizeof(*target->imports));
             if(target->imports == NULL)
                 goto failed;
-            target->import_count = target->import_cap = kept_imports;
-            int next_import = 0;
-            for(int i = 0; i < source->import_count; i++)
-                if(source->law_count || source->proof_count || source->imports[i].is_using ||
-                   import_has_startup_path(program, startup_path,
-                                           &source->imports[i]) ||
-                   import_is_used(program, source, keep[m], keep, &uses, keep_types,
-                                  keep_defines,
-                                  &source->imports[i]) ||
-                   law_names_import(source, &source->imports[i]))
-                    target->imports[next_import++] = source->imports[i];
+            target->import_cap = source->import_count;
+        }
+        for(int i = 0; i < source->import_count; i++) {
+            const ZirImport *import = &source->imports[i];
+            int d = module_index(program, import->resolved_module);
+            if(source->law_count || source->proof_count || import->is_using ||
+               (d >= 0 && startup_path[d]) ||
+               import_is_used(program, source, keep[m], keep, &uses, keep_types,
+                              keep_defines, import) ||
+               law_names_import(source, import))
+                target->imports[target->import_count++] = *import;
         }
     }
     /* Parse-time imports can load dependencies before their caller, while
@@ -2299,24 +2202,6 @@ COMPILER_SCRATCH_RETURN(static, ZirProgram *, link_checked_entry,
     LinkCheckedEntryBuffers, RECOVERABLE, free,
     link_checked_entry_with_buffers(program, entry_module, entry_function, native, buffers))
 
-ZirProgram *
-BundleLink_in_context(const ZirProgram *program, const char *entry_module,
-           const char *entry_function)
-{
-    ZirProgram *optimized = copy_program(program);
-    if(optimized == NULL) return NULL;
-    for(int m = 0; m < optimized->module_count; m++)
-        for(int f = 0; f < optimized->modules[m].function_count; f++)
-            if(!prune_function(&optimized->modules[m].functions[f])) {
-                ProgramFree(optimized);
-                return NULL;
-            }
-    ZirProgram *linked = link_checked_entry(optimized, entry_module,
-                                            entry_function, 0);
-    ProgramFree(optimized);
-    return linked;
-}
-
 static ZirProgram *
 native_link(const ZirProgram *program, const char *entry_module,
             const char *entry_function, int native)
@@ -2333,6 +2218,13 @@ native_link(const ZirProgram *program, const char *entry_module,
                                             entry_function, native);
     ProgramFree(optimized);
     return linked;
+}
+
+ZirProgram *
+BundleLink_in_context(const ZirProgram *program, const char *entry_module,
+           const char *entry_function)
+{
+    return native_link(program, entry_module, entry_function, 0);
 }
 
 ZirProgram *

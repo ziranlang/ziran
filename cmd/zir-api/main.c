@@ -518,7 +518,8 @@ int
 main(int argc, char **argv)
 {
     const char *root = NULL;
-    const char *module_paths[64];
+    const char **module_paths = CommandModulePaths(argc);
+    if(module_paths == NULL) return 1;
     const char *defines[64];
     int module_path_count = 0, first_file = 0, json = 0, result = 1;
     int define_count = 0;
@@ -535,7 +536,7 @@ main(int argc, char **argv)
         COMMAND_TEXT("--max-symbols", max_symbols),
         COMMAND_TEXT("--max-bytes", max_bytes),
         COMMAND_TEXT("--root", root),
-        COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),
+        COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
         COMMAND_LIST("--define", defines, define_count, 64, valid_define),
     };
     first_file = ReadCommandOptions(argc, argv, options,

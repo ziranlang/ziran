@@ -107,28 +107,28 @@ zir_f_5116a9a569c28f15_ModuleAddProof(ZirModule* m, uint8_t* name, uint8_t* body
     return zir_foreign_zir_f_5116a9a569c28f15_ModuleAddProof(m, name, body, span);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_4527d672
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_4527d672
+#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_793380be
+#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_calloc_793380be
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(uint64_t count, uint64_t size) __asm__("_calloc");
+uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(size_t count, size_t size) __asm__("_calloc");
 #else
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(uint64_t count, uint64_t size) __asm__("calloc");
+uint8_t* zir_foreign_zir_f_5116a9a569c28f15_calloc(size_t count, size_t size) __asm__("calloc");
 #endif
 static uint8_t*
-zir_f_5116a9a569c28f15_calloc(uint64_t count, uint64_t size)
+zir_f_5116a9a569c28f15_calloc(size_t count, size_t size)
 {
     return zir_foreign_zir_f_5116a9a569c28f15_calloc(count, size);
 }
 #endif
-#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_28818a0e
-#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_28818a0e
+#ifndef ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_bcfdb19b
+#define ZIR_FOREIGN_zir_f_5116a9a569c28f15_realloc_bcfdb19b
 #ifdef __APPLE__
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, uint64_t size) __asm__("_realloc");
+uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size) __asm__("_realloc");
 #else
-uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, uint64_t size) __asm__("realloc");
+uint8_t* zir_foreign_zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size) __asm__("realloc");
 #endif
 static uint8_t*
-zir_f_5116a9a569c28f15_realloc(uint8_t* data, uint64_t size)
+zir_f_5116a9a569c28f15_realloc(uint8_t* data, size_t size)
 {
     return zir_foreign_zir_f_5116a9a569c28f15_realloc(data, size);
 }
@@ -2613,7 +2613,7 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         } else if ((int64_t)(operand).length > 0LL) {
             return false;
         }
-        uint8_t* value_16 = zir_f_5116a9a569c28f15_realloc((uint8_t*)(p->steps), (uint64_t)((uint64_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * (uint64_t)(sizeof(ZirProofStep))));
+        uint8_t* value_16 = zir_f_5116a9a569c28f15_realloc((uint8_t*)(p->steps), (size_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * sizeof(ZirProofStep));
         ZirProofStep* steps = (ZirProofStep*)(value_16);
         if (steps == ((void *)0)) {
             return false;
@@ -2673,7 +2673,7 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
     Signature bindings = {0};
     bool ok = compiler_proof_ParseSignature(args, &(bindings));
     if (law->claim == ((void *)0) && ok) {
-        uint8_t* value_14 = zir_f_5116a9a569c28f15_calloc(1ULL, sizeof(ZirFunction));
+        uint8_t* value_14 = zir_f_5116a9a569c28f15_calloc(1, sizeof(ZirFunction));
         law->claim = (ZirFunction*)(value_14);
         if (law->claim == ((void *)0)) {
             return false;
@@ -3453,14 +3453,14 @@ PrepareLawProofs(ZirProgram** programs, int32_t count)
 }
 
 int32_t
-EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size)
+EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
 {
     Slice out = compiler_ir_CBuffer(detail, size);
     if (law->claim == ((void *)0) || ((ZirProof*)law->proof) == ((void *)0)) {
         compiler_ir_CopyText(out, StringLiteral("theorem has no proof certificate"));
         return 2;
     }
-    uint8_t* value_0 = zir_f_5116a9a569c28f15_calloc(1ULL, sizeof(Context));
+    uint8_t* value_0 = zir_f_5116a9a569c28f15_calloc(1, sizeof(Context));
     Context* c = (Context*)(value_0);
     if (c == ((void *)0)) {
         compiler_ir_CopyText(out, StringLiteral("out of memory checking theorem"));

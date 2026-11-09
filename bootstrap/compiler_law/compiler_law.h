@@ -27,7 +27,7 @@ struct Spelled {
 };
 #endif
 int32_t effect_rank(uint8_t* name);
-int32_t EvaluateEffectLaw(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size);
+int32_t EvaluateEffectLaw(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size);
 void DeriveEffectClasses(ZirProgram** programs, int32_t count);
 
 #ifdef __cplusplus

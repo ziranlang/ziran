@@ -80,7 +80,8 @@ main(int argc, char **argv)
     ProgramSet set = {0};
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
-    const char *module_paths[64];
+    const char **module_paths = CommandModulePaths(argc);
+    if(module_paths == NULL) return 1;
     int module_path_count = 0;
     const char *defines[64];
     int define_count = 0;
@@ -107,7 +108,7 @@ main(int argc, char **argv)
             }
         } else if(strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
             root = argv[++i];
-        } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc && module_path_count < 64) {
+        } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc) {
             module_paths[module_path_count++] = argv[++i];
         } else if(strcmp(argv[i], "--define") == 0 && i + 1 < argc &&
                   define_count < 64 && valid_define(argv[i + 1])) {

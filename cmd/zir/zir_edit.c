@@ -1,3 +1,4 @@
+#include <limits.h>
 #include "zir_edit.h"
 #include "zir_document.h"
 #include "zir_semantic.h"
@@ -24,7 +25,7 @@ typedef struct Edit {
     int parent,fd,count;
     size_t size,candidate_size;
     struct stat info;
-    char *module_paths[32], *module_roots[32];
+    char **module_paths, **module_roots;
     int module_count, define_count;
     char *defines[32];
     EditPart parts[EDIT_COUNT];
@@ -103,6 +104,7 @@ void ZiranEditClose(void *handle) {
     Edit *e=handle; if(!e) return;
     for(int i=0;i<e->count;i++) free(e->parts[i].replacement);
     for(int i=0;i<e->module_count;i++) { free(e->module_paths[i]); free(e->module_roots[i]); }
+    free(e->module_paths); free(e->module_roots);
     for(int i=0;i<e->define_count;i++) free(e->defines[i]);
     if(e->fd>=0) close(e->fd); if(e->parent>=0) close(e->parent);
     free(e->root); free(e->path); free(e->source); free(e->candidate); free(e->leaf); free(e);
@@ -142,7 +144,7 @@ void *ZiranEditOpen(String root,String path,String hash) {
     return e;
 }
 int ZiranEditModulePath(void *handle,String value) {
-    Edit *e=handle; if(!e || e->module_count==32 || e->candidate) return fail("too many module paths or invalid edit state");
+    Edit *e=handle; if(!e || e->candidate) return fail("invalid edit state");
     char *path=copy(value); if(!path) return fail("invalid module path");
     char *equals=strchr(path,'='); const char *directory=equals ? equals+1 : path;
     char *canonical=realpath(directory,NULL); struct stat info;
@@ -151,6 +153,13 @@ int ZiranEditModulePath(void *handle,String value) {
     char *argument=malloc(prefix+strlen(canonical)+1);
     if(!argument) { free(path); free(canonical); return fail("out of memory"); }
     memcpy(argument,path,prefix); strcpy(argument+prefix,canonical); free(path);
+    if(e->module_count == INT_MAX) { free(argument); free(canonical); return fail("module path storage overflow"); }
+    char **paths=realloc(e->module_paths, ((size_t)e->module_count+1)*sizeof(*paths));
+    if(!paths) { free(argument); free(canonical); return fail("out of memory"); }
+    e->module_paths=paths;
+    char **roots=realloc(e->module_roots, ((size_t)e->module_count+1)*sizeof(*roots));
+    if(!roots) { free(argument); free(canonical); return fail("out of memory"); }
+    e->module_roots=roots;
     e->module_paths[e->module_count]=argument; e->module_roots[e->module_count++]=canonical; return 1;
 }
 int ZiranEditDefine(void *handle,String name) {

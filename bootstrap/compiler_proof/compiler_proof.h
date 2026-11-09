@@ -128,7 +128,7 @@ struct __type_838711075b90279a {
 ZirLaw* FindVisibleLaw(ZirModule* m, uint8_t* name, ZirModule** owner);
 int32_t ParseProofDeclaration(ZirModule* m, uint8_t* source, ZirSourceSpan span);
 int32_t PrepareLawProofs(ZirProgram** programs, int32_t count);
-int32_t EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, uint64_t size);
+int32_t EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size);
 
 #ifdef __cplusplus
 }

@@ -32,6 +32,9 @@ struct ZxNative {
     int has_result;
     void (*start)(void);
     int64_t (*run)(void);
+    char *linked_data;
+    size_t linked_data_size;
+    char *linked_global;
     long long *budget;
     char **floor;
     unsigned long *stack_mask;

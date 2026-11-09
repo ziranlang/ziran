@@ -239,7 +239,10 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         values[environment] = libraries
         environment += 1
     }
-    child: [260]string
+    extra: s64 = 0
+    if current != null { extra = current.export_count }
+    child := PkgStrings(arguments.count + extra + 8)
+    if child.count != arguments.count + extra + 8 { return PkgFail("cannot allocate arguments") }
     count: s32 = 0
     child[count] = binary
     count += 1
@@ -264,7 +267,6 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
         if !(build && (part == "--target=c" || part == "--target=go")) {
-            if count >= 259 { return PkgFail("too many arguments") }
             child[count] = part
             count += 1
             if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
@@ -280,7 +282,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         if !PathExists(entry) && current.export_count > 0 &&
            (check || command == "ir" || command == "api") {
             index = 0
-            while index < current.export_count && count < 259 {
+            while index < current.export_count {
                 child[count] = PkgJoin3(root, "/", current.exports[index].value)
                 seen: bool = false
                 earlier: s32 = 0
@@ -505,10 +507,11 @@ PkgRunSelectedToolOptions :: (root: string, locked: *PkgLock, current: *PkgManif
         count += 1
         index += 1
     }
-    child: [257]string
+    child := PkgStrings(arguments.count + 8)
+    if child.count != arguments.count + 8 { return PkgFail("cannot allocate arguments") }
     child[0] = PkgJoin3(item.path, "/", relative)
     index = 0
-    while index < cast(s32)arguments.count && index < 256 {
+    while index < cast(s32)arguments.count {
         child[index + 1] = arguments[index]
         index += 1
     }
@@ -533,6 +536,9 @@ PkgPathWithin :: (path: string, base: string) -> s64 {
 }
 
 PkgGeneratedRoots :: (root: string, locked: *PkgLock, current: *PkgManifest, folders: []string) -> bool {
+    current.generated_count = 0
+    current.generated = PkgStrings(folders.count)
+    if current.generated.count != folders.count { return false }
     for folder: folders {
         at: s64 = 0
         while at < cast(s64)folder.count && folder[at] != cast(u8)61 &&
@@ -717,18 +723,19 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     project: bool = PkgHasArgument(flags, "--project") || implied
     locked_mode: bool = PkgHasArgument(flags, "--locked")
     offline: bool = PkgHasArgument(flags, "--offline")
-    filtered: [256]string
+    filtered := PkgStrings(arguments.count)
+    if filtered.count != arguments.count { return PkgFail("cannot allocate arguments") }
     count: s32 = 0
     // In a project, --module-path DIR adds a folder of the root package's
     // own modules, such as one a build step generates.
-    generated: [16]string
+    generated := PkgStrings(arguments.count)
+    if generated.count != arguments.count { return PkgFail("cannot allocate arguments") }
     generated_count: s32 = 0
     index: s32 = 1
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
         if project && index < separator && part == "--module-path" {
             if index + 1 >= separator { return PkgFail("--module-path needs a folder") }
-            if generated_count >= 16 { return PkgFail("at most 16 --module-path folders") }
             generated[generated_count] = arguments[index + 1]
             generated_count += 1
             index += 2
@@ -736,7 +743,6 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         }
         if index >= separator ||
            (part != "--project" && part != "--locked" && part != "--offline") {
-            if count >= 256 { return PkgFail("too many arguments") }
             filtered[count] = part
             count += 1
         }
@@ -781,10 +787,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
                     return PkgFail("cannot build pinned Ziran compiler")
                 }
             }
-            forwarded: [257]string
+            forwarded := PkgStrings(arguments.count + 1)
+            if forwarded.count != arguments.count + 1 { return PkgFail("cannot allocate arguments") }
             forwarded[0] = pinned
             index = 0
-            while index < cast(s32)arguments.count && index < 256 {
+            while index < cast(s32)arguments.count {
                 forwarded[index + 1] = arguments[index]
                 index += 1
             }
@@ -865,7 +872,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     // hands its program's run, build, check, and install to that tool.
     whole: bool = lifecycle && current != null && !PkgHasTarget(flags[1:])
     if whole && current.tool.count > 0 && command != "install" {
-        passed: [289]string
+        passed := PkgStrings(cast(s64)count + 2 * generated_count + 1)
+        if passed.count != cast(s64)count + 2 * generated_count + 1 { return 2 }
         passed[0] = command
         passed_count: s32 = 1
         // The tool runs the project's commands, so it gets the folders too.
@@ -889,12 +897,13 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         program: string = PkgNativeBuild(root, locked, current, launcher)
         if program.count == 0 { return 2 }
         if command == "build" { return 0 }
-        run: [257]string
+        run := PkgStrings(cast(s64)count + 1)
+        if run.count != cast(s64)count + 1 { return PkgFail("cannot allocate arguments") }
         run[0] = program
         run_count: s32 = 1
         skipped: bool = false
         index = 0
-        while index < count && run_count < 256 {
+        while index < count {
             if filtered[index] == "--" && !skipped { skipped = true }
             else {
                 run[run_count] = filtered[index]
@@ -907,7 +916,8 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
     }
     if command == "install" {
         prefix: string = PkgJoin(PkgGetenv("HOME"), "/.local")
-        passed: [257]string
+        passed := PkgStrings(cast(s64)count + 1)
+        if passed.count != cast(s64)count + 1 { return 2 }
         passed[0] = "install"
         passed_count: s32 = 1
         index = 0
@@ -952,7 +962,11 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         program_file := ""
         map := ""
         libraries := PkgGetenv("LDLIBS")
-        search: [65]string
+        search_count: s64 = 1
+        if current != null { search_count += current.root_count }
+        if locked != null { search_count += locked.count }
+        search := PkgStrings(search_count)
+        if search.count != search_count { return 2 }
         searches: s64 = 0
         if project {
             binary = PkgJoin3(PkgToolDirectory(launcher, locked.tool_path, compiler), "/", compiler)
@@ -970,9 +984,6 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             index = 0
             while index < locked.count {
                 if !locked.packages[index].source {
-                    // search is sized for the lock capacity plus std; refuse
-                    // instead of writing past it if that coupling breaks.
-                    if searches >= search.count { return PkgFail("script search path limit exceeded") }
                     search[searches] = locked.packages[index].path
                     searches += 1
                 }
@@ -990,7 +1001,6 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
             if !DirectoryExists(standard) { standard = PkgJoin(ParentDirectory(binary), "/../../../std") }
         }
         if DirectoryExists(standard) {
-            if searches >= search.count { return PkgFail("script search path limit exceeded") }
             search[searches] = standard; searches += 1
         }
         return ScriptRun(filtered[0:count], binary, root, program_root, program_file,

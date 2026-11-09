@@ -581,7 +581,10 @@ read the saved file and leave it unchanged.
 ## Imports
 
 For ordinary imports, pass the entry file and a library directory with
-`--module-path DIR` (repeat for multiple directories). `check`, `ir`,
+`--module-path DIR` (repeat for multiple directories). There is no fixed
+module-root count limit; storage grows with the inputs, subject to available
+memory and operating-system argument limits. Search order remains the order
+of the supplied paths. `check`, `ir`,
 `api`, `build`, and `bundle` load extensionless `#import "module"` dependencies
 transitively from `.zi` or saved `.zir`. For example:
 

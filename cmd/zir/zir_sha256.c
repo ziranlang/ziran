@@ -182,6 +182,11 @@ typedef void (*CompressBlocks)(uint32_t state[8], const unsigned char *block, si
 static CompressBlocks
 compressor(void)
 {
+#ifdef __EMSCRIPTEN__
+    /* A wasm32 host has no native SHA instruction provider. Avoid caching a
+     * function-table pointer through a C atomic in the Emscripten build. */
+    return compress_portable;
+#else
     static _Atomic(CompressBlocks) chosen;
     CompressBlocks compress = atomic_load_explicit(&chosen, memory_order_relaxed);
     if(compress == NULL) {
@@ -194,6 +199,7 @@ compressor(void)
         atomic_store_explicit(&chosen, compress, memory_order_relaxed);
     }
     return compress;
+#endif
 }
 
 void

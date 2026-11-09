@@ -212,6 +212,56 @@ overlapping declaration, format rejection and instance isolation cases. With
 `ZIRAN_ZX26_ROOT` naming a built toolchain from before version 27, it also
 checks that host opens current plain bundles and refuses composed add-ons.
 
+## Component identity, state, and replacement
+
+A component is an ordinary `.zx` entry plus its declared host capabilities;
+Ziran has no UI- or application-specific component names. `BundleCodeIdentity`
+returns a 32-byte content identity for the bundle's immutable program bytes and
+the exact supplied library identities, while `BundleEntryModuleName` and
+`BundleEntryFunctionName` expose the entry identity. `BundleCapabilityAbiAt`
+returns each capability's module, function, signature, argument types, return
+type, varargs flag, and argument-read flag. `BundleAbiCompatible` requires the
+same entry identity and entry signature and the same capability ABI set in both
+directions. Format version checking happens while opening the bundle.
+The `std/bundle_host` wrappers expose the same current C ABI to bundle code.
+
+`BundleComponentOpen` retains immutable bundle code, copies the host bindings,
+and creates one independently initialized portable-VM instance with a positive
+work budget. Opening another component, including another instance of the same
+bundle, does not share or reset its globals. The host owns component and handle
+lifetimes; handles become stale when their generation is replaced or their
+component closes, and running a stale handle fails without touching the current
+instance.
+
+`BundleInstanceExportState` snapshots all global values as recursive
+`BundleStateValue` data. Owned strings, fixed arrays, records, enums, scalar
+lanes, and SIMD vectors are deep-copied; pointers, slices, growable `Vec`
+backing storage, and other borrowed or host resources are rejected. Snapshots
+are bounded by the VM's representation depth and 16 MiB of copied payload.
+`BundleStateValueBytes` reports that exported payload size, not allocator
+overhead. A migration callback receives the old snapshot and a mutable snapshot
+of the replacement's initialized state, then `BundleInstanceImportState`
+validates and converts every value before changing any target global.
+
+`BundleComponentReplace` is transactional at the component boundary. It checks
+the ABI, retains the replacement, initializes it under the component budget,
+exports both states, migrates and imports, and calls the optional verification
+callback while the old instance remains live. Only after all those steps pass
+does it close the old instance, retain the replacement as current, and advance
+the handle generation. ABI, initialization, state, migration, import, or
+verification failure leaves the previous instance and bundle live. Callers
+serialize run and replacement operations for one component; distinct components
+remain independent. `tests/bundle_component.sh` builds source through checked
+IR into `.zx`, proves independent state, successful nested-state migration,
+rollback on migration, schema, resource, initialization, and verification
+failure, stale-reference rejection, typed-ABI rejection, and an unrelated live
+component. It prints environment-dependent load, instantiate, and swap timings.
+
+`BundleComponentLiveValueBytes` reports the live portable instance's global
+slot storage plus VM-owned record, array, and string payload. It deliberately
+does not claim shared immutable code, bundle bytes, host allocations, compiler
+cache, or total process RSS.
+
 ## Native execution
 
 On Linux and Android hosts with x86-64, 32-bit ARM or ARM64 processors,
@@ -268,12 +318,14 @@ objects to link into the page beside the WebAssembly `libziran`.
 Each program's constructor registers it under the identity above. When a
 page opens a bundle with that identity, it opens without checking again and
 `BundleInstantiate` runs it as the linked code; every other bundle runs on
-the portable VM. The program's globals live in a data section of their own,
-copied back to their first contents before each instance starts, so one
-instance at a time runs the linked code; another instance opened beside it
-runs the checked program on the VM. `#parallel for` regions run in place,
-and runtime failures stop the run as natively. `tests/zx_linked_web.sh`
-checks this end to end with emcc and node.
+the portable VM. The immutable program and its compiled services are shared,
+while every linked instance owns a private copy of the global data section and
+swaps that copy in only at its run boundary. `#parallel for` regions run in
+place, and runtime failures stop the run as natively.
+`tests/zx_linked_web.sh` checks independent coexistent linked instances end to
+end with emcc and node. Lifecycle components use the portable VM explicitly,
+so nested state and replacement semantics are the same in native, WebAssembly,
+and linked-browser hosts.
 
 ## WebAssembly execution tier
 
@@ -283,11 +335,16 @@ A host that installs a WebAssembly provider with `ZxWasmSetPlatform`
 with the same emitter as the `zi2wasm` tool, instantiates it through
 the provider, and counts the run budget like the native tier, one
 function entry and one loop iteration at a time. The current tier
-lowers the scalar subset only; a bundle with host bindings or other
-out-of-subset constructs runs on the portable VM instead, and a host
-without a provider is unchanged. `tests/zx_wasm_engine_test.c` checks
-the seam and fallback, and `tests/zx_wasm_web.sh` runs a bundle end to
-end through the wasm-built library and a JavaScript provider.
+supports scalars, owned strings, fixed arrays, records, and typed
+`s64 -> s64` host capabilities. Each instance keeps its own bindings and
+linear memory; a state table identifies its globals for owned export and
+import. Other constructs run on the portable VM, as do hosts without a
+provider. `tests/zx_wasm_engine_test.c` checks the seam and fallback, and
+`tests/zx_web_lifecycle.sh` runs source through checked IR and `.zx` in a
+private headless Chromium without Node. It checks actual Wasm execution,
+nested state migration through the provider's memory interface, independent
+linked instances, and portable component replacement and rollback in both
+browser hosts.
 
 ## Embedded files and application hosts
 

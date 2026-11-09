@@ -22,3 +22,8 @@ do not import a UI library.
 - Test with `make check` (every check, run in parallel on `BUILD_QUEUE_JOBS`)
   and `make check-bootstrap`; `make check CHECK_FILTER=text` reruns only the
   checks whose name contains `text`. Full logs are in `build/check-logs/`.
+
+- Module roots are ordinary repeatable search folders. Keep package manifests,
+  CLI forwarding, editor paths and loader storage dynamically sized; do not add
+  a folder-count cap or library-specific compiler handling. Preserve resolution
+  ordering and use normal input-size, allocation and operating-system bounds.

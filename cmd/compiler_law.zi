@@ -62,7 +62,7 @@ Find :: (text: string, wanted: string) -> s64 {
     return -1
 }
 
-Say :: (detail: *u8, size: u64, first: string, second: string = "", third: string = "",
+Say :: (detail: *u8, size: usize, first: string, second: string = "", third: string = "",
          fourth: string = "", fifth: string = "") {
     parts: [5]string = .{first, second, third, fourth, fifth}
     output := IR.CBuffer(detail, size)
@@ -101,7 +101,7 @@ BodyCallsExternal :: (module: *IR.ZirModule, fn: *IR.ZirFunction) -> bool {
     return false
 }
 
-EvaluateEffect :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+EvaluateEffect :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
     payload := Trim(IR.BufferText(law.payload[:]))
     comparison := Find(payload, "==")
     if comparison >= 0 {
@@ -219,7 +219,7 @@ SweepEffects :: (program: *IR.ZirProgram) -> bool {
 effect_rank :: (name: *u8) -> s32 { return Rank(IR.CText(name)) }
 
 #program_export
-EvaluateEffectLaw :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+EvaluateEffectLaw :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
     return EvaluateEffect(module, law, detail, size)
 }
 

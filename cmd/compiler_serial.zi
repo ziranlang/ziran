@@ -1,0 +1,929 @@
+// Saved IR: a checked program as bytes. One walk per record writes,
+// measures and reads it, so each field's rule is stated once, in saved
+// order. The bytes are "ZIR\0", a little-endian version word, the module
+// count and the modules. Numbers are unsigned LEB128 in their shortest
+// form; signed numbers zigzag, so -1, which marks absent references, is one
+// byte. A string is 0 when empty, an earlier string's index times two plus
+// one, or a new string's length times two and its bytes. A span is a delta
+// from the one before. C owns the storage the walk fills and moves the
+// bytes; zir_serial.c calls Write and Read.
+Ir :: #import "compiler_ir";
+Services :: #import "compiler_services";
+Text :: #import "compiler_text";
+Type :: #import "compiler_type";
+#import "vec"
+
+SavedWritten :: struct { ok: bool; problem: string; bytes: s64 }
+
+#scope_file
+Version :: 63
+// Memory a reader may spend on one program's records and on the text its
+// strings stand for. Writers charge the same, so every program written can
+// be read back; this budget, not a count or length cap, bounds saved IR.
+Budget :: 268435456
+BudgetProblem :: "checked IR exceeds the 256 MiB IR read budget"
+// A statement kind with this bit set is a block whose #asm variants follow
+// its text.
+AssemblyBlock :: 1073741824
+Unlimited :: 9223372036854775807
+Count32 :: 2147483647
+
+SavedString :: struct { text: string; kept: *u8 }
+SavedCodec :: struct {
+    reading: bool
+    portable: bool  // writers: local #asm blocks become plain blocks
+    valid: bool
+    problem: string  // why the walk stopped, if a limit or the input says
+    // Writing: BLOCK holds bytes until SINK takes them; without a sink the
+    // writer only counts them.
+    sink: *u8
+    block: []u8
+    used: s64
+    bytes: s64
+    // Reading: the whole input and the next byte to read.
+    input: string
+    at: s64
+    charged: s64  // spent from Budget, as a reader spends it
+    strings: Vec(SavedString)  // in first-use order
+    slots: Vec(s32)  // writers: open-addressed hash of index plus one
+    has_span: bool
+    last_line: s64
+    last_path: string
+    last_file: s32
+    context: *u8  // readers give every span and module this owner
+    empty: *u8  // the kept empty string
+}
+
+Fail :: (codec: *SavedCodec, problem: string) {
+    if codec.valid { codec.problem = problem }
+    codec.valid = false
+}
+
+Flush :: (codec: *SavedCodec) {
+    if codec.used > 0 && !Services.WriteBytes(codec.sink, TextView(codec.block[0:codec.used])) { Fail(codec, "") }
+    codec.used = 0
+}
+Put :: (codec: *SavedCodec, bytes: string) {
+    if !codec.valid { return }
+    codec.bytes += bytes.count
+    if codec.sink == null { return }
+    if bytes.count > codec.block.count - codec.used {
+        Flush(codec)
+        if bytes.count >= codec.block.count {
+            if !Services.WriteBytes(codec.sink, bytes) { Fail(codec, "") }
+            return
+        }
+    }
+    for i: 0..bytes.count - 1 { codec.block[codec.used + i] = bytes[i] }
+    codec.used += bytes.count
+}
+Byte :: (codec: *SavedCodec, byte: u8) {
+    codec.bytes += 1
+    if codec.sink == null { return }
+    if codec.used == codec.block.count { Flush(codec) }
+    codec.block[codec.used] = byte
+    codec.used += 1
+}
+Take :: (codec: *SavedCodec, count: s64, problem: string) -> string {
+    if !codec.valid { return "" }
+    if count > codec.input.count - codec.at {
+        Fail(codec, problem)
+        return ""
+    }
+    at := codec.at
+    codec.at += count
+    return codec.input[at:at + count]
+}
+
+// Readers accept only the shortest encoding, so equal values have equal
+// bytes, and only values up to MAXIMUM.
+Number :: (codec: *SavedCodec, value: u64, maximum: u64) -> u64 {
+    if !codec.valid { return 0 }
+    if !codec.reading {
+        rest := value
+        more := true
+        while more {
+            byte := cast(u8)(rest & 127)
+            rest = rest >> 7
+            more = rest != 0
+            if more { byte = byte | 128 }
+            Byte(codec, byte)
+        }
+        return value
+    }
+    result: u64 = 0
+    shift: u64 = 0
+    while shift < 64 {
+        if codec.at >= codec.input.count {
+            Fail(codec, "truncated integer")
+            return 0
+        }
+        byte := codec.input[codec.at]
+        codec.at += 1
+        if shift == 63 && byte > 1 { break }
+        result = result | (cast(u64)(byte & 127) << shift)
+        if (byte & 128) == 0 {
+            if byte == 0 && shift > 0 { Fail(codec, "noncanonical integer") }
+            else if result > maximum { Fail(codec, "integer out of range") }
+            if !codec.valid { return 0 }
+            return result
+        }
+        shift += 7
+    }
+    Fail(codec, "integer out of range")
+    return 0
+}
+Unsigned :: (codec: *SavedCodec, value: s64) -> s64 {
+    return cast(s64)Number(codec, cast(u64)value & 4294967295, 4294967295)
+}
+// The bits of a 32-bit number, as C's wrapping conversion gives them.
+Bits :: (value: s64) -> u64 { return cast(u64)value & 4294967295 }
+// A 32-bit pattern as the signed number C reads from it.
+Wrap :: (bits: s64) -> s32 {
+    if bits >= 2147483648 { return cast(s32)(bits - 4294967296) }
+    return cast(s32)bits
+}
+Signed :: (codec: *SavedCodec, value: s64) -> s64 {
+    bits := Bits(value)
+    zigzag := (bits << 1) & 4294967295
+    if (bits & 2147483648) != 0 { zigzag = zigzag ^ 4294967295 }
+    read := Number(codec, zigzag, 4294967295)
+    bits = read >> 1
+    if (read & 1) != 0 { bits = bits ^ 4294967295 }
+    return Wrap(cast(s64)bits)
+}
+Int :: (codec: *SavedCodec, field: *s32) {
+    value := Signed(codec, field.*)
+    if codec.reading { field.* = cast(s32)value }
+}
+Wide :: (codec: *SavedCodec, field: *u64) {
+    value := Number(codec, field.*, 18446744073709551615)
+    if codec.reading { field.* = value }
+}
+// The four little-endian bytes of a word, which never change form, so
+// every reader can name the version it was given.
+Word :: (codec: *SavedCodec, value: u32, problem: string) -> u32 {
+    if !codec.reading {
+        for i: 0..3 { Byte(codec, cast(u8)((value >> cast(u32)(8 * i)) & 255)) }
+        return value
+    }
+    bytes := Take(codec, 4, problem)
+    if !codec.valid { return 0 }
+    return cast(u32)bytes[0] | (cast(u32)bytes[1] << 8) | (cast(u32)bytes[2] << 16) |
+        (cast(u32)bytes[3] << 24)
+}
+
+// Charges COUNT records of SIZE bytes against the budget.
+Charge :: (codec: *SavedCodec, count: s64, size: s64) {
+    if !codec.valid { return }
+    if size != 0 && count > (Budget - codec.charged) / size {
+        Fail(codec, BudgetProblem)
+        return
+    }
+    codec.charged += count * size
+}
+
+Hash :: (text: string) -> u32 {
+    hash: u32 = 2166136261
+    for byte: text { hash = (hash ^ cast(u32)byte) * 16777619 }
+    return hash
+}
+// The slot of TEXT in the writer's hash, or of the empty slot it would take.
+Slot :: (codec: *SavedCodec, text: string) -> s64 {
+    mask := codec.slots.count - 1
+    at := cast(s64)Hash(text) & mask
+    while codec.slots[at] != 0 && codec.strings[codec.slots[at] - 1].text != text { at = (at + 1) & mask }
+    return at
+}
+Remember :: (codec: *SavedCodec, text: string) -> bool {
+    if !VecPush(codec.strings, SavedString.{text, null}) { return false }
+    if codec.reading { return true }
+    if codec.strings.count * 2 <= codec.slots.count {
+        codec.slots[Slot(codec, text)] = cast(s32)codec.strings.count
+        return true
+    }
+    size := codec.slots.count * 2
+    if size == 0 { size = 2048 }
+    if !VecResize(codec.slots, 0) || !VecResize(codec.slots, size) { return false }
+    for i: 0..codec.strings.count - 1 { codec.slots[Slot(codec, codec.strings[i].text)] = cast(s32)(i + 1) }
+    return true
+}
+
+// The one string rule, written or read, for text shorter than LIMIT. A
+// reader gets the string's table index in INDEX, or -1 when it is empty.
+Spelling :: (codec: *SavedCodec, text: string, limit: s64, index: *s64) -> string {
+    index.* = -1
+    if !codec.valid { return "" }
+    if !codec.reading {
+        if text.count == 0 {
+            Number(codec, 0, 0)
+            return text
+        }
+        if text.count >= limit { Fail(codec, ""); return "" }
+        Charge(codec, text.count, 1)
+        if text.count > Count32 { Fail(codec, "") }
+        if !codec.valid { return "" }
+        if codec.slots.count > 0 {
+            known := codec.slots[Slot(codec, text)]
+            if known != 0 {
+                Number(codec, cast(u64)(known - 1) * 2 + 1, 0)
+                return text
+            }
+        }
+        if !Remember(codec, text) { Fail(codec, ""); return "" }
+        Number(codec, cast(u64)text.count * 2, 0)
+        Put(codec, text)
+        return text
+    }
+    tag := Unsigned(codec, 0)
+    if !codec.valid || tag == 0 { return "" }
+    if (tag & 1) != 0 {
+        if tag / 2 >= codec.strings.count {
+            Fail(codec, "invalid string reference")
+            return ""
+        }
+        index.* = tag / 2
+        found := codec.strings[index.*].text
+        Charge(codec, found.count, 1)
+        return found
+    }
+    Charge(codec, tag / 2, 1)
+    found := Take(codec, tag / 2, "truncated string")
+    if !codec.valid { return "" }
+    for byte: found {
+        if byte == 0 {
+            Fail(codec, "embedded NUL in string")
+            return ""
+        }
+    }
+    index.* = codec.strings.count
+    if !Remember(codec, found) { Fail(codec, "out of memory reading IR") }
+    return found
+}
+// A string read, kept once however often the table names it.
+Kept :: (codec: *SavedCodec, text: string, index: s64) -> *u8 {
+    if index < 0 { return codec.empty }
+    if codec.strings[index].kept == null { codec.strings[index].kept = Services.Keep(text) }
+    return codec.strings[index].kept
+}
+Fits :: (codec: *SavedCodec, text: string, limit: s64) {
+    if codec.valid && text.count >= limit { Fail(codec, "string exceeds field limit") }
+}
+// A fixed buffer, which ends at its first NUL byte.
+Chars :: (codec: *SavedCodec, buffer: []u8) {
+    index: s64
+    if !codec.reading {
+        Spelling(codec, Ir.BufferText(buffer), buffer.count, *index)
+        return
+    }
+    text := Spelling(codec, "", buffer.count, *index)
+    Fits(codec, text, buffer.count)
+    if codec.valid { Ir.CopyText(buffer, text) }
+}
+// Kept text: WRITTEN is what a writer saves in place of the field.
+Keep :: (codec: *SavedCodec, field: **u8, written: string, limit: s64) {
+    index: s64
+    text := Spelling(codec, written, limit, *index)
+    if !codec.reading { return }
+    Fits(codec, text, limit)
+    if codec.valid { field.* = Kept(codec, text, index) }
+}
+Name :: (codec: *SavedCodec, field: **u8) { Keep(codec, field, Ir.CText(field.*), Ir.ZIR_NAME_MAX) }
+Parameters :: (codec: *SavedCodec, field: **u8) { Keep(codec, field, Ir.CText(field.*), Ir.ZIR_TEXT_MAX) }
+// Source text has no field limit: a long literal keeps it all.
+Source :: (codec: *SavedCodec, field: **u8) { Keep(codec, field, Ir.CText(field.*), Unlimited) }
+
+// A span starts with its line's delta from the previous span, doubled, plus
+// one when it names a different file, whose path then follows. The end is a
+// delta from the start, so nearby positions take a byte or two.
+Span :: (codec: *SavedCodec, span: *Ir.ZirSourceSpan) {
+    if !codec.valid { return }
+    index: s64
+    if !codec.reading {
+        path := Ir.CText(Services.SpanPath(span.*))
+        file: u64 = 0
+        if !codec.has_span || path != codec.last_path { file = 1 }
+        delta := cast(s64)span.line - codec.last_line
+        line := cast(u64)delta << 1
+        if delta < 0 { line = (cast(u64)(0 - delta) << 1) - 1 }
+        codec.has_span = true
+        codec.last_path = path
+        codec.last_line = span.line
+        Number(codec, line * 2 + file, 0)
+        if file == 1 { Spelling(codec, path, Ir.ZIR_PATH_MAX, *index) }
+        Number(codec, Bits(span.column), 0)
+        Signed(codec, cast(s64)Bits(cast(s64)span.end_line - cast(s64)span.line))
+        Signed(codec, cast(s64)Bits(cast(s64)span.end_column - cast(s64)span.column))
+        return
+    }
+    bits := Number(codec, 0, 17179869184)
+    delta := cast(s64)(bits >> 2)
+    if ((bits >> 1) & 1) != 0 { delta = 0 - cast(s64)(((bits >> 1) + 1) >> 1) }
+    if (bits & 1) == 0 && !codec.has_span && codec.valid { Fail(codec, "span without a file") }
+    if (bits & 1) != 0 {
+        path := Spelling(codec, "", Ir.ZIR_PATH_MAX, *index)
+        Fits(codec, path, Ir.ZIR_PATH_MAX)
+        if codec.valid && codec.has_span && path == codec.last_path { Fail(codec, "noncanonical span file") }
+        if !codec.valid { return }
+        codec.last_file = Services.SourceFile(path)
+        codec.last_path = path
+    }
+    codec.has_span = true
+    column := Unsigned(codec, 0)
+    end_line := Signed(codec, 0)
+    end_column := Signed(codec, 0)
+    if !codec.valid { return }
+    line := codec.last_line + delta
+    end_line += line
+    end_column += column
+    if line < 0 || line > Count32 || end_line < 0 || end_line > Count32 || column > Count32 ||
+        end_column < 0 || end_column > Count32 {
+        Fail(codec, "invalid source position")
+        return
+    }
+    codec.last_line = line
+    span.context = codec.context
+    span.file = codec.last_file
+    span.line = cast(s32)line
+    span.column = cast(s32)column
+    span.end_line = cast(s32)end_line
+    span.end_column = cast(s32)end_column
+}
+
+// A record count, charged as a reader will spend it. A reader allocates
+// zeroed storage for that many records in FIELD, and sets COUNT and CAP.
+Records :: (codec: *SavedCodec, field: **u8, count: *s32, cap: *s32, size: s64, too_many: string) {
+    if !codec.reading {
+        if count.* < 0 || (count.* > 0 && field.* == null) { Fail(codec, "") }
+        Charge(codec, count.*, size)
+        Unsigned(codec, count.*)
+        return
+    }
+    length := Unsigned(codec, 0)
+    if codec.valid && length > Count32 { Fail(codec, too_many) }
+    Charge(codec, length, size)
+    if !codec.valid || length == 0 { return }
+    storage := Services.Allocate(length, size)
+    if storage == null {
+        Fail(codec, "out of memory reading IR")
+        return
+    }
+    field.* = storage
+    count.* = cast(s32)length
+    cap.* = count.*
+}
+RecordLimit :: "record count exceeds IR limit"
+
+Import :: (codec: *SavedCodec, item: *Ir.ZirImport) {
+    Int(codec, cast(*s32)*item.kind)
+    Int(codec, cast(*s32)*item.extern_kind)
+    Int(codec, *item.is_public)
+    Int(codec, *item.is_file_private)
+    Chars(codec, item.name[0:])
+    Chars(codec, item.target[0:])
+    Chars(codec, item.extern_symbol[0:])
+    Chars(codec, item.signature[0:])
+    Chars(codec, item.args[0:])
+    Chars(codec, item.return_type[0:])
+    Int(codec, *item.must_use)
+    Int(codec, *item.is_varargs)
+    Int(codec, *item.go_results)
+    Int(codec, *item.go_field)
+    Int(codec, *item.go_defer)
+    Int(codec, *item.go_variadic)
+    Int(codec, *item.reads_arguments)
+    Int(codec, *item.reserved_1)
+    Int(codec, *item.is_using)
+    Int(codec, *item.required)
+    Span(codec, *item.span)
+}
+
+HasAssembly :: (item: *Ir.ZirStmt) -> bool {
+    return item.kind == Ir.ZirStmtKind.BLOCK_OPEN && item.assembly_text != null && item.assembly_text[0] != 0
+}
+Statement :: (codec: *SavedCodec, item: *Ir.ZirStmt) {
+    // The portable view writes a block's #asm variants as a plain block.
+    assembly := !codec.reading && !codec.portable && HasAssembly(item)
+    flag: s64 = 0
+    if assembly { flag = AssemblyBlock }
+    kind := Unsigned(codec, cast(s64)item.kind | flag)
+    if codec.reading {
+        assembly = (kind & AssemblyBlock) != 0
+        item.kind = cast(Ir.ZirStmtKind)Wrap(kind - (kind & AssemblyBlock))
+        if assembly && item.kind != Ir.ZirStmtKind.BLOCK_OPEN { Fail(codec, "assembly metadata requires a block statement") }
+    }
+    text := Ir.CText(item.text)
+    if codec.portable && HasAssembly(item) { text = "{" }
+    Keep(codec, cast(**u8)*item.text, text, Unlimited)
+    variants := cast(**u8)*item.assembly_text
+    if assembly {
+        Keep(codec, variants, Ir.CText(variants.*), Ir.ZIR_TEXT_MAX)
+        if codec.reading && codec.valid && variants.*[0] == 0 { Fail(codec, "empty assembly block metadata") }
+    } else if codec.reading {
+        variants.* = codec.empty
+    }
+    Int(codec, *item.is_else)
+    Int(codec, *item.is_using)
+    Int(codec, *item.loop_id)
+    Int(codec, *item.target_id)
+    Int(codec, *item.for_form)
+    Int(codec, *item.for_step)
+    Int(codec, *item.expr_root)
+    Int(codec, *item.lhs_root)
+    // A block's name slot holds its #asm variants.
+    if item.kind == Ir.ZirStmtKind.BLOCK_OPEN {
+        index: s64
+        name := Spelling(codec, "", Ir.ZIR_NAME_MAX, *index)
+        if codec.reading { Fits(codec, name, Ir.ZIR_NAME_MAX) }
+        if codec.reading && codec.valid && name.count != 0 { Fail(codec, "unexpected block binding name") }
+    } else {
+        Name(codec, cast(**u8)*item.name)
+    }
+    Name(codec, cast(**u8)*item.type)
+    Chars(codec, item.assignment_op[0:])
+    Int(codec, *item.is_parallel)
+    Int(codec, *item.is_gpu)
+    Span(codec, *item.span)
+}
+
+Expression :: (codec: *SavedCodec, item: *Ir.ZirExpr) {
+    Int(codec, cast(*s32)*item.kind)
+    Int(codec, *item.is_function_value)
+    Int(codec, *item.is_this)
+    Name(codec, cast(**u8)*item.slot_type)
+    Source(codec, cast(**u8)*item.text)
+    Name(codec, cast(**u8)*item.name)
+    Name(codec, cast(**u8)*item.argument_name)
+    Int(codec, *item.argument_index)
+    Chars(codec, item.op[0:])
+    Int(codec, *item.left)
+    Int(codec, *item.right)
+    Int(codec, *item.first_child)
+    Int(codec, *item.next_sibling)
+    Int(codec, *item.third)
+    Name(codec, cast(**u8)*item.type)
+    Span(codec, *item.span)
+}
+
+Function :: (codec: *SavedCodec, item: *Ir.ZirFunction) {
+    Chars(codec, item.name[0:])
+    Parameters(codec, cast(**u8)*item.args_text)
+    Parameters(codec, cast(**u8)*item.default_args_text)
+    Wide(codec, *item.using_parameters)
+    Chars(codec, item.return_type[0:])
+    Int(codec, *item.must_use)
+    Int(codec, *item.is_conversion)
+    Chars(codec, item.go_method[0:])
+    Int(codec, *item.go_method_results)
+    Chars(codec, item.effect_class[0:])
+    Int(codec, *item.exported)
+    Chars(codec, item.export_symbol[0:])
+    Int(codec, *item.is_extern)
+    Int(codec, cast(*s32)*item.extern_kind)
+    Int(codec, *item.is_public)
+    Int(codec, *item.is_file_private)
+    Int(codec, *item.is_template)
+    Int(codec, *item.is_specialization)
+    Int(codec, *item.is_global_initializer)
+    Chars(codec, item.template_param[0:])
+    Chars(codec, item.specialization_type[0:])
+    Chars(codec, item.overload_name[0:])
+    Int(codec, *item.checked)
+    Int(codec, *item.uses_host)
+    Chars(codec, item.extern_target[0:])
+    Chars(codec, item.extern_symbol[0:])
+    Int(codec, *item.inlining)
+    Int(codec, *item.simd_target)
+    Span(codec, *item.span)
+    // Procedure #asm variants; hosts decide whether they run.
+    Source(codec, cast(**u8)*item.assembly_text)
+    Records(codec, cast(**u8)*item.stmts, *item.stmt_count, *item.stmt_cap, size_of(Ir.ZirStmt), RecordLimit)
+    for i: 0..item.stmt_count - 1 { Statement(codec, *item.stmts[i]) }
+    Records(codec, cast(**u8)*item.exprs, *item.expr_count, *item.expr_cap, size_of(Ir.ZirExpr), RecordLimit)
+    for i: 0..item.expr_count - 1 { Expression(codec, *item.exprs[i]) }
+    if codec.reading { item.from_ir = 1 }
+}
+
+Global :: (codec: *SavedCodec, item: *Ir.ZirGlobal) {
+    Chars(codec, item.name[0:])
+    Chars(codec, item.type[0:])
+    Source(codec, cast(**u8)*item.init)
+    Int(codec, *item.is_static)
+    Int(codec, *item.is_file_private)
+    Span(codec, *item.span)
+}
+
+Define :: (codec: *SavedCodec, item: *Ir.ZirDefine) {
+    Chars(codec, item.name[0:])
+    Source(codec, cast(**u8)*item.value)
+    Int(codec, *item.is_public)
+    Int(codec, *item.is_file_private)
+    Span(codec, *item.span)
+}
+
+Assert :: (codec: *SavedCodec, item: *Ir.ZirAssert) {
+    Chars(codec, item.condition[0:])
+    Chars(codec, item.message[0:])
+    Span(codec, *item.span)
+}
+
+Law :: (codec: *SavedCodec, item: *Ir.ZirLaw) {
+    Chars(codec, item.name[0:])
+    Chars(codec, item.kind[0:])
+    Chars(codec, item.payload[0:])
+    Span(codec, *item.span)
+    Chars(codec, item.evidence.method[0:])
+    Chars(codec, item.evidence.domain[0:])
+    Wide(codec, *item.evidence.cases_checked)
+    Chars(codec, item.evidence.counterexample[0:])
+    Int(codec, *item.evidence.waived)
+}
+
+ProofStep :: (codec: *SavedCodec, item: *Ir.ZirProofStep) {
+    Int(codec, cast(*s32)*item.kind)
+    Chars(codec, item.target[0:])
+    Int(codec, *item.term_root)
+    Span(codec, *item.span)
+}
+
+Proof :: (codec: *SavedCodec, item: *Ir.ZirProof) {
+    Chars(codec, item.name[0:])
+    Chars(codec, item.source[0:])
+    Span(codec, *item.span)
+    Function(codec, *item.terms)
+    steps_cap: s32
+    Records(codec, cast(**u8)*item.steps, *item.step_count, *steps_cap, size_of(Ir.ZirProofStep), RecordLimit)
+    for i: 0..item.step_count - 1 { ProofStep(codec, *item.steps[i]) }
+}
+
+// Each law's typed claim, if it has one, then the proofs.
+LawGraphs :: (codec: *SavedCodec, module: *Ir.ZirModule) {
+    for l: 0..module.law_count - 1 {
+        law := *module.laws[l]
+        has: s64 = 0
+        if law.claim != null { has = 1 }
+        has = Unsigned(codec, has)
+        if has > 1 { Fail(codec, "") }
+        if has == 1 && codec.valid {
+            Charge(codec, 1, size_of(Ir.ZirFunction))
+            if codec.reading && codec.valid {
+                law.claim = cast(*Ir.ZirFunction)Services.Allocate(1, size_of(Ir.ZirFunction))
+                if law.claim == null { Fail(codec, "") }
+            }
+            if codec.valid { Function(codec, law.claim) }
+        }
+    }
+    Records(codec, cast(**u8)*module.proofs, *module.proof_count, *module.proof_cap, size_of(Ir.ZirProof), RecordLimit)
+    for p: 0..module.proof_count - 1 { Proof(codec, *module.proofs[p]) }
+}
+
+Waiver :: (codec: *SavedCodec, item: *Ir.ZirLawWaiver) {
+    Chars(codec, item.name[0:])
+    Chars(codec, item.reason[0:])
+    Span(codec, *item.span)
+}
+
+Record :: (codec: *SavedCodec, item: *Ir.ZirType) {
+    Chars(codec, item.name[0:])
+    Chars(codec, item.body[0:])
+    Chars(codec, item.template_params[0:])
+    Chars(codec, item.template_name[0:])
+    Chars(codec, item.template_args[0:])
+    Chars(codec, item.foreign_target[0:])
+    Int(codec, *item.is_synthetic_application)
+    Int(codec, *item.is_procedure_type)
+    Int(codec, *item.is_c_call)
+    Int(codec, *item.reads_arguments)
+    Chars(codec, item.procedure_return_type[0:])
+    Int(codec, *item.is_public)
+    Int(codec, *item.is_file_private)
+    Int(codec, *item.is_enum)
+    Int(codec, *item.is_union)
+    Int(codec, *item.is_go_anonymous)
+    Int(codec, *item.is_enum_flags)
+    Int(codec, *item.is_enum_specified)
+    Chars(codec, item.enum_backing[0:])
+    Chars(codec, item.c_prefix[0:])
+    Int(codec, *item.is_record_template)
+    Int(codec, *item.is_owned_vec)
+    Int(codec, *item.is_map)
+    Int(codec, *item.is_extern)
+    Int(codec, *item.is_abi_incomplete)
+    Int(codec, *item.is_results)
+    Span(codec, *item.span)
+}
+
+Module :: (codec: *SavedCodec, module: *Ir.ZirModule) {
+    Chars(codec, module.name[0:])
+    Chars(codec, module.source_path[0:])
+    Span(codec, *module.span)
+    if codec.reading { module.context = codec.context }
+    Records(codec, cast(**u8)*module.globals, *module.global_count, *module.global_cap, size_of(Ir.ZirGlobal), RecordLimit)
+    for i: 0..module.global_count - 1 { Global(codec, *module.globals[i]) }
+    Records(codec, cast(**u8)*module.defines, *module.define_count, *module.define_cap, size_of(Ir.ZirDefine), RecordLimit)
+    for i: 0..module.define_count - 1 { Define(codec, *module.defines[i]) }
+    Records(codec, cast(**u8)*module.asserts, *module.assert_count, *module.assert_cap, size_of(Ir.ZirAssert), RecordLimit)
+    for i: 0..module.assert_count - 1 { Assert(codec, *module.asserts[i]) }
+    Records(codec, cast(**u8)*module.laws, *module.law_count, *module.law_cap, size_of(Ir.ZirLaw), RecordLimit)
+    for i: 0..module.law_count - 1 { Law(codec, *module.laws[i]) }
+    valid := codec.valid
+    LawGraphs(codec, module)
+    if codec.reading && valid && !codec.valid { codec.problem = "invalid law or proof graph" }
+    Records(codec, cast(**u8)*module.law_waivers, *module.law_waiver_count, *module.law_waiver_cap,
+        size_of(Ir.ZirLawWaiver), RecordLimit)
+    for i: 0..module.law_waiver_count - 1 { Waiver(codec, *module.law_waivers[i]) }
+    Records(codec, cast(**u8)*module.types, *module.type_count, *module.type_cap, size_of(Ir.ZirType), RecordLimit)
+    for i: 0..module.type_count - 1 { Record(codec, *module.types[i]) }
+    Records(codec, cast(**u8)*module.imports, *module.import_count, *module.import_cap, size_of(Ir.ZirImport), RecordLimit)
+    for i: 0..module.import_count - 1 { Import(codec, *module.imports[i]) }
+    Records(codec, cast(**u8)*module.functions, *module.function_count, *module.function_cap,
+        size_of(Ir.ZirFunction), "function count exceeds IR limit")
+    for i: 0..module.function_count - 1 { Function(codec, *module.functions[i]) }
+}
+
+Program :: (codec: *SavedCodec, program: *Ir.ZirProgram) {
+    if !codec.reading { Put(codec, "ZIR\0") }
+    else if Take(codec, 4, "invalid ZIR signature") != "ZIR\0" && codec.valid { Fail(codec, "invalid ZIR signature") }
+    if Word(codec, Version, "truncated integer") != Version && codec.valid { Fail(codec, "unsupported ZIR version") }
+    if !codec.reading { Charge(codec, program.module_count, size_of(Ir.ZirModule)) }
+    count := Unsigned(codec, program.module_count)
+    if !codec.reading && program.module_count < 0 { Fail(codec, "") }
+    if codec.reading && codec.valid {
+        if count == 0 || count > Count32 || count > (Budget - codec.charged) / size_of(Ir.ZirModule) {
+            Fail(codec, "invalid module count")
+            return
+        }
+        Charge(codec, count, size_of(Ir.ZirModule))
+        program.modules = cast(*Ir.ZirModule)Services.Allocate(count, size_of(Ir.ZirModule))
+        if program.modules == null {
+            Fail(codec, "out of memory reading modules")
+            return
+        }
+        program.module_count = cast(s32)count
+        program.module_cap = cast(s32)count
+    }
+    for i: 0..program.module_count - 1 { Module(codec, *program.modules[i]) }
+    if codec.reading && codec.valid && codec.at != codec.input.count { Fail(codec, "trailing or unreadable ZIR data") }
+}
+
+// Reader rules beyond the format: saved IR must be checked IR.
+Flag :: (value: s32) -> bool { return value == 0 || value == 1 }
+Starts :: (text: string, prefix: string) -> bool {
+    return text.count >= prefix.count && text[0:prefix.count] == prefix
+}
+Empty :: (buffer: []u8) -> bool { return buffer[0] == 0 }
+At :: (text: string, at: s64) -> u8 {
+    if at < 0 || at >= text.count { return 0 }
+    return text[at]
+}
+Digit :: (byte: u8) -> bool { return byte >= #char "0" && byte <= #char "9" }
+// Identifier bytes not starting with a digit; PLAIN also needs one byte.
+Prefix :: (text: string) -> bool {
+    if text.count > 0 && Digit(text[0]) { return false }
+    for byte: text { if !Text.IdentifierByte(byte) { return false } }
+    return true
+}
+Plain :: (text: string) -> bool { return text.count > 0 && Prefix(text) }
+// An export symbol: empty or a C identifier.
+Symbol :: (symbol: string) -> bool { return symbol.count == 0 || Plain(symbol) }
+// A name, or with MEMBERS a dotted path of them.
+Path :: (path: string, members: bool) -> bool {
+    begin: s64 = 0
+    for at: 0..path.count {
+        if at == path.count || (members && path[at] == #char ".") {
+            if !Plain(path[begin:at]) { return false }
+            begin = at + 1
+        }
+    }
+    return true
+}
+Backing :: (backing: string) -> bool {
+    return backing == "s8" || backing == "u8" || backing == "s16" || backing == "u16" ||
+        backing == "s32" || backing == "u32" || backing == "s64" || backing == "u64"
+}
+// Members of a specified enum, each NAME = value, separated by commas or
+// lines.
+Members :: (body: string) -> bool {
+    members := 0
+    at: s64 = 0
+    while at < body.count {
+        while at < body.count && (body[at] == #char "," || Text.SpaceByte(body[at])) { at += 1 }
+        if at == body.count { break }
+        start := at
+        while at < body.count && Text.IdentifierByte(body[at]) { at += 1 }
+        if !Plain(body[start:at]) { return false }
+        at = Text.SkipSpace(body, at, true)
+        if At(body, at) != #char "=" { return false }
+        while at < body.count && body[at] != #char "\n" && body[at] != #char "," { at += 1 }
+        members += 1
+    }
+    return members > 0
+}
+// Declaration parameters with defaults are the parameters with each
+// default removed.
+Defaults :: (defaults: string, parameters: string) -> bool {
+    if defaults.count == 0 { return true }
+    count := 0
+    removed := 0
+    matched: s64 = 0
+    at: s64 = 0
+    while at >= 0 && count < 64 {
+        part := Text.NextSourcePart(defaults, at)
+        at = part.next
+        if part.end - part.begin >= Ir.ZIR_TEXT_MAX { continue }
+        range := Text.TrimRange(defaults[part.begin:part.end])
+        piece := defaults[part.begin + range.begin:part.begin + range.end]
+        assignment := Text.TopLevelAssignment(piece)
+        if assignment >= 0 {
+            value := Text.TrimRange(piece[assignment + 1:])
+            if value.begin == value.end { return false }
+            range = Text.TrimRange(piece[0:assignment])
+            piece = piece[range.begin:range.end]
+            removed += 1
+        }
+        if count > 0 {
+            if !Starts(parameters[matched:], ", ") { return false }
+            matched += 2
+        }
+        if !Starts(parameters[matched:], piece) { return false }
+        matched += piece.count
+        if matched >= Ir.ZIR_TEXT_MAX { return false }
+        count += 1
+    }
+    return count > 0 && removed > 0 && matched == parameters.count
+}
+Reference :: (index: s32, count: s32) -> bool { return index >= -1 && index < count }
+
+ImportValid :: (item: *Ir.ZirImport) -> bool {
+    foreign := item.kind == Ir.ZirImportKind.EXTERN
+    go := foreign && item.extern_kind == Ir.ZirExternKind.GO && Starts(Ir.BufferText(item.target[0:]), "go:")
+    kind := cast(s32)item.kind
+    return kind >= cast(s32)Ir.ZirImportKind.OPEN && kind <= cast(s32)Ir.ZirImportKind.EXTERN && Flag(item.go_results) && Flag(item.go_field) &&
+        Flag(item.go_defer) && Flag(item.go_variadic) && Flag(item.reads_arguments) &&
+        (item.reads_arguments == 0 || foreign) && item.reserved_1 == 0 &&
+        (item.go_defer == 0 || (go && item.go_results == 0 && item.go_field == 0)) &&
+        (item.go_field == 0 || (go && item.go_results == 0)) &&
+        (item.go_variadic == 0 || (go && item.go_field == 0 && item.is_varargs == 0)) &&
+        (item.go_results == 0 || go) && !Starts(Ir.BufferText(item.signature[0:]), "c-header:") &&
+        Flag(item.must_use) && (item.must_use == 0 || (foreign && Ir.BufferText(item.return_type[0:]) != "void")) &&
+        Flag(item.is_file_private) && (item.is_file_private == 0 || item.is_public == 0)
+}
+
+RecordValid :: (module: *Ir.ZirModule, item: *Ir.ZirType) -> bool {
+    name := Ir.BufferText(item.name[0:])
+    foreign := Ir.BufferText(item.foreign_target[0:])
+    enum_kind := item.is_enum != 0
+    procedure := item.is_procedure_type != 0
+    if !Flag(item.is_go_anonymous) || (item.is_go_anonymous != 0 && (enum_kind || item.is_union != 0 ||
+        item.is_extern != 0 || procedure || item.is_abi_incomplete != 0 || item.is_map != 0 ||
+        item.is_owned_vec != 0)) { return false }
+    if !Flag(item.is_map) || (item.is_map != 0 && (!Services.MapTypeParts(module, name) ||
+        item.is_owned_vec != 0 || item.is_abi_incomplete != 0 || foreign.count != 0)) { return false }
+    if foreign.count != 0 && (!Type.GoTypeTarget(foreign) || item.is_extern == 0 || !Empty(item.body[0:]) ||
+        enum_kind || item.is_union != 0 || procedure || item.is_record_template != 0 ||
+        item.is_synthetic_application != 0 || item.is_owned_vec != 0 || item.is_abi_incomplete != 0) { return false }
+    returns := !Empty(item.procedure_return_type[0:])
+    synthetic := item.is_synthetic_application != 0
+    applied := !Empty(item.template_name[0:]) || !Empty(item.template_args[0:])
+    template := item.is_record_template != 0
+    return Flag(item.is_file_private) && (item.is_file_private == 0 || item.is_public == 0) &&
+        (!procedure || returns) && Flag(item.is_c_call) && (item.is_c_call == 0 || procedure) &&
+        Flag(item.reads_arguments) && (item.reads_arguments == 0 || (procedure && item.is_c_call == 0)) &&
+        (procedure || !returns) && At(name, 0) != #char "#" &&
+        Flag(item.is_union) && (item.is_union == 0 || !(enum_kind || procedure || item.is_extern != 0 ||
+        item.is_owned_vec != 0)) && Flag(item.is_enum_flags) && Flag(item.is_enum_specified) &&
+        (!enum_kind || Backing(Ir.BufferText(item.enum_backing[0:]))) &&
+        (enum_kind || (item.is_enum_flags == 0 && item.is_enum_specified == 0 &&
+        Empty(item.enum_backing[0:]) && Empty(item.c_prefix[0:]))) && Prefix(Ir.BufferText(item.c_prefix[0:])) &&
+        (item.is_enum_specified == 0 || Members(Ir.BufferText(item.body[0:]))) &&
+        Flag(item.is_record_template) && Flag(item.is_owned_vec) &&
+        (item.is_owned_vec == 0 || Services.VecElementType(module, name)) && Flag(item.is_abi_incomplete) &&
+        (item.is_abi_incomplete == 0 || !(enum_kind || procedure || template || item.is_extern != 0 ||
+        item.is_owned_vec != 0)) && item.is_type_instance == 0 && Flag(item.is_synthetic_application) &&
+        (!synthetic || !(template || enum_kind || procedure || Empty(item.template_name[0:]) ||
+        Empty(item.template_args[0:]))) && (synthetic || !applied) &&
+        (!template || !(enum_kind || procedure || item.is_extern != 0 || Empty(item.template_params[0:]) ||
+        Empty(item.body[0:]))) && (template || Empty(item.template_params[0:]))
+}
+
+FunctionValid :: (item: *Ir.ZirFunction) -> bool {
+    void := Ir.BufferText(item.return_type[0:]) == "void"
+    method := !Empty(item.go_method[0:])
+    template := item.is_template != 0
+    instance := item.is_specialization != 0
+    shape := Ir.BufferText(item.specialization_type[0:])
+    if Empty(item.name[0:]) || !Defaults(Ir.CText(item.default_args_text), Ir.CText(item.args_text)) ||
+        !Symbol(Ir.BufferText(item.export_symbol[0:])) || !Symbol(Ir.BufferText(item.go_method[0:])) ||
+        !Flag(item.go_method_results) || (item.go_method_results != 0 && !method) ||
+        (method && (item.is_extern != 0 || template || instance || item.is_global_initializer != 0)) ||
+        (!Empty(item.export_symbol[0:]) && item.exported == 0) || !Flag(item.must_use) ||
+        item.inlining < 0 || item.inlining > 2 || !Flag(item.simd_target) ||
+        (item.simd_target != 0 && item.is_extern != 0) || (item.inlining != 0 && item.is_extern != 0) ||
+        (item.must_use != 0 && void) || !Flag(item.is_file_private) ||
+        (item.is_file_private != 0 && item.is_public != 0) || !Flag(item.is_template) ||
+        (item.using_parameters != 0 && !template) || !Flag(item.is_specialization) ||
+        !Flag(item.is_global_initializer) { return false }
+    if item.is_global_initializer != 0 && (item.exported != 0 || item.is_public != 0 || item.is_extern != 0 ||
+        template || instance || item.is_file_private == 0 || Ir.CText(item.args_text).count != 0 || !void ||
+        item.stmt_count == 0) { return false }
+    if template && (instance || item.is_extern != 0 || item.exported != 0 || Empty(item.template_param[0:]) ||
+        shape.count != 0) { return false }
+    if instance && (item.is_extern != 0 || Empty(item.template_param[0:]) || shape.count == 0) { return false }
+    for byte: shape { if instance && byte == #char "$" { return false } }
+    if !template && !instance && (!Empty(item.template_param[0:]) || shape.count != 0) { return false }
+    for s: 0..item.stmt_count - 1 {
+        statement := *item.stmts[s]
+        kind := statement.kind
+        if cast(s32)kind <= cast(s32)Ir.ZirStmtKind.UNKNOWN || cast(s32)kind >= cast(s32)Ir.ZirStmtKind.IF_CASE || !Flag(statement.is_else) || !Flag(statement.is_using) ||
+            (statement.is_using != 0 && (!template || (kind != Ir.ZirStmtKind.DECL && kind != Ir.ZirStmtKind.EXPR) ||
+            !Path(Ir.CText(cast(*u8)statement.name), kind == Ir.ZirStmtKind.EXPR))) || (statement.is_else != 0 && kind != Ir.ZirStmtKind.IF) ||
+            statement.loop_id < 0 || statement.target_id < 0 || (statement.loop_id != 0 && kind != Ir.ZirStmtKind.WHILE) ||
+            statement.for_form < 0 || statement.for_form > 2 || (statement.for_form != 0 && statement.loop_id == 0) ||
+            statement.for_step < 0 || (statement.for_step != 0 && kind != Ir.ZirStmtKind.ASSIGN) ||
+            (statement.target_id != 0 && kind != Ir.ZirStmtKind.BREAK && kind != Ir.ZirStmtKind.CONTINUE) ||
+            !Reference(statement.expr_root, item.expr_count) || !Reference(statement.lhs_root, item.expr_count) {
+            return false
+        }
+    }
+    for e: 0..item.expr_count - 1 {
+        expression := *item.exprs[e]
+        kind := expression.kind
+        if cast(s32)kind <= cast(s32)Ir.ZirExprKind.UNKNOWN || cast(s32)kind > cast(s32)Ir.ZirExprKind.COMPILE_TIME ||
+            (kind == Ir.ZirExprKind.COMPILE_TIME && (Ir.CText(expression.text) != "#compile_time" ||
+            Ir.CText(expression.type) != "bool" || Ir.CText(expression.name).count != 0 ||
+            !Empty(expression.op[0:]) || expression.left != -1 || expression.right != -1 ||
+            expression.third != -1 || expression.first_child != -1)) || !Flag(expression.is_this) ||
+            (expression.is_this != 0 && kind != Ir.ZirExprKind.IDENT && kind != Ir.ZirExprKind.CALL) ||
+            !Reference(expression.left, item.expr_count) || !Reference(expression.right, item.expr_count) ||
+            !Reference(expression.first_child, item.expr_count) ||
+            !Reference(expression.next_sibling, item.expr_count) || !Reference(expression.third, item.expr_count) ||
+            expression.left >= e || expression.right >= e || expression.first_child >= e || expression.third >= e ||
+            expression.argument_index < -1 || expression.argument_index >= 64 ||
+            (expression.next_sibling >= 0 && expression.next_sibling <= e) { return false }
+        child := expression.first_child
+        while child >= 0 {
+            if child >= e { return false }
+            child = item.exprs[child].next_sibling
+        }
+    }
+    return true
+}
+
+Valid :: (program: *Ir.ZirProgram) -> bool {
+    for m: 0..program.module_count - 1 {
+        module := *program.modules[m]
+        if Empty(module.name[0:]) || Empty(module.source_path[0:]) { return false }
+        for i: 0..module.import_count - 1 { if !ImportValid(*module.imports[i]) { return false } }
+        for g: 0..module.global_count - 1 {
+            global := *module.globals[g]
+            if !Flag(global.is_file_private) || (global.is_file_private != 0 && global.is_static == 0) { return false }
+        }
+        for d: 0..module.define_count - 1 {
+            define := *module.defines[d]
+            if !Flag(define.is_file_private) || (define.is_file_private != 0 && define.is_public != 0) { return false }
+        }
+        for t: 0..module.type_count - 1 { if !RecordValid(module, *module.types[t]) { return false } }
+        for f: 0..module.function_count - 1 { if !FunctionValid(*module.functions[f]) { return false } }
+    }
+    return true
+}
+
+Open :: (reading: bool, portable: bool, sink: *u8, block: []u8, input: string, context: *u8) -> SavedCodec {
+    codec: SavedCodec
+    codec.reading = reading
+    codec.portable = portable
+    codec.valid = true
+    codec.sink = sink
+    codec.block = block
+    codec.input = input
+    codec.context = context
+    codec.empty = Services.Keep("")
+    return codec
+}
+
+#scope_export
+// Writes PROGRAM, or with PORTABLE its portable view, through BLOCK into
+// SINK, a C stream; without a sink it only counts the bytes. VALIDATE
+// first checks that PROGRAM is checked IR.
+Write :: (program: *Ir.ZirProgram, sink: *u8, block: []u8, portable: bool, validate: bool) -> SavedWritten {
+    if validate && !Valid(program) { return .{false, "", 0} }
+    codec := Open(false, portable, sink, block, "", null)
+    Program(*codec, program)
+    if sink != null { Flush(*codec) }
+    return .{codec.valid, codec.problem, codec.bytes}
+}
+
+// Reads INPUT into PROGRAM, whose spans and modules CONTEXT owns: "" or
+// what is wrong with it. PROGRAM may hold part of the input after a
+// failure; its owner frees it.
+Read :: (program: *Ir.ZirProgram, input: string, context: *u8) -> string {
+    block: []u8
+    codec := Open(true, false, null, block, input, context)
+    Program(*codec, program)
+    if !codec.valid {
+        if codec.problem.count == 0 { return "truncated ZIR data" }
+        return codec.problem
+    }
+    if !Valid(program) { return "invalid checked IR structure" }
+    return ""
+}

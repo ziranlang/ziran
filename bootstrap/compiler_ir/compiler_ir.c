@@ -23,7 +23,7 @@ compiler_ir_CText(uint8_t* value)
 }
 
 Slice
-compiler_ir_CBuffer(uint8_t* data, uint64_t count)
+compiler_ir_CBuffer(uint8_t* data, size_t count)
 {
     Slice result = {0};
     ByteDescriptor* descriptor = (ByteDescriptor*)(&(result));

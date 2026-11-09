@@ -40,7 +40,8 @@ main(int argc, char **argv)
     int check_ok;
     ProgramSet set = {0};
     CompilerContext *command_context = NULL, *previous_context = NULL;
-    const char *module_paths[64];
+    const char **module_paths = CommandModulePaths(argc);
+    if(module_paths == NULL) return 1;
     int module_path_count = 0;
     const char *bindings[64];
     int binding_count = 0;
@@ -58,7 +59,7 @@ main(int argc, char **argv)
     CommandLowerPriority();
     const CommandOption options[] = {
         COMMAND_TEXT("--root", root),
-        COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),
+        COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
         COMMAND_TEXT("-o", out_dir),
         COMMAND_TEXT("--pkg", pkg),
         COMMAND_TEXT("--entry", entry),

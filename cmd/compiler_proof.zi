@@ -19,8 +19,8 @@ ResolveFunction :: (m: *IR.ZirModule, name: *u8, owner: **IR.ZirModule, fn: **IR
 ParseExpr :: (fn: *IR.ZirFunction, m: *IR.ZirModule, text: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ParseExprNoDefaults";
 FunctionAddStmt :: (fn: *IR.ZirFunction, kind: IR.ZirStmtKind, text: *u8, span: IR.ZirSourceSpan) -> *IR.ZirStmt #foreign zir "FunctionAddStmt";
 ModuleAddProof :: (m: *IR.ZirModule, name: *u8, body: *u8, span: IR.ZirSourceSpan) -> s32 #foreign zir "ModuleAddProof";
-calloc :: (count: u64, size: u64) -> *u8 #foreign libc "calloc";
-realloc :: (data: *u8, size: u64) -> *u8 #foreign libc "realloc";
+calloc :: (count: usize, size: usize) -> *u8 #foreign libc "calloc";
+realloc :: (data: *u8, size: usize) -> *u8 #foreign libc "realloc";
 free :: (data: *u8) #foreign libc "free";
 
 // IR.ZIR_NAME_MAX and IR.ZIR_TEXT_MAX; an imported constant cannot size an array yet.
@@ -477,7 +477,7 @@ ParseSteps :: (p: *IR.ZirProof, m: *IR.ZirModule) -> bool {
                !CallName(*p.terms, *p.terms.exprs[step.term_root], step.target[:]) { return false }
         } else if step.kind == IR.ZirProofStepKind.UNFOLD { if !IR.CopyText(step.target[:], operand) { return false } }
         else if operand.count > 0 { return false }
-        steps := cast(*IR.ZirProofStep)realloc(cast(*u8)p.steps, cast(u64)(p.step_count + 1) * size_of(IR.ZirProofStep))
+        steps := cast(*IR.ZirProofStep)realloc(cast(*u8)p.steps, cast(usize)(p.step_count + 1) * size_of(IR.ZirProofStep))
         if steps == null { return false }
         p.steps = steps
         p.steps[p.step_count] = step
@@ -684,7 +684,7 @@ PrepareLawProofs :: (programs: **IR.ZirProgram, count: s32) -> s32 {
 
 // 0 proved, 2 unsupported or over budget, 3 invalid; DETAIL says why.
 #program_export
-EvaluateTheorem :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: u64) -> s32 {
+EvaluateTheorem :: (module: *IR.ZirModule, law: *IR.ZirLaw, detail: *u8, size: usize) -> s32 {
     out := IR.CBuffer(detail, size)
     if law.claim == null || law.proof == null { IR.CopyText(out, "theorem has no proof certificate"); return 2 }
     c := cast(*Context)calloc(1, size_of(Context))

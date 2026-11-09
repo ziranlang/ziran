@@ -1047,7 +1047,7 @@ compiler_parse_FieldType(Parser* p, String type_name, String field_name, int32_t
     if (element.valid && (int64_t)(element.element).length < 128LL) {
         field_type = element.element;
     }
-    uint64_t offset = 0ULL;
+    size_t offset = 0;
     int32_t position = 0;
     while (true) {
         bool value_4 = record != ((void *)0);

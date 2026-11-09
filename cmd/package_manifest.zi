@@ -18,19 +18,16 @@ PkgDependency :: struct {
     alias_count: s32
 }
 
-// Large apps list many module roots (Harmony had 17 when 16 was the limit).
-PkgMaxModuleRoots :: 64;
-
 PkgManifest :: struct {
     name: string
     entry: string
-    roots: [PkgMaxModuleRoots]string
+    roots: []string
     root_count: s32
     bridges: [16]string
     bridge_count: s32
     // Folders a project command's --module-path adds to this root package,
     // such as modules a build step writes; never part of ziran.toml.
-    generated: [16]string
+    generated: []string
     generated_count: s32
     tool_git: string
     tool_ref: string
@@ -62,7 +59,12 @@ PkgOverrides :: struct {
 }
 
 PkgNewManifest :: () -> *PkgManifest {
-    return cast(*PkgManifest)(PkgAllocZero(cast(u64)size_of(PkgManifest)))
+    result := cast(*PkgManifest)(PkgAllocZero(cast(u64)size_of(PkgManifest)))
+    if result != null {
+        result.roots = PkgStrings(1)
+        if result.roots.count != 1 { return null }
+    }
+    return result
 }
 
 PkgNewOverrides :: () -> *PkgOverrides {
@@ -190,6 +192,8 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
     // parser choose their own bound (the context planner uses its 256 KiB default).
     if !Toml.TomlRead(*document, content.text, 16777216) { return false }
     output.entry = "src/app.zi"
+    output.roots = PkgStrings(1)
+    if output.roots.count != 1 { return false }
     output.roots[0] = "src"
     output.root_count = 1
     output.tool_ref = "master"
@@ -215,9 +219,16 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
                     }
                 }
                 if key == "module_roots" {
-                    output.root_count = PkgStringList(*document, child, output.roots[:])
+                    root_count := Toml.TomlCount(*document, child)
+                    output.roots = PkgStrings(cast(s64)root_count)
+                    if Toml.TomlKindOf(*document, child) != Toml.TomlKind.Array ||
+                       output.roots.count != root_count {
+                        unused PkgFail("ziran.toml module_roots must be an array of non-empty strings")
+                        return false
+                    }
+                    output.root_count = PkgStringList(*document, child, output.roots)
                     if output.root_count < 0 {
-                        unused PkgFail("ziran.toml module_roots must be an array of at most 64 non-empty strings")
+                        unused PkgFail("ziran.toml module_roots must be an array of non-empty strings")
                         return false
                     }
                 }

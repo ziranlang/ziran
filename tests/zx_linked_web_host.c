@@ -1,7 +1,7 @@
 /* Host for code linked into a WebAssembly host ahead of time: the bundle
- * whose program `zi2zx native-c` wrote runs as that code, a second instance
- * open at the same time runs on the portable VM, every instance starts from
- * fresh globals, and another bundle runs on the VM. Run under node by
+ * whose program `zi2zx native-c` wrote runs as that code, a second linked
+ * instance beside the first has independent globals, and another bundle runs
+ * on the VM. Run under node by
  * tests/zx_linked_web.sh, which counts the linked opens on stderr. */
 #include "ziran_host.h"
 
@@ -49,7 +49,7 @@ main(int argc, char **argv)
         return 3;
     BundleInstance *first = BundleInstantiate(linked, bindings, 1);
     long long a = run(first), b = run(first);
-    /* Open beside the first: the VM runs it, from fresh globals. */
+    /* Open beside the first: linked code runs it, from fresh globals. */
     BundleInstance *beside = BundleInstantiate(linked, bindings, 1);
     long long c = run(beside);
     BundleInstanceClose(beside);

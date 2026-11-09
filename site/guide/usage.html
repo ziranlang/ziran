@@ -518,7 +518,10 @@ declarations, statements, and checked expression links as readable text;
 read the saved file and leave it unchanged.</p>
 <h2 id="imports">Imports</h2>
 <p>For ordinary imports, pass the entry file and a library directory with
-<code>--module-path DIR</code> (repeat for multiple directories). <code>check</code>, <code>ir</code>,
+<code>--module-path DIR</code> (repeat for multiple directories). There is no fixed
+module-root count limit; storage grows with the inputs, subject to available
+memory and operating-system argument limits. Search order remains the order
+of the supplied paths. <code>check</code>, <code>ir</code>,
 <code>api</code>, <code>build</code>, and <code>bundle</code> load extensionless <code>#import "module"</code> dependencies
 transitively from <code>.zi</code> or saved <code>.zir</code>. For example:</p>
 <pre><code class="language-sh">build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi

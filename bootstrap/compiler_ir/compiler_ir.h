@@ -433,7 +433,7 @@ struct ByteDescriptor {
 };
 #endif
 String compiler_ir_CText(uint8_t* value);
-Slice compiler_ir_CBuffer(uint8_t* data, uint64_t count);
+Slice compiler_ir_CBuffer(uint8_t* data, size_t count);
 String compiler_ir_BufferText(Slice buffer);
 bool compiler_ir_CopyText(Slice output, String text);
 

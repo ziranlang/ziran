@@ -44,6 +44,28 @@ HostBinding :: struct {
     context: *void
 }
 
+BundleStateValue :: struct {
+    module: *u8
+    name: *u8
+    type: *u8
+    value: HostValue
+}
+
+BundleStateMigrate :: #type (context: *void, old_state: *void,
+    new_state: *void) -> s32 #c_call;
+BundleComponentVerify :: #type (context: *void,
+    instance: *void) -> s32 #c_call;
+
+BundleCapabilityAbi :: struct {
+    module: *u8
+    function: *u8
+    signature: *u8
+    arguments: *u8
+    return_type: *u8
+    variable_arguments: s32
+    reads_arguments: s32
+}
+
 #scope_file
 RawBundleOpen :: (path: *u8) -> *void #foreign runtime "BundleOpen";
 RawBundleOpenBytes :: (data: *u8, size: usize) -> *void #foreign runtime "BundleOpenBytes";
@@ -55,6 +77,12 @@ RawBundleClose :: (bundle: *void) #foreign runtime "BundleClose";
 RawBundleCapabilityCount :: (bundle: *void) -> usize #foreign runtime "BundleCapabilityCount";
 RawBundleCapabilityModule :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityModule";
 RawBundleCapabilityFunction :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleCapabilityFunction";
+RawBundleCapabilityAbiAt :: (bundle: *void, index: usize,
+    abi: *BundleCapabilityAbi) -> s32 #foreign runtime "BundleCapabilityAbiAt";
+RawBundleAbiCompatible :: (left: *void, right: *void) -> s32 #foreign runtime "BundleAbiCompatible";
+RawBundleEntryModuleName :: (bundle: *void) -> *u8 #foreign runtime "BundleEntryModuleName";
+RawBundleEntryFunctionName :: (bundle: *void) -> *u8 #foreign runtime "BundleEntryFunctionName";
+RawBundleCodeIdentity :: (bundle: *void, identity: *u8) #foreign runtime "BundleCodeIdentity";
 RawBundleAssetCount :: (bundle: *void) -> usize #foreign runtime "BundleAssetCount";
 RawBundleOwnAssetCount :: (bundle: *void) -> usize #foreign runtime "BundleOwnAssetCount";
 RawBundleAssetName :: (bundle: *void, index: usize) -> *u8 #foreign runtime "BundleAssetName";
@@ -64,11 +92,45 @@ RawBundleInstantiate :: (bundle: *void, bindings: *HostBinding,
     count: usize) -> *void #foreign runtime "BundleInstantiate";
 RawBundleInstantiateLimited :: (bundle: *void, bindings: *HostBinding,
     count: usize, max_steps: s32) -> *void #foreign runtime "BundleInstantiateLimited";
+RawBundleInstantiatePortable :: (bundle: *void, bindings: *HostBinding,
+    count: usize) -> *void #foreign runtime "BundleInstantiatePortable";
 RawBundleInstanceRun :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 #foreign runtime "BundleInstanceRun";
 RawBundleInstanceClose :: (instance: *void) #foreign runtime "BundleInstanceClose";
 RawBundleInstanceLimitSteps :: (instance: *void, max_steps: s32) #foreign runtime "BundleInstanceLimitSteps";
 RawBundleInstanceMatchFieldsByName :: (instance: *void, enabled: s32) #foreign runtime "BundleInstanceMatchFieldsByName";
+RawBundleInstanceExportState :: (instance: *void,
+    state: **void) -> s32 #foreign runtime "BundleInstanceExportState";
+RawBundleInstanceImportState :: (instance: *void,
+    state: *void) -> s32 #foreign runtime "BundleInstanceImportState";
+RawBundleStateCount :: (state: *void) -> usize #foreign runtime "BundleStateCount";
+RawBundleStateValueBytes :: (state: *void) -> usize #foreign runtime "BundleStateValueBytes";
+RawBundleStateValueAt :: (state: *void, index: usize,
+    value: *BundleStateValue) -> s32 #foreign runtime "BundleStateValueAt";
+RawBundleStateValueRef :: (state: *void, index: usize) -> *BundleStateValue #foreign runtime "BundleStateValueRef";
+RawBundleStateFind :: (state: *void, module: *u8, name: *u8,
+    index: *usize) -> s32 #foreign runtime "BundleStateFind";
+RawBundleStateSetInteger :: (state: *void, index: usize,
+    value: s64) -> s32 #foreign runtime "BundleStateSetInteger";
+RawBundleStateSetUnsigned :: (state: *void, index: usize,
+    value: u64) -> s32 #foreign runtime "BundleStateSetUnsigned";
+RawBundleStateSetReal :: (state: *void, index: usize,
+    value: float64) -> s32 #foreign runtime "BundleStateSetReal";
+RawBundleStateSetString :: (state: *void, index: usize, data: *u8,
+    length: usize) -> s32 #foreign runtime "BundleStateSetString";
+RawBundleStateClose :: (state: *void) #foreign runtime "BundleStateClose";
+RawBundleComponentOpen :: (bundle: *void, bindings: *HostBinding,
+    count: usize, max_steps: s32) -> *void #foreign runtime "BundleComponentOpen";
+RawBundleComponentAcquire :: (component: *void) -> *void #foreign runtime "BundleComponentAcquire";
+RawBundleComponentHandleValid :: (handle: *void) -> s32 #foreign runtime "BundleComponentHandleValid";
+RawBundleComponentRun :: (handle: *void, result: *s64,
+    has_result: *s32) -> s32 #foreign runtime "BundleComponentRun";
+RawBundleComponentReplace :: (component: *void, replacement: *void,
+    migrate: BundleStateMigrate, verify: BundleComponentVerify, context: *void,
+    new_handle: **void) -> s32 #foreign runtime "BundleComponentReplace";
+RawBundleComponentLiveValueBytes :: (component: *void) -> usize #foreign runtime "BundleComponentLiveValueBytes";
+RawBundleComponentClose :: (component: *void) #foreign runtime "BundleComponentClose";
+RawBundleComponentHandleClose :: (handle: *void) #foreign runtime "BundleComponentHandleClose";
 
 #scope_export
 #program_export
@@ -131,6 +193,36 @@ BundleCapabilityFunctionName :: (bundle: *void, index: u64) -> *u8 {
 }
 
 #program_export
+ReadBundleCapabilityAbi :: (bundle: *void, index: u64,
+    abi: *BundleCapabilityAbi) -> s32 {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return 0
+    }
+    return RawBundleCapabilityAbiAt(bundle, narrowed, abi)
+}
+
+#program_export
+BundlesAbiCompatible :: (left: *void, right: *void) -> bool {
+    return RawBundleAbiCompatible(left, right) != 0
+}
+
+#program_export
+BundleEntryModule :: (bundle: *void) -> *u8 {
+    return RawBundleEntryModuleName(bundle)
+}
+
+#program_export
+BundleEntryFunction :: (bundle: *void) -> *u8 {
+    return RawBundleEntryFunctionName(bundle)
+}
+
+#program_export
+BundleCodeDigest :: (bundle: *void, identity: *u8) {
+    RawBundleCodeIdentity(bundle, identity)
+}
+
+#program_export
 BundleAssets :: (bundle: *void) -> u64 { return cast(u64)RawBundleAssetCount(bundle) }
 
 // Own assets precede inherited library assets in the resource table.
@@ -186,6 +278,16 @@ InstantiateBundleLimited :: (bundle: *void, bindings: *HostBinding,
 }
 
 #program_export
+InstantiateBundlePortable :: (bundle: *void, bindings: *HostBinding,
+    count: u64) -> *void {
+    narrowed := cast(usize)count
+    if cast(u64)narrowed != count {
+        return null
+    }
+    return RawBundleInstantiatePortable(bundle, bindings, narrowed)
+}
+
+#program_export
 RunBundleInstance :: (instance: *void, result: *s64,
     has_result: *s32) -> s32 {
     return RawBundleInstanceRun(instance, result, has_result)
@@ -204,4 +306,146 @@ LimitBundleSteps :: (instance: *void, max_steps: s32) {
 #program_export
 MatchBundleFieldsByName :: (instance: *void, enabled: bool) {
     RawBundleInstanceMatchFieldsByName(instance, ifx enabled then 1 else 0)
+}
+
+#program_export
+ExportBundleState :: (instance: *void, state: **void) -> bool {
+    return RawBundleInstanceExportState(instance, state) != 0
+}
+
+#program_export
+ImportBundleState :: (instance: *void, state: *void) -> bool {
+    return RawBundleInstanceImportState(instance, state) != 0
+}
+
+#program_export
+BundleStateValueCount :: (state: *void) -> u64 {
+    return cast(u64)RawBundleStateCount(state)
+}
+
+#program_export
+BundleStateBytes :: (state: *void) -> u64 {
+    return cast(u64)RawBundleStateValueBytes(state)
+}
+
+#program_export
+ReadBundleStateValue :: (state: *void, index: u64,
+    value: *BundleStateValue) -> bool {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return false
+    }
+    return RawBundleStateValueAt(state, narrowed, value) != 0
+}
+
+#program_export
+BundleStateValueReference :: (state: *void, index: u64) -> *BundleStateValue {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return null
+    }
+    return RawBundleStateValueRef(state, narrowed)
+}
+
+#program_export
+FindBundleStateValue :: (state: *void, module: *u8, name: *u8,
+    index: *u64) -> bool {
+    narrowed := cast(usize)0
+    if RawBundleStateFind(state, module, name, *narrowed) == 0 {
+        return false
+    }
+    <<index = cast(u64)narrowed
+    return true
+}
+
+#program_export
+SetBundleStateInteger :: (state: *void, index: u64, value: s64) -> bool {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return false
+    }
+    return RawBundleStateSetInteger(state, narrowed, value) != 0
+}
+
+#program_export
+SetBundleStateUnsigned :: (state: *void, index: u64, value: u64) -> bool {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return false
+    }
+    return RawBundleStateSetUnsigned(state, narrowed, value) != 0
+}
+
+#program_export
+SetBundleStateReal :: (state: *void, index: u64, value: float64) -> bool {
+    narrowed := cast(usize)index
+    if cast(u64)narrowed != index {
+        return false
+    }
+    return RawBundleStateSetReal(state, narrowed, value) != 0
+}
+
+#program_export
+SetBundleStateString :: (state: *void, index: u64, data: *u8,
+    length: u64) -> bool {
+    narrowed_index := cast(usize)index
+    narrowed_length := cast(usize)length
+    if cast(u64)narrowed_index != index ||
+            cast(u64)narrowed_length != length {
+        return false
+    }
+    return RawBundleStateSetString(state, narrowed_index, data,
+        narrowed_length) != 0
+}
+
+#program_export
+CloseBundleState :: (state: *void) { RawBundleStateClose(state) }
+
+#program_export
+OpenBundleComponent :: (bundle: *void, bindings: *HostBinding,
+    count: u64, max_steps: s32) -> *void {
+    narrowed := cast(usize)count
+    if cast(u64)narrowed != count || max_steps <= 0 {
+        return null
+    }
+    return RawBundleComponentOpen(bundle, bindings, narrowed, max_steps)
+}
+
+#program_export
+AcquireBundleComponent :: (component: *void) -> *void {
+    return RawBundleComponentAcquire(component)
+}
+
+#program_export
+BundleComponentHandleIsValid :: (handle: *void) -> bool {
+    return RawBundleComponentHandleValid(handle) != 0
+}
+
+#program_export
+RunBundleComponent :: (handle: *void, result: *s64,
+    has_result: *s32) -> s32 {
+    return RawBundleComponentRun(handle, result, has_result)
+}
+
+#program_export
+ReplaceBundleComponent :: (component: *void, replacement: *void,
+    migrate: BundleStateMigrate, verify: BundleComponentVerify,
+    context: *void, new_handle: **void) -> bool {
+    return RawBundleComponentReplace(component, replacement, migrate, verify,
+        context, new_handle) != 0
+}
+
+#program_export
+BundleComponentLiveBytes :: (component: *void) -> u64 {
+    return cast(u64)RawBundleComponentLiveValueBytes(component)
+}
+
+#program_export
+CloseBundleComponent :: (component: *void) {
+    RawBundleComponentClose(component)
+}
+
+#program_export
+CloseBundleComponentHandle :: (handle: *void) {
+    RawBundleComponentHandleClose(handle)
 }

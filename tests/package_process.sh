@@ -54,8 +54,10 @@ Check :: (directory: string) -> s32 {
     empty: [0]u8
     if RunProcess(shell[:], "", none[:], none[:], empty[:]) != 0 { return 18 }
     if RunProcess(none[:], "", none[:], none[:], output[:]) != -1 { return 19 }
-    excessive: [257]string
-    if RunProcess(excessive[:], "", none[:], none[:], output[:]) != -1 { return 20 }
+    many: [600]string
+    for i: 0..599 { many[i] = "argument" }
+    many[0] = "true"
+    if RunProcess(many[:], "", none[:], none[:], output[:]) != 0 { return 20 }
     if RunProcess(pwd[:], "", names[:], none[:], output[:]) != -1 { return 21 }
     nul: [3]u8 = .[65, 0, 66]
     missing[0] = TextFromBytes(nul[:])

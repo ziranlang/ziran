@@ -16,6 +16,7 @@ ReadLink :: (path: *u8, output: *u8, count: usize) -> isize #foreign libc "readl
 #scope_export
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
+    defer PkgReleaseStringArena()
     if argc == 2 {
         argument := TextFromCString(argv[1])
         if argument == "version" || argument == "--version" {

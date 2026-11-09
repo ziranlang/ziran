@@ -4,7 +4,8 @@ set -eu
 # compiled to WebAssembly, a bundle's program written as C by
 # `zi2zx native-c`, compiled with emcc under its own symbol prefix
 # (scripts/linked-zx.py) and linked into the host, which runs those exact
-# bytes as that code and other bundles on the portable VM. Skipped unless
+# bytes as independent linked instances and other bundles on the portable VM.
+# Skipped unless
 # emcc and node are installed and zi2zx has the native engine.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -81,7 +82,7 @@ make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/lib" \
     cat "$work/err.txt"
     exit 1
 }
-# Linked: 5148 then 5248 on one instance; beside it the VM from fresh
+# Linked: 5148 then 5248 on one instance; beside it linked code from fresh
 # globals, 5148; reopened alone, linked code from fresh globals, 5148; the
 # other bundle on the VM, 9091.
 test "$(cat "$work/out.txt")" = "5148 5248 5148 5148 9091" || {
@@ -90,9 +91,9 @@ test "$(cat "$work/out.txt")" = "5148 5248 5148 5148 9091" || {
     exit 1
 }
 grep -q 'linked.zx: opened on linked code, unchecked' "$work/err.txt"
-test "$(grep -c 'ziran: native Main: linked code' "$work/err.txt")" = 2 || {
-    echo "zx-linked-web: expected two linked opens"
+test "$(grep -c 'ziran: native Main: linked code' "$work/err.txt")" = 3 || {
+    echo "zx-linked-web: expected three linked opens"
     cat "$work/err.txt"
     exit 1
 }
-echo 'Linked code runs its exact bundle in the WebAssembly host, one instance at a time from fresh globals'
+echo 'Linked code runs concurrent independent instances in the WebAssembly host'

@@ -10,6 +10,9 @@ extern "C" {
 
 typedef struct Bundle Bundle;
 typedef struct BundleInstance BundleInstance;
+typedef struct BundleState BundleState;
+typedef struct BundleComponent BundleComponent;
+typedef struct BundleComponentHandle BundleComponentHandle;
 
 typedef enum VmHostValueKind {
     VM_HOST_VOID,
@@ -73,6 +76,29 @@ typedef struct HostBinding {
     void *context;
 } HostBinding;
 
+typedef struct BundleStateValue {
+    const char *module;
+    const char *name;
+    const char *type;
+    VmHostValue value;
+} BundleStateValue;
+
+typedef int (*BundleStateMigrate)(void *context,
+                                  const BundleState *old_state,
+                                  BundleState *new_state);
+typedef int (*BundleComponentVerify)(void *context,
+                                     BundleInstance *instance);
+
+typedef struct BundleCapabilityAbi {
+    const char *module;
+    const char *function;
+    const char *signature;
+    const char *arguments;
+    const char *return_type;
+    int variable_arguments;
+    int reads_arguments;
+} BundleCapabilityAbi;
+
 /* Open and validate a version 26 portable bundle. Close releases all names. */
 Bundle *BundleOpen(const char *path);
 /* Validate an embedded/downloaded bundle without an application pathname.
@@ -91,6 +117,12 @@ void BundleClose(Bundle *bundle);
 size_t BundleCapabilityCount(const Bundle *bundle);
 const char *BundleCapabilityModule(const Bundle *bundle, size_t index);
 const char *BundleCapabilityFunction(const Bundle *bundle, size_t index);
+int BundleCapabilityAbiAt(const Bundle *bundle, size_t index,
+                          BundleCapabilityAbi *abi);
+int BundleAbiCompatible(const Bundle *left, const Bundle *right);
+const char *BundleEntryModuleName(const Bundle *bundle);
+const char *BundleEntryFunctionName(const Bundle *bundle);
+void BundleCodeIdentity(const Bundle *bundle, unsigned char identity[32]);
 
 /* Embedded files have canonical relative paths and immutable bytes. Names and
  * data are borrowed until BundleClose; an invalid index returns NULL/zero. */
@@ -134,6 +166,11 @@ BundleInstance *BundleInstantiate(const Bundle *bundle,
 BundleInstance *BundleInstantiateLimited(const Bundle *bundle,
                                          const HostBinding *bindings,
                                          size_t binding_count, int max_steps);
+/* Always initialize and run the verified portable IR, even where compiled
+ * engines are available. This is the execution tier used by component swap. */
+BundleInstance *BundleInstantiatePortable(const Bundle *bundle,
+                                          const HostBinding *bindings,
+                                          size_t binding_count);
 int BundleInstanceRun(BundleInstance *instance, long long *result,
                       int *has_result);
 /* Bound each subsequent run to max_steps units of work, so a runaway bundle
@@ -145,6 +182,53 @@ void BundleInstanceLimitSteps(BundleInstance *instance, int max_steps);
  * so a bundle and its host may be built against different layouts. */
 void BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled);
 void BundleInstanceClose(BundleInstance *instance);
+
+/* Portable module state. Owned strings, fixed arrays, records, enums, and
+ * vectors are copied recursively with bounded depth and bytes. Pointers,
+ * slices, and other borrowed/host resources are rejected. Names, types, and
+ * nested values are owned by the snapshot until BundleStateClose, independently
+ * of the source instance. Migration sees the old snapshot and a mutable,
+ * freshly initialized candidate snapshot. */
+int BundleInstanceExportState(BundleInstance *instance, BundleState **state);
+int BundleInstanceImportState(BundleInstance *instance,
+                              const BundleState *state);
+size_t BundleStateCount(const BundleState *state);
+size_t BundleStateValueBytes(const BundleState *state);
+int BundleStateValueAt(const BundleState *state, size_t index,
+                       BundleStateValue *value);
+BundleStateValue *BundleStateValueRef(BundleState *state, size_t index);
+int BundleStateFind(const BundleState *state, const char *module,
+                    const char *name, size_t *index);
+int BundleStateSetInteger(BundleState *state, size_t index,
+                          int64_t value);
+int BundleStateSetUnsigned(BundleState *state, size_t index,
+                           uint64_t value);
+int BundleStateSetReal(BundleState *state, size_t index, double value);
+int BundleStateSetString(BundleState *state, size_t index,
+                         const unsigned char *data, size_t length);
+void BundleStateClose(BundleState *state);
+
+/* A hot-swappable component owns one positive-budget portable instance and
+ * copied bindings.
+ * Replacement checks identity and typed ABI first, exports old state,
+ * initializes replacement code, migrates and imports state, and calls VERIFY;
+ * only then does the generation advance. Any failure leaves the old instance
+ * live. Handles acquired before a replacement become stale and fail safely. */
+BundleComponent *BundleComponentOpen(const Bundle *bundle,
+                                     const HostBinding *bindings,
+                                     size_t binding_count, int max_steps);
+BundleComponentHandle *BundleComponentAcquire(BundleComponent *component);
+int BundleComponentHandleValid(const BundleComponentHandle *handle);
+int BundleComponentRun(BundleComponentHandle *handle, long long *result,
+                       int *has_result);
+int BundleComponentReplace(BundleComponent *component,
+                           const Bundle *replacement,
+                           BundleStateMigrate migrate,
+                           BundleComponentVerify verify, void *context,
+                           BundleComponentHandle **new_handle);
+size_t BundleComponentLiveValueBytes(const BundleComponent *component);
+void BundleComponentClose(BundleComponent *component);
+void BundleComponentHandleClose(BundleComponentHandle *handle);
 
 #ifdef __cplusplus
 }

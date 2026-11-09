@@ -42,6 +42,21 @@ CommandLowerPriority(void)
 #endif
 }
 
+/* A command-lifetime arena for argv-sized collections. atexit also releases
+ * storage on usage/error returns before a compiler context is opened. */
+static const char **command_module_paths;
+static void CommandModulePathsRelease(void) { free(command_module_paths); }
+static inline const char **CommandModulePaths(int argc)
+{
+    if(argc < 1) return NULL;
+    if(command_module_paths != NULL) return command_module_paths;
+    const char **paths = calloc((size_t)argc, sizeof(*paths));
+    if(paths == NULL) return NULL;
+    if(atexit(CommandModulePathsRelease) != 0) { free(paths); return NULL; }
+    command_module_paths = paths;
+    return paths;
+}
+
 /* Options belong to each command; only their bounded argv mechanics are
  * shared. A value consumes the next word even when it starts with '-'. */
 typedef struct CommandOption {

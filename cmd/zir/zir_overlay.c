@@ -1,9 +1,10 @@
+#include <limits.h>
 #include "zir_overlay.h"
 #include <string.h>
 #include <stdlib.h>
 static _Thread_local const char *overlay_path, *overlay_source;
 static _Thread_local size_t overlay_count;
-static _Thread_local const char *overlay_root, *overlay_standard, *overlay_roots[32];
+static _Thread_local const char *overlay_root, *overlay_standard, **overlay_roots;
 static _Thread_local int overlay_roots_count;
 int SourceOverlayBegin(const char *path, const char *source, size_t count) {
     if(overlay_path || !path || !source || memchr(source, 0, count) || source[count]) return 0;
@@ -19,7 +20,11 @@ static int within(const char *path,const char *root) {
     return n && !strncmp(path,root,n) && (n==1 || !path[n] || path[n]=='/');
 }
 int SourceOverlayPermitRoot(const char *root) {
-    if(!overlay_path || !root || overlay_roots_count==32) return 0;
+    if(!overlay_path || !root) return 0;
+    if(overlay_roots_count==INT_MAX) return 0;
+    const char **roots=realloc(overlay_roots, ((size_t)overlay_roots_count+1)*sizeof(*roots));
+    if(!roots) return 0;
+    overlay_roots=roots;
     overlay_roots[overlay_roots_count++]=root; return 1;
 }
 // Windows has no realpath; _fullpath gives the absolute path, written with
@@ -40,4 +45,4 @@ int SourceOverlayAllowed(const char *path) {
     for(int i=0; canonical && !allowed && i<overlay_roots_count; i++) allowed=within(canonical,overlay_roots[i]);
     free(canonical); return allowed;
 }
-void SourceOverlayEnd(void) { overlay_root=NULL; overlay_standard=NULL; overlay_roots_count=0; overlay_path=NULL; overlay_source=NULL; overlay_count=0; }
+void SourceOverlayEnd(void) { overlay_root=NULL; overlay_standard=NULL; overlay_roots_count=0; free(overlay_roots); overlay_roots=NULL; overlay_path=NULL; overlay_source=NULL; overlay_count=0; }

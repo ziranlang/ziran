@@ -40,7 +40,8 @@ main(int argc, char **argv)
     CompilerContext *command_context = NULL, *previous_context = NULL;
     ZirProgram merged = {0};
     ZirProgram *linked = NULL;
-    const char *module_paths[64];
+    const char **module_paths = CommandModulePaths(argc);
+    if(module_paths == NULL) return 1;
     int module_path_count = 0;
     const char *defines[65];
     int define_count = 0;
@@ -54,7 +55,7 @@ main(int argc, char **argv)
     CommandLowerPriority();
     const CommandOption options[] = {
         COMMAND_TEXT("--root", root),
-        COMMAND_LIST("--module-path", module_paths, module_path_count, 64, NULL),
+        COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
         COMMAND_LIST("--define", defines, define_count, 64, valid_define),
         COMMAND_TEXT("-o", output),
         COMMAND_TEXT("--entry", entry),
@@ -100,7 +101,7 @@ main(int argc, char **argv)
         goto done;
     size_t size = 0;
     unsigned char *image = zir_wasm_lower(linked, entry_module, entry_function,
-                                          &size);
+                                          &size, NULL);
     if(image == NULL)
         goto done;
     FILE *out = fopen(output, "wb");

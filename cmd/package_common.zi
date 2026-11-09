@@ -404,3 +404,31 @@ PkgSourceId :: (url: string, commit: string) -> string {
     }
     return PkgJoin("", TextFromBytes(result[0:17]))
 }
+
+// Command-lifetime arena for variable-sized root and argument collections.
+// Each request is bounded by the input size and checked byte arithmetic.
+PkgStringBlock :: struct { next: *PkgStringBlock; data: *u8 }
+PkgStringArena: *PkgStringBlock;
+PkgStringSlice :: struct { data: *string; count: s64 }
+PkgStrings :: (count: s64) -> []string {
+    result: []string
+    if count <= 0 || count > 9223372036854775807 / size_of(string) { return result }
+    block := cast(*PkgStringBlock)PkgAllocZero(cast(u64)size_of(PkgStringBlock))
+    if block == null { return result }
+    block.data = PkgAllocZero(cast(u64)(count * size_of(string)))
+    if block.data == null { PkgFreeRaw(cast(*u8)block); return result }
+    block.next = PkgStringArena
+    PkgStringArena = block
+    descriptor := cast(*PkgStringSlice)(*result)
+    descriptor.data = cast(*string)block.data
+    descriptor.count = count
+    return result
+}
+PkgReleaseStringArena :: () {
+    while PkgStringArena != null {
+        block := PkgStringArena
+        PkgStringArena = block.next
+        PkgFreeRaw(block.data)
+        PkgFreeRaw(cast(*u8)block)
+    }
+}

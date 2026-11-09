@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran portable bundle (`.zx`): the Ziran guide, rendered from docs/ZX.md."><title>Ziran portable bundle (`.zx`) · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/zx"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran portable bundle (`.zx`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZX.md">docs/ZX.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#experimental-versions-26-and-27">Experimental versions 26 and 27</a><a href="#target-contract">Target contract</a><a href="#shared-libraries-and-partial-modules">Shared libraries and partial modules</a><a href="#native-execution">Native execution</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#experimental-versions-26-and-27">Experimental versions 26 and 27</a><a href="#target-contract">Target contract</a><a href="#shared-libraries-and-partial-modules">Shared libraries and partial modules</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#native-execution">Native execution</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
 <section class="prose"><p>This describes the target contract and the experimental subset that ships now.
 See <a href="implementation-status.html">Implementation status</a> for the remaining work.</p>
 <p>The file roles are <code>.zi</code> for source, <code>.zir</code> for checked intermediate modules,
@@ -199,6 +199,50 @@ both ZX engines, with capability, private access, duplicate provider,
 overlapping declaration, format rejection and instance isolation cases. With
 <code>ZIRAN_ZX26_ROOT</code> naming a built toolchain from before version 27, it also
 checks that host opens current plain bundles and refuses composed add-ons.</p>
+<h2 id="component-identity-state-and-replacement">Component identity, state, and replacement</h2>
+<p>A component is an ordinary <code>.zx</code> entry plus its declared host capabilities;
+Ziran has no UI- or application-specific component names. <code>BundleCodeIdentity</code>
+returns a 32-byte content identity for the bundle's immutable program bytes and
+the exact supplied library identities, while <code>BundleEntryModuleName</code> and
+<code>BundleEntryFunctionName</code> expose the entry identity. <code>BundleCapabilityAbiAt</code>
+returns each capability's module, function, signature, argument types, return
+type, varargs flag, and argument-read flag. <code>BundleAbiCompatible</code> requires the
+same entry identity and entry signature and the same capability ABI set in both
+directions. Format version checking happens while opening the bundle.
+The <code>std/bundle_host</code> wrappers expose the same current C ABI to bundle code.</p>
+<p><code>BundleComponentOpen</code> retains immutable bundle code, copies the host bindings,
+and creates one independently initialized portable-VM instance with a positive
+work budget. Opening another component, including another instance of the same
+bundle, does not share or reset its globals. The host owns component and handle
+lifetimes; handles become stale when their generation is replaced or their
+component closes, and running a stale handle fails without touching the current
+instance.</p>
+<p><code>BundleInstanceExportState</code> snapshots all global values as recursive
+<code>BundleStateValue</code> data. Owned strings, fixed arrays, records, enums, scalar
+lanes, and SIMD vectors are deep-copied; pointers, slices, growable <code>Vec</code>
+backing storage, and other borrowed or host resources are rejected. Snapshots
+are bounded by the VM's representation depth and 16 MiB of copied payload.
+<code>BundleStateValueBytes</code> reports that exported payload size, not allocator
+overhead. A migration callback receives the old snapshot and a mutable snapshot
+of the replacement's initialized state, then <code>BundleInstanceImportState</code>
+validates and converts every value before changing any target global.</p>
+<p><code>BundleComponentReplace</code> is transactional at the component boundary. It checks
+the ABI, retains the replacement, initializes it under the component budget,
+exports both states, migrates and imports, and calls the optional verification
+callback while the old instance remains live. Only after all those steps pass
+does it close the old instance, retain the replacement as current, and advance
+the handle generation. ABI, initialization, state, migration, import, or
+verification failure leaves the previous instance and bundle live. Callers
+serialize run and replacement operations for one component; distinct components
+remain independent. <code>tests/bundle_component.sh</code> builds source through checked
+IR into <code>.zx</code>, proves independent state, successful nested-state migration,
+rollback on migration, schema, resource, initialization, and verification
+failure, stale-reference rejection, typed-ABI rejection, and an unrelated live
+component. It prints environment-dependent load, instantiate, and swap timings.</p>
+<p><code>BundleComponentLiveValueBytes</code> reports the live portable instance's global
+slot storage plus VM-owned record, array, and string payload. It deliberately
+does not claim shared immutable code, bundle bytes, host allocations, compiler
+cache, or total process RSS.</p>
 <h2 id="native-execution">Native execution</h2>
 <p>On Linux and Android hosts with x86-64, 32-bit ARM or ARM64 processors,
 <code>libziran</code> runs bundles as native code. <code>BundleInstantiate</code> lowers the
@@ -247,12 +291,14 @@ objects to link into the page beside the WebAssembly <code>libziran</code>.</p>
 <p>Each program's constructor registers it under the identity above. When a
 page opens a bundle with that identity, it opens without checking again and
 <code>BundleInstantiate</code> runs it as the linked code; every other bundle runs on
-the portable VM. The program's globals live in a data section of their own,
-copied back to their first contents before each instance starts, so one
-instance at a time runs the linked code; another instance opened beside it
-runs the checked program on the VM. <code>#parallel for</code> regions run in place,
-and runtime failures stop the run as natively. <code>tests/zx_linked_web.sh</code>
-checks this end to end with emcc and node.</p>
+the portable VM. The immutable program and its compiled services are shared,
+while every linked instance owns a private copy of the global data section and
+swaps that copy in only at its run boundary. <code>#parallel for</code> regions run in
+place, and runtime failures stop the run as natively.
+<code>tests/zx_linked_web.sh</code> checks independent coexistent linked instances end to
+end with emcc and node. Lifecycle components use the portable VM explicitly,
+so nested state and replacement semantics are the same in native, WebAssembly,
+and linked-browser hosts.</p>
 <h2 id="webassembly-execution-tier">WebAssembly execution tier</h2>
 <p>A host that installs a WebAssembly provider with <code>ZxWasmSetPlatform</code>
 (<code>cmd/zir/zir_zx_wasm_platform.h</code>) runs suitable bundles as WebAssembly:
@@ -260,11 +306,16 @@ checks this end to end with emcc and node.</p>
 with the same emitter as the <code>zi2wasm</code> tool, instantiates it through
 the provider, and counts the run budget like the native tier, one
 function entry and one loop iteration at a time. The current tier
-lowers the scalar subset only; a bundle with host bindings or other
-out-of-subset constructs runs on the portable VM instead, and a host
-without a provider is unchanged. <code>tests/zx_wasm_engine_test.c</code> checks
-the seam and fallback, and <code>tests/zx_wasm_web.sh</code> runs a bundle end to
-end through the wasm-built library and a JavaScript provider.</p>
+supports scalars, owned strings, fixed arrays, records, and typed
+<code>s64 -&gt; s64</code> host capabilities. Each instance keeps its own bindings and
+linear memory; a state table identifies its globals for owned export and
+import. Other constructs run on the portable VM, as do hosts without a
+provider. <code>tests/zx_wasm_engine_test.c</code> checks the seam and fallback, and
+<code>tests/zx_web_lifecycle.sh</code> runs source through checked IR and <code>.zx</code> in a
+private headless Chromium without Node. It checks actual Wasm execution,
+nested state migration through the provider's memory interface, independent
+linked instances, and portable component replacement and rollback in both
+browser hosts.</p>
 <h2 id="embedded-files-and-application-hosts">Embedded files and application hosts</h2>
 <p><code>--define NAME</code> selects the same source branches as the native compiler.
 <code>--asset-dir assets=assets</code> embeds regular files recursively under <code>assets/</code>.

@@ -710,6 +710,9 @@ ZxNativeRun(ZxNative *native, long long *result, int *has_result)
     native->escape = &escape;
     native->error[0] = '\0';
     if(setjmp(escape) != 0) {
+        if(native->linked_data != NULL)
+            memcpy(native->linked_data, native->linked_global,
+                   native->linked_data_size);
         native->escape = outer;
         current = previous;
         Diagnostic(native->entry_span, "zx.runtime",
@@ -717,7 +720,13 @@ ZxNativeRun(ZxNative *native, long long *result, int *has_result)
         return 0;
     }
     arm_guards(native);
+    if(native->linked_data != NULL)
+        memcpy(native->linked_global, native->linked_data,
+               native->linked_data_size);
     long long value = (long long)native->run();
+    if(native->linked_data != NULL)
+        memcpy(native->linked_data, native->linked_global,
+               native->linked_data_size);
     native->escape = outer;
     current = previous;
     *result = value;
@@ -765,6 +774,7 @@ ZxNativeClose(ZxNative *native)
                 native->entry_name, native->string_count, text, kept);
     }
     pool_close(native->pool);
+    free(native->linked_data);
     if(native->code != NULL && native->release != NULL)
         native->release(native->code);
     free_blocks(native->scratch);
@@ -785,8 +795,8 @@ ZxNativeClose(ZxNative *native)
  * it here under the bundle's identity. Bundles whose identity matches run
  * as that code; others run on the portable VM. The program's globals sit
  * in one data section; each instance starts from a copy of its first
- * contents, as each TinyCC instance starts from fresh storage, so only one
- * instance at a time can run it. */
+ * contents, as each TinyCC instance starts from fresh storage. Every live
+ * instance owns a copy and it is swapped in only at a run boundary. */
 
 typedef struct LinkedProgram {
     unsigned char identity[32];
@@ -801,7 +811,7 @@ typedef struct LinkedProgram {
     size_t data_size;
     /* The globals as linked, kept when the first instance opens. */
     unsigned char *initial;
-    int live;
+    int instances;
 } LinkedProgram;
 
 enum { LINKED_MAX = 64 };
@@ -847,7 +857,7 @@ ZxNativeLinked(const unsigned char identity[32])
 static void
 release_linked(void *code)
 {
-    ((LinkedProgram *)code)->live = 0;
+    ((LinkedProgram *)code)->instances--;
 }
 
 ZxNative *
@@ -859,10 +869,6 @@ ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
     LinkedProgram *program = linked_program(identity);
     if(program == NULL || entry == NULL || host == NULL)
         return NULL;
-    if(program->live) {
-        *busy = 1;
-        return NULL;
-    }
     if(program->data_size > 0 && program->initial == NULL) {
         program->initial = malloc(program->data_size);
         if(program->initial == NULL)
@@ -874,7 +880,16 @@ ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
     ZxNative *native = ZxNativeNew(entry, capabilities, capability_count, host, context);
     if(native == NULL)
         return NULL;
-    program->live = 1;
+    if(program->data_size > 0) {
+        native->linked_data = malloc(program->data_size);
+        if(native->linked_data == NULL) {
+            free(native);
+            return NULL;
+        }
+        native->linked_data_size = program->data_size;
+        native->linked_global = program->data;
+    }
+    program->instances++;
     native->code = program;
     native->release = release_linked;
     native->start = program->start;
@@ -892,5 +907,7 @@ ZxNativeOpenLinked(const ZirFunction *entry, const unsigned char identity[32],
         ZxNativeClose(native);
         return NULL;
     }
+    if(native->linked_data != NULL)
+        memcpy(native->linked_data, program->data, program->data_size);
     return native;
 }

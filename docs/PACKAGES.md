@@ -182,6 +182,10 @@ ziran bundle --project --module-path build/gen --entry app:main -o app.zx src/ap
 ziran check --project --module-path build/gen
 ```
 
+`module_roots` and repeated `--module-path DIR` have no fixed folder-count
+limit. Storage follows the input size, subject to manifest-size, allocation and
+operating-system argument limits.
+
 Each `--module-path DIR` (repeatable) adds `DIR/NAME.zi` and
 `DIR/NAME/module.zi` to your package's own modules, as if they were under a
 `module_roots` folder. Everything else still resolves from `ziran.lock`. The

@@ -76,7 +76,7 @@ FindType :: (module: *IR.ZirModule, name: string, owner: **IR.ZirModule) -> *IR.
     if name.count >= IR.ZIR_NAME_MAX || !IR.CopyText(spelled[:], name) { return null }
     return CFindType(module, *spelled[0], owner)
 }
-NextField :: (record: *IR.ZirType, offset: *u64, field: *IR.ZirTypeField) -> s32 {
+NextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 {
     return TypeNextField(record, offset, field)
 }
 // Diagnose, then exit.
@@ -93,7 +93,7 @@ ExpandDefaults :: (fn: *IR.ZirFunction, module: *IR.ZirModule, span: IR.ZirSourc
 FunctionAddExpr :: (fn: *IR.ZirFunction, kind: IR.ZirExprKind, text: *u8,
                     span: IR.ZirSourceSpan) -> *IR.ZirExpr #foreign compiler "FunctionAddExpr";
 CFindType :: (module: *IR.ZirModule, name: *u8, owner: **IR.ZirModule) -> *IR.ZirType #foreign compiler "FindType";
-TypeNextField :: (record: *IR.ZirType, offset: *u64, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
+TypeNextField :: (record: *IR.ZirType, offset: *usize, field: *IR.ZirTypeField) -> s32 #foreign compiler "TypeNextField";
 exit :: (status: s32) #foreign compiler "exit";
 ExpandDefaultArguments :: (fn: *IR.ZirFunction, module: *IR.ZirModule, span: IR.ZirSourceSpan,
                            stmt_index: s32, callee: s32, first: *s32, last: *s32) -> bool #foreign compiler "ExpandDefaultArguments";

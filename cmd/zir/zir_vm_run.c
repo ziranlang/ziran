@@ -834,6 +834,20 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
     return coerce(vm, module, result, type);
 }
 
+int
+VmValueHostArgument(const ZirModule *module, const char *type, Value value,
+                    VmHostValue *output, int depth)
+{
+    return host_argument(module, type, value, output, depth);
+}
+
+Value
+VmValueHostReturn(Vm *vm, const ZirModule *module, const char *type,
+                  const VmHostValue *input, int depth)
+{
+    return host_return(vm, module, type, input, depth);
+}
+
 static int
 host_copy_back(Vm *vm, const ZirModule *module, const char *type,
                Value target, const VmHostValue *input)

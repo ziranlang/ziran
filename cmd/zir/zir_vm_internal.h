@@ -647,6 +647,13 @@ typedef struct Vm {
     size_t layout_count;
 } Vm;
 
+/* State snapshots use the same typed recursive conversion as host calls, but
+ * the caller deep-copies their bytes and rejects borrowed views/resources. */
+int VmValueHostArgument(const ZirModule *module, const char *type, Value value,
+                        VmHostValue *output, int depth);
+Value VmValueHostReturn(Vm *vm, const ZirModule *module, const char *type,
+                        const VmHostValue *input, int depth);
+
 struct VmInstance {
     Vm vm;
     const ZirModule *module;

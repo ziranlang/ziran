@@ -11,6 +11,7 @@
 #include "zir_wasm_lower.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
+#include "zir_expr.h"
 #include "zir_text.h"
 
 #include <errno.h>
@@ -244,7 +245,8 @@ typedef struct WasmLocal {
 } WasmLocal;
 
 enum { ZX_WASM_MAX_REGIONS = 64, ZX_WASM_SCRATCH_SLOTS = 16,
-       ZX_WASM_ARENA_BASE = 65536, ZX_WASM_ARENA_PAGES = 64 };
+       ZX_WASM_ARENA_BASE = 65536, ZX_WASM_ARENA_PAGES = 64,
+       ZX_WASM_STATE_ARENA_BASE = ZX_WASM_ARENA_PAGES * 65536 };
 
 typedef struct WasmPlan {
     const ZirModule *module;
@@ -282,6 +284,11 @@ typedef struct WasmGlobalSlot {
     size_t offset;
 } WasmGlobalSlot;
 
+typedef struct WasmHostCapability {
+    const ZirModule *module;
+    const ZirImport *import;
+} WasmHostCapability;
+
 enum { ZX_WASM_DATA_BASE = 1024 };
 
 typedef struct WasmStringPool {
@@ -302,12 +309,19 @@ typedef struct WasmEmitter {
     const ZirModule **global_modules;
     int global_count;
     int global_capacity;
+    WasmHostCapability *hosts;
+    int host_count;
+    int host_capacity;
 } WasmEmitter;
 
 static int intern_string(WasmEmitter *emitter, const unsigned char *bytes,
                          size_t length);
 
 typedef struct WasmEmitter WasmEmitter;
+
+static int
+field_place(const ZirModule *module, const char *record_type,
+            const char *field_name, size_t *offset, char *field_type);
 
 /* Finds a global by name: the plan's own module first, then a unique
  * name across the linked program. */
@@ -327,6 +341,125 @@ find_global(const WasmEmitter *emitter, const ZirModule *scope,
         found = slot;
     }
     return matches == 1 ? found : NULL;
+}
+
+static int
+write_global_scalar(WasmEmitter *emitter, const ZirExpr *expression,
+                    const char *type, size_t offset, size_t size)
+{
+    const char *scalar = ScalarType(type);
+    if(expression->kind == ZIR_EXPR_STRING &&
+       !strcmp(scalar, "string")) {
+        unsigned char decoded[ZIR_TEXT_MAX];
+        size_t length = 0;
+        if(!DecodeStringLiteral(expression->text, decoded, sizeof(decoded),
+                                &length))
+            return 0;
+        int data = intern_string(emitter, decoded, length);
+        if(data < 0)
+            return 0;
+        uint64_t handle = ((uint64_t)length << 32) |
+                          (uint32_t)(ZX_WASM_DATA_BASE + data);
+        memcpy(emitter->strings->bytes + offset, &handle, sizeof(handle));
+        return 1;
+    }
+    if(expression->kind != ZIR_EXPR_INT && expression->kind != ZIR_EXPR_FLOAT &&
+       !(expression->kind == ZIR_EXPR_IDENT &&
+         (!strcmp(expression->name, "true") ||
+          !strcmp(expression->name, "false"))))
+        return 0;
+    char *end = NULL;
+    errno = 0;
+    if(!strcmp(scalar, "float64") || !strcmp(scalar, "float32")) {
+        double number = ParseDecimal(expression->text, &end);
+        if(errno != 0 || end == expression->text || *end != 0 ||
+           !isfinite(number))
+            return 0;
+        if(!strcmp(scalar, "float32")) {
+            float small = (float)number;
+            memcpy(emitter->strings->bytes + offset, &small, sizeof(small));
+        } else {
+            memcpy(emitter->strings->bytes + offset, &number, sizeof(number));
+        }
+        return 1;
+    }
+    long long value = 0;
+    if(!strcmp(expression->name, "true"))
+        value = 1;
+    else if(!strcmp(expression->name, "false"))
+        value = 0;
+    else if(expression->text[0] == '-')
+        value = strtoll(expression->text, &end, 0);
+    else
+        value = (long long)strtoull(expression->text, &end, 0);
+    if(errno != 0 || end == expression->text || *end != 0)
+        return 0;
+    memcpy(emitter->strings->bytes + offset, &value, size);
+    return 1;
+}
+
+static int
+encode_global_element(WasmEmitter *emitter, const ZirModule *owner,
+                      const ZirFunction *probe, int index, const char *type,
+                      size_t offset, int depth)
+{
+    if(index < 0 || index >= probe->expr_count || depth > 32)
+        return 0;
+    const ZirExpr *expression = &probe->exprs[index];
+    size_t size, alignment;
+    if(!TypeLayout(owner, type, &size, &alignment) || size == 0)
+        return 0;
+    char element[ZIR_NAME_MAX];
+    int capacity = 0;
+    if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        size_t element_size, element_alignment;
+        if(expression->kind != ZIR_EXPR_COMPOUND ||
+            !TypeLayout(owner, element, &element_size, &element_alignment) ||
+            element_size == 0)
+            return 0;
+        int position = 0;
+        for(int child = expression->first_child; child >= 0;
+            child = probe->exprs[child].next_sibling) {
+            const ZirExpr *initializer = &probe->exprs[child];
+            if(initializer->kind != ZIR_EXPR_FIELD_INIT ||
+               initializer->name[0] != 0 || initializer->right < 0 ||
+               position >= capacity)
+                return 0;
+            if(!encode_global_element(emitter, owner, probe,
+                                      initializer->right, element,
+                                      offset + (size_t)position * element_size,
+                                      depth + 1))
+                return 0;
+            position++;
+        }
+        return position == capacity;
+    }
+    const ZirModule *record_owner = NULL;
+    const ZirType *record = FindType(owner, type, &record_owner);
+    if(record != NULL && !record->is_enum && !record->is_procedure_type &&
+       !record->is_extern && !record->is_map && !record->is_record_template &&
+       !record->is_type_instance && !record->is_union) {
+        record_owner = record_owner ? record_owner : owner;
+        if(expression->kind != ZIR_EXPR_COMPOUND)
+            return 0;
+        for(int child = expression->first_child; child >= 0;
+            child = probe->exprs[child].next_sibling) {
+            const ZirExpr *initializer = &probe->exprs[child];
+            size_t field_offset = 0;
+            char field_type[ZIR_NAME_MAX];
+            if(initializer->kind != ZIR_EXPR_FIELD_INIT ||
+               initializer->name[0] == 0 || initializer->right < 0 ||
+               !field_place(record_owner, type, initializer->name,
+                            &field_offset, field_type))
+                return 0;
+            if(!encode_global_element(emitter, record_owner, probe,
+                                      initializer->right, field_type,
+                                      offset + field_offset, depth + 1))
+                return 0;
+        }
+        return 1;
+    }
+    return write_global_scalar(emitter, expression, type, offset, size);
 }
 
 /* Interns a global's storage and initial bytes; literals only, matching
@@ -362,9 +495,10 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
     if(pad != 0)
         emitter->strings->size += (alignment ? alignment : 1) - pad;
     size_t offset = emitter->strings->size;
+    const int aggregate = type_is_heap(owner, global->type);
     unsigned char bytes[16] = {0};
     size_t value_size = size > 16 ? 16 : size;
-    if(global->init[0] != 0) {
+    if(global->init[0] != 0 && !aggregate) {
         if(!strcmp(scalar, "string")) {
             uint64_t handle = ((uint64_t)preset_length << 32) |
                               (uint32_t)(ZX_WASM_DATA_BASE + preset_data);
@@ -411,7 +545,19 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
             return 0;
         emitter->strings->bytes[emitter->strings->size++] = 0;
     }
-    memcpy(emitter->strings->bytes + offset, bytes, value_size);
+    if(!aggregate)
+        memcpy(emitter->strings->bytes + offset, bytes, value_size);
+    else if(global->init[0] != 0) {
+        ZirFunction probe = {0};
+        int root = ParseExprTyped(&probe, owner, global->init, global->span,
+                                  global->type);
+        int encoded = root >= 0 &&
+            encode_global_element(emitter, owner, &probe, root, global->type,
+                                  offset, 0);
+        free(probe.exprs);
+        if(!encoded)
+            return 0;
+    }
     if(emitter->global_count == emitter->global_capacity) {
         int capacity = emitter->global_capacity ? emitter->global_capacity * 2 : 32;
         WasmGlobalSlot *grown = realloc(emitter->globals,
@@ -821,6 +967,9 @@ op_convert(WasmBytes *code, const char *from, const char *to)
 /* ---------------------------------------------------------- expressions */
 
 static int emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index);
+static int host_capability_index(const WasmEmitter *emitter,
+                                 const ZirModule *module,
+                                 const ZirImport *import);
 
 /* Emits a stringable base's pointer half (i32) for strings and slices. */
 static int
@@ -1566,12 +1715,42 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         const ZirModule *owner = NULL;
         const ZirFunction *callee = NULL;
         if(ResolveFunction(plan->module, expression->name, &owner, &callee) != 1) {
-            fail(emitter, expression->span, "call target");
-            return 0;
+            owner = plan->module;
+            callee = NULL;
         }
-        if(callee->is_extern) {
-            fail(emitter, expression->span, "host capability call");
-            return 0;
+        const ZirImport *external = NULL;
+        for(int i = 0; owner != NULL && i < owner->import_count; i++) {
+            if(strcmp(owner->imports[i].name, expression->name) == 0) {
+                external = &owner->imports[i];
+                break;
+            }
+        }
+        if(callee == NULL || callee->is_extern) {
+            if(external == NULL || external->extern_kind != ZIR_EXTERN_HOST) {
+                fail(emitter, expression->span, "foreign capability call");
+                return 0;
+            }
+            const ZirParameters *parameters = ParametersOf(external->args);
+            int host_index = host_capability_index(emitter, owner, external);
+            if(parameters->count != 1 ||
+               strcmp(parameters->items[0].value_type, "s64") != 0 ||
+               strcmp(external->return_type, "s64") != 0 || host_index < 0) {
+                Diagnostic(expression->span, "zx.wasm",
+                           "host capability %s:%s is outside the wasm s64 -> s64 execution subset",
+                           owner->name, external->name);
+                emitter->failed = 1;
+                return 0;
+            }
+            int argument = expression->first_child;
+            if(argument < 0 || function->exprs[argument].next_sibling >= 0) {
+                fail(emitter, expression->span, "host capability argument");
+                return 0;
+            }
+            if(!op_const_i32(&plan->body, host_index) ||
+               !emit_convert(emitter, plan, argument, "s64") ||
+               !op_index(&plan->body, 0x10, 1))
+                return 0;
+            return !emitter->failed;
         }
         WasmPlan *target = plan_of(emitter, owner, callee->name);
         if(target == NULL) {
@@ -2358,6 +2537,77 @@ supported_function(WasmEmitter *emitter, const WasmPlan *plan)
     return 1;
 }
 
+static int
+host_import_is_called(const ZirModule *module, const ZirImport *import)
+{
+    for(int f = 0; f < module->function_count; f++) {
+        const ZirFunction *function = &module->functions[f];
+        for(int e = 0; e < function->expr_count; e++)
+            if(function->exprs[e].kind == ZIR_EXPR_CALL &&
+               strcmp(function->exprs[e].name, import->name) == 0)
+                return 1;
+    }
+    return 0;
+}
+
+static int
+host_capability_supported(const ZirImport *import)
+{
+    const ZirParameters *parameters = ParametersOf(import->args);
+    return import->is_varargs == 0 &&
+           strcmp(import->return_type, "s64") == 0 &&
+           parameters->count == 1 &&
+           strcmp(parameters->items[0].value_type, "s64") == 0;
+}
+
+static int
+collect_host_capabilities(WasmEmitter *emitter)
+{
+    for(int m = 0; m < emitter->program->module_count; m++) {
+        const ZirModule *module = &emitter->program->modules[m];
+        for(int i = 0; i < module->import_count; i++) {
+            const ZirImport *import = &module->imports[i];
+            if(import->kind != ZIR_IMPORT_EXTERN ||
+               import->extern_kind != ZIR_EXTERN_HOST ||
+               strncmp(import->target, "ziran:", 6) == 0 ||
+               !host_import_is_called(module, import))
+                continue;
+            if(!host_capability_supported(import)) {
+                Diagnostic(import->span, "zx.wasm",
+                           "host capability %s:%s is outside the wasm s64 -> s64 execution subset",
+                           module->name, import->name);
+                emitter->failed = 1;
+                return 0;
+            }
+            if(emitter->host_count == emitter->host_capacity) {
+                int capacity = emitter->host_capacity ? emitter->host_capacity * 2 : 8;
+                WasmHostCapability *grown = realloc(emitter->hosts,
+                    (size_t)capacity * sizeof(*grown));
+                if(grown == NULL) {
+                    DiagnosticOutOfMemory();
+                    return 0;
+                }
+                emitter->hosts = grown;
+                emitter->host_capacity = capacity;
+            }
+            emitter->hosts[emitter->host_count++] =
+                (WasmHostCapability){module, import};
+        }
+    }
+    return 1;
+}
+
+static int
+host_capability_index(const WasmEmitter *emitter, const ZirModule *module,
+                      const ZirImport *import)
+{
+    for(int i = 0; i < emitter->host_count; i++)
+        if(emitter->hosts[i].module == module &&
+           emitter->hosts[i].import == import)
+            return i;
+    return -1;
+}
+
 static void
 plan_free(WasmPlan *plan)
 {
@@ -2367,7 +2617,8 @@ plan_free(WasmPlan *plan)
 
 unsigned char *
 zir_wasm_lower(const ZirProgram *program, const char *entry_module,
-               const char *entry_function, size_t *size)
+               const char *entry_function, size_t *size,
+               size_t *host_capability_count)
 {
     unsigned char *image = NULL;
     /* The signature table grows with the bundle, so it is heap-backed
@@ -2388,8 +2639,11 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     }
     int entry_plan = -1;
     int wrapper_type = -1;
+    int host_type = -1;
     if(program == NULL || entry_module == NULL || entry_function == NULL)
         return NULL;
+    if(!collect_host_capabilities(&emitter))
+        goto done;
 
     /* Type 0 is the step guard and later the zx_entry wrapper: () -> (). */
     WasmSignature guard = {0};
@@ -2408,6 +2662,19 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
         DiagnosticOutOfMemory();
         return NULL;
     }
+    if(emitter.host_count != 0) {
+        WasmSignature host = {0};
+        host.parameter_count = 2;
+        host.parameters[0] = WASM_I32;
+        host.parameters[1] = WASM_I64;
+        host.result = WASM_I64;
+        host_type = signature_index(&signatures, &signature_count,
+                                    &signature_capacity, &host);
+        if(host_type < 0) {
+            DiagnosticOutOfMemory();
+            goto done;
+        }
+    }
 
     /* One plan per linked function with a body. */
     int capacity = 16;
@@ -2421,12 +2688,6 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
         for(int f = 0; f < module->function_count; f++) {
             const ZirFunction *function = &module->functions[f];
             if(function->is_extern) {
-                if(function->extern_kind == ZIR_EXTERN_HOST) {
-                    Diagnostic(function->span, "zx.wasm",
-                               "host capability %s:%s is outside the wasm execution subset",
-                               module->name, function->name);
-                    goto done;
-                }
                 continue;
             }
             if(function->is_template || function->is_specialization)
@@ -2532,10 +2793,11 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
     if(emitter.failed)
         goto done;
 
-    /* Function index 0 is the step guard import; bodies follow, and the
-     * zx_entry wrapper is the last declared function. */
+    /* Function index 0 is the step guard import and host calls, when
+     * present, follow it; bodies and the wrapper come after them. */
+    int imported_functions = 1 + emitter.host_count;
     for(int i = 0; i < emitter.plan_count; i++)
-        emitter.plans[i].function_index = 1 + i;
+        emitter.plans[i].function_index = imported_functions + i;
 
     for(int i = 0; i < emitter.plan_count && !emitter.failed; i++) {
         WasmPlan *plan = &emitter.plans[i];
@@ -2659,13 +2921,20 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
-    /* Import section: (zx, overrun) -> () is function index 0, and the
-     * mutable i64 budget global is global index 0. */
+    /* Import section: (zx, overrun) -> () is function index 0, optional
+     * (zx, host_i64) (i32, i64) -> i64 is index 1, and the mutable i64
+     * budget global remains global index 0. */
     section.count = 0;
-    assemble_ok = assemble_ok && uleb(&section, 2) &&
+    assemble_ok = assemble_ok &&
+                  uleb(&section, (uint64_t)(2 + emitter.host_count)) &&
                   uleb(&section, 2) && raw(&section, "zx", 2) &&
                   uleb(&section, 7) && raw(&section, "overrun", 7) &&
                   byte(&section, 0x00) && uleb(&section, 0) &&
+                  (emitter.host_count == 0 ||
+                   (uleb(&section, 2) && raw(&section, "zx", 2) &&
+                    uleb(&section, 8) && raw(&section, "host_i64", 8) &&
+                    byte(&section, 0x00) &&
+                    uleb(&section, (uint64_t)host_type))) &&
                   uleb(&section, 2) && raw(&section, "zx", 2) &&
                   uleb(&section, 6) && raw(&section, "budget", 6) &&
                   byte(&section, 0x03) && byte(&section, WASM_I64) &&
@@ -2696,24 +2965,30 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
-    /* Global section: the arena pointer, mutable, starting past nothing
-     * else in linear memory yet. */
+    /* Global section: the program arena and the separately growing state
+     * arena. Program execution resets only the former. */
     section.count = 0;
-    assemble_ok = assemble_ok && uleb(&section, 1) &&
+    assemble_ok = assemble_ok && uleb(&section, 2) &&
                   byte(&section, WASM_I32) && byte(&section, 0x01) &&
                   op_const_i32(&section, arena_base) &&
+                  op(&section, 0x0b) &&
+                  byte(&section, WASM_I32) && byte(&section, 0x01) &&
+                  op_const_i32(&section, ZX_WASM_STATE_ARENA_BASE) &&
                   op(&section, 0x0b);
     assemble_ok = assemble_ok && byte(&module, 6) &&
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
 
-    /* Export section: zx_entry and memory. */
+    /* Export section: zx_entry, memory, and the state arena cursor. */
     section.count = 0;
-    assemble_ok = assemble_ok && uleb(&section, 2) && uleb(&section, 8) &&
+    assemble_ok = assemble_ok && uleb(&section, 3) && uleb(&section, 8) &&
                   raw(&section, "zx_entry", 8) && byte(&section, 0x00) &&
-                  uleb(&section, (uint64_t)(1 + emitter.plan_count + helper_count)) &&
+                  uleb(&section, (uint64_t)(imported_functions +
+                                            emitter.plan_count + helper_count)) &&
                   uleb(&section, 6) && raw(&section, "memory", 6) &&
-                  byte(&section, 0x02) && uleb(&section, 0);
+                  byte(&section, 0x02) && uleb(&section, 0) &&
+                  uleb(&section, 14) && raw(&section, "zx_state_arena", 14) &&
+                  byte(&section, 0x03) && uleb(&section, 2);
     assemble_ok = assemble_ok && byte(&module, 7) &&
                   uleb(&module, (uint64_t)section.count) &&
                   raw(&module, section.data, section.count);
@@ -2862,10 +3137,38 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                       uleb(&module, (uint64_t)section.count) &&
                       raw(&module, section.data, section.count);
     }
+    /* Custom section zxstate: portable state metadata for migration. It is
+     * ignored by engines and read only by the embedding runtime. */
+    if(assemble_ok) {
+        section.count = 0;
+        assemble_ok = uleb(&section, 7) && raw(&section, "zxstate", 7) &&
+                      uleb(&section, (uint64_t)emitter.global_count);
+        for(int i = 0; assemble_ok && i < emitter.global_count; i++) {
+            const char *module_name = emitter.global_modules[i]->name;
+            const char *global_name = emitter.globals[i].name;
+            const char *type_name = emitter.globals[i].type;
+            size_t module_size = strlen(module_name);
+            size_t global_size = strlen(global_name);
+            size_t type_size = strlen(type_name);
+            assemble_ok = uleb(&section, module_size) &&
+                          raw(&section, module_name, module_size) &&
+                          uleb(&section, global_size) &&
+                          raw(&section, global_name, global_size) &&
+                          uleb(&section, type_size) &&
+                          raw(&section, type_name, type_size) &&
+                          uleb(&section, emitter.globals[i].offset) &&
+                          uleb(&section, emitter.globals[i].size);
+        }
+        assemble_ok = assemble_ok && byte(&module, 0) &&
+                      uleb(&module, (uint64_t)section.count) &&
+                      raw(&module, section.data, section.count);
+    }
     if(assemble_ok) {
         image = module.data;
         if(size != NULL)
             *size = module.count;
+        if(host_capability_count != NULL)
+            *host_capability_count = (size_t)emitter.host_count;
         module.data = NULL;
     } else {
         Diagnostic((ZirSourceSpan){0}, "zx.wasm", "cannot assemble module");
@@ -2880,6 +3183,7 @@ done:
     free(emitter.strings);
     free(emitter.globals);
     free(emitter.global_modules);
+    free(emitter.hosts);
     for(int i = 0; i < signature_count; i++)
         free(signatures[i]);
     free(signatures);

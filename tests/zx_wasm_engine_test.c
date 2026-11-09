@@ -25,6 +25,8 @@ static int release_calls;
 static long long set_budget_value = -1;
 static int set_budget_calls;
 static int call_calls;
+static unsigned char mock_memory[65536];
+static size_t mock_arena = 1024;
 
 static unsigned long
 mock_instantiate(void *context, const unsigned char *bytes, size_t size)
@@ -37,6 +39,8 @@ mock_instantiate(void *context, const unsigned char *bytes, size_t size)
         exit(1);
     }
     mock_handle = 0x1000 + (unsigned long)size;
+    memset(mock_memory, 0, sizeof(mock_memory));
+    mock_arena = 1024;
     return mock_handle;
 }
 
@@ -71,12 +75,48 @@ mock_release(void *context, unsigned long handle)
         exit(1);
 }
 
+static int
+mock_read(void *context, unsigned long handle, size_t address,
+          void *destination, size_t size)
+{
+    (void)context;
+    if(handle != mock_handle || address > sizeof(mock_memory) ||
+       size > sizeof(mock_memory) - address)
+        return 1;
+    memcpy(destination, mock_memory + address, size);
+    return 0;
+}
+
+static int
+mock_write(void *context, unsigned long handle, size_t address,
+           const void *source, size_t size)
+{
+    (void)context;
+    if(handle != mock_handle || address > sizeof(mock_memory) ||
+       size > sizeof(mock_memory) - address)
+        return 1;
+    memcpy(mock_memory + address, source, size);
+    return 0;
+}
+
+static size_t
+mock_allocate_state(void *context, unsigned long handle, size_t size)
+{
+    (void)context;
+    size_t start = (mock_arena + 7) & ~(size_t)7;
+    if(handle != mock_handle || start > sizeof(mock_memory) ||
+       size > sizeof(mock_memory) - start)
+        return 0;
+    mock_arena = start + size;
+    return start;
+}
+
 /* Bundles one source through the library's own pipeline, exactly as the
  * zi2zx tool does, and opens the bytes in memory. */
 static Bundle *
 bundle_of(const char *name, const char *text)
 {
-    char directory[] = "/tmp/zx-wasm-engine.XXXXXX";
+    char directory[] = "build/zx-wasm-engine.XXXXXX";
     if(mkdtemp(directory) == NULL)
         exit(2);
     char path[4096];
@@ -195,6 +235,9 @@ main(void)
     platform.instantiate = mock_instantiate;
     platform.set_budget = mock_set_budget;
     platform.call = mock_call;
+    platform.read = mock_read;
+    platform.write = mock_write;
+    platform.allocate_state = mock_allocate_state;
     platform.release = mock_release;
     ZxWasmSetPlatform(&platform);
     instance = BundleInstantiate(scalar, NULL, 0);

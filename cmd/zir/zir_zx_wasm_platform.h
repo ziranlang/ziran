@@ -23,6 +23,16 @@ typedef struct ZxWasmPlatform {
     /* Call zx_entry and return the i64 result. Returns 0 on success, or
      * nonzero when the run trapped or failed; *result is then unused. */
     int (*call)(void *context, unsigned long handle, long long *result);
+    /* Copy instance linear-memory bytes in either direction. Both return 0
+     * on success, or nonzero when the handle, address, or size is invalid.
+     * The address is in the instantiated module's wasm32 memory. */
+    int (*read)(void *context, unsigned long handle, size_t address,
+                void *destination, size_t size);
+    int (*write)(void *context, unsigned long handle, size_t address,
+                 const void *source, size_t size);
+    /* Reserve aligned state storage beyond the program arena and return its
+     * nonzero wasm32 address, or zero when the instance cannot grow. */
+    size_t (*allocate_state)(void *context, unsigned long handle, size_t size);
     /* Drop an instance created by instantiate. A NULL entry is allowed. */
     void (*release)(void *context, unsigned long handle);
 } ZxWasmPlatform;

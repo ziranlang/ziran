@@ -99,6 +99,23 @@ PkgPackageName :: (value: string) -> bool {
     return true
 }
 
+// A system linker name, not a package identifier or a compiler option.
+// Versioned Unix libraries use dots; C++ library names may also use '+'.
+PkgSystemLibraryName :: (value: string) -> bool {
+    if value.count == 0 { return false }
+    index: s64 = 0
+    while index < cast(s64)value.count {
+        ch: u8 = value[index]
+        if !((ch >= cast(u8)65 && ch <= cast(u8)90) ||
+             (ch >= cast(u8)97 && ch <= cast(u8)122) ||
+             (ch >= cast(u8)48 && ch <= cast(u8)57) ||
+             ch == cast(u8)95 || (index > 0 &&
+             (ch == cast(u8)45 || ch == cast(u8)46 || ch == cast(u8)43))) { return false }
+        index += 1
+    }
+    return true
+}
+
 // A path inside the package: relative, without empty, '.', or '..' parts.
 PkgRelativePath :: (value: string) -> bool {
     if value.count == 0 || value[0] == cast(u8)47 { return false }
@@ -292,7 +309,7 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
     }
     index: s32 = 0
     while index < output.link_count {
-        if !PkgPackageName(output.links[index]) { return false }
+        if !PkgSystemLibraryName(output.links[index]) { return false }
         index += 1
     }
     index = 0

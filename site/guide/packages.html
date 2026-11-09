@@ -62,6 +62,12 @@ name = &quot;fetcher&quot;
 entry = &quot;src/main.zi&quot;
 links = [&quot;curl&quot;]
 </code></pre>
+<p>Names are linker library basenames, such as <code>gio-2.0</code>, <code>gdk_pixbuf-2.0</code>,
+or <code>stdc++</code>, without <code>lib</code>, a filename suffix or <code>-l</code>. They start with a
+letter, digit or underscore and may then contain letters, digits, underscores,
+hyphens, dots and plus signs. Paths, options and shell syntax are rejected.</p>
+<p>System links also apply when building an explicit source file with
+<code>ziran build --project --target=c --exe</code>, alongside the caller's <code>LDLIBS</code>.</p>
 <p>System links apply to the root manifest that declares them; they are not
 inherited from a dependency's <code>[package]</code> table. For example, a native consumer
 of <code>audio/pipeline</code> and <code>audio/resample</code> declares
@@ -299,8 +305,10 @@ with its file and line. It then runs the tool from the project root. The tool
 reads the merged settings as <code>KEY=VALUE</code> lines from the file named by
 <code>ZIRAN_TOOL_OPTIONS</code>, for example <code>default_profile=desktop</code>,
 <code>profiles=desktop</code> and <code>profiles.desktop.backend=desktop</code>, so no tool parses
-TOML itself. <code>ZIRAN_PROJECT_ROOT</code>, <code>ZIRAN_PROJECT_NAME</code>,
-<code>ZIRAN_PROJECT_ENTRY</code>, <code>ZIRAN_PACKAGE_ROOT</code>, <code>ZIRAN_PACKAGE_ID</code> and
+TOML itself. <code>ZIRAN_PROJECT_LINKS</code> contains the validated root system library
+names in manifest order, separated by spaces; native project tools append each
+as a <code>-l</code> argument. <code>ZIRAN_PROJECT_ROOT</code>, <code>ZIRAN_PROJECT_NAME</code>,
+<code>ZIRAN_PROJECT_ENTRY</code>, <code>ZIRAN_PROJECT_LINKS</code>, <code>ZIRAN_PACKAGE_ROOT</code>, <code>ZIRAN_PACKAGE_ID</code> and
 <code>ZIRAN_TOOLCHAIN_ROOT</code> describe the project and the tool's checkout.</p>
 <h2 id="handing-a-project-to-its-tool">Handing a project to its tool</h2>
 <p><code>[package] tool</code> names the dependency whose project tool runs, builds, checks,

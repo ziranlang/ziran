@@ -224,6 +224,21 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             return PkgFail("cannot build project import map")
         }
     }
+    // Every project build, including an explicit source/--exe build, uses
+    // the root manifest's native libraries alongside the caller's LDLIBS.
+    if project && build && current.link_count > 0 {
+        if environment >= 8 { return PkgFail("too many build environment values") }
+        libraries: string = PkgGetenv("LDLIBS")
+        library: s32 = 0
+        while library < current.link_count {
+            if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
+            libraries = PkgJoin3(libraries, "-l", current.links[library])
+            library += 1
+        }
+        names[environment] = "LDLIBS"
+        values[environment] = libraries
+        environment += 1
+    }
     child: [260]string
     count: s32 = 0
     child[count] = binary
@@ -345,13 +360,6 @@ PkgNativeBuild :: (root: string, locked: *PkgLock, current: *PkgManifest,
         PkgFail("cannot create build/generated/c")
         return ""
     }
-    libraries: string = PkgGetenv("LDLIBS")
-    index: s32 = 0
-    while index < current.link_count {
-        if libraries.count > 0 { libraries = PkgJoin(libraries, " ") }
-        libraries = PkgJoin3(libraries, "-l", current.links[index])
-        index += 1
-    }
     arguments: [6]string
     arguments[0] = "--target=c"
     arguments[1] = "--exe"
@@ -359,12 +367,9 @@ PkgNativeBuild :: (root: string, locked: *PkgLock, current: *PkgManifest,
     arguments[3] = PkgJoin(module, ":main")
     arguments[4] = "-o"
     arguments[5] = generated
-    names: [1]string
-    values: [1]string
-    names[0] = "LDLIBS"
-    values[0] = libraries
+    empty: [0]string
     if PkgDispatch("build", arguments[:], true, root, locked, current,
-        launcher, names[:], values[:]) != 0 { return "" }
+        launcher, empty[:], empty[:]) != 0 { return "" }
     program: string = PkgJoin3(root, "/build/", current.name)
     // A rename replaces the program in one step, so a running copy keeps
     // its own file.
@@ -476,6 +481,7 @@ PkgRunSelectedToolOptions :: (root: string, locked: *PkgLock, current: *PkgManif
     names[4] = "ZIRAN_TOOL_OPTIONS"
     names[5] = "ZIRAN_PROJECT_NAME"
     names[6] = "ZIRAN_PROJECT_ENTRY"
+    names[7] = "ZIRAN_PROJECT_LINKS"
     values[0] = root
     values[1] = item.path
     values[2] = item.id
@@ -483,7 +489,15 @@ PkgRunSelectedToolOptions :: (root: string, locked: *PkgLock, current: *PkgManif
     values[4] = options
     values[5] = current.name
     values[6] = current.entry
-    count: s32 = 7
+    libraries: string = ""
+    index = 0
+    while index < current.link_count {
+        if index > 0 { libraries = PkgJoin(libraries, " ") }
+        libraries = PkgJoin(libraries, current.links[index])
+        index += 1
+    }
+    values[7] = libraries
+    count: s32 = 8
     index = 0
     while index < cast(s32)extra_names.count && count < 16 {
         names[count] = extra_names[index]

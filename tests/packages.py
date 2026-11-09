@@ -800,6 +800,59 @@ main :: () -> s32 {
     print("PASS: project --module-path folders join the root package only", flush=True)
 
 
+def check_project_native_links(ziran: str, root: Path, compiler: Path, env: dict) -> None:
+    """Explicit project executables link manifest libraries and inherited LDLIBS."""
+    app = root / "project-native-links"
+    app.mkdir()
+    manifest = '''[package]
+name = "NativeLinks"
+entry = "src/main.zi"
+module_roots = ["src"]
+links = ["ziran_link-2.0_fixture"]
+[toolchain]
+git = "https://github.com/ziranlang/ziran.git"
+'''
+    write(app / "ziran.toml", manifest)
+    write(app / "ziran.local.toml", f'[overrides]\nziran = "{compiler}"\n')
+    for name, symbol, value in (("ziran_link-2.0_fixture", "manifest_value", 19),
+                                ("caller", "caller_value", 23)):
+        source = app / f"{name}.c"
+        obj = app / f"{name}.o"
+        write(source, f"int {symbol}(void) {{ return {value}; }}\n")
+        call(os.environ.get("CC", "cc"), "-c", str(source), "-o", str(obj), cwd=app, env=env)
+        call("ar", "rcs", str(app / f"lib{name}.a"), str(obj), cwd=app, env=env)
+    source = '''libc :: #system_library "libc";
+manifest_value :: () -> s32 #foreign libc;
+caller_value :: () -> s32 #foreign libc;
+#program_export
+main :: () -> s32 {
+    if manifest_value() + caller_value() != 42 { return 1 }
+    print("native links ok\\n")
+    return 0
+}
+'''
+    write(app / "src/main.zi", source)
+    write(app / "src/probe.zi", source)
+    link_env = {**env, "LDLIBS": "-lcaller", "LDFLAGS": f"-L{app}"}
+    call(ziran, "lock", "--offline", cwd=app, env=link_env)
+    call(ziran, "build", "--offline", cwd=app, env=link_env)
+    assert call(str(app / "build/NativeLinks"), cwd=app, env=link_env).strip() == "native links ok"
+    explicit = [ziran, "build", "--project", "--offline", "--target=c", "--exe",
+                "--entry", "probe:main", "-o", str(app / "build/probe-c"), "src/probe.zi"]
+    call(*explicit, cwd=app, env=link_env)
+    assert call(str(app / "build/probe-c/probe"), cwd=app, env=link_env).strip() == "native links ok"
+    ir = app / "build/ir"
+    call(ziran, "ir", "--project", "--offline", "-o", str(ir), "src/probe.zi",
+         cwd=app, env=link_env)
+    call(*explicit[:-1], "--root", str(ir), str(ir / "probe.zir"), cwd=app, env=link_env)
+    assert call(str(app / "build/probe-c/probe"), cwd=app, env=link_env).strip() == "native links ok"
+    # Failure must come from the linker, rather than manifest validation.
+    write(app / "ziran.toml", manifest.replace("ziran_link-2.0_fixture", "ziran_missing-2.0"))
+    missing = call(*explicit, cwd=app, env=link_env, succeed=False)
+    assert "ziran_missing-2.0" in missing, missing
+    print("PASS: plain and explicit native project builds link manifest libraries and preserve LDLIBS", flush=True)
+
+
 def main() -> None:
     ziran = str(Path(sys.argv[1]).resolve())
     # The compiler repository is the one holding this test, wherever the
@@ -834,6 +887,7 @@ os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])
             env["PATH"] = str(guard.parent) + os.pathsep + env["PATH"]
         check_unborn_overrides(ziran, root, compiler, env)
         check_local_locked_pins(ziran, root, env)
+        check_project_native_links(ziran, root, compiler, env)
         if local_only:
             print("PASS: constrained local package suite (no clones, worktrees or fetching)", flush=True)
             return
@@ -1456,7 +1510,7 @@ module_roots = ["src"]
         # this a negative test without depending on a platform library list.
         write(templated / "ziran.toml",
               (templated / "ziran.toml").read_text().replace(
-                  'links = ["m"]', 'links = ["ziran-missing-link"]'))
+                  'links = ["m"]', 'links = ["ziran-missing-link-2.0"]'))
         missing_link = call(ziran, "build", cwd=templated, env=env, succeed=False)
         assert "ziran-missing-link" in missing_link, missing_link
 
@@ -1485,7 +1539,7 @@ label = "string"
         write(tooling / "src/Tooling.zi", "ToolingValue :: 1;\n")
         write(tooling / "tool.sh", """#!/bin/sh
 cat "$ZIRAN_TOOL_OPTIONS"
-echo "project=$ZIRAN_PROJECT_NAME entry=$ZIRAN_PROJECT_ENTRY args=$*"
+echo "project=$ZIRAN_PROJECT_NAME entry=$ZIRAN_PROJECT_ENTRY args=$* links=$ZIRAN_PROJECT_LINKS"
 echo "install=${ZIRAN_INSTALL_PREFIX:-} ${ZIRAN_INSTALL_BIN:-}"
 echo "pinned=${ZIRAN_PINNED_LAUNCHER:-}"
 """)
@@ -1498,6 +1552,7 @@ echo "pinned=${ZIRAN_PINNED_LAUNCHER:-}"
 name = "Tooled"
 entry = "src/app.zi"
 tool = "Tooling"
+links = ["gio-2.0", "gdk_pixbuf-2.0"]
 [toolchain]
 git = "{compiler.as_uri()}"
 ref = "master"
@@ -1523,7 +1578,7 @@ level = "3"
             "mode=fast", "fast=false", "targets=b a",
             "targets.b.kind=x", "targets.b.level=1",
             "targets.a.kind=y", "targets.a.level=3",
-            "project=Tooled entry=src/app.zi args=build --fast", "install= ",
+            "project=Tooled entry=src/app.zi args=build --fast links=gio-2.0 gdk_pixbuf-2.0", "install= ",
             "pinned=",
         ], output
         # Another launcher, such as an older installed ziran, hands the
@@ -1554,13 +1609,13 @@ level = "3"
         installed = call(ziran, "install", "--prefix", "local", "--quick",
                          cwd=tooled, env=env).splitlines()
         assert f"install={tooled.resolve()}/local tooled" in installed, installed
-        assert "project=Tooled entry=src/app.zi args=install --quick" in installed
+        assert "project=Tooled entry=src/app.zi args=install --quick links=gio-2.0 gdk_pixbuf-2.0" in installed
         for verb in ("run", "build", "check"):
             handed = call(ziran, verb, "desktop", cwd=tooled, env=env).splitlines()
-            assert f"project=Tooled entry=src/app.zi args={verb} desktop" in handed, handed
+            assert f"project=Tooled entry=src/app.zi args={verb} desktop links=gio-2.0 gdk_pixbuf-2.0" in handed, handed
         # Arguments after `--` reach the tool as they are.
         handed = call(ziran, "run", "--", "--locked", cwd=tooled, env=env).splitlines()
-        assert "project=Tooled entry=src/app.zi args=run -- --locked" in handed, handed
+        assert "project=Tooled entry=src/app.zi args=run -- --locked links=gio-2.0 gdk_pixbuf-2.0" in handed, handed
         # A named file keeps the command on that file; --target keeps
         # `ziran build` a code generator.
         checked = call(ziran, "check", "--project", "src/app.zi", cwd=tooled, env=env)
@@ -1585,7 +1640,7 @@ level = "3"
         write(tooled / "ziran.toml", tooled_manifest)
         for broken, message in (
             (tooled_manifest.replace('mode = "fast"', 'mode = "fast"\nspeed = "x"'),
-             "ziran.toml:15: unknown Tooling option speed"),
+             "ziran.toml:16: unknown Tooling option speed"),
             (tooled_manifest.replace('kind = "x"\n', ''),
              "missing required Tooling option targets.b.kind"),
             (tooled_manifest.replace('[tool.Tooling.targets.b]', '[tool.Tooling.targets]'),

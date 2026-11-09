@@ -76,6 +76,14 @@ entry = "src/main.zi"
 links = ["curl"]
 ```
 
+Names are linker library basenames, such as `gio-2.0`, `gdk_pixbuf-2.0`,
+or `stdc++`, without `lib`, a filename suffix or `-l`. They start with a
+letter, digit or underscore and may then contain letters, digits, underscores,
+hyphens, dots and plus signs. Paths, options and shell syntax are rejected.
+
+System links also apply when building an explicit source file with
+`ziran build --project --target=c --exe`, alongside the caller's `LDLIBS`.
+
 System links apply to the root manifest that declares them; they are not
 inherited from a dependency's `[package]` table. For example, a native consumer
 of `audio/pipeline` and `audio/resample` declares
@@ -374,8 +382,10 @@ with its file and line. It then runs the tool from the project root. The tool
 reads the merged settings as `KEY=VALUE` lines from the file named by
 `ZIRAN_TOOL_OPTIONS`, for example `default_profile=desktop`,
 `profiles=desktop` and `profiles.desktop.backend=desktop`, so no tool parses
-TOML itself. `ZIRAN_PROJECT_ROOT`, `ZIRAN_PROJECT_NAME`,
-`ZIRAN_PROJECT_ENTRY`, `ZIRAN_PACKAGE_ROOT`, `ZIRAN_PACKAGE_ID` and
+TOML itself. `ZIRAN_PROJECT_LINKS` contains the validated root system library
+names in manifest order, separated by spaces; native project tools append each
+as a `-l` argument. `ZIRAN_PROJECT_ROOT`, `ZIRAN_PROJECT_NAME`,
+`ZIRAN_PROJECT_ENTRY`, `ZIRAN_PROJECT_LINKS`, `ZIRAN_PACKAGE_ROOT`, `ZIRAN_PACKAGE_ID` and
 `ZIRAN_TOOLCHAIN_ROOT` describe the project and the tool's checkout.
 
 ## Handing a project to its tool

@@ -1,0 +1,40 @@
+// Runtime inputs use the common s64 -> s64 host ABI.
+host_api :: #system_library "host_api";
+Input :: (key: s64) -> s64 #foreign host_api;
+Cell :: struct { x: s64; width: s64; selected: bool; }
+Mix :: (x: s64, i: s64) -> s64 {
+    if (i & 1) == 0 { return (x * 1664525 + 1013904223) & 2147483647 }
+    return (x * 1103515245 + 12345) & 2147483647
+}
+#program_export
+Answer :: () -> s64 {
+    seed := Input(0)
+    rounds := Input(1)
+    kind := Input(2)
+    total: s64 = 0
+    if kind == 0 {
+        i: s64 = 0
+        while i < rounds { seed = Mix(seed, i); total += seed; i += 1 }
+    } else {
+        cells: [32]Cell
+        title: string = "layout"
+        if (seed & 1) == 1 { title = "event" }
+        j: s32 = 0
+        while j < 32 {
+            cells[j] = Cell.{x = seed & 255, width = cast(s64)j + 3, selected = false}
+            j += 1
+        }
+        i: s64 = 0
+        while i < rounds {
+            index := cast(s32)(i & 31)
+            cell := cells[index]
+            cell.x = (Mix(cell.x + seed, i) + cell.width) & 65535
+            cell.width = (cell.width + cast(s64)title.count + (i & 7)) & 255
+            cell.selected = (cell.x & 1) == 1
+            if cell.selected { total += cell.x } else { total += cell.width }
+            cells[index] = cell
+            i += 1
+        }
+    }
+    return total
+}

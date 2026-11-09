@@ -1,0 +1,8 @@
+{
+  "complete": false,
+  "target": "android",
+  "error": "I/ZxCompare(23220): finished seed=94263140 status=1\n",
+  "attempted_utc": "2026-11-09T22:25:52Z",
+  "results.jsonl": "{\"engine\":\"WAMR 2.4.5 AOT-only\",\"pid\":23220,\"engine_init_ms\":2.547846079}\n{\"trial\":0,\"kind\":0,\"variant\":\"vm\",\"seed\":94263140,\"rounds\":4096,\"batches\":16,\"checksum\":70387005652992,\"load_ms\":19.510615110,\"instantiate_ms\":0.997462034,\"first_ms\":19.719384193,\"warm_ms\":302.618845940,\"warmup_count\":26,\"warmup_ms\":501.917616}\n{\"trial\":0,\"kind\":0,\"variant\":\"wamr-aot\",\"seed\":94263140,\"rounds\":4096,\"batches\":16,\"checksum\":70387005652992,\"load_ms\":0.519691944,\"instantiate_ms\":0.227845907,\"first_ms\":0.158462048,\"warm_ms\":2.179923058,\"warmup_count\":3535,\"warmup_ms\":500.107846}\n{\"trial\":0,\"kind\":1,\"variant\":\"c\",\"seed\":94263140,\"rounds\":4096,\"batches\":16,\"checksum\":1077004288,\"load_ms\":0.000000000,\"instantiate_ms\":0.000000000,\"first_ms\":0.075846910,\"warm_ms\":1.182692051,\"warmup_count\":6661,\"warmup_ms\":500.010000}\n{\"error\":\"/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_apk/engine.c:97 instance\"}\n{\"error\":\"/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_apk/engine.c:124 !sample(out,dir,engine,trial,slot/4,slot%4,seed+100*trial,rounds,batches)\"}\n",
+  "native.log": ""
+}

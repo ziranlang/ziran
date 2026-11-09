@@ -1,0 +1,41 @@
+{
+  "complete": false,
+  "purpose": "Old equal-length fixture native APK integration smoke only",
+  "package": "org.ziranlang.benchmarks.zxcompare",
+  "apk_sha256": "d9545ac18e56f6001ee47fa4cd92969d0189783943c93505560816e37611f846",
+  "rows": [
+    {
+      "engine": "WAMR 2.4.5 AOT-only",
+      "pid": 21495,
+      "engine_init_ms": 0.132768869
+    },
+    {
+      "trial": 0,
+      "kind": 0,
+      "variant": "vm",
+      "seed": 94262542,
+      "rounds": 4096,
+      "batches": 16,
+      "checksum": 70374281576448,
+      "load_ms": 8.311230898,
+      "instantiate_ms": 0.101999998,
+      "first_ms": 20.74169302,
+      "warm_ms": 291.639076948,
+      "warmup_count": 27,
+      "warmup_ms": 513.972385
+    },
+    {
+      "error": "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_apk/engine.c:39 w->module"
+    },
+    {
+      "error": "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_apk/engine.c:100 !wasm_open(out,&w,engine,path,&load,&instantiate)"
+    },
+    {
+      "error": "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_apk/engine.c:124 !sample(out,dir,engine,trial,slot/4,slot%4,seed+100*trial,rounds,batches)"
+    }
+  ],
+  "own_pid_log": "--------- beginning of main\n11-09 19:15:42.391 21495 21495 I marks.zxcompar: Late-enabling -Xcheck:jni\n11-09 19:15:42.494 21495 21495 W re-initialized>: type=1400 audit(0.0:2100538503): avc: denied { read } for name=\"u:object_r:mtk_amslog_prop:s0\" dev=\"tmpfs\" ino=10587 scontext=u:r:untrusted_app:s0:c41,c257,c512,c768 tcontext=u:object_r:mtk_amslog_prop:s0 tclass=file permissive=0\n11-09 19:15:42.504 21495 21495 E libc    : Access denied finding property \"persist.vendor.sys.activitylog\"\n11-09 19:15:42.585 21495 21495 W System  : ClassLoader referenced unknown path: \n11-09 19:15:42.891 21495 21495 I SurfaceFactory: [static] sSurfaceFactory = com.mediatek.view.impl.SurfaceFactoryImpl@8914e40\n11-09 19:15:43.707 21495 21518 I ZxCompare: progress trial=0 kind=0 variant=0\n11-09 19:15:43.707 21495 21518 I wasm_runtime::: [06:23:31:175 - 90A83970]: \n11-09 19:15:43.707 21495 21518 I wasm_runtime::: AOT module load failed: resolve symbol __aeabi_memclr failed\n11-09 19:15:43.707 21495 21518 I wasm_runtime::: \n11-09 19:15:43.707 21495 21518 I wasm_runtime::: [06:23:31:175 - 90A83970]: \n11-09 19:15:43.708 21495 21518 I wasm_runtime::: wasm_module_new_ex failed\n11-09 19:15:43.708 21495 21518 I wasm_runtime::: \n11-09 19:15:43.708 21495 21518 I ZxCompare: finished seed=94262542 status=1",
+  "failure": "WAMR Thumb AOT loader cannot resolve __aeabi_memclr",
+  "battery": "Current Battery Service state:\n  AC powered: false\n  USB powered: true\n  Wireless powered: false\n  Max charging current: 500000\n  Max charging voltage: 5000000\n  Charge counter: 2851000\n  status: 2\n  health: 2\n  present: true\n  level: 100\n  scale: 100\n  voltage: 4389\n  temperature: 300\n  technology: Li-ion",
+  "observed_utc": "2026-11-09T22:20:16Z"
+}

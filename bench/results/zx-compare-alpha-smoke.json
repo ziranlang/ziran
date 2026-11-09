@@ -1,0 +1,658 @@
+{
+  "schema": 1,
+  "prepared": {
+    "commands": [
+      {
+        "argv": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+          "bundle",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/bench",
+          "--entry",
+          "zx_compare:Answer",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare.zi"
+        ],
+        "elapsed_ms": 62.99819999549072,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/bin/zi2wasm",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/bench",
+          "--entry",
+          "zx_compare:Answer",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.wasm",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare.zi"
+        ],
+        "elapsed_ms": 44.72489199542906,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+          "bundle",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/old",
+          "--entry",
+          "component:Next",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/component-old.zx",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/old/component.zi"
+        ],
+        "elapsed_ms": 55.33589900005609,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+          "bundle",
+          "--root",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/new",
+          "--entry",
+          "component:Next",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/component-new.zx",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/new/component.zi"
+        ],
+        "elapsed_ms": 47.45622799964622,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-I/mnt/storage/Projects/ziranlang/ziran/include",
+          "-DCONTROL",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_host.c",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_control.c",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/control"
+        ],
+        "elapsed_ms": 222.4015249958029,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-I/mnt/storage/Projects/ziranlang/ziran/include",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_host.c",
+          "/mnt/storage/Projects/ziranlang/ziran/build/libziran.a",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/zx-host"
+        ],
+        "elapsed_ms": 643.2091909955489,
+        "stderr": ""
+      },
+      {
+        "argv": [
+          "cc",
+          "-O3",
+          "-std=c11",
+          "-I/mnt/storage/Projects/ziranlang/ziran/include",
+          "/mnt/storage/Projects/ziranlang/ziran/bench/zx_compare_component.c",
+          "/mnt/storage/Projects/ziranlang/ziran/build/libziran.a",
+          "-lm",
+          "-pthread",
+          "-ldl",
+          "-o",
+          "/mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/component-host"
+        ],
+        "elapsed_ms": 793.6777730064932,
+        "stderr": ""
+      }
+    ],
+    "compiler": "cc (Ubuntu 13.3.0-6ubuntu2~24.04.1) 13.3.0",
+    "source_revision": "d4ef3bb7dd15b5fe715cbdbdd34df8fa6592e3e4",
+    "sources": {
+      "bench/zx_compare.py": "d1347980591df9d6b2793d451cec98fcfa43f4797a74652107fdbdd86aba7f6d",
+      "bench/zx_compare_component.c": "610097fd71a8acf1cd0579611df96754acfe117cf7eb9efe4a354c15f5d2e5e1",
+      "bench/zx_compare.md": "58d6fffc2394e5aa0224db8f495e9d6af97b9984f03efa63b993806dfc5a51a0",
+      "bench/zx_compare_host.c": "9016cb59dd1394b59500f27b51e92acfe4cce8bca8efc2ed6f3bf1ac15f8f1e1",
+      "bench/zx_compare_wasm.cjs": "c388e2f78f7181a692d131d8bf5cc2bd1a12d955bd26a2241e4ec1c6a80dadaa",
+      "bench/zx_compare.zi": "451c5317561245b103f5f0788a95ab6f7b1c9f9547768cd4ff3b219032656b24",
+      "bench/zx_compare_control.c": "e32846931e38252f679929db3b02e09f606b22c04eacf7716b8dc71deac9ec90"
+    },
+    "artifacts": {
+      "fixture.zx": "ec7cdfe02f35738d4e1687c93e539923ab208155b76b7a73aa8f80eabf188049",
+      "fixture.wasm": "2ddeb10e90c698a22c88e7bfa454b2b84f6908095f9a0799266a9f9a393199b0",
+      "control": "14100a346edfbdcc09dc1c732dee71175136dde5a12e352630fa553edf30ee71",
+      "zx-host": "86808e9d13ce63eab5220e6d900be1c472b4d07d35d5dd38f71bbb0311d038e5",
+      "component-host": "390001b2291fdcf43cb06e1894857f3aae77a87eac2dde1dfaf18a3dd99a1b31",
+      "component-old.zx": "f4951d90fd42789520b3e18fa0a4fd3053b313871dcf8472f80bec61ccbcaa2d",
+      "component-new.zx": "aad914ac3e8f0f44b3aac19c65731f05c447cb8b77bc474d24fe29c0f595ba36"
+    },
+    "queue_jobs": "2",
+    "library": {
+      "path": "/mnt/storage/Projects/ziranlang/ziran/build/libziran.a",
+      "sha256": "024d2d24c619d36f0d126d634a5b3ff155b26135759125a03b5108c7bc047700"
+    }
+  },
+  "target": "Alpha Personal VM",
+  "started_utc": "2026-11-09T21:14:09Z",
+  "before": {
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "cpu": "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 0\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves arat vnmi umip md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest shadow_vmcs pml\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs srbds mmio_stale_data retbleed gds bhi ibpb_no_ret\nbogomips\t: 6383.99\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 1\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 1\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 1\ninitial apicid\t: 1\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves arat vnmi umip md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest shadow_vmcs pml\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs srbds mmio_stale_data retbleed gds bhi ibpb_no_ret\nbogomips\t: 6383.99\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 2\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 2\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 2\ninitial apicid\t: 2\nfpu\t\t:",
+    "load": [
+      2.22314453125,
+      2.5400390625,
+      2.1845703125
+    ]
+  },
+  "samples": [
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000630006,
+      "warm_ms": 0.003558993,
+      "checksum": 12496000,
+      "batches": 4,
+      "variant": "c",
+      "trial": 0,
+      "kind": 1,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.00088974825,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 25.343193009,
+      "instantiate_ms": 1.138572991,
+      "first_ms": 0.838633999,
+      "warm_ms": 3.649214014,
+      "checksum": 12496000,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 0,
+      "kind": 1,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.9123035035,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 22.977784008,
+      "instantiate_ms": 16.521024004,
+      "first_ms": 0.05542399,
+      "warm_ms": 0.177340001,
+      "checksum": 12496000,
+      "batches": 4,
+      "variant": "native",
+      "trial": 0,
+      "kind": 1,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.04433500025,
+      "native_evidence": "ziran: native Answer: lowering 7.7 ms, compiling 6.3 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    },
+    {
+      "load_ms": 18.117103994,
+      "instantiate_ms": 5.438636005,
+      "first_ms": 0.040125996,
+      "warm_ms": 0.24039501,
+      "checksum": 1084066203648,
+      "batches": 4,
+      "variant": "native",
+      "trial": 0,
+      "kind": 0,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.0600987525,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\nziran: native Answer: cached, linking 4.9 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    },
+    {
+      "compile_observed_ms": 13.81886000931263,
+      "instantiate_ms": 0.15522100031375885,
+      "first_ms": 0.134334996342659,
+      "warm_ms": 0.023673996329307556,
+      "warmup_ms": 500.07598799467087,
+      "warmup_count": 80770,
+      "checksum": "12496000",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 0,
+      "kind": 1,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.005918499082326889,
+      "native_evidence": ""
+    },
+    {
+      "compile_observed_ms": 3.64444500207901,
+      "instantiate_ms": 0.13178499042987823,
+      "first_ms": 0.11809100210666656,
+      "warm_ms": 0.00894099473953247,
+      "warmup_ms": 500.0717760026455,
+      "warmup_count": 257196,
+      "checksum": "1084066203648",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 0,
+      "kind": 0,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.0022352486848831177,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 17.982823998,
+      "instantiate_ms": 8.146350995,
+      "first_ms": 0.486049011,
+      "warm_ms": 1.131589994,
+      "checksum": 1084066203648,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 0,
+      "kind": 0,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.2828974985,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\n"
+    },
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000378996,
+      "warm_ms": 0.002636001,
+      "checksum": 1084066203648,
+      "batches": 4,
+      "variant": "c",
+      "trial": 0,
+      "kind": 0,
+      "seed": 123456,
+      "rounds": 256,
+      "per_entry_ms": 0.00065900025,
+      "native_evidence": ""
+    },
+    {
+      "compile_observed_ms": 3.6692080050706863,
+      "instantiate_ms": 0.12654900550842285,
+      "first_ms": 0.13306298851966858,
+      "warm_ms": 0.02388601005077362,
+      "warmup_ms": 500.06900399923325,
+      "warmup_count": 90622,
+      "checksum": "13143168",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 1,
+      "kind": 1,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.005971502512693405,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 17.540546998,
+      "instantiate_ms": 7.598058999,
+      "first_ms": 0.753133997,
+      "warm_ms": 2.419050008,
+      "checksum": 13143168,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 1,
+      "kind": 1,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.604762502,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\n"
+    },
+    {
+      "load_ms": 18.252473995,
+      "instantiate_ms": 5.602626011,
+      "first_ms": 0.035094008,
+      "warm_ms": 0.127915978,
+      "checksum": 13143168,
+      "batches": 4,
+      "variant": "native",
+      "trial": 1,
+      "kind": 1,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.0319789945,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\nziran: native Answer: cached, linking 5.2 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    },
+    {
+      "load_ms": 17.842059001,
+      "instantiate_ms": 5.223407,
+      "first_ms": 0.050997004,
+      "warm_ms": 0.124705985,
+      "checksum": 1089189574656,
+      "batches": 4,
+      "variant": "native",
+      "trial": 1,
+      "kind": 0,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.03117649625,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\nziran: native Answer: cached, linking 4.8 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    },
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000626013,
+      "warm_ms": 0.003576994,
+      "checksum": 13143168,
+      "batches": 4,
+      "variant": "c",
+      "trial": 1,
+      "kind": 1,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.0008942485,
+      "native_evidence": ""
+    },
+    {
+      "compile_observed_ms": 3.2477889955043793,
+      "instantiate_ms": 0.10818099975585938,
+      "first_ms": 0.09508000314235687,
+      "warm_ms": 0.008757010102272034,
+      "warmup_ms": 500.05840499699116,
+      "warmup_count": 307149,
+      "checksum": "1089189574656",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 1,
+      "kind": 0,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.0021892525255680084,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 18.655658007,
+      "instantiate_ms": 7.646181002,
+      "first_ms": 0.317522004,
+      "warm_ms": 0.679866999,
+      "checksum": 1089189574656,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 1,
+      "kind": 0,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.16996674975,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\n"
+    },
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000380993,
+      "warm_ms": 0.002697021,
+      "checksum": 1089189574656,
+      "batches": 4,
+      "variant": "c",
+      "trial": 1,
+      "kind": 0,
+      "seed": 123556,
+      "rounds": 256,
+      "per_entry_ms": 0.00067425525,
+      "native_evidence": ""
+    },
+    {
+      "compile_observed_ms": 3.6081580072641373,
+      "instantiate_ms": 0.10964798927307129,
+      "first_ms": 0.11357399821281433,
+      "warm_ms": 0.008799999952316284,
+      "warmup_ms": 500.0594960004091,
+      "warmup_count": 290019,
+      "checksum": "1100755396608",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 2,
+      "kind": 0,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.002199999988079071,
+      "native_evidence": ""
+    },
+    {
+      "compile_observed_ms": 3.31708200275898,
+      "instantiate_ms": 0.12548799812793732,
+      "first_ms": 0.11742299795150757,
+      "warm_ms": 0.02346600592136383,
+      "warmup_ms": 500.0673459917307,
+      "warmup_count": 92203,
+      "checksum": "13036672",
+      "batches": 4,
+      "variant": "wasm-node",
+      "trial": 2,
+      "kind": 1,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.005866501480340958,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 17.412000999,
+      "instantiate_ms": 8.736145005,
+      "first_ms": 0.335023001,
+      "warm_ms": 0.691266,
+      "checksum": 1100755396608,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 2,
+      "kind": 0,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.1728165,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\n"
+    },
+    {
+      "load_ms": 17.192043006,
+      "instantiate_ms": 7.704190999,
+      "first_ms": 0.728688002,
+      "warm_ms": 2.300522,
+      "checksum": 13036672,
+      "batches": 4,
+      "variant": "vm",
+      "trial": 2,
+      "kind": 1,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.5751305,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\n"
+    },
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000383005,
+      "warm_ms": 0.002608985,
+      "checksum": 1100755396608,
+      "batches": 4,
+      "variant": "c",
+      "trial": 2,
+      "kind": 0,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.00065224625,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 17.749948993,
+      "instantiate_ms": 5.282173008,
+      "first_ms": 0.033491999,
+      "warm_ms": 0.142802,
+      "checksum": 1100755396608,
+      "batches": 4,
+      "variant": "native",
+      "trial": 2,
+      "kind": 0,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.0357005,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\nziran: native Answer: cached, linking 4.9 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    },
+    {
+      "load_ms": 0.0,
+      "instantiate_ms": 0.0,
+      "first_ms": 0.000594988,
+      "warm_ms": 0.003607005,
+      "checksum": 13036672,
+      "batches": 4,
+      "variant": "c",
+      "trial": 2,
+      "kind": 1,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.00090175125,
+      "native_evidence": ""
+    },
+    {
+      "load_ms": 17.578797013,
+      "instantiate_ms": 5.577684,
+      "first_ms": 0.035011008,
+      "warm_ms": 0.12735498,
+      "checksum": 13036672,
+      "batches": 4,
+      "variant": "native",
+      "trial": 2,
+      "kind": 1,
+      "seed": 123656,
+      "rounds": 256,
+      "per_entry_ms": 0.031838745,
+      "native_evidence": "ziran: native /mnt/storage/Projects/ziranlang/ziran/build/benchmarks/zx-compare/fixture.zx: opened on cached code, unchecked\nziran: native Answer: cached, linking 5.1 ms\nziran: native Answer closed: 0 host strings (0 bytes), 0 bytes of host slices\n"
+    }
+  ],
+  "unavailable": [],
+  "complete": false,
+  "engines": {
+    "node": "/usr/bin/node",
+    "wasmtime": null,
+    "wasm3": null,
+    "iwasm": null
+  },
+  "node_version": "v18.19.1",
+  "component_samples": [
+    {
+      "trial": 0,
+      "rollback_ms": 0.007602006,
+      "replace_ms": 0.015337989,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 1,
+      "rollback_ms": 0.004082993,
+      "replace_ms": 0.003618002,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 2,
+      "rollback_ms": 0.003333986,
+      "replace_ms": 0.003525004,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 3,
+      "rollback_ms": 0.003049999,
+      "replace_ms": 0.004189998,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 4,
+      "rollback_ms": 0.002918988,
+      "replace_ms": 0.002958998,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 5,
+      "rollback_ms": 0.002775997,
+      "replace_ms": 0.002742007,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 6,
+      "rollback_ms": 0.002612993,
+      "replace_ms": 0.002748996,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 7,
+      "rollback_ms": 0.002679005,
+      "replace_ms": 0.003385007,
+      "state_rollback_stale_verified": true
+    },
+    {
+      "trial": 8,
+      "rollback_ms": 0.002701998,
+      "replace_ms": 0.002857998,
+      "state_rollback_stale_verified": true
+    }
+  ],
+  "summary": [
+    {
+      "kind": 0,
+      "variant": "vm",
+      "n": 3,
+      "median_ms": 0.1728165,
+      "p95_ms": 0.2828974985
+    },
+    {
+      "kind": 0,
+      "variant": "native",
+      "n": 3,
+      "median_ms": 0.0357005,
+      "p95_ms": 0.0600987525
+    },
+    {
+      "kind": 0,
+      "variant": "c",
+      "n": 3,
+      "median_ms": 0.00065900025,
+      "p95_ms": 0.00067425525
+    },
+    {
+      "kind": 0,
+      "variant": "wasm-node",
+      "n": 3,
+      "median_ms": 0.002199999988079071,
+      "p95_ms": 0.0022352486848831177
+    },
+    {
+      "kind": 1,
+      "variant": "vm",
+      "n": 3,
+      "median_ms": 0.604762502,
+      "p95_ms": 0.9123035035
+    },
+    {
+      "kind": 1,
+      "variant": "native",
+      "n": 3,
+      "median_ms": 0.0319789945,
+      "p95_ms": 0.04433500025
+    },
+    {
+      "kind": 1,
+      "variant": "c",
+      "n": 3,
+      "median_ms": 0.0008942485,
+      "p95_ms": 0.00090175125
+    },
+    {
+      "kind": 1,
+      "variant": "wasm-node",
+      "n": 3,
+      "median_ms": 0.005918499082326889,
+      "p95_ms": 0.005971502512693405
+    }
+  ],
+  "measurement_loop_finished": true,
+  "after": {
+    "platform": "Linux-6.8.0-147-generic-x86_64-with-glibc2.39",
+    "cpu": "processor\t: 0\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 0\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 0\ninitial apicid\t: 0\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves arat vnmi umip md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest shadow_vmcs pml\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs srbds mmio_stale_data retbleed gds bhi ibpb_no_ret\nbogomips\t: 6383.99\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 1\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 1\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 1\ninitial apicid\t: 1\nfpu\t\t: yes\nfpu_exception\t: yes\ncpuid level\t: 22\nwp\t\t: yes\nflags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush mmx fxsr sse sse2 ss syscall nx pdpe1gb rdtscp lm constant_tsc arch_perfmon rep_good nopl xtopology cpuid tsc_known_freq pni pclmulqdq vmx ssse3 fma cx16 pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand hypervisor lahf_lm abm 3dnowprefetch cpuid_fault pti ssbd ibrs ibpb stibp tpr_shadow flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt xsaveopt xsavec xgetbv1 xsaves arat vnmi umip md_clear flush_l1d arch_capabilities\nvmx flags\t: vnmi preemption_timer invvpid ept_x_only ept_ad ept_1gb flexpriority tsc_offset vtpr mtf vapic ept vpid unrestricted_guest shadow_vmcs pml\nbugs\t\t: cpu_meltdown spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs srbds mmio_stale_data retbleed gds bhi ibpb_no_ret\nbogomips\t: 6383.99\nclflush size\t: 64\ncache_alignment\t: 64\naddress sizes\t: 39 bits physical, 48 bits virtual\npower management:\n\nprocessor\t: 2\nvendor_id\t: GenuineIntel\ncpu family\t: 6\nmodel\t\t: 158\nmodel name\t: Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz\nstepping\t: 10\nmicrocode\t: 0xfa\ncpu MHz\t\t: 3191.998\ncache size\t: 16384 KB\nphysical id\t: 2\nsiblings\t: 1\ncore id\t\t: 0\ncpu cores\t: 1\napicid\t\t: 2\ninitial apicid\t: 2\nfpu\t\t:",
+    "load": [
+      2.205078125,
+      2.53076171875,
+      2.18310546875
+    ]
+  }
+}

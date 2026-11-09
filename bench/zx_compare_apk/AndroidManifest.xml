@@ -1,0 +1,9 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="org.ziranlang.benchmarks.zxcompare" android:versionCode="1" android:versionName="benchmark">
+  <uses-sdk android:minSdkVersion="28" android:targetSdkVersion="28"/>
+  <application android:label="Ziran runtime benchmark" android:debuggable="true" android:hasCode="false" android:extractNativeLibs="true">
+    <activity android:name="android.app.NativeActivity" android:exported="true" android:launchMode="singleTask" android:configChanges="orientation|keyboardHidden|screenSize">
+      <meta-data android:name="android.app.lib_name" android:value="zxcompare"/>
+      <intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter>
+    </activity>
+  </application>
+</manifest>

@@ -101,6 +101,8 @@ typedef struct BundleCapabilityAbi {
 
 /* Open and validate a version 26 portable bundle. Close releases all names. */
 Bundle *BundleOpen(const char *path);
+/* Select portable execution for subsequent bundle opens and instances. */
+void BundleUsePortableVm(int enabled);
 /* Validate an embedded/downloaded bundle without an application pathname.
  * Input bytes are borrowed only during this call; the opened bundle owns IR. */
 Bundle *BundleOpenBytes(const unsigned char *data, size_t size);

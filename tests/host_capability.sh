@@ -90,11 +90,11 @@ assert b'UnusedHost' not in data
 PY
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
-if "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
+if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
     echo 'bundle unexpectedly ran without its host capabilities' >&2
     exit 1
 fi
-grep -Fq 'missing host capability:' "$work/missing.err"
+grep -Fq 'no installed runtime provider supports this bundle' "$work/missing.err"
 python3 - "$work/source.zx" "$work/tampered.zx" <<'PY'
 from pathlib import Path
 import sys

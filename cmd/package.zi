@@ -12,6 +12,7 @@
 #import "package_compile_commands"
 #import "package_template"
 #import "package_script"
+#import "package_bundle_run"
 #import "file_linux"
 
 // `ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] DIR`
@@ -343,6 +344,10 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
             count += 1
         }
     }
+    if command == "run" && !has_source {
+        return PkgRunBundle(child[0:count], arguments,
+            names[0:environment], values[0:environment])
+    }
     return PkgRun(child[0:count], "", names[0:environment], values[0:environment])
 }
 
@@ -664,7 +669,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
     }
     if command == "run" {
-        return "usage: ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
+        return "usage: ziran run [--vm] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
     if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir\n" }

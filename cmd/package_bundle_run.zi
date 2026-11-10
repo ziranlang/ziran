@@ -1,0 +1,123 @@
+#import "package_common"
+#import "package_process"
+#import "file_linux"
+#import "byte_text_linux"
+using Vectors :: #import "vec"
+
+#scope_file
+// Packages install providers; bundles cannot name an executable. A .host
+// registration contains one absolute path. --check must validate without
+// running application globals or opening a display.
+TryDirectory :: (directory: string, bundle: string, portable: bool,
+    names: []string, values: []string) -> s32 {
+    cursor := OpenDirectory(directory)
+    if !cursor.valid { return -2 }
+    files: Vec(string)
+    while true {
+        entry := NextDirectoryEntry(*cursor)
+        if !entry.valid { break }
+        name := TextFromBytes(entry.name[0:entry.name_count])
+        if PkgEndsWith(name, ".host") {
+            if !VecPush(files, PkgJoin("", name)) {
+                CloseDirectory(*cursor)
+                VecFree(files)
+                return -2
+            }
+        }
+    }
+    CloseDirectory(*cursor)
+    for index: 1..files.count - 1 {
+        at := index
+        while at > 0 && PkgLexLess(files[at], files[at - 1]) {
+            earlier := files[at - 1]; files[at - 1] = files[at]; files[at] = earlier
+            at -= 1
+        }
+    }
+    provider_result: s32 = -2
+    registration_index: s64 = 0
+    while registration_index < files.count {
+        name := files[registration_index]
+        registration_index += 1
+        registration := PkgReadLimited(PkgJoin3(directory, "/", name), 16384)
+        if !registration.valid { continue }
+        executable := PkgTrim(registration.text)
+        valid := executable.count > 0
+        if valid { valid = executable[0] == #char "/" }
+        for byte: executable { if byte < 32 || byte == 127 { valid = false } }
+        if !valid { continue }
+        probe: [3]string = .{executable, "--check", bundle}
+        output: [4096]u8
+        if RunProcess(probe[:], "", names, values, output[:]) != 0 { continue }
+        run: [3]string
+        run[0] = executable
+        count: s32 = 1
+        if portable { run[count] = "--vm"; count += 1 }
+        run[count] = bundle; count += 1
+        // Preserve an admitted provider's result. Retrying could execute
+        // an application's side effects twice.
+        provider_result = PkgRun(run[0:count], "", names, values)
+        break
+    }
+    VecFree(files)
+    return provider_result
+}
+
+TryDirectories :: (paths: string, suffix: string, bundle: string,
+    portable: bool, names: []string, values: []string) -> s32 {
+    start: s64 = 0
+    while start < paths.count {
+        end := start
+        while end < paths.count && paths[end] != #char ":" { end += 1 }
+        // Empty and relative search entries never select the launch cwd.
+        if end > start && paths[start] == #char "/" {
+            code := TryDirectory(PkgJoin(paths[start:end], suffix), bundle,
+                portable, names, values)
+            if code != -2 { return code }
+        }
+        start = end + 1
+    }
+    return -2
+}
+
+#scope_export
+PkgRunBundle :: (child: []string, arguments: []string,
+    names: []string, values: []string) -> s32 {
+    bundle: string
+    portable := false
+    for argument: arguments {
+        if PkgEndsWith(argument, ".zx") { bundle = argument }
+        if argument == "--vm" { portable = true }
+    }
+    if bundle == "" { return PkgRun(child, "", names, values) }
+    delegated := PkgStrings(child.count + 1)
+    if delegated.count != child.count + 1 { return PkgFail("cannot allocate run arguments") }
+    delegated[0] = child[0]; delegated[1] = child[1]
+    delegated[2] = "--host-dispatch"
+    for index: 2..child.count - 1 { delegated[index + 1] = child[index] }
+    code := PkgRun(delegated, "", names, values)
+    if code != 3 { return code }
+    bundle = PkgCanonical(bundle)
+    if bundle == "" { return PkgFail("cannot find the bundle") }
+    paths := PkgGetenv("ZIRAN_HOST_PATH")
+    if paths != "" {
+        code = TryDirectories(paths, "", bundle, portable, names, values)
+    } else {
+        data := PkgGetenv("XDG_DATA_HOME")
+        if data == "" {
+            home := PkgGetenv("HOME")
+            if home != "" { data = PkgJoin(home, "/.local/share") }
+        }
+        code = -2
+        if data.count > 0 && data[0] == #char "/" {
+            code = TryDirectory(PkgJoin(data, "/ziran/hosts"), bundle,
+                portable, names, values)
+        }
+        if code == -2 {
+            paths = PkgGetenv("XDG_DATA_DIRS")
+            if paths == "" { paths = "/usr/local/share:/usr/share" }
+            code = TryDirectories(paths, "/ziran/hosts", bundle, portable, names, values)
+        }
+    }
+    if code != -2 { return code }
+    return PkgFail("no installed runtime provider supports this bundle; install its platform provider or set ZIRAN_HOST_PATH")
+}

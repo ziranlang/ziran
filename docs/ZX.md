@@ -10,6 +10,37 @@ rebuild previous `.zib` programs from source or current `.zir`; changing a
 filename alone does not convert the binary format. The previous tool and
 target names are not aliases.
 
+## Running bundles
+
+Use `ziran run app.zx` for both console and graphical programs. The linker
+includes the reachable code of imported modules, including a UI library.
+Platform effects such as windows and input are supplied by an installed runtime
+provider. Ziran discovers providers generically, without UI-library names or
+widget-specific startup behavior. A console bundle with no required host
+capabilities runs directly and never starts a graphical provider.
+
+Packages install a `.host` registration containing one absolute executable path
+under `share/ziran/hosts`. Discovery searches `$XDG_DATA_HOME/ziran/hosts`
+(default `$HOME/.local/share/ziran/hosts`), then each `$XDG_DATA_DIRS` entry
+(default `/usr/local/share:/usr/share`). Registrations are tried in filename
+order within each directory. `ZIRAN_HOST_PATH` overrides these locations with
+colon-separated absolute registry directories; empty and relative entries are
+ignored. Bundle directories and embedded assets are never provider search roots.
+
+A provider implements `--check FILE.zx`, returning zero only when it can supply
+all required capabilities. Checking must not execute application initializers
+or entries or open a window. The selected executable then receives `FILE.zx`,
+or `--vm FILE.zx` when portable execution was requested. Its exit status is the
+run status; an execution failure never retries the app on another provider.
+Malformed bundles fail before discovery. Missing providers produce a diagnostic
+before the application executes. Provider registration is part of the library
+platform installation and adds no requirement to a console-only Ziran install.
+
+For example, Kryon `make install-user` installs its reusable desktop provider.
+A graphical `.zx` then runs with `ziran run app.zx` without application sources,
+a manifest or generated native output. The portable bundle carries its linked
+UI code and embedded assets; the installed provider bridges the local OS.
+
 ## Experimental versions 26 and 27
 
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
@@ -372,7 +403,8 @@ use seekable temporary streams.
 
 Kryon's reusable desktop player supplies rendering and input to a ZX instance;
 the application's widgets and state run inside the VM. A downloaded graphical
-program launches with `kryon run app.zx`, including embedded images. See
+program launches with `ziran run app.zx` after the desktop provider is installed,
+including embedded images. See
 [Kryon project profiles](https://github.com/kryonlabs/kryon/blob/master/docs/PROJECTS.md).
 Application-specific storage, audio, and other native interfaces still require
 declared host capabilities with portable signatures. A native application's

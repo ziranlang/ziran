@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- `ziran run app.zx` discovers installed package runtime providers for host capabilities; console and graphical bundles use the same command.
 - The website uses a simpler reading layout across the homepage, guides and API pages, with responsive navigation and the working browser playground.
 
 - `pkg paths PACKAGE...` returns ordered resolved paths as JSON after one

@@ -341,6 +341,10 @@ Warnings do not fail the check (`"severity":"warning"` in JSON).
 for the same tools. [Cross-target benchmarks](../bench/README.md) measure the
 compiler, downstream toolchains, and validated runtime cases separately.
 
+Portable bundles run with `ziran run app.zx` (or `--vm app.zx`). Graphical
+bundles use installed package-provided platform hosts through the same command;
+see [runtime providers](ZX.md#running-bundles).
+
 ## Generate native code
 
 Use `ziran build --target=c` for C99 output. Add `--exe --entry

@@ -121,11 +121,11 @@ test "$("$ziran" run "$work/native.zx")" = 112
 
 "$ziran" bundle --root "$work" --entry app:main \
     -o "$work/unbound.zx" "$work/app.zi"
-if "$ziran" run "$work/unbound.zx" > "$work/unbound.out" 2> "$work/unbound.err"; then
+if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/unbound.zx" > "$work/unbound.out" 2> "$work/unbound.err"; then
     echo 'unbound capability unexpectedly ran' >&2
     exit 1
 fi
-rg -q 'missing host capability: app:Effect' "$work/unbound.err"
+rg -q 'no installed runtime provider supports this bundle' "$work/unbound.err"
 
 if "$ziran" bundle --root "$work" --entry app:main \
     --bind app:Effect=bad_provider:Produce -o "$work/bad.zx" \

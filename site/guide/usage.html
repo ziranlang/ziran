@@ -304,6 +304,9 @@ Warnings do not fail the check (<code>"severity":"warning"</code> in JSON).
 <code>ziran check|ir|api|inspect|build|bundle|run|fmt</code> remains a convenience dispatcher
 for the same tools. <a href="https://github.com/ziranlang/ziran/blob/master/bench/README.md">Cross-target benchmarks</a> measure the
 compiler, downstream toolchains, and validated runtime cases separately.</p>
+<p>Portable bundles run with <code>ziran run app.zx</code> (or <code>--vm app.zx</code>). Graphical
+bundles use installed package-provided platform hosts through the same command;
+see <a href="zx.html#running-bundles">runtime providers</a>.</p>
 <h2 id="generate-native-code">Generate native code</h2>
 <p>Use <code>ziran build --target=c</code> for C99 output. Add <code>--exe --entry
 module:function</code> to also compile it into <code>DIR/module</code>, a program that runs

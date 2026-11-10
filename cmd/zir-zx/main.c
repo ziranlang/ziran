@@ -335,8 +335,11 @@ enum { RUN_STACK_BYTES = 256 * 1024 * 1024 };
 static int
 run_command(int argc, char **argv)
 {
+    int dispatch_host = 0;
     for(; argc > 0 && !strncmp(argv[0], "--", 2); argc--, argv++) {
-        if(!strcmp(argv[0], "--vm"))
+        if(!strcmp(argv[0], "--host-dispatch"))
+            dispatch_host = 1;
+        else if(!strcmp(argv[0], "--vm"))
             BundleUsePortableVm(1);
         else if(strncmp(argv[0], "--diagnostics=", 14))
             break;
@@ -356,6 +359,11 @@ run_command(int argc, char **argv)
     job.bundle = source ? open_source(argc, argv) : BundleOpen(argv[0]);
     if(job.bundle == NULL)
         return 1;
+    /* Discover the platform provider before running application code. */
+    if(dispatch_host && !source && BundleCapabilityCount(job.bundle) != 0) {
+        BundleClose(job.bundle);
+        return 3;
+    }
     int ran_on_thread = 0;
 #if defined(__unix__) || defined(__APPLE__)
     pthread_attr_t attributes;

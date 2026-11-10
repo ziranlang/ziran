@@ -81,6 +81,7 @@ static size_t expected_size;
 static size_t expected_index;
 static size_t expected_count;
 static int calls;
+static int portable_vm;
 static const char module_name[] = "sample";
 static const char function_name[] = "Read";
 static const char asset_name[] = "assets/data";
@@ -97,6 +98,11 @@ static double captured_real;
 static int closed_state;
 static int closed_component;
 static int closed_component_handle;
+
+void BundleUsePortableVm(int enabled)
+{
+    portable_vm = enabled;
+}
 
 Bundle *BundleOpen(const char *path)
 {
@@ -473,6 +479,10 @@ int main(void)
     expected_size = 37;
     expected_index = 17;
     expected_count = 3;
+    UsePortableBundleVm(1);
+    assert(portable_vm == 1);
+    UsePortableBundleVm(0);
+    assert(portable_vm == 0);
     void *bundle = OpenBundle(&token);
     assert(bundle == &token);
     assert(OpenBundleBytes(&token, expected_size) == &token);

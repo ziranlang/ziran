@@ -132,7 +132,15 @@ RawBundleComponentLiveValueBytes :: (component: *void) -> usize #foreign runtime
 RawBundleComponentClose :: (component: *void) #foreign runtime "BundleComponentClose";
 RawBundleComponentHandleClose :: (handle: *void) #foreign runtime "BundleComponentHandleClose";
 
+RawBundleUsePortableVm :: (enabled: s32) #foreign runtime "BundleUsePortableVm";
+
 #scope_export
+// Select the portable VM for subsequent opens and instances in this process.
+#program_export
+UsePortableBundleVm :: (enabled: bool) {
+    RawBundleUsePortableVm(ifx enabled then 1 else 0)
+}
+
 #program_export
 OpenBundle :: (path: *u8) -> *void { return RawBundleOpen(path) }
 

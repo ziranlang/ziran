@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Optional, headless Ziran image package."><title>AVIF · Ziran package</title><link rel="canonical" href="https://ziran-lang.org/packages/avif"><link rel="icon" href="../favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html" aria-current="page">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../modules.html#packages">Modules</a> / Packages</p><h1>AVIF</h1><p>Optional, headless Ziran image package. Handwritten decoder policy, transforms, API and CLI are .zi. The initial AV1/container decoding engine is a pinned external libavif bridge; this is not an authored AV1 decoder or a speed claim. No Kryon, window system, browser, or GUI library is required.</p><p class="module-meta"><span class="status-badge is-in-progress">In progress</span> No tagged release yet.</p><p><a class="text-link" href="https://github.com/ziranlang/avif">Repository ↗</a></p></div>
-<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-api">api</a><a href="#module-engine">engine</a><a href="#module-bmff">bmff</a><a href="#module-bridge">bridge</a><a href="#documents">Documents</a></aside><div class="article-body api-body">
+<div class="article-grid"><aside class="page-toc"><strong>Contents</strong><a href="#install">Install</a><a href="#overview">Overview</a><a href="#module-api">api</a><a href="#module-engine">engine</a><a href="#module-bmff">bmff</a><a href="#module-bridge">bridge</a><a href="#module-encode">encode</a><a href="#module-preview">preview</a><a href="#documents">Documents</a></aside><div class="article-body api-body">
 <section id="install"><h2>Add the dependency</h2><p>In your project’s <code>ziran.toml</code>; pin <code>ref</code> to a commit for reproducible builds.</p><pre><code>[dependencies.avif]
 git = "https://github.com/ziranlang/avif.git"
 ref = "master"</code></pre></section>
@@ -38,6 +38,9 @@ See <a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">i
 <div><code>DefaultEngine :: () -&gt; Av1Engine</code><p>dav1d is the default engine; libaom is the explicit comparison oracle.</p></div>
 <div><code>LibaomOracle :: () -&gt; Av1Engine</code></div>
 <div><code>StaticNativeAPI :: () -&gt; Interop.AvifAPI</code></div>
+<div><code>EncodeRGBA8 :: (source: RgbaView, metadata: EncodeMetadata, options: EncodeOptions) -&gt; EncodeResult</code></div>
+<div><code>StaticNativeEncodeAPI :: () -&gt; AvifEncodeAPI</code></div>
+<div><code>Reencode :: (input: BorrowedBytes, options: EncodeOptions) -&gt; EncodeResult</code></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/api.zi">Source ↗</a></p></section>
 <section id="module-engine"><p class="eyebrow">avif/src/engine.zi</p><h2>engine</h2><p>Import with <code>#import "avif/engine"</code>.</p><div class="api-list">
 <div><code>EngineCapabilities :: struct { container_bridge: bool; obu_planes: bool; strict_rgba8: bool; fast_color: bool; hdr: bool; interruptible: bool; hard_scratch_limit: bool; max_threads: s32; }</code><p>No native structs or pointers cross this boundary. The initial engine owns container parsing internally; an OBU/plane engine is a separate capability.</p></div>
@@ -87,6 +90,31 @@ See <a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">i
 <div><code>ProbeResult :: struct { is_ok: bool; metadata: ImageMetadata; error: DecodeError; }</code></div>
 <div><code>BridgeProbe :: (api: AvifAPI, input: BorrowedBytes, options: DecodeOptions, codec: s32) -&gt; ProbeResult</code><p>Container-only bounded parse: never calls next/defaults/convert and never allocates pixels. DecodeInto re-parses and revalidates all output dimensions.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/bridge.zi">Source ↗</a></p></section>
+<section id="module-encode"><p class="eyebrow">avif/src/encode.zi</p><h2>encode</h2><p>Optional native encoding; no static links or UI dependency.</p><p>Import with <code>#import "avif/encode"</code>.</p><div class="api-list">
+<div><code>EncodeMetadata :: struct { icc: []u8; exif: []u8; xmp: []u8; orientation: s32; source_bit_depth: s32; frame_count: s32; }</code></div>
+<div><code>DefaultEncodeMetadata :: () -&gt; EncodeMetadata</code></div>
+<div><code>EncodeOptions :: struct { quality: s32; limits: DecodeLimits; cancellation: *Cancellation; workers: *WorkerBudget; }</code></div>
+<div><code>DefaultEncodeOptions :: () -&gt; EncodeOptions</code></div>
+<div><code>EncodeResult :: struct { is_ok: bool; bytes: Vec(u8); width: s32; height: s32; error: DecodeError; }</code></div>
+<div><code>EncodeFailure :: (error: DecodeError) -&gt; EncodeResult</code></div>
+<div><code>RawEncoder :: struct { codec: s32; threads: s32; speed: s32; keyframe_interval: s32; timescale: u64; repetitions: s32; extra_layers: u32; quality: s32; alpha_quality: s32; }</code><p>Prefix of pinned 1.3.0. Only libavif allocates it; ABI tests cover touched fields.</p></div>
+<div><code>AvifImageCreate :: #type (width: u32, height: u32, depth: u32, format: s32) -&gt; *RawImage</code></div>
+<div><code>AvifImageDestroy :: #type (image: *RawImage)</code></div>
+<div><code>AvifSetMetadata :: #type (image: *RawImage, data: *u8, count: usize) -&gt; s32</code></div>
+<div><code>AvifEncoderCreate :: #type () -&gt; *RawEncoder</code></div>
+<div><code>AvifEncoderDestroy :: #type (encoder: *RawEncoder)</code></div>
+<div><code>AvifEncoderWrite :: #type (encoder: *RawEncoder, image: *RawImage, output: *RawBytes) -&gt; s32</code></div>
+<div><code>AvifDataFree :: #type (data: *RawBytes)</code></div>
+<div><code>AvifEncodeAPI :: struct { version: AvifVersion; image_create: AvifImageCreate; image_destroy: AvifImageDestroy; defaults: AvifDefaults; from_rgb: AvifConvert; icc: AvifSetMetadata; exif: AvifSetMetadata; xmp: AvifSetMetadata; create: AvifEncoderCreate; destroy: AvifEncoderDestroy; write: AvifEncoderWrite; free: AvifDataFree; }</code></div>
+<div><code>ValidateEncodeAPI :: (api: AvifEncodeAPI) -&gt; DecodeError</code></div>
+<div><code>EncodeNativeError :: (code: s32) -&gt; DecodeError</code></div>
+<div><code>EncodeRGBA8WithAPI :: (api: AvifEncodeAPI, source: RgbaView, metadata: EncodeMetadata, options: EncodeOptions) -&gt; EncodeResult</code><p>No resize or orientation bake: AVIF transforms carry the stored-pixel orientation.</p></div>
+<div><code>EncodeNativeImage :: (api: AvifEncodeAPI, image: *RawImage, options: EncodeOptions) -&gt; EncodeResult</code><p>Shared write boundary for RGBA input and AVIF transcodes.</p></div>
+<div><code>ReencodeWithAPI :: (decode_api: AvifAPI, api: AvifEncodeAPI, input: BorrowedBytes, options: EncodeOptions) -&gt; EncodeResult</code><p>Re-encode a still 8-bit AVIF retaining metadata and transforms.</p></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/encode.zi">Source ↗</a></p></section>
+<section id="module-preview"><p class="eyebrow">avif/src/preview.zi</p><h2>preview</h2><p>Headless, explicit Lanczos-3 resize of straight RGBA8. Encoding never calls this implicitly.</p><p>Import with <code>#import "avif/preview"</code>.</p><div class="api-list">
+<div><code>LanczosRGBA8Into :: (source: RgbaView, width: s32, height: s32, output: OutputBuffer, options: DecodeOptions) -&gt; PixelWriteResult</code></div>
+</div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/preview.zi">Source ↗</a></p></section>
 <section id="documents"><h2>Documents</h2><div class="link-list"><a href="https://github.com/ziranlang/avif/blob/HEAD/docs/API.md">API.md<span>GitHub ↗</span></a><a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">VERIFICATION.md<span>GitHub ↗</span></a></div></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-growing-z.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

@@ -412,11 +412,17 @@ def package_modules(ziran, directory, manifest, packages):
     roots = [os.path.join(directory, r) for r in manifest['package'].get('module_roots', ['.'])]
     paths = list(roots)
     for name, dependency in manifest.get('dependencies', {}).items():
-        repo = dependency.get('git', '').rstrip('/').removesuffix('.git').rsplit('/', 1)[-1]
-        other = os.path.join(packages, repo, 'ziran.toml')
+        requested = dependency.get('git', '')
+        repo = requested.rstrip('/').removesuffix('.git').rsplit('/', 1)[-1]
+        package_directory = os.path.join(packages, repo)
+        other = os.path.join(package_directory, 'ziran.toml')
         if os.path.exists(other):
+            origin = git(package_directory, 'remote', 'get-url', 'origin')
+            requested_identity = github_url(requested) or requested.rstrip('/').removesuffix('.git')
+            origin_identity = github_url(origin) or origin.rstrip('/').removesuffix('.git')
+        if os.path.exists(other) and requested_identity and requested_identity == origin_identity:
             other_roots = tomllib.load(open(other, 'rb'))['package'].get('module_roots', ['.'])
-            paths.append(f'{name}={os.path.join(packages, repo, other_roots[0])}')
+            paths.append(f'{name}={os.path.join(package_directory, other_roots[0])}')
     modules = []
     for export, file in manifest.get('exports', {}).items():
         path = os.path.join(directory, file)

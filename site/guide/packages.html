@@ -114,7 +114,17 @@ using Widgets :: #import &quot;kryon/Widgets&quot;;
 #import &quot;std/text&quot;;
 </code></pre>
 <p><code>std/NAME</code> is the pinned standard library. Modules in your own package use
-their short names. <code>ziran pkg list</code> shows each direct dependency, its URL,
+their short names. A package can also import its own public exports as
+<code>PACKAGE/EXPORT</code>, where <code>PACKAGE</code> is its <code>[package] name</code> and <code>EXPORT</code> is a
+key in its <code>[exports]</code> table. For example, a package named <code>plot</code> exporting
+<code>Plot = "src/module.zi"</code> can import <code>plot/Plot</code> internally. This works both
+when building that package directly and when it is a dependency, even if a
+consumer gives it a different dependency alias. Private modules still use
+short names inside their package; self qualification exposes only public
+exports and grants no access to transitive dependencies. Short-name
+resolution is unchanged. If a direct dependency alias equals the package's
+own name, that alias retains the whole qualified namespace; use short names
+for your own modules in that case. <code>ziran pkg list</code> shows each direct dependency, its URL,
 ref, commit and checkout, and every import path it provides:</p>
 <pre><code class="language-text">plot  git@github.com:kryonlabs/plot.git  master  3e1433d0b2c1
   checkout /home/me/.cache/ziran/sources/p1f0c…

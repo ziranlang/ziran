@@ -1,17 +1,21 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import http from 'node:http';
-import os from 'node:os';
 import path from 'node:path';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const site = path.join(repo, 'site');
-const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'ziran-playground-browser-'));
+const artifacts = path.join(repo, 'build', 'site-verification');
+await fs.mkdir(artifacts, {recursive: true});
+const profile = await fs.mkdtemp(path.join(artifacts, 'browser-'));
 const environment = {...process.env};
 delete environment.DISPLAY;
 delete environment.WAYLAND_DISPLAY;
+delete environment.XAUTHORITY;
+delete environment.DBUS_SESSION_BUS_ADDRESS;
+environment.YUE_DESKTOP_RECOVERY = '0';
 const server = http.createServer(async (request, response) => {
   const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   const file = path.resolve(site, '.' + (pathname === '/' ? '/index.html' : pathname));
@@ -24,7 +28,7 @@ const server = http.createServer(async (request, response) => {
 });
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const url = 'http://127.0.0.1:' + server.address().port + '/';
-const browser = spawn('xvfb-run', ['-a', 'chromium', '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], {env: environment, detached: true, stdio: ['ignore', 'ignore', 'pipe']});
+const browser = spawn('xvfb-run', ['-a', process.env.CHROMIUM || 'chromium', '--headless', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage', '--disable-background-networking', '--remote-debugging-port=0', '--user-data-dir=' + profile, 'about:blank'], {env: environment, detached: true, stdio: ['ignore', 'ignore', 'pipe']});
 let browserLog = '';
 browser.stderr.on('data', chunk => { browserLog = (browserLog + chunk).slice(-2000); });
 let socket;
@@ -142,19 +146,38 @@ try {
   await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = 'go'; target.dispatchEvent(new Event('change')); })()`);
   assert.match(await evaluate(`document.querySelector('.target-command').textContent`), /--target=go/);
   assert.equal(await evaluate(`document.querySelector('.native-visual .is-selected').dataset.target`), 'go');
-  await evaluate(`document.querySelector('.playground-reset').click(); window.scrollTo(0, 0); document.activeElement.blur()`);
-  await screenshot('/tmp/ziran-interactive-desktop.png');
-  await screenshot('/tmp/ziran-interactive-full.png', true);
+  await evaluate(`document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.playground-reset').click(); window.scrollTo(0, 0); document.activeElement.blur()`);
+  await screenshot(path.join(artifacts, 'home-desktop.png'));
+  await screenshot(path.join(artifacts, 'home-full.png'), true);
   for (const width of [320, 390, 650, 768, 1024, 1440]) {
     await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: false});
     const documentWidth = await evaluate(`document.documentElement.scrollWidth`);
-    assert.ok(documentWidth <= width, 'Horizontal overflow at ' + width + ': ' + documentWidth);
+    assert.ok(documentWidth <= width, 'Horizontal overflow at ' + width + ': ' + documentWidth + ' ' + await evaluate(`JSON.stringify([...document.querySelectorAll('main *, header *, footer *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 20).map(e => [e.className, Math.round(e.getBoundingClientRect().width)]))`));
   }
   await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
-  await screenshot('/tmp/ziran-interactive-mobile.png', true);
+  await screenshot(path.join(artifacts, 'home-mobile.png'), true);
+  await screenshot(path.join(artifacts, 'home-mobile-viewport.png'));
   await evaluate(`document.querySelector('.menu-button').click(); document.querySelector('.theme-toggle').click(); document.querySelector('.menu-button').click()`);
   assert.equal(await evaluate(`document.documentElement.dataset.theme`), 'dark');
-  await screenshot('/tmp/ziran-interactive-dark.png', true);
+  await screenshot(path.join(artifacts, 'home-dark.png'), true);
+  await screenshot(path.join(artifacts, 'home-dark-viewport.png'));
+  const layoutFailures = [];
+  for (const route of ['docs.html', 'get-started.html', 'examples.html', 'modules.html', 'language.html', 'api.html', 'status.html', 'guide/usage.html', 'std/text.html', 'packages/syntax.html']) {
+    await cdp('Page.navigate', {url: url + route});
+    await waitFor(() => evaluate(`document.readyState === 'complete' && document.fonts.status === 'loaded'`), 'Route did not load: ' + route);
+    await evaluate(`document.documentElement.dataset.theme = 'light'`);
+    assert.ok(await evaluate(`!!document.querySelector('main h1')`), 'Missing page heading: ' + route);
+    for (const width of [320, 390, 650, 768, 1024, 1440]) {
+      await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: false});
+      if (!await evaluate(`document.documentElement.scrollWidth <= ${width}`)) layoutFailures.push(route + ' at ' + width + ': ' + await evaluate(`JSON.stringify([...document.querySelectorAll('main *, header *, footer *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 10).map(e => [e.className, Math.round(e.getBoundingClientRect().width)]))`));
+    }
+    if (['docs.html', 'guide/usage.html', 'modules.html'].includes(route)) {
+      await screenshot(path.join(artifacts, route.replaceAll('/', '-') + '-desktop.png'));
+      await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+      await screenshot(path.join(artifacts, route.replaceAll('/', '-') + '-mobile.png'));
+    }
+  }
+  assert.deepEqual(layoutFailures, [], 'All documentation routes fit their viewport');
   await cdp('Emulation.setScriptExecutionDisabled', {value: true});
   await cdp('Page.navigate', {url});
   await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript page did not load');
@@ -162,7 +185,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('#example-text').hidden`), false);
   assert.equal(await evaluate(`document.querySelectorAll('.code-editor').length`), 0);
   assert.deepEqual(exceptions, []);
-  console.log('Playground browser: real edited runs, imports, compiler errors, safe highlighting, tab preservation, reset, stop, cancellation, live diagrams, source transfer, target commands, six widths, dark theme, and no-JavaScript fallback passed');
+  console.log('Playground browser: real edited runs, imports, compiler errors, safe highlighting, tab preservation, reset, stop, cancellation, live diagrams, source transfer, target commands, six widths, ten documentation routes, dark theme, and no-JavaScript fallback passed');
 } finally {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try { await cdp('Browser.close'); } catch (_) {}
@@ -171,4 +194,5 @@ try {
   try { process.kill(-browser.pid, 'SIGTERM'); } catch (_) {}
   server.closeAllConnections();
   await new Promise(resolve => server.close(resolve));
+  await fs.rm(profile, {recursive: true, force: true, maxRetries: 5, retryDelay: 200});
 }

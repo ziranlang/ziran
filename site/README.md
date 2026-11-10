@@ -60,3 +60,10 @@ Web bridge accepts both wasm32 pointers and lowered memory64 pointers.
 With Chromium and Xvfb installed, `node tests/playground_browser.mjs` checks
 editing, execution, cancellation, diagrams, and responsive layouts. It starts
 its own local server and a private display, without using the desktop display.
+
+The browser test needs Node.js 22 or newer (for the built-in WebSocket client).
+Set `CHROMIUM=google-chrome` when using Chrome instead of Chromium. It also
+checks the main documentation, module, package and guide layouts at six widths
+from 320 to 1440 pixels. Captures are written to the ignored
+`build/site-verification/` directory; the private browser profile is removed
+after the run.

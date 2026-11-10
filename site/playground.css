@@ -73,7 +73,7 @@
   background: #8bbf9d55;
 }
 .home .c-comment {
-  color: #b4c7b8;
+  color: var(--editor-muted);
 }
 .home .code-output {
   max-height: 190px;
@@ -86,7 +86,7 @@
   line-height: 1.6;
 }
 .home .code-output.has-error code {
-  color: #f0c6ac;
+  color: var(--rust);
 }
 .playground-toolbar {
   display: flex;
@@ -95,7 +95,7 @@
   flex-wrap: wrap;
   gap: 0.6rem;
   padding: 0.85rem 1.15rem;
-  border-top: 1px solid #ffffff1f;
+  border-top: 1px solid var(--line);
 }
 .playground-toolbar[hidden],
 .diagram-controls[hidden],
@@ -111,7 +111,7 @@
 .playground-buttons button {
   min-height: 36px;
   padding: 0.35rem 0.75rem;
-  border: 1px solid #ffffff35;
+  border: 1px solid var(--line);
   border-radius: 5px;
   background: transparent;
   color: var(--editor-ink);
@@ -217,7 +217,7 @@
   border-radius: 5px;
   background: var(--bg);
   color: var(--ink);
-  font: 0.85rem Manrope, Arial, sans-serif;
+  font: 0.85rem system-ui, Arial, sans-serif;
 }
 .diagram-controls > output,
 .target-command {

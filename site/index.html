@@ -38,14 +38,14 @@
     <section class="hero hero-new">
       <div class="hero-copy">
         <div class="hero-kicker"><p class="eyebrow">Open source programming language</p><a class="release-badge" href="status.html"><span aria-hidden="true"></span>Experimental</a></div>
-        <h1>Build useful software with <em>Ziran.</em></h1>
-        <p class="hero-lead">Write clear <code>.zi</code> programs, check them before they run, and choose C or Go output, or a portable bundle.</p>
+        <h1>The Ziran programming language</h1>
+        <p class="hero-lead">Ziran is a general-purpose language with readable source and an explicit toolchain. Check your programs, generate C or Go, or run a portable <code>.zx</code> bundle.</p>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="examples.html">See examples <span aria-hidden="true">↗</span></a></div>
         <ul class="hero-points"><li>Readable source</li><li>Build-time laws</li><li><a href="modules.html">Standard library</a></li></ul>
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.3.1">v0.3.1</a>. Build from source today. <a href="status.html">See current support</a>.</p>
       </div>
       <div class="hero-visual">
-        <div class="visual-caption"><span>Your code. Real results.</span><span>Edit it. Try it. <span aria-hidden="true">↘</span></span></div>
+        <div class="visual-caption"><span>Try Ziran in your browser</span><span>Edit an example, then press Run.</span></div>
         <div class="hero-code" aria-label="Editable Ziran examples and their results">
           <div class="code-title"><span class="code-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Ziran / source</span><span class="code-tag">.zi</span></div>
           <div class="example-tabs" role="tablist" aria-label="Source examples" hidden>
@@ -105,7 +105,7 @@
     </section>
 
     <section class="feature-section" id="why">
-      <div class="section-heading"><p class="eyebrow">Why Ziran</p><h2>From source to software.</h2><p>Ziran keeps the language and toolchain together so you can start small and inspect each step.</p></div>
+      <div class="section-heading"><p class="eyebrow">Why Ziran</p><h2>A small, inspectable toolchain.</h2><p>Ziran keeps the language and toolchain together so you can start small and inspect each step.</p></div>
       <div class="feature-grid">
         <article><div class="feature-top"><span class="feature-number">01 / Write</span><span class="feature-icon" aria-hidden="true">{ }</span></div><h3>Write readable code</h3><p>Give data a shape with records and enums. Connect procedures, generics, arrays, and borrowed slices with explicit imports.</p><div class="feature-preview" aria-hidden="true"><code><span>main</span> :: () {<br>&nbsp; print(<b>"Hello, World!"</b>);<br>}</code></div><a href="language.html">Explore the language <span aria-hidden="true">↗</span></a></article>
         <article><div class="feature-top"><span class="feature-number">02 / Check</span><span class="feature-icon" aria-hidden="true">✓</span></div><h3>Check before building</h3><p>Catch unsupported forms and prove <code>#law</code> obligations at build time. Get a counterexample when a law fails.</p><div class="feature-preview law-preview" aria-hidden="true"><span class="law-symbol">✓</span><div><code>#law</code><span>Proved at build time</span></div></div><a href="api.html#toolchain">Explore the tools <span aria-hidden="true">↗</span></a></article>
@@ -114,7 +114,7 @@
     </section>
 
     <section class="use-section">
-      <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Small changes. <em>Visible results.</em></h2><p>Change a value, try a different prefix, or choose an output. Open the example in the editor to explore further.</p></div>
+      <div class="section-heading"><p class="eyebrow">What you can build</p><h2>Learn through examples.</h2><p>Change a value, try a different prefix, or choose an output. Open the example in the editor to explore further.</p></div>
       <div class="use-grid">
         <article class="use-card"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b class="record-value">40</b></code><code>bonus <b class="record-bonus">2</b></code></div><span>→</span><output class="record-total">42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Change the fields and see their total.</p><div class="diagram-controls record-controls" hidden><label>Value<input class="record-value-input" type="number" value="40" min="-999" max="999" step="1"></label><label>Bonus<input class="record-bonus-input" type="number" value="2" min="-999" max="999" step="1"></label><output class="record-summary" aria-live="polite">40 + 2 = 42</output></div><button class="diagram-edit" type="button" data-example="score" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#score">See example <span aria-hidden="true">↗</span></a></article>
         <article class="use-card"><div class="use-visual text-visual" aria-hidden="true"><code class="text-preview"><b>Zi</b>ran</code><span class="text-match"><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Try a prefix with ASCII case folding.</p><div class="diagram-controls text-controls" hidden><label>Text<input class="text-value-input" type="text" value="Ziran" maxlength="40" spellcheck="false"></label><label>Prefix<input class="text-prefix-input" type="text" value="zi" maxlength="40" spellcheck="false"></label><output class="text-summary" aria-live="polite">Prefix matched</output></div><button class="diagram-edit" type="button" data-example="text" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#text-demo">See example <span aria-hidden="true">↗</span></a></article>
@@ -123,7 +123,7 @@
     </section>
 
     <section class="journey-section">
-      <div><p class="eyebrow">Your path</p><h2>Go from zero to <em>42.</em></h2><p>Clone the repository, build the tools with a C compiler and <code>make</code>, then check and run your first bundle.</p><pre class="install-command"><code>git clone https://github.com/ziranlang/ziran.git
+      <div><p class="eyebrow">Your path</p><h2>Build your first program.</h2><p>Clone the repository, build the tools with a C compiler and <code>make</code>, then check and run your first bundle.</p><pre class="install-command"><code>git clone https://github.com/ziranlang/ziran.git
 cd ziran
 make
 build/bin/ziran version</code></pre><a class="btn btn-primary" href="get-started.html">Follow the quick start →</a></div>
@@ -139,7 +139,7 @@ build/bin/ziran version</code></pre><a class="btn btn-primary" href="get-started
       <div><p>Ziran is under active development. Native and portable targets cover tested subsets; language coverage and backend parity are still growing. The status page distinguishes what works today from planned work.</p><a class="btn" href="status.html">Read the current status →</a></div>
     </section>
     <section class="support-section" id="support" aria-labelledby="support-title">
-      <div class="section-heading"><p class="eyebrow">Support Ziran</p><h2 id="support-title">Help keep it <em>growing.</em></h2><p>Ziran is independent, open-source work. If it is useful to you, a contribution funds development, maintenance, and research.</p></div>
+      <div class="section-heading"><p class="eyebrow">Support Ziran</p><h2 id="support-title">Support development.</h2><p>Ziran is independent, open-source work. If it is useful to you, a contribution funds development, maintenance, and research.</p></div>
       <div class="support-grid">
         <article><span class="support-label">Monero</span><button class="support-address" type="button" data-coin="Monero" data-address="48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA" data-qr="assets/support-monero.png" aria-haspopup="dialog" aria-label="Show Monero QR code and address"><code>48ms5LfFrPJ2LUvqP9Mm5BhDSnZnqu14jB8XpAukw3jDBKxRAxYvq3k4fEwXY7kCY3LrtycMUayJZR1YJuyvJHCDCcyw6pA</code></button></article>
         <article><span class="support-label">Bitcoin</span><button class="support-address" type="button" data-coin="Bitcoin" data-address="bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5" data-qr="assets/support-bitcoin.png" aria-haspopup="dialog" aria-label="Show Bitcoin QR code and address"><code>bc1qxzcetg50f6epgddc09n82xqn3zswlmk44235y5</code></button></article>

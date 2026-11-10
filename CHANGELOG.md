@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The website uses a simpler reading layout across the homepage, guides and API pages, with responsive navigation and the working browser playground.
+
 - `pkg paths PACKAGE...` returns ordered resolved paths as JSON after one
   graph validation, sharing `pkg path` selectors and cache checks.
 

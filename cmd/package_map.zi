@@ -181,6 +181,31 @@ PkgAddExports :: (builder: *PkgBuilder, locked: *PkgLock,
         owner_id = locked.packages[owner].id
         edge_count = locked.packages[owner].edge_count
     }
+    // A package's public exports also have its own manifest-qualified
+    // spelling. Consumer aliases belong to incoming edges, not this scope.
+    owner_root := root
+    if owner >= 0 { owner_root = locked.packages[owner].path }
+    // An existing dependency alias keeps its entire qualified namespace.
+    own_prefix_available := true
+    dependency: s32 = 0
+    while dependency < owner_manifest.dependency_count {
+        if owner_manifest.dependencies[dependency].alias == owner_manifest.name {
+            own_prefix_available = false
+        }
+        dependency += 1
+    }
+    own_export: s32 = 0
+    while own_prefix_available && own_export < owner_manifest.export_count {
+        exported := owner_manifest.exports[own_export]
+        own_export += 1
+        source := PkgCanonical(PkgJoin3(owner_root, "/", exported.value))
+        internal := PkgModuleByPath(*graph.sets[owner + 1], source)
+        if internal.count == 0 { return false }
+        qualified := PkgJoin3(owner_manifest.name, "/", exported.name)
+        PkgAppend(builder, PkgJoin3("D\t", owner_id, "\t"))
+        PkgAppend(builder, PkgJoin3(qualified, "\t", owner_id))
+        PkgAppend(builder, PkgJoin3("\t", internal, "\n"))
+    }
     // On the heap: a package can export thousands of modules.
     shorts: *PkgShortEdge = cast(*PkgShortEdge)PkgAllocZero(4096 *
         cast(u64)size_of(PkgShortEdge))

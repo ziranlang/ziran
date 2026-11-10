@@ -160,6 +160,49 @@ PkgList :: (locked: *PkgLock, current: *PkgManifest, selector: string) -> s32 {
     return 0
 }
 
+// Resolve all selectors before stdout; checkout and forwarding remain shared.
+PkgPaths :: (locked: *PkgLock, selectors: []string, submodules: bool,
+    offline: bool) -> s32 {
+    if selectors.count == 0 { return PkgFail("usage: ziran pkg paths PACKAGE... [--submodules]") }
+    paths := PkgStrings(selectors.count)
+    if paths.count != selectors.count { return PkgFail("cannot allocate package paths") }
+    index: s32 = 0
+    while index < cast(s32)selectors.count {
+        selector := selectors[index]
+        if selector == "ziran" {
+            if submodules { return PkgFail("Ziran has no package submodules") }
+            paths[index] = locked.tool_path
+        } else {
+            selected := PkgSelect(locked, selector)
+            if selected < 0 { return PkgFail("package is not locked") }
+            paths[index] = locked.packages[selected].path
+        }
+        index += 1
+    }
+    if submodules {
+        for path: paths {
+            if !PkgPrepareSubmodules(path, offline) { return PkgFail("package submodules are missing") }
+        }
+    }
+    PkgPrint("[", false)
+    index = 0
+    while index < cast(s32)selectors.count {
+        if index > 0 { PkgPrint(",", false) }
+        PkgPrint("{", false)
+        PkgJsonString("selector")
+        PkgPrint(":", false)
+        PkgJsonString(selectors[index])
+        PkgPrint(",", false)
+        PkgJsonString("path")
+        PkgPrint(":", false)
+        PkgJsonString(paths[index])
+        PkgPrint("}", false)
+        index += 1
+    }
+    PkgPrint("]\n", false)
+    return 0
+}
+
 PkgDispatch :: (command: string, arguments: []string, project: bool,
     root: string, locked: *PkgLock, current: *PkgManifest,
     launcher: string, extra_names: []string, extra_values: []string) -> s32 {
@@ -604,7 +647,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran add URL|OWNER/REPO [--name NAME] [--ref REF] [--source]\n"
     }
     if command == "pkg" {
-        return "usage: ziran pkg path PACKAGE [--submodules] | ziran pkg list [PACKAGE] | ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI [--option Alias:key=value]...\n"
+        return "usage: ziran pkg path PACKAGE [--submodules] | ziran pkg paths PACKAGE... [--submodules] | ziran pkg list [PACKAGE] | ziran pkg artifact PACKAGE:ARTIFACT --platform OS-ARCH-ABI [--option Alias:key=value]...\n"
     }
     if command == "tool" { return "usage: ziran tool PACKAGE COMMAND [ARGS]\n" }
     if command == "install" { return "usage: ziran install [--prefix DIR] [--locked] [--offline]\n" }
@@ -838,10 +881,16 @@ PackageMain :: (launcher: string, arguments: []string) -> s32 {
         if count == 2 { selector = filtered[1] }
         return PkgList(locked, current, selector)
     }
+    if command == "pkg" && count >= 1 && filtered[0] == "paths" {
+        end := count
+        submodules := count > 1 && filtered[count - 1] == "--submodules"
+        if submodules { end -= 1 }
+        return PkgPaths(locked, filtered[1:end], submodules, offline)
+    }
     if command == "pkg" {
         if count < 2 || count > 3 || filtered[0] != "path" ||
            (count == 3 && filtered[2] != "--submodules") {
-            return PkgFail("usage: ziran pkg path PACKAGE [--submodules] | ziran pkg list [PACKAGE]")
+            return PkgFail("usage: ziran pkg path PACKAGE [--submodules] | ziran pkg paths PACKAGE... [--submodules] | ziran pkg list [PACKAGE]")
         }
         if filtered[1] == "ziran" {
             if count == 3 { return PkgFail("Ziran has no package submodules") }

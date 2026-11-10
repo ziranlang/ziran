@@ -4,7 +4,7 @@
 set -eux
 ziran=$(realpath "${1:?pass the ziran command}")
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+work=$(mktemp -d "$repo/build/native-run.XXXXXX")
 # The checks log hides a passing run, so a failure shows its trace and files.
 trap 'status=$?; test "$status" -eq 0 || find "$work" -type f | sort; rm -rf "$work"; exit "$status"' EXIT
 trap 'exit 1' HUP INT TERM
@@ -37,6 +37,41 @@ test "$(stat -c %y "$output")" = "$before"
 if "$ziran" run --target=c script.zi fail > /dev/null; then
     echo 'native run hid a failing status' >&2; exit 1
 fi
+# The dynamically sized launch path preserves every argument beyond the old cap.
+python3 - "$ziran" <<'PYTHON'
+import subprocess
+import sys
+
+ziran = sys.argv[1]
+for count in (257, 600):
+    arguments = [f"argument {index}" for index in range(count)]
+    arguments[:7] = ['', 'two words', '--help', '--root', 'x.zi', '\'"\\', 'unicode-λ']
+    for separator in ([], ["--"]):
+        result = subprocess.run(
+            [ziran, "run", "--target=c", "script.zi", *separator, *arguments],
+            capture_output=True, text=True, check=True,
+        )
+        assert result.stdout == "41:" + ":".join(arguments) + "\n", result
+        assert result.stderr == "", result
+    arguments[0] = "fail"
+    result = subprocess.run(
+        [ziran, "run", "--target=c", "script.zi", "--", *arguments],
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 3, result
+    assert result.stdout == "41:" + ":".join(arguments) + "\n", result
+    assert result.stderr == "", result
+
+# Runner errors still identify the invalid option rather than an argument cap.
+result = subprocess.run(
+    [ziran, "run", "--target=c", "--unknown-script-option", "script.zi", *arguments],
+    capture_output=True, text=True,
+)
+assert result.returncode != 0, result
+assert "unknown script run argument: --unknown-script-option" in result.stderr, result
+assert "too many script arguments" not in result.stderr, result
+print("native argument forwarding: 257 and 600 arguments, contents/order, status and diagnostics")
+PYTHON
 # A dependency edit rebuilds the program.
 sed -i 's/return 41/return 42/' helper.zi
 test "$("$ziran" run --target=c script.zi)" = '42'

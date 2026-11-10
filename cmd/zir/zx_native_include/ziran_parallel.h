@@ -1,5 +1,5 @@
-#ifndef ZIRAN_PARALLEL_H
-#define ZIRAN_PARALLEL_H
+#ifndef ZX_NATIVE_PARALLEL_H
+#define ZX_NATIVE_PARALLEL_H
 /* Natively run bundles hand `#parallel for` regions to the engine, which
  * runs their chunks on its worker threads. */
 #include <stdint.h>

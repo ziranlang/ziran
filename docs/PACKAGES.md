@@ -145,7 +145,17 @@ using Widgets :: #import "kryon/Widgets";
 ```
 
 `std/NAME` is the pinned standard library. Modules in your own package use
-their short names. `ziran pkg list` shows each direct dependency, its URL,
+their short names. A package can also import its own public exports as
+`PACKAGE/EXPORT`, where `PACKAGE` is its `[package] name` and `EXPORT` is a
+key in its `[exports]` table. For example, a package named `plot` exporting
+`Plot = "src/module.zi"` can import `plot/Plot` internally. This works both
+when building that package directly and when it is a dependency, even if a
+consumer gives it a different dependency alias. Private modules still use
+short names inside their package; self qualification exposes only public
+exports and grants no access to transitive dependencies. Short-name
+resolution is unchanged. If a direct dependency alias equals the package's
+own name, that alias retains the whole qualified namespace; use short names
+for your own modules in that case. `ziran pkg list` shows each direct dependency, its URL,
 ref, commit and checkout, and every import path it provides:
 
 ```text
@@ -239,6 +249,7 @@ ziran update ziran
 ziran fetch
 ziran pkg list [plot]
 ziran pkg path plot --locked
+ziran pkg paths plot ziran --locked
 ziran check --project
 ziran ir --project --entry app:main -o build/ir
 ziran build --project --target=c --entry app:main -o build/c
@@ -266,6 +277,24 @@ explicit local overrides remain user-owned and are never repaired this way.
 transitive dependency. Add `--submodules` when a platform build needs its
 vendored backend source. The command initializes the submodules at the commits
 recorded by that package; with `--offline`, it requires them to be present.
+
+`ziran pkg paths PACKAGE...` resolves several selectors with one graph checkout
+and validation in the selected launcher. It uses the same direct-alias and
+unique transitive package-name selection as `pkg path`, including `ziran` for
+the toolchain, and accepts `--locked`, `--offline`, and a trailing `--submodules`.
+Pinned-launcher forwarding and cache validation remain the same as `pkg path`.
+On success stdout is a JSON array in argument order, with repetitions retained:
+
+```json
+[{"selector":"plot","path":"/home/user/.cache/ziran/sources/p123"},
+ {"selector":"ziran","path":"/home/user/Projects/ziranlang/ziran"}]
+```
+
+Each object contains the original `selector` and its authoritative absolute
+`path`. JSON escaping preserves spaces, quotes, backslashes and control
+characters. An empty selection, missing or ambiguous package, graph-validation
+failure, or missing requested submodules returns nonzero with no result on
+stdout. Resolve the full batch before consuming any paths.
 
 A platform build can also pin a repository that is not a Ziran package, such
 as a C library it compiles from source. Mark the dependency with

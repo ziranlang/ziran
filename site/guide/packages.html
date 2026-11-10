@@ -186,6 +186,7 @@ ziran update ziran
 ziran fetch
 ziran pkg list [plot]
 ziran pkg path plot --locked
+ziran pkg paths plot ziran --locked
 ziran check --project
 ziran ir --project --entry app:main -o build/ir
 ziran build --project --target=c --entry app:main -o build/c
@@ -210,6 +211,20 @@ explicit local overrides remain user-owned and are never repaired this way.</p>
 transitive dependency. Add <code>--submodules</code> when a platform build needs its
 vendored backend source. The command initializes the submodules at the commits
 recorded by that package; with <code>--offline</code>, it requires them to be present.</p>
+<p><code>ziran pkg paths PACKAGE...</code> resolves several selectors with one graph checkout
+and validation in the selected launcher. It uses the same direct-alias and
+unique transitive package-name selection as <code>pkg path</code>, including <code>ziran</code> for
+the toolchain, and accepts <code>--locked</code>, <code>--offline</code>, and a trailing <code>--submodules</code>.
+Pinned-launcher forwarding and cache validation remain the same as <code>pkg path</code>.
+On success stdout is a JSON array in argument order, with repetitions retained:</p>
+<pre><code class="language-json">[{&quot;selector&quot;:&quot;plot&quot;,&quot;path&quot;:&quot;/home/user/.cache/ziran/sources/p123&quot;},
+ {&quot;selector&quot;:&quot;ziran&quot;,&quot;path&quot;:&quot;/home/user/Projects/ziranlang/ziran&quot;}]
+</code></pre>
+<p>Each object contains the original <code>selector</code> and its authoritative absolute
+<code>path</code>. JSON escaping preserves spaces, quotes, backslashes and control
+characters. An empty selection, missing or ambiguous package, graph-validation
+failure, or missing requested submodules returns nonzero with no result on
+stdout. Resolve the full batch before consuming any paths.</p>
 <p>A platform build can also pin a repository that is not a Ziran package, such
 as a C library it compiles from source. Mark the dependency with
 <code>source = true</code>:</p>

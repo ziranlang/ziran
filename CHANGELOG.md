@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+- `pkg paths PACKAGE...` returns ordered resolved paths as JSON after one
+  graph validation, sharing `pkg path` selectors and cache checks.
+
+- Reused compiler builds refresh embedded runtime headers by content, so
+  restored source timestamps cannot leave generated C using stale helpers.
+
 - Linked functions keep their copied statement and expression capacities
   consistent with their storage, preventing heap corruption when later
   lowering appends nodes after dead-code pruning.

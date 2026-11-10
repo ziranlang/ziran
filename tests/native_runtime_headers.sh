@@ -6,6 +6,36 @@ repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
+
+# Restored sources can be older than a reused embedded-runtime output. Both
+# ordinary and seed builds must refresh its bytes, then preserve its timestamp.
+for bootstrap in 0 1; do
+    refresh=$work/refresh-$bootstrap
+    mkdir -p "$refresh"
+    printf '/* stale embedded runtime */\n' > "$refresh/runtime_headers.c"
+    python3 - "$repo" "$refresh/runtime_headers.c" <<'PYTIME'
+import os, sys
+from pathlib import Path
+repo = Path(sys.argv[1])
+inputs = [repo / 'scripts/embed_headers.sh', *(repo / 'include').glob('*.h')]
+newer = max(p.stat().st_mtime_ns for p in inputs) + 1_000_000_000
+os.utime(sys.argv[2], ns=(newer, newer))
+PYTIME
+    make -s -C "$repo" BOOTSTRAP="$bootstrap" NATIVE_ZX=0 \
+        BUILD_DIR="$refresh" "$refresh/runtime_headers.c"
+    grep -q 'SliceRangeAt(' "$refresh/runtime_headers.c"
+    python3 - "$repo" "$refresh" "$bootstrap" <<'PYTIME'
+from pathlib import Path
+import os, subprocess, sys
+repo, refresh, bootstrap = sys.argv[1:]
+output = Path(refresh) / 'runtime_headers.c'
+os.utime(output, ns=(1000000000, 1000000000))
+before = output.stat().st_mtime_ns
+subprocess.run(['make', '-s', '-C', repo, 'BOOTSTRAP=' + bootstrap,
+                'NATIVE_ZX=0', 'BUILD_DIR=' + refresh, str(output)], check=True)
+assert output.stat().st_mtime_ns == before, 'unchanged embedded runtime was rewritten'
+PYTIME
+done
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/helpers"
@@ -22,6 +52,8 @@ Borrow :: (text: string) -> string { return text }
 Location :: (loc: Source_Code_Location) -> s64 { return loc.line_number }
 #program_export
 Count :: (words: []string) -> s64 { return words.count }
+#program_export
+Tail :: (bytes: []u8) -> []u8 { return bytes[1:bytes.count] }
 ZI
 cat > "$work/operations.zi" <<'ZI'
 #program_export
@@ -55,6 +87,10 @@ for form in source saved; do
     compiler=${CC:-cc}; extension=c; header=h; standard=c11
     for name in plain types operations print_only allocate; do
         output=$work/$form-c-$name
+        if test "$name" = types; then
+            mkdir -p "$output"
+            printf '/* stale copied slice header */%s' '' > "$output/zir_slice.h"
+        fi
         "$ziran" build --target=c --no-main --root "$root" \
             -o "$output" "$root/$name.$suffix"
         case "$name" in
@@ -72,6 +108,9 @@ for form in source saved; do
                     String text = StringLiteral("a\0z");
                     String words[] = {text};
                     Slice values = {words, 1};
+                    uint8_t bytes[] = {7, 42};
+                    Slice tail = Tail((Slice){bytes, 2});
+                    if (tail.length != 1 || *(uint8_t *)tail.data != 42) return 1;
                     Source_Code_Location loc = {text, 42};
                     return Borrow(text).length == 3 && Location(loc) == 42 && Count(values) == 1 ? 0 : 1;
                 }'

@@ -225,7 +225,6 @@ ScriptRun :: (arguments: []string, binary: string, project_root: string,
     run: Vec(string)
     VecPush(run, program)
     for at: separator..arguments.count - 1 { VecPush(run, arguments[at]) }
-    if run.count > 256 { return PkgFail("too many script arguments") }
     names: [2]string = .["ZIRAN_SCRIPT_FILE", "ZIRAN_SCRIPT_ROOT"]
     values: [2]string = .[source, root]
     result := PkgRun(VecSlice(run, 0, run.count), "", names[:], values[:])

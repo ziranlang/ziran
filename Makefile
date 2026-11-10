@@ -436,9 +436,14 @@ RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_s
     include/zir_vec.h include/ziran_parallel.h include/ziran_gpu.h include/ziran_simd.h \
     include/ziran_simd_types.h include/ziran_simd_ops.h
 
-$(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS)
+# Reused builds can be newer than restored or exported source headers.
+# Compare embedded bytes too, retaining timestamps when nothing changed.
+$(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) force-compiler-flags
 	mkdir -p $(dir $@)
-	sh scripts/embed_headers.sh $(RUNTIME_HEADERS) > $@
+	@set -e; temporary="$@.$$$$.tmp"; trap 'rm -f "$$temporary"' EXIT HUP INT TERM; \
+	    sh scripts/embed_headers.sh $(RUNTIME_HEADERS) > "$$temporary"; \
+	    if cmp -s "$$temporary" "$@"; then rm -f "$$temporary"; \
+	    else mv -f "$$temporary" "$@"; fi
 
 $(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
@@ -455,6 +460,7 @@ $(BIN_DIR)/zi2wasm: $(call obj,cmd/zir-wasm/main.c cmd/zir-wasm/zir_wasm_lower.c
 
 ifneq ($(BOOTSTRAP),1)
 BOOTSTRAP_BIN := $(BUILD_DIR)/bootstrap/bin/zi2c
+$(BOOTSTRAP_BIN): $(BUILD_DIR)/runtime_headers.c
 $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     $(PORTABLE) cmd/zir/zir_runtime.c cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_build.h cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_cache.h cmd/zir-c/zir_c_lower.c \
     cmd/zir-c/zir_c_process.h $(HEADERS) $(RUNTIME_HEADERS) scripts/embed_headers.sh \

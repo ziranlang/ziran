@@ -68,6 +68,107 @@ def compile_app(ziran: str, app: Path, output: Path, compiler: Path,
     call(str(output / "app"), cwd=app, env=env)
 
 
+def check_batch_paths(ziran: str, root: Path, compiler: Path, env: dict) -> None:
+    # Independent local repositories only: no clones, worktrees or fetching.
+    fixture = root / 'batch-paths'
+    fixture.mkdir()
+    left, right, utility = [fixture / name for name in ('left', 'right', 'utility')]
+    raw = fixture / ('raw space ' + chr(34) + 'quoted' + chr(34) + chr(92) + 'utf8-Ω')
+    nl = chr(10)
+    for repo in (left, right, utility, raw):
+        init(repo, env)
+        write(repo / 'payload.txt', 'original' + nl)
+    for repo in (left, right, utility):
+        lines = ['[package]', 'name = ' + json.dumps('Utility' if repo == utility else 'Twin'),
+                 'module_roots = []']
+        if repo == left:
+            lines += ['[dependencies.Utility]', 'git = ' + json.dumps(utility.as_uri())]
+        write(repo / 'ziran.toml', nl.join(lines) + nl)
+    for repo in (left, right, utility, raw):
+        commit(repo, env)
+    app = fixture / 'app'
+    app.mkdir()
+    lines = ['[package]', 'name = ' + json.dumps('Batch'), '[toolchain]',
+             'git = ' + json.dumps('https://github.com/ziranlang/ziran.git')]
+    for alias, repo in (('Left', left), ('Right', right), ('raw', raw)):
+        lines += ['[dependencies.' + alias + ']', 'git = ' + json.dumps(repo.as_uri())]
+        if alias == 'raw': lines += ['source = true']
+    write(app / 'ziran.toml', nl.join(lines) + nl)
+    overrides = {'ziran': compiler, 'Left': left, 'Right': right, 'Utility': utility, 'raw': raw}
+    def local_file():
+        write(app / 'ziran.local.toml', nl.join(['[overrides]'] +
+              [alias + ' = ' + json.dumps(str(repo), ensure_ascii=False)
+               for alias, repo in overrides.items()]) + nl)
+    local_file()
+    call(ziran, 'lock', '--offline', cwd=app, env=env)
+    def command(parts, extra_env=None):
+        return subprocess.run([ziran, 'pkg', *parts, '--offline'], cwd=app,
+                              env=env if extra_env is None else extra_env,
+                              text=True, capture_output=True)
+    selectors = ['Right', 'Utility', 'lEfT', 'ziran', 'raw', 'Utility']
+    expected = []
+    for selector in selectors:
+        result = command(['path', selector])
+        assert result.returncode == 0, result.stderr
+        expected.append({'selector': selector, 'path': result.stdout.removesuffix(nl)})
+    result = command(['paths', *selectors])
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == expected, result.stdout
+    assert expected[4]['path'] == str(raw), expected
+    for bad in ([], ['Left', 'missing'], ['Left', 'Twin'], ['Left', ''],
+                ['Left', '--bad'], ['Left', 'Left:Utility'], ['Left', 'ziran', '--submodules']):
+        result = command(['paths', *bad])
+        assert result.returncode != 0 and result.stdout == '', (bad, result)
+    for selector in ('Twin', 'missing', 'Left:Utility'):
+        assert command(['path', selector]).returncode != 0
+    result = command(['paths', 'raw', '--submodules'])
+    assert result.returncode == 0 and json.loads(result.stdout) == [expected[4]], result
+    # Trace the same authoritative graph with one selector and with a batch.
+    traces = []
+    git = shutil.which('git', path=env['PATH'])
+    assert git
+    shim = fixture / 'trace-bin/git'
+    for label, args in (('single', ['path', 'Left']), ('batch', ['paths', *selectors])):
+        trace = fixture / (label + '.trace')
+        write(shim, nl.join(['#!' + sys.executable, 'import json, os, sys',
+              'with open(' + repr(str(trace)) + ', ' + repr('a') + ') as log:',
+              '    log.write(json.dumps(sys.argv[1:]) + chr(10))',
+              'os.execv(' + repr(git) + ', [' + repr(git) + ', *sys.argv[1:]])']) + nl)
+        shim.chmod(0o755)
+        traced_env = dict(env, PATH=str(shim.parent) + os.pathsep + env['PATH'])
+        result = command(args, traced_env)
+        assert result.returncode == 0, result.stderr
+        traces.append([json.loads(line) for line in trace.read_text().splitlines()])
+    assert traces[0] and traces[1] == traces[0], [len(trace) for trace in traces]
+    print(f'PASS: batch paths preserve selectors/order/escaping and validate one graph ({len(traces[0])} Git starts for single and batch)', flush=True)
+    # A launcher outside the pinned toolchain must forward the original batch
+    # arguments. The destination is a test script, never an installed binary.
+    tool = fixture / 'forward-tool'
+    init(tool, env)
+    write(tool / 'VERSION', 'fixture' + nl)
+    commit(tool, env)
+    pinned = tool / 'build/bin/ziran'
+    write(pinned, nl.join(['#!' + sys.executable, 'import json, os, sys',
+          'assert os.environ.get(' + repr('ZIRAN_PINNED_LAUNCHER') + ') == ' + repr('forwarded'),
+          'print(json.dumps(sys.argv[1:]))']) + nl)
+    pinned.chmod(0o755)
+    overrides['ziran'] = tool
+    local_file()
+    call(ziran, 'lock', '--offline', cwd=app, env=env)
+    result = command(['paths', *selectors])
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == ['pkg', 'paths', *selectors, '--offline'], result.stdout
+    overrides['ziran'] = compiler
+    local_file()
+    call(ziran, 'lock', '--offline', cwd=app, env=env)
+    print('PASS: batch paths preserve pinned-launcher forwarding and original arguments', flush=True)
+    write(utility / 'ziran.toml', '[package]' + nl + 'name = ' + json.dumps('Changed') + nl)
+    assert command(['path', 'Left']).returncode != 0
+    result = command(['paths', *selectors])
+    assert result.returncode != 0 and result.stdout == '', result
+    print('PASS: batch paths reject missing/ambiguous/invalid selectors, preserve submodule and validation failures', flush=True)
+
+
 def check_unborn_overrides(ziran: str, root: Path, compiler: Path, env: dict) -> None:
     """Explicit development roots work without inventing a committed revision."""
     env = {**env, "ZIRAN_PINNED_LAUNCHER": "1"}
@@ -265,6 +366,24 @@ source = true
     (app / "ziran.local.toml").unlink()
     assert call(ziran, "pkg", "path", "raw", "--locked", "--offline",
                 cwd=app, env=env).strip() == str(cached[0])
+    result = subprocess.run([ziran, 'pkg', 'paths', 'raw', 'ziran', 'raw', '--locked', '--offline'],
+                            cwd=app, env=env, text=True, capture_output=True)
+    assert result.returncode == 0, result.stderr
+    assert json.loads(result.stdout) == [
+        {'selector': 'raw', 'path': str(cached[0])},
+        {'selector': 'ziran', 'path': str(cached[1])},
+        {'selector': 'raw', 'path': str(cached[0])}], result.stdout
+    # One damaged immutable payload invalidates the entire batch, including
+    # paths selected before that package; owner modifications are preserved.
+    write(cached[0] / 'VERSION', 'owner modification' + chr(10))
+    assert call(ziran, 'pkg', 'path', 'raw', '--locked', '--offline',
+                cwd=app, env=env, succeed=False)
+    result = subprocess.run([ziran, 'pkg', 'paths', 'ziran', 'raw', '--locked', '--offline'],
+                            cwd=app, env=env, text=True, capture_output=True)
+    assert result.returncode != 0 and result.stdout == '', result
+    assert (cached[0] / 'VERSION').read_text() == 'owner modification' + chr(10)
+    write(cached[0] / 'VERSION', '1' + chr(10))
+    print('PASS: batch locked paths retain immutable payload validation and reject without partial stdout', flush=True)
     for missing in ("0" * 40, "f" * 40):
         write(app / "ziran.toml", manifest.replace(pins[0], missing))
         refused = call(ziran, "fetch", "--locked", "--offline", cwd=app, env=env, succeed=False)
@@ -885,6 +1004,9 @@ os.execv({real_git!r}, [{real_git!r}, *sys.argv[1:]])
 ''')
             guard.chmod(0o755)
             env["PATH"] = str(guard.parent) + os.pathsep + env["PATH"]
+        from package_self_import import check_self_imports
+        check_self_imports(ziran, root, compiler, env)
+        check_batch_paths(ziran, root, compiler, env)
         check_unborn_overrides(ziran, root, compiler, env)
         check_local_locked_pins(ziran, root, env)
         check_project_native_links(ziran, root, compiler, env)

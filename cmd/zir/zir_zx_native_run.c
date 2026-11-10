@@ -24,6 +24,9 @@
 #else
 #include <sys/mman.h>
 #endif
+#if defined(__linux__)
+#include <sys/resource.h>
+#endif
 
 /* Bump storage. Scratch blocks hold one host call's argument values and are
  * rewound before the next call; kept blocks live until the instance closes. */
@@ -47,6 +50,16 @@ static _Thread_local ZxNative *current;
  * the region then reports the first failure on the calling thread. */
 static _Thread_local jmp_buf *worker_escape;
 static _Thread_local char worker_error[ZX_NATIVE_ERROR_SIZE];
+struct ZxNativeStackCache {
+    int known;
+    uintptr_t low;
+    uintptr_t high;
+#if defined(__linux__)
+    int limit_known;
+    struct rlimit limit;
+#endif
+};
+static _Thread_local struct ZxNativeStackCache stack_cache;
 /* The streams compiled code names stdout and stderr. */
 FILE *ZxNativeStdout;
 FILE *ZxNativeStderr;
@@ -621,6 +634,26 @@ ZxNativeParallel(ParallelWorker worker, int64_t start, int64_t end, void *contex
 
 /* ---- Instances ---- */
 
+static int
+stack_range(const void *stack_low, size_t size, uintptr_t *low,
+            uintptr_t *high)
+{
+    uintptr_t address = (uintptr_t)stack_low;
+    if(size > UINTPTR_MAX - address)
+        return 0;
+    *low = address;
+    *high = address + size;
+    return 1;
+}
+
+static char *
+stack_floor_in_range(uintptr_t low, uintptr_t high, uintptr_t here)
+{
+    if(here < low || here >= high || high - low < 2 * STACK_MARGIN)
+        return NULL;
+    return (char *)(low + STACK_MARGIN);
+}
+
 /* The lowest address calls may reach on this thread, or NULL when the
  * thread's stack is unknown. */
 static char *
@@ -631,17 +664,47 @@ stack_floor(void)
     return emscripten_stack_get_current() > low + 2 * STACK_MARGIN ?
            (char *)low + STACK_MARGIN : NULL;
 #elif defined(__linux__)
+    uintptr_t here = (uintptr_t)__builtin_frame_address(0);
+#if defined(RLIMIT_STACK)
+    struct rlimit limit;
+    int limit_known = getrlimit(RLIMIT_STACK, &limit) == 0;
+    if(stack_cache.known && (!limit_known || !stack_cache.limit_known ||
+       limit.rlim_cur != stack_cache.limit.rlim_cur ||
+       limit.rlim_max != stack_cache.limit.rlim_max))
+        stack_cache.known = 0;
+    if(stack_cache.known && here >= stack_cache.low && here < stack_cache.high)
+        return stack_floor_in_range(stack_cache.low, stack_cache.high, here);
+#else
+    if(stack_cache.known && here >= stack_cache.low && here < stack_cache.high)
+        return stack_floor_in_range(stack_cache.low, stack_cache.high, here);
+#endif
+    stack_cache.known = 0;
     pthread_attr_t attributes;
     char *floor = NULL;
+    void *low = NULL;
+    size_t size = 0;
+    int stack_known = 0;
     if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
-        void *low = NULL;
-        size_t size = 0;
         /* The frame address is on the thread's stack even where a sanitizer
          * moves locals elsewhere. */
-        char *here = __builtin_frame_address(0);
-        if(pthread_attr_getstack(&attributes, &low, &size) == 0 &&
-           here > (char *)low + 2 * STACK_MARGIN)
-            floor = (char *)low + STACK_MARGIN;
+        uintptr_t low_address = 0;
+        uintptr_t high_address = 0;
+        stack_known = pthread_attr_getstack(&attributes, &low, &size) == 0 &&
+            stack_range(low, size, &low_address, &high_address);
+        if(stack_known) {
+            floor = stack_floor_in_range(low_address, high_address, here);
+#if defined(RLIMIT_STACK)
+            if(limit_known) {
+                stack_cache.limit = limit;
+                stack_cache.limit_known = 1;
+            } else {
+                stack_cache.limit_known = 0;
+            }
+#endif
+            stack_cache.low = low_address;
+            stack_cache.high = high_address;
+            stack_cache.known = 1;
+        }
         pthread_attr_destroy(&attributes);
     }
     return floor;

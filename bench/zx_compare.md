@@ -1,17 +1,20 @@
 # ZX / native C / embedded Wasm comparison
 
-This is a benchmark harness, not an architecture migration. Final Alpha data is
-in `results/zx-compare-alpha-embedded.json`. Final Moto data is in `results/zx-compare-moto-apk.json`; both final datasets
-passed the independent oracle and real native-tier evidence checks.
-No production Ziran or Kryon source was changed.
+This is a benchmark harness, not an architecture migration. Baseline Alpha data
+is in `results/zx-compare-alpha-embedded.json`; baseline Moto data is in
+`results/zx-compare-moto-apk.json`. Both baseline datasets passed the independent
+oracle and real native-tier evidence checks. The frozen follow-up receipts named
+below are also complete and independently oracle-verified.
 
 The checked `zx_compare.zi` receives seed, iteration count and workload through
 three runtime s64 -> s64 host calls. Its scalar workload uses integer recurrence,
 branches and calls. Its structured workload updates 32 records in a fixed array,
 with runtime-selected strings of different lengths and event-like selection/state
-updates. Every timed entry runs 4,096 iterations. These are synthetic CPU batches,
-not Kryon rendering, input latency or frame throughput. The separate Python oracle
-checks every timed batch, in addition to the executable's C crosscheck.
+updates. Every canonical compute entry runs 4,096 iterations; the separate
+128-iteration receipt below is identified explicitly. These are synthetic CPU
+batches, not Kryon rendering, input latency or frame throughput. The separate
+Python oracle checks every timed batch, in addition to the executable's C
+crosscheck.
 
 The shared native adapter runs the real portable VM, raw BundleInstantiate TinyCC
 native tier, handwritten optimized C control and WAMR 2.4.5 AOT-only runtime.
@@ -20,7 +23,8 @@ compilation. Its C API supplies the original mutable budget global and host ABI;
 no imports or checks were stripped. Interpreter and JIT are disabled. This is an
 embedded engine experiment, not a production native Wasm provider.
 
-On Alpha Personal KVM (Intel Core i7-8700 reported by the guest), nine interleaved
+On Alpha Personal KVM (Intel Core i7-8700 reported by the guest), the baseline's
+nine interleaved
 trials gave these per-entry warm median / nearest-rank p95 milliseconds:
 
 - Scalar: VM 2.37148 / 6.49833; TinyCC 0.051277 / 0.066492; C 0.005109 /
@@ -41,6 +45,40 @@ kernels. On Moto it was about 1.45x faster for scalar, while TinyCC was about
 1.38x faster for structured work. Optimized handwritten C was fastest in both.
 This comparison therefore does not establish a universal winning engine.
 
+## Frozen follow-up results
+
+Performance tuning is frozen. The follow-up validated a per-thread cache of
+validated stack bounds with Linux RLIMIT invalidation retained; specialized
+TinyCC x86_64 and ARM full 64-bit gas decrement/negative-flag emission for
+speed without changing the original correct budget semantics; removed ARM r0/r1
+dead C-output spills while preserving every gas charge; fixed a parallel header
+guard collision; and kept the existing retained native invocation while moving
+its stack-bound lookup to that cache, avoiding repeated `pthread_getattr_np`
+discovery while retaining per-call guards. Typed ABI, capability, gas, stack,
+migration and rollback semantics were retained.
+
+The final 4,096-iteration Alpha receipt is
+`results/zx-compare-alpha-embedded-stack-cache-final-minimal.json`. Its nine
+warm ZX-native / WAMR-AOT medians were 0.017293 / 0.008966 ms for scalar and
+0.036422 / 0.029478 ms for structured work. Relative to the baseline ZX medians,
+ZX improved by 2.965x and 1.950x. Using the concurrent final WAMR medians, ZX
+remained 1.929x slower for scalar and 1.236x slower for structured work; do not
+divide final ZX by the earlier Wasm receipt.
+
+`results/zx-compare-alpha-structured128-stack-cache-final-minimal.json` is a
+separate complete 128-iteration structured receipt, not a normalized or pooled
+4,096-iteration result. Its nine ZX-native / WAMR-AOT medians were 0.001854 /
+0.001158 ms. It corroborates the optimized retained-call path at the visual
+workload's batch size, shares the final receipt's checked archive and binary
+hashes, and records the optimized runtime source hash.
+
+The final Moto comparison used balanced ABBA installation order
+old/new/new/old with two valid APK pairs per variant. Every run completed,
+passed the external oracle, had one lifecycle event, and cleared the native
+cache on variant switch. Mean-of-run-median improvements were 2.58% scalar and
+2.37% structured. Only two APK pairs were measured: this is directional evidence,
+not a statistically significant gain claim.
+
 Native kernel numbers do not describe current live Kryon components:
 BundleComponentOpen/Replace force the portable VM. Nine real component trials on
 each target verified migrated integer state, rejection rollback, continued old
@@ -55,7 +93,7 @@ Alpha host. The canonical checkout is shared with that guest. The verified route
 is `builder@192.168.130.10` via `wao@alpha.local`. An admitted outer queue can wrap
 SSH; propagate its allocation to the guest without bypassing admission.
 
-The actual build commands used an outer `build-queue -- ssh` and, inside the guest:
+The baseline build commands used an outer `build-queue -- ssh`, inside the guest:
 
 ```sh
 cd /mnt/storage/Projects/ziranlang/ziran
@@ -139,6 +177,24 @@ sample. The PID remained unchanged, the new UI stayed disabled during the existi
 worker, and exactly one complete compute suite finished. That one lifecycle
 transition and periodic adb battery reads are part of the recorded environment.
 
+The full Alpha receipts record baseline source revision
+`d4ef3bb7dd15b5fe715cbdbdd34df8fa6592e3e4` and follow-up revision
+`b51c06bb9cbbb9751eff56eec4303b242b2a2eca`. The 128-iteration minimal receipt
+carries the follow-up archive, native-source and binary hashes. The Moto ABBA
+baseline and candidate APK hashes are distinct in
+`results/zx-compare-moto-arm-r0r1-summary.json`; invalid installation/cache
+attempts and their reasons are retained there and excluded from the valid pairs.
+
+## Validation status
+
+Local `make check` completed 516 unique Ziran tests after minimal fixture
+corrections and focused reruns, and `make check-bootstrap` passed. The final
+Kryon component tests and benchmark passed. Full Kryon `make test` validation is
+unresolved: it failed on an import/export mismatch, with that issue under
+separate repair. At measurement/review time the performance feature set was
+uncommitted and unpushed, and no GitHub checks had run. These benchmark receipts
+do not substitute for that unresolved integration validation.
+
 ## Supported intersection and exclusions
 
 The fixture covers integer arithmetic, loop/branch/call behavior, a fixed array
@@ -166,7 +222,8 @@ unbuffered stderr, retaining all 18 actual native instantiation markers.
 
 ## Native visual interaction test
 
-`visual_collect.py` passed on the installed Moto APK after the compute suite.
+Baseline `visual_collect.py` passed on the installed Moto APK after the compute
+suite.
 The same NativeActivity Bitmap/Canvas renderer draws an active ZX-native/WAMR-AOT
 selector and a button with press/release feedback, tap counter, checksum and
 result-derived state. An actual selected guest executes 128 structured iterations
@@ -181,21 +238,35 @@ recreation during the compute suite was checked separately. The process performs
 setup and starts its benchmark at most once, and guest interaction stays disabled
 until that worker finishes, including across Activity recreation.
 
-Repeated accepted-tap median / p95 observations in milliseconds were:
+Baseline repeated accepted-tap median / p95 observations in milliseconds were:
 
 - ZX native: event-to-buffer-post 43.131 / 72.379; guest adapter plus correctness
   check 11.747 / 23.863; host draw/post 8.282 / 12.293.
 - WAMR AOT: event-to-buffer-post 31.528 / 34.239; guest adapter plus correctness
   check 0.0557 / 0.0685; host draw/post 8.474 / 9.611.
 
+The follow-up visual receipt is
+`results/zx-compare-moto-arm-r0r1-visual.json`. Its complete, oracle-verified
+nine-tap medians were: ZX native event-to-buffer-post 30.634 ms, guest adapter
+plus correctness check 0.049385 ms, draw/post 8.026 ms; WAMR AOT
+event-to-buffer-post 32.465 ms, guest adapter plus correctness check 0.055538
+ms, draw/post 8.273 ms.
+
 First lazy guest events are retained separately. These interactive timings include
 Android event delivery/queueing, host adapter, correctness check and buffer posting;
 they are not the warmed kernel measurement above. Their short workloads and
-interactive scheduling do not isolate guest execution. The large ZX handler-time
-gap relative to the kernel result is unexplained in this baseline and is retained
-for runtime follow-up. Draw/post excludes guest
-computation. Event-to-buffer-post is neither physical input-to-photon nor a full
-frame presentation metric. This host fixture does not establish Kryon renderer
-parity. Actual drag cancellation was injected; separate hardware ACTION_CANCEL and
-multi-touch injection were not verified. Final raw events and limitations are in
-`results/zx-compare-moto-visual.json`. The installed task-owned app was left open.
+interactive scheduling do not isolate guest execution. Both receipts use the
+engine's retained instance and per-interaction `BundleInstanceRun`; invocation
+lifecycle did not change. The follow-up caches validated stack bounds, avoiding
+repeated `pthread_getattr_np` discovery while retaining per-call guards. On that
+measured retained-call path, the native handler median fell from 11.747462
+to 0.049385 ms (about 237.9x), while whole event-to-buffer-post only improved
+from 43.130563 to 30.633933 ms (1.408x, or 29.0%). Draw/post excludes guest
+computation. Event-to-buffer-post is neither
+physical input-to-photon nor a full frame presentation metric. This Android
+Bitmap/Canvas fixture is not the full Kryon renderer and supports no photon, FPS
+or renderer-parity claim. Actual drag cancellation was injected; separate
+hardware ACTION_CANCEL and multi-touch injection were not verified. Raw baseline
+and follow-up events and limitations are in the two visual JSON files above. The
+baseline app was left open; the follow-up collector later stopped its benchmark
+process and verified no collection producers were running.

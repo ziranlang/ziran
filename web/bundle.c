@@ -8,21 +8,28 @@
 #include "zir_serial.h"
 #include "zir_vm.h"
 
+#include <limits.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 static int
-paths(char *text, const char **items, int capacity)
+paths(char *text, const char ***items)
 {
-    int count = 0;
+    size_t count = 0;
+    for(const char *at = text; *at != '\0'; at++)
+        if(*at != '\n' && (at == text || at[-1] == '\n')) count++;
+    if(count > INT_MAX || count > SIZE_MAX / sizeof(**items)) return -1;
+    if(count == 0) return 0;
+    *items = malloc(count * sizeof(**items));
+    if(*items == NULL) return -1;
+    int index = 0;
     char *save = NULL;
     for(char *line = strtok_r(text, "\n", &save); line != NULL;
-        line = strtok_r(NULL, "\n", &save)) {
-        if(count == capacity) return -1;
-        items[count++] = line;
-    }
-    return count;
+        line = strtok_r(NULL, "\n", &save))
+        (*items)[index++] = line;
+    return index;
 }
 
 /* Search roots and inputs are newline-separated absolute paths. Named roots
@@ -34,7 +41,7 @@ BuildBundle(const char *root, const char *search, const char *inputs,
 {
     ProgramSet set = {0};
     ZirProgram merged = {0}, *linked = NULL;
-    const char *module_paths[64], *input_paths[64];
+    const char **module_paths = NULL, **input_paths = NULL;
     char *search_copy = NULL, *input_copy = NULL;
     FILE *file = NULL;
     int status = 1;
@@ -44,8 +51,8 @@ BuildBundle(const char *root, const char *search, const char *inputs,
     search_copy = strdup(search);
     input_copy = strdup(inputs);
     if(search_copy == NULL || input_copy == NULL) goto done;
-    int module_count = paths(search_copy, module_paths, 64);
-    int input_count = paths(input_copy, input_paths, 64);
+    int module_count = paths(search_copy, &module_paths);
+    int input_count = paths(input_copy, &input_paths);
     if(module_count < 0 || input_count <= 0) goto done;
     SetDiagnosticFormat("text");
     if(!ProgramsLoad(&set, root, module_paths, module_count,
@@ -74,6 +81,8 @@ done:
     ProgramFree(linked);
     free(merged.modules);
     ProgramsFree(&set);
+    free(module_paths);
+    free(input_paths);
     free(search_copy);
     free(input_copy);
     fflush(NULL);

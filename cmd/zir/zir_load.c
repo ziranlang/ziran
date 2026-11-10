@@ -186,24 +186,18 @@ module_path_package(const LoadContext *context, const char *source)
     return package;
 }
 
-/* A package given only as --module-path NAME=DIR keeps its modules in its
- * own namespace, as a project does, so two packages may both have a module
- * named tree. A directory that is also an ordinary search path stays shared. */
+/* A named module root keeps one namespace even when the same folder is
+ * also an ordinary search root. Both spellings identify the same files;
+ * adding a search spelling must not merge unrelated package modules. */
 static int
 package_scoped(const LoadContext *context, const char *package)
 {
-    int named = 0;
     if(context->packages != NULL || package == NULL) return 0;
-    for(int i = 0; i < context->module_path_count; i++) {
-        if(context->module_path_names[i] == NULL ||
-           strcmp(context->module_path_names[i], package) != 0) continue;
-        named = 1;
-        for(int j = 0; j < context->module_path_count; j++)
-            if(context->module_path_names[j] == NULL &&
-               strcmp(context->module_paths[j], context->module_paths[i]) == 0)
-                return 0;
-    }
-    return named;
+    for(int i = 0; i < context->module_path_count; i++)
+        if(context->module_path_names[i] != NULL &&
+           strcmp(context->module_path_names[i], package) == 0)
+            return 1;
+    return 0;
 }
 
 /* A scoped module is p<16 hex digits>_MODULE, the identity shape of project
@@ -220,15 +214,14 @@ package_identity(const char *package, const char *module, char *output, size_t s
     return written > 0 && (size_t)written < size;
 }
 
-/* Points IMPORT at the scoped identity of the package module loaded from
- * PATH. Modules outside scoped packages keep the name they were imported by. */
+/* Points IMPORT at the identity actually loaded from PATH, including mapped
+ * project modules, scoped roots and renamed standard modules. */
 static void
 import_loaded(const LoadContext *context, ZirImport *import, const char *path)
 {
     char *canonical = CanonicalPath(path);
     const ProgramSet *set = context->set;
-    if(canonical != NULL &&
-       package_scoped(context, module_path_package(context, canonical)))
+    if(canonical != NULL)
         for(int i = 0; i < set->count; i++)
             if(strcmp(set->paths[i], canonical) == 0 &&
                set->programs[i]->module_count == 1)
@@ -595,7 +588,7 @@ module_target(const char *target)
 
 static int
 try_module(LoadContext *context, const char *directory, const char *load_root,
-           const char *target, int prefer_ir)
+           const char *target, int prefer_ir, ZirImport *import)
 {
     char candidate[ZIR_PATH_MAX * 2];
     const char *extensions[2] = {prefer_ir ? ".zir" : ".zi",
@@ -607,7 +600,9 @@ try_module(LoadContext *context, const char *directory, const char *load_root,
         struct stat info;
         if(stat(candidate, &info) != 0 || !S_ISREG(info.st_mode))
             continue;
-        return add_program(context, candidate, load_root) ? 1 : -1;
+        if(!add_program(context, candidate, load_root)) return -1;
+        import_loaded(context, import, candidate);
+        return 1;
     }
     if(snprintf(candidate, sizeof(candidate), "%s/%s/module.zi",
                 directory, target) < (int)sizeof(candidate)) {
@@ -617,8 +612,9 @@ try_module(LoadContext *context, const char *directory, const char *load_root,
             if(snprintf(module_root, sizeof(module_root), "%s/%s",
                         directory, target) >= (int)sizeof(module_root))
                 return -1;
-            return add_program_named(context, candidate, module_root,
-                                     target) ? 1 : -1;
+            if(!add_program_named(context, candidate, module_root, target)) return -1;
+            import_loaded(context, import, candidate);
+            return 1;
         }
     }
     return 0;
@@ -716,7 +712,7 @@ load_standard_import(LoadContext *context, const char *owner_path,
     free(canonical);
     if(!claimed) {
         if(module_loaded(set, name)) return 1;
-        return try_module(context, home, home, name, 0) > 0;
+        return try_module(context, home, home, name, 0, import) > 0;
     }
     char identity[ZIR_NAME_MAX];
     if(snprintf(identity, sizeof(identity), "std_%s", name) >=
@@ -737,6 +733,26 @@ load_standard_import(LoadContext *context, const char *owner_path,
     return 1;
 }
 
+/* Explicit paths select files inside the importing package. Dependencies
+ * remain accessible only through their declared public import paths. */
+static int
+package_file_allowed(const LoadContext *context, const char *owner_source,
+                     const ZirImport *import, const char *path)
+{
+    if(context->packages == NULL) return 1;
+    char *canonical = CanonicalPath(path);
+    const char *owner = PackageOwner(context->packages, owner_source);
+    const char *target_owner = canonical == NULL ? NULL :
+                              PackageOwner(context->packages, canonical);
+    int allowed = owner != NULL && target_owner != NULL &&
+                  strcmp(owner, target_owner) == 0;
+    if(!allowed)
+        Diagnostic(import->span, "package.scope",
+                   "explicit import must stay inside its owning package: %s", path);
+    free(canonical);
+    return allowed;
+}
+
 static int
 load_import_with_buffers(LoadContext *context, const char *owner_source,
             const char *owner_root, ZirImport *import, LoadImportBuffers *buffers)
@@ -746,7 +762,9 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
     struct stat owner_info;
     const char *owner_path = owner_source;
     int prefer_ir = PathIsIR(owner_source);
-    if(context->packages != NULL && !prefer_ir) {
+    int explicit_path = strncmp(import->signature, "file:", 5) == 0 ||
+                        strncmp(import->signature, "dir:", 4) == 0;
+    if(context->packages != NULL && !prefer_ir && !explicit_path) {
         if(import->resolved_module != NULL &&
            module_loaded(set, import->target)) return 1;
         const char *owner = PackageOwner(context->packages, owner_source);
@@ -823,9 +841,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                    strcmp(context->module_path_names[i], package) != 0) continue;
                 int result = try_module(context, context->module_paths[i],
                                         context->module_paths[i], target,
-                                        prefer_ir);
-                if(result > 0)
-                    snprintf(import->target, sizeof(import->target), "%s", identity);
+                                        prefer_ir, import);
                 if(result != 0)
                     return result > 0;
             }
@@ -873,6 +889,8 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                        import->signature + 4);
             return 0;
         }
+        if(!package_file_allowed(context, owner_source, import, buffers->candidate))
+            return 0;
         if(!add_program_named(context, buffers->candidate, buffers->module_root,
                               target)) return 0;
         import_loaded(context, import, buffers->candidate);
@@ -891,6 +909,8 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
                        "cannot find imported file: %s", import->signature + 5);
             return 0;
         }
+        if(!package_file_allowed(context, owner_source, import, buffers->candidate))
+            return 0;
         char *canonical = CanonicalPath(buffers->candidate);
         if(canonical == NULL) {
             Diagnostic(import->span, "module.not_found",
@@ -924,13 +944,13 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
             memcpy(buffers->directory, owner_path, (size_t)(slash - owner_path));
             buffers->directory[slash - owner_path] = '\0';
             result = try_module(context, buffers->directory, owner_root,
-                                target, prefer_ir);
+                                target, prefer_ir, import);
         }
         for(int i = 0; result == 0 && i < context->module_path_count; i++)
             if(context->module_path_names[i] != NULL &&
                strcmp(context->module_path_names[i], owner_package) == 0)
                 result = try_module(context, context->module_paths[i],
-                                    context->module_paths[i], target, prefer_ir);
+                                    context->module_paths[i], target, prefer_ir, import);
         if(result > 0)
             snprintf(import->target, sizeof(import->target), "%s", identity);
         if(result != 0)
@@ -944,18 +964,18 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
             memcpy(buffers->directory, owner_path, length);
             buffers->directory[length] = '\0';
             int result = try_module(context, buffers->directory, owner_root,
-                                    target, prefer_ir);
+                                    target, prefer_ir, import);
             if(result != 0)
                 return result > 0;
         }
     }
     int result = try_module(context, owner_root, owner_root,
-                            target, prefer_ir);
+                            target, prefer_ir, import);
     if(result != 0)
         return result > 0;
     if(strcmp(context->root, owner_root) != 0) {
         result = try_module(context, context->root, context->root,
-                            target, prefer_ir);
+                            target, prefer_ir, import);
         if(result != 0)
             return result > 0;
     }
@@ -963,7 +983,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         if(context->module_path_names[i] != NULL) continue;
         result = try_module(context, context->module_paths[i],
                             context->module_paths[i],
-                            target, prefer_ir);
+                            target, prefer_ir, import);
         if(result != 0)
             return result > 0;
     }
@@ -973,11 +993,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         if(context->module_path_names[i] == NULL ||
            strcmp(context->module_path_names[i], "std") != 0) continue;
         result = try_module(context, context->module_paths[i],
-                            context->module_paths[i], target, prefer_ir);
-        if(result > 0 &&
-           module_candidate(context->module_paths[i], target, buffers->candidate,
-                            sizeof(buffers->candidate)))
-            import_loaded(context, import, buffers->candidate);
+                            context->module_paths[i], target, prefer_ir, import);
         if(result != 0)
             return result > 0;
     }
@@ -985,7 +1001,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
      * is searched last, so `#import "std/vec"` needs no --module-path. */
     const char *standard = ToolchainStandardDirectory();
     if(standard != NULL) {
-        result = try_module(context, standard, standard, target, prefer_ir);
+        result = try_module(context, standard, standard, target, prefer_ir, import);
         if(result != 0)
             return result > 0;
     }
@@ -997,7 +1013,7 @@ load_import_with_buffers(LoadContext *context, const char *owner_source,
         if(context->module_path_names[i] == NULL ||
            strcmp(context->module_path_names[i], package) != 0) continue;
         result = try_module(context, context->module_paths[i],
-                            context->module_paths[i], target, prefer_ir);
+                            context->module_paths[i], target, prefer_ir, import);
         if(result != 0)
             return result > 0;
     }

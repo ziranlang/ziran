@@ -161,8 +161,8 @@ def main() -> None:
     compiler = Path(__file__).resolve().parents[1]
     ziran = str(Path(sys.argv[1]).resolve())
     # Keep every miniature input repository and product-managed test cache
-    # under the project's ignored fixture directory.
-    scratch = compiler / "work/package-cache-repair"
+    # under the project's established ignored build scratch directory.
+    scratch = compiler / "build/scratch/package-cache-repair"
     call("git", "check-ignore", str(scratch / "probe"), cwd=compiler, env=os.environ.copy())
     scratch.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="fixture-", dir=scratch) as temporary:

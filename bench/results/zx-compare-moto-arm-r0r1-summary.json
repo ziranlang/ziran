@@ -1,0 +1,230 @@
+{
+  "complete": false,
+  "frozen_utc": "2026-11-10T01:54:52+00:00",
+  "source": {
+    "lower_sha256": "2816df8b394d7a721bf9629fd503673de7c18495041ffc5ba8029a1459e2efce",
+    "native_run_sha256": "4336448cb872081fc1b77c14aa09f74f3176383e1fbd194652f4e025c6df05ef",
+    "only_production_edit": "cmd/zir/zir_zx_native_lower.c"
+  },
+  "artifacts": {
+    "baseline": {
+      "apk_sha256": "11b5e9481a9c7e8305d3660a9d16cd022c48a12e4dd1599c3aa6b25259f194c8",
+      "archive_sha256": "a4d41ea52b8e9edf14534e314c8fddad9e24fda5233187f66d42038a5d886523",
+      "host_sha256": "388ea5db7de86082667e9607bef9e09d25213faa19c74913f2392bf094bb6239",
+      "path": "backup/zx-arm-gas-before"
+    },
+    "candidate": {
+      "apk_sha256": "9c4f8276d1c3a635a2df16e64748256d5f876ff074fe9158ab0b10b507a77752",
+      "archive_sha256": "aea22b6300a6a306c74cd3b07d1780d97bc6869996629cbb4cce17fc838a9248",
+      "host_sha256": "9b3251593281bd17683065e5a0dfe4acfb89dd117b26801202cef0c764144228",
+      "path": "backup/zx-arm-gas-after"
+    },
+    "stable": {
+      "apk_sha256": "9c4f8276d1c3a635a2df16e64748256d5f876ff074fe9158ab0b10b507a77752",
+      "archive_sha256": "aea22b6300a6a306c74cd3b07d1780d97bc6869996629cbb4cce17fc838a9248",
+      "host_sha256": "9b3251593281bd17683065e5a0dfe4acfb89dd117b26801202cef0c764144228"
+    }
+  },
+  "focused_test": {
+    "command": "Alpha build-queue: sh tests/zx_native_perf_regression.sh \"$PWD/build/bin/ziran\"",
+    "exit": 0,
+    "output": "ZX native gas boundaries and parallel budgets passed"
+  },
+  "android_build": {
+    "command": "Alpha build-queue: python3 bench/zx_compare_apk/build.py --android",
+    "exit": 0
+  },
+  "host_relink": {
+    "command": "ARM NDK clang -O3 zx-native-gas-host.c libziran.a -lm -pthread -ldl -llog",
+    "exit": 0
+  },
+  "gas_contracts": {
+    "receipts": {
+      "parallel-one-failure": 0,
+      "parallel-one-success": 0,
+      "parallel-three-exhausted": 0,
+      "parallel-three-success": 0,
+      "wide-failure": 0,
+      "wide-success": 0,
+      "wide-unlimited": 0
+    },
+    "all_exit_zero": true,
+    "count": 7
+  },
+  "disassembly": {
+    "baseline": {
+      "full64_charge_sequences": 3,
+      "dead_low_and_high_spill_pairs_after_charge": 3,
+      "negative_flag_spills": 3
+    },
+    "candidate": {
+      "full64_charge_sequences": 3,
+      "dead_low_and_high_spill_pairs_after_charge": 0,
+      "negative_flag_spills": 3
+    },
+    "baseline_path": "build/benchmarks/zx-compare-android/zx-native-gas-receipts/wide.disasm",
+    "candidate_path": "build/benchmarks/zx-compare-android/zx-native-gas-receipts/r0r1/wide.disasm",
+    "proof": "three full64 charges remain; both post-charge dead low/high stack spills are absent; three negative flag spills remain"
+  },
+  "paired_benchmark": {
+    "order": [
+      "old",
+      "new",
+      "new",
+      "old"
+    ],
+    "valid_old": [
+      "bench/results/zx-compare-moto-arm-r0r1-valid-old-1.json",
+      "bench/results/zx-compare-moto-arm-r0r1-valid-old-2.json"
+    ],
+    "valid_new": [
+      "bench/results/zx-compare-moto-arm-r0r1-valid-new-1.json",
+      "bench/results/zx-compare-moto-arm-r0r1-valid-new-2.json"
+    ],
+    "every_run": {
+      "complete": true,
+      "external_oracle_verified": true,
+      "lifecycle_events": 1,
+      "cache_cleared_on_variant_switch": true
+    },
+    "performance": {
+      "scalar": {
+        "old_run_median_ms": [
+          0.1893798113125,
+          0.190399006
+        ],
+        "new_run_median_ms": [
+          0.1824807524375,
+          0.1875
+        ],
+        "old_pooled_median_ms": 0.19006731359375,
+        "new_pooled_median_ms": 0.18741828203125,
+        "old_pooled_mean_ms": 0.20195646996875,
+        "new_pooled_mean_ms": 0.1853827453298611,
+        "run_median_mean_delta_percent": -2.579939803998521,
+        "pooled_median_delta_percent": -1.3937333634135851,
+        "conclusion": "directional improvement; two APK-level pairs are insufficient for a statistical gain claim"
+      },
+      "structured": {
+        "old_run_median_ms": [
+          0.363139435625,
+          0.363187491875
+        ],
+        "new_run_median_ms": [
+          0.354932695625,
+          0.3541682511875
+        ],
+        "old_pooled_median_ms": 0.36316346374999997,
+        "new_pooled_median_ms": 0.35485578328125,
+        "old_pooled_mean_ms": 0.3637542699722222,
+        "new_pooled_mean_ms": 0.3550641122777778,
+        "run_median_mean_delta_percent": -2.371656623938112,
+        "pooled_median_delta_percent": -2.2875870779966334,
+        "conclusion": "directional improvement; two APK-level pairs are insufficient for a statistical gain claim"
+      }
+    },
+    "invalid_attempts": [
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-candidate-inherited-cache-1.json",
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-candidate-inherited-cache-2.json",
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-candidate-installed-as-old-1.json",
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-candidate-installed-as-old-2-attempt1-logcat-drop.json",
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-install-failure-as-old-2.json",
+      "backup/zx-arm-gas-after/invalid-benchmark-attempts/zx-compare-moto-arm-r0r1-invalid-old-stable-metadata-was-candidate-1.json"
+    ],
+    "invalid_reasons": [
+      "stable-path installer overwrote manual baseline",
+      "candidate metadata while baseline APK",
+      "native-cache inherited across variant",
+      "one transient logcat drop and one USB install failure"
+    ]
+  },
+  "phone_stop": {
+    "installed_apk_sha256": "9c4f8276d1c3a635a2df16e64748256d5f876ff074fe9158ab0b10b507a77752",
+    "installed_apk_verified_by_pm_path_sha256": true,
+    "parent_install_command": "05735138dea5f9df64593a9f0a7cf6a87b5f",
+    "parent_install_exit": 0,
+    "benchmark_process_stopped": true,
+    "local_stable_apk_sha256": "9c4f8276d1c3a635a2df16e64748256d5f876ff074fe9158ab0b10b507a77752",
+    "install_collection_visual_producers_running": false
+  },
+  "pending": {
+    "visual_lifecycle": false,
+    "statistical_gain_claim": false,
+    "parent_native_filesystem_integration": true,
+    "commit_push_release": false
+  },
+  "github_checks": "not run; local tests only",
+  "visual_suite": {
+    "path": "bench/results/zx-compare-moto-arm-r0r1-visual.json",
+    "sha256": "7b8979c1365ccea3f049c599e4a197b409ac50393f33c0e85c6ab2ad27b10bae",
+    "complete": true,
+    "external_oracle_verified": true,
+    "background_resume": true,
+    "actions": 43,
+    "warm_interactions": 18,
+    "apk_sha256": "9c4f8276d1c3a635a2df16e64748256d5f876ff074fe9158ab0b10b507a77752",
+    "native_compute_median_ms": 0.049385,
+    "wasm_compute_median_ms": 0.055538,
+    "native_vs_wasm_delta_percent": -11.078900932694735,
+    "summary": [
+      {
+        "engine": "native",
+        "n": 9,
+        "input_to_buffer_post_ms": {
+          "median": 30.633933,
+          "p95": 31.522935
+        },
+        "compute_ms": {
+          "median": 0.049385,
+          "p95": 0.052538
+        },
+        "draw_post_ms": {
+          "median": 8.026308,
+          "p95": 9.237
+        }
+      },
+      {
+        "engine": "wamr-aot",
+        "n": 9,
+        "input_to_buffer_post_ms": {
+          "median": 32.464935,
+          "p95": 39.024012
+        },
+        "compute_ms": {
+          "median": 0.055538,
+          "p95": 0.118307
+        },
+        "draw_post_ms": {
+          "median": 8.273154,
+          "p95": 9.107
+        }
+      }
+    ],
+    "limits": [
+      "ADB synthetic touch event to host buffer post, not physical input-to-photon",
+      "Native Android Bitmap/Canvas fixture, not Kryon renderer parity",
+      "Host state preserved across guest engine selection; no Wasm component migration",
+      "Drag cancellation verified; no separate hardware ACTION_CANCEL or multi-touch injection"
+    ]
+  },
+  "preserved_gas_evidence": {
+    "path": "backup/zx-arm-gas-after/zx-native-gas-r0r1",
+    "includes": [
+      "host source",
+      "7 exit/out/err receipts",
+      "generated wide object",
+      "candidate and baseline disassembly"
+    ],
+    "hash_manifest": "backup/zx-arm-gas-after/zx-native-gas-r0r1-INVALID-AND-GAS-SHA256SUMS"
+  },
+  "source_window": {
+    "released": true,
+    "lower_sha256": "2816df8b394d7a721bf9629fd503673de7c18495041ffc5ba8029a1459e2efce",
+    "native_run_sha256": "4336448cb872081fc1b77c14aa09f74f3176383e1fbd194652f4e025c6df05ef",
+    "additional_tuning": false,
+    "own_processes_running": false
+  },
+  "mission_validation_complete": true,
+  "completion_limitation": "Parent native filesystem integration and final parent review remain; no commit or push.",
+  "updated_utc": "2026-11-10T02:04:32+00:00"
+}

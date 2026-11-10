@@ -1,0 +1,947 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-11-10T22:48:21.083344+00:00",
+  "revision": "ca392c90851473ccc621859237010f6c84727938",
+  "compiler_dirty": true,
+  "platform": "Linux x86_64",
+  "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+  "samples": 5,
+  "warmups": 1,
+  "tools": {
+    "zi2c": {
+      "sha256": "1ea04b040cf70f227d25cd47a04f4c462195a1fdae950325e43f0aa4a727a216"
+    },
+    "zi2go": {
+      "sha256": "424f04e7b70c4821a8c1df2f7b62bea602121d9bfa7d6bc99e31136dce87a65b"
+    },
+    "zi2zx": {
+      "sha256": "7e52d8dd5574544834f154deac3ea392dc806da678f33d27c8b1e3bc98e8d987"
+    },
+    "zi2wasm": {
+      "sha256": "604ee1c7f84db5b6f93e83d6aecc2382636f38e49f19398a2b01560228c25617"
+    },
+    "zi2zir": {
+      "sha256": "b24bdcac820f9a4137a2d020dbba5a56c0f178df19b58ceea01ae7781511ca15"
+    },
+    "zi-inspect": {
+      "sha256": "d1243b44a5a04780863db6fcfd58a8e221bf48189ad467208468f9f8265697d7"
+    }
+  },
+  "versions": {
+    "cc": "cc (Debian 14.2.0-19) 14.2.0",
+    "go": "go version go1.24.4 linux/amd64",
+    "node": "v22.23.4"
+  },
+  "source_inputs": {
+    "site/examples/score.zi": "b6deea5e1ff47d2e912bcc94c709a9b83df7552abd8d6b294c3c4385c44412b3",
+    "site/examples/text_demo.zi": "f39db8ea1a28adbe522e10e2ef9e1a9bbc2b0753c12294ccd20f026e6c15f99e",
+    "site/examples/targets/loops.zi": "b223d60c223dc10cd81356d8bc2806577d4e1de3633d61bc1eeb47898fb14fee",
+    "site/examples/targets/records.zi": "ceada1963d660334eb996ba1d9e4c9b968836ba9edeb5a8e5c9e63102bf0f82c",
+    "site/examples/targets/enums.zi": "50557c6a0d330714de9fcca401c0635ab80be341e7cc6eece7db0a41441469ea",
+    "std/text.zi": "bbad3d09e2745f497d9493c77a1180d901a56432bebc368a3497c035856cb3ae"
+  },
+  "harnesses": {
+    "scripts/site_targets.py": "9f1c3c71e2f5fb04e88bf0ed3daccbfb0a7b925f11792ffaf4d74491eab395fa",
+    "scripts/site_target_wasm.cjs": "fa65aeac11048b5738f2b3f853d5f3e2b557d0ef1496eb61c3520c3172eb3548"
+  },
+  "methodology": "Median whole-process wall time after one discarded warmup; shuffled execution order. C: cc -O2; Go: go build; ZX: portable VM (--vm); WebAssembly: Node, including engine startup, compilation and instantiation. Emission includes loading, checking, linking and writing output; it excludes downstream C/Go builds. Output size is emitted files, including C headers, rather than linked executables. Shared host, warm filesystem caches, no CPU isolation. Small examples emphasize startup; these are not language rankings.",
+  "examples": [
+    {
+      "id": "score",
+      "title": "Records & calls",
+      "source": "examples/score.zi",
+      "source_sha256": "b6deea5e1ff47d2e912bcc94c709a9b83df7552abd8d6b294c3c4385c44412b3",
+      "expected": "42",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/c site/examples/score.zi",
+          "files": [
+            {
+              "path": "generated/targets/score/c/score.c",
+              "bytes": 492,
+              "sha256": "5938b220c378205ef4b1f8c370fc2aa642b0e174095fbea2e54971ec48b8785e"
+            },
+            {
+              "path": "generated/targets/score/c/score.h",
+              "bytes": 801,
+              "sha256": "f443b137a90c0682b97f127fa0184769dc5b71a6c2a483da6630699d3a714fb2"
+            }
+          ],
+          "emission_samples_ms": [
+            1.21252,
+            1.25038,
+            1.32726,
+            1.12201,
+            1.0149
+          ],
+          "status": "ok",
+          "bytes": 1293,
+          "emission_ms": 1.21252,
+          "run_command": "build/site-targets/score/c/program",
+          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/score/c build/site-targets/score/c/matrix_host.c build/site-targets/score/c/score.c -lm -o build/site-targets/score/c/program",
+          "run_samples_ms": [
+            0.49329,
+            0.3647,
+            0.41917,
+            0.39856,
+            0.29942
+          ],
+          "result": "42",
+          "run_ms": 0.39856
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/go site/examples/score.zi",
+          "files": [
+            {
+              "path": "generated/targets/score/go/score.go",
+              "bytes": 287,
+              "sha256": "e1bde655fc5435079ab78e7ea7c45d789ff9e904f39b28d4235305bbf9110339"
+            }
+          ],
+          "emission_samples_ms": [
+            1.69004,
+            0.86508,
+            0.81315,
+            1.03326,
+            0.88082
+          ],
+          "status": "ok",
+          "bytes": 287,
+          "emission_ms": 0.88082,
+          "run_command": "build/site-targets/score/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/score/go/program build/site-targets/score/go/matrix_host.go build/site-targets/score/go/score.go",
+          "run_samples_ms": [
+            0.59289,
+            0.82067,
+            0.71159,
+            0.67616,
+            0.66427
+          ],
+          "result": "42",
+          "run_ms": 0.67616
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/zx/score.zx site/examples/score.zi",
+          "files": [
+            {
+              "path": "generated/targets/score/zx/score.zx",
+              "bytes": 755,
+              "sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+              "inspection": {
+                "path": "generated/targets/score/zx/score.zx.txt",
+                "bytes": 1223,
+                "sha256": "2be40b238c544a64326bea3e5a32a057c5a84a35358bcbd464013de42d9c9b90"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.02396,
+            1.00277,
+            0.99171,
+            0.87294,
+            0.93134
+          ],
+          "status": "ok",
+          "bytes": 755,
+          "emission_ms": 0.99171,
+          "inspection": {
+            "path": "generated/targets/score/zx/score.zx.txt",
+            "bytes": 1223,
+            "sha256": "2be40b238c544a64326bea3e5a32a057c5a84a35358bcbd464013de42d9c9b90"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/score/zx/score.zx",
+          "run_samples_ms": [
+            0.85658,
+            0.977099,
+            0.99636,
+            0.91929,
+            0.76783
+          ],
+          "result": "42",
+          "run_ms": 0.91929
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/wasm/score.wasm site/examples/score.zi",
+          "files": [
+            {
+              "path": "generated/targets/score/wasm/score.wasm",
+              "bytes": 286,
+              "sha256": "3288564775d7cc20d59a3097ad4412ef04d01b5e58c6d8085eb4d8342d241224"
+            }
+          ],
+          "emission_samples_ms": [
+            1.05993,
+            0.97587,
+            0.99603,
+            0.8892,
+            1.00375
+          ],
+          "status": "ok",
+          "bytes": 286,
+          "emission_ms": 0.99603,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/score/wasm/score.wasm",
+          "run_samples_ms": [
+            13.03724,
+            13.945759,
+            13.846029,
+            12.99249,
+            13.58316
+          ],
+          "result": "42",
+          "run_ms": 13.58316
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/zir site/examples/score.zi",
+          "files": [
+            {
+              "path": "generated/targets/score/zir/score.zir",
+              "bytes": 708,
+              "sha256": "a592405d9f67ac6d7397846784f99b3d003574a688a0cccbe3264707b74bb31c",
+              "inspection": {
+                "path": "generated/targets/score/zir/score.zir.txt",
+                "bytes": 1171,
+                "sha256": "51fc97b90492ce4974fe4705fb6ed390e350839dd88604cf515be6fbfe3670f7"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            0.9243,
+            0.90635,
+            0.96204,
+            0.90325,
+            0.76594
+          ],
+          "status": "ok",
+          "bytes": 708,
+          "emission_ms": 0.90635,
+          "inspection": {
+            "path": "generated/targets/score/zir/score.zir.txt",
+            "bytes": 1171,
+            "sha256": "51fc97b90492ce4974fe4705fb6ed390e350839dd88604cf515be6fbfe3670f7"
+          }
+        }
+      }
+    },
+    {
+      "id": "text_demo",
+      "title": "Text & imports",
+      "source": "examples/text_demo.zi",
+      "source_sha256": "f39db8ea1a28adbe522e10e2ef9e1a9bbc2b0753c12294ccd20f026e6c15f99e",
+      "expected": "1",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/c site/examples/text_demo.zi",
+          "files": [
+            {
+              "path": "generated/targets/text_demo/c/text_demo.c",
+              "bytes": 264,
+              "sha256": "55a28d2b7f2d38ff349081e439e467a240151a4baf43954d98b8efa52a553346"
+            },
+            {
+              "path": "generated/targets/text_demo/c/text_demo.h",
+              "bytes": 267,
+              "sha256": "00d97a11dc5bda35a3bdca7c52602cd011b5a333f6bef6635f73c5822c81ff43"
+            },
+            {
+              "path": "generated/targets/text_demo/c/text.c",
+              "bytes": 828,
+              "sha256": "87912fb49b0b011d0ccacb1b79afe46fb566e23cdd87910f66c9636aa0f24cbd"
+            },
+            {
+              "path": "generated/targets/text_demo/c/text.h",
+              "bytes": 318,
+              "sha256": "f2e47f08fc05673925873582db73a8ddd958249fadd4ad1d96edc2dab93a8cdc"
+            },
+            {
+              "path": "generated/targets/text_demo/c/zir_bounds.h",
+              "bytes": 1756,
+              "sha256": "3343dc0e065d411f671f19640c6baaf3ae3a951238ce341b6eaf85690842a16f"
+            },
+            {
+              "path": "generated/targets/text_demo/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            }
+          ],
+          "emission_samples_ms": [
+            1.62465,
+            1.58122,
+            1.99272,
+            1.327,
+            1.57678
+          ],
+          "status": "ok",
+          "bytes": 4098,
+          "emission_ms": 1.58122,
+          "run_command": "build/site-targets/text_demo/c/program",
+          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/text_demo/c build/site-targets/text_demo/c/matrix_host.c build/site-targets/text_demo/c/text.c build/site-targets/text_demo/c/text_demo.c -lm -o build/site-targets/text_demo/c/program",
+          "run_samples_ms": [
+            0.41499,
+            0.53639,
+            0.42138,
+            0.3893,
+            0.34012
+          ],
+          "result": "1",
+          "run_ms": 0.41499
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/go site/examples/text_demo.zi",
+          "files": [
+            {
+              "path": "generated/targets/text_demo/go/text_demo.go",
+              "bytes": 192,
+              "sha256": "7860ae75251b5de187eab6ce6bc45384cb87367065bbc2cf36f8e365e5c0c5a3"
+            },
+            {
+              "path": "generated/targets/text_demo/go/text.go",
+              "bytes": 1091,
+              "sha256": "acd6948f4ebf4f71478d9323a5db2f9dc36fbb78a4cd4d782880e19b5b0abd60"
+            }
+          ],
+          "emission_samples_ms": [
+            1.475059,
+            1.62487,
+            1.41616,
+            1.47273,
+            1.53013
+          ],
+          "status": "ok",
+          "bytes": 1283,
+          "emission_ms": 1.475059,
+          "run_command": "build/site-targets/text_demo/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/text_demo/go/program build/site-targets/text_demo/go/matrix_host.go build/site-targets/text_demo/go/text.go build/site-targets/text_demo/go/text_demo.go",
+          "run_samples_ms": [
+            0.60866,
+            0.68775,
+            0.59042,
+            0.5957,
+            0.49738
+          ],
+          "result": "1",
+          "run_ms": 0.5957
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/zx/text_demo.zx site/examples/text_demo.zi",
+          "files": [
+            {
+              "path": "generated/targets/text_demo/zx/text_demo.zx",
+              "bytes": 2529,
+              "sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+              "inspection": {
+                "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
+                "bytes": 4258,
+                "sha256": "4d32e172c60f715e523783204e996d3d15eed07a97bc4b8352f71ee48a63d69a"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.26178,
+            1.26175,
+            1.22895,
+            1.165289,
+            1.2743
+          ],
+          "status": "ok",
+          "bytes": 2529,
+          "emission_ms": 1.26175,
+          "inspection": {
+            "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
+            "bytes": 4258,
+            "sha256": "4d32e172c60f715e523783204e996d3d15eed07a97bc4b8352f71ee48a63d69a"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/text_demo/zx/text_demo.zx",
+          "run_samples_ms": [
+            1.08712,
+            1.06573,
+            0.93886,
+            1.14104,
+            0.98342
+          ],
+          "result": "1",
+          "run_ms": 1.06573
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/wasm/text_demo.wasm site/examples/text_demo.zi",
+          "files": [
+            {
+              "path": "generated/targets/text_demo/wasm/text_demo.wasm",
+              "bytes": 505,
+              "sha256": "9d2d02877a5857c1558bdc0a955578b95c5ef82b53c1a04a3f34fff938abc1e0"
+            }
+          ],
+          "emission_samples_ms": [
+            1.43054,
+            1.50146,
+            1.40351,
+            1.64309,
+            1.41383
+          ],
+          "status": "ok",
+          "bytes": 505,
+          "emission_ms": 1.43054,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/text_demo/wasm/text_demo.wasm",
+          "run_samples_ms": [
+            13.411359,
+            13.90123,
+            13.39829,
+            14.01782,
+            14.773149
+          ],
+          "result": "1",
+          "run_ms": 13.90123
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/zir site/examples/text_demo.zi",
+          "files": [
+            {
+              "path": "generated/targets/text_demo/zir/text_demo.zir",
+              "bytes": 482,
+              "sha256": "ed2a8d2e383f6fe9d72ea1e87f4b439470d2223205fd43c4f5e8b8ffe07e18c7",
+              "inspection": {
+                "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
+                "bytes": 684,
+                "sha256": "342081308fc6cfee7bb775d06f9e67a35fa45cb012979ffbe18f0e1da394078d"
+              }
+            },
+            {
+              "path": "generated/targets/text_demo/zir/text.zir",
+              "bytes": 2054,
+              "sha256": "abd9e7b9cc1c8705c6424a0517b1a1875b190e505f7f09b56ef79345c164cc7d",
+              "inspection": {
+                "path": "generated/targets/text_demo/zir/text.zir.txt",
+                "bytes": 3565,
+                "sha256": "af5aff3c1617cf537735c94ef48768be8494aa6c0f2413903e6aa8d7083874d8"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.31827,
+            1.34189,
+            1.17386,
+            1.25899,
+            1.26951
+          ],
+          "status": "ok",
+          "bytes": 2536,
+          "emission_ms": 1.26951,
+          "inspection": {
+            "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
+            "bytes": 684,
+            "sha256": "342081308fc6cfee7bb775d06f9e67a35fa45cb012979ffbe18f0e1da394078d"
+          }
+        }
+      }
+    },
+    {
+      "id": "loops",
+      "title": "Integer recurrence",
+      "source": "examples/targets/loops.zi",
+      "source_sha256": "b223d60c223dc10cd81356d8bc2806577d4e1de3633d61bc1eeb47898fb14fee",
+      "expected": "254980",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/c site/examples/targets/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/c/loops.c",
+              "bytes": 325,
+              "sha256": "b787cd7340db5ace239510f965e7ff3cac44bbbed2d086457c4d7bda8683f1de"
+            },
+            {
+              "path": "generated/targets/loops/c/loops.h",
+              "bytes": 783,
+              "sha256": "6359438eb6c16696ae80b444abff7b670a124131861976475509b07dc3c3d0e9"
+            }
+          ],
+          "emission_samples_ms": [
+            0.88669,
+            1.17159,
+            0.93165,
+            0.81377,
+            0.97655
+          ],
+          "status": "ok",
+          "bytes": 1108,
+          "emission_ms": 0.93165,
+          "run_command": "build/site-targets/loops/c/program",
+          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/loops/c build/site-targets/loops/c/loops.c build/site-targets/loops/c/matrix_host.c -lm -o build/site-targets/loops/c/program",
+          "run_samples_ms": [
+            0.43887,
+            0.34471,
+            0.39024,
+            0.38326,
+            0.36909
+          ],
+          "result": "254980",
+          "run_ms": 0.38326
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/go site/examples/targets/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/go/loops.go",
+              "bytes": 213,
+              "sha256": "4bc4a049be977a1449be78fa09fa4765e42b2d34b4f00b5121264c9af5df63ac"
+            }
+          ],
+          "emission_samples_ms": [
+            1.42705,
+            0.89535,
+            0.7877,
+            0.89736,
+            0.9137
+          ],
+          "status": "ok",
+          "bytes": 213,
+          "emission_ms": 0.89736,
+          "run_command": "build/site-targets/loops/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/loops/go/program build/site-targets/loops/go/loops.go build/site-targets/loops/go/matrix_host.go",
+          "run_samples_ms": [
+            0.58286,
+            0.59391,
+            0.53006,
+            0.7007,
+            0.78146
+          ],
+          "result": "254980",
+          "run_ms": 0.59391
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/zx/loops.zx site/examples/targets/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/zx/loops.zx",
+              "bytes": 862,
+              "sha256": "36076c698e21eb1eed65bf09118ec32eff43ca9a1d276ee7610b8922ff6e7ff4",
+              "inspection": {
+                "path": "generated/targets/loops/zx/loops.zx.txt",
+                "bytes": 1443,
+                "sha256": "d0f61be0e23c31bbbbb4ad720ba7319edf55611c6a1b1308dccddf7f9680028c"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            0.99588,
+            0.9569,
+            0.9084,
+            0.85411,
+            0.76171
+          ],
+          "status": "ok",
+          "bytes": 862,
+          "emission_ms": 0.9084,
+          "inspection": {
+            "path": "generated/targets/loops/zx/loops.zx.txt",
+            "bytes": 1443,
+            "sha256": "d0f61be0e23c31bbbbb4ad720ba7319edf55611c6a1b1308dccddf7f9680028c"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/loops/zx/loops.zx",
+          "run_samples_ms": [
+            0.92635,
+            1.02241,
+            0.75241,
+            0.96763,
+            0.95646
+          ],
+          "result": "254980",
+          "run_ms": 0.95646
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/wasm/loops.wasm site/examples/targets/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/wasm/loops.wasm",
+              "bytes": 258,
+              "sha256": "e74c80d50f4ec7ae143285eaa5e4e7de9fa7954a65fe83e5eb11e20a995fd8b2"
+            }
+          ],
+          "emission_samples_ms": [
+            1.12867,
+            0.70285,
+            0.72705,
+            0.62729,
+            0.70039
+          ],
+          "status": "ok",
+          "bytes": 258,
+          "emission_ms": 0.70285,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/loops/wasm/loops.wasm",
+          "run_samples_ms": [
+            14.75544,
+            14.142559,
+            12.54128,
+            14.855809,
+            12.763679
+          ],
+          "result": "254980",
+          "run_ms": 14.142559
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/zir site/examples/targets/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/zir/loops.zir",
+              "bytes": 815,
+              "sha256": "2405c0e9beaa5548b901c1d9d529a303ddeee34d6bfd63943c62c84b688ea1a2",
+              "inspection": {
+                "path": "generated/targets/loops/zir/loops.zir.txt",
+                "bytes": 1391,
+                "sha256": "14b813410f677426982d6047f44e26bb5afecaaad8a985d385a0bfeda779001c"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            0.96222,
+            0.88117,
+            0.81747,
+            0.91364,
+            0.85474
+          ],
+          "status": "ok",
+          "bytes": 815,
+          "emission_ms": 0.88117,
+          "inspection": {
+            "path": "generated/targets/loops/zir/loops.zir.txt",
+            "bytes": 1391,
+            "sha256": "14b813410f677426982d6047f44e26bb5afecaaad8a985d385a0bfeda779001c"
+          }
+        }
+      }
+    },
+    {
+      "id": "records",
+      "title": "Record arrays",
+      "source": "examples/targets/records.zi",
+      "source_sha256": "ceada1963d660334eb996ba1d9e4c9b968836ba9edeb5a8e5c9e63102bf0f82c",
+      "expected": "14820",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/c site/examples/targets/records.zi",
+          "files": [
+            {
+              "path": "generated/targets/records/c/records.c",
+              "bytes": 815,
+              "sha256": "ccf4bc8566eb1129679ba23100a59c87f36480d9a68bee7c459d8ffcc3b45f32"
+            },
+            {
+              "path": "generated/targets/records/c/records.h",
+              "bytes": 316,
+              "sha256": "d673e2773b0752a3f7353cb21605511a1c4a6e5f009bfc7afe306ff2f9a39d51"
+            }
+          ],
+          "emission_samples_ms": [
+            1.30103,
+            1.28259,
+            1.09117,
+            1.19507,
+            1.0315
+          ],
+          "status": "ok",
+          "bytes": 1131,
+          "emission_ms": 1.19507,
+          "run_command": "build/site-targets/records/c/program",
+          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/records/c build/site-targets/records/c/matrix_host.c build/site-targets/records/c/records.c -lm -o build/site-targets/records/c/program",
+          "run_samples_ms": [
+            0.467859,
+            0.78392,
+            0.37833,
+            0.36659,
+            0.47889
+          ],
+          "result": "14820",
+          "run_ms": 0.467859
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/go site/examples/targets/records.zi",
+          "files": [
+            {
+              "path": "generated/targets/records/go/records.go",
+              "bytes": 568,
+              "sha256": "e15d0c63b72652a15109f497c9d31e8705d492190dce017cd994d9fedd05f10c"
+            }
+          ],
+          "emission_samples_ms": [
+            1.37521,
+            1.81928,
+            1.37266,
+            1.3192,
+            1.30036
+          ],
+          "status": "ok",
+          "bytes": 568,
+          "emission_ms": 1.37266,
+          "run_command": "build/site-targets/records/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/records/go/program build/site-targets/records/go/matrix_host.go build/site-targets/records/go/records.go",
+          "run_samples_ms": [
+            0.73855,
+            0.56153,
+            0.65574,
+            1.14591,
+            0.84725
+          ],
+          "result": "14820",
+          "run_ms": 0.73855
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/zx/records.zx site/examples/targets/records.zi",
+          "files": [
+            {
+              "path": "generated/targets/records/zx/records.zx",
+              "bytes": 3017,
+              "sha256": "3bb0f4ce34648837016d9e9d515411fc7151ac3522b1ba95a4d7581dcd10122b",
+              "inspection": {
+                "path": "generated/targets/records/zx/records.zx.txt",
+                "bytes": 5984,
+                "sha256": "e61956ef84706a438057df7a37aef10b09c9c906ca340c4810b53e2c962c98a0"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.25657,
+            1.11627,
+            1.10328,
+            1.20896,
+            1.15643
+          ],
+          "status": "ok",
+          "bytes": 3017,
+          "emission_ms": 1.15643,
+          "inspection": {
+            "path": "generated/targets/records/zx/records.zx.txt",
+            "bytes": 5984,
+            "sha256": "e61956ef84706a438057df7a37aef10b09c9c906ca340c4810b53e2c962c98a0"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/records/zx/records.zx",
+          "run_samples_ms": [
+            1.6968,
+            1.65834,
+            1.82873,
+            1.57167,
+            1.6699
+          ],
+          "result": "14820",
+          "run_ms": 1.6699
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/wasm/records.wasm site/examples/targets/records.zi",
+          "files": [
+            {
+              "path": "generated/targets/records/wasm/records.wasm",
+              "bytes": 748,
+              "sha256": "69eadc07972dd5da867ac03336a18834ae73b4f93db30556f6fb62fb132a1479"
+            }
+          ],
+          "emission_samples_ms": [
+            1.07026,
+            1.09833,
+            1.24774,
+            1.09355,
+            1.14216
+          ],
+          "status": "ok",
+          "bytes": 748,
+          "emission_ms": 1.09833,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/records/wasm/records.wasm",
+          "run_samples_ms": [
+            14.6841,
+            13.96611,
+            15.033389,
+            13.182269,
+            13.616519
+          ],
+          "result": "14820",
+          "run_ms": 13.96611
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/zir site/examples/targets/records.zi",
+          "files": [
+            {
+              "path": "generated/targets/records/zir/records.zir",
+              "bytes": 2968,
+              "sha256": "2a455e19cbb7141cae7ac20309f41bbc8df7c7ba9a73618092174221df73a45f",
+              "inspection": {
+                "path": "generated/targets/records/zir/records.zir.txt",
+                "bytes": 5930,
+                "sha256": "ebd62991bfac1d517843b6d5a797f5e82e21cc0f4193d20e32e65097a19f13b0"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.0827,
+            1.03249,
+            1.03572,
+            1.032849,
+            1.05275
+          ],
+          "status": "ok",
+          "bytes": 2968,
+          "emission_ms": 1.03572,
+          "inspection": {
+            "path": "generated/targets/records/zir/records.zir.txt",
+            "bytes": 5930,
+            "sha256": "ebd62991bfac1d517843b6d5a797f5e82e21cc0f4193d20e32e65097a19f13b0"
+          }
+        }
+      }
+    },
+    {
+      "id": "enums",
+      "title": "Enum branches",
+      "source": "examples/targets/enums.zi",
+      "source_sha256": "50557c6a0d330714de9fcca401c0635ab80be341e7cc6eece7db0a41441469ea",
+      "expected": "60",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/c site/examples/targets/enums.zi",
+          "files": [
+            {
+              "path": "generated/targets/enums/c/enums.c",
+              "bytes": 1357,
+              "sha256": "4602019937e11d9afd9cf39f13ccb58a26475e195d509c4d84fd9e5afcacc1d3"
+            },
+            {
+              "path": "generated/targets/enums/c/enums.h",
+              "bytes": 2152,
+              "sha256": "b6490d953ce8d482e3b52c13ca4f41bb29342acc6149c266eed27b5b7d6c20e7"
+            }
+          ],
+          "emission_samples_ms": [
+            1.2267,
+            1.66058,
+            1.32326,
+            1.30433,
+            1.32907
+          ],
+          "status": "ok",
+          "bytes": 3509,
+          "emission_ms": 1.32326,
+          "run_command": "build/site-targets/enums/c/program",
+          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/enums/c build/site-targets/enums/c/enums.c build/site-targets/enums/c/matrix_host.c -lm -o build/site-targets/enums/c/program",
+          "run_samples_ms": [
+            0.48127,
+            0.43355,
+            0.41253,
+            0.42305,
+            0.51089
+          ],
+          "result": "60",
+          "run_ms": 0.43355
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/go site/examples/targets/enums.zi",
+          "files": [
+            {
+              "path": "generated/targets/enums/go/enums.go",
+              "bytes": 480,
+              "sha256": "3e150d73025b9665c6e1f9cf86c12cde259983fcfcb1879367f24a570a8ce9ad"
+            }
+          ],
+          "emission_samples_ms": [
+            1.09458,
+            1.28398,
+            1.06946,
+            1.08621,
+            1.09292
+          ],
+          "status": "ok",
+          "bytes": 480,
+          "emission_ms": 1.09292,
+          "run_command": "build/site-targets/enums/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/enums/go/program build/site-targets/enums/go/enums.go build/site-targets/enums/go/matrix_host.go",
+          "run_samples_ms": [
+            0.66358,
+            0.72093,
+            0.63982,
+            0.68566,
+            0.6525
+          ],
+          "result": "60",
+          "run_ms": 0.66358
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/zx/enums.zx site/examples/targets/enums.zi",
+          "files": [
+            {
+              "path": "generated/targets/enums/zx/enums.zx",
+              "bytes": 1221,
+              "sha256": "a86aaa52221d80045eac5cf2aec210b1754822f798b89e734a5934d22ca0ff58",
+              "inspection": {
+                "path": "generated/targets/enums/zx/enums.zx.txt",
+                "bytes": 1841,
+                "sha256": "8060b3ff2dd37a6f6246230bddccd552d53a8371050903d480d17783c27bea50"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.18076,
+            1.23615,
+            1.32057,
+            1.25609,
+            1.26981
+          ],
+          "status": "ok",
+          "bytes": 1221,
+          "emission_ms": 1.25609,
+          "inspection": {
+            "path": "generated/targets/enums/zx/enums.zx.txt",
+            "bytes": 1841,
+            "sha256": "8060b3ff2dd37a6f6246230bddccd552d53a8371050903d480d17783c27bea50"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/enums/zx/enums.zx",
+          "run_samples_ms": [
+            0.74949,
+            0.96596,
+            0.77476,
+            0.90469,
+            0.83267
+          ],
+          "result": "60",
+          "run_ms": 0.83267
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/wasm/enums.wasm site/examples/targets/enums.zi",
+          "files": [],
+          "emission_samples_ms": [],
+          "status": "unsupported",
+          "diagnostic": "enums.zi:4:1: parameter type Direction of enums:Steps is outside the wasm execution subset",
+          "diagnostic_file": {
+            "path": "generated/targets/enums/wasm/diagnostic.txt",
+            "bytes": 91,
+            "sha256": "2f3ec0218c138bf330246244ed7e74a69ee1944f9d3b19dcbafd2f90efefde27"
+          }
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/zir site/examples/targets/enums.zi",
+          "files": [
+            {
+              "path": "generated/targets/enums/zir/enums.zir",
+              "bytes": 1174,
+              "sha256": "10477ecc90473643a50740183788c4ef394b5c2cb40717be7428a71a0d281ae7",
+              "inspection": {
+                "path": "generated/targets/enums/zir/enums.zir.txt",
+                "bytes": 1789,
+                "sha256": "f9ef9272923c40ceb7a72d199b66fc9787e6291e53d8cb82183361d6fcd3b698"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            1.04563,
+            6.137489,
+            1.61954,
+            1.35165,
+            0.84027
+          ],
+          "status": "ok",
+          "bytes": 1174,
+          "emission_ms": 1.35165,
+          "inspection": {
+            "path": "generated/targets/enums/zir/enums.zir.txt",
+            "bytes": 1789,
+            "sha256": "f9ef9272923c40ceb7a72d199b66fc9787e6291e53d8cb82183361d6fcd3b698"
+          }
+        }
+      }
+    }
+  ]
+}

@@ -146,6 +146,10 @@ try {
   await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = 'go'; target.dispatchEvent(new Event('change')); })()`);
   assert.match(await evaluate(`document.querySelector('.target-command').textContent`), /--target=go/);
   assert.equal(await evaluate(`document.querySelector('.native-visual .is-selected').dataset.target`), 'go');
+  for (const [target, command] of [['zx', 'zi2zx bundle'], ['wasm', 'zi2wasm'], ['zir', 'ziran ir']]) {
+    await evaluate(`(() => { const target = document.querySelector('.target-select'); target.value = ${JSON.stringify(target)}; target.dispatchEvent(new Event('change')); })()`);
+    assert.ok((await evaluate(`document.querySelector('.target-command').textContent`)).includes(command));
+  }
   await evaluate(`document.documentElement.style.scrollBehavior = 'auto'; document.querySelector('.playground-reset').click(); window.scrollTo(0, 0); document.activeElement.blur()`);
   await screenshot(path.join(artifacts, 'home-desktop.png'));
   await screenshot(path.join(artifacts, 'home-full.png'), true);
@@ -162,7 +166,7 @@ try {
   await screenshot(path.join(artifacts, 'home-dark.png'), true);
   await screenshot(path.join(artifacts, 'home-dark-viewport.png'));
   const layoutFailures = [];
-  for (const route of ['docs.html', 'get-started.html', 'examples.html', 'modules.html', 'language.html', 'api.html', 'status.html', 'guide/usage.html', 'std/text.html', 'packages/syntax.html']) {
+  for (const route of ['docs.html', 'get-started.html', 'examples.html', 'targets.html', 'modules.html', 'language.html', 'api.html', 'status.html', 'guide/usage.html', 'std/text.html', 'packages/syntax.html']) {
     await cdp('Page.navigate', {url: url + route});
     await waitFor(() => evaluate(`document.readyState === 'complete' && document.fonts.status === 'loaded'`), 'Route did not load: ' + route);
     await evaluate(`document.documentElement.dataset.theme = 'light'`);
@@ -178,14 +182,69 @@ try {
     }
   }
   assert.deepEqual(layoutFailures, [], 'All documentation routes fit their viewport');
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1080, deviceScaleFactor: 1, mobile: false});
+  await cdp('Page.navigate', {url: url + 'targets.html'});
+  await waitFor(() => evaluate(`!document.querySelector('.matrix-views').hidden && document.querySelector('#matrix-code').textContent.includes('Score ::')`), 'Target matrix did not initialize');
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell').length`), 25);
+  assert.equal(await evaluate(`document.querySelectorAll('.target-matrix thead th').length`), 6);
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-state.is-limited').length`), 1);
+  for (const [target, content] of [['c', 'score_Answer'], ['go', '_Answer'], ['zx', 'function Answer'], ['zir', 'function Answer'], ['wasm', 'zx_entry']]) {
+    await evaluate(`document.querySelector('[data-example="score"][data-target="${target}"]').click()`);
+    await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes(${JSON.stringify(content)})`), 'Missing actual output: ' + target);
+    assert.equal(await evaluate(`document.querySelector('#matrix-verified').textContent`), target === 'zir' ? 'Checked' : '42');
+    assert.equal(await evaluate(`document.querySelector('.matrix-cell[aria-current="true"]').dataset.target`), target);
+    assert.ok(await evaluate(`fetch(document.querySelector('#matrix-download').href).then(response => response.ok)`));
+  }
+  await evaluate(`document.querySelector('#matrix-run-wasm').click()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-live-result').textContent.includes('Verified in your browser: 42')`), 'Direct WebAssembly artifact did not run');
+  for (const example of ['text_demo', 'loops', 'records']) {
+    await evaluate(`document.querySelector('[data-example="${example}"][data-target="wasm"]').click()`);
+    await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('zx_entry')`), 'Wasm view did not load');
+    await evaluate(`document.querySelector('#matrix-run-wasm').click()`);
+    await waitFor(() => evaluate(`document.querySelector('#matrix-live-result').textContent.includes('Verified in your browser:')`), 'Wasm result mismatch: ' + example);
+  }
+  await evaluate(`document.querySelector('[data-example="enums"][data-target="wasm"]').click()`);
+  assert.match(await evaluate(`document.querySelector('#matrix-code').textContent`), /outside the wasm execution subset/);
+  assert.equal(await evaluate(`document.querySelector('#matrix-run-wasm').hidden && document.querySelector('#matrix-download').hidden`), true);
+  await evaluate(`document.querySelector('[data-example="text_demo"][data-target="c"]').click()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent !== 'Loading output…'`), 'Imported C output did not load');
+  assert.ok(await evaluate(`document.querySelector('#matrix-file').options.length > 1`));
+  await evaluate(`(() => { const file = document.querySelector('#matrix-file'); file.selectedIndex = file.options.length - 1; file.dispatchEvent(new Event('change')); })()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent !== 'Loading output…'`), 'Selected generated file did not load');
+  await evaluate(`document.querySelector('#view-zir').click()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module text_demo')`), 'Entry module IR did not load first');
+  await evaluate(`(() => { const file = document.querySelector('#matrix-file'); file.selectedIndex = file.options.length - 1; file.dispatchEvent(new Event('change')); })()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module text from') && !document.querySelector('#matrix-code').textContent.includes('module text_demo')`), 'IR file selection did not change the inspected module');
+  await evaluate(`(() => { const metric = document.querySelector('#matrix-metric'); metric.value = 'size'; metric.dispatchEvent(new Event('change')); })()`);
+  assert.match(await evaluate(`document.querySelector('.matrix-cell .matrix-value').textContent`), / B$/);
+  await evaluate(`(() => { const metric = document.querySelector('#matrix-metric'); metric.value = 'emission'; metric.dispatchEvent(new Event('change')); })()`);
+  assert.match(await evaluate(`document.querySelector('#matrix-metric-note').textContent`), /Downstream/);
+  await evaluate(`document.querySelector('#view-source').click(); document.querySelector('#view-source').focus()`);
+  await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39});
+  assert.equal(await evaluate(`document.activeElement.id`), 'view-c');
+  assert.equal(await evaluate(`document.querySelector('#view-c').getAttribute('aria-selected')`), 'true');
+  await evaluate(`document.querySelector('[data-example="score"][data-target="c"]').click(); document.querySelector('[data-example="records"][data-target="zir"]').click()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module records')`), 'Late fetch replaced selected output');
+  await evaluate(`document.documentElement.dataset.theme = 'light'; document.documentElement.style.scrollBehavior = 'auto'; document.activeElement.blur(); window.scrollTo(0, 0)`);
+  await screenshot(path.join(artifacts, 'targets-desktop.png'), true);
+  await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
+  await screenshot(path.join(artifacts, 'targets-mobile.png'), true);
+  await evaluate(`document.documentElement.dataset.theme = 'dark'`);
+  await screenshot(path.join(artifacts, 'targets-dark.png'), true);
+  await cdp('Page.navigate', {url: url + 'targets.html#loops/wasm'});
+  await waitFor(() => evaluate(`document.querySelector('.matrix-cell[aria-current="true"]')?.dataset.example === 'loops' && document.querySelector('#matrix-code').textContent.includes('zx_entry')`), 'Shared matrix link did not restore its cell');
   await cdp('Emulation.setScriptExecutionDisabled', {value: true});
+  await cdp('Page.navigate', {url: url + 'targets.html'});
+  await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript matrix did not load');
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell[href]').length`), 25);
+  assert.match(await evaluate(`document.querySelector('#matrix-code').textContent`), /Score ::/);
   await cdp('Page.navigate', {url});
   await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript page did not load');
   assert.equal(await evaluate(`document.querySelector('.playground-toolbar').hidden`), true);
   assert.equal(await evaluate(`document.querySelector('#example-text').hidden`), false);
   assert.equal(await evaluate(`document.querySelectorAll('.code-editor').length`), 0);
   assert.deepEqual(exceptions, []);
-  console.log('Playground browser: real edited runs, imports, compiler errors, safe highlighting, tab preservation, reset, stop, cancellation, live diagrams, source transfer, target commands, six widths, ten documentation routes, dark theme, and no-JavaScript fallback passed');
+  console.log('Website browser local tests: edited programs, diagnostics, cancellation, live diagrams, all target commands, 25 matrix cells, actual output and IR inspection, four direct WebAssembly runs, subset diagnostics, file and metric controls, keyboard navigation, shared links, six widths, eleven routes, both themes and no-JavaScript fallbacks passed');
 } finally {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try { await cdp('Browser.close'); } catch (_) {}

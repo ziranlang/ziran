@@ -1,0 +1,1 @@
+enums.zi:4:1: parameter type Direction of enums:Steps is outside the wasm execution subset

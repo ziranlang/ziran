@@ -1,5 +1,36 @@
 # Ziran website
 
+## Target matrix
+
+`targets.html` compares five real programs across C, Go, portable ZX and direct
+WebAssembly, alongside the checked ZIR intermediate stage. The homepage links
+to the matrix and exposes all four output commands. Selecting a cell opens the
+generated source or binary inspection, downloadable artifacts, compiler command,
+verified result, output size and timings. Supported `.wasm` files can also run
+directly in a bounded, disposable browser worker without the playground runtime.
+
+Generate the outputs and measured snapshot with the built toolchain, C, Go,
+Python and Node installed:
+
+```sh
+python3 scripts/site_targets.py --samples 5
+python3 scripts/site_targets.py --check
+```
+
+The snapshot and artifacts are tracked in `site/generated/targets/`. Generation
+checks every supported execution against an independent oracle and records
+raw samples, tool hashes, compiler revision/dirty state, host and methodology.
+Execution includes process startup; Node also compiles and instantiates Wasm.
+ZX explicitly runs the portable VM. Emission excludes downstream native builds;
+size counts emitted files rather than executables. The site labels these limits.
+`--check` verifies source and artifact hashes without changing or remeasuring
+the snapshot. It intentionally preserves the measurement's original provenance.
+
+The website workflow verifies the snapshot before deployment. Local integrated
+coverage includes `tests/site_targets.sh` and `tests/playground_browser.mjs`.
+
+## Browser playground
+
 The homepage editor runs the repository's actual module loader, checker,
 portable linker, and VM in a Web Worker. Its runtime loads only when someone
 presses Run. It has the portable subset's language coverage and no installed

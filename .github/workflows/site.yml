@@ -9,7 +9,7 @@ name: Publish website
 on:
   push:
     branches: [master]
-    paths: ['site/**', 'web/playground.c', 'web/bundle.c', 'scripts/build_playground.zi', 'cmd/zir/**', 'cmd/package*.zi', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
+    paths: ['site/**', 'web/playground.c', 'web/bundle.c', 'scripts/build_playground.zi', 'scripts/site_target*', 'tests/site_targets.sh', 'cmd/zir/**', 'cmd/package*.zi', 'cmd/compiler_*.zi', 'bootstrap/**', 'std/**', 'Makefile', '.github/workflows/site.yml']
   workflow_dispatch:
 
 concurrency:
@@ -47,6 +47,11 @@ jobs:
           build/bin/ziran run --target=c scripts/build_playground.zi
           node tests/playground_runtime.cjs
           node tests/web_bundle_runtime.cjs
+      - name: Verify target matrix and site links
+        if: steps.credentials.outputs.present == 'true'
+        run: |
+          env -u DISPLAY -u WAYLAND_DISPLAY sh tests/site_targets.sh build/bin/ziran
+          python3 scripts/site_links.py
       - name: Deploy site/ to Cloudflare Pages
         if: steps.credentials.outputs.present == 'true'
         uses: cloudflare/wrangler-action@v3

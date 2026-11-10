@@ -278,8 +278,14 @@
     var target = event.target.value;
     var label = event.target.selectedOptions[0].textContent;
     document.querySelectorAll('.native-visual [data-target]').forEach(function (element) { element.classList.toggle('is-selected', element.dataset.target === target); });
-    document.querySelector('.target-summary').textContent = 'Generate ' + label + ' output';
-    var flags = target === 'c' ? '' : ' --exe --entry source:main' + (target === 'go' ? ' --pkg main' : '');
-    document.querySelector('.target-command code').textContent = 'ziran build --target=' + target + flags + ' --root . -o out/' + target + ' source.zi';
+    document.querySelector('.target-summary').textContent = target === 'zir' ? 'Save checked intermediate representation' : 'Generate ' + label + ' output';
+    var commands = {
+      c: 'ziran build --target=c --root . -o out/c source.zi',
+      go: 'ziran build --target=go --exe --entry source:main --pkg main --root . -o out/go source.zi',
+      zx: 'zi2zx bundle --root . --entry source:main -o out/source.zx source.zi',
+      wasm: 'zi2wasm --root . --entry source:Answer -o out/source.wasm source.zi',
+      zir: 'ziran ir --root . -o out/ir source.zi'
+    };
+    document.querySelector('.target-command code').textContent = commands[target];
   });
 })();

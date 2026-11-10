@@ -1,0 +1,11 @@
+// Enum branches: a capability boundary for the direct WebAssembly emitter.
+Direction :: enum { North; East; South; West; }
+
+Steps :: (direction: Direction) -> s32 {
+    if direction == .North { return 10; }
+    if direction == .East { return 20; }
+    if direction == .South { return 30; }
+    return 40;
+}
+
+Answer :: () -> s32 { return Steps(.East) + Steps(.West); }

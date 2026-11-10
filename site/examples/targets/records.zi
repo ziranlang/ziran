@@ -1,0 +1,16 @@
+// Record arrays: update 16 points for 100 rounds, then sum their fields.
+Point :: struct { x: s64; y: s64; }
+
+Answer :: () -> s64 {
+    points: [16]Point;
+    for i: 0..15 { points[i] = Point.{x = i, y = i * 2}; }
+    for round: 0..99 {
+        for i: 0..15 {
+            points[i].x = (points[i].x + points[i].y + round) % 1009;
+            points[i].y = (points[i].y + i + 1) % 1013;
+        }
+    }
+    total: s64 = 0;
+    for i: 0..15 { total += cast(s64)points[i].x + cast(s64)points[i].y; }
+    return total;
+}

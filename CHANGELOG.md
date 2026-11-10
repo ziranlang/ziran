@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-11-10
+
 - The website presents all four outputs in a target matrix: inspect C, Go,
   portable ZX, direct WebAssembly and checked IR, download generated files,
   run WebAssembly in your browser and compare measured target costs.

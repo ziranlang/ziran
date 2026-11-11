@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-11-11
+
 - Add the experimental `make assembly` / `zi2asm` scalar direct Linux x86-64
   ELF path, verified lowered IR, inspection dumps and native source-range maps.
   Existing ZX and other backends remain unchanged; the full ASSEMBLY upgrade,
@@ -23,9 +25,8 @@
   interoperability. Image tests always compare independent reference pixels.
 - Timed compiler kernels run explicitly from `bench/`, outside routine checks.
   Benchmark builds and measurements use Alpha and retain their actual host.
-
-## [0.4.2] - 2026-11-11
-
+- The target page includes six JSON and UTF-8 workloads measured on Alpha,
+  with downloadable compiler output, raw samples and unsupported-target diagnostics.
 - JSON readers scan long unescaped strings with SIMD while preserving borrowed
   text, escape handling, error positions and secure cleanup. The retained
   desktop benchmark measures a substantially faster 1 MiB document parse.

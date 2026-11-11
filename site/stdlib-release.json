@@ -38,6 +38,7 @@
     "json_bytes",
     "json_document",
     "json_go",
+    "json_quote",
     "json_scan",
     "map_go",
     "mapped_file_linux",

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -49,15 +50,7 @@ BlockSchedule :: (writer: http.ResponseWriter) {
 Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/scheduled.zi"
-python3 - "$work/ir/scheduled.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'UnlockAtReturn :: (value: *Mutex) #go_defer #foreign go_sync "(*Mutex).Unlock";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/scheduled.zir" "$repo/tests/fixtures/saved_signatures/go_defer.txt"
 for input in source saved; do
     root=$work
     file=$root/scheduled.zi

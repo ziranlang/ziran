@@ -1,0 +1,2 @@
+AsReader :: (value: Any) -> ReaderResult #go_results #foreign builtin "assert";
+Spawn :: (callback: Worker, group: *Group, channel: channels.Channel, name: string) #foreign builtin "spawn";

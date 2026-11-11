@@ -1,0 +1,61 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LawTestStatuses :: (test: *NativeTest, file: string, expected: []string, status: string) -> bool {
+    lines := TextLines(TextTrimEnd(NativeRead(test, CheckPath(test.work, file))))
+    if !NativeAssert(test, !test.failed && lines.count == expected.count, CheckConcat("wrong law result count: ", file)) { return false }
+    seen: Vec(bool)
+    if !VecResize(seen, expected.count) { return false }
+    for line: lines {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, line), "malformed law result") { return false }
+        name := CheckField(*document, document.root, "law"); found: s64 = -1
+        for index: cast(s64)0..expected.count - 1 { if expected[index] == name { found = index; break } }
+        if !NativeAssert(test, found >= 0 && !seen[found] && CheckField(*document, document.root, "status") == status, CheckConcat("missing, duplicate or incorrect law result: ", name)) { return false }
+        seen[found] = true
+    }
+    return !test.failed
+}
+
+LawTestProofs :: (test: *NativeTest) -> bool {
+    lines := TextLines(TextTrimEnd(NativeRead(test, CheckPath(test.work, "source.json"))))
+    if !NativeAssert(test, !test.failed && lines.count == 8, "wrong proof law count") { return false }
+    for line: lines {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, line), "malformed proof law result") { return false }
+        evidence := JsonMember(*document, document.root, "evidence")
+        if !NativeAssert(test, CheckField(*document, document.root, "status") == "proved" && CheckField(*document, evidence, "method") == "kernel" && CheckInteger(*document, evidence, "cases_checked") == 0,
+            "proof law was not established by the kernel without enumeration") { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "law-assertions-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc == 4, "pass a law assertion mode") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "proofs" { valid = LawTestProofs(*test) }
+    else if mode == "cases" {
+        lines := TextLines(TextTrimEnd(NativeRead(*test, CheckPath(test.work, "laws.json")))); output: Vec(u8); valid = !test.failed
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(*test, JsonRead(*document, line), "malformed evaluator law result") { valid = false; break }
+            parts := string.[CheckField(*document, document.root, "law"), " | ", CheckField(*document, document.root, "status"), " | ", NativeSigned(CheckInteger(*document, JsonMember(*document, document.root, "evidence"), "cases_checked")), " | ", CheckField(*document, document.root, "detail"), "\n"]
+            BuilderAppend(output, TextJoin(parts[:], ""))
+        }
+        if valid { valid = NativeWrite(*test, CheckPath(test.work, "results"), BuilderFinish(output)) }
+    }
+    else if mode == "floats" {
+        proved := string.["DelayMatches", "DelayOrdered", "SmallMatches", "MixedCompare", "SignificandEdge", "ThroughParameter", "ComparedInCall", "ExactLiteral", "Arithmetic", "ThirdSingle", "ThirdDouble", "SingleRounds"]
+        unknown := string.["WideCast", "Overflow", "RoundedLiteral"]; disproved := string.["AlwaysFive"]
+        valid = LawTestStatuses(*test, "floats.json", proved[:], "proved") && LawTestStatuses(*test, "unknown.json", unknown[:], "unknown") && LawTestStatuses(*test, "false.json", disproved[:], "disproved")
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

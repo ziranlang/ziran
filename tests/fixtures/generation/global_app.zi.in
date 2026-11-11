@@ -1,0 +1,17 @@
+#import "layer_0";
+using Shortcut :: #import "layer_25";
+State :: #import "state";
+#program_export
+Answer :: () -> s32 {
+    pointer := New(s32)
+    <<pointer = 40
+    value := <<pointer
+    free(pointer)
+    // Resolve the shared type through the shorter path even after the
+    // longer path reaches the type lookup's depth bound.
+    shared: Shared
+    shared.value = value
+    leaf_count = 0
+    State.counter += 1
+    return shared.value + State.counter + Leaf()
+}

@@ -1,0 +1,49 @@
+
+#import "vorbis_linux"
+#import "vorbis"
+#import "file"
+#import "number_text"
+#import "text_tools"
+#import "byte_text_linux"
+
+Append :: (out: *Vec(u8), value: s64) {
+    digits: [24]u8
+    text := FormatInteger(value, digits[:])
+    for at: 0..text.count - 1 { VecPush(<<out, text[at]) }
+    VecPush(<<out, cast(u8)10)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    report: Vec(u8)
+    if TextFromCString(argv[1]) == "sizes" {
+        Append(*report, size_of(OggSyncState)); Append(*report, size_of(OggStreamState))
+        Append(*report, size_of(OggPackBuffer)); Append(*report, size_of(VorbisInfo))
+        Append(*report, size_of(VorbisDspState)); Append(*report, size_of(VorbisBlock))
+        Append(*report, size_of(VorbisCallbacks)); Append(*report, size_of(VorbisFile))
+        return ifx WriteEntireFile(TextFromCString(argv[2]), BuilderFinish(report)) then 0 else 3
+    }
+    input: Vec(u8)
+    if TextFromCString(argv[1]) == "probe" {
+        if !ReadFileInto(TextFromCString(argv[2]), *input) { return 3 }
+        declared: VorbisAudio
+        if !VorbisProbe(VecSlice(input, 0, input.count), *declared) {
+            return ifx declared.frames == 0 && declared.channels == 0 then 2 else 4
+        }
+        Append(*report, declared.channels); Append(*report, declared.rate); Append(*report, declared.frames)
+        return ifx WriteEntireFile(TextFromCString(argv[3]), BuilderFinish(report)) then 0 else 3
+    }
+    if !ReadFileInto(TextFromCString(argv[1]), *input) { return 3 }
+    limit, ok := TextInteger(TextFromCString(argv[3]))
+    if !ok { return 3 }
+    pcm: Vec(u8)
+    audio: VorbisAudio
+    if !VorbisDecode(VecSlice(input, 0, input.count), *pcm, limit, *audio) {
+        if pcm.count != 0 || audio.frames != 0 { return 4 }
+        return 2
+    }
+    if pcm.count != audio.frames * audio.channels * 2 { return 4 }
+    Append(*report, audio.channels); Append(*report, audio.rate); Append(*report, audio.frames)
+    if !WriteEntireFile(TextFromCString(argv[4]), BuilderFinish(report)) { return 3 }
+    return ifx WriteEntireFile(TextFromCString(argv[2]), BuilderFinish(pcm)) then 0 else 3
+}

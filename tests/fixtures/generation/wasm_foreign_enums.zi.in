@@ -1,0 +1,5 @@
+Mode :: enum u8 { Low :: 7; High :: 255; }
+Wide :: enum u64 { High :: 9223372036854775807; }
+Box :: struct { first: Mode; value: Wide; last: Mode; }
+Bounce :: (value: Mode) -> Mode { return value; }
+WideValue :: () -> Wide { return .High; }

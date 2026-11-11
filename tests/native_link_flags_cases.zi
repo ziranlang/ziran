@@ -1,0 +1,105 @@
+#import "native_test"
+#import "native_build_support"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LinkBuild :: (test: *NativeTest, command: []string, output: string, profile: string, flags: string, expected: s32, reuse: bool = false, fail: bool = false) -> bool {
+    base := test.environment.count
+    VecPush(test.environment, CheckConcat("CFLAGS=", flags))
+    result := NativeInvoke(test, command)
+    unused VecResize(test.environment, base)
+    if !NativeAssert(test, ifx fail then result.code > 0 && result.code < 124 else result.code == 0, CheckConcat("unexpected link result\n", result.error)) { return false }
+    run := string.[CheckPath(output, "flags")]
+    unused NativeRun(test, run[:], "", expected)
+    document: JsonDocument
+    counters := NativeProfileCounters(test, profile, *document)
+    objects := NativeObjects(output)
+    if !NativeAssert(test, objects.count >= 2, "native link did not build its objects") { return false }
+    compiled := NativeCounter(*document, counters, "native_object_compile")
+    if reuse { return NativeAssert(test, compiled == 0 && NativeCounter(*document, counters, "native_object_reuse") == objects.count, "link flags invalidated reusable objects") }
+    return fail || NativeAssert(test, compiled == objects.count, "changed compiler identity did not invalidate all objects")
+}
+
+LinkAssembler :: (test: *NativeTest, compiler: string, source: string, assembler: string, target: string, revision: s64) -> bool {
+    document: JsonDocument
+    node := JsonNewStringCopy(*document, assembler)
+    define := CheckConcat("-DREAL_AS=", TextDetach(JsonWrite(*document, node, JsonCompactStyle())))
+    command := string.[compiler, CheckConcat("-DREVISION=", CheckNumber(revision)), define, source, "-o", target]
+    unused NativeRun(test, command[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-link-flags-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    compiler := NativeCompiler()
+    version_command := string.[compiler, "--version"]
+    version := NativeRun(*test, version_command[:])
+    integrated := TextContains(version.output, "clang") || TextContains(version.output, "Clang")
+    assembler_command := string.[compiler, "-print-prog-name=as"]
+    found := NativeRun(*test, assembler_command[:])
+    assembler := CheckExecutable(TextTrim(found.output))
+    if !NativeAssert(*test, assembler != "", "assembler unavailable") { return 1 }
+    source := CheckPath(test.work, "flags.zi")
+    if !NativeWrite(*test, source, "lib :: #system_library \"host\";\nHost :: () -> s32 #foreign lib \"host\";\n#program_export\nAnswer :: () -> s32 { return 20 + Host() }\n") { return 1 }
+    output := CheckPath(test.work, "output")
+    if !NativeWrite(*test, CheckPath(output, "host.c"), "int host(void) { return 20; }\nint __wrap_host(void) { return 30; }\n") { return 1 }
+    profile := CheckPath(test.work, "profile.jsonl")
+    VecPush(test.environment, CheckConcat("CC=", compiler)); VecPush(test.environment, "LDFLAGS="); VecPush(test.environment, "LDLIBS=")
+    VecPush(test.environment, CheckConcat("ZIRAN_PROFILE=", profile))
+    command := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "flags:Answer", "--diagnostics=json", "--root", test.work, "-o", output, source]
+    variants := string.["-Wl,--wrap=host", "-Xlinker --wrap=host", "-fuse-ld=bfd -Wl,--wrap=host"]
+    for variant: variants {
+        flags := CheckConcat("-O2 ", variant)
+        if !LinkBuild(*test, command[:], output, profile, flags, 50) || !LinkBuild(*test, command[:], output, profile, flags, 50, true) { return 1 }
+    }
+    tools := CheckPath(test.work, "tools")
+    if !NativeAssert(*test, CreateDirectories(tools), "create assembler prefix") { return 1 }
+    proxy := CheckPath(test.work, "assembler.c")
+    if !NativeWrite(*test, proxy, "#include <unistd.h>\nint main(int argc, char **argv) {\nvolatile int revision = REVISION; (void)revision; (void)argc;\nexecv(REAL_AS, argv); return 127; }\n") { return 1 }
+    as := CheckPath(tools, "as")
+    if !LinkAssembler(*test, compiler, proxy, assembler, as, 0) { return 1 }
+    flags := CheckConcat("-O2 -B", CheckConcat(tools, " -Wl,--wrap=host"))
+    if !LinkBuild(*test, command[:], output, profile, flags, 50) || !LinkBuild(*test, command[:], output, profile, flags, 50, true) { return 1 }
+    reference := CheckPath(test.work, "assembler-time")
+    snapshot := string.["cp", "-p", as, reference]; unused NativeRun(*test, snapshot[:])
+    if !LinkAssembler(*test, compiler, proxy, assembler, as, 1) { return 1 }
+    restore := string.["touch", "-r", reference, as]; unused NativeRun(*test, restore[:])
+    if !NativeAssert(*test, PathStatus(as).modified == PathStatus(reference).modified && PathStatus(as).modified_nanoseconds == PathStatus(reference).modified_nanoseconds, "assembler mtime was not preserved") { return 1 }
+    if !LinkBuild(*test, command[:], output, profile, flags, 50, integrated) || !LinkBuild(*test, command[:], output, profile, flags, 50, true) { return 1 }
+    flags = CheckConcat("-O2 -B ", CheckConcat(tools, " -Xlinker --wrap=host"))
+    if !LinkBuild(*test, command[:], output, profile, flags, 50) || !LinkBuild(*test, command[:], output, profile, flags, 50, true) { return 1 }
+    map := CheckPath(test.work, "link.map")
+    flags = CheckConcat("-O2 -Xlinker -Map -Xlinker ", map)
+    if !LinkBuild(*test, command[:], output, profile, flags, 40) { return 1 }
+    unused RemoveFile(map)
+    if !LinkBuild(*test, command[:], output, profile, flags, 40, true) || !NativeAssert(*test, PathStatus(map).size > 0, "reused link did not regenerate map") { return 1 }
+    archive := CheckPath(test.work, "libextra.a")
+    extra := CheckPath(test.work, "extra.c")
+    object := CheckPath(test.work, "extra.o")
+    if !NativeWrite(*test, extra, "int extra(void) { return 1; }\n") { return 1 }
+    compile := string.[compiler, "-c", extra, "-o", object]; unused NativeRun(*test, compile[:])
+    pack := string.["ar", "rcs", archive, object]; unused NativeRun(*test, pack[:])
+    flags = CheckConcat("-O2 -Wl,", archive)
+    if !LinkBuild(*test, command[:], output, profile, flags, 40) || !LinkBuild(*test, command[:], output, profile, flags, 40, true) { return 1 }
+    previous := CheckHash(CheckPath(output, "flags"))
+    unused RemoveFile(archive)
+    if !LinkBuild(*test, command[:], output, profile, flags, 40, true, true) || !NativeAssert(*test, CheckHash(CheckPath(output, "flags")) == previous, "failed link replaced the prior executable") { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", ir, source]; unused NativeRun(*test, save[:])
+    saved := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "flags:Answer", "--diagnostics=json", "--root", ir, "-o", output, CheckPath(ir, "flags.zir")]
+    flags = "-O2 -fuse-ld=bfd -Xlinker --wrap=host"
+    if !LinkBuild(*test, saved[:], output, profile, flags, 50) || !LinkBuild(*test, saved[:], output, profile, flags, 50, true) ||
+        !LinkBuild(*test, saved[:], output, profile, "-O2", 40) || !LinkBuild(*test, saved[:], output, profile, "-O2", 40, true) { return 1 }
+    if test.failed { return 1 }
+    print("Local linker tests: object reuse, changed prefix tools, regenerated maps and failed-link preservation passed\n")
+    return 0
+}

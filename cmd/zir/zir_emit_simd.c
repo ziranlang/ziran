@@ -142,7 +142,7 @@ memory_operand(Emitter *e, int child, int kind, int writable, char *out, size_t 
     if(kind == SIMD_MEMORY_ARRAY && !writable && emit_constant_array_read(e, child, out, size))
         return;
     emit_expr(e, child, memory->type, out, size);
-    if(kind == SIMD_MEMORY_SLICE && !plain_identifier(out)) {
+    if((kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING) && !plain_identifier(out)) {
         char temporary[ZIR_NAME_MAX];
         fresh(e, temporary);
         declare(e, temporary, memory->type, out);
@@ -191,15 +191,16 @@ c_address(Emitter *e, int memory_child, int at, const char *index, const char *l
     int proven = touched > 0 &&
         ((kind == SIMD_MEMORY_ARRAY && capacity >= touched &&
           IndexInRange(e, at, (int64_t)capacity - touched + 1)) ||
-         (kind == SIMD_MEMORY_SLICE && RunBelowCount(e, at, touched, memory_child)));
+         ((kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING) &&
+          RunBelowCount(e, at, touched, memory_child)));
     memory_operand(e, memory_child, kind, writable, base, sizeof(base));
     if(kind == SIMD_MEMORY_POINTER || proven) {
         format(out, size, "(%svoid *)((%s%s *)(%s%s) + (int64_t)(%s))",
                writable ? "" : "const ", writable ? "" : "const ", lane, base,
-               kind == SIMD_MEMORY_SLICE ? ".data" : "", index);
+               kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING ? ".data" : "", index);
         return;
     }
-    if(kind == SIMD_MEMORY_SLICE)
+    if(kind == SIMD_MEMORY_SLICE || kind == SIMD_MEMORY_STRING)
         format(out, size, "%szi_simd_at(%s.data, %s.length, (int64_t)(%s), %s, %u)",
                writable ? "(void *)" : "", base, base, index, lanes, bytes);
     else
@@ -236,7 +237,8 @@ go_memory(Emitter *e, int child, int kind, int writable, char *out, size_t size)
 static void
 go_name(const SimdOp *op, int kind, const char *types, char *out, size_t size)
 {
-    format(out, size, "zi_%s%s_%s", op->snake, kind == SIMD_MEMORY_POINTER ? "_ptr" : "", types);
+    format(out, size, "zi_%s%s_%s", op->snake,
+           kind == SIMD_MEMORY_POINTER ? "_ptr" : kind == SIMD_MEMORY_STRING ? "_string" : "", types);
 }
 
 /* Gather checks every index of a slice or array table first. */

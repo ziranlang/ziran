@@ -160,7 +160,10 @@ SimdMemory(const char *type, char *element, size_t size, int *capacity)
     char inner[ZIR_NAME_MAX];
     int kind = SIMD_MEMORY_NONE, count = -1;
     if(type == NULL) return 0;
-    if(SliceElementType(type, inner, sizeof(inner))) kind = SIMD_MEMORY_SLICE;
+    if(!strcmp(ScalarType(type), "string")) {
+        kind = SIMD_MEMORY_STRING;
+        strcpy(inner, "u8");
+    } else if(SliceElementType(type, inner, sizeof(inner))) kind = SIMD_MEMORY_SLICE;
     else if(ArrayElementType(type, inner, sizeof(inner), &count)) kind = SIMD_MEMORY_ARRAY;
     else if(type[0] == '*' && strlen(type + 1) < sizeof(inner)) {
         kind = SIMD_MEMORY_POINTER;
@@ -311,7 +314,7 @@ signature(const SimdOp *op, const char *result, const SimdOperand *operands,
     case SIMD_LOAD:
         if(count != 2 || !SimdMemory(operands[0].type, element, sizeof(element), NULL) ||
            strcmp(element, r.lane) || !integer_scalar(operands[1].type))
-            return fail(message, "takes the vector type, a slice, array or pointer of its lane type, and an index");
+            return fail(message, "takes the vector type, a slice, array or pointer of its lane type (or a string for u8 lanes), and an index");
         return r.name;
     case SIMD_STORE: {
         int memory = count == 3 ? SimdMemory(operands[0].type, element, sizeof(element), NULL) : 0;

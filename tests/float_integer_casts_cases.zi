@@ -1,0 +1,128 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/math"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+FloatCastCase :: struct { function: string; argument: string; valid: bool; expected: string }
+
+FloatTestPower :: (exponent: s32) -> float64 {
+    value := 1.0
+    if exponent >= 0 { for index: 1..exponent { unused index; value *= 2.0 } }
+    else { for index: 1..-exponent { unused index; value /= 2.0 } }
+    return value
+}
+
+// The oracle never performs a float-to-integer cast. It extracts whole binary
+// places by subtraction, after independent finite and exact power-of-two bounds.
+FloatTestInteger :: (value: float64) -> string {
+    remainder := ifx value < 0.0 then -value else value
+    whole: u64
+    power := FloatTestPower(63)
+    for index: 0..63 {
+        if remainder >= power { whole |= cast(u64)1 << cast(u64)(63 - index); remainder -= power }
+        power /= 2.0
+    }
+    number := NativeUnsigned(whole)
+    return ifx value < 0.0 && whole != cast(u64)0 then CheckConcat("-", number) else number
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "float-casts-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    signatures: Vec(u8); branches: Vec(u8); go_branches: Vec(u8)
+    cases: Vec(FloatCastCase)
+    precisions := s32.[32, 64]
+    widths := s32.[8, 16, 32, 64]
+    signs := string.["s", "u"]
+    for precision: precisions {
+        for width: widths {
+            for sign: signs {
+                signed := sign == "s"
+                name := CheckConcat(sign, CheckNumber(width))
+                function := CheckConcat("Cast", CheckConcat(CheckNumber(precision), name))
+                floating := CheckConcat("float", CheckNumber(precision))
+                declaration := CheckConcat("#program_export\n", CheckConcat(function, CheckConcat(" :: (value: ", CheckConcat(floating, CheckConcat(") -> ", CheckConcat(name, CheckConcat(" { return cast(", CheckConcat(name, ")value }\n"))))))))
+                BuilderAppend(signatures, declaration)
+                host_type := ifx signed then "int64_t" else "uint64_t"
+                specifier := ifx signed then "PRId64" else "PRIu64"
+                BuilderAppend(branches, CheckConcat("if (!strcmp(argv[1], \"", CheckConcat(function, CheckConcat("\")) { printf(\"%\" ", CheckConcat(specifier,
+                    CheckConcat(" \"\\n\", (", CheckConcat(host_type, CheckConcat(")", CheckConcat(function, "(value)); return 0; }\n")))))))))
+                BuilderAppend(go_branches, CheckConcat("case \"", CheckConcat(function, CheckConcat("\": fmt.Println(Casts_", CheckConcat(function, CheckConcat("(", CheckConcat(floating, "(value)))\n")))))))
+                upper := FloatTestPower(width - ifx signed then 1 else 0)
+                lower := ifx signed then -upper else 0.0
+                significand: s32 = ifx precision == 32 then 24 else 53
+                candidates := float64.[0.0, -0.0, 1.75, -1.75, lower, lower + 1.0, upper - 1.0,
+                    upper * (1.0 - FloatTestPower(-significand)), upper,
+                    ifx signed then lower * (1.0 + FloatTestPower(1 - significand)) else -0.5,
+                    Infinity(), -Infinity(), NotANumber()]
+                for original: candidates {
+                    value := ifx precision == 32 then cast(float64)(cast(float32)original) else original
+                    valid := Finite64(value) && lower <= value && value < upper
+                    argument := ifx original != original then "NaN" else TextDetach(Float64Repr(original))
+                    VecPush(cases, FloatCastCase.{function, argument, valid, ifx valid then FloatTestInteger(value) else ""})
+                }
+            }
+        }
+    }
+    source := CheckPath(test.work, "casts.zi")
+    if !NativeWrite(*test, source, BuilderFinish(signatures)) { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", ir, source]
+    unused NativeRun(*test, save[:])
+    c_branches := TextDetach(BuilderFinish(branches))
+    go_cases := TextDetach(BuilderFinish(go_branches))
+    forms := string.["source", "saved"]
+    targets := string.["c", "go"]
+    checked: s64
+    for form: forms {
+        root := ifx form == "source" then test.work else ir
+        input := ifx form == "source" then source else CheckPath(ir, "casts.zir")
+        for target: targets {
+            output := CheckPath(test.work, CheckConcat(form, CheckConcat("-", target)))
+            command: Vec(string)
+            build := string.[test.ziran, "build", CheckConcat("--target=", target), "--root", root, "-o", output]
+            for item: build { VecPush(command, item) }
+            if target == "c" { VecPush(command, "--no-main") }
+            else { VecPush(command, "--pkg"); VecPush(command, "main") }
+            VecPush(command, input)
+            unused NativeRun(*test, command[:])
+            executable := CheckPath(output, "app")
+            compile: Vec(string)
+            if target == "c" {
+                host := CheckConcat("#include \"casts.h\"\n#include <inttypes.h>\n#include <stdio.h>\n#include <stdlib.h>\n#include <string.h>\nint main(int argc, char **argv) {\nif (argc != 3) return 2;\ndouble value = strtod(argv[2], NULL);\n", CheckConcat(c_branches, "\nreturn 3;\n}\n"))
+                if !NativeWrite(*test, CheckPath(output, "driver.c"), host) { return 1 }
+                flags := string.[NativeCompiler(), "-O2", "-std=c99", "-fsanitize=undefined", "-fno-sanitize-recover=all", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+                for flag: flags { VecPush(compile, flag) }
+                files := NativeFiles(output, ".c")
+                for file: files { VecPush(compile, file) }
+                VecPush(compile, "-lm"); VecPush(compile, "-o"); VecPush(compile, executable)
+            } else {
+                host := CheckConcat("package main\nimport (\"fmt\"; \"os\"; \"strconv\")\nfunc main() { if len(os.Args) != 3 { os.Exit(2) }; value, err := strconv.ParseFloat(os.Args[2], 64); if err != nil { panic(err) }; switch os.Args[1] {\n", CheckConcat(go_cases, "\ndefault: os.Exit(3) } }\n"))
+                if !NativeWrite(*test, CheckPath(output, "main.go"), host) { return 1 }
+                VecPush(compile, "go"); VecPush(compile, "build"); VecPush(compile, "-o"); VecPush(compile, executable)
+                files := NativeFiles(output, ".go")
+                for file: files { VecPush(compile, file) }
+            }
+            unused NativeRun(*test, compile[:])
+            for item: cases {
+                run := string.[executable, item.function, item.argument]
+                result := NativeInvoke(*test, run[:])
+                valid := false
+                if item.valid { valid = result.code == 0 && TextTrim(result.output) == item.expected }
+                else if target == "c" { valid = result.code == 134 }
+                else { valid = result.code > 0 && result.code < 124 && TextContains(result.error, "float conversion out of range") }
+                if !NativeAssert(*test, valid, CheckConcat(form, CheckConcat(" ", CheckConcat(target, CheckConcat(" ", CheckConcat(item.function, CheckConcat(" ", CheckConcat(item.argument, CheckConcat("\n", result.error))))))))) { return 1 }
+                checked += 1
+            }
+        }
+    }
+    if test.failed { return 1 }
+    print("% float32/float64 cast cases passed C/Go, source/saved IR; C UBSan\n", checked)
+    return 0
+}

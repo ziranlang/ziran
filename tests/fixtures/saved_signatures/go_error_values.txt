@@ -1,0 +1,2 @@
+PiRaw :: () -> float64 #go_field #foreign go_math "Pi";
+MessageRaw :: (error: Error) -> string #foreign builtin "error.Error";

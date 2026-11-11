@@ -22,6 +22,8 @@
 // repeated name is answered by its last member, as Python's dict reads it.
 using Vectors :: #import "vec"
 FloatText :: #import "float_text"
+JsonBytes :: #import "json_bytes"
+JsonWriter :: #import "std/json_quote"
 
 JsonKind :: enum u8 { Missing :: 0; Null :: 1; False :: 2; True :: 3; Number :: 4; String :: 5; Array :: 6; Object :: 7; }
 JsonEraser :: #type (context: *void, bytes: []u8) -> void;
@@ -214,14 +216,14 @@ PutCodePoint :: (bytes: *Vec(u8), point: s32) -> bool {
 ReadString :: (reader: *Reader, text: string, ok: *bool, bytes: *Vec(u8)) -> string {
     <<ok = false
     start := reader.at + 1
-    at := start
+    at := JsonBytes.JsonStringRunEnd(reader.text, start)
     plain := true
     while at < reader.text.count {
         byte := reader.text[at]
         if byte == #char "\"" { break }
         if byte < 32 { Fail(reader, "control character in a string"); reader.at = at; return "" }
         if byte == #char "\\" { plain = false; at += 1 }
-        at += 1
+        at = JsonBytes.JsonStringRunEnd(reader.text, at + 1)
     }
     if at >= reader.text.count { Fail(reader, "unterminated string"); reader.at = at; return "" }
     if plain {
@@ -715,67 +717,14 @@ JsonCopy :: (target: *JsonDocument, source: *JsonDocument, node: s32) -> s32 {
     return copy
 }
 
-#scope_file
-HEX :: "0123456789abcdef";
-
-Escape :: (output: *Vec(u8), point: s32) -> bool {
-    if !BuilderAppend(<<output, "\\u") { return false }
-    if !VecPush(<<output, HEX[(point >> 12) & 15]) { return false }
-    if !VecPush(<<output, HEX[(point >> 8) & 15]) { return false }
-    if !VecPush(<<output, HEX[(point >> 4) & 15]) { return false }
-    if !VecPush(<<output, HEX[point & 15]) { return false }
-    return true
-}
-
 #scope_export
 // Appends VALUE as a quoted JSON string, escaped as json.dumps escapes it.
 JsonQuoteInto :: (output: *Vec(u8), value: string, ascii: bool) -> bool {
-    if output == null || output.count > 9223372036854775805 || value.count > (9223372036854775807 - output.count - 2) / 6 ||
-        !VecReserve(<<output, output.count + 2 + value.count * 6) { return false }
-    if !VecPush(<<output, #char "\"") { return false }
-    at: s64 = 0
-    while at < value.count {
-        byte := value[at]
-        if byte == #char "\"" { if !BuilderAppend(<<output, "\\\"") { return false }; at += 1; continue }
-        if byte == #char "\\" { if !BuilderAppend(<<output, "\\\\") { return false }; at += 1; continue }
-        if byte == 10 { if !BuilderAppend(<<output, "\\n") { return false }; at += 1; continue }
-        if byte == 13 { if !BuilderAppend(<<output, "\\r") { return false }; at += 1; continue }
-        if byte == 9 { if !BuilderAppend(<<output, "\\t") { return false }; at += 1; continue }
-        if byte == 8 { if !BuilderAppend(<<output, "\\b") { return false }; at += 1; continue }
-        if byte == 12 { if !BuilderAppend(<<output, "\\f") { return false }; at += 1; continue }
-        if byte < 32 || (ascii && byte == 127) { if !Escape(output, cast(s32)byte) { return false }; at += 1; continue }
-        if byte < 128 || !ascii { if !VecPush(<<output, byte) { return false }; at += 1; continue }
-        // A UTF-8 sequence as one code point; an invalid byte stands alone.
-        point: s32 = byte
-        length: s64 = 1
-        if byte >= 240 && at + 3 < value.count {
-            point = ((cast(s32)byte & 7) << 18) | ((cast(s32)value[at + 1] & 63) << 12) |
-                ((cast(s32)value[at + 2] & 63) << 6) | (cast(s32)value[at + 3] & 63)
-            length = 4
-        } else if byte >= 224 && at + 2 < value.count {
-            point = ((cast(s32)byte & 15) << 12) | ((cast(s32)value[at + 1] & 63) << 6) | (cast(s32)value[at + 2] & 63)
-            length = 3
-        } else if byte >= 192 && at + 1 < value.count {
-            point = ((cast(s32)byte & 31) << 6) | (cast(s32)value[at + 1] & 63)
-            length = 2
-        }
-        if point >= 65536 {
-            point -= 65536
-            if !Escape(output, 55296 + (point >> 10)) { return false }
-            if !Escape(output, 56320 + (point & 1023)) { return false }
-        } else {
-            if !Escape(output, point) { return false }
-        }
-        at += length
-    }
-    if !VecPush(<<output, #char "\"") { return false }
-    return true
+    return JsonWriter.JsonQuoteInto(output,value,ascii)
 }
 
 JsonQuote :: (value: string, ascii: bool = true) -> Text {
-    output: Vec(u8)
-    if !JsonQuoteInto(*output, value, ascii) { return .{} }
-    return BuilderFinish(output)
+    return JsonWriter.JsonQuote(value,ascii)
 }
 
 #scope_file

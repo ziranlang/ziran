@@ -1,0 +1,2 @@
+# Byte-preservation fixtures deliberately contain trailing spaces.
+tests/fixtures/formatter/source.zi.in -whitespace

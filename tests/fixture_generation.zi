@@ -1,0 +1,271 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GenerateRepeat :: (text: string, count: s64) -> string {
+    result: Vec(u8); for index: cast(s64)0..count - 1 { BuilderAppend(result, text) }; return TextDetach(BuilderFinish(result))
+}
+
+GenerateFixture :: (test: *NativeTest, name: string) -> string { return NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/generation/", name))) }
+
+GenerateLongLiterals :: (test: *NativeTest) -> bool {
+    table: Vec(u8); bytes: Vec(u8)
+    for index: 0..79 {
+        if index > 0 { BuilderAppend(table, "\n") }
+        parts := string.["        .{code = ", CheckNumber(index), ", name = \"entry", CheckNumber(index), "\", note = \"a long explanatory note for entry ", CheckNumber(index), ", padding the literal well past one statement buffer\"},"]
+        BuilderAppend(table, TextJoin(parts[:], ""))
+    }
+    for row: 0..31 {
+        if row > 0 { BuilderAppend(bytes, ",\n") }; BuilderAppend(bytes, "        ")
+        for column: 0..63 { if column > 0 { BuilderAppend(bytes, ", ") }; BuilderAppend(bytes, CheckNumber((row * 64 + column) % 256)) }
+    }
+    source := TextDetach(TextReplace(TextDetach(TextReplace(GenerateFixture(test, "long_literals.zi.in"), "@TABLE@", TextDetach(BuilderFinish(table)))), "@BYTES@", TextDetach(BuilderFinish(bytes))))
+    return NativeWrite(test, CheckPath(test.work, "app.zi"), source)
+}
+
+GenerateArray :: (test: *NativeTest, name: string, count: s64) -> bool {
+    source: Vec(u8); BuilderAppend(source, CheckConcat("Check :: () -> s32 {\n    table: [", CheckConcat(CheckNumber(count), "]s32 = .[\n")))
+    total: s64; weighted: s64; last: s64
+    for index: cast(s64)0..count - 1 {
+        if index % 16 == 0 { BuilderAppend(source, "        ") } else { BuilderAppend(source, ", ") }
+        value := (index * 37) % 251 - 100; total += value; weighted += (index % 7 + 1) * value; last = value
+        BuilderAppend(source, CheckNumber(value))
+        if index % 16 == 15 || index == count - 1 { BuilderAppend(source, ",\n") }
+    }
+    parts := string.["    ]\n    total: s64 = 0\n    weighted: s64 = 0\n    for i: 0..", CheckNumber(count), "-1 {\n        total += cast(s64) table[i]\n        weighted += cast(s64) (i % 7 + 1) * cast(s64) table[i]\n    }\n    if total != ", CheckNumber(total), " { return 1 }\n    if weighted != ", CheckNumber(weighted), " { return 2 }\n    if table[", CheckNumber(count - 1), "] != ", CheckNumber(last), " { return 3 }\n    return 0\n}\nmain :: () -> s32 { return Check() }\n"]
+    BuilderAppend(source, TextJoin(parts[:], ""))
+    return NativeWrite(test, CheckPath(test.work, CheckConcat(name, ".zi")), BuilderFinish(source))
+}
+
+GenerateGlobalArray :: (test: *NativeTest) -> bool {
+    source: Vec(u8); BuilderAppend(source, "Table: [1000]s32 = .[\n")
+    for row: 0..49 {
+        if row > 0 { BuilderAppend(source, ",\n") }; BuilderAppend(source, "    ")
+        for column: 0..19 { if column > 0 { BuilderAppend(source, ", ") }; BuilderAppend(source, "-100") }
+    }
+    BuilderAppend(source, "\n];\nmain :: () -> s32 { return Table[0] + Table[999] + 200 }\n")
+    return NativeWrite(test, CheckPath(test.work, "global.zi"), BuilderFinish(source))
+}
+
+GeneratePrint :: (test: *NativeTest) -> bool {
+    bytes: [9000]u8
+    for index: 0..8999 { bytes[index] = cast(u8)(65 + index % 26) }
+    suffix := ">:-9223372036854775808:18446744073709551615\n"
+    line := CheckConcat("large:<", CheckConcat(TextDetach(TextCopy(TextFromBytes(bytes[:]))), suffix))
+    if !NativeWrite(test, CheckPath(test.work, "expected"), CheckConcat(NativeRead(test, CheckPath(test.work, "expected")), line)) { return false }
+    indices := s64.[4095, 4096, 8191]
+    for index: indices { bytes[index] = 0 }
+    return NativeWrite(test, CheckPath(test.work, "expected-binary"), CheckConcat("large:<", CheckConcat(TextDetach(TextCopy(TextFromBytes(bytes[:]))), suffix)))
+}
+
+GenerateEnums :: (test: *NativeTest) -> bool {
+    source: Vec(u8); BuilderAppend(source, "Large :: enum s32 {\n")
+    for index: 0..95 { BuilderAppend(source, CheckConcat("    Member", CheckConcat(CheckNumber(index), ";\n"))) }
+    BuilderAppend(source, "}\n")
+    for index: 0..39 {
+        parts := string.["Enum", CheckNumber(index), " :: enum s32 { Zero; Last :: ", CheckNumber(index), "; }\n"]
+        BuilderAppend(source, TextJoin(parts[:], ""))
+    }
+    BuilderAppend(source, "#program_export\nAnswer :: () -> s32 {\n    if cast(s32)Large.Member95 != 95 { return 1 }\n    if cast(s32)Enum39.Last != 39 { return 2 }\n    return 42\n}\n")
+    return NativeWrite(test, CheckPath(test.work, "app.zi"), BuilderFinish(source))
+}
+
+GeneratePortableLimits :: (test: *NativeTest) -> bool {
+    source: Vec(u8); BuilderAppend(source, "Sum :: (")
+    for index: 0..63 { if index > 0 { BuilderAppend(source, ", ") }; BuilderAppend(source, CheckConcat("p", CheckConcat(CheckNumber(index), ": s32"))) }
+    BuilderAppend(source, ") -> s32 {\n    return p1 + p63\n}\nmain :: () {\n    print(\"%\\n\", Sum(")
+    for index: 0..63 { if index > 0 { BuilderAppend(source, ", ") }; BuilderAppend(source, CheckNumber(index)) }
+    BuilderAppend(source, "))\n}\n")
+    if !NativeWrite(test, CheckPath(test.work, "many.zi"), BuilderFinish(source)) { return false }
+    locals: Vec(u8); BuilderAppend(locals, "Pick :: (a: s32) -> s32 {\n")
+    for index: 0..199 { BuilderAppend(locals, CheckConcat("    v", CheckConcat(CheckNumber(index), CheckConcat(": s32 = ", CheckConcat(CheckNumber(index), "\n"))))) }
+    BuilderAppend(locals, "    return a + v0 + v199\n}\nmain :: () {\n    print(\"%\\n\", Pick(1))\n}\n")
+    return NativeWrite(test, CheckPath(test.work, "locals.zi"), BuilderFinish(locals))
+}
+
+GenerateAssemblyFeatures :: (test: *NativeTest) -> bool {
+    features := string.["popcnt", "sse2", "ssse3", "sse4.1", "sse4.2", "avx", "avx2", "avx512f", "bmi", "bmi2", "lzcnt", "fma", "aes", "pclmul"]
+    architectures := string.["x86", "x86_64"]; arm_features := string.["aes", "crc32", "pmull", "sha2", "atomics", "simd"]
+    targets: Vec(string)
+    for architecture: architectures { for feature: features { VecPush(targets, CheckConcat(architecture, CheckConcat("+", feature))) } }
+    for feature: arm_features { VecPush(targets, CheckConcat("aarch64+", feature)) }
+    VecPush(targets, "aarch64+aes+crc32"); VecPush(targets, "arm+neon")
+    template := GenerateFixture(test, "assembly_feature.zi.in"); source: Vec(u8)
+    for index: cast(s64)0..targets.count - 1 {
+        BuilderAppend(source, TextReplace(TextDetach(TextReplace(template, "@INDEX@", CheckNumber(index))), "@TARGET@", targets[index]))
+    }
+    return NativeWrite(test, CheckPath(test.work, "matrix.zi"), BuilderFinish(source))
+}
+
+GenerateSharedGlobals :: (test: *NativeTest) -> bool {
+    for index: 0..39 {
+        source: Vec(u8)
+        for child: index + 1..index + 2 {
+            if child < 40 {
+                parts := string.["using Next", CheckNumber(child), " :: #import \"layer_", CheckNumber(child), "\";\n"]
+                BuilderAppend(source, TextJoin(parts[:], ""))
+            }
+        }
+        for item: 0..39 {
+            parts := string.["unused_", CheckNumber(index), "_", CheckNumber(item), ": s32;\n"]
+            BuilderAppend(source, TextJoin(parts[:], ""))
+        }
+        if index == 39 { BuilderAppend(source, "Shared :: struct { value: s32; }\nleaf_count: s32;\nLeaf :: () -> s32 { leaf_count += 1; return leaf_count }\n") }
+        if !NativeWrite(test, CheckPath(test.work, CheckConcat("layer_", CheckConcat(CheckNumber(index), ".zi"))), BuilderFinish(source)) { return false }
+    }
+    return NativeWrite(test, CheckPath(test.work, "state.zi"), "counter: s32;\nunused_counter: s32;\n") && NativeWrite(test, CheckPath(test.work, "app.zi"), GenerateFixture(test, "global_app.zi.in"))
+}
+
+GenerateManyArguments :: (test: *NativeTest) -> bool {
+    group_template := GenerateFixture(test, "many_group.zi.in"); template := GenerateFixture(test, "many.zi.in")
+    groups: Vec(u8); counts := s64.[16, 17, 32, 33, 64]
+    for count: counts {
+        parameters: Vec(u8); values: Vec(u8); total: Vec(u8)
+        for index: cast(s64)0..count - 1 {
+            if index > 0 { BuilderAppend(parameters, ", "); BuilderAppend(values, ", "); BuilderAppend(total, " + ") }
+            BuilderAppend(parameters, CheckConcat("p", CheckConcat(CheckNumber(index), ": s64")))
+            BuilderAppend(values, CheckConcat("cast(s64)", CheckNumber(index + 1))); BuilderAppend(total, CheckConcat("p", CheckNumber(index)))
+        }
+        group := TextDetach(TextReplace(group_template, "@COUNT@", CheckNumber(count)))
+        group = TextDetach(TextReplace(group, "@PARAMETERS@", TextDetach(BuilderFinish(parameters))))
+        group = TextDetach(TextReplace(group, "@VALUES@", TextDetach(BuilderFinish(values))))
+        group = TextDetach(TextReplace(group, "@TOTAL@", TextDetach(BuilderFinish(total))))
+        BuilderAppend(groups, group)
+    }
+    parameters: Vec(u8); values: Vec(u8); pointers: Vec(u8); addresses: Vec(u8)
+    for index: 0..62 {
+        if index > 0 { BuilderAppend(parameters, ", "); BuilderAppend(values, ", "); BuilderAppend(pointers, ", "); BuilderAppend(addresses, ", ") }
+        BuilderAppend(parameters, CheckConcat("p", CheckConcat(CheckNumber(index), ": s64"))); BuilderAppend(values, CheckConcat("cast(s64)", CheckNumber(index + 1)))
+        BuilderAppend(pointers, CheckConcat("p", CheckConcat(CheckNumber(index), ": *s64"))); BuilderAppend(addresses, CheckConcat("*values[", CheckConcat(CheckNumber(index), "]")))
+    }
+    source := TextDetach(TextReplace(template, "@GROUPS@", TextDetach(BuilderFinish(groups))))
+    source = TextDetach(TextReplace(source, "@PARAMETERS@", TextDetach(BuilderFinish(parameters))))
+    source = TextDetach(TextReplace(source, "@VALUES@", TextDetach(BuilderFinish(values))))
+    source = TextDetach(TextReplace(source, "@POINTERS@", TextDetach(BuilderFinish(pointers))))
+    source = TextDetach(TextReplace(source, "@ADDRESSES@", TextDetach(BuilderFinish(addresses))))
+    return NativeWrite(test, CheckPath(test.work, "many.zi"), source)
+}
+
+GenerateBorrowGraph :: (test: *NativeTest) -> bool {
+    for index: 0..39 {
+        source: Vec(u8)
+        for child: index + 1..index + 2 { if child < 40 { BuilderAppend(source, CheckConcat("#import \"layer_", CheckConcat(CheckNumber(child), "\";\n"))) } }
+        parts := string.["Marker", CheckNumber(index), " :: ", CheckNumber(index), ";\n"]; BuilderAppend(source, TextJoin(parts[:], ""))
+        if !NativeWrite(test, CheckPath(test.work, CheckConcat("layer_", CheckConcat(CheckNumber(index), ".zi"))), BuilderFinish(source)) { return false }
+    }
+    return NativeWrite(test, CheckPath(test.work, "main.zi"), GenerateFixture(test, "borrow_main.zi.in"))
+}
+
+GenerateProofNegatives :: (test: *NativeTest) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, CheckPath(test.repo, "tests/fixtures/proof_negative.json"))) && JsonCount(*document, document.root) == 14, "invalid proof rejection fixtures") { return false }
+    item := JsonFirst(*document, document.root)
+    while item >= 0 {
+        name := TextDetach(JsonKey(*document, item)); source := CheckConcat(JsonString(*document, item), "\n#program_export\nAnswer :: () -> s32 { return 0 }\n")
+        if !NativeWrite(test, CheckPath(test.work, CheckConcat("bad_", CheckConcat(name, ".zi"))), source) { return false }
+        item = JsonNext(*document, item)
+    }
+    return true
+}
+
+GenerateProofBudget :: (test: *NativeTest) -> bool {
+    arguments: Vec(string); factors: Vec(string); reversed: Vec(string)
+    for index: 0..15 { VecPush(arguments, CheckConcat("x", CheckConcat(CheckNumber(index), ": s32"))) }
+    for index: 0..7 {
+        parts := string.["(x", CheckNumber(index * 2), " + x", CheckNumber(index * 2 + 1), ")"]
+        VecPush(factors, TextDetach(TextJoin(parts[:], "")))
+    }
+    for index: cast(s64)0..factors.count - 1 { VecPush(reversed, factors[factors.count - index - 1]) }
+    parts := string.["#law Budget theorem ", TextDetach(TextJoin(arguments[:], ", ")), " => ", TextDetach(TextJoin(factors[:], " * ")), " == ", TextDetach(TextJoin(reversed[:], " * ")),
+        ";\n#proof Budget { ring; }\n#law_waive Budget \"normalization budget\";\n#program_export\nAnswer :: () -> s32 { return 42 }\n"]
+    return NativeWrite(test, CheckPath(test.work, "budget.zi"), TextJoin(parts[:], ""))
+}
+
+GenerateLawIntegers :: (test: *NativeTest) -> bool {
+    source: Vec(u8); checks: Vec(u8); widths := s64.[8, 16, 32, 64]; prefixes := string.["s", "u"]
+    for prefix: prefixes {
+        for width: widths {
+            signed := prefix == "s"; kind := CheckConcat(prefix, CheckNumber(width)); magnitude := width - ifx signed then 1 else 0
+            maximum := NativeUnsigned(~cast(u64)0 >> cast(u64)(64 - magnitude))
+            wrapped := ifx signed then CheckConcat("-", NativeUnsigned(cast(u64)1 << cast(u64)(width - 1))) else "0"
+            function := "Add@T@ :: (a: @T@, b: @T@) -> @T@ { return a + b }\n#law Wrap@T@ custom Add@T@(cast(@T@)@MAX@, cast(@T@)1) == cast(@T@)(@WRAP@);\n#law Commute@T@ theorem a: @T@, b: @T@ => Add@T@(a,b) == Add@T@(b,a);\n#proof Commute@T@ { unfold Add@T@; ring; }\n"
+            function = TextDetach(TextReplace(function, "@T@", kind)); function = TextDetach(TextReplace(function, "@MAX@", maximum)); function = TextDetach(TextReplace(function, "@WRAP@", wrapped)); BuilderAppend(source, function)
+            check := "    if Add@T@(cast(@T@)@MAX@, cast(@T@)1) != cast(@T@)(@WRAP@) { return 1 }\n"
+            check = TextDetach(TextReplace(check, "@T@", kind)); check = TextDetach(TextReplace(check, "@MAX@", maximum)); check = TextDetach(TextReplace(check, "@WRAP@", wrapped)); BuilderAppend(checks, check)
+        }
+    }
+    BuilderAppend(source, TextReplace(GenerateFixture(test, "law_integer_extra.zi.in"), "@CHECKS@", TextTrimEnd(BuilderFinish(checks))))
+    if !NativeWrite(test, CheckPath(test.work, "numeric.zi"), BuilderFinish(source)) { return false }
+    return NativeWrite(test, CheckPath(test.work, "false.zi"), "NoGreater :: (values: [2]s64) -> bool { return values[0] <= values[1] }\n#law WideFalse custom NoGreater(s64.[9007199254740993,9007199254740992]);\n#program_export\nAnswer :: () -> s32 { return 0 }\n")
+}
+
+GenerateLiteralCache :: (test: *NativeTest) -> bool {
+    cases: Vec(u8)
+    for index: 0..599 {
+        parts := string.["        case ", CheckNumber(index), "; return \"value-", CheckNumber(index), "\\0中文\"\n"]
+        BuilderAppend(cases, TextJoin(parts[:], ""))
+    }
+    return NativeWrite(test, CheckPath(test.work, "vm_literal_cache_test.zi"), TextReplace(GenerateFixture(test, "vm_literal_cache.zi.in"), "@CASES@", TextTrimEnd(BuilderFinish(cases))))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "fixture-generation-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc >= 4, "pass a fixture generation mode") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "global-string" { valid = NativeWrite(*test, CheckPath(test.work, "global_string.zi"), CheckConcat("long_text: string = \"", CheckConcat(GenerateRepeat("a", 2100), "\";\n\nAnswer :: () -> s64 { return long_text.count }\n"))) }
+    else if mode == "long-literals" { valid = GenerateLongLiterals(*test) }
+    else if mode == "global-array" { valid = GenerateGlobalArray(*test) }
+    else if mode == "print" { valid = GeneratePrint(*test) }
+    else if mode == "enums" { valid = GenerateEnums(*test) }
+    else if mode == "portable-limits" { valid = GeneratePortableLimits(*test) }
+    else if mode == "assembly-features" { valid = GenerateAssemblyFeatures(*test) }
+    else if mode == "shared-globals" { valid = GenerateSharedGlobals(*test) }
+    else if mode == "go-many" { valid = GenerateManyArguments(*test) }
+    else if mode == "borrow-graph" { valid = GenerateBorrowGraph(*test) }
+    else if mode == "proof-negatives" { valid = GenerateProofNegatives(*test) }
+    else if mode == "proof-budget" { valid = GenerateProofBudget(*test) }
+    else if mode == "law-integers" { valid = GenerateLawIntegers(*test) }
+    else if mode == "vm-literals" { valid = GenerateLiteralCache(*test) }
+    else if mode == "assembly-capture-limit" {
+        parameters: Vec(string); operands: Vec(string)
+        for index: 0..16 { VecPush(parameters, CheckConcat("arg", CheckConcat(CheckNumber(index), ":s64"))); VecPush(operands, CheckConcat("r:arg", CheckNumber(index))) }
+        parts := string.["F :: (", TextDetach(TextJoin(parameters[:], ", ")), ") {\n    #parallel for 0..2 {\n        #asm(\"x86_64\", \"\", \"\", \"", TextDetach(TextJoin(operands[:], ";")), "\", \"\", \"\") {}\n    }\n}\n"]
+        valid = NativeWrite(*test, CheckPath(test.work, "limit.zi"), TextJoin(parts[:], ""))
+    }
+    else if mode == "guide" {
+        guide := NativeRead(*test, CheckPath(test.work, "guide.txt")); help := NativeRead(*test, CheckPath(test.work, "help.txt"))
+        if !NativeAssert(*test, TextContains(help, "ziran guide") && TextContains(guide, "C, Go, and portable .zx are output paths.") &&
+            TextContains(guide, "Direct owned Vec locals and parameters drop at scope exit") && TextContains(guide, "ziran api --json"), "guide or help omitted documented commands or ownership semantics") { return 1 }
+        start := TextFind(guide, "Source shape:\n")
+        if !NativeAssert(*test, start >= 0, "guide omitted source shape") { return 1 }
+        start += "Source shape:\n".count
+        finish := TextFind(guide[start:], "\n\nDeclarations")
+        if !NativeAssert(*test, finish >= 0, "guide source shape has no declaration boundary") { return 1 }
+        source: Vec(u8); lines := TextSplit(guide[start:start + finish], "\n")
+        for line: lines { BuilderAppend(source, ifx line.count >= 2 then line[2:] else ""); BuilderAppend(source, "\n") }
+        valid = NativeWrite(*test, CheckPath(test.work, "main.zi"), BuilderFinish(source))
+    }
+    else if mode == "string-storage" { valid = NativeWrite(*test, CheckPath(test.work, "string_storage.zi"), TextReplace(GenerateFixture(*test, "string_storage.zi.in"), "@PADDING@", GenerateRepeat("x", 1024))) }
+    else if mode == "vm-metadata" {
+        original := NativeRead(*test, CheckPath(test.work, "first.zi"))
+        generated := CheckConcat("Wide :: () -> s32 {\n total: s32\n", CheckConcat(GenerateRepeat(" total += One(1)\n", 4101), " return total\n}\n"))
+        valid = NativeWrite(*test, CheckPath(test.work, "first.zi"), CheckConcat(original, generated))
+    } else if mode == "private-signature" {
+        parameters: Vec(u8)
+        for index: 0..29 { if index > 0 { BuilderAppend(parameters, ", ") }; BuilderAppend(parameters, CheckConcat("a", CheckConcat(CheckNumber(index), CheckConcat("_", CheckConcat(GenerateRepeat("x", 120), ": T"))))) }
+        print("%\n", BuilderFinish(parameters)); valid = true
+    } else if mode == "array" && argc == 6 {
+        name := TextFromCString(argv[4]); number: JsonDocument
+        if !NativeAssert(*test, JsonRead(*number, TextFromCString(argv[5])), "invalid fixture element count") { return 1 }
+        count, parsed := JsonInteger(*number, number.root)
+        if !NativeAssert(*test, parsed && count > 0 && count <= 1000000 && name != "" && !TextContains(name, "/") && !TextContains(name, ".."), "invalid fixture name or count") { return 1 }
+        valid = GenerateArray(*test, name, count)
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

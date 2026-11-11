@@ -1,0 +1,57 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+SiteTargetsRun :: (test: *NativeTest, command: []string, expected: string, timeout: s64) -> bool {
+    result := NativeInvoke(test, command, "", timeout)
+    return NativeAssert(test, result.code == 0 && TextTrim(result.output) == TextTrim(expected), CheckConcat("published artifact disagrees with its independent oracle: ", CheckConcat(TextDetach(TextJoin(command, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
+}
+
+SiteTargetsMatrix :: (test: *NativeTest, libraries: bool) -> bool {
+    site := CheckPath(test.repo, "site"); path := CheckPath(site, ifx libraries then "generated/library-targets/matrix.json" else "generated/targets/matrix.json")
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, path)), "invalid published benchmark matrix") { return false }
+    examples := JsonMember(*document, document.root, "examples"); targets := string.["zx", "wasm", "zir"]
+    if !NativeAssert(test, JsonKindOf(*document, examples) == .Array && JsonCount(*document, examples) > 0, "published matrix has no examples") { return false }
+    for index: cast(s32)0..JsonCount(*document, examples) - 1 {
+        example := JsonElement(*document, examples, index)
+        for target: targets {
+            if libraries && target != "zx" { continue }
+            cell := JsonMember(*document, JsonMember(*document, example, "targets"), target)
+            if !libraries && CheckField(*document, cell, "status") != "ok" {
+                if !NativeAssert(test, target == "wasm" && TextContains(CheckField(*document, cell, "diagnostic"), "outside the wasm execution subset"), "published target was skipped without its actual subset diagnostic") { return false }
+                continue
+            }
+            files := JsonMember(*document, cell, "files")
+            if !NativeAssert(test, JsonKindOf(*document, files) == .Array && JsonCount(*document, files) > 0, "published target has no compiler outputs") { return false }
+            if target == "zir" {
+                for at: cast(s32)0..JsonCount(*document, files) - 1 {
+                    args := string.[CheckPath(PathParent(test.ziran), "zi-inspect"), CheckPath(site, CheckField(*document, JsonElement(*document, files, at), "path"))]
+                    unused NativeRun(test, args[:]); if test.failed { return false }
+                }
+                continue
+            }
+            artifact := CheckPath(site, CheckField(*document, JsonElement(*document, files, 0), "path")); command: Vec(string)
+            if target == "zx" { VecPush(command, CheckPath(PathParent(test.ziran), "zi2zx")); VecPush(command, "run"); VecPush(command, "--vm"); VecPush(command, artifact) }
+            else { VecPush(command, "node"); VecPush(command, CheckPath(test.repo, "scripts/site_target_wasm.cjs")); VecPush(command, artifact); if CheckField(*document, example, "stdout") != "" { VecPush(command, "--output") } }
+            expected := CheckField(*document, example, "expected")
+            if !libraries && CheckField(*document, example, "stdout") != "" { expected = CheckField(*document, example, "stdout") }
+            if !SiteTargetsRun(test, command[:], expected, ifx libraries then 60000 else 30000) { return false }
+        }
+    }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "site-targets-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !SiteTargetsMatrix(*test, false) || !SiteTargetsMatrix(*test, true) { return 1 }
+    print("Published ZX/WebAssembly artifacts agree with independent oracles, checked IR decodes and library scenarios execute in local tests\n")
+    return 0
+}

@@ -9,30 +9,7 @@ mkdir -p "$work"
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 # Exercise more literal sites than the bounded cache can retain at once.
 # Every expected result is also built dynamically, including NUL and UTF-8.
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-root = Path(sys.argv[1])
-cases = '\n'.join('        case %d; return "value-%d\\0中文"' % (i, i) for i in range(600))
-(root / 'vm_literal_cache_test.zi').write_text('''#import "std/text_buffer"
-Choice :: (index: s32) -> string {
-    if index == {
-%s
-    }
-    return ""
-}
-main :: () -> s32 {
-    for pass: 0..1 {
-        for i: 0..599 {
-            expected: Vec(u8)
-            BuilderPrint(*expected, "value-%%\\0中文", i)
-            if Choice(cast(s32)i) != BuilderFinish(expected) { return 1 }
-        }
-    }
-    return 0
-}
-''' % cases)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" vm-literals
 source=$work/vm_literal_cache_test.zi
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" "$source"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \

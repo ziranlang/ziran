@@ -48,46 +48,7 @@ if "$ziran" run --target=c script.zi fail > /dev/null; then
     echo 'native run hid a failing status' >&2; exit 1
 fi
 # The dynamically sized launch path preserves every argument beyond the old cap.
-python3 - "$ziran" <<'PYTHON'
-import subprocess
-import sys
-
-ziran = sys.argv[1]
-for count in (257, 600):
-    arguments = [f"argument {index}" for index in range(count)]
-    arguments[:7] = ['', 'two words', '--help', '--root', 'x.zi', '\'"\\', 'unicode-λ']
-    for separator in ([], ["--"]):
-        result = subprocess.run(
-            [ziran, "run", "--target=c", "script.zi", *separator, *arguments],
-            capture_output=True, text=True, check=True,
-        )
-        assert result.stdout == "41:" + ":".join(arguments) + "\n", result
-        assert result.stderr == "", result
-    result = subprocess.run(
-        [ziran, "script.zi", *arguments], capture_output=True, text=True,
-    )
-    assert result.returncode == 0, result
-    assert result.stdout == "41:" + ":".join(arguments) + "\n", result
-    assert result.stderr == "", result
-    arguments[0] = "fail"
-    result = subprocess.run(
-        [ziran, "run", "--target=c", "script.zi", "--", *arguments],
-        capture_output=True, text=True,
-    )
-    assert result.returncode == 3, result
-    assert result.stdout == "41:" + ":".join(arguments) + "\n", result
-    assert result.stderr == "", result
-
-# Runner errors still identify the invalid option rather than an argument cap.
-result = subprocess.run(
-    [ziran, "run", "--target=c", "--unknown-script-option", "script.zi", *arguments],
-    capture_output=True, text=True,
-)
-assert result.returncode != 0, result
-assert "unknown script run argument: --unknown-script-option" in result.stderr, result
-assert "too many script arguments" not in result.stderr, result
-print("native argument forwarding: 257 and 600 arguments, contents/order, status and diagnostics")
-PYTHON
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" arguments
 # A dependency edit rebuilds the program.
 sed -i 's/return 41/return 42/' helper.zi
 test "$("$ziran" run --target=c script.zi)" = '42'

@@ -1,0 +1,3 @@
+#import "Extra/Value"
+Revision :: ExtraNumber + 1;
+Value :: struct { number: s32 }

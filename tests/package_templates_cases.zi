@@ -1,0 +1,121 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+TemplateOverrides :: (test: *NativeTest, app: string) -> bool {
+    aliases := string.["ziran"]; paths := string.[test.repo]
+    return FixtureOverrides(test, app, aliases[:], paths[:])
+}
+
+Templates :: (test: *NativeTest) -> bool {
+    root := test.work
+    if !FixtureIsolation(test, root) { return false }
+    work := CheckPath(root, "templates"); tool := CheckPath(root, "tool")
+    // Template creation resolves metadata from a generated Git fixture. Builds
+    // explicitly select the compiler under test; the real source tree is never cloned.
+    if !FixtureInit(test, tool) || !NativeWrite(test, CheckPath(tool, "VERSION"), "template fixture\n") || !NativeAssert(test, CreateDirectories(work), "create template test folder") { return false }
+    unused FixtureCommit(test, tool, "template toolchain metadata")
+    prefixes := string.["https://github.com/ziranlang/ziran.git"]; targets := string.[FixtureUri(tool)]
+    if !FixtureRedirects(test, prefixes[:], targets[:]) { return false }
+    create := string.["new", "greeter"]; created := PackageCommand(test, work, create[:])
+    greeter := CheckPath(work, "greeter"); manifest_path := CheckPath(greeter, "ziran.toml")
+    manifest := NativeRead(test, manifest_path)
+    if !NativeAssert(test, TextContains(created, "created greeter from cli") && TextContains(created, "next: cd greeter && ziran run") &&
+        TextContains(manifest, "name = \"greeter\"") && !TextContains(manifest, "{{") && IsFile(CheckPath(greeter, ".gitignore")) &&
+        IsFile(CheckPath(greeter, "ziran.lock")), "built-in CLI template was not completely materialized") || !TemplateOverrides(test, greeter) { return false }
+    overrides := CheckPath(work, "overrides.toml")
+    if !NativeWrite(test, overrides, NativeRead(test, CheckPath(greeter, "ziran.local.toml"))) { return false }
+    local_create := string.["new", "local-tool", "--overrides", overrides]
+    local_created := PackageCommand(test, work, local_create[:]); local_tool := CheckPath(work, "local-tool")
+    local_file := CheckPath(local_tool, "ziran.local.toml")
+    run := string.["run"]
+    if !NativeAssert(test, TextContains(local_created, "created local-tool from cli") && NativeSameFile(local_file, overrides) &&
+        (PathStatus(local_file).mode & 511) == 384 && PackageCommand(test, local_tool, run[:]) == "Hello, world!\n", "template overrides were not copied privately before locking") { return false }
+    before_manifest := NativeRead(test, CheckPath(local_tool, "ziran.toml"))
+    init_override := string.["init", "--overrides", overrides]; refused_local := PackageCommand(test, local_tool, init_override[:], false)
+    if !NativeAssert(test, TextContains(refused_local, "ziran.local.toml already exists") && NativeRead(test, CheckPath(local_tool, "ziran.toml")) == before_manifest &&
+        NativeSameFile(local_file, overrides), "init overwrote existing local overrides or manifest") { return false }
+    malformed := CheckPath(work, "malformed.toml")
+    if !NativeWrite(test, malformed, "[overrides\n") { return false }
+    configurations := string.[malformed, CheckPath(work, "missing.toml")]
+    for configuration: configurations {
+        command := string.["new", "invalid-local", "--overrides", configuration]
+        failure := PackageCommand(test, work, command[:], false)
+        if !NativeAssert(test, TextContains(failure, "cannot read or parse local overrides") && !PathExists(CheckPath(work, "invalid-local")), "bad overrides left a partially created project") { return false }
+    }
+    arguments := string.["run", "--", "Ada", "--locked"]
+    if !NativeAssert(test, PackageCommand(test, greeter, run[:]) == "Hello, world!\n" && PackageCommand(test, greeter, arguments[:]) == "Hello, Ada!\n", "project program arguments were not preserved") { return false }
+    build := string.["build"]; unused PackageCommand(test, greeter, build[:])
+    grace := string.[CheckPath(greeter, "build/greeter"), "Grace"]
+    if !NativeExpect(test, grace[:], "Hello, Grace!\n", greeter) { return false }
+    check := string.["check"]; unused PackageCommand(test, greeter, check[:])
+    prefix := CheckPath(work, "prefix"); install := string.["install", "--prefix", prefix]
+    installed := PackageCommand(test, greeter, install[:]); installed_path := CheckPath(prefix, "bin/greeter")
+    executable := string.[installed_path]
+    if !NativeAssert(test, TextContains(installed, CheckConcat("installed ", installed_path)), "missing installed program") || !NativeExpect(test, executable[:], "Hello, world!\n", work) { return false }
+    bundle_source := CheckPath(greeter, "src/bundle_main.zi")
+    if !NativeWrite(test, bundle_source, NativeRead(test, CheckPath(test.repo, "tests/fixtures/package_templates/bundle_main.zi"))) { return false }
+    linked_bundle := CheckPath(work, "greeter.zx")
+    bundle := string.["bundle", "--root", "src", "--entry", "bundle_main:main", "-o", linked_bundle, bundle_source]
+    unused PackageCommand(test, greeter, bundle[:])
+    lock_path := CheckPath(greeter, "ziran.lock"); saved_lock := NativeRead(test, lock_path)
+    if !NativeWrite(test, lock_path, "{ broken") { return false }
+    run_bundle := string.["run", linked_bundle]
+    if !NativeAssert(test, PackageCommand(test, greeter, run_bundle[:]) == "Hello, bundle!\n0\n", "running a standalone bundle tried to load project metadata") ||
+        !NativeWrite(test, lock_path, saved_lock) || !NativeWrite(test, CheckPath(greeter, "src/main.zi"), "main :: () -> s32 { return 3 }\n") { return false }
+    status := string.[test.ziran, "run"]
+    if !NativeAssert(test, NativeInvoke(test, status[:], greeter).code == 3, "project run lost the program exit status") { return false }
+    occupied := PackageCommand(test, work, create[:], false)
+    if !NativeAssert(test, TextContains(occupied, "is not empty; use ziran init inside it"), "new overwrote an occupied project") { return false }
+    library_create := string.["new", "tiny-lib", "--template", "lib"]
+    library := PackageCommand(test, work, library_create[:]); tiny := CheckPath(work, "tiny-lib")
+    if !NativeAssert(test, TextContains(library, "next: cd tiny-lib && ziran check") && TextContains(NativeRead(test, CheckPath(tiny, "ziran.toml")), "tiny_lib = \"src/tiny_lib.zi\"") &&
+        IsFile(CheckPath(tiny, "src/tiny_lib.zi")), "library template failed to substitute module name") || !TemplateOverrides(test, tiny) { return false }
+    unused PackageCommand(test, tiny, check[:])
+    unknown_command := string.["new", "x", "--template", "nosuch"]; unknown := PackageCommand(test, work, unknown_command[:], false)
+    if !NativeAssert(test, TextContains(unknown, "no built-in template nosuch") && !PathExists(CheckPath(work, "x")), "unknown template left its project directory") { return false }
+    kit := CheckPath(root, "kit")
+    if !FixtureInit(test, kit) || !NativeWrite(test, CheckPath(kit, "ziran.toml"), "[package]\nname = \"Kit\"\nmodule_roots = [\"src\"]\n[templates]\nwindow = \"templates/window\"\npanel = \"templates/panel\"\n") ||
+        !NativeWrite(test, CheckPath(kit, "templates/window/ziran.toml"), "[package]\nname = \"{{name}}\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\", \"tests\"]\nbridge_modules = [\"app\"]\n\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\nref = \"master\"\n\n# Window settings.\n[window]\ntitle = \"{{name}}\"\n") ||
+        !NativeWrite(test, CheckPath(kit, "templates/window/src/app.zi"), "// {{name}} as {{module}}\nmain :: () -> s32 { return 0 }\n") ||
+        !NativeWrite(test, CheckPath(kit, "templates/window/tests/app_test.zi"), "AppTest :: () -> s32 { return 42 }\n") ||
+        !NativeWrite(test, CheckPath(kit, "templates/panel/ziran.toml"), "[package]\nname = \"{{name}}\"\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\nref = \"master\"\n") ||
+        !NativeWrite(test, CheckPath(kit, "templates/panel/panel.txt"), "panel for {{name}}\n") { return false }
+    unused FixtureCommit(test, kit, "template kit fixture")
+    kit_prefixes := string.[prefixes[0], "https://ziran-lang.org/owner/kit.git"]; kit_targets := string.[targets[0], FixtureUri(kit)]
+    if !FixtureRedirects(test, kit_prefixes[:], kit_targets[:]) { return false }
+    window_command := string.["new", "my-app", "--template", "ziran-lang.org/owner/kit"]
+    windowed := PackageCommand(test, work, window_command[:])
+    if !NativeAssert(test, TextContains(windowed, "created my-app from Kit:window") && TextHasPrefix(NativeRead(test, CheckPath(work, "my-app/src/app.zi")), "// my-app as my_app"), "Git template default or source substitution failed") { return false }
+    panel := string.["new", "paneled", "--template", "https://ziran-lang.org/owner/kit.git:panel"]; unused PackageCommand(test, work, panel[:])
+    if !NativeAssert(test, NativeRead(test, CheckPath(work, "paneled/panel.txt")) == "panel for paneled\n", "named Git template was not selected") { return false }
+    missing_command := string.["new", "other", "--template", "../kit:nosuch"]
+    missing := PackageCommand(test, work, missing_command[:], false)
+    if !NativeAssert(test, TextContains(missing, "package Kit has no template nosuch; it has window, panel"), "missing template diagnostic lost available names") ||
+        !NativeWrite(test, CheckPath(greeter, "src/main.zi"), "main :: () -> s32 { return 0 }\n") { return false }
+    init := string.["init", "--template", kit]; merged := PackageCommand(test, greeter, init[:]); after := NativeRead(test, manifest_path)
+    messages := string.["kept entry = \"src/main.zi\" in [package]; the template has \"src/app.zi\"", "extended module_roots in [package]", "added bridge_modules to [package]", "added [window]"]
+    for message: messages { if !NativeAssert(test, TextContains(merged, message), CheckConcat("missing merge diagnostic: ", message)) { return false } }
+    contents := string.["entry = \"src/main.zi\"", "module_roots = [\"src\", \"tests\"]", "# Window settings.\n[window]\ntitle = \"greeter\""]
+    for content: contents { if !NativeAssert(test, TextContains(after, content), "template merge lost an existing value, array entry or comment") { return false } }
+    if !NativeAssert(test, IsFile(CheckPath(greeter, "src/app.zi")), "template merge omitted source") { return false }
+    again := PackageCommand(test, greeter, init[:])
+    if !NativeAssert(test, NativeRead(test, manifest_path) == after && TextContains(again, "kept src/app.zi (already present)"), "template merge was not idempotent") { return false }
+    unused PackageCommand(test, greeter, run[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-templates-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !Templates(*test) { return 1 }
+    print("Local package templates: built-in and Git sources, private overrides, execution, installation and idempotent merges passed\n")
+    return 0
+}

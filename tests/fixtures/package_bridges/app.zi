@@ -1,0 +1,8 @@
+#import "Host"
+#import "Demo"
+AppFrame :: () -> s32 { return 40 }
+#program_export
+main :: () -> s32 {
+    if RunHost() + DemoValue() == 42 { return 0 }
+    return 1
+}

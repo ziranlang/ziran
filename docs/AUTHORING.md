@@ -13,20 +13,18 @@ Canonical `.zi` is the only authoring source. The checked tools around it are:
 5. Verify: `check`, `ir`, `bundle`, `run`, `zi2zx run --vm`, and native C/Go
    runs where the task asks for portable parity.
 
-`tests/authoring_workflows.sh` runs these real commands on the frozen L-01
-corpus (`tests/llm_authoring/tasks.json`, corpus 1.0.0):
+The lean suite checks these production commands directly:
 
 ```sh
-build-queue -- sh tests/authoring_workflows.sh build/bin/ziran
-build-queue -- sh tests/authoring_workflows.sh build/bin/ziran --report build/check-logs/authoring-report.json
-python3 tests/authoring_workflows.py --validate-only
+build-queue -- sh tests/zir_api.sh build/bin/ziran
+build-queue -- sh tests/semantic_edit.sh build/bin/ziran
+build-queue -- sh tests/transport_view.sh build/bin/ziran
+build-queue -- sh tests/tool_diagnostics.sh build/bin/ziran
 ```
 
-`--report` writes only to a git-ignored path. The suite works in ignored
-`build/scratch/authoring-workflows/`. It never edits the corpus or working
-source. It calls no model, makes no network request and downloads nothing.
-Exit codes are 0 when every workflow passes, 1 when a workflow fails and 2 for
-infrastructure errors.
+The older corpus replay suites and their evaluator helpers were removed during
+test pruning. The frozen L-01 corpus (`tests/llm_authoring/tasks.json`, version
+1.0.0) remains as research data for the historical methodology and reports below.
 
 ## What each task checks
 

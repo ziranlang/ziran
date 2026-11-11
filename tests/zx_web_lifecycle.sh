@@ -160,5 +160,4 @@ make -C "$repo" -j2 BOOTSTRAP=1 BUILD_DIR="$work/linked-lib" \
     -s ALLOW_MEMORY_GROWTH=1 -s EXIT_RUNTIME=0 -s STACK_SIZE=1048576 \
     --preload-file "$work/fixtures@/fixtures"
 
-python3 "$repo/tests/zx_web_lifecycle.py" --root "$repo" --work "$work" \
-    --chromium "$chromium"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/zx_web_lifecycle_cases.zi" -- "$ziran" "$work" "$chromium"

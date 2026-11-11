@@ -1,0 +1,40 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "package_resolution_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-wide-exports-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    wide := CheckPath(test.work, "wide")
+    if !FixtureInit(*test, wide) { return 1 }
+    manifest: Vec(u8); BuilderAppend(manifest, "[package]\nname = \"Wide\"\nmodule_roots = [\"src\"]\n[exports]\n")
+    for index: 0..699 {
+        name := CheckConcat("w", CheckNumber(index)); file := CheckConcat("src/", CheckConcat(name, ".zi"))
+        BuilderAppend(manifest, name); BuilderAppend(manifest, " = "); BuilderAppend(manifest, FixtureQuote(file)); BuilderAppend(manifest, "\n")
+        if !NativeWrite(*test, CheckPath(wide, file), CheckConcat("W", CheckConcat(CheckNumber(index), CheckConcat(" :: () -> s32 { return ", CheckConcat(CheckNumber(index), " }\n"))))) { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(wide, "ziran.toml"), BuilderFinish(manifest)) { return 1 }
+    pin := FixtureCommit(*test, wide, "seven hundred public modules")
+    apps := string.[CheckPath(test.work, "wide-app"), CheckPath(test.work, "pinned-app")]
+    refs := string.["master", pin]; numbers := s64.[699, 7]
+    lock := string.["lock"]
+    for index: cast(s64)0..1 {
+        app := apps[index]; number := CheckNumber(numbers[index])
+        if !NativeWrite(*test, CheckPath(app, "ziran.toml"), CheckConcat(ResolutionProject(ifx index == 0 then "WideApp" else "PinnedApp"), ResolutionDependency("Wide", wide, refs[index]))) ||
+            !ResolutionOverrides(*test, app) || !NativeWrite(*test, CheckPath(app, "src/app.zi"), CheckConcat("#import \"w", CheckConcat(number,
+            CheckConcat("\"\n#program_export\nmain :: () -> s32 { return W", CheckConcat(number, CheckConcat("() - ", CheckConcat(number, " }\n"))))))) { return 1 }
+        unused PackageCommand(*test, app, lock[:])
+        if index == 1 && !NativeAssert(*test, TextContains(NativeRead(*test, CheckPath(app, "ziran.lock")), pin), "full commit hash did not enter lock") { return 1 }
+        if !FixtureCompile(*test, app, CheckPath(app, "build/c"), CheckPath(app, "src/app.zi"), true) { return 1 }
+    }
+    print("Local wide package exports: 700 modules and full commit pins compiled and executed\n")
+    return 0
+}

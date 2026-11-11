@@ -1,0 +1,36 @@
+package main
+import ("fmt"; "sync")
+func require(ok bool) { if !ok { panic("Go assembly conformance") } }
+func main() {
+    marker := GoAssemblyTest_Marker()
+    require(marker == EXPECTED)
+    block := int32(3); if marker == 7 { block = 9 }
+    require(GoAssemblyTest_BlockMarker() == block && GoAssemblyTest_Startup() == marker)
+    require(NativeAssemblyTest_Answer() == 42)
+    require(NativeAssemblyTest_Byte(-100) == -100 && NativeAssemblyTest_Narrow(0x1234567887654321) == 0x87654321)
+    require(NativeAssemblyTest_FixedDestination(0x1234567887654321) == 0x87654321)
+    require(NativeAssemblyTest_Odd(7) && !NativeAssemblyTest_Odd(8) && NativeAssemblyTest_BoolValue(true) == 1)
+    require(NativeAssemblyTest_Add(-9) == -2 && NativeAssemblyTest_NamedTie(-9) == -2)
+    pair := NativeAssemblyTest_DivParts(47, 5); require(pair.Low == 9 && pair.High == 2)
+    pair = NativeAssemblyTest_MemParts(0x1234567887654321); require(pair.Low == 0x1234567887654321 && pair.High == 0x12345678)
+    require(NativeAssemblyTest_MemInput(0xffffffffffffffff) == 0xffffffffffffffff)
+    keywords := NativeAssemblyTest_KeywordFields(57); require(keywords.Type == 57 && keywords.ZiranKeywordType0 == 57)
+    require(NativeAssemblyTest_Word(41) == 42 && NativeAssemblyTest_SignedWord(-7) == -7)
+    require(NativeAssemblyTest_FloatAdd(1.25, 2.5) == 3.75)
+    require(NativeAssemblyTest_Memory(-13) == -26 && NativeAssemblyTest_Mixed(93) == 0 && NativeAssemblyTest_BlockOdd(93))
+    require(NativeAssemblyTest_Shadow(17,25) == 42 && NativeAssemblyTest_Dialect(-19) == -19 && NativeAssemblyTest_DialectSuffix(-19) == -19)
+    require(NativeAssemblyTest_Labels(7) == 28 && NativeAssemblyTest_LabelData() == 48)
+    NativeAssemblyTest_Barrier()
+    require(GoAssemblyTest_InputAlias(5) == 18)
+    value := int32(40); GoAssemblyTest_Store(&value); require(value == 41)
+    require(GoAssemblyTest_Pointer(&value) == &value && GoAssemblyTest_PointerBlock(&value) == &value)
+    pointed := GoAssemblyTest_Pair(-17,&value); require(pointed.First == -17 && pointed.Second == 7 && pointed.Pointer == &value)
+    link := Link{Value:42}; link.Next = &link; require(GoAssemblyTest_Graph(&link) == 42)
+    GoAssemblyTest_Comment(); require(GoAssemblyTest_Shadow(42) == 42)
+    var wait sync.WaitGroup
+    for worker:=0;worker<4;worker++ { wait.Add(1); go func(){defer wait.Done(); for i:=0;i<200;i++ {
+        require(NativeAssemblyTest_Count(^uint64(0)) == 64 && NativeAssemblyTest_Count32(^uint32(0)) == 32)
+        require(GoAssemblyTest_InputAlias(int64(i)) == 18)
+    }}() }; wait.Wait()
+    fmt.Println(marker,block)
+}

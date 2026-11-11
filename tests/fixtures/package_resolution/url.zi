@@ -1,0 +1,7 @@
+#import "ssh_library/Value"
+#import "std/text"
+#program_export
+main :: () -> s32 {
+    if Value() == 2 && LowerASCII(cast(u8)65) == cast(u8)97 { return 0 }
+    return 1
+}

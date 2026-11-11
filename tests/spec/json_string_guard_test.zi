@@ -1,0 +1,30 @@
+#import "json_bytes"
+#import "byte_text_linux"
+c :: #system_library "libc";
+Pagesize :: () -> s32 #foreign c "getpagesize";
+Map :: (address: *void, length: usize, protection: s32, flags: s32, fd: s32, offset: s64) -> *void #foreign c "mmap";
+Protect :: (address: *void, length: usize, protection: s32) -> s32 #foreign c "mprotect";
+Unmap :: (address: *void, length: usize) -> s32 #foreign c "munmap";
+
+#program_export
+main :: () -> s32 {
+    page := cast(s64)Pagesize()
+    if page < 256 { return 1 }
+    memory := Map(null,cast(usize)(page * 2),3,34,-1,0)
+    if cast(s64)(cast(usize)memory) == -1 { return 2 }
+    defer { unused Unmap(memory,cast(usize)(page * 2)) }
+    bytes := BytesFromPointer(cast(*u8)memory,cast(u64)(page * 2))
+    if Protect(cast(*void)*bytes[page],cast(usize)page,0) != 0 { return 3 }
+    for size: 0..128 {
+        for i: page - size..page - 1 { bytes[i] = 120 }
+        text := TextFromBytes(bytes[page - size:page])
+        if JsonStringRunEnd(text,0) != size || JsonStringRunEnd(text,size) != size { return 4 }
+        for start: 0..size { if JsonStringRunEnd(text,start) != size { return 5 } }
+        for position: 0..size - 1 {
+            bytes[page - size + position] = 34
+            if JsonStringRunEnd(text,0) != position { return 6 }
+            bytes[page - size + position] = 120
+        }
+    }
+    return 0
+}

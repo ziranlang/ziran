@@ -1,0 +1,8 @@
+using Own :: #import "Application/PublicLocal";
+using Short :: #import "local";
+using P :: #import "outer/Wrapper";
+using V :: #import "renamed/Public";
+main :: () -> s32 {
+    value: V.Value; value.number = Own.LocalNumber
+    return P.WrappedEcho(value).number - Short.LocalNumber
+}

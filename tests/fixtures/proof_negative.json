@@ -1,0 +1,16 @@
+{
+  "false": "#law Bad theorem x: s32 => x + 1 == x;\n#proof Bad { ring; }",
+  "wrap_order": "#law Bad theorem x: u8 => x + 1 > x;\n#proof Bad { cases; order; }",
+  "wrong_type": "#law Bad theorem x: s32 => x == cast(u32)0;\n#proof Bad { ring; }",
+  "missing": "#law Bad theorem x: s32 => x == x;",
+  "incomplete": "#law Bad theorem x: s32 => x == x;\n#proof Bad { cases; }",
+  "circular": "#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#proof A { use B(x); }\n#proof B { use A(x); }",
+  "waived_cycle": "#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#proof A { use B(x); }\n#proof B { use A(x); }\n#law_waive A \"invalid\";\n#law_waive B \"invalid\";",
+  "unproved_lemma": "#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#law_waive B \"pending\";\n#proof A { use B(x); }",
+  "bad_rewrite": "#law A theorem x: s32 => x + 1 == x;\n#law B theorem x: s32 => x + 1 == x;\n#proof A { ring; }\n#proof B { rewrite A(x); refl; }",
+  "duplicate": "#law A theorem x: s32 => x == x;\n#proof A { refl; }\n#proof A { refl; }",
+  "foreign": "Host :: #system_library \"host\";\nRead :: () -> s32 #foreign Host;\n#law Bad theorem x: s32 => Read() == x;\n#proof Bad { unfold Read; ring; }",
+  "loop": "Loop :: (x: s32) -> s32 { value: s32 = x; while value > 0 { value -= 1 }; return value }\n#law Bad theorem x: s32 => Loop(x) == 0;\n#proof Bad { unfold Loop; ring; }",
+  "recursion": "Rec :: (x: s32) -> s32 { return Rec(x) }\n#law Bad theorem x: s32 => Rec(x) == x;\n#proof Bad { unfold Rec; ring; }",
+  "waive_invalid": "#law Bad theorem x: s32 => x + 1 == x;\n#proof Bad { ring; }\n#law_waive Bad \"cannot authorize an invalid proof\";"
+}

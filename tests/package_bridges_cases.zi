@@ -1,0 +1,78 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "package_resolution_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+
+BridgeSource :: (test: *NativeTest, name: string) -> string { return NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/package_bridges/", name))) }
+
+BridgePackage :: (name: string, file: string) -> string {
+    parts := string.["[package]\nname = ", FixtureQuote(name), "\nmodule_roots = [\"src\"]\n[exports]\n", name, " = ", FixtureQuote(CheckConcat("src/", file)), "\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+Bridges :: (test: *NativeTest) -> bool {
+    if !FixtureIsolation(test, test.work) { return false }
+    host := CheckPath(test.work, "host"); demo := CheckPath(test.work, "demo"); app := CheckPath(test.work, "app")
+    if !FixtureInit(test, host) || !NativeWrite(test, CheckPath(host, "ziran.toml"), BridgePackage("Host", "Host.zi")) ||
+        !NativeWrite(test, CheckPath(host, "src/Host.zi"), BridgeSource(test, "host.zi")) { return false }
+    unused FixtureCommit(test, host, "dependency imports app bridge")
+    demo_manifest := "[package]\nname = \"Demo\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\"]\nbridge_modules = [\"app\"]\n[exports]\nDemo = \"src/Demo.zi\"\n"
+    if !FixtureInit(test, demo) || !NativeWrite(test, CheckPath(demo, "ziran.toml"), demo_manifest) ||
+        !NativeWrite(test, CheckPath(demo, "src/app.zi"), "DemoFrame :: () -> s32 { return 1 }\n") || !NativeWrite(test, CheckPath(demo, "src/Demo.zi"), BridgeSource(test, "demo.zi")) { return false }
+    unused FixtureCommit(test, demo, "dependency preserves own app module")
+    base := TextDetach(TextReplace(ResolutionProject("Bridged"), "module_roots = [\"src\"]", "module_roots = [\"src\"]\nbridge_modules = [\"app\"]"))
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), CheckConcat(base, CheckConcat(ResolutionDependency("Host", host), ResolutionDependency("Demo", demo)))) ||
+        !ResolutionOverrides(test, app) || !NativeWrite(test, CheckPath(app, "src/app.zi"), BridgeSource(test, "app.zi")) { return false }
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    if !FixtureCompile(test, app, CheckPath(test.work, "bridged-c"), CheckPath(app, "src/app.zi"), true) { return false }
+    hosted := CheckPath(test.work, "hosted"); host_app := CheckPath(test.work, "host-app")
+    if !FixtureInit(test, hosted) || !NativeWrite(test, CheckPath(hosted, "ziran.toml"), BridgePackage("Hosted", "Hosted.zi")) ||
+        !NativeWrite(test, CheckPath(hosted, "src/measure.zi"), BridgeSource(test, "measure.zi")) ||
+        !NativeWrite(test, CheckPath(hosted, "src/Hosted.zi"), BridgeSource(test, "hosted.zi")) { return false }
+    unused FixtureCommit(test, hosted, "unexported capability module")
+    if !NativeWrite(test, CheckPath(host_app, "ziran.toml"), CheckConcat(ResolutionProject("HostApp"), ResolutionDependency("hosted", hosted))) ||
+        !ResolutionOverrides(test, host_app) || !NativeWrite(test, CheckPath(host_app, "src/app.zi"), BridgeSource(test, "host_app.zi")) { return false }
+    unused PackageCommand(test, host_app, lock[:])
+    bundle_path := CheckPath(test.work, "hosted.zx")
+    bundle := string.["bundle", "--project", "--bind", "hosted/measure:Measure=app:Doubled", "--entry", "app:main", "-o", bundle_path, CheckPath(host_app, "src/app.zi")]
+    unused PackageCommand(test, host_app, bundle[:]); run := string.["run", bundle_path]
+    if !NativeAssert(test, TextTrim(PackageCommand(test, host_app, run[:])) == "41", "unexported dependency capability was not bound by import path") { return false }
+    missing := string.["bundle", "--project", "--bind", "hosted/missing:Measure=app:Doubled", "--entry", "app:main", "-o", CheckPath(test.work, "missing.zx"), CheckPath(host_app, "src/app.zi")]
+    if !NativeAssert(test, TextContains(PackageCommand(test, host_app, missing[:], false), "no direct dependency has"), "missing binding module was accepted") { return false }
+    templates := CheckPath(test.work, "template-package")
+    template_manifest := TextDetach(TextReplace(ResolutionProject("{{name}}", "src/{{module}}.zi"), "module_roots = [\"src\"]", "module_roots = [\"src\"]\nlinks = [\"m\"]"))
+    if !NativeWrite(test, CheckPath(templates, "ziran.toml"), "[package]\nname = \"Templates\"\n[templates]\napp = \"templates/app\"\n") ||
+        !NativeWrite(test, CheckPath(templates, "templates/app/ziran.toml"), template_manifest) ||
+        !NativeWrite(test, CheckPath(templates, "templates/app/src/{{module}}.zi"), BridgeSource(test, "template_main.zi")) { return false }
+    overrides := CheckPath(test.work, "overrides.toml")
+    if !NativeWrite(test, overrides, NativeRead(test, CheckPath(app, "ziran.local.toml"))) { return false }
+    templated := CheckPath(test.work, "templated-app")
+    create := string.["new", templated, "--template", templates, "--name", "demo-app", "--overrides", overrides]
+    created := PackageCommand(test, test.work, create[:]); plain_run := string.["run"]
+    if !NativeAssert(test, TextContains(created, "created demo-app from Templates:app") && IsFile(CheckPath(templated, "src/demo_app.zi")) &&
+        TextTrim(PackageCommand(test, templated, plain_run[:])) == "7", "local package template failed to create or run substituted entry") { return false }
+    initialized := CheckPath(test.work, "initialized-app")
+    if !NativeWrite(test, CheckPath(initialized, "ziran.toml"), "[package]\nname = \"Existing\"\nmodule_roots = [\"src\"]\n") ||
+        !NativeWrite(test, CheckPath(initialized, "src/Existing.zi"), "Value :: 11\n") { return false }
+    init := string.["init", "--template", templates, "--name", "Existing", "--overrides", overrides]
+    applied := PackageCommand(test, initialized, init[:])
+    if !NativeAssert(test, TextContains(applied, "applied Templates:app") && NativeRead(test, CheckPath(initialized, "src/Existing.zi")) == "Value :: 11\n" &&
+        TextContains(NativeRead(test, CheckPath(initialized, "ziran.toml")), "entry = \"src/Existing.zi\""), "init overwrote existing source or failed to merge entry") { return false }
+    manifest_path := CheckPath(templated, "ziran.toml")
+    if !NativeWrite(test, manifest_path, TextReplace(NativeRead(test, manifest_path), "links = [\"m\"]", "links = [\"ziran-missing-link-2.0\"]")) { return false }
+    build := string.["build"]
+    return NativeAssert(test, TextContains(PackageCommand(test, templated, build[:], false), "ziran-missing-link"), "declared library did not reach native linker") && !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-bridges-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !Bridges(*test) { return 1 }
+    print("Local package bridges: app boundaries, private capability binding, local templates and native links passed\n")
+    return 0
+}

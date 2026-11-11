@@ -1,0 +1,151 @@
+// Private Chromium over its DevTools pipe. This never attaches to an existing
+// browser, display or profile, and never captures desktop pixels.
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_channel_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+NativeBrowser :: struct {
+    channel: ProcessChannel
+    pending: Vec(u8)
+    errors: Vec(string)
+    console: Vec(string)
+    sequence: s64
+    session: string
+    protocol_error: s64
+    profile: string
+}
+
+BrowserConsume :: (browser: *NativeBrowser, count: s64) {
+    remaining := browser.pending.count - count
+    for index: cast(s64)0..remaining - 1 { browser.pending[index] = browser.pending[index + count] }
+    unused VecResize(browser.pending, remaining)
+}
+
+BrowserCommand :: (test: *NativeTest, browser: *NativeBrowser, method: string, params: *JsonDocument, reply: *JsonDocument, timeout: s64 = 45000) -> bool {
+    if test.failed { return false }
+    browser.sequence += 1; browser.protocol_error = 0
+    request: JsonDocument
+    request.root = JsonNewObject(*request)
+    JsonSet(*request, request.root, "id", JsonNewInteger(*request, browser.sequence))
+    CheckPut(*request, request.root, "method", method)
+    JsonSet(*request, request.root, "params", JsonCopy(*request, params, params.root))
+    if browser.session != "" { CheckPut(*request, request.root, "sessionId", browser.session) }
+    bytes: Vec(u8); BuilderAppend(bytes, JsonWrite(*request, request.root, JsonCompactStyle())); VecPush(bytes, cast(u8)0)
+    if !NativeAssert(test, ChannelSend(browser.channel, bytes[:], 5000) == bytes.count, CheckConcat("cannot send DevTools command: ", method)) { return false }
+    deadline := MonotonicMilliseconds() + timeout
+    while MonotonicMilliseconds() < deadline && !TerminationRequested() {
+        separator: s64 = -1
+        for index: cast(s64)0..browser.pending.count - 1 { if browser.pending[index] == cast(u8)0 { separator = index; break } }
+        if separator >= 0 {
+            raw := TextDetach(TextCopy(TextFromBytes(browser.pending[:separator])))
+            BrowserConsume(browser, separator + 1)
+            if raw == "" { continue }
+            incoming: JsonDocument
+            if !NativeAssert(test, JsonRead(*incoming, raw), "invalid DevTools reply") { return false }
+            root := incoming.root
+            event := CheckField(*incoming, root, "method")
+            payload := JsonMember(*incoming, root, "params")
+            if event == "Runtime.exceptionThrown" {
+                details := JsonMember(*incoming, payload, "exceptionDetails")
+                message := CheckField(*incoming, JsonMember(*incoming, details, "exception"), "description")
+                if message == "" { message = CheckField(*incoming, details, "text") }
+                VecPush(browser.errors, message)
+            }
+            if event == "Runtime.consoleAPICalled" {
+                values := JsonMember(*incoming, payload, "args")
+                pieces: Vec(string)
+                for index: cast(s32)0..JsonCount(*incoming, values) - 1 {
+                    value := JsonMember(*incoming, JsonElement(*incoming, values, index), "value")
+                    text := ifx JsonKindOf(*incoming, value) == .String then TextDetach(JsonString(*incoming, value)) else TextDetach(JsonWrite(*incoming, value, JsonCompactStyle()))
+                    VecPush(pieces, text)
+                }
+                VecPush(browser.console, TextDetach(TextJoin(pieces[:], " ")))
+            }
+            if CheckInteger(*incoming, root, "id") != browser.sequence { continue }
+            error := JsonMember(*incoming, root, "error")
+            if JsonKindOf(*incoming, error) != .Missing { browser.protocol_error = CheckInteger(*incoming, error, "code"); return false }
+            return NativeAssert(test, JsonRead(reply, raw), "copy DevTools response")
+        }
+        chunk: [16384]u8
+        count := ChannelReceive(browser.channel, chunk[:], 200)
+        if count > 0 {
+            if !NativeAssert(test, browser.pending.count + count <= 16777216, "DevTools response exceeds its bound") { return false }
+            for index: cast(s64)0..count - 1 { VecPush(browser.pending, chunk[index]) }
+        } else if count == 0 { return NativeAssert(test, false, CheckConcat("Chromium exited during ", method)) }
+        else { unused SleepMilliseconds(1) }
+    }
+    for line: browser.console { print("browser console: %\n", line) }
+    return NativeAssert(test, false, CheckConcat("DevTools command timed out: ", method))
+}
+
+BrowserEmptyCommand :: (test: *NativeTest, browser: *NativeBrowser, method: string, reply: *JsonDocument) -> bool {
+    params: JsonDocument; params.root = JsonNewObject(*params)
+    return BrowserCommand(test, browser, method, *params, reply)
+}
+
+BrowserClose :: (browser: *NativeBrowser) { unused CancelChannel(*browser.channel) }
+
+BrowserStart :: (test: *NativeTest, browser: *NativeBrowser, chromium: string) -> bool {
+    scratch := CheckPath(test.repo, "build/t")
+    if !NativeAssert(test, CreateDirectories(scratch), "create browser scratch parent") { return false }
+    browser.profile = TextDetach(CreateTemporaryDirectory(scratch, "p"))
+    browser_home := CheckPath(browser.profile, "home")
+    runtime := CheckPath(browser.profile, "runtime")
+    if !NativeAssert(test, browser.profile != "" && CreateDirectories(browser_home) && CreateDirectories(runtime), "create private browser profile") { return false }
+    chmod := string.["chmod", "700", runtime]; unused NativeRun(test, chmod[:])
+    // FD 3/4 carry CDP; stdin/stdout are detached. All substituted paths are
+    // positional argv, and the browser inherits only its private HOME/cache.
+    launch := "browser_home=$1; browser_runtime=$2; browser_log=$3; shift 3; unset DISPLAY WAYLAND_DISPLAY WAYLAND_SOCKET XAUTHORITY GDK_DISPLAY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER XDG_SESSION_ID XDG_SESSION_TYPE; exec 3<&0 4>&1 env HOME=\"$browser_home\" TMPDIR=\"$browser_home\" XDG_CONFIG_HOME=\"$browser_home/config\" XDG_CACHE_HOME=\"$browser_home/cache\" XDG_RUNTIME_DIR=\"$browser_runtime\" HARMONY_DESKTOP_RECOVERY=0 YUE_DESKTOP_RECOVERY=0 \"$@\" </dev/null >/dev/null 2>\"$browser_log\""
+    arguments := string.["sh", "-c", launch, "chromium", browser_home, runtime, CheckPath(browser.profile, "chromium.log"), chromium,
+        "--headless", "--no-sandbox", "--disable-gpu", "--use-gl=disabled", "--disable-dev-shm-usage", "--disable-background-networking", "--disable-breakpad", "--disable-crash-reporter", "--no-first-run", "--no-default-browser-check", "--hide-scrollbars", "--mute-audio", "--remote-debugging-pipe", CheckConcat("--user-data-dir=", browser.profile), "about:blank"]
+    browser.channel = StartChannel(arguments[:], false)
+    if !NativeAssert(test, browser.channel.pid > 0, "start private Chromium DevTools pipe") { return false }
+    reply: JsonDocument
+    if !BrowserEmptyCommand(test, browser, "Target.getTargets", *reply) { return false }
+    result := JsonMember(*reply, reply.root, "result")
+    targets := JsonMember(*reply, result, "targetInfos")
+    target := ""
+    for index: cast(s32)0..JsonCount(*reply, targets) - 1 {
+        item := JsonElement(*reply, targets, index)
+        if CheckField(*reply, item, "type") == "page" { target = CheckField(*reply, item, "targetId"); break }
+    }
+    if !NativeAssert(test, target != "", "Chromium did not create a private page") { return false }
+    params: JsonDocument; params.root = JsonNewObject(*params)
+    CheckPut(*params, params.root, "targetId", target); JsonSet(*params, params.root, "flatten", JsonNewBool(*params, true))
+    if !BrowserCommand(test, browser, "Target.attachToTarget", *params, *reply) { return false }
+    browser.session = CheckField(*reply, JsonMember(*reply, reply.root, "result"), "sessionId")
+    if !NativeAssert(test, browser.session != "", "missing private browser session") { return false }
+    domains := string.["Runtime.enable", "Page.enable", "Log.enable"]
+    for domain: domains { if !BrowserEmptyCommand(test, browser, domain, *reply) { return false } }
+    return true
+}
+
+BrowserEvaluate :: (test: *NativeTest, browser: *NativeBrowser, expression: string, reply: *JsonDocument) -> s32 {
+    params: JsonDocument; params.root = JsonNewObject(*params)
+    CheckPut(*params, params.root, "expression", expression)
+    JsonSet(*params, params.root, "returnByValue", JsonNewBool(*params, true)); JsonSet(*params, params.root, "awaitPromise", JsonNewBool(*params, true))
+    if !BrowserCommand(test, browser, "Runtime.evaluate", *params, reply) { return -1 }
+    result := JsonMember(reply, reply.root, "result")
+    if !NativeAssert(test, JsonKindOf(reply, JsonMember(reply, result, "exceptionDetails")) == .Missing, "browser evaluation raised an exception") { return -1 }
+    return JsonMember(reply, JsonMember(reply, result, "result"), "value")
+}
+
+BrowserUntil :: (test: *NativeTest, browser: *NativeBrowser, expression: string, reply: *JsonDocument, timeout: s64 = 10000) -> s32 {
+    deadline := MonotonicMilliseconds() + timeout
+    while MonotonicMilliseconds() < deadline && !test.failed {
+        value := BrowserEvaluate(test, browser, expression, reply)
+        if value >= 0 && JsonKindOf(reply, value) != .Missing && JsonKindOf(reply, value) != .Null { return value }
+        if browser.protocol_error != 0 && browser.protocol_error != -32000 { unused NativeAssert(test, false, "unexpected DevTools evaluation error"); return -1 }
+        unused SleepMilliseconds(100)
+    }
+    unused NativeAssert(test, false, CheckConcat("browser condition timed out: ", expression))
+    return -1
+}

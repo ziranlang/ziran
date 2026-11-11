@@ -1,0 +1,89 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ToolDiagnostics :: (test: *NativeTest, arguments: []string, code: string) -> JsonDocument {
+    result := NativeInvoke(test, arguments, "", 30000)
+    if !NativeAssert(test, result.code > 0 && result.code <= 127 && result.code != 124, CheckConcat("diagnostic command unexpectedly succeeded, timed out or crashed: ", TextDetach(TextJoin(arguments, " ")))) { return .{} }
+    records: JsonDocument; records.root = JsonNewArray(*records); found := false; lines := TextLines(result.error)
+    if !NativeAssert(test, lines.count > 0, "diagnostic tool emitted no JSON") { return .{} }
+    for line: lines {
+        item: JsonDocument
+        if !NativeAssert(test, JsonRead(*item, line) && CheckInteger(*item, item.root, "schema_version") == 2 &&
+            (CheckField(*item, item.root, "severity") == "error" || CheckField(*item, item.root, "severity") == "warning") &&
+            JsonKindOf(*item, JsonMember(*item, item.root, "code")) == .String && JsonKindOf(*item, JsonMember(*item, item.root, "message")) == .String, "diagnostic tool violated JSON schema") { return .{} }
+        fields := string.["path", "line", "column", "end_line", "end_column"]
+        for field: fields { if !NativeAssert(test, JsonMember(*item, item.root, field) >= 0, "diagnostic tool omitted source coordinates") { return .{} } }
+        found = found || CheckField(*item, item.root, "code") == code
+        JsonAppend(*records, records.root, JsonCopy(*records, *item, item.root))
+    }
+    if !NativeAssert(test, found, CheckConcat("missing tool diagnostic code: ", CheckConcat(code, CheckConcat("\n", result.error)))) { return .{} }
+    return records
+}
+
+ToolCases :: (test: *NativeTest) -> bool {
+    binary := PathParent(test.ziran); tools := string.["zi2c", "zi2go", "zi2zir", "zi2zx", "zi-api", "zi-inspect", "zi-fmt", "zi-edit"]
+    for tool: tools { command := string.[CheckPath(binary, tool), "--unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, command[:], "command.arguments"); if test.failed { return false } }
+    unknown := string.[test.ziran, "build", "--target=unknown", "--diagnostics=json"]; unused ToolDiagnostics(test, unknown[:], "package.command")
+    check := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, CheckPath(test.work, "missing.zi")]; unused ToolDiagnostics(test, check[:], "module.input")
+    verbs := string.["inspect", "run", "fmt"]; suffixes := string.["missing.zir", "missing.zx", "missing.zi"]; codes := string.["zir.input", "zx.input", "format.input"]
+    for index: cast(s64)0..verbs.count - 1 {
+        command := string.[test.ziran, verbs[index], "--diagnostics=json", CheckPath(test.work, suffixes[index])]; unused ToolDiagnostics(test, command[:], codes[index])
+        if test.failed { return false }
+    }
+    raw_name := u8.[255, 46, 122, 105, 114]
+    names := string.[TextDetach(TextCopy(TextFromBytes(raw_name[:]))), "文🙂.zir"]; expected := string.["ÿ.zir", "文🙂.zir"]
+    for index: cast(s64)0..names.count - 1 {
+        command := string.[test.ziran, "inspect", "--diagnostics=json", CheckPath(test.work, names[index])]
+        diagnostics := ToolDiagnostics(test, command[:], "zir.input")
+        if !NativeAssert(test, !test.failed && TextHasSuffix(CheckField(*diagnostics, JsonElement(*diagnostics, diagnostics.root, 0), "path"), expected[index]), "native byte or multilingual path was not valid JSON") { return false }
+    }
+    unformatted := CheckPath(test.work, "format.zi")
+    if !NativeWrite(test, unformatted, "Answer::()->s32{return 42}\n") { return false }
+    format := string.[test.ziran, "fmt", "--check", "--diagnostics=json", unformatted]; unused ToolDiagnostics(test, format[:], "format.changed")
+    source := CheckPath(test.work, "native.zi"); string_entry := CheckPath(test.work, "text_entry.zi")
+    if !NativeWrite(test, source, "#program_export\nAnswer :: () -> s32 { return 42 }\n") ||
+        !NativeWrite(test, string_entry, "#program_export\nAnswer :: () -> string { return \"text\" }\n") { return false }
+    entry := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "text_entry:Answer", "--diagnostics=json", "--root", test.work, "-o", CheckPath(test.work, "string"), string_entry]
+    unused ToolDiagnostics(test, entry[:], "zir_c.entry")
+    fixture_output := CheckPath(test.work, "fixture")
+    fixture := string.[test.ziran, "build", "--target=c", "--exe", "--root", CheckPath(test.repo, "tests"), "--entry", "process_fixture:main", "-o", fixture_output, CheckPath(test.repo, "tests/process_fixture.zi")]
+    unused NativeRun(test, fixture[:])
+    fake := CheckPath(test.work, "cc")
+    if !NativeWrite(test, fake, CheckConcat("#!/bin/sh\nexec ", CheckConcat(CheckQuote(CheckPath(fixture_output, "process_fixture")), " diagnostic-noise \"$@\"\n"))) { return false }
+    chmod := string.["chmod", "700", fake]; unused NativeRun(test, chmod[:])
+    original_cc := TextDetach(TextCopy(EnvironmentText("CC"))); NativeSet(test, "CC", fake)
+    command := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "native:Answer", "--diagnostics=json", "--root", test.work, "-o", CheckPath(test.work, "c"), source]
+    diagnostics := ToolDiagnostics(test, command[:], "zir_c.toolchain"); truncated := false
+    for index: cast(s32)0..JsonCount(*diagnostics, diagnostics.root) - 1 {
+        item := JsonElement(*diagnostics, diagnostics.root, index); message := CheckField(*diagnostics, item, "message")
+        truncated = truncated || TextContains(message, "文🙂") && TextContains(message, "ÿ") && JsonKindOf(*diagnostics, JsonMember(*diagnostics, JsonMember(*diagnostics, item, "truncation"), "message")) == .True
+    }
+    if !NativeAssert(test, truncated, "compiler diagnostics did not preserve multilingual/byte output and report truncation") { return false }
+    NativeSet(test, "CC", CheckPath(test.work, "missing-cc")); unused ToolDiagnostics(test, command[:], "zir_c.toolchain")
+    if original_cc == "" { NativeUnset(test, "CC") } else { NativeSet(test, "CC", original_cc) }
+    launcher := CheckPath(test.work, "launcher")
+    if !NativeAssert(test, CopyFileNew(test.ziran, launcher), "copy launcher fixture") { return false }
+    launch := string.[launcher, "check", "--diagnostics=json", "--root", test.work, source]; unused ToolDiagnostics(test, launch[:], "package.process")
+    probe := CheckPath(test.work, "diagnostic.c")
+    if !NativeWrite(test, probe, NativeRead(test, CheckPath(test.repo, "tests/fixtures/tool_diagnostic.c"))) { return false }
+    compile := string.[NativeCompiler(), "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", CheckPath(test.repo, "cmd/zir")),
+        CheckConcat("-I", CheckPath(test.repo, "bootstrap/compiler_ir")), probe, CheckPath(test.repo, "cmd/zir/zir_diagnostic.c"), CheckPath(test.repo, "cmd/zir/zir_memory.c"), "-o", CheckPath(test.work, "probe")]
+    unused NativeRun(test, compile[:]); run := string.[CheckPath(test.work, "probe")]; memory := ToolDiagnostics(test, run[:], "compiler.memory")
+    return NativeAssert(test, !test.failed && JsonCount(*memory, memory.root) == 2 && TextHasPrefix(CheckField(*memory, JsonElement(*memory, memory.root, 0), "message"), "🙂ÿ"), "allocation-free OOM or malformed UTF-8 diagnostics changed")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "tool-diagnostics-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !ToolCases(*test) { return 1 }
+    print("Native tool diagnostics: arguments, inputs, byte paths, bounded compiler output and allocation-free OOM local tests passed\n")
+    return 0
+}

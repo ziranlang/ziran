@@ -1,0 +1,50 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-native-links-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    app := CheckPath(test.work, "app")
+    manifest := "[package]\nname = \"NativeLinks\"\nentry = \"src/main.zi\"\nmodule_roots = [\"src\"]\nlinks = [\"ziran_link-2.0_fixture\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n"
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), manifest) { return 1 }
+    aliases := string.["ziran"]; paths := string.[test.repo]
+    if !FixtureOverrides(*test, app, aliases[:], paths[:]) { return 1 }
+    libraries := string.["ziran_link-2.0_fixture", "caller"]
+    symbols := string.["manifest_value", "caller_value"]
+    values := s64.[19, 23]
+    for index: cast(s64)0..libraries.count - 1 {
+        source := CheckPath(app, CheckConcat(libraries[index], ".c")); object := CheckPath(app, CheckConcat(libraries[index], ".o"))
+        if !NativeWrite(*test, source, CheckConcat("int ", CheckConcat(symbols[index], CheckConcat("(void) { return ", CheckConcat(CheckNumber(values[index]), "; }\n"))))) { return 1 }
+        compile := string.[NativeCompiler(), "-c", source, "-o", object]; unused NativeRun(*test, compile[:], app)
+        archive := string.["ar", "rcs", CheckPath(app, CheckConcat("lib", CheckConcat(libraries[index], ".a"))), object]; unused NativeRun(*test, archive[:], app)
+    }
+    source := "libc :: #system_library \"libc\";\nmanifest_value :: () -> s32 #foreign libc;\ncaller_value :: () -> s32 #foreign libc;\n#program_export\nmain :: () -> s32 {\nif manifest_value() + caller_value() != 42 { return 1 }\nprint(\"native links ok\\n\")\nreturn 0\n}\n"
+    if !NativeWrite(*test, CheckPath(app, "src/main.zi"), source) || !NativeWrite(*test, CheckPath(app, "src/probe.zi"), source) { return 1 }
+    NativeSet(*test, "LDLIBS", "-lcaller"); NativeSet(*test, "LDFLAGS", CheckConcat("-L", app))
+    lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
+    build := string.["build", "--offline"]; unused PackageCommand(*test, app, build[:])
+    run := string.[CheckPath(app, "build/NativeLinks")]; unused NativeExpect(*test, run[:], "native links ok\n", app)
+    output := CheckPath(app, "build/probe-c")
+    explicit := string.["build", "--project", "--offline", "--target=c", "--exe", "--entry", "probe:main", "-o", output, "src/probe.zi"]
+    unused PackageCommand(*test, app, explicit[:])
+    execute := string.[CheckPath(output, "probe")]; unused NativeExpect(*test, execute[:], "native links ok\n", app)
+    ir := CheckPath(app, "build/ir")
+    save := string.["ir", "--project", "--offline", "-o", ir, "src/probe.zi"]; unused PackageCommand(*test, app, save[:])
+    saved: Vec(string)
+    for index: cast(s64)0..explicit.count - 2 { VecPush(saved, explicit[index]) }
+    VecPush(saved, "--root"); VecPush(saved, ir); VecPush(saved, CheckPath(ir, "probe.zir"))
+    unused PackageCommand(*test, app, saved[:]); unused NativeExpect(*test, execute[:], "native links ok\n", app)
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextReplace(manifest, "ziran_link-2.0_fixture", "ziran_missing-2.0")) { return 1 }
+    missing := PackageCommand(*test, app, explicit[:], false)
+    if !NativeAssert(*test, TextContains(missing, "ziran_missing-2.0"), "missing library was not diagnosed by the native linker") || test.failed { return 1 }
+    print("Local project native links: manifest libraries, inherited LDLIBS and source/saved explicit executables passed\n")
+    return 0
+}

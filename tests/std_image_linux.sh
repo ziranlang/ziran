@@ -1,13 +1,14 @@
 #!/bin/sh
 # Checks std/image, std/png_linux, std/zlib_linux and std/jpeg: PNG round
 # trips in every written format, Pillow's compositing arithmetic, resizing,
-# rotation, palettes and JPEG structure. With Python's Pillow installed it
-# also compares decoding and resizing with Pillow's own pictures.
+# rotation, palettes and JPEG structure. Independent Pillow reference data
+# verifies decoding and resizing, with FFmpeg decoding resized output.
 set -eu
 
 ziran=$1
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$root/build/tests"
+work=$(mktemp -d "$root/build/tests/std-image-linux-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/std_image_linux.zi" <<'ZI'
@@ -132,47 +133,4 @@ ZI
     "$work/c"/*.c -lz -lm -o "$work/program"
 (cd "$work" && ./program)
 
-# Pillow's own pictures, when Pillow is installed.
-if python3 -c 'import PIL' 2>/dev/null; then
-    python3 - "$work" <<'PY'
-import os, random, struct, subprocess, sys
-from PIL import Image
-work = sys.argv[1]
-program = os.path.join(work, 'program')
-random.seed(7)
-def picture(mode, size):
-    image = Image.new(mode, size)
-    for y in range(size[1]):
-        for x in range(size[0]):
-            if mode == 'RGBA': value = (random.randrange(256), (x * 7) % 256, (y * 13) % 256, random.choice((0, 40, 128, 255)))
-            elif mode == 'RGB': value = (random.randrange(256), (x * 7) % 256, (y * 13) % 256)
-            elif mode == 'LA': value = ((x * 3) % 256, (y * 5) % 256)
-            elif mode == 'I;16': value = (x * 997 + y * 31) % 65536
-            elif mode == 'P': value = (x + y) % 40
-            elif mode == '1': value = (x ^ y) & 1
-            else: value = (x * y) % 256
-            image.putpixel((x, y), value)
-    if mode == 'P':
-        image.putpalette([random.randrange(256) for _ in range(120)])
-    return image
-for index, (mode, size) in enumerate((('RGBA', (37, 23)), ('RGB', (31, 17)), ('L', (19, 11)), ('LA', (13, 9)),
-                                      ('P', (21, 14)), ('1', (15, 7)), ('I;16', (9, 6)))):
-    path = os.path.join(work, f'in{index}.png')
-    source = picture(mode, size)
-    source.save(path, **({'transparency': 3} if mode == 'P' else {}))
-    raw = os.path.join(work, 'raw')
-    subprocess.run([program, 'decode', path, raw], check=True)
-    expected = Image.open(path)
-    if mode == 'I;16':
-        values = struct.unpack('<%dH' % (size[0] * size[1]), source.tobytes('raw', 'I;16'))
-        expected = Image.frombytes('L', size, bytes(value >> 8 for value in values)).convert('RGBA')
-    assert open(raw, 'rb').read() == expected.convert('RGBA').tobytes(), f'{mode} decodes as Pillow decodes it'
-    if mode in ('RGBA', 'RGB'):
-        for name, method in (('nearest', Image.Resampling.NEAREST), ('box', Image.Resampling.BOX), ('lanczos', Image.Resampling.LANCZOS)):
-            for width, height in ((16, 16), (100, 61), (20, 50)):
-                out = os.path.join(work, 'resized.png')
-                subprocess.run([program, 'resize', path, name, str(width), str(height), out], check=True)
-                want = Image.open(path).convert('RGBA').resize((width, height), method).tobytes()
-                assert Image.open(out).convert('RGBA').tobytes() == want, f'{mode} {name} {width}x{height}'
-PY
-fi
+"$ziran" run --target=c --root "$root/tests" "$root/tests/image_reference_cases.zi" -- "$ziran" "$work"

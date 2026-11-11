@@ -1,0 +1,137 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "package_proxy"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+BatchCommand :: (test: *NativeTest, app: string, arguments: []string) -> NativeCommand {
+    command: Vec(string); VecPush(command, test.ziran); VecPush(command, "pkg")
+    for argument: arguments { VecPush(command, argument) }; VecPush(command, "--offline")
+    return NativeInvoke(test, command[:], app)
+}
+
+BatchRows :: (test: *NativeTest, text: string, selectors: []string, paths: []string) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, text) && JsonKindOf(*document, document.root) == .Array && JsonCount(*document, document.root) == selectors.count, "invalid batch package path response") { return false }
+    for index: cast(s64)0..selectors.count - 1 {
+        item := JsonElement(*document, document.root, cast(s32)index)
+        if !NativeAssert(test, JsonCount(*document, item) == 2 && CheckField(*document, item, "selector") == selectors[index] && CheckField(*document, item, "path") == paths[index], "batch changed selector order, spelling or escaped path") { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 {
+        mode := TextFromCString(argv[1])
+        if mode == "--trace-git" || mode == "--forwarded" || mode == "--guard-git" { return PackageProxy(argc, argv, mode) }
+    }
+    test := NativeStart(argc, argv, "package-batch-paths-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    left := CheckPath(test.work, "left"); right := CheckPath(test.work, "right"); utility := CheckPath(test.work, "utility")
+    raw := CheckPath(test.work, "raw space \"quoted\"\\utf8-Ω")
+    repos := string.[left, right, utility, raw]
+    for repo: repos { if !FixtureInit(*test, repo) || !NativeWrite(*test, CheckPath(repo, "payload.txt"), "original\n") { return 1 } }
+    for index: cast(s64)0..2 {
+        text := CheckConcat("[package]\nname = ", CheckConcat(FixtureQuote(ifx index == 2 then "Utility" else "Twin"), "\nmodule_roots = []\n"))
+        if index == 0 { text = CheckConcat(text, CheckConcat("[dependencies.Utility]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(utility)), "\n"))) }
+        if !NativeWrite(*test, CheckPath(repos[index], "ziran.toml"), text) { return 1 }
+    }
+    for repo: repos { unused FixtureCommit(*test, repo, "fixture") }
+    app := CheckPath(test.work, "app")
+    manifest: Vec(u8); BuilderAppend(manifest, "[package]\nname = \"Batch\"\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n")
+    aliases := string.["Left", "Right", "raw"]
+    targets := string.[left, right, raw]
+    for index: cast(s64)0..aliases.count - 1 {
+        BuilderAppend(manifest, CheckConcat("[dependencies.", CheckConcat(aliases[index], CheckConcat("]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(targets[index])), "\n")))))
+        if index == 2 { BuilderAppend(manifest, "source = true\n") }
+    }
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), BuilderFinish(manifest)) { return 1 }
+    override_aliases := string.["ziran", "Left", "Right", "Utility", "raw"]
+    override_paths := string.[test.repo, left, right, utility, raw]
+    if !FixtureOverrides(*test, app, override_aliases[:], override_paths[:], false) { return 1 }
+    lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
+    selectors := string.["Right", "Utility", "lEfT", "ziran", "raw", "Utility"]
+    expected: Vec(string)
+    for selector: selectors {
+        command := string.["path", selector]
+        result := BatchCommand(*test, app, command[:])
+        if !NativeAssert(*test, result.code == 0, result.error) { return 1 }
+        value := result.output
+        if TextHasSuffix(value, "\n") { value = value[:value.count - 1] }
+        VecPush(expected, TextDetach(TextCopy(value)))
+    }
+    arguments: Vec(string); VecPush(arguments, "paths"); for selector: selectors { VecPush(arguments, selector) }
+    result := BatchCommand(*test, app, arguments[:])
+    if !NativeAssert(*test, result.code == 0 && expected[4] == raw, result.error) || !BatchRows(*test, result.output, selectors[:], expected[:]) { return 1 }
+    invalid := string.["missing", "Twin", "", "--bad", "Left:Utility"]
+    empty := string.["paths"]
+    rejected := BatchCommand(*test, app, empty[:])
+    if !NativeAssert(*test, rejected.code != 0 && rejected.output == "", "empty batch emitted partial stdout") { return 1 }
+    for selector: invalid {
+        bad := string.["paths", "Left", selector]
+        response := BatchCommand(*test, app, bad[:])
+        if !NativeAssert(*test, response.code != 0 && response.output == "", "invalid batch emitted partial stdout") { return 1 }
+    }
+    bad_submodules := string.["paths", "Left", "ziran", "--submodules"]
+    refused := BatchCommand(*test, app, bad_submodules[:])
+    if !NativeAssert(*test, refused.code != 0 && refused.output == "", "invalid batch submodule selection accepted") { return 1 }
+    invalid_singles := string.["Twin", "missing", "Left:Utility"]
+    for selector: invalid_singles {
+        bad := string.["path", selector]; response := BatchCommand(*test, app, bad[:])
+        if !NativeAssert(*test, response.code != 0, "invalid single selector accepted") { return 1 }
+    }
+    raw_args := string.["paths", "raw", "--submodules"]
+    raw_result := BatchCommand(*test, app, raw_args[:])
+    one_selector := string.["raw"]; one_path := string.[raw]
+    if !NativeAssert(*test, raw_result.code == 0, raw_result.error) || !BatchRows(*test, raw_result.output, one_selector[:], one_path[:]) { return 1 }
+    real_git := CheckExecutable("git")
+    shim := CheckPath(test.work, "trace-bin/git")
+    if !NativeWrite(*test, shim, CheckConcat("#!/bin/sh\nexec ", CheckConcat(CheckQuote(TextFromCString(argv[0])), " --trace-git \"$@\"\n"))) { return 1 }
+    chmod := string.["chmod", "700", shim]; unused NativeRun(*test, chmod[:])
+    original_path := EnvironmentText("PATH")
+    NativeSet(*test, "ZIRAN_FIXTURE_REAL_GIT", real_git); NativeSet(*test, "PATH", CheckConcat(PathParent(shim), CheckConcat(":", original_path)))
+    single_trace := CheckPath(test.work, "single.trace"); batch_trace := CheckPath(test.work, "batch.trace")
+    NativeSet(*test, "ZIRAN_FIXTURE_GIT_TRACE", single_trace)
+    single := string.["path", "Left"]; traced_single := BatchCommand(*test, app, single[:])
+    NativeSet(*test, "ZIRAN_FIXTURE_GIT_TRACE", batch_trace)
+    traced_batch := BatchCommand(*test, app, arguments[:])
+    if !NativeAssert(*test, traced_single.code == 0 && traced_batch.code == 0, "traced graph selection failed") { return 1 }
+    first_trace := NativeRead(*test, single_trace); second_trace := NativeRead(*test, batch_trace)
+    if !NativeAssert(*test, first_trace != "" && first_trace == second_trace, "batch validated its graph more than once or used different Git arguments") { return 1 }
+    NativeSet(*test, "PATH", original_path)
+    tool := CheckPath(test.work, "forward-tool")
+    if !FixtureInit(*test, tool) || !NativeWrite(*test, CheckPath(tool, "VERSION"), "fixture\n") { return 1 }
+    unused FixtureCommit(*test, tool, "fixture")
+    pinned := CheckPath(tool, "build/bin/ziran")
+    if !NativeWrite(*test, pinned, CheckConcat("#!/bin/sh\nexec ", CheckConcat(CheckQuote(TextFromCString(argv[0])), " --forwarded \"$@\"\n"))) { return 1 }
+    chmod_pinned := string.["chmod", "700", pinned]; unused NativeRun(*test, chmod_pinned[:])
+    override_paths[0] = tool
+    if !FixtureOverrides(*test, app, override_aliases[:], override_paths[:], false) { return 1 }
+    unused PackageCommand(*test, app, lock[:])
+    forwarded := BatchCommand(*test, app, arguments[:])
+    document: JsonDocument
+    if !NativeAssert(*test, forwarded.code == 0 && JsonRead(*document, forwarded.output), "pinned launcher did not forward the batch") { return 1 }
+    forwarded_expected := string.["pkg", "paths", "Right", "Utility", "lEfT", "ziran", "raw", "Utility", "--offline"]
+    if !NativeAssert(*test, JsonCount(*document, document.root) == forwarded_expected.count, "pinned launcher changed batch argument count") { return 1 }
+    for index: cast(s64)0..forwarded_expected.count - 1 {
+        if !NativeAssert(*test, JsonString(*document, JsonElement(*document, document.root, cast(s32)index)) == forwarded_expected[index], "pinned launcher changed a batch argument") { return 1 }
+    }
+    override_paths[0] = test.repo
+    if !FixtureOverrides(*test, app, override_aliases[:], override_paths[:], false) { return 1 }
+    unused PackageCommand(*test, app, lock[:])
+    if !NativeWrite(*test, CheckPath(utility, "ziran.toml"), "[package]\nname = \"Changed\"\n") { return 1 }
+    failed_single := BatchCommand(*test, app, single[:]); failed_batch := BatchCommand(*test, app, arguments[:])
+    if !NativeAssert(*test, failed_single.code != 0 && failed_batch.code != 0 && failed_batch.output == "", "invalid graph emitted a partial selected batch") || test.failed { return 1 }
+    print("Local batch paths: ordering, Unicode/quote escaping, one graph validation, forwarding and atomic failure passed\n")
+    return 0
+}

@@ -6,7 +6,9 @@
 set -eu
 
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/portable-limits-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 run_program() {
@@ -33,20 +35,7 @@ expect_failure() {
     grep -Fq "$message" "$work/$name.out" || { cat "$work/$name.out" >&2; exit 1; }
 }
 
-python3 - "$work/locals.zi" "$work/many.zi" <<'PY'
-import sys
-def sum_program(path, count):
-    params = ', '.join('p%d: s32' % i for i in range(count))
-    args = ', '.join(str(i) for i in range(count))
-    open(path, 'w').write(
-        'Sum :: (%s) -> s32 {\n    return p1 + p%d\n}\n'
-        'main :: () {\n    print("%%\\n", Sum(%s))\n}\n' % (params, count - 1, args))
-sum_program(sys.argv[2], 64)
-locals_ = '\n'.join('    v%d: s32 = %d' % (i, i) for i in range(200))
-open(sys.argv[1], 'w').write(
-    'Pick :: (a: s32) -> s32 {\n%s\n    return a + v0 + v199\n}\n'
-    'main :: () {\n    print("%%\\n", Pick(1))\n}\n' % locals_)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" portable-limits
 
 expect_output locals 200 < "$work/locals.zi"
 expect_output many 64 < "$work/many.zi"

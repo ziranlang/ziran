@@ -1,0 +1,39 @@
+// Remove diagnostic source text while preserving its byte length. Generated
+// targets must use the saved typed IR rather than reparsing that source text.
+#import "native_test"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 6 && (TextFromCString(argv[1]) == "--replace-first" || TextFromCString(argv[1]) == "--replace-all") {
+        test: NativeTest
+        input := TextFromCString(argv[2]); output := TextFromCString(argv[3])
+        original := TextFromCString(argv[4]); replacement := TextFromCString(argv[5])
+        data := NativeRead(*test, input); at := TextFind(data, original)
+        if !NativeAssert(*test, !test.failed && original.count > 0 && at >= 0, "saved IR mutation pattern is missing") { return 1 }
+        if TextFromCString(argv[1]) == "--replace-all" { return ifx NativeWrite(*test, output, TextReplace(data, original, replacement)) then 0 else 1 }
+        pieces := string.[TextDetach(TextCopy(data[:at])), replacement, TextDetach(TextCopy(data[at + original.count:]))]
+        return ifx NativeWrite(*test, output, TextJoin(pieces[:], "")) then 0 else 1
+    }
+    if argc != 3 { print("pass saved IR and signature fixture\n"); return 2 }
+    test: NativeTest
+    path := TextFromCString(argv[1])
+    data := NativeRead(*test, path)
+    patterns := NativeRead(*test, TextFromCString(argv[2]))
+    if test.failed { return 1 }
+    lines := TextLines(TextTrimEnd(patterns))
+    for signature: lines {
+        at := TextFind(data, signature)
+        if !NativeAssert(*test, signature.count > 0 && at >= 0 && TextFind(data, signature, at + signature.count) < 0, "saved signature must occur exactly once") { return 1 }
+        bytes: Vec(u8)
+        if !NativeAssert(*test, VecResize(bytes, signature.count), "allocate replacement source text") { return 1 }
+        for index: cast(s64)0..bytes.count - 1 { bytes[index] = cast(u8)63 }
+        replacement := TextDetach(TextCopy(TextFromBytes(bytes[:])))
+        data = TextDetach(TextReplace(data, signature, replacement))
+    }
+    if !NativeWrite(*test, path, data) { return 1 }
+    return 0
+}

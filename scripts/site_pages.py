@@ -18,9 +18,9 @@ guide document appears on the next run without editing HTML by hand:
 
 Packages are read from --packages (default: the ziranlang/packages directory
 next to this repository). A package whose GitHub repository is private is
-left out. Status is derived from tags: a std module is stable when it ships in
-the latest v* release of this repository, and a package is stable once it has
-a v* release tag of its own; everything else is in progress.
+left out. The standard-library release inventory records shipped modules, including in
+source archives and shallow checkouts. Package status follows each package's
+v* release tags; modules added between releases remain in progress.
 
     python3 scripts/site_pages.py --ziran build/bin/ziran [--check]
 
@@ -34,7 +34,6 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
 import tomllib
 import urllib.error
 import urllib.request
@@ -158,34 +157,29 @@ def example_sections(ziran):
     names = sorted(f[:-3] for f in os.listdir(EXAMPLES) if f.endswith('.zi'))
     names = [n for n in EXAMPLE_ORDER if n in names] + [n for n in names if n not in EXAMPLE_ORDER]
     sections, toc = [], []
-    with tempfile.TemporaryDirectory() as work:
-        for number, name in enumerate(names, 1):
-            source = open(os.path.join(EXAMPLES, name + '.zi')).read()
-            comment, body = leading_comment(source.rstrip('\n').split('\n'))
-            summary = EXAMPLE_TITLES.get(name, comment)
-            title, _, description = summary.partition(': ')
-            if not description:
-                sys.exit(f'site/examples/{name}.zi needs a "// Title: description" first comment')
-            entry = 'main' if re.search(r'^main :: \(\)', source, re.M) else 'Answer'
-            imports = re.search(r'^#import "', source, re.M) is not None
-            module_path = ' --module-path std' if imports else ''
-            path = f'site/examples/{name}.zi'
-            bundle = os.path.join(work, name + '.zx')
-            run([ziran, 'bundle', '--root', '.'] + (['--module-path', 'std'] if imports else [])
-                + ['--entry', f'{name}:{entry}', '-o', bundle, path])
-            output = run([ziran, 'run', bundle])
-            commands = (f'build/bin/ziran bundle --root .{module_path} --entry {name}:{entry} '
-                        f'-o {name}.zx {path}\nbuild/bin/ziran run {name}.zx\n'
-                        + ''.join(f'# {line}\n' for line in output.rstrip('\n').split('\n')))
-            anchor = name.replace('_', '-')
-            description = description[:1].upper() + description[1:]
-            sections.append(
-                f'<section id="{anchor}"><p class="eyebrow">{number:02d} / {code(name)}.zi</p>'
-                f'<h2>{code(title)}</h2><p>{code(description)}</p>'
-                f'<pre><code>{code(chr(10).join(body))}</code></pre>'
-                f'<pre><code>{code(commands.rstrip(chr(10)))}</code></pre>'
-                f'<p><a class="text-link" href="examples/{name}.zi" download>Download {name}.zi ↓</a></p></section>\n')
-            toc.append(f'<a href="#{anchor}">{code(title)}</a>')
+    for number, name in enumerate(names, 1):
+        source = open(os.path.join(EXAMPLES, name + '.zi')).read()
+        comment, body = leading_comment(source.rstrip('\n').split('\n'))
+        summary = EXAMPLE_TITLES.get(name, comment)
+        title, _, description = summary.partition(': ')
+        if not description:
+            sys.exit(f'site/examples/{name}.zi needs a "// Title: description" first comment')
+        entry = 'main' if re.search(r'^main :: \(\)', source, re.M) else 'Answer'
+        path = f'site/examples/{name}.zi'
+        options = ['--entry', f'{name}:{entry}'] if entry != 'main' else []
+        output = run([ziran, 'run', *options, path])
+        entry_option = f' --entry {name}:{entry}' if options else ''
+        commands = (f'ziran run{entry_option} {name}.zi\n'
+                    + ''.join(f'# {line}\n' for line in output.rstrip('\n').split('\n')))
+        anchor = name.replace('_', '-')
+        description = description[:1].upper() + description[1:]
+        sections.append(
+            f'<section id="{anchor}"><p class="eyebrow">{number:02d} / {code(name)}.zi</p>'
+            f'<h2>{code(title)}</h2><p>{code(description)}</p>'
+            f'<pre><code>{code(chr(10).join(body))}</code></pre>'
+            f'<pre><code>{code(commands.rstrip(chr(10)))}</code></pre>'
+            f'<p><a class="text-link" href="examples/{name}.zi" download>Download {name}.zi ↓</a></p></section>\n')
+        toc.append(f'<a href="#{anchor}">{code(title)}</a>')
     return ''.join(sections), ''.join(toc), len(names)
 
 
@@ -304,11 +298,23 @@ def target_of(name, uses_host):
 
 def std_modules(ziran):
     release = latest_release(REPO)
+    inventory = os.path.join(SITE, 'stdlib-release.json')
+    shipped_names = None
+    if os.path.exists(inventory):
+        with open(inventory) as stream:
+            published = json.load(stream)
+        version = open(os.path.join(REPO, 'VERSION')).read().strip()
+        names = published.get('modules')
+        if (published.get('version') != version or not re.fullmatch(r'\d+\.\d+\.\d+', version)
+                or not isinstance(names, list) or not names or any(not isinstance(n, str) or not re.fullmatch(r'[A-Za-z_][A-Za-z_0-9]*', n) for n in names)
+                or len(names) != len(set(names))):
+            sys.exit('invalid standard-library release inventory; run update_version.sh when releasing')
+        release, shipped_names = 'v' + version, set(names)
     modules = []
     for file in sorted(f for f in os.listdir(STD) if f.endswith('.zi')):
         name = file[:-3]
         summary, entries, uses_host = module_api(ziran, os.path.join(STD, file), STD, [STD])
-        shipped = bool(release) and subprocess.run(
+        shipped = name in shipped_names if shipped_names is not None else bool(release) and subprocess.run(
             ['git', '-C', REPO, 'cat-file', '-e', f'{release}:std/{file}'], capture_output=True).returncode == 0
         modules.append({'name': name, 'file': file, 'summary': summary, 'entries': entries,
                         'target': target_of(name, uses_host),
@@ -646,12 +652,29 @@ def shared_navigation(path, text):
 
 
 def main():
+    global REPO, SITE, STD
     parser = argparse.ArgumentParser()
     parser.add_argument('--ziran', required=True)
+    parser.add_argument('--module-api', metavar='SOURCE', help='print a module\'s documentation data as JSON')
+    parser.add_argument('--module-root', metavar='DIR')
+    parser.add_argument('--stdlib-inventory', metavar='REPOSITORY', help='print a repository\'s standard-module release inventory as JSON')
     parser.add_argument('--packages', default=os.path.join(os.path.dirname(REPO), 'packages'))
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     ziran = os.path.abspath(args.ziran)
+    if args.stdlib_inventory:
+        # The same release-inventory path is used for normal site generation.
+        REPO = os.path.abspath(args.stdlib_inventory)
+        SITE = os.path.join(REPO, 'site')
+        STD = os.path.join(REPO, 'std')
+        print(json.dumps(std_modules(ziran)))
+        return
+    if args.module_api:
+        source = os.path.abspath(args.module_api)
+        root = os.path.abspath(args.module_root) if args.module_root else os.path.dirname(source)
+        summary, entries, uses_host = module_api(ziran, source, root, [])
+        print(json.dumps({'summary': summary, 'entries': entries, 'uses_host': uses_host}))
+        return
     with_packages = os.path.isdir(args.packages)
     if not with_packages and not args.check:
         sys.exit(f'{args.packages}: no packages directory; pass --packages DIR')

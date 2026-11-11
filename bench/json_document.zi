@@ -1,0 +1,43 @@
+// A direct JSON parser benchmark: construction, compilation and process startup
+// are outside the timer. Every parse result is checked; input remains alive.
+using V :: #import "std/vec"
+using J :: #import "std/json_document"
+using T :: #import "std/timer_linux"
+#import "benchmark_statistics"
+
+Measure :: (text: string, length: s64) -> float64 {
+    document: JsonDocument
+    defer JsonReset(*document)
+    started := MonotonicNanoseconds()
+    for iteration: 0..63 {
+        if !JsonRead(*document,text) { return -1.0 }
+        payload := JsonString(*document,JsonMember(*document,document.root,"payload"))
+        if payload.count != length || payload[0] != 120 || payload[length - 1] != 120 { return -1.0 }
+    }
+    return cast(float64)(MonotonicNanoseconds() - started) / 64.0
+}
+
+Numbers :: (values: []float64) { for i: 0..values.count - 1 { if i > 0 { print(",") }; print("%",values[i]) } }
+Indices :: (values: []s64) { for i: 0..values.count - 1 { if i > 0 { print(",") }; print("%",values[i]) } }
+
+#program_export
+main :: () -> s32 {
+    bytes: Vec(u8)
+    prefix := "{\"payload\":\""
+    suffix := "\"}"
+    length: s64 = 1048576
+    if !VecResize(bytes,prefix.count + length + suffix.count) { return 1 }
+    for i: 0..prefix.count - 1 { bytes[i] = prefix[i] }
+    for i: 0..length - 1 { bytes[prefix.count + i] = 120 }
+    for i: 0..suffix.count - 1 { bytes[prefix.count + length + i] = suffix[i] }
+    text := TextView(bytes[:])
+    if Measure(text,length) <= 0.0 { return 2 }
+    samples: [11]float64
+    for i: 0..10 { samples[i] = Measure(text,length) }
+    result := BenchmarkAnalyze(samples[:])
+    if !result.valid { return 3 }
+    print("{\"case\":\"json_document_plain_1mib\",\"unit\":\"ns_per_parse\",\"rule\":\"symmetric inclusive 1.5xIQR\",\"raw\":[")
+    Numbers(samples[:]); print("],\"excluded\":["); Indices(result.excluded[:])
+    print("],\"median\":%}\n",result.median)
+    return 0
+}

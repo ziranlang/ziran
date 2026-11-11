@@ -1,0 +1,17 @@
+#import "std/text_buffer"
+Choice :: (index: s32) -> string {
+    if index == {
+@CASES@
+    }
+    return ""
+}
+main :: () -> s32 {
+    for pass: 0..1 {
+        for i: 0..599 {
+            expected: Vec(u8)
+            BuilderPrint(*expected, "value-%\0中文", i)
+            if Choice(cast(s32)i) != BuilderFinish(expected) { return 1 }
+        }
+    }
+    return 0
+}

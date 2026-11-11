@@ -1,0 +1,232 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+artifact_no_options: [0]string;
+
+ArtifactBuild :: (test: *NativeTest, app: string, target: string = "linux-x86_64-gnu", success: bool = true,
+    selection: string = "Provider:object", options: []string = artifact_no_options[:]) -> string {
+    command: Vec(string)
+    prefix := string.["pkg", "artifact", selection, "--platform", target]
+    for item: prefix { VecPush(command, item) }
+    for option: options { VecPush(command, "--option"); VecPush(command, option) }
+    return TextDetach(TextCopy(TextTrim(PackageCommand(test, app, command[:], success))))
+}
+
+ArtifactCount :: (test: *NativeTest, provider: string, expected: s64) -> bool {
+    return NativeAssert(test, NativeRead(test, CheckPath(provider, "build/count")).count == expected, CheckConcat("unexpected artifact invocation count, expected ", CheckNumber(expected)))
+}
+
+ArtifactDependency :: (test: *NativeTest, descriptor: string) -> string {
+    fields := TextSplit(TextTrim(NativeRead(test, CheckPath(PathParent(descriptor), "dependencies.tsv"))), "\t")
+    if !NativeAssert(test, fields.count == 2 && IsFile(fields[1]), "missing prerequisite descriptor") { return "" }
+    return TextDetach(TextCopy(fields[1]))
+}
+
+ArtifactSnapshot :: struct { path: string; text: string }
+
+ArtifactPristine :: (test: *NativeTest, apps: []string) -> Vec(ArtifactSnapshot) {
+    snapshots: Vec(ArtifactSnapshot)
+    for app: apps {
+        paths := NativeFiles(app, "", true)
+        for path: paths {
+            name := PathName(path)
+            if TextHasPrefix(name, "ziran.") || name == "module-map.tsv" { VecPush(snapshots, ArtifactSnapshot.{path, NativeRead(test, path)}) }
+        }
+    }
+    return snapshots
+}
+
+Artifacts :: (test: *NativeTest) -> bool {
+    if !FixtureIsolation(test, test.work) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    provider := CheckPath(test.work, "provider"); tool := CheckPath(test.work, "tool")
+    if !FixtureInit(test, provider) || !FixtureInit(test, tool) || !NativeWrite(test, CheckPath(tool, "VERSION"), "fixture\n") { return false }
+    unused FixtureCommit(test, tool, "artifact tool fixture")
+    wide: Vec(string); inputs: Vec(u8)
+    for index: 0..199 {
+        name := CheckConcat("inputs/", CheckConcat(CheckNumber(index), ".txt"))
+        VecPush(wide, name)
+        if !NativeWrite(test, CheckPath(provider, name), CheckConcat(name, "\n")) { return false }
+        BuilderAppend(inputs, ", "); BuilderAppend(inputs, FixtureQuote(name))
+    }
+    outputs := "outputs = [\"value.o\", \"resource.txt\", \"options.txt\"]"
+    manifest_parts := string.["[package]\nname = \"Provider\"\n[tool]\nproject = \"build/bin/provider\"\n[options]\nmode = \"string=normal\"\nenabled = \"bool=false\"\n[options.variant.\"*\"]\npath = \"string!\"\n[artifacts.object]\ninputs = [\"src/value.c\", \"tools/provider.zi\", \"Makefile\"", TextDetach(BuilderFinish(inputs)), "]\n", outputs, "\n"]
+    original := TextDetach(TextJoin(manifest_parts[:], ""))
+    zi2c := CheckPath(PathParent(test.ziran), "zi2c")
+    make_parts := string.["build/bin/provider: tools/provider.zi\n\t@mkdir -p build/bin\n\t@LDLIBS=-lcrypto ", zi2c,
+        " --exe --root tools --module-path ", CheckPath(test.repo, "cmd"), " --module-path ", CheckPath(test.repo, "std"), " --entry provider:main -o build/bin tools/provider.zi\n"]
+    if !NativeWrite(test, CheckPath(provider, "ziran.toml"), original) || !NativeWrite(test, CheckPath(provider, ".gitignore"), "build/\n") ||
+        !NativeWrite(test, CheckPath(provider, "src/value.c"), "int value(void) { return 42; }\n") ||
+        !NativeWrite(test, CheckPath(provider, "Makefile"), TextJoin(make_parts[:], "")) ||
+        !NativeWrite(test, CheckPath(provider, "tools/provider.zi"), NativeRead(test, CheckPath(test.repo, "tests/fixtures/package_artifacts/provider.zi"))) { return false }
+    unused FixtureCommit(test, provider, "real native artifact provider")
+    apps := string.[CheckPath(test.work, "one"), CheckPath(test.work, "two")]
+    aliases := string.["ziran", "Provider"]; paths := string.[tool, provider]
+    lock := string.["lock"]
+    for app: apps {
+        pieces := string.["[package]\nname = ", FixtureQuote(PathName(app)), "\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)),
+            "\n[dependencies.Provider]\ngit = ", FixtureQuote(FixtureUri(provider)), "\n"]
+        if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextJoin(pieces[:], "")) || !FixtureOverrides(test, app, aliases[:], paths[:]) { return false }
+        unused PackageCommand(test, app, lock[:])
+    }
+    app := apps[0]; app_manifest := CheckPath(app, "ziran.toml"); app_original := NativeRead(test, app_manifest)
+    if !NativeAssert(test, TextContains(ArtifactBuild(test, app, "c", false), "OS-ARCH-ABI"), "invalid platform was accepted") { return false }
+    first := ArtifactBuild(test, app)
+    if !NativeAssert(test, IsFile(first), "missing artifact descriptor") { return false }
+    descriptor := NativeRead(test, first)
+    nm := string.["nm", CheckPath(PathParent(first), "value.o")]; unused NativeRun(test, nm[:])
+    if !NativeAssert(test, TextContains(descriptor, "linux-x86_64-gnu") && TextContains(descriptor, "value.o\t"), "descriptor omitted target or output") ||
+        !ArtifactCount(test, provider, 1) || !NativeAssert(test, ArtifactBuild(test, apps[1]) == first && ArtifactBuild(test, app) == first, "equivalent consumers did not share artifact") ||
+        !ArtifactCount(test, provider, 1) { return false }
+    other := ArtifactBuild(test, app, "windows-x86_64-mingw")
+    if !NativeAssert(test, other != first && NativeRead(test, CheckPath(PathParent(other), "resource.txt")) == "windows-x86_64-mingw", "platform did not enter artifact identity") || !ArtifactCount(test, provider, 2) { return false }
+    NativeSet(test, "CFLAGS", "-DARTIFACT_TEST")
+    changed := ArtifactBuild(test, app); NativeUnset(test, "CFLAGS")
+    if !NativeAssert(test, changed != first, "compiler flags did not enter artifact identity") || !ArtifactCount(test, provider, 3) ||
+        !NativeWrite(test, app_manifest, CheckConcat(app_original, "[tool.Provider]\nmode = \"different\"\n")) { return false }
+    option := ArtifactBuild(test, app)
+    if !NativeAssert(test, option != first, "manifest options did not enter artifact identity") || !ArtifactCount(test, provider, 4) ||
+        !NativeWrite(test, CheckPath(provider, "src/value.c"), "int value(void) { return 43; }\n") { return false }
+    local := ArtifactBuild(test, app)
+    if !NativeAssert(test, local != option, "dirty provider source reused old content identity") || !ArtifactCount(test, provider, 5) ||
+        !NativeWrite(test, CheckPath(provider, "src/value.c"), "invalid C\n") { return false }
+    failed := ArtifactBuild(test, app, "linux-x86_64-gnu", false)
+    if !NativeAssert(test, TextContains(failed, "artifact"), "provider failure was not diagnosed") || !ArtifactCount(test, provider, 6) ||
+        !NativeAssert(test, NativeRead(test, first) == descriptor && IsFile(CheckPath(PathParent(first), "value.o")), "failed provider damaged prior outputs") { return false }
+    unused ArtifactBuild(test, app, "linux-x86_64-gnu", false)
+    if !ArtifactCount(test, provider, 7) || !NativeWrite(test, CheckPath(provider, "src/value.c"), "int value(void) { return 42; }\n") || !NativeWrite(test, app_manifest, app_original) { return false }
+    if !NativeAssert(test, ArtifactBuild(test, app) == first, "restored sources did not reuse prior successful output") || !ArtifactCount(test, provider, 7) ||
+        !NativeAssert(test, TextContains(ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Missing:object"), "locked") &&
+        TextContains(ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:missing"), "recipe"), "missing dependency or recipe was accepted") { return false }
+    provider_manifest := CheckPath(provider, "ziran.toml")
+    if !NativeWrite(test, provider_manifest, TextReplace(original, outputs, "outputs = [\"../escape\"]")) { return false }
+    if !NativeAssert(test, TextContains(ArtifactBuild(test, app, "linux-x86_64-gnu", false), "recipe"), "escaping output path was accepted") ||
+        !NativeWrite(test, provider_manifest, CheckConcat(original, "[artifacts.loop]\ninputs = [\"src/value.c\"]\noutputs = [\"loop.o\"]\nrequires = [\"self:loop\"]\n")) { return false }
+    if !NativeAssert(test, TextContains(ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:loop"), "cycle"), "artifact cycle was accepted") ||
+        !NativeWrite(test, provider_manifest, original) || !NativeWrite(test, CheckPath(tool, "VERSION"), "next\n") { return false }
+    unused FixtureCommit(test, tool, "new toolchain identity")
+    update_tool := string.["update", "ziran"]; update_provider := string.["update", "Provider"]
+    unused PackageCommand(test, app, update_tool[:])
+    if !NativeAssert(test, ArtifactBuild(test, app) != first, "toolchain change did not invalidate artifact") || !ArtifactCount(test, provider, 8) { return false }
+    prerequisite := CheckConcat(TextDetach(TextReplace(original, outputs, CheckConcat(outputs, "\nrequires = [\"self:base\"]"))),
+        CheckConcat("[artifacts.base]\ninputs = [\"src/value.c\"]\n", CheckConcat(outputs, "\n")))
+    if !NativeWrite(test, provider_manifest, prerequisite) { return false }
+    unused FixtureCommit(test, provider, "artifact prerequisite")
+    unused PackageCommand(test, app, update_provider[:])
+    dependent := ArtifactBuild(test, app)
+    dependencies := NativeRead(test, CheckPath(PathParent(dependent), "dependencies.tsv"))
+    unused ArtifactDependency(test, dependent)
+    if !ArtifactCount(test, provider, 10) || !NativeAssert(test, TextHasPrefix(dependencies, "self:base\t") && ArtifactBuild(test, app) == dependent, "prerequisite was not built and shared") ||
+        !ArtifactCount(test, provider, 10) || !NativeWrite(test, CheckPath(provider, "src/value.c"), "int value(void) { return 44; }\n") { return false }
+    unused FixtureCommit(test, provider, "changed prerequisite input")
+    unused PackageCommand(test, app, update_provider[:])
+    if !NativeAssert(test, ArtifactBuild(test, app) != dependent, "prerequisite change did not invalidate consumer") || !ArtifactCount(test, provider, 12) { return false }
+    for consumer: apps { if !NativeWrite(test, CheckPath(consumer, "build/.ziran/module-map.tsv"), "caller owned index\n") { return false } }
+    pristine := ArtifactPristine(test, apps[:])
+    before := NativeRead(test, CheckPath(provider, "build/count")).count
+    defaults := ArtifactBuild(test, app)
+    normal := string.["Provider:mode=normal", "Provider:enabled=false"]
+    if !NativeAssert(test, ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", normal[:]) == defaults, "explicit defaults changed artifact identity") || !ArtifactCount(test, provider, before) { return false }
+    literal := "/sdk path/with=equals;$(false)"
+    options := string.[CheckConcat("provider:variant.beta.path=", literal), "Provider:enabled=true", "Provider:variant.alpha.path=first", "Provider:mode=direct"]
+    direct := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", options[:])
+    expected := NativeRead(test, CheckPath(PathParent(direct), "options.txt"))
+    base := ArtifactDependency(test, direct)
+    if !NativeAssert(test, direct != defaults && TextContains(expected, "enabled=true\n") && TextContains(expected, CheckConcat("variant.beta.path=", CheckConcat(literal, "\n"))) &&
+        NativeRead(test, CheckPath(PathParent(base), "options.txt")) == expected, "invocation options were lost, evaluated or not forwarded to prerequisite") || !ArtifactCount(test, provider, before + 2) { return false }
+    reversed := string.[options[3], options[2], options[1], options[0]]
+    if !NativeAssert(test, ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", reversed[:]) == direct, "option order changed identity") || !ArtifactCount(test, provider, before + 2) { return false }
+    unused PackageCommand(test, apps[1], update_provider[:]); unused PackageCommand(test, apps[1], update_tool[:])
+    for index: cast(s64)0..pristine.count - 1 { pristine[index].text = NativeRead(test, pristine[index].path) }
+    if !NativeAssert(test, ArtifactBuild(test, apps[1], "linux-x86_64-gnu", true, "Provider:object", options[:]) == direct, "independent consumer did not share equivalent options") || !ArtifactCount(test, provider, before + 2) { return false }
+    play := string.["Provider:mode=play"]
+    changed_options := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", play[:])
+    if !NativeAssert(test, changed_options != direct && ArtifactDependency(test, changed_options) != base, "changed options did not invalidate consumer and prerequisite") || !ArtifactCount(test, provider, before + 4) { return false }
+    bad_options := string.["Missing:mode=x", "Provider:mode", "Provider:mode=", "Provider:unknown=x", "Provider:enabled=1", "Provider:mode=x\ny=z", "Provider:variant.path=x", "Provider:variant..path=x"]
+    NativeSet(test, "CC", "must-not-be-invoked")
+    for bad: bad_options {
+        one := string.[bad]
+        failure := ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:object", one[:])
+        if !NativeAssert(test, TextContains(failure, "option") && !TextContains(failure, "compiler"), "invalid option reached compiler") { return false }
+    }
+    duplicate := string.["Provider:mode=x", "provider:mode=y"]
+    duplicate_error := ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:object", duplicate[:])
+    if !NativeAssert(test, TextContains(duplicate_error, "option") && !TextContains(duplicate_error, "compiler"), "duplicate option reached compiler") { return false }
+    for index: 0..1 {
+        command: Vec(string)
+        prefix := string.["pkg", "artifact", "Provider:object", "--platform", "linux-x86_64-gnu"]
+        for item: prefix { VecPush(command, item) }
+        VecPush(command, ifx index == 0 then "--option" else "--wrong")
+        if index == 1 { VecPush(command, "Provider:mode=x") }
+        failure := PackageCommand(test, app, command[:], false)
+        if !NativeAssert(test, TextContains(failure, "option") && !TextContains(failure, "compiler"), "invalid option syntax reached compiler") { return false }
+    }
+    NativeUnset(test, "CC")
+    if !ArtifactCount(test, provider, before + 4) { return false }
+    saved := NativeRead(test, direct)
+    fail_options := string.["Provider:mode=failed"]
+    NativeSet(test, "FAIL_PROVIDER", "1")
+    failure := ArtifactBuild(test, app, "linux-x86_64-gnu", false, "Provider:object", fail_options[:])
+    NativeUnset(test, "FAIL_PROVIDER")
+    if !NativeAssert(test, TextContains(failure, "artifact") && NativeRead(test, direct) == saved && IsFile(CheckPath(PathParent(direct), "value.o")), "failed invocation damaged prior artifacts") { return false }
+    for snapshot: pristine { if !NativeAssert(test, NativeRead(test, snapshot.path) == snapshot.text, "artifact request edited caller-owned metadata") { return false } }
+    local_manifest := CheckPath(app, "ziran.local.toml"); committed := NativeRead(test, app_manifest); local_text := NativeRead(test, local_manifest)
+    committed_settings := CheckConcat(committed, "[tool.Provider]\nmode = \"committed\"\n")
+    local_settings := CheckConcat(local_text, "[tool.Provider]\nmode = \"local\"\n")
+    if !NativeWrite(test, app_manifest, committed_settings) || !NativeWrite(test, local_manifest, local_settings) { return false }
+    local_default := ArtifactBuild(test, app)
+    if !NativeAssert(test, TextContains(NativeRead(test, CheckPath(PathParent(local_default), "options.txt")), "mode=local\n") &&
+        ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", options[:]) == direct && NativeRead(test, app_manifest) == committed_settings &&
+        NativeRead(test, local_manifest) == local_settings, "committed/local/invocation precedence changed or persisted edits") ||
+        !NativeWrite(test, app_manifest, committed) || !NativeWrite(test, local_manifest, local_text) { return false }
+    support := CheckPath(test.work, "support")
+    if !FixtureInit(test, support) { return false }
+    extra_files := string.[".gitignore", "Makefile", "tools/provider.zi", "src/value.c"]
+    for relative: wide { if !NativeWrite(test, CheckPath(support, relative), NativeRead(test, CheckPath(provider, relative))) { return false } }
+    for relative: extra_files { if !NativeWrite(test, CheckPath(support, relative), NativeRead(test, CheckPath(provider, relative))) { return false } }
+    if !NativeWrite(test, CheckPath(support, "ziran.toml"), TextReplace(original, "name = \"Provider\"", "name = \"Support\"")) { return false }
+    unused FixtureCommit(test, support, "support prerequisite fixture")
+    support_manifest := CheckConcat(TextDetach(TextReplace(original, outputs, CheckConcat(outputs, "\nrequires = [\"support:object\"]"))),
+        CheckConcat("[dependencies.support]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(support)), "\n")))
+    if !NativeWrite(test, provider_manifest, support_manifest) { return false }
+    unused FixtureCommit(test, provider, "prerequisite uses independent alias")
+    update := string.["update"]
+    for consumer: apps {
+        path := CheckPath(consumer, "ziran.toml"); local_path := CheckPath(consumer, "ziran.local.toml")
+        addition := CheckConcat("[dependencies.Helper]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(support)), "\n[tool.Helper]\nmode = \"root-default\"\n"))
+        if !NativeWrite(test, path, CheckConcat(NativeRead(test, path), addition)) ||
+            !NativeWrite(test, local_path, CheckConcat(NativeRead(test, local_path), CheckConcat("Helper = ", CheckConcat(FixtureQuote(support), "\n")))) { return false }
+        unused PackageCommand(test, consumer, update[:])
+    }
+    inherited_option := string.["Helper:mode=inherited"]; equivalent := string.["helper:mode=inherited"]; other_option := string.["Helper:mode=other"]
+    inherited := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", inherited_option[:])
+    support_descriptor := ArtifactDependency(test, inherited)
+    if !NativeAssert(test, TextContains(NativeRead(test, CheckPath(PathParent(support_descriptor), "options.txt")), "mode=inherited\n") &&
+        ArtifactBuild(test, apps[1], "linux-x86_64-gnu", true, "Provider:object", equivalent[:]) == inherited, "root option alias did not reach prerequisite alias") { return false }
+    new_inherited := ArtifactBuild(test, app, "linux-x86_64-gnu", true, "Provider:object", other_option[:])
+    if !NativeAssert(test, new_inherited != inherited && ArtifactDependency(test, new_inherited) != support_descriptor, "inherited option change did not invalidate prerequisite") { return false }
+    client := CheckPath(test.work, "client")
+    if !NativeWrite(test, CheckPath(client, "client.zi"), NativeRead(test, CheckPath(test.repo, "tests/fixtures/package_artifacts/client.zi"))) { return false }
+    NativeSet(test, "LDLIBS", "-lcrypto")
+    compile := string.[zi2c, "--exe", "--root", client, "--module-path", CheckPath(test.repo, "cmd"), "--module-path", CheckPath(test.repo, "std"),
+        "--entry", "client:main", "-o", CheckPath(client, "build"), CheckPath(client, "client.zi")]
+    unused NativeRun(test, compile[:], app)
+    NativeUnset(test, "LDLIBS")
+    run := string.[CheckPath(client, "build/client"), app]; unused NativeRun(test, run[:], app)
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-artifacts-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !Artifacts(*test) { return 1 }
+    print("Local package artifacts: real objects, content identities, prerequisite aliases, options and failure isolation passed\n")
+    return 0
+}

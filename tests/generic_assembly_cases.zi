@@ -1,0 +1,132 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+AssemblyReject :: struct { name: string; diagnostic: string }
+assembly_rejections: [11]AssemblyReject = .[
+    .{"input-count", "constraint counts"},
+    .{"duplicate", "duplicate or too many"},
+    .{"known-input", "named scalars, pointers or slices of scalars"},
+    .{"known-result", "scalar/pointer operands"},
+    .{"qualified-result", "constraint counts"},
+    .{"missing-local", "scalar/pointer locals"},
+    .{"return-block", "must fall through"},
+    .{"aggregate", "scalar/pointer operands"},
+    .{"specialized-output", "constraint counts"},
+    .{"specialized-block", "scalar/pointer locals"},
+    .{"bad-body", "not_a_binding"}
+];
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "generic-assembly-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    VecPush(test.environment, "GO111MODULE=off")
+    source := CheckPath(test.work, "source")
+    names := string.["generic_assembly_ops.zi", "generic_assembly_test.zi"]
+    for name: names {
+        contents, valid := ReadEntireFile(CheckPath(CheckPath(test.repo, "tests/spec"), name))
+        if !NativeAssert(*test, valid, "missing assembly source fixture") || !NativeWrite(*test, CheckPath(source, name), contents) { return 1 }
+    }
+    entry := CheckPath(source, "generic_assembly_test.zi")
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", source, "-o", ir, entry]
+    unused NativeRun(*test, save[:])
+    library := CheckPath(test.work, "library")
+    save_library := string.[test.ziran, "ir", "--root", source, "-o", library, CheckPath(source, "generic_assembly_ops.zi")]
+    unused NativeRun(*test, save_library[:])
+    if !NativeAssert(*test, CopyFile(entry, CheckPath(library, "generic_assembly_test.zi")), "copy caller after saving its generic library") { return 1 }
+    report: JsonDocument
+    report.root = JsonNewObject(*report)
+    records := JsonNewArray(*report)
+    JsonSet(*report, report.root, "records", records)
+    forms := string.["source", "saved", "library"]
+    targets := string.["c", "go"]
+    for form: forms {
+        root := ifx form == "source" then source else ifx form == "saved" then ir else library
+        input := CheckPath(root, ifx form == "saved" then "generic_assembly_test.zir" else "generic_assembly_test.zi")
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        portable := string.[test.ziran, "bundle", "--root", root, "--entry", "generic_assembly_test:Answer", "-o", bundle, input]
+        unused NativeRun(*test, portable[:])
+        execute := string.[test.ziran, "run", bundle]
+        unused NativeExpect(*test, execute[:], "42\n")
+        record := JsonNewObject(*report)
+        CheckPut(*report, record, "form", form); CheckPut(*report, record, "target", "zx")
+        JsonAppend(*report, records, record)
+        for target: targets {
+            output := CheckPath(test.work, CheckConcat(form, CheckConcat("-", target)))
+            build := string.[test.ziran, "build", CheckConcat("--target=", target), "--root", root, "-o", output]
+            command: Vec(string)
+            for item: build { VecPush(command, item) }
+            if target == "go" { VecPush(command, "--pkg"); VecPush(command, "main") }
+            VecPush(command, input)
+            unused NativeRun(*test, command[:])
+            executable := CheckPath(output, "run")
+            if target == "c" {
+                if !NativeWrite(*test, CheckPath(output, "host.c"), "#include <stdio.h>\n#include \"generic_assembly_test.h\"\nint main(void){long long value=Answer();if(value!=42)printf(\"generic case %lld\\n\",value);return value==42?0:1;}\n") { return 1 }
+                all: Vec(u8)
+                files := NativeFiles(output, ".c")
+                for file: files { contents, valid := ReadEntireFile(file); if !NativeAssert(*test, valid, "read generated C") { return 1 }; BuilderAppend(all, contents) }
+                if !NativeAssert(*test, TextContains(BuilderFinish(all), "__asm__"), "generic assembly was not emitted") { return 1 }
+                optimizations := s32.[0, 2]
+                modes := string.["native", "fallback"]
+                for optimization: optimizations {
+                    for mode: modes {
+                        compile: Vec(string)
+                        flags := string.[NativeCompiler(), "-std=c11", CheckConcat("-O", CheckNumber(optimization)), CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+                        for flag: flags { VecPush(compile, flag) }
+                        if mode == "fallback" { VecPush(compile, "-DZIRAN_NO_ASM") }
+                        for file: files { VecPush(compile, file) }
+                        VecPush(compile, "-o"); VecPush(compile, executable)
+                        unused NativeRun(*test, compile[:])
+                        run := string.[executable]; unused NativeRun(*test, run[:])
+                        item := JsonNewObject(*report)
+                        CheckPut(*report, item, "form", form); CheckPut(*report, item, "target", target); CheckPut(*report, item, "mode", mode)
+                        JsonSet(*report, item, "optimization", JsonNewInteger(*report, optimization)); JsonAppend(*report, records, item)
+                    }
+                }
+            } else {
+                if !NativeWrite(*test, CheckPath(output, "main.go"), "package main\nfunc main(){if GenericAssemblyTest_Answer()!=42{panic(\"generic assembly fallback\")}}\n") { return 1 }
+                modes := string.["native", "portable", "forced"]
+                for mode: modes {
+                    base := test.environment.count
+                    VecPush(test.environment, ifx mode == "portable" then "CGO_ENABLED=0" else "CGO_ENABLED=1")
+                    VecPush(test.environment, ifx mode == "forced" then "CGO_CFLAGS=-O2 -g -DZIRAN_NO_ASM" else "CGO_CFLAGS=-O2 -g")
+                    VecPush(test.environment, ifx mode == "portable" then "GOFLAGS=" else "GOFLAGS=-tags=ziran_asm")
+                    compile := string.["go", "build", "-o", executable, "."]
+                    unused NativeRun(*test, compile[:], output)
+                    run := string.[executable]; unused NativeRun(*test, run[:])
+                    unused VecResize(test.environment, base)
+                    item := JsonNewObject(*report)
+                    CheckPut(*report, item, "form", form); CheckPut(*report, item, "target", target); CheckPut(*report, item, "mode", mode)
+                    JsonAppend(*report, records, item)
+                }
+            }
+        }
+    }
+    if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "source.zx"), CheckPath(test.work, "saved.zx")), "generic source/saved bundles differ") { return 1 }
+    rejected := JsonNewArray(*report)
+    for item: assembly_rejections {
+        path := CheckPath(test.work, CheckConcat(item.name, ".zi"))
+        fixture, valid := ReadEntireFile(CheckPath(test.repo, CheckConcat("tests/fixtures/generic_assembly/", CheckConcat(item.name, ".zi.in"))))
+        if !NativeAssert(*test, valid, "read assembly rejection fixture") || !NativeWrite(*test, path, fixture) { return 1 }
+        check := string.[test.ziran, "check", "--root", test.work, "--module-path", source, path]
+        result := NativeInvoke(*test, check[:])
+        if !NativeAssert(*test, result.code != 0 && TextContains(result.error, item.diagnostic), CheckConcat("incorrect generic assembly rejection: ", item.name)) { return 1 }
+        JsonAppend(*report, rejected, JsonNewStringCopy(*report, item.name))
+    }
+    JsonSet(*report, report.root, "rejection_cases", rejected)
+    hashes := JsonNewObject(*report)
+    for name: names { CheckPut(*report, hashes, name, CheckHash(CheckPath(source, name))) }
+    JsonSet(*report, report.root, "source_hashes", hashes)
+    if !NativeWrite(*test, CheckPath(test.work, "verification.json"), JsonWrite(*report, report.root, JsonPythonStyle(2))) { return 1 }
+    if test.failed { return 1 }
+    print("Generic assembly passed native/fallback execution, saved templates and specialization rejection tests\n")
+    return 0
+}

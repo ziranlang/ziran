@@ -34,6 +34,8 @@
 // Memory: Load(T, data, at), LoadLow(T, data, at) reads the low 64 bits
 // and zeroes the rest; Store(data, at, v), StoreLow(data, at, v). Slices
 // and arrays are checked once per access; pointers are not checked.
+// Load and LoadLow also read immutable string bytes into u8 vectors, with
+// the same whole-access bounds check and no intermediate byte allocation.
 // Gather(table, indices) reads 32-bit lanes from a table.
 // Width: WidenLow, WidenHigh (half the lanes, twice as wide), Widen (a
 // 128-bit vector to 256 bits), Narrow(T, a, b) with saturation,

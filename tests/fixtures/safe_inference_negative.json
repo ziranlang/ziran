@@ -1,0 +1,13 @@
+{
+  "no_context": "Answer :: () { result := .{value=42}; }",
+  "ambiguous": "A :: struct { value: s32; }\nB :: struct { value: s32; }\nAnswer :: () { result := ifx true then .{value=1} else .{value=2}; }",
+  "distinct": "A :: struct { value: s32; }\nB :: struct { value: s32; }\nAnswer :: () { result := ifx true then A.{value=1} else B.{value=2}; }",
+  "unknown_field": "A :: struct { value: s32; }\nAnswer :: () { result := ifx true then A.{value=1} else .{missing=2}; }",
+  "field_type": "A :: struct { value: s32; }\nAnswer :: () { result := ifx true then A.{value=1} else .{value=\"wrong\"}; }",
+  "owned": "#import \"std/vec\"\nA :: struct { values: Vec(u8); }\nAnswer :: () { result := ifx true then A.{} else .{}; }",
+  "enum": "A :: enum { One; Two; }\nAnswer :: () { result := ifx true then A.{} else .{}; }",
+  "foreign": "c :: #system_library \"libc\";\nA :: #type #foreign c;\nAnswer :: () { result := ifx true then A.{} else .{}; }",
+  "recursive": "A :: struct { value: s32; }\nAnswer :: () { result := ifx true then result else A.{value=2}; }",
+  "global": "A :: struct { value: s32; }\nresult := ifx true then A.{value=1} else .{value=2};",
+  "missing_import": "Answer :: () { result := Missing.Record.{value=42}; }"
+}

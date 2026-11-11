@@ -1,0 +1,126 @@
+#import "native_test"
+#import "check_support"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+#import "std/environment_linux"
+using Vectors :: #import "std/vec"
+
+RootNumber :: (number: s64) -> string {
+    text := CheckNumber(number)
+    while text.count < 3 { text = CheckConcat("0", text) }
+    return text
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "module-roots-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    defer { unused RemoveTree(test.work) }
+    app := CheckPath(test.work, "app")
+    roots: Vec(string)
+    saved: Vec(string)
+    for index: cast(s64)0..272 {
+        root := CheckPath(test.work, CheckConcat("root", RootNumber(index)))
+        destination := CheckPath(test.work, CheckConcat("saved", RootNumber(index)))
+        if !CreateDirectories(root) || !CreateDirectories(destination) { return 1 }
+        VecPush(roots, root); VecPush(saved, destination)
+        marker := CheckPath(root, CheckConcat("Marker", CheckConcat(RootNumber(index), ".zi")))
+        if !NativeWrite(*test, marker, CheckConcat("Marker :: ", CheckConcat(CheckNumber(index), ";\n"))) { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(roots[64], "R64.zi"), "#program_export\nValue64 :: () -> s32 { return 20 }\n") ||
+        !NativeWrite(*test, CheckPath(roots[272], "R272.zi"), "#program_export\nValue272 :: () -> s32 { return 21 }\n") ||
+        !NativeWrite(*test, CheckPath(roots[0], "Winner.zi"), "#program_export\nFirst :: () -> s32 { return 1 }\n") ||
+        !NativeWrite(*test, CheckPath(roots[272], "Winner.zi"), "#program_export\nFirst :: () -> s32 { return 99 }\n") { return 1 }
+    source := CheckPath(app, "main.zi")
+    if !NativeWrite(*test, source, "#import \"R64\"\n#import \"R272\"\n#import \"Winner\"\n#program_export\nResult :: () -> s32 { return Value64() + Value272() + First() }\n") { return 1 }
+    paths: Vec(string)
+    for root: roots { VecPush(paths, "--module-path"); VecPush(paths, root) }
+    check: Vec(string)
+    VecPush(check, test.ziran); VecPush(check, "check"); VecPush(check, "--root"); VecPush(check, app)
+    for path: paths { VecPush(check, path) }
+    VecPush(check, source)
+    unused NativeRun(*test, check[:])
+    ir := CheckPath(test.work, "ir")
+    save: Vec(string)
+    VecPush(save, test.ziran); VecPush(save, "ir"); VecPush(save, "--root"); VecPush(save, app)
+    for path: paths { VecPush(save, path) }
+    VecPush(save, "-o"); VecPush(save, ir); VecPush(save, source)
+    unused NativeRun(*test, save[:])
+    modules: [3]string = .["R64", "R272", "Winner"]
+    indices: [3]s64 = .[64, 272, 0]
+    for index: cast(s64)0..2 {
+        name := CheckConcat(modules[index], ".zir")
+        if !CopyFile(CheckPath(ir, name), CheckPath(saved[indices[index]], name)) { return 1 }
+    }
+    saved_app := CheckPath(test.work, "saved-app")
+    if !CreateDirectories(saved_app) || !CopyFile(CheckPath(ir, "main.zir"), CheckPath(saved_app, "main.zir")) { return 1 }
+    forms: [2]string = .["source", "saved"]
+    for form: forms {
+        root := ifx form == "source" then app else saved_app
+        input := ifx form == "source" then source else CheckPath(saved_app, "main.zir")
+        options: Vec(string)
+        VecPush(options, "--root"); VecPush(options, root)
+        for index: cast(s64)0..272 {
+            VecPush(options, "--module-path")
+            VecPush(options, ifx form == "source" then roots[index] else saved[index])
+        }
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        command: Vec(string)
+        VecPush(command, test.ziran); VecPush(command, "bundle")
+        for option: options { VecPush(command, option) }
+        VecPush(command, "--entry"); VecPush(command, "main:Result")
+        VecPush(command, "-o"); VecPush(command, bundle); VecPush(command, input)
+        unused NativeRun(*test, command[:])
+        run: [3]string = .[test.ziran, "run", bundle]
+        if !NativeExpect(*test, run[:], "42\n") { return 1 }
+        targets: [2]string = .["c", "go"]
+        for target: targets {
+            output := CheckPath(test.work, CheckConcat(form, CheckConcat("-", target)))
+            build: Vec(string)
+            VecPush(build, test.ziran); VecPush(build, "build"); VecPush(build, CheckConcat("--target=", target))
+            if target == "go" { VecPush(build, "--pkg"); VecPush(build, "main") }
+            for option: options { VecPush(build, option) }
+            VecPush(build, "--entry"); VecPush(build, "main:Result")
+            VecPush(build, "-o"); VecPush(build, output); VecPush(build, input)
+            unused NativeRun(*test, build[:])
+            executable := CheckPath(output, "probe")
+            compile: Vec(string)
+            if target == "c" {
+                if !NativeWrite(*test, CheckPath(output, "probe.c"), "#include \"main.h\"\nint main(void) { return Result(); }\n") { return 1 }
+                cc := EnvironmentText("CC"); if cc == "" { cc = "cc" }
+                VecPush(compile, cc); VecPush(compile, CheckConcat("-I", CheckPath(test.repo, "include")))
+                files := NativeFiles(output, ".c")
+                for file: files { VecPush(compile, file) }
+            } else {
+                if !NativeWrite(*test, CheckPath(output, "probe.go"), "package main\nimport \"os\"\nfunc main() { os.Exit(int(Main_Result())) }\n") { return 1 }
+                VecPush(compile, "go"); VecPush(compile, "build")
+                files := NativeFiles(output, ".go")
+                for file: files { VecPush(compile, file) }
+            }
+            // Go accepts -o before the file list; the direct C driver does too.
+            complete: Vec(string)
+            for index: cast(s64)0..compile.count - 1 {
+                VecPush(complete, compile[index])
+                if index == (ifx target == "go" then cast(s64)1 else cast(s64)0) {
+                    VecPush(complete, "-o"); VecPush(complete, executable)
+                }
+            }
+            unused NativeRun(*test, complete[:])
+            execute: [1]string = .[executable]
+            unused NativeRun(*test, execute[:], "", 42)
+        }
+    }
+    if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "source.zx"), CheckPath(test.work, "saved.zx")), "portable bundles differ") { return 1 }
+    invalid: Vec(string)
+    VecPush(invalid, test.ziran); VecPush(invalid, "check"); VecPush(invalid, "--root"); VecPush(invalid, app)
+    for path: paths { VecPush(invalid, path) }
+    VecPush(invalid, "--module-path"); VecPush(invalid, CheckPath(test.work, "missing")); VecPush(invalid, source)
+    rejected := NativeInvoke(*test, invalid[:])
+    if !NativeAssert(*test, rejected.code != 0 && TextContains(CheckConcat(rejected.output, rejected.error), "module search path is unavailable"), "missing module root was accepted") { return 1 }
+    if test.failed { return 1 }
+    print("PASS: 273 roots, last-root resolution, first-root ordering, source/saved IR, identical ZX/portable VM, native C/Go, invalid path\n")
+    return 0
+}

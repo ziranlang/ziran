@@ -7,10 +7,14 @@ work=$(mktemp -d "$root/build/tests/process-channel.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
 export YUE_DESKTOP_RECOVERY=0
+"$ziran" build --target=c --exe --root "$root/tests" --entry process_fixture:main \
+    -o "$work/child" "$root/tests/process_fixture.zi"
+export ZIRAN_PROCESS_FIXTURE="$work/child/process_fixture"
 cat > "$work/channel_test.zi" <<'ZI'
 #import "process_channel_linux"
 #import "byte_text_linux"
 #import "timer_linux"
+#import "environment_linux"
 using Vectors :: #import "vec";
 libc :: #system_library "libc";
 GroupRaw :: (pid: s32) -> s32 #foreign libc "getpgid";
@@ -21,6 +25,7 @@ DuplicateToRaw :: (fd: s32, destination: s32) -> s32 #foreign libc "dup2";
 PrctlRaw :: (option: s32,a: usize,b: usize,c: usize,d: usize) -> s32 #foreign libc "prctl";
 WaitIdRaw :: (kind: s32,id: u32,info: *u8,options: s32) -> s32 #foreign libc "waitid";
 WaitChildRaw :: (pid: s32,status: *s32,options: s32) -> s32 #foreign libc "waitpid";
+ErrnoRaw :: () -> *s32 #foreign libc "__errno_location";
 
 CancelDescendant :: () -> bool {
     // This disposable test process adopts/reaps only its own descendants.
@@ -88,12 +93,18 @@ ArgumentBoundary :: (count: s32) -> bool {
 
 #program_export
 Main :: () -> s32 {
-    args: [3]string = .["python3", "-c", "import os; b=os.read(0,4096); os.write(1,b); os.write(2,b'err'); raise SystemExit(7)"]
+    args: [2]string = .[EnvironmentText("ZIRAN_PROCESS_FIXTURE"), "echo-bytes"]
     channel := StartChannel(args[:], true)
     defer { unused CloseChannel(*channel, 0) }
     if channel.error != 0 || !channel.socket.valid || channel.pid <= 0 { return 1 }
     input: [5]u8 = .[0,255,10,39,92]
-    if ChannelSend(channel, input[:], 1000) != 5 { return 2 }
+    sent := ChannelSend(channel, input[:], 1000)
+    if sent != 5 {
+        error := <<ErrnoRaw()
+        waited := WaitChannel(*channel, 1000)
+        print("binary fixture % sent % bytes: errno %, child reaped %, fd valid %\n", args[0], sent, error, waited, channel.socket.valid)
+        return 2
+    }
     output: [8]u8; length: s32
     while length < 8 {
         size := ChannelReceive(channel, output[length:8], 1000)
@@ -170,7 +181,7 @@ Main :: () -> s32 {
 
     // A writer may read its complete bounded request until EOF before replying.
     // Half-close input only: preserve exact binary output and child ownership.
-    eof_args: [3]string = .["python3", "-c", "import sys,time; b=sys.stdin.buffer.read(); sys.stdout.buffer.write(b+b'EOF'); sys.stdout.buffer.flush(); time.sleep(.05)"]
+    eof_args: [2]string = .[EnvironmentText("ZIRAN_PROCESS_FIXTURE"), "echo-eof"]
     channel = StartChannel(eof_args[:], false, true)
     if channel.error != 0 || channel.pid <= 0 { return 27 }
     if ChannelSend(channel,input[:],1000) != 5 || !CloseChannelInput(channel) ||

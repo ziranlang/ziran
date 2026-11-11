@@ -1,0 +1,57 @@
+using V :: #import "vec"
+#import "file_linux"
+#import "file_tree_linux"
+#import "byte_text_linux"
+#import "process_capture_linux"
+#import "json_document"
+
+Put :: (path: string, text: string) -> bool {
+    file := OpenReplace(path)
+    if !file.valid { return false }
+    count := WriteTextAt(file,text,0)
+    CloseFile(file)
+    return count == text.count
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 4 { return 1 }
+    script := TextFromCString(argv[1]); ziran := TextFromCString(argv[2]); work := TextFromCString(argv[3])
+    if !CreateDirectories(JoinPath(work,"site")) || !CreateDirectories(JoinPath(work,"std")) { return 2 }
+    if !Put(JoinPath(work,"VERSION"),"0.0.9\n") ||
+        !Put(JoinPath(work,"std/plain.zi"),"// Released module.\nAnswer :: 42;\n") ||
+        !Put(JoinPath(work,"std/future.zi"),"// Unreleased module.\nFuture :: 43;\n") { return 3 }
+    inventory: Text = JoinPath(work,"site/stdlib-release.json")
+    if !Put(inventory,"{\"version\":\"0.0.9\",\"modules\":[\"plain\"]}") { return 4 }
+    // Invoke the generator's real CLI. All fixtures and assertions live here;
+    // release status cannot be inferred from a matching Git tag.
+    args := string.["python3",script,"--ziran",ziran,"--stdlib-inventory",work]
+    output: [65536]u8
+    result := CaptureOutput(args[:],output[:])
+    if result.error || result.truncated || result.code != 0 { return 5 }
+    document: JsonDocument
+    defer JsonReset(*document)
+    if !JsonRead(*document,TextFromBytes(output[:result.length])) { return 6 }
+    if JsonString(*document,JsonElement(*document,document.root,1)) != "v0.0.9" { return 7 }
+    modules := JsonElement(*document,document.root,0)
+    if JsonCount(*document,modules) != 2 { return 8 }
+    future := JsonElement(*document,modules,0); plain := JsonElement(*document,modules,1)
+    if JsonString(*document,JsonMember(*document,future,"name")) != "future" ||
+        JsonString(*document,JsonMember(*document,future,"status")) != "in-progress" ||
+        JsonString(*document,JsonMember(*document,plain,"name")) != "plain" ||
+        JsonString(*document,JsonMember(*document,plain,"status")) != "stable" { return 9 }
+    bad := string.[
+        "{\"version\":\"0.0.8\",\"modules\":[\"plain\"]}",
+        "{\"version\":\"0.0.9\",\"modules\":[\"plain\",\"plain\"]}",
+        "{\"version\":\"0.0.9\",\"modules\":\"plain\"}",
+        "{\"version\":\"0.0.9\",\"modules\":[\"../bad\"]}",
+        "{\"version\":\"0.0.9\",\"modules\":[]}"
+    ]
+    for value: bad {
+        if !Put(inventory,value) { return 10 }
+        invalid := CaptureOutput(args[:],output[:])
+        if invalid.error || invalid.code != 1 { return 11 }
+    }
+    print("Release inventory preserves shipped/unreleased module status independently of Git tags\n")
+    return 0
+}

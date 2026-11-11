@@ -1,0 +1,17 @@
+<!doctype html><meta charset="utf-8"><script src="{{FILE}}.js"></script><script>
+(function() {
+  globalThis.lifecycleDone = undefined;
+  globalThis.lifecycleLines = [];
+  const capture = value => globalThis.lifecycleLines.push(String(value));
+  Promise.resolve({{EXPORT}}({
+    arguments: {{ARGUMENTS}},
+    noExitRuntime: true,
+    print: capture,
+    printErr: value => capture('stderr: ' + value),
+  })).catch(error => {
+    capture('load error: ' + error);
+    if(error && error.stack) capture(error.stack);
+    globalThis.lifecycleDone = 1;
+  });
+})();
+</script>

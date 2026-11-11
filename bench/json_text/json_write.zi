@@ -1,0 +1,13 @@
+// Quote Unicode: write 256 repetitions of ASCII, a BMP scalar and an astral scalar with
+// ensure-ASCII semantics: 256 * (3 + 6 + 12) + two quotation marks.
+using V :: #import "vec"
+using J :: #import "json_quote"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 { for index: 0..255 { if !BuilderAppend(input,"abcλ😀") { return -1 } } }
+    output: Vec(u8)
+    if !JsonQuoteInto(*output,TextView(input[:]),true)||output.count!=5378||output[0]!=34||output[5377]!=34 { return -2 }
+    if output[4]!=92||output[5]!=117||output[10]!=92 { return -3 }
+    return output.count+cast(s64)output[0]+cast(s64)output[output.count-1]
+}

@@ -1,0 +1,51 @@
+// Shared, allocation-free JSON string scanning. Stops before a quote,
+// backslash, control byte or the end; escape and Unicode policy stay in callers.
+Simd :: #import "simd"
+
+#scope_file
+// The caller supplies only complete blocks. No vector load crosses the end
+// of the source string, including when it ends at a protected page boundary.
+Blocks :: (bytes: string, count: s64, ascii: bool) -> s64 {
+    at: s64
+    quote := Simd.Splat(u8x16, 34)
+    slash := Simd.Splat(u8x16, 92)
+    control := Simd.Splat(u8x16, 32)
+    while count - at >= 16 {
+        value := Simd.Load(u8x16, bytes, at)
+        special := Simd.Or(Simd.Or(Simd.Equal(value, quote), Simd.Equal(value, slash)), Simd.Less(value, control))
+        if ascii { special=Simd.Or(special,Simd.Not(Simd.Less(value,Simd.Splat(u8x16,127)))) }
+        if !Simd.AllZero(special) { break }
+        at += 16
+    }
+    return at
+}
+
+#scope_export
+// Starts outside [0,text.count) are returned unchanged. Valid starts stop at
+// the first special byte or exactly at text.count. The input is never changed.
+JsonStringRunEnd :: (text: string, start: s64) -> s64 {
+    if start < 0 || start >= text.count { return start }
+    at := start
+    if text.count - at >= 16 { at += Blocks(text[at:], text.count - at,false) }
+    while at < text.count {
+        byte := text[at]
+        if byte < 32 || byte == 34 || byte == 92 { break }
+        at += 1
+    }
+    return at
+}
+
+// Serialization also stops before DEL and non-ASCII bytes when ensure-ASCII
+// output is requested. Unicode decoding and escape policy remain in the writer.
+JsonQuoteRunEnd :: (text: string, start: s64, ascii: bool) -> s64 {
+    if !ascii { return JsonStringRunEnd(text,start) }
+    if start<0||start>=text.count { return start }
+    at:=start
+    if text.count-at>=16 { at+=Blocks(text[at:],text.count-at,true) }
+    while at<text.count {
+        byte:=text[at]
+        if byte<32||byte>=127||byte==34||byte==92 { break }
+        at+=1
+    }
+    return at
+}

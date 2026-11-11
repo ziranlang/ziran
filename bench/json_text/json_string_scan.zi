@@ -1,0 +1,16 @@
+// Scan a JSON string: validate its span without building a document tree.
+// The closing quote follows 16 KiB of ASCII; consume the complete span.
+using V :: #import "vec"
+Json :: #import "json_bytes"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 {
+        if !VecResize(input,16385) { return -1 }
+        for index: 0..16383 { input[index]=120 }
+        input[16384]=34
+    }
+    end:=Json.JsonStringRunEnd(TextView(input[:]),0)
+    if end!=16384||input[end]!=34 { return -2 }
+    return end+cast(s64)input[end]
+}

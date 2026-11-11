@@ -1,0 +1,63 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+MutationFixture :: (test: *NativeTest, name: string) -> string { return NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/text_call_mutation/", name))) }
+
+MutationBundle :: (test: *NativeTest, name: string, source: string, entry: string, expected: string) -> bool {
+    bundle := CheckPath(test.work, CheckConcat(name, ".zx")); args := string.[test.ziran, "bundle", "--root", test.work, "--entry", CheckConcat(name, CheckConcat(":", entry)), "-o", bundle, source]
+    unused NativeRun(test, args[:]); run := string.[test.ziran, "run", bundle]; result := NativeRun(test, run[:])
+    return NativeAssert(test, !test.failed && TextTrim(result.output) == expected, "borrow-safe mutation changed execution from source or checked saved IR")
+}
+
+MutationTests :: (test: *NativeTest) -> bool {
+    fixtures: JsonDocument
+    if !NativeAssert(test, JsonRead(*fixtures, MutationFixture(test, "negative.json")) && JsonCount(*fixtures, fixtures.root) == 14, "invalid text mutation rejection fixtures") { return false }
+    node := MutationFixture(test, "node.zi.in"); item := JsonFirst(*fixtures, fixtures.root)
+    while item >= 0 {
+        name := TextDetach(JsonKey(*fixtures, item)); source := CheckPath(test.work, CheckConcat(name, ".zi"))
+        if !NativeWrite(test, source, CheckConcat(node, CheckConcat(JsonString(*fixtures, item), "\n"))) { return false }
+        command := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, source]; result := NativeInvoke(test, command[:], "", 30000); lines := TextLines(TextTrimEnd(result.error))
+        if !NativeAssert(test, result.code > 0 && result.code < 124 && lines.count > 0, CheckConcat("unsafe text mutation was accepted or failed without diagnostics: ", name)) { return false }
+        found := false
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(test, JsonRead(*document, line), "malformed text mutation diagnostic") { return false }
+            if CheckField(*document, document.root, "code") == "check.slice_lifetime" && TextContains(CheckField(*document, document.root, "message"), "mutating text backing storage") { found = true }
+        }
+        if !NativeAssert(test, found, CheckConcat("wrong unsafe text mutation rejection: ", name)) { return false }
+        item = JsonNext(*fixtures, item)
+    }
+    names := string.["identity", "safe"]; entries := string.["CheckIdentity", "Answer"]; expected := string.["0", "42"]
+    for index: cast(s64)0..names.count - 1 {
+        name := names[index]; source := CheckPath(test.work, CheckConcat(name, ".zi")); ir := CheckPath(test.work, CheckConcat(name, "-ir"))
+        if !NativeWrite(test, source, MutationFixture(test, CheckConcat(name, ".zi.in"))) { return false }
+        save := string.[test.ziran, "ir", "--root", test.work, "-o", ir, source]; unused NativeRun(test, save[:])
+        for form: 0..1 {
+            input := ifx form == 0 then source else CheckPath(ir, CheckConcat(name, ".zir")); check := string.[test.ziran, "check", "--root", test.work, input]; unused NativeRun(test, check[:])
+            if test.failed { return false }
+            if name == "identity" {
+                output := CheckPath(test.work, ifx form == 0 then "c-source" else "c-saved"); build := string.[test.ziran, "build", "--target=c", "--no-main", "--root", test.work, "-o", output, input]
+                unused NativeRun(test, build[:])
+                if !NativeWrite(test, CheckPath(output, "main.c"), "#include \"identity.h\"\nint main(void) { return CheckIdentity(); }\n") { return false }
+                command: Vec(string); VecPush(command, NativeCompiler()); VecPush(command, "-std=c11"); VecPush(command, CheckConcat("-I", CheckPath(test.repo, "include"))); VecPush(command, CheckConcat("-I", output))
+                files := NativeFiles(output, ".c"); for file: files { VecPush(command, file) }; VecPush(command, "-o"); VecPush(command, CheckPath(output, "test")); VecPush(command, "-lm")
+                unused NativeRun(test, command[:]); execute := string.[CheckPath(output, "test")]; unused NativeRun(test, execute[:]); if test.failed { return false }
+            }
+            if !MutationBundle(test, name, input, entries[index], expected[index]) { return false }
+        }
+    }
+    print("text mutation: 14 unsafe aliases rejected; descriptor copies, siblings and identity callbacks execute from source and saved IR in local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "text-call-mutation-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx MutationTests(*test) && !test.failed then 0 else 1
+}

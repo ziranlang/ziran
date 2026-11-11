@@ -1,0 +1,3 @@
+using Direct :: #import "direct/Value";
+using P :: #import "Provider/Value";
+main :: () -> s32 { value: Value; value.number = 3; return Echo(value).number - 3 }

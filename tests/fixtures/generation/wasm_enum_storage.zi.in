@@ -1,0 +1,47 @@
+Other :: #import "foreign";
+Mode :: enum s64 { High :: -7; }
+Mask :: enum_flags u8 { A; B; Top :: 128; }
+Sign :: enum s8 { Low :: -128; High :: 127; }
+Kind :: enum u16 { Low :: 1; High :: 65535; }
+Record :: struct { tag: u8; sign: Sign; kind: Kind; mask: Mask; }
+global_mask: Mask = Mask.Top;
+global_record: Record = Record.{tag = 9, sign = Sign.Low, kind = Kind.High, mask = Mask.B};
+global_values: [2]Kind = .[Kind.High, Kind.Low];
+Pick :: (positive: bool) -> Sign { return ifx positive then Sign.High else Sign.Low; }
+Answer :: () -> s64 {
+    if Pick(false) != Sign.Low || Pick(true) != Sign.High { return 0; }
+    if cast(s64)Pick(false) != -128 { return 0; }
+    if cast(Sign)128 != Sign.Low { return 0; }
+    if cast(Kind)65537 != Kind.Low { return 0; }
+    flags: Mask = .Top;
+    flags += .Top;
+    if flags != 0 { return 0; }
+    flags = .A | .B;
+    flags ^= .A;
+    flags |= .Top;
+    if flags != 130 { return 0; }
+    flags &= cast(Mask)(~cast(u8)Mask.Top);
+    if flags != .B { return 0; }
+    global_mask |= .B;
+    if global_mask != 130 { return 0; }
+    global_record.sign = .High;
+    global_record.kind = .Low;
+    global_record.mask |= .Top;
+    if global_record.tag != 9 || cast(s64)global_record.sign != 127 || global_record.kind != .Low || global_record.mask != 130 { return 0; }
+    local: Record = Record.{tag = 3, sign = Sign.Low, kind = Kind.High, mask = flags};
+    copy := local;
+    if copy.tag != 3 || cast(s64)copy.sign != -128 || cast(u64)copy.kind != 65535 || copy.mask != .B { return 0; }
+    values: [3]Sign;
+    values[0] = .Low;
+    values[1] = .High;
+    view := values[0:2];
+    if cast(s64)view[0] != -128 || cast(s64)view[1] != 127 { return 0; }
+    global_values[0] = .Low;
+    if global_values[0] != .Low || global_values[1] != .Low { return 0; }
+    if Other.Bounce(Other.Mode.High) != Other.Mode.High { return 0; }
+    foreign: Other.Box = Other.Box.{first = Other.Mode.Low, value = Other.Wide.High, last = Other.Mode.High};
+    foreign.first = Other.Mode.High;
+    if cast(u64)foreign.first != 255 || cast(u64)foreign.last != 255 || foreign.value != Other.WideValue() { return 0; }
+    if Mode.High != cast(Mode)-7 { return 0; }
+    return 42;
+}

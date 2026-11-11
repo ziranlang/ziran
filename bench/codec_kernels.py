@@ -503,7 +503,7 @@ def main():
     tool_files = [bins / name for name in required] + [bins / 'zi2wasm', bins.parent / 'libziran.a']
     metadata['tools'] = {str(path): dict(sha256=digest(path), size=path.stat().st_size, mtime_ns=path.stat().st_mtime_ns)
                          for path in tool_files if path.is_file()}
-    inputs = [Path(__file__), ROOT / 'tests/compiler_kernel_benchmarks.sh',
+    inputs = [Path(__file__), ROOT / 'bench/compiler_kernel_benchmarks.sh',
               FIXTURES / 'codec_kernels.zi', FIXTURES / 'codec_kernels_layout.zi']
     metadata['input_hashes'] = {str(path.relative_to(ROOT)): digest(path) for path in inputs}
     # Capture compiler/library source identity without loading source contents.

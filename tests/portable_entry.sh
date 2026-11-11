@@ -8,4 +8,4 @@ unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/portable_entry_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/host"
-python3 "$repo/tests/portable_entry_test.py" "$ziran" "$work"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/portable_entry_cases.zi" -- "$ziran" "$work"

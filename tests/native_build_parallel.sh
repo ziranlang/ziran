@@ -2,10 +2,11 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/native-parallel-host.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
-python3 "$repo/tests/native_build_parallel_test.py" "$ziran" "$work"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_build_parallel_cases.zi" -- "$ziran"
 "${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" \
     "$repo/tests/native_build_workers_test.c" "$repo/cmd/zir-c/zir_c_cache.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread -o "$work/workers"
@@ -16,17 +17,9 @@ if test "$(uname -s)" = Linux; then wrap=-Wl,--wrap=syscall,--wrap=posix_spawnp;
 "${CC:-cc}" ${VM_CFLAGS:-} -D_GNU_SOURCE -std=c11 -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" -I"$repo/cmd/zir-c" \
     "$repo/tests/native_build_children_test.c" "$repo/cmd/zir-c/zir_c_build.c" "$repo/cmd/zir-c/zir_c_cache.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread $wrap -o "$work/children"
-compiler=$(python3 "$repo/tests/native_test_compiler.py")
+compiler=$("$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_test_compiler.zi")
 CC="$compiler" ZIRAN_PROFILE="$work/children.jsonl" "$work/children" "$work/owned"
-python3 - "$work/children.jsonl" <<'PY'
-import json,sys
-sample,=map(json.loads,open(sys.argv[1]))
-assert sample['counters'].get('native_process_event',0)==0
-assert sample['counters']['native_process_poll']==2
-if sys.platform.startswith('linux'):
-    assert sample['counters'].get('native_process_spawn',0)==0
-    assert sample['counters']['native_process_fork']==3
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- native-children "$work/children.jsonl"
 
 # The host compiler also needs its existing Android API 21 launch path.
 # Check both sides of Bionic's API 28 spawn boundary when an NDK is available.

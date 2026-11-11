@@ -1,0 +1,1075 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Vectors :: #import "std/vec"
+
+LirNativeResult :: struct { problem: LirProblem; size: s64 }
+LirNativeRange :: struct { function: s32; block: s32; instruction: s32; origin: s32; begin: s64; end: s64 }
+
+#scope_file
+X64Limit :: 2147483647
+X64Trap :: 21
+X64ElfHeader :: 120
+X64Writer :: struct { output: []u8; at: s64; problem: LirProblem; ranges: []LirNativeRange; range_at: s64 }
+X64FunctionLayout :: struct {
+    value_base: s64
+    frame_size: s64
+    scratch_end: s64
+    scratch_bytes: s64
+    result_pointer: s64
+}
+X64Layout :: struct {
+    type_sizes: Vec(s64)
+    member_bases: Vec(s64)
+    member_offsets: Vec(s64)
+    value_offsets: Vec(s64)
+    functions: Vec(X64FunctionLayout)
+}
+
+X64Range :: (writer: *X64Writer, function: s32, block: s32, instruction: s32, origin: s32, begin: s64) {
+    if writer.problem != .None { return }
+    if writer.ranges.count != 0 {
+        if writer.range_at >= writer.ranges.count { writer.problem = .Limit; return }
+        writer.ranges[writer.range_at] = .{.function = function, .block = block, .instruction = instruction,
+            .origin = origin, .begin = begin, .end = writer.at}
+    }
+    writer.range_at += 1
+}
+
+X64Byte :: (writer: *X64Writer, byte: u8) {
+    if writer.problem != .None { return }
+    if writer.at >= X64Limit { writer.problem = .Limit; return }
+    if writer.output.count != 0 {
+        if writer.at >= writer.output.count { writer.problem = .Limit; return }
+        writer.output[writer.at] = byte
+    }
+    writer.at += 1
+}
+
+X64Word :: (writer: *X64Writer, value: u64, count: s32) {
+    for index: 0..count - 1 { X64Byte(writer, cast(u8)(value >> cast(u64)(index * 8))) }
+}
+
+X64Bytes :: (writer: *X64Writer, first_byte: u8, second_byte: u8, third_byte: u8) {
+    X64Byte(writer, first_byte); X64Byte(writer, second_byte); X64Byte(writer, third_byte)
+}
+
+X64Relative :: (writer: *X64Writer, target: s64) {
+    displacement := target - (writer.at + 4)
+    if displacement < -2147483648 || displacement > X64Limit { writer.problem = .Limit; return }
+    X64Word(writer, cast(u64)displacement, 4)
+}
+
+X64Jump :: (writer: *X64Writer, target: s64) {
+    X64Byte(writer, 233); X64Relative(writer, target)
+}
+
+X64Condition :: (writer: *X64Writer, condition: u8, target: s64) {
+    X64Byte(writer, 15); X64Byte(writer, condition); X64Relative(writer, target)
+}
+
+X64Slot :: (writer: *X64Writer, opcode: u8, reg: u8, slot: s64) {
+    X64Byte(writer, ifx reg >= 8 then cast(u8)76 else cast(u8)72)
+    X64Byte(writer, opcode)
+    X64Byte(writer, cast(u8)(133 + (reg % 8) * 8))
+    X64Word(writer, cast(u64)(-8 * (slot + 1)), 4)
+}
+
+X64Composite :: (type: LirType) -> bool {
+    return type.kind == .Record || type.kind == .Array
+}
+
+X64TypeSize :: (layout: *X64Layout, type: s32) -> s64 {
+    return layout.type_sizes[type]
+}
+
+X64ValueOffset :: (layout: *X64Layout, function: s64, value: s32) -> s64 {
+    function_layout := layout.functions[function]
+    return layout.value_offsets[function_layout.value_base + value]
+}
+
+X64MemberOffset :: (program: LirProgram, layout: *X64Layout, type: s32, member: u64) -> s64 {
+    aggregate := program.types[type]
+    if aggregate.kind == .Array {
+        return cast(s64)member * X64TypeSize(layout, aggregate.element)
+    }
+    return layout.member_offsets[layout.member_bases[type] + cast(s64)member]
+}
+
+X64LayoutFree :: (layout: *X64Layout) {
+    VecFree(layout.type_sizes)
+    VecFree(layout.member_bases)
+    VecFree(layout.member_offsets)
+    VecFree(layout.value_offsets)
+    VecFree(layout.functions)
+}
+
+X64LayoutBuild :: (program: LirProgram, layout: *X64Layout) -> LirProblem {
+    type_count := program.types.count
+    colors: Vec(u8)
+    stack: Vec(s32)
+    next: Vec(s64)
+    defer VecFree(colors)
+    defer VecFree(stack)
+    defer VecFree(next)
+    if !VecResize(layout.type_sizes, type_count) || !VecResize(layout.member_bases, type_count) ||
+        !VecResize(colors, type_count) || !VecResize(stack, type_count) || !VecResize(next, type_count) {
+        return .Allocation
+    }
+    for type_index: cast(s64)0..type_count - 1 {
+        layout.type_sizes[type_index] = -1
+        layout.member_bases[type_index] = -1
+    }
+    for root: cast(s32)0..cast(s32)type_count - 1 {
+        if colors[root] == 2 { continue }
+        depth: s64
+        stack[0] = root
+        while depth >= 0 {
+            type_index := stack[depth]
+            type := program.types[type_index]
+            colors[type_index] = 1
+            children := ifx type.kind == .Record then type.fields.count else ifx type.kind == .Array then 1 else 0
+            if next[type_index] < children {
+                child := ifx type.kind == .Record then type.fields[next[type_index]] else type.element
+                next[type_index] += 1
+                if colors[child] == 1 { return .Type }
+                if colors[child] == 0 {
+                    depth += 1
+                    stack[depth] = child
+                }
+                continue
+            }
+            size: s64
+            if type.kind == .Bool { size = 1 }
+            else if type.kind == .Integer || type.kind == .Float { size = type.bits / 8 }
+            else if type.kind == .Pointer { size = 8 }
+            else if type.kind == .Array {
+                element_size := layout.type_sizes[type.element]
+                if type.count != 0 && element_size > X64Limit / type.count { return .Limit }
+                size = element_size * type.count
+            } else if type.kind == .Record {
+                for field: type.fields {
+                    field_size := layout.type_sizes[field]
+                    if field_size > X64Limit - size { return .Limit }
+                    size += field_size
+                }
+            }
+            if size < 0 || size > X64Limit { return .Limit }
+            layout.type_sizes[type_index] = size
+            colors[type_index] = 2
+            depth -= 1
+        }
+    }
+    member_count: s64
+    for type: program.types {
+        if type.kind == .Record {
+            if type.fields.count > X64Limit - member_count { return .Limit }
+            member_count += type.fields.count
+        }
+    }
+    if !VecResize(layout.member_offsets, member_count) { return .Allocation }
+    member_at: s64
+    for type_index: cast(s64)0..type_count - 1 {
+        type := program.types[type_index]
+        if type.kind != .Record { continue }
+        layout.member_bases[type_index] = member_at
+        offset: s64
+        for field: type.fields {
+            layout.member_offsets[member_at] = offset
+            member_at += 1
+            offset += layout.type_sizes[field]
+        }
+    }
+    value_count: s64
+    for function: program.functions {
+        if function.values.count > X64Limit - value_count { return .Limit }
+        value_count += function.values.count
+    }
+    if !VecResize(layout.value_offsets, value_count) ||
+        !VecResize(layout.functions, program.functions.count) { return .Allocation }
+    value_at: s64
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        result_pointer: s64
+        used: s64
+        if X64Composite(program.types[function.result]) {
+            used = 8
+            result_pointer = 8
+        }
+        value_base := value_at
+        for value: function.values {
+            size := layout.type_sizes[value]
+            if size > X64Limit - used { return .Limit }
+            used += size
+            layout.value_offsets[value_at] = used
+            value_at += 1
+        }
+        scratch_bytes: s64
+        for block: function.blocks {
+            block_bytes: s64
+            for parameter: block.parameters {
+                size := layout.type_sizes[function.values[parameter]]
+                if size > X64Limit - block_bytes { return .Limit }
+                block_bytes += size
+            }
+            if block_bytes > scratch_bytes { scratch_bytes = block_bytes }
+            for instruction: block.instructions {
+                if instruction.op != .Call { continue }
+                call_bytes: s64
+                for operand: instruction.operands {
+                    size := layout.type_sizes[function.values[operand]]
+                    if size > X64Limit - call_bytes { return .Limit }
+                    call_bytes += size
+                }
+                if call_bytes > scratch_bytes { scratch_bytes = call_bytes }
+            }
+        }
+        if scratch_bytes > X64Limit - used || used + scratch_bytes > X64Limit - 15 { return .Limit }
+        scratch_end := used + scratch_bytes
+        frame_size := (scratch_end + 15) / 16 * 16
+        layout.functions[function_index] = .{.value_base = value_base, .frame_size = frame_size,
+            .scratch_end = scratch_end, .scratch_bytes = scratch_bytes, .result_pointer = result_pointer}
+    }
+    return .None
+}
+
+X64MemoryMod :: (writer: *X64Writer, register: u8, base: u8) {
+    X64Byte(writer, cast(u8)(128 + register * 8 + base))
+}
+
+X64Lea :: (writer: *X64Writer, register: u8, base: u8, displacement: s64) {
+    X64Bytes(writer, 72, 141, cast(u8)(128 + register * 8 + base))
+    X64Word(writer, cast(u64)displacement, 4)
+}
+
+X64MoveRegister :: (writer: *X64Writer, destination: u8, source: u8) {
+    X64Bytes(writer, 72, 137, cast(u8)(192 + source * 8 + destination))
+}
+
+X64MoveBytes :: (writer: *X64Writer, source_base: u8, source_displacement: s64,
+    destination_base: u8, destination_displacement: s64, count: s64) {
+    if count == 0 { return }
+    X64Lea(writer, 6, source_base, source_displacement)
+    X64Lea(writer, 7, destination_base, destination_displacement)
+    X64Byte(writer, 185)
+    X64Word(writer, cast(u64)count, 4)
+    X64Byte(writer, 243)
+    X64Byte(writer, 164)
+}
+
+X64LoadMemory :: (writer: *X64Writer, register: u8, base: u8, displacement: s64, type: LirType) {
+    if type.kind == .Pointer || type.bits == 64 {
+        X64Bytes(writer, 72, 139, cast(u8)(128 + register * 8 + base))
+    } else if type.kind == .Bool || type.bits == 8 && !type.is_signed {
+        X64Byte(writer, 15)
+        X64Byte(writer, 182)
+        X64MemoryMod(writer, register, base)
+    } else if type.bits == 8 {
+        X64Bytes(writer, 72, 15, 190)
+        X64MemoryMod(writer, register, base)
+    } else if type.bits == 16 && !type.is_signed {
+        X64Byte(writer, 15)
+        X64Byte(writer, 183)
+        X64MemoryMod(writer, register, base)
+    } else if type.bits == 16 {
+        X64Bytes(writer, 72, 15, 191)
+        X64MemoryMod(writer, register, base)
+    } else if type.bits == 32 && type.is_signed {
+        X64Bytes(writer, 72, 99, cast(u8)(128 + register * 8 + base))
+    } else {
+        X64Byte(writer, 139)
+        X64MemoryMod(writer, register, base)
+    }
+    X64Word(writer, cast(u64)displacement, 4)
+}
+
+X64StoreMemory :: (writer: *X64Writer, register: u8, base: u8, displacement: s64, type: LirType) {
+    if type.kind == .Pointer || type.bits == 64 {
+        X64Bytes(writer, 72, 137, cast(u8)(128 + register * 8 + base))
+    } else if type.bits == 32 {
+        X64Byte(writer, 137)
+        X64MemoryMod(writer, register, base)
+    } else if type.bits == 16 {
+        X64Byte(writer, 102)
+        X64Byte(writer, 137)
+        X64MemoryMod(writer, register, base)
+    } else {
+        X64Byte(writer, 136)
+        X64MemoryMod(writer, register, base)
+    }
+    X64Word(writer, cast(u64)displacement, 4)
+}
+
+X64LoadValue :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    function: s64, fn: LirFunction, value: s32, register: u8) {
+    type := program.types[fn.values[value]]
+    X64LoadMemory(writer, register, 5, -X64ValueOffset(layout, function, value), type)
+}
+
+X64StoreValue :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    function: s64, fn: LirFunction, value: s32, register: u8) {
+    type := program.types[fn.values[value]]
+    X64StoreMemory(writer, register, 5, -X64ValueOffset(layout, function, value), type)
+}
+
+X64Normalize :: (writer: *X64Writer, type: LirType) {
+    if type.kind == .Bool {
+        X64Bytes(writer, 72, 133, 192)
+        X64Bytes(writer, 15, 149, 192)
+        X64Bytes(writer, 15, 182, 192)
+    } else if type.kind == .Float {
+        if type.bits == 32 { X64Byte(writer, 137); X64Byte(writer, 192) }
+    } else if type.bits == 8 || type.bits == 16 {
+        if type.is_signed { X64Byte(writer, 72) }
+        X64Bytes(writer, 15, ifx type.is_signed then (ifx type.bits == 8 then cast(u8)190 else cast(u8)191) else (ifx type.bits == 8 then cast(u8)182 else cast(u8)183), 192)
+    } else if type.bits == 32 {
+        if type.is_signed { X64Bytes(writer, 72, 99, 192) }
+        else { X64Byte(writer, 137); X64Byte(writer, 192) }
+    }
+}
+
+X64Scalar :: (type: LirType) -> bool {
+    return type.kind == .Bool || type.kind == .Pointer || type.kind == .Integer && !type.native_width &&
+        (type.bits == 8 || type.bits == 16 || type.bits == 32 || type.bits == 64)
+}
+
+X64Float :: (type: LirType) -> bool {
+    return type.kind == .Float && (type.bits == 32 || type.bits == 64)
+}
+
+X64ToXmm :: (writer: *X64Writer, register: u8, general: u8) {
+    X64Byte(writer, 102); X64Bytes(writer, 72, 15, 110)
+    X64Byte(writer, cast(u8)(192 + register * 8 + general))
+}
+
+X64FromXmm :: (writer: *X64Writer, register: u8) {
+    X64Byte(writer, 102); X64Bytes(writer, 72, 15, 126)
+    X64Byte(writer, cast(u8)(192 + register * 8))
+}
+
+X64FloatOperation :: (writer: *X64Writer, width: s32, opcode: u8, operands: u8) {
+    X64Byte(writer, ifx width == 32 then cast(u8)243 else cast(u8)242)
+    X64Bytes(writer, 15, opcode, operands)
+}
+
+X64FloatCompare :: (writer: *X64Writer, width: s32) {
+    if width == 64 { X64Byte(writer, 102) }
+    X64Bytes(writer, 15, 46, 193)
+}
+
+X64FloatConstant :: (writer: *X64Writer, register: u8, bits: u64) {
+    X64Byte(writer, 72); X64Byte(writer, 184); X64Word(writer, bits, 8)
+    X64ToXmm(writer, register, 0)
+}
+
+X64FloatConvert :: (writer: *X64Writer, source: LirType, target: LirType) {
+    if source.kind == .Float {
+        X64ToXmm(writer, 0, 0)
+        if target.kind == .Float {
+            if source.bits != target.bits { X64FloatOperation(writer, source.bits, 90, 192) }
+        } else {
+            if source.bits == 32 { X64FloatOperation(writer, 32, 90, 192) }
+            exponent := target.bits - (ifx target.is_signed then 1 else 0)
+            bound := cast(u64)(1023 + exponent) << 52
+            lower := ifx target.is_signed then bound | 9223372036854775808 else cast(u64)0
+            X64FloatConstant(writer, 1, lower)
+            X64FloatCompare(writer, 64); X64Condition(writer, 130, X64Trap)
+            X64FloatConstant(writer, 1, bound)
+            X64FloatCompare(writer, 64); X64Condition(writer, 131, X64Trap)
+            if target.bits == 64 && !target.is_signed {
+                X64FloatConstant(writer, 1, 4890909195324358656)
+                X64FloatCompare(writer, 64)
+                X64Condition(writer, 130, writer.at + 6 + 19)
+                X64FloatOperation(writer, 64, 92, 193)
+                X64Byte(writer, 242); X64Bytes(writer, 72, 15, 44); X64Byte(writer, 192)
+                X64Bytes(writer, 72, 15, 186); X64Byte(writer, 232); X64Byte(writer, 63)
+                X64Jump(writer, writer.at + 5 + 5)
+            }
+            X64Byte(writer, 242); X64Bytes(writer, 72, 15, 44); X64Byte(writer, 192)
+            return
+        }
+    } else {
+        if source.bits == 64 && !source.is_signed {
+            X64Bytes(writer, 72, 133, 192)
+            X64Condition(writer, 137, writer.at + 6 + 26)
+            X64Bytes(writer, 72, 137, 193)
+            X64Bytes(writer, 131, 225, 1)
+            X64Bytes(writer, 72, 209, 232)
+            X64Bytes(writer, 72, 9, 200)
+            X64Byte(writer, ifx target.bits == 32 then cast(u8)243 else cast(u8)242)
+            X64Bytes(writer, 72, 15, 42); X64Byte(writer, 192)
+            X64FloatOperation(writer, target.bits, 88, 192)
+            X64Jump(writer, writer.at + 5 + 5)
+        }
+        X64Byte(writer, ifx target.bits == 32 then cast(u8)243 else cast(u8)242)
+        X64Bytes(writer, 72, 15, 42); X64Byte(writer, 192)
+    }
+    X64FromXmm(writer, 0)
+}
+
+X64FloatInstruction :: (writer: *X64Writer, op: LirOp, type: LirType) {
+    if op == .Negate {
+        X64Byte(writer, 72); X64Byte(writer, 185)
+        X64Word(writer, cast(u64)1 << cast(u64)(type.bits - 1), 8)
+        X64Bytes(writer, 72, 49, 200)
+        return
+    }
+    X64ToXmm(writer, 0, 0)
+    X64ToXmm(writer, 1, 1)
+    if op >= .Equal && op <= .GreaterEqual {
+        X64FloatCompare(writer, type.bits)
+        condition: u8 = 148
+        if op == .NotEqual { condition = 149 }
+        if op == .Less { condition = 146 }
+        if op == .LessEqual { condition = 150 }
+        if op == .Greater { condition = 151 }
+        if op == .GreaterEqual { condition = 147 }
+        X64Bytes(writer, 15, condition, 192)
+        X64Bytes(writer, 15, ifx op == .NotEqual then cast(u8)154 else cast(u8)155, 194)
+        X64Byte(writer, ifx op == .NotEqual then cast(u8)8 else cast(u8)32); X64Byte(writer, 208)
+        X64Bytes(writer, 15, 182, 192)
+        return
+    }
+    opcode: u8 = 88
+    if op == .Subtract { opcode = 92 }
+    if op == .Multiply { opcode = 89 }
+    if op == .Divide { opcode = 94 }
+    X64FloatOperation(writer, type.bits, opcode, 193)
+    X64FromXmm(writer, 0)
+}
+
+X64UsesAggregate :: (program: LirProgram) -> bool {
+    for function: program.functions {
+        if X64Composite(program.types[function.result]) { return true }
+        for parameter: function.parameters {
+            if X64Composite(program.types[parameter]) { return true }
+        }
+        for value: function.values {
+            if X64Composite(program.types[value]) { return true }
+        }
+    }
+    return false
+}
+
+X64Supported :: (program: LirProgram, aggregate_abi: bool) -> LirProblem {
+    if program.globals.count != 0 { return .Unsupported }
+    if program.entry < 0 || program.entry >= program.functions.count { return .Function }
+    entry := program.functions[program.entry]
+    if entry.parameters.count != 0 { return .Calling }
+    if !X64Scalar(program.types[entry.result]) { return .Unsupported }
+    for type: program.types {
+        if type.kind == .Record || type.kind == .Array {
+            if !aggregate_abi { return .Unsupported }
+        } else if type.kind != .Void && !X64Scalar(type) && !X64Float(type) { return .Unsupported }
+    }
+    for fn: program.functions {
+        if fn.external || fn.variadic || fn.calling != .Portable { return .Calling }
+        if !aggregate_abi {
+            general: s64
+            floating: s64
+            for parameter: fn.parameters {
+                if X64Float(program.types[parameter]) { floating += 1 } else { general += 1 }
+            }
+            if general > 6 || floating > 8 { return .Calling }
+        }
+        scratch: s64
+        for block: fn.blocks {
+            if block.parameters.count > scratch { scratch = block.parameters.count }
+            for instruction: block.instructions {
+                op := instruction.op
+                if !(op == .Constant || op == .Null || op >= .Add && op <= .Insert || op == .Call || op == .Fuel ||
+                    op == .Jump || op == .Branch || op == .Return || op == .Trap || op == .Unreachable) { return .Unsupported }
+            }
+        }
+        if fn.values.count > X64Limit / 16 || scratch > X64Limit / 16 { return .Limit }
+    }
+    return .None
+}
+
+X64Edge :: (writer: *X64Writer, fn: LirFunction, edge: LirEdge, blocks: []s64) {
+    for index: cast(s64)0..edge.arguments.count - 1 {
+        X64Slot(writer, 139, 0, edge.arguments[index])
+        X64Slot(writer, 137, 0, fn.values.count + index)
+    }
+    parameters := fn.blocks[edge.block].parameters
+    for index: cast(s64)0..parameters.count - 1 {
+        X64Slot(writer, 139, 0, fn.values.count + index)
+        X64Slot(writer, 137, 0, parameters[index])
+    }
+    X64Jump(writer, blocks[edge.block])
+}
+
+X64AggregateEdge :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    function: s64, fn: LirFunction, edge: LirEdge, blocks: []s64) {
+    function_layout := layout.functions[function]
+    scratch := -function_layout.scratch_end
+    offset: s64
+    for argument: edge.arguments {
+        size := layout.type_sizes[fn.values[argument]]
+        X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, argument), 5, scratch + offset, size)
+        offset += size
+    }
+    offset = 0
+    parameters := fn.blocks[edge.block].parameters
+    for parameter: parameters {
+        size := layout.type_sizes[fn.values[parameter]]
+        X64MoveBytes(writer, 5, scratch + offset, 5, -X64ValueOffset(layout, function, parameter), size)
+        offset += size
+    }
+    X64Jump(writer, blocks[edge.block])
+}
+
+X64AggregateEdgeSize :: (program: LirProgram, layout: *X64Layout,
+    function: s64, fn: LirFunction, edge: LirEdge, blocks: []s64) -> s64 {
+    measured: X64Writer
+    X64AggregateEdge(*measured, program, layout, function, fn, edge, blocks)
+    return ifx measured.problem == .None then measured.at else X64Limit
+}
+
+X64AggregateInstruction :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    function: s64, fn: LirFunction, instruction: LirInstruction, functions: []s64, blocks: []s64) {
+    op := instruction.op
+    if op == .Fuel { return }
+    if op == .Jump {
+        X64AggregateEdge(writer, program, layout, function, fn, instruction.edges[0], blocks)
+        return
+    }
+    if op == .Branch {
+        X64LoadValue(writer, program, layout, function, fn, instruction.operands[0], 0)
+        X64Bytes(writer, 72, 133, 192)
+        edge_size := X64AggregateEdgeSize(program, layout, function, fn, instruction.edges[0], blocks)
+        if edge_size >= X64Limit { writer.problem = .Limit; return }
+        X64Condition(writer, 132, writer.at + 6 + edge_size)
+        X64AggregateEdge(writer, program, layout, function, fn, instruction.edges[0], blocks)
+        X64AggregateEdge(writer, program, layout, function, fn, instruction.edges[1], blocks)
+        return
+    }
+    if op == .Trap || op == .Unreachable { X64Jump(writer, X64Trap); return }
+    if op == .Return {
+        result_type := program.types[fn.result]
+        if X64Composite(result_type) {
+            pointer_type := LirType.{.kind = .Pointer}
+            X64LoadMemory(writer, 2, 5, -layout.functions[function].result_pointer, pointer_type)
+            if instruction.operands.count == 1 {
+                source := instruction.operands[0]
+                X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, source), 2, 0,
+                    layout.type_sizes[fn.result])
+            }
+            X64Byte(writer, 49); X64Byte(writer, 192)
+        } else if instruction.operands.count == 1 {
+            X64LoadValue(writer, program, layout, function, fn, instruction.operands[0], 0)
+            if X64Float(result_type) { X64ToXmm(writer, 0, 0) }
+        } else {
+            X64Byte(writer, 49); X64Byte(writer, 192)
+        }
+        X64Byte(writer, 201); X64Byte(writer, 195)
+        return
+    }
+    if op == .Aggregate {
+        destination := -X64ValueOffset(layout, function, instruction.result)
+        offset: s64
+        for operand: instruction.operands {
+            size := layout.type_sizes[fn.values[operand]]
+            X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, operand), 5,
+                destination + offset, size)
+            offset += size
+        }
+        return
+    }
+    if op == .Extract {
+        source := instruction.operands[0]
+        source_type := fn.values[source]
+        member_type := program.types[source_type].element
+        if program.types[source_type].kind == .Record {
+            member_type = program.types[source_type].fields[cast(s64)instruction.immediate]
+        }
+        member_offset := X64MemberOffset(program, layout, source_type, instruction.immediate)
+        X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, source) + member_offset, 5,
+            -X64ValueOffset(layout, function, instruction.result), layout.type_sizes[member_type])
+        return
+    }
+    if op == .Insert {
+        source := instruction.operands[0]
+        member := instruction.operands[1]
+        source_type := fn.values[source]
+        destination := -X64ValueOffset(layout, function, instruction.result)
+        X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, source), 5, destination,
+            layout.type_sizes[source_type])
+        member_offset := X64MemberOffset(program, layout, source_type, instruction.immediate)
+        X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, member), 5,
+            destination + member_offset, layout.type_sizes[fn.values[member]])
+        return
+    }
+    if op == .Constant {
+        X64Byte(writer, 72); X64Byte(writer, 184)
+        X64Word(writer, program.constants[instruction.symbol].bits, 8)
+    } else if op == .Null {
+        X64Byte(writer, 49); X64Byte(writer, 192)
+    } else if op == .Call {
+        function_layout := layout.functions[function]
+        scratch := -function_layout.scratch_end
+        offset: s64
+        for operand: instruction.operands {
+            size := layout.type_sizes[fn.values[operand]]
+            X64MoveBytes(writer, 5, -X64ValueOffset(layout, function, operand), 5,
+                scratch + offset, size)
+            offset += size
+        }
+        if instruction.operands.count == 0 {
+            X64Byte(writer, 49); X64Byte(writer, 255)
+        } else {
+            X64Lea(writer, 7, 5, scratch)
+        }
+        target := program.functions[instruction.symbol]
+        target_result := program.types[target.result]
+        if X64Composite(target_result) {
+            X64Lea(writer, 6, 5, -X64ValueOffset(layout, function, instruction.result))
+        }
+        X64Byte(writer, 232); X64Relative(writer, functions[instruction.symbol])
+        if instruction.result < 0 { return }
+        if X64Composite(target_result) { return }
+        if X64Float(target_result) { X64FromXmm(writer, 0) }
+    } else {
+        X64LoadValue(writer, program, layout, function, fn, instruction.operands[0], 0)
+        type := program.types[fn.values[instruction.operands[0]]]
+        if instruction.operands.count == 2 {
+            X64LoadValue(writer, program, layout, function, fn, instruction.operands[1], 1)
+        }
+        result_type := program.types[fn.values[instruction.result]]
+        if op == .Convert && (X64Float(type) || X64Float(result_type)) {
+            X64FloatConvert(writer, type, result_type)
+            X64Normalize(writer, result_type)
+            X64StoreValue(writer, program, layout, function, fn, instruction.result, 0)
+            return
+        }
+        if op != .Bitcast && X64Float(type) {
+            X64FloatInstruction(writer, op, type)
+            X64Normalize(writer, result_type)
+            X64StoreValue(writer, program, layout, function, fn, instruction.result, 0)
+            return
+        }
+        if op == .Add { X64Bytes(writer, 72, 1, 200) }
+        if op == .Subtract { X64Bytes(writer, 72, 41, 200) }
+        if op == .Multiply { X64Bytes(writer, 72, 15, 175); X64Byte(writer, 193) }
+        if op == .BitAnd { X64Bytes(writer, 72, 33, 200) }
+        if op == .BitOr { X64Bytes(writer, 72, 9, 200) }
+        if op == .BitXor { X64Bytes(writer, 72, 49, 200) }
+        if op == .Negate { X64Bytes(writer, 72, 247, 216) }
+        if op == .BitNot { X64Bytes(writer, 72, 247, 208) }
+        if op == .ShiftLeft || op == .ShiftRight {
+            X64Bytes(writer, 72, 131, 249); X64Byte(writer, cast(u8)type.bits)
+            X64Condition(writer, 131, X64Trap)
+            X64Bytes(writer, 72, 211, ifx op == .ShiftLeft then cast(u8)224 else ifx type.is_signed then cast(u8)248 else cast(u8)232)
+        }
+        if op == .Divide || op == .Remainder {
+            X64Bytes(writer, 72, 133, 201); X64Condition(writer, 132, X64Trap)
+            if type.is_signed {
+                X64Bytes(writer, 72, 131, 249); X64Byte(writer, 255)
+                X64Condition(writer, 133, writer.at + 6 + (ifx op == .Divide then 3 else 2) + 5)
+                if op == .Divide { X64Bytes(writer, 72, 247, 216) }
+                else { X64Byte(writer, 49); X64Byte(writer, 192) }
+                X64Jump(writer, writer.at + 5 + 5 + (ifx op == .Remainder then 3 else 0))
+                X64Byte(writer, 72); X64Byte(writer, 153)
+                X64Bytes(writer, 72, 247, 249)
+            } else {
+                X64Byte(writer, 49); X64Byte(writer, 210)
+                X64Bytes(writer, 72, 247, 241)
+            }
+            if op == .Remainder { X64Bytes(writer, 72, 137, 208) }
+        }
+        if op >= .Equal && op <= .GreaterEqual {
+            X64Bytes(writer, 72, 57, 200)
+            condition: u8 = 148
+            if op == .NotEqual { condition = 149 }
+            if op == .Less { condition = ifx type.is_signed then cast(u8)156 else cast(u8)146 }
+            if op == .LessEqual { condition = ifx type.is_signed then cast(u8)158 else cast(u8)150 }
+            if op == .Greater { condition = ifx type.is_signed then cast(u8)159 else cast(u8)151 }
+            if op == .GreaterEqual { condition = ifx type.is_signed then cast(u8)157 else cast(u8)147 }
+            X64Bytes(writer, 15, condition, 192); X64Bytes(writer, 15, 182, 192)
+        }
+    }
+    if instruction.result >= 0 {
+        result_type := program.types[fn.values[instruction.result]]
+        X64Normalize(writer, result_type)
+        X64StoreValue(writer, program, layout, function, fn, instruction.result, 0)
+    }
+}
+
+X64Instruction :: (writer: *X64Writer, program: LirProgram, fn: LirFunction,
+    instruction: LirInstruction, functions: []s64, blocks: []s64) {
+    op := instruction.op
+    if op == .Fuel { return }
+    if op == .Jump { X64Edge(writer, fn, instruction.edges[0], blocks); return }
+    if op == .Branch {
+        X64Slot(writer, 139, 0, instruction.operands[0])
+        X64Bytes(writer, 72, 133, 192)
+        X64Condition(writer, 132, writer.at + 6 + 28 * instruction.edges[0].arguments.count + 5)
+        X64Edge(writer, fn, instruction.edges[0], blocks)
+        X64Edge(writer, fn, instruction.edges[1], blocks)
+        return
+    }
+    if op == .Trap || op == .Unreachable { X64Jump(writer, X64Trap); return }
+    if op == .Return {
+        if instruction.operands.count == 1 {
+            X64Slot(writer, 139, 0, instruction.operands[0])
+            if X64Float(program.types[fn.result]) { X64ToXmm(writer, 0, 0) }
+        }
+        else { X64Byte(writer, 49); X64Byte(writer, 192) }
+        X64Byte(writer, 201); X64Byte(writer, 195)
+        return
+    }
+    if op == .Constant {
+        X64Byte(writer, 72); X64Byte(writer, 184)
+        X64Word(writer, program.constants[instruction.symbol].bits, 8)
+    } else if op == .Null {
+        X64Byte(writer, 49); X64Byte(writer, 192)
+    } else if op == .Call {
+        registers: [6]u8 = .[7, 6, 2, 1, 8, 9]
+        general: s64; floating: u8
+        for operand: instruction.operands {
+            if X64Float(program.types[fn.values[operand]]) {
+                X64Slot(writer, 139, 0, operand)
+                X64ToXmm(writer, floating, 0)
+                floating += 1
+            } else {
+                X64Slot(writer, 139, registers[general], operand)
+                general += 1
+            }
+        }
+        X64Byte(writer, 232); X64Relative(writer, functions[instruction.symbol])
+        if instruction.result >= 0 && X64Float(program.types[fn.values[instruction.result]]) { X64FromXmm(writer, 0) }
+    } else {
+        X64Slot(writer, 139, 0, instruction.operands[0])
+        type := program.types[fn.values[instruction.operands[0]]]
+        if instruction.operands.count == 2 { X64Slot(writer, 139, 1, instruction.operands[1]) }
+        result_type := program.types[fn.values[instruction.result]]
+        if op == .Convert && (X64Float(type) || X64Float(result_type)) {
+            X64FloatConvert(writer, type, result_type)
+            X64Normalize(writer, result_type)
+            X64Slot(writer, 137, 0, instruction.result)
+            return
+        }
+        if op != .Bitcast && X64Float(type) {
+            X64FloatInstruction(writer, op, type)
+            X64Normalize(writer, result_type)
+            X64Slot(writer, 137, 0, instruction.result)
+            return
+        }
+        if op == .Add { X64Bytes(writer, 72, 1, 200) }
+        if op == .Subtract { X64Bytes(writer, 72, 41, 200) }
+        if op == .Multiply { X64Bytes(writer, 72, 15, 175); X64Byte(writer, 193) }
+        if op == .BitAnd { X64Bytes(writer, 72, 33, 200) }
+        if op == .BitOr { X64Bytes(writer, 72, 9, 200) }
+        if op == .BitXor { X64Bytes(writer, 72, 49, 200) }
+        if op == .Negate { X64Bytes(writer, 72, 247, 216) }
+        if op == .BitNot { X64Bytes(writer, 72, 247, 208) }
+        if op == .ShiftLeft || op == .ShiftRight {
+            X64Bytes(writer, 72, 131, 249); X64Byte(writer, cast(u8)type.bits)
+            X64Condition(writer, 131, X64Trap)
+            X64Bytes(writer, 72, 211, ifx op == .ShiftLeft then cast(u8)224 else ifx type.is_signed then cast(u8)248 else cast(u8)232)
+        }
+        if op == .Divide || op == .Remainder {
+            X64Bytes(writer, 72, 133, 201); X64Condition(writer, 132, X64Trap)
+            if type.is_signed {
+                X64Bytes(writer, 72, 131, 249); X64Byte(writer, 255)
+                X64Condition(writer, 133, writer.at + 6 + (ifx op == .Divide then 3 else 2) + 5)
+                if op == .Divide { X64Bytes(writer, 72, 247, 216) }
+                else { X64Byte(writer, 49); X64Byte(writer, 192) }
+                X64Jump(writer, writer.at + 5 + 5 + (ifx op == .Remainder then 3 else 0))
+                X64Byte(writer, 72); X64Byte(writer, 153)
+                X64Bytes(writer, 72, 247, 249)
+            } else {
+                X64Byte(writer, 49); X64Byte(writer, 210)
+                X64Bytes(writer, 72, 247, 241)
+            }
+            if op == .Remainder { X64Bytes(writer, 72, 137, 208) }
+        }
+        if op >= .Equal && op <= .GreaterEqual {
+            X64Bytes(writer, 72, 57, 200)
+            condition: u8 = 148
+            if op == .NotEqual { condition = 149 }
+            if op == .Less { condition = ifx type.is_signed then cast(u8)156 else cast(u8)146 }
+            if op == .LessEqual { condition = ifx type.is_signed then cast(u8)158 else cast(u8)150 }
+            if op == .Greater { condition = ifx type.is_signed then cast(u8)159 else cast(u8)151 }
+            if op == .GreaterEqual { condition = ifx type.is_signed then cast(u8)157 else cast(u8)147 }
+            X64Bytes(writer, 15, condition, 192); X64Bytes(writer, 15, 182, 192)
+        }
+    }
+    if instruction.result >= 0 {
+        X64Normalize(writer, program.types[fn.values[instruction.result]])
+        X64Slot(writer, 137, 0, instruction.result)
+    }
+}
+
+X64ScalarCode :: (writer: *X64Writer, program: LirProgram, functions: []s64, blocks: []s64, measure: bool) {
+    X64Bytes(writer, 72, 131, 228); X64Byte(writer, 240)
+    X64Byte(writer, 232); X64Relative(writer, functions[program.entry])
+    X64Bytes(writer, 72, 137, 199)
+    X64Byte(writer, 184); X64Word(writer, 60, 4)
+    X64Byte(writer, 15); X64Byte(writer, 5); X64Byte(writer, 15); X64Byte(writer, 11)
+    X64Range(writer, -1, -1, -1, -1, 0)
+    X64Byte(writer, 191); X64Word(writer, 125, 4)
+    X64Byte(writer, 184); X64Word(writer, 60, 4)
+    X64Byte(writer, 15); X64Byte(writer, 5); X64Byte(writer, 15); X64Byte(writer, 11)
+    X64Range(writer, -1, -1, -1, -1, X64Trap)
+    block_at: s64
+    registers: [6]u8 = .[7, 6, 2, 1, 8, 9]
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        fn := program.functions[function_index]
+        begin := writer.at
+        if measure { functions[function_index] = writer.at }
+        labels := blocks[block_at:block_at + fn.blocks.count]
+        scratch: s64
+        for block: fn.blocks { if block.parameters.count > scratch { scratch = block.parameters.count } }
+        frame := ((fn.values.count + scratch) * 8 + 15) / 16 * 16
+        X64Byte(writer, 85); X64Bytes(writer, 72, 137, 229)
+        X64Bytes(writer, 72, 129, 236); X64Word(writer, cast(u64)frame, 4)
+        general: s64; floating: u8
+        for index: cast(s64)0..fn.parameters.count - 1 {
+            if X64Float(program.types[fn.parameters[index]]) {
+                X64FromXmm(writer, floating)
+                floating += 1
+            } else {
+                reg := registers[general]
+                X64Bytes(writer, ifx reg >= 8 then cast(u8)76 else cast(u8)72, 137, cast(u8)(192 + (reg % 8) * 8))
+                general += 1
+            }
+            parameter := fn.blocks[fn.entry].parameters[index]
+            X64Normalize(writer, program.types[fn.parameters[index]])
+            X64Slot(writer, 137, 0, parameter)
+        }
+        X64Jump(writer, labels[fn.entry])
+        X64Range(writer, cast(s32)function_index, -1, -1, fn.origin, begin)
+        for block_index: cast(s64)0..fn.blocks.count - 1 {
+            if measure { labels[block_index] = writer.at }
+            instructions := fn.blocks[block_index].instructions
+            for instruction_index: cast(s64)0..instructions.count - 1 {
+                instruction := instructions[instruction_index]
+                instruction_begin := writer.at
+                X64Instruction(writer, program, fn, instruction, functions, labels)
+                X64Range(writer, cast(s32)function_index, cast(s32)block_index, cast(s32)instruction_index,
+                    instruction.origin, instruction_begin)
+            }
+        }
+        block_at += fn.blocks.count
+    }
+}
+
+X64AggregateCode :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    functions: []s64, blocks: []s64, measure: bool) {
+    X64Bytes(writer, 72, 131, 228); X64Byte(writer, 240)
+    X64Byte(writer, 232); X64Relative(writer, functions[program.entry])
+    X64Bytes(writer, 72, 137, 199)
+    X64Byte(writer, 184); X64Word(writer, 60, 4)
+    X64Byte(writer, 15); X64Byte(writer, 5); X64Byte(writer, 15); X64Byte(writer, 11)
+    X64Range(writer, -1, -1, -1, -1, 0)
+    X64Byte(writer, 191); X64Word(writer, 125, 4)
+    X64Byte(writer, 184); X64Word(writer, 60, 4)
+    X64Byte(writer, 15); X64Byte(writer, 5); X64Byte(writer, 15); X64Byte(writer, 11)
+    X64Range(writer, -1, -1, -1, -1, X64Trap)
+    block_at: s64
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        fn := program.functions[function_index]
+        function_layout := layout.functions[function_index]
+        begin := writer.at
+        if measure { functions[function_index] = writer.at }
+        labels := blocks[block_at:block_at + fn.blocks.count]
+        X64Byte(writer, 85); X64Bytes(writer, 72, 137, 229)
+        X64Bytes(writer, 72, 129, 236); X64Word(writer, cast(u64)function_layout.frame_size, 4)
+        if function_layout.result_pointer != 0 {
+            pointer_type := LirType.{.kind = .Pointer}
+            X64StoreMemory(writer, 6, 5, -function_layout.result_pointer, pointer_type)
+        }
+        if fn.parameters.count != 0 { X64MoveRegister(writer, 2, 7) }
+        argument_offset: s64
+        entry := fn.blocks[fn.entry]
+        for parameter_index: cast(s64)0..fn.parameters.count - 1 {
+            parameter_type := fn.parameters[parameter_index]
+            parameter := entry.parameters[parameter_index]
+            size := layout.type_sizes[parameter_type]
+            X64MoveBytes(writer, 2, argument_offset, 5,
+                -X64ValueOffset(layout, function_index, parameter), size)
+            argument_offset += size
+        }
+        X64Jump(writer, labels[fn.entry])
+        X64Range(writer, cast(s32)function_index, -1, -1, fn.origin, begin)
+        for block_index: cast(s64)0..fn.blocks.count - 1 {
+            if measure { labels[block_index] = writer.at }
+            instructions := fn.blocks[block_index].instructions
+            for instruction_index: cast(s64)0..instructions.count - 1 {
+                instruction := instructions[instruction_index]
+                instruction_begin := writer.at
+                X64AggregateInstruction(writer, program, layout, function_index, fn,
+                    instruction, functions, labels)
+                X64Range(writer, cast(s32)function_index, cast(s32)block_index,
+                    cast(s32)instruction_index, instruction.origin, instruction_begin)
+            }
+        }
+        block_at += fn.blocks.count
+    }
+}
+
+X64Code :: (writer: *X64Writer, program: LirProgram, layout: *X64Layout,
+    aggregate_abi: bool, functions: []s64, blocks: []s64, measure: bool) {
+    if aggregate_abi {
+        X64AggregateCode(writer, program, layout, functions, blocks, measure)
+    } else {
+        X64ScalarCode(writer, program, functions, blocks, measure)
+    }
+}
+
+X64Elf :: (writer: *X64Writer, code_size: s64, section_offset: s64) {
+    X64Word(writer, 0x00010102464c457f, 8); X64Word(writer, 0, 8)
+    X64Word(writer, 2, 2); X64Word(writer, 62, 2); X64Word(writer, 1, 4)
+    X64Word(writer, cast(u64)(4194304 + X64ElfHeader), 8)
+    X64Word(writer, 64, 8); X64Word(writer, cast(u64)section_offset, 8); X64Word(writer, 0, 4)
+    X64Word(writer, 64, 2); X64Word(writer, 56, 2); X64Word(writer, 1, 2)
+    X64Word(writer, 64, 2); X64Word(writer, 5, 2); X64Word(writer, 2, 2)
+    X64Word(writer, 1, 4); X64Word(writer, 5, 4); X64Word(writer, 0, 8)
+    X64Word(writer, 4194304, 8); X64Word(writer, 4194304, 8)
+    X64Word(writer, cast(u64)(X64ElfHeader + code_size), 8)
+    X64Word(writer, cast(u64)(X64ElfHeader + code_size), 8); X64Word(writer, 4096, 8)
+}
+
+X64String :: (writer: *X64Writer, text: string) {
+    for byte: text { X64Byte(writer, byte) }
+}
+
+X64Section :: (writer: *X64Writer, name: u32, kind: u32, flags: u64, address: s64,
+    offset: s64, size: s64, link: u32, info: u32, alignment: u64, entry_size: u64) {
+    X64Word(writer, cast(u64)name, 4); X64Word(writer, cast(u64)kind, 4)
+    X64Word(writer, flags, 8); X64Word(writer, cast(u64)address, 8)
+    X64Word(writer, cast(u64)offset, 8); X64Word(writer, cast(u64)size, 8)
+    X64Word(writer, cast(u64)link, 4); X64Word(writer, cast(u64)info, 4)
+    X64Word(writer, alignment, 8); X64Word(writer, entry_size, 8)
+}
+
+X64Symbol :: (writer: *X64Writer, name: s64, begin: s64, size: s64) {
+    X64Word(writer, cast(u64)name, 4); X64Byte(writer, 18); X64Byte(writer, 0)
+    X64Word(writer, 1, 2); X64Word(writer, cast(u64)(4194304 + X64ElfHeader + begin), 8)
+    X64Word(writer, cast(u64)size, 8)
+}
+
+X64ElfSections :: (writer: *X64Writer, program: LirProgram, functions: []s64,
+    code_size: s64, symbol_offset: s64, section_offset: s64) {
+    X64Byte(writer, 0)
+    X64String(writer, ".text"); X64Byte(writer, 0)
+    X64String(writer, ".shstrtab"); X64Byte(writer, 0)
+    X64String(writer, ".strtab"); X64Byte(writer, 0)
+    X64String(writer, ".symtab"); X64Byte(writer, 0)
+    string_offset := writer.at
+    X64Byte(writer, 0)
+    X64String(writer, "_start"); X64Byte(writer, 0)
+    X64String(writer, "_zir_trap"); X64Byte(writer, 0)
+    for function: program.functions {
+        X64String(writer, program.modules[function.module]); X64Byte(writer, 58)
+        X64String(writer, function.name); X64Byte(writer, 0)
+    }
+    string_size := writer.at - string_offset
+    while writer.at < symbol_offset { X64Byte(writer, 0) }
+    for index: 0..2 { X64Word(writer, 0, 8) }
+    X64Symbol(writer, 1, 0, X64Trap)
+    X64Symbol(writer, 8, X64Trap, 14)
+    name_at: s64 = 18
+    for index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[index]
+        begin := functions[index]
+        end := ifx index + 1 < functions.count then functions[index + 1] else code_size
+        X64Symbol(writer, name_at, begin, end - begin)
+        name_at += program.modules[function.module].count + function.name.count + 2
+    }
+    if writer.at != section_offset { writer.problem = .Limit; return }
+    X64Section(writer, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+    X64Section(writer, 1, 1, 6, 4194304 + X64ElfHeader, X64ElfHeader, code_size, 0, 0, 1, 0)
+    X64Section(writer, 7, 3, 0, 0, X64ElfHeader + code_size, 33, 0, 0, 1, 0)
+    X64Section(writer, 17, 3, 0, 0, string_offset, string_size, 0, 0, 1, 0)
+    X64Section(writer, 25, 2, 0, 0, symbol_offset, section_offset - symbol_offset, 3, 1, 8, 24)
+}
+
+X64Encode :: (program: LirProgram, output: []u8, elf: bool) -> LirNativeResult {
+    diagnostic := LirVerify(program, LirDefaultLimits())
+    if diagnostic.problem != .None { return .{.problem = diagnostic.problem} }
+    aggregate_abi := X64UsesAggregate(program)
+    supported := X64Supported(program, aggregate_abi)
+    if supported != .None { return .{.problem = supported} }
+    layout: X64Layout
+    defer X64LayoutFree(*layout)
+    if aggregate_abi {
+        layout_problem := X64LayoutBuild(program, *layout)
+        if layout_problem != .None { return .{.problem = layout_problem} }
+    }
+    functions: Vec(s64); blocks: Vec(s64)
+    defer VecFree(functions)
+    defer VecFree(blocks)
+    block_count: s64
+    for fn: program.functions { block_count += fn.blocks.count }
+    if !VecResize(functions, program.functions.count) || !VecResize(blocks, block_count) { return .{.problem = .Allocation} }
+    measured: X64Writer
+    X64Code(*measured, program, *layout, aggregate_abi, functions[:], blocks[:], true)
+    if measured.problem != .None { return .{.problem = measured.problem} }
+    validated: X64Writer
+    X64Code(*validated, program, *layout, aggregate_abi, functions[:], blocks[:], false)
+    if validated.problem != .None || validated.at != measured.at { return .{.problem = .Limit} }
+    header := ifx elf then X64ElfHeader else 0
+    names_size: s64 = 18
+    for function: program.functions {
+        names_size += program.modules[function.module].count + function.name.count + 2
+    }
+    symbol_offset := (measured.at + X64ElfHeader + 33 + names_size + 7) / 8 * 8
+    section_offset := symbol_offset + (program.functions.count + 3) * 24
+    size := ifx elf then section_offset + 320 else measured.at
+    if size > X64Limit { return .{.problem = .Limit} }
+    if output.count == 0 { return .{.size = size} }
+    if output.count < size { return .{.problem = .Limit, .size = size} }
+    if elf {
+        header_writer := X64Writer.{.output = output[:header]}
+        X64Elf(*header_writer, measured.at, section_offset)
+    }
+    written := X64Writer.{.output = output[header:header + measured.at]}
+    X64Code(*written, program, *layout, aggregate_abi, functions[:], blocks[:], false)
+    if elf {
+        sections := X64Writer.{.output = output[:size], .at = header + measured.at}
+        X64ElfSections(*sections, program, functions[:], measured.at, symbol_offset, section_offset)
+        if sections.problem != .None || sections.at != size { return .{.problem = .Limit} }
+    }
+    return .{.problem = written.problem, .size = size}
+}
+
+#scope_export
+LirX64Encode :: (program: LirProgram, output: []u8) -> LirNativeResult {
+    return X64Encode(program, output, false)
+}
+
+LirX64Elf :: (program: LirProgram, output: []u8) -> LirNativeResult {
+    return X64Encode(program, output, true)
+}
+
+LirX64Ranges :: (program: LirProgram, output: []LirNativeRange) -> LirNativeResult {
+    diagnostic := LirVerify(program, LirDefaultLimits())
+    if diagnostic.problem != .None { return .{.problem = diagnostic.problem} }
+    aggregate_abi := X64UsesAggregate(program)
+    supported := X64Supported(program, aggregate_abi)
+    if supported != .None { return .{.problem = supported} }
+    layout: X64Layout
+    defer X64LayoutFree(*layout)
+    if aggregate_abi {
+        layout_problem := X64LayoutBuild(program, *layout)
+        if layout_problem != .None { return .{.problem = layout_problem} }
+    }
+    functions: Vec(s64); blocks: Vec(s64)
+    defer VecFree(functions)
+    defer VecFree(blocks)
+    block_count: s64
+    for fn: program.functions { block_count += fn.blocks.count }
+    if !VecResize(functions, program.functions.count) || !VecResize(blocks, block_count) { return .{.problem = .Allocation} }
+    measured: X64Writer
+    X64Code(*measured, program, *layout, aggregate_abi, functions[:], blocks[:], true)
+    if measured.problem != .None { return .{.problem = measured.problem} }
+    validated: X64Writer
+    X64Code(*validated, program, *layout, aggregate_abi, functions[:], blocks[:], false)
+    if validated.problem != .None || validated.at != measured.at || validated.range_at != measured.range_at { return .{.problem = .Limit} }
+    if output.count == 0 { return .{.size = measured.range_at} }
+    if output.count < measured.range_at { return .{.problem = .Limit, .size = measured.range_at} }
+    mapped := X64Writer.{.ranges = output}
+    X64Code(*mapped, program, *layout, aggregate_abi, functions[:], blocks[:], false)
+    return .{.problem = mapped.problem, .size = mapped.range_at}
+}

@@ -2,6 +2,40 @@
 
 ## [Unreleased]
 
+- Add the experimental `make assembly` / `zi2asm` scalar direct Linux x86-64
+  ELF path, verified lowered IR, inspection dumps and native source-range maps.
+  Existing ZX and other backends remain unchanged; the full ASSEMBLY upgrade,
+  optimizing allocator, runtime integration and other platforms remain pending.
+
+- Portable ZX prepares short helpers and ordinary scalar record-field reads
+  instead of repeatedly entering the expression evaluator for those operations.
+
+- Run a source file directly with `zi2zx hello.zi`. Website examples now use
+  the one-command `ziran run hello.zi` flow.
+
+- Keep multiline quantified laws readable after `=>` and indent their continuations.
+
+- Delete 263 redundant check scripts and their unused helpers. Local and CI
+  runs execute the complete retained suite, prioritizing compiler semantics,
+  memory safety, real backends, package integration and standard-library behavior.
+- Test helpers and the check controller are authored in Ziran, including
+  package graphs, diagnostics, native builds and browser
+  interoperability. Image tests always compare independent reference pixels.
+- Timed compiler kernels run explicitly from `bench/`, outside routine checks.
+  Benchmark builds and measurements use Alpha and retain their actual host.
+
+## [0.4.2] - 2026-11-11
+
+- JSON readers scan long unescaped strings with SIMD while preserving borrowed
+  text, escape handling, error positions and secure cleanup. The retained
+  desktop benchmark measures a substantially faster 1 MiB document parse.
+- SIMD byte-vector loads read immutable strings directly on C, Go and portable
+  ZX, with whole-access bounds checks and no intermediate byte allocation.
+- Programs using SIMD across several modules keep all required operations when
+  generating C, including parallel compilation.
+- Standard-module release availability stays consistent in source archives and
+  shallow Git checkouts.
+
 ## [0.4.1] - 2026-11-11
 
 - Portable ZX prepares print formats, statement boundaries and collection-aware

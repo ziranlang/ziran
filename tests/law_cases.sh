@@ -6,7 +6,9 @@
 set -eu
 unset DISPLAY WAYLAND_DISPLAY
 ziran=${1:?pass ziran}
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/law-cases-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/cases.zi" <<'ZI'
 Mode :: enum { Off, Slow, Fast }
@@ -29,7 +31,9 @@ Scaled :: (x: s64, by: s64 = 3) -> s64 { return Twice(x) * by }
 Limit :: 7
 Near :: Twice(Limit)
 
-#law TwiceRepeats forall x: 0..20, y: 0..20 => Twice(x % 3) + Twice(y % 3) == 2 * (x % 3 + y % 3);
+#law TwiceRepeats forall x: 0..20,
+    y: 0..20 =>
+    Twice(x % 3) + Twice(y % 3) == 2 * (x % 3 + y % 3);
 #law TwiceBreaks forall x: 0..20 => Twice(x % 4) < 6;
 #law ScaledDefault forall x: 0..9 => Scaled(x % 2) == Scaled(x % 2, 3) && Scaled(x % 2, by = 1) == Twice(x % 2);
 #law NearConstant forall x: 0..9 => Near + Twice(x) == Twice(Limit + x);
@@ -49,12 +53,7 @@ ZI
 if "$ziran" check --root "$work" "$work/cases.zi" > "$work/laws.json" 2> "$work/laws.err"; then
     echo 'disproved and unknown laws were accepted' >&2; exit 1
 fi
-python3 - "$work/laws.json" > "$work/results" <<'PY'
-import json, sys
-for line in open(sys.argv[1]):
-    law = json.loads(line)
-    print(law['law'], law['status'], law['evidence']['cases_checked'], law['detail'], sep=' | ')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/law_assertions.zi" -- "$ziran" "$work" cases
 cat > "$work/expected" <<'EXPECTED'
 TwiceRepeats | proved | 441 | held for all 441 cases
 TwiceBreaks | disproved | 4 | counterexample x=3

@@ -517,6 +517,11 @@ parse_source_with_buffers(const char *path, const char *root, const char *source
                     pl--;
                 last = pl > 0 ? buffers->pending[pl - 1] : '\0';
                 prev = pl > 1 ? buffers->pending[pl - 2] : '\0';
+                /* A law's domain/predicate separator is also a continuation
+                 * operator. Keep the predicate in the same declaration. */
+                if(last == '>' && prev == '=' &&
+                   starts_word(buffers->pending, "#law"))
+                    continue;
                 /* Continue after a binary operator or comma. The previous
                  * character distinguishes an operator from a postfix form. */
                 if(last == ',' || last == '=' || last == '%' ||

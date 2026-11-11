@@ -1,0 +1,60 @@
+#ifndef ZIRAN_RUNTIME_STRING_H
+#define ZIRAN_RUNTIME_STRING_H
+
+#include "zir_string_types.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static inline String StringRange(String source, int64_t low, int64_t high) {
+    if (low < 0 || high < low || (uint64_t)high > source.length ||
+        (source.data == NULL && source.length != 0)) {
+        fprintf(stderr, "ziran: string range out of bounds\n");
+        abort();
+    }
+    return StringView(source.data == NULL ? "" : source.data + low,
+                      (size_t)(high - low));
+}
+
+static inline bool StringEqual(String a, String b) {
+    return a.length == b.length &&
+        (a.length == 0 || memcmp(a.data, b.data, a.length) == 0);
+}
+
+/* print writes floats as the shortest decimal that reads back to the same
+ * value, in plain positional notation, so every target agrees. printf has
+ * no such format. */
+static inline void print_float(double value, int single) {
+    char scientific[40], digits[24];
+    int precision, exponent, count = 0;
+    const char *p;
+    if (value != value) { fputs("nan", stdout); return; }
+    if (value - value != 0) { fputs(value < 0 ? "-inf" : "inf", stdout); return; }
+    for (precision = 1; precision <= 17; precision++) {
+        snprintf(scientific, sizeof(scientific), "%.*e", precision - 1, value);
+        if (single ? strtof(scientific, NULL) == (float)value
+                   : strtod(scientific, NULL) == value)
+            break;
+    }
+    p = scientific;
+    if (*p == '-') { fputc('-', stdout); p++; }
+    /* Only digits: the locale's decimal point may be ',' or longer. */
+    for (; *p != 'e'; p++)
+        if (*p >= '0' && *p <= '9') digits[count++] = *p;
+    exponent = atoi(p + 1);
+    while (count > 1 && digits[count - 1] == '0') count--;
+    if (exponent < 0) {
+        fputs("0.", stdout);
+        for (int i = 1; i < -exponent; i++) fputc('0', stdout);
+        fwrite(digits, 1, (size_t)count, stdout);
+    } else {
+        for (int i = 0; i <= exponent; i++)
+            fputc(i < count ? digits[i] : '0', stdout);
+        if (count > exponent + 1) {
+            fputc('.', stdout);
+            fwrite(digits + exponent + 1, 1, (size_t)(count - exponent - 1), stdout);
+        }
+    }
+}
+
+#endif

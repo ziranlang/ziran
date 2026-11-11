@@ -2,7 +2,9 @@
 set -eu
 
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd -P)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/compile-commands-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir -p "$work/src"
 
@@ -15,25 +17,17 @@ ZI
 # The compiler command may carry flags; they follow the resolved program.
 (cd "$work" && "$ziran" compile-commands --compiler "cc -O2" c)
 
-python3 - "$work" <<'PY'
-import json
-import subprocess
-import sys
-from pathlib import Path
-
-work = Path(sys.argv[1]).resolve()
-entries = json.loads((work / "c/compile_commands.json").read_text())
-assert entries, entries
-for entry in entries:
-    arguments = entry["arguments"]
-    assert entry["directory"] == str(work), entry
-    assert Path(arguments[0]).is_absolute() and arguments[1] == "-O2", arguments
-    assert "-std=c99" in arguments and "-pedantic-errors" in arguments, arguments
-    assert f"-I{work / 'c'}" in arguments, arguments
-    assert arguments[-2:] == ["-c", entry["file"]], arguments
-    # Every recorded command really compiles its file.
-    subprocess.run(arguments[:-2] + ["-fsyntax-only", entry["file"]], check=True)
-PY
+set --
+if test "$(uname -s)" = Darwin; then
+    set -- --define __APPLE__
+    if test "$(uname -m)" = x86_64; then
+        set -- "$@" --define __x86_64__
+    else
+        set -- "$@" --define __aarch64__
+    fi
+fi
+"$ziran" run "$@" --target=c --root "$repo/tests" "$repo/tests/compile_commands_cases.zi" -- "$work"
+sh "$work/compile-commands.sh"
 
 if "$ziran" compile-commands --include "$work/missing" "$work/c" 2>/dev/null; then
     echo "a missing include directory was accepted" >&2

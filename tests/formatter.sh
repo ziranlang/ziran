@@ -3,134 +3,15 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build"
+work=$(mktemp -d "$repo/build/formatter.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-python3 - "$ziran" "$work" <<'PY'
-from pathlib import Path
-import os
-import stat
-import subprocess
-import sys
+${CC:-cc} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" \
+    -I"$repo/build/compiler-ir" "$repo/tests/law_format_test.c" \
+    "$repo/build/libziran.a" -o "$work/law-format-test" -lm -pthread -ldl
 
-ziran = Path(sys.argv[1]).resolve()
-formatter = ziran.with_name("zi-fmt")
-work = Path(sys.argv[2])
-
-def run(*arguments, expected=0):
-    result = subprocess.run([str(formatter), *map(str, arguments)],
-                            capture_output=True, timeout=10)
-    assert result.returncode == expected, (arguments, result.returncode, result.stderr)
-    return result
-
-# Every string and comment below contains bytes that confused the old
-# line-based spacing or brace counter. The program must still return 42.
-source = work / "source.zi"
-source.write_bytes(b'''// } ) :: = #string COMMENT
-Same::(a: string, b: string)->bool { return a == b }
-Echo::(value: string)->string { return value }
-Answer::()->s32 {
-/* } ) = :: \" #string BLOCK
-   /* nested { ( => */
-   trailing comment bytes = ::\x20\x20\x20
-*/
-value: string=\"} ( :: = \\\"\" // } ) \" :: =
-if !Same(value, \"} ( :: = \\\"\") { return 0 }
-if !Same(Echo(#string FIRST
-  { } ( ) :: = \" \\\x20\x20\x20
-FIRST), Echo(#string SECOND
-  { } ( ) :: = \" \\\x20\x20\x20
-SECOND)) { return 0 }
-// END_EXTRA is content, not a closing delimiter.
-raw: string = #string END
-END_EXTRA
-  body = :: { )\x20\x20\x20
-END;
-if !Same(raw, \"END_EXTRA\\n  body = :: { )   \\n\") { return 0 }
-return 42 // { ( = ::
-}
-''')
-original = source.read_bytes()
-assert run("--check", source, expected=1).stderr.startswith(b"zi-fmt: would reformat ")
-assert source.read_bytes() == original
-source.chmod(0o751)
-run(source)
-formatted = source.read_bytes()
-assert b"    value: string = " in formatted
-assert b"    return 42 // { ( = ::\n}" in formatted
-assert b"   trailing comment bytes = ::   \n" in formatted
-assert b"FIRST), Echo(#string SECOND\n  { } ( ) :: = \" \\   \nSECOND))" in formatted
-assert stat.S_IMODE(source.stat().st_mode) == 0o751
-run("--check", source)
-before = source.stat()
-run(source)
-assert source.read_bytes() == formatted
-assert source.stat().st_ino == before.st_ino
-assert source.stat().st_mtime_ns == before.st_mtime_ns
-
-for name, content in [("original", original), ("formatted", formatted)]:
-    path = work / (name + ".zi")
-    path.write_bytes(content)
-    bundle = work / (name + ".zx")
-    subprocess.run([str(ziran), "bundle", "--root", str(work), "--entry", name + ":Answer",
-                    "-o", str(bundle), str(path)], check=True)
-    assert subprocess.check_output([str(ziran), "run", str(bundle)]).strip() == b"42"
-
-# Following a symlink must preserve the link and update the source it names.
-target = work / "target.zi"
-target.write_bytes(b"Answer::()->s32 {\nreturn 42\n}\n")
-link = work / "linked.zi"
-link.symlink_to(target.name)
-run(link)
-assert link.is_symlink()
-assert b"    return 42" in target.read_bytes()
-run("--check", link)
-
-# The temporary name must fit even when the source basename is already at
-# the filesystem's component limit.
-long_name = work / ("x" * 252 + ".zi")
-long_name.write_bytes(b"Answer::()->s32 { return 42 }\n")
-run(long_name)
-run("--check", long_name)
-
-empty = work / "empty.zi"
-empty.touch()
-inode = empty.stat().st_ino
-run(empty)
-assert empty.read_bytes() == b"" and empty.stat().st_ino == inode
-
-newline = work / "newline.zi"
-newline.write_bytes(b"Answer :: () -> s32 { return 42 }")
-run(newline)
-assert newline.read_bytes().endswith(b"\n")
-
-# A failed path must not prevent later arguments from being formatted.
-newline.write_bytes(b"Answer::()->s32 { return 42 }")
-run(work / "missing.zi", newline, expected=1)
-run("--check", newline)
-run(work, expected=1)
-fifo = work / "pipe.zi"
-os.mkfifo(fifo)
-run(fifo, expected=1)
-run(expected=2)
-assert not list(work.glob("*.zi-fmt.*"))
-
-# A failed replacement leaves the original bytes intact and removes the
-# temporary file. This cannot be exercised when running as root.
-if os.geteuid() != 0:
-    readonly = work / "readonly"
-    readonly.mkdir()
-    path = readonly / "app.zi"
-    path.write_bytes(b"Answer::()->s32 { return 42 }\n")
-    before = path.read_bytes()
-    readonly.chmod(0o555)
-    try:
-        run(path, expected=1)
-        assert path.read_bytes() == before
-        assert not list(readonly.glob("*.zi-fmt.*"))
-    finally:
-        readonly.chmod(0o755)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/formatter_cases.zi" -- "$ziran" "$work"
 
 # The scanner runs from source and saved IR with no native host imports.
 cat > "$work/scanner.zi" <<'ZI'
@@ -164,6 +45,10 @@ Answer :: () -> s32 {
         "f :: (\n    x: s32\n    ) {\n    return x\n}\n") { return 10 }
     if !Same("/* nested /* } */ ( */\na=1\n", "/* nested /* } */ ( */\na = 1\n") { return 11 }
     if !Same("a=1", "a = 1\n") { return 12 }
+    if !Same("#law N forall x: 0..1,\ny: 0..1 =>\nx == y ||\nx != y;\nAfter :: 42\n",
+        "#law N forall x: 0..1,\n    y: 0..1 =>\n    x == y ||\n    x != y;\nAfter :: 42\n") { return 13 }
+    if !Same("#law N custom \";#law\" == \";#law\" &&\ntrue;\nAfter :: 42\n",
+        "#law N custom \";#law\" == \";#law\" &&\n    true;\nAfter :: 42\n") { return 14 }
     return 42
 }
 

@@ -1,0 +1,2 @@
+using First :: #import "A/A";
+using Second :: #import "B/A";

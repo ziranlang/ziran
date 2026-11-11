@@ -1,9 +1,11 @@
 #!/bin/sh
 set -eu
+ulimit -c 0
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/numeric-semantics-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/numeric.zi" <<'ZI'
@@ -148,27 +150,7 @@ BadNegative :: () -> s32 {
 ZI
 
 "$ziran" capabilities --json > "$work/capabilities.json"
-python3 - "$work/numeric.zi" "$work/capabilities.json" \
-         "$repo/tests/numeric_conformance.json" <<'PY'
-import json
-import re
-from pathlib import Path
-import sys
-
-source, capabilities_path, manifest_path = map(Path, sys.argv[1:])
-ids = []
-for match in re.finditer(r'// conformance: ([A-Za-z0-9_.-]+)', source.read_text()):
-    identifier = match.group(1)
-    if identifier not in ids:
-        ids.append(identifier)
-manifest = json.loads(manifest_path.read_text())
-capability = json.loads(capabilities_path.read_text())['numeric_conformance']
-manifest_ids = [case['id'] for case in manifest['cases']]
-assert ids == manifest_ids, (ids, manifest_ids)
-assert capability['ids'] == manifest_ids
-assert len(manifest_ids) == len(set(manifest_ids))
-assert manifest['targets'] == ['c', 'go', 'zx']
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" numeric-ids
 
 "$ziran" ir --root "$work" -o "$work/ir" "$work/numeric.zi"
 

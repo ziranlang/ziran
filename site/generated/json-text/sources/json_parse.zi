@@ -1,0 +1,19 @@
+// Parse JSON: materialize a 16 KiB JSON string. The input is
+// prepared once, before measured calls; the result consumes its bytes.
+using V :: #import "vec"
+using J :: #import "json_document"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 {
+        if !BuilderAppend(input,"{\"payload\":\"") { return -1 }
+        for index: 0..16383 { if !VecPush(input,120) { return -2 } }
+        if !BuilderAppend(input,"\"}") { return -3 }
+    }
+    document: JsonDocument
+    defer JsonReset(*document)
+    if !JsonRead(*document,TextView(input[:])) { return -4 }
+    payload:=JsonString(*document,JsonMember(*document,document.root,"payload"))
+    if payload.count!=16384 { return -5 }
+    return payload.count+cast(s64)payload[0]+cast(s64)payload[payload.count-1]
+}

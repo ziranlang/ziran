@@ -1,0 +1,49 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ImageReferenceFile :: (test: *NativeTest, document: *JsonDocument, node: s32) -> string {
+    name := CheckField(document, node, "path"); path := CheckPath(test.repo, CheckConcat("tests/fixtures/image_reference/", name))
+    if !NativeAssert(test, name != "" && !TextContains(name, "/") && !TextContains(name, "..") && PathStatus(path).size == CheckInteger(document, node, "bytes") &&
+        CheckHash(path) == CheckField(document, node, "sha256"), "image reference bytes do not match their provenance manifest") { return "" }
+    return path
+}
+
+ImageReferenceTests :: (test: *NativeTest) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, CheckPath(test.repo, "tests/fixtures/image_reference/manifest.json"))) && CheckInteger(*document, document.root, "schema_version") == 1 && CheckField(*document, document.root, "reference") == "Pillow", "invalid independent image reference manifest") { return false }
+    decode := JsonMember(*document, document.root, "decode"); resize := JsonMember(*document, document.root, "resize")
+    if !NativeAssert(test, JsonCount(*document, decode) == 7 && JsonCount(*document, resize) == 18, "image reference mode/filter coverage changed") { return false }
+    program := CheckPath(test.work, "program"); raw := CheckPath(test.work, "raw"); resized := CheckPath(test.work, "resized.png")
+    for index: cast(s32)0..JsonCount(*document, decode) - 1 {
+        item := JsonElement(*document, decode, index); source := ImageReferenceFile(test, *document, JsonMember(*document, item, "source")); expected := ImageReferenceFile(test, *document, JsonMember(*document, item, "expected"))
+        if test.failed { return false }
+        command := string.[program, "decode", source, raw]; unused NativeRun(test, command[:])
+        if !NativeAssert(test, !test.failed && NativeSameFile(raw, expected), CheckConcat("PNG decoding disagrees with independent reference: ", CheckField(*document, item, "mode"))) { return false }
+    }
+    for index: cast(s32)0..JsonCount(*document, resize) - 1 {
+        item := JsonElement(*document, resize, index); source := ImageReferenceFile(test, *document, JsonMember(*document, item, "source")); expected := ImageReferenceFile(test, *document, JsonMember(*document, item, "expected"))
+        if test.failed { return false }
+        width := CheckInteger(*document, item, "width"); height := CheckInteger(*document, item, "height"); method := CheckField(*document, item, "method")
+        command := string.[program, "resize", source, method, NativeSigned(width), NativeSigned(height), resized]; unused NativeRun(test, command[:])
+        // An independent decoder prevents matching writer/reader bugs in the
+        // implementation from cancelling each other in a self round-trip.
+        decode_args := string.["ffmpeg", "-v", "error", "-nostdin", "-threads", "1", "-i", resized, "-threads", "1", "-f", "rawvideo", "-pix_fmt", "rgba", "pipe:1"]
+        result := NativeRun(test, decode_args[:]); want := NativeRead(test, expected)
+        if !NativeAssert(test, !test.failed && want.count == width * height * 4 && result.output == want, CheckConcat("resizing disagrees with independent Pillow pixels: ", CheckConcat(method, CheckConcat(" ", CheckConcat(NativeSigned(width), CheckConcat("x", NativeSigned(height))))))) { return false }
+    }
+    print("Independent Pillow reference: 7 PNG modes and 18 resized images passed byte-for-byte local tests with FFmpeg decoding\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "image-reference-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx ImageReferenceTests(*test) && !test.failed then 0 else 1
+}

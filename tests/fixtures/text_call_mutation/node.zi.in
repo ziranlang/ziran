@@ -1,0 +1,1 @@
+Node :: struct { bytes: [2]u8; other: [2]u8; result: s32 }

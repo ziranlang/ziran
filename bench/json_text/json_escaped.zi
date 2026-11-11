@@ -1,0 +1,28 @@
+// Decode JSON: parse 128 objects with UTF-8, a control escape, a BMP escape and a
+// surrogate pair. The independent oracle is 128 * (9 bytes + 206 + 128).
+using V :: #import "vec"
+using J :: #import "json_document"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 {
+        if !BuilderAppend(input,"[") { return -1 }
+        for index: 0..127 {
+            if index>0 && !BuilderAppend(input,",") { return -2 }
+            if !BuilderAppend(input,"{\"label\":\"λ\\n\\u03bb\\uD83D\\uDE80\"}") { return -3 }
+        }
+        if !BuilderAppend(input,"]") { return -4 }
+    }
+    document: JsonDocument
+    defer JsonReset(*document)
+    if !JsonRead(*document,TextView(input[:]))||JsonCount(*document,document.root)!=128 { return -5 }
+    sum: s64
+    child:=JsonFirst(*document,document.root)
+    while child>=0 {
+        text:=JsonString(*document,JsonMember(*document,child,"label"))
+        if text.count!=9 { return -6 }
+        sum+=text.count+cast(s64)text[0]+cast(s64)text[text.count-1]
+        child=JsonNext(*document,child)
+    }
+    return sum
+}

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -44,15 +45,7 @@ BindEntry :: () -> s32 {
 }
 ZI
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/binding.zi"
-python3 - "$work/ir/binding.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'Binder :: (callback: slots.Full, state: *slots.State, prefix: string) -> slots.Bound #foreign builtin "bind";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/binding.zir" "$repo/tests/fixtures/saved_signatures/go_bind.txt"
 for form in source saved; do
     input=$work/binding.zi
     if test "$form" = saved; then input=$work/ir/binding.zir; fi

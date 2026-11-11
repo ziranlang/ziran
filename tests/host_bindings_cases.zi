@@ -1,0 +1,98 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+HostNumber :: (number: s64) -> string {
+    text := CheckNumber(number)
+    while text.count < 3 { text = CheckConcat("0", text) }
+    return text
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "host-bindings-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    declarations: Vec(u8)
+    calls: Vec(u8)
+    provider_calls: Vec(u8)
+    BuilderAppend(declarations, "host_api :: #system_library \"host_api\";\n")
+    for index: cast(s64)0..63 {
+        name := CheckConcat("H", HostNumber(index))
+        BuilderAppend(declarations, CheckConcat(name, " :: (value: s64) -> s64 #foreign host_api;\n"))
+        BuilderAppend(calls, CheckConcat("value = ", CheckConcat(name, "(value)\n")))
+        BuilderAppend(provider_calls, CheckConcat("value = ", CheckConcat(name,
+            ifx index == 0 then "(Identity(value))\n" else "(value)\n")))
+    }
+    host := TextDetach(BuilderFinish(declarations))
+    called := TextDetach(BuilderFinish(calls))
+    provider: [4]string = .[host,
+        "NeverCalled :: () -> s64 #foreign host_api;\nIdentity :: (value: $T) -> T { return value }\n#program_export\nNext :: (input: s64) -> s64 {\nvalue := input\n",
+        TextDetach(BuilderFinish(provider_calls)), "return value\n}\n#program_export\nmain :: () -> s64 { return Next(7) }\n"]
+    if !NativeWrite(*test, CheckPath(test.work, "provider.zi"), TextJoin(provider[:], "")) { return 1 }
+    app: [5]string = .["#import \"provider\"\n", host, "seed: s64 = H000(7);\n#program_export\nAnswer :: () -> s64 {\nvalue := Next(seed)\n", called, "return value\n}\n"]
+    if !NativeWrite(*test, CheckPath(test.work, "app.zi"), TextJoin(app[:], "")) { return 1 }
+    expected: u64 = (cast(u64)7 * cast(u64)48271 + cast(u64)1001) & cast(u64)9223372036854775807
+    for group: cast(u64)0..cast(u64)1 {
+        for index: cast(u64)0..cast(u64)63 {
+            expected = (expected * cast(u64)48271 + index + cast(u64)1 + group * cast(u64)1000) & cast(u64)9223372036854775807
+        }
+    }
+    ir := CheckPath(test.work, "ir")
+    save: [7]string = .[test.ziran, "ir", "--root", test.work, "-o", ir, CheckPath(test.work, "app.zi")]
+    unused NativeRun(*test, save[:])
+    library := CheckPath(test.work, "provider.zx")
+    build: [9]string = .[test.ziran, "bundle", "--root", test.work, "--entry", "provider:main", "-o", library, CheckPath(test.work, "provider.zi")]
+    unused NativeRun(*test, build[:])
+    bridge := CheckPath(test.work, "bridge.zx")
+    if !NativeWrite(*test, CheckPath(test.work, "bridge.zi"), "#import \"provider\"\n#program_export\nmain :: () -> s64 { return Next(7) }\n") { return 1 }
+    bridge_command: [11]string = .[test.ziran, "bundle", "--root", test.work, "--entry", "bridge:main", "--library", library, "-o", bridge, CheckPath(test.work, "bridge.zi")]
+    unused NativeRun(*test, bridge_command[:])
+    modes: [3]string = .["standalone", "thin", "included"]
+    forms: [2]string = .["source", "saved"]
+    for mode: modes {
+        for form: forms {
+            root := ifx form == "source" then test.work else ir
+            input := ifx form == "source" then CheckPath(test.work, "app.zi") else CheckPath(ir, "app.zir")
+            bundle := CheckPath(test.work, CheckConcat(mode, CheckConcat("-", CheckConcat(form, ".zx"))))
+            command: Vec(string)
+            initial: [6]string = .[test.ziran, "bundle", "--root", root, "--entry", "app:Answer"]
+            for value: initial { VecPush(command, value) }
+            if mode != "standalone" { VecPush(command, ifx mode == "thin" then "--library" else "--include-library"); VecPush(command, library) }
+            VecPush(command, "-o"); VecPush(command, bundle); VecPush(command, input)
+            unused NativeRun(*test, command[:])
+            run: Vec(string)
+            VecPush(run, CheckPath(test.work, "test")); VecPush(run, bundle); VecPush(run, NativeUnsigned(expected))
+            if mode == "thin" { VecPush(run, library) }
+            unused NativeRun(*test, run[:])
+            if mode == "thin" {
+                nested: [5]string = .[CheckPath(test.work, "test"), bundle, NativeUnsigned(expected), bridge, library]
+                unused NativeRun(*test, nested[:])
+            }
+        }
+        if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, CheckConcat(mode, "-source.zx")),
+            CheckPath(test.work, CheckConcat(mode, "-saved.zx"))), "source/saved host bundles differ") { return 1 }
+    }
+    solo := CheckPath(test.work, "solo.zi")
+    if !NativeWrite(*test, solo, "host_api :: #system_library \"host_api\";\nOnly :: (value: s64) -> s64 #foreign host_api;\nseed: s64 = Only(7);\n#program_export\nAnswer :: () -> s64 { return Only(seed) }\n") { return 1 }
+    single_ir := CheckPath(test.work, "single-ir")
+    single: [7]string = .[test.ziran, "ir", "--root", test.work, "-o", single_ir, solo]
+    unused NativeRun(*test, single[:])
+    for form: forms {
+        root := ifx form == "source" then test.work else single_ir
+        input := ifx form == "source" then solo else CheckPath(single_ir, "solo.zir")
+        bundle := CheckPath(test.work, CheckConcat("single-", CheckConcat(form, ".zx")))
+        command: [9]string = .[test.ziran, "bundle", "--root", root, "--entry", "solo:Answer", "-o", bundle, input]
+        unused NativeRun(*test, command[:])
+        run: [2]string = .[CheckPath(test.work, "test"), bundle]
+        unused NativeRun(*test, run[:])
+    }
+    if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "single-source.zx"), CheckPath(test.work, "single-saved.zx")), "single host bundles differ") { return 1 }
+    if test.failed { return 1 }
+    print("128 host bindings passed in source/saved standalone, thin, included and nested retained libraries\n")
+    return 0
+}

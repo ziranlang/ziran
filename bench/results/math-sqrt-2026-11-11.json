@@ -1,0 +1,60 @@
+{
+  "date": "2026-11-11",
+  "status": "uncommitted checkpoint; parent integration pending",
+  "source_revision": "126266c4a6b5a7579a59de412f2ef9fcddedfd1c",
+  "source_sha256": {
+    "std/math.zi": "61a3acf660cef0870e7ef46830f5c7f8ef1a8468498b174ec04f3b90c8981fd2",
+    "tests/spec/math_sqrt_reference.zi": "aa763c4db029d98c371f851d4aadb94a4776e567113ae619d9684fd99109a1e2",
+    "bench/math_sqrt.zi": "fbdbd27a05749c014ad61975f3981223fa3007e16fd201f73ddbc62ab69a016b"
+  },
+  "compilation": {
+    "host": "physical Alpha; hostname alpha; virtualization none",
+    "compiler": "cc (Ubuntu 15.2.0-16ubuntu1) 15.2.0",
+    "flags": "-std=c11 -O2; no fast-math or LTO",
+    "workers": 2,
+    "managed_memory_limit_gib": 8,
+    "link": "local desktop cc; -lm"
+  },
+  "execution": {
+    "cpu": "local desktop AMD Ryzen 9 9950X",
+    "platform": "Linux 7.2.11+deb13-amd64 x86_64",
+    "warmup_pairs": 1,
+    "sample_pairs": 9,
+    "calls_per_sample": 1024000,
+    "order": "alternating reference/candidate and candidate/reference",
+    "outliers": "symmetric 1.5*IQR, inclusive interpolated quartiles, per algorithm/distribution",
+    "input_and_aggregate_checksum_agreement": true
+  },
+  "command_prefix": "build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY CC=/mnt/storage/Projects/kryonlabs/kryon/build/scratch/shader-regressions/alpha-cc",
+  "commands_after_prefix": [
+    "sh tests/math_sqrt.sh /mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+    "sh tests/math_float64.sh /mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+    "build/bin/check-runner --bin-dir /mnt/storage/Projects/ziranlang/ziran/build/bin --jobs 1 --filter math",
+    "sh bench/math_sqrt.sh /mnt/storage/Projects/ziranlang/ziran/build/bin/ziran"
+  ],
+  "local_tests": {
+    "suite": "2/2 passed; 2 executed, 0 reused",
+    "sqrt": "exact finite/signed-zero parity; NaN classification; all normal exponents and subnormal powers with neighbors; 1000000 deterministic IEEE patterns",
+    "targets": "native source/saved IR full set; portable source/saved IR bounded edges; byte-identical bundles",
+    "accuracy": "21 elementary functions within existing libm ULP limits; Sqrt max 1 ULP",
+    "not_tested": "NaN payload bits; Go/Wasm execution; full repository suite; parent renderer/application integration"
+  },
+  "geometry_0_to_16": {
+    "reference_ns": [32.039291015625, 35.18380078125, 31.2637822265625, 30.017861328125, 34.62984375, 33.628845703125, 31.3238212890625, 31.3348564453125, 33.48028125],
+    "candidate_ns": [11.4427119140625, 11.246470703125, 11.38776953125, 11.4816181640625, 11.3551826171875, 13.196240234375, 12.05998828125, 11.8927119140625, 14.2365654296875],
+    "reference_excluded": [],
+    "candidate_excluded": [5, 8],
+    "reference_median_ns": 32.039291015625,
+    "candidate_median_ns": 11.4427119140625,
+    "speedup": 2.7999735776140944
+  },
+  "normal_exponent_spread": {
+    "reference_ns": [62.81921484375, 59.290173828125, 57.3923271484375, 57.496869140625, 58.3109716796875, 56.6812421875, 56.8953046875, 59.0258271484375, 56.860626953125],
+    "candidate_ns": [27.778001953125, 26.9953349609375, 25.737509765625, 25.58083984375, 25.870234375, 25.3127919921875, 25.1475283203125, 24.824431640625, 27.1351298828125],
+    "reference_excluded": [0],
+    "candidate_excluded": [],
+    "reference_median_ns": 57.444598144531255,
+    "candidate_median_ns": 25.737509765625,
+    "speedup": 2.2319408003199372
+  }
+}

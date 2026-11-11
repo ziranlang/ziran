@@ -12,13 +12,13 @@ From the repository root:
 
 ```sh
 build-queue -- sh tests/llm_authoring.sh build/bin/ziran
-build-queue -- python3 tests/run_check.py --filter llm_authoring --jobs 1
-python3 tests/llm_authoring.py --validate-only
+build-queue -- make check CHECK_FILTER=llm_authoring CHECK_JOBS=1
+sh tests/llm_authoring.sh build/bin/ziran --validate-only
 build-queue -- sh tests/llm_authoring.sh build/bin/ziran \
   --transcript tests/llm_authoring/fixtures/replay.json
 ```
 
-The shell script is automatically discovered by `tests/run_check.py`; no
+The shell script is automatically discovered by the Ziran check runner; no
 Makefile registration is needed. The default command runs the full evaluator
 regression suite. `--transcript` evaluates one supplied record instead.
 `--validate-only` validates the corpus and any supplied record without invoking

@@ -1,5 +1,6 @@
 #import "text"
 #import "vec"
+JsonBytes :: #import "json_bytes"
 
 // A small allocation-free JSON scanner. Positions are UTF-8 byte offsets.
 // String spans retain escapes; member lookup matches unescaped ASCII names.
@@ -52,9 +53,9 @@ Hex :: (ch: u8) -> bool {
 #program_export
 ReadString :: (text: string, at: s32) -> JsonSpan {
     result: JsonSpan
-    if at < 0 || at >= (cast(s32)text.count) || text[at] != cast(u8)34 { return result }
+    if text.count > 2147483647 || at < 0 || at >= (cast(s32)text.count) || text[at] != cast(u8)34 { return result }
     result.start = at + 1
-    cursor: s32 = result.start
+    cursor: s32 = cast(s32)JsonBytes.JsonStringRunEnd(text, result.start)
     while cursor < (cast(s32)text.count) {
         ch: u8 = text[cursor]
         if ch == cast(u8)34 {
@@ -82,7 +83,7 @@ ReadString :: (text: string, at: s32) -> JsonSpan {
                 return result
             }
         }
-        cursor = cursor + 1
+        cursor = cast(s32)JsonBytes.JsonStringRunEnd(text, cast(s64)cursor + 1)
     }
     return result
 }

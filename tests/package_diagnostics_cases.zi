@@ -1,0 +1,52 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-diagnostics-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    NativeSet(*test, "ZIRAN_PINNED_LAUNCHER", "1")
+    leaf := CheckPath(test.work, "leaf"); provider := CheckPath(test.work, "provider"); tool := CheckPath(test.work, "tool"); app := CheckPath(test.work, "app")
+    repositories := string.[leaf, provider, tool]
+    for repo: repositories { if !FixtureInit(*test, repo) || !NativeWrite(*test, CheckPath(repo, "VERSION"), "1\n") { return 1 } }
+    if !NativeWrite(*test, CheckPath(leaf, "ziran.toml"), "[package]\nname = \"Leaf\"\nmodule_roots = [\"src\"]\n[exports]\nValue = \"src/Value.zi\"\n") ||
+        !NativeWrite(*test, CheckPath(leaf, "src/Value.zi"), "Value :: 1;\n") { return 1 }
+    provider_parts := string.["[package]\nname = \"Provider\"\nmodule_roots = [\"src\"]\n[dependencies.Leaf]\ngit = ", FixtureQuote(FixtureUri(leaf)), "\nref = \"master\"\n[exports]\nValue = \"src/Value.zi\"\n"]
+    manifest := TextDetach(TextJoin(provider_parts[:], ""))
+    if !NativeWrite(*test, CheckPath(provider, "ziran.toml"), manifest) || !NativeWrite(*test, CheckPath(provider, "src/Value.zi"), "Value :: 1;\n") { return 1 }
+    for repo: repositories { unused FixtureCommit(*test, repo, "fixture") }
+    app_parts := string.["[package]\nname = \"Diagnostics\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\nref = \"master\"\n[dependencies.Provider]\ngit = ", FixtureQuote(FixtureUri(provider)), "\nref = \"master\"\n"]
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(app_parts[:], "")) { return 1 }
+    lock := string.["lock"]; unused PackageCommand(*test, app, lock[:])
+    fetch := string.["fetch", "--locked"]; unused PackageCommand(*test, app, fetch[:])
+    NativeSet(*test, "GIT_TRACE", "1"); NativeSet(*test, "GIT_TRACE2", "1"); NativeSet(*test, "GIT_TRACE_SETUP", "1")
+    path := string.["pkg", "path", "Provider", "--locked", "--offline"]
+    output := PackageCommand(*test, app, path[:])
+    lines := TextLines(TextTrimEnd(output))
+    if !NativeAssert(*test, lines.count > 0, "missing traced package path") { return 1 }
+    entry := lines[lines.count - 1]
+    if !NativeAssert(*test, IsDirectory(entry) && IsFile(CheckPath(entry, "src/Value.zi")), "git trace output confused healthy cache selection") { return 1 }
+    clean := string.["status", "--porcelain"]
+    if !NativeAssert(*test, FixtureGit(*test, entry, clean[:]) == "", "trace made the healthy entry dirty") { return 1 }
+    offline := string.["fetch", "--locked", "--offline"]; unused PackageCommand(*test, app, offline[:])
+    NativeUnset(*test, "GIT_TRACE"); NativeUnset(*test, "GIT_TRACE2"); NativeUnset(*test, "GIT_TRACE_SETUP")
+    override := CheckPath(test.work, "provider-override")
+    clone := string.["clone", "-q", FixtureUri(provider), override]; unused FixtureGit(*test, test.work, clone[:])
+    if !NativeWrite(*test, CheckPath(override, "ziran.toml"), TextReplace(manifest, "ref = \"master\"", "ref = \"next\"")) ||
+        !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), CheckConcat("[overrides]\nProvider = ", CheckConcat(FixtureQuote(override), "\n"))) { return 1 }
+    command := string.["fetch"]
+    rejected := PackageCommand(*test, app, command[:], false)
+    if !NativeAssert(*test, !TextContains(rejected, "cannot fetch locked packages"), "stale override lost its specific diagnostic") { return 1 }
+    required := string.["Provider", CheckConcat("local override ", override), "declares Leaf next", FixtureUri(leaf), "ziran.lock pins Leaf", "ziran lock"]
+    for text: required { if !NativeAssert(*test, TextContains(rejected, text), CheckConcat("missing override diagnostic: ", text)) { return 1 } }
+    if test.failed { return 1 }
+    print("Local package diagnostics: git traces preserve healthy cache selection and stale overrides name their mismatch\n")
+    return 0
+}

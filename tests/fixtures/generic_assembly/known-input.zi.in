@@ -1,0 +1,1 @@
+F :: (x:$T, text:string)->T #asm("x86_64","","=r","r;r","",""){return x}

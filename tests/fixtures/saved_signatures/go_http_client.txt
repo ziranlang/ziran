@@ -1,0 +1,2 @@
+SetAddress :: (request: *http.Request, address: string) #go_field #foreign go_http "(*Request).RemoteAddr";
+SetDefault :: (client: *http.Client) #go_field #foreign go_http "DefaultClient";

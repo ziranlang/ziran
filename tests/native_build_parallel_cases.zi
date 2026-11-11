@@ -1,0 +1,249 @@
+#import "native_test"
+#import "native_build_support"
+#import "native_parallel_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/socket_linux"
+#import "std/sort"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+ParallelProfile :: (context: ParallelContext, profile: string, log: string, mode: string) -> bool {
+    test := context.test
+    state: JsonDocument
+    if !ParallelReadState(test, *state) { return false }
+    sources := JsonMember(*state, state.root, "sources")
+    count := JsonCount(*state, sources)
+    document: JsonDocument
+    counters := NativeProfileCounters(test, profile, *document)
+    phases := JsonMember(*document, document.root, "phases")
+    required := string.["native.toolchain", "native.objects", "native.link"]
+    for name: required {
+        found := false
+        for index: cast(s32)0..JsonCount(*document, phases) - 1 { if CheckField(*document, JsonElement(*document, phases, index), "name") == name { found = true } }
+        if !NativeAssert(test, found, CheckConcat("missing native build phase: ", name)) { return false }
+    }
+    if !NativeAssert(test, NativeCounter(*document, counters, "native_object_compile") == count &&
+        NativeCounter(*document, counters, "native_process_event") + NativeCounter(*document, counters, "native_process_poll") == count + 1 &&
+        NativeCounter(*document, counters, "native_process_spawn") + NativeCounter(*document, counters, "native_process_fork") == count + 1, "native process counters disagree with compiler observations") { return false }
+    if mode == "json" {
+        paths: Vec(string)
+        for index: cast(s32)0..count - 1 { VecPush(paths, TextDetach(JsonString(*state, JsonElement(*state, sources, index)))) }
+        SortText(paths[:])
+        rows := TextLines(NativeRead(test, log))
+        names: Vec(string)
+        for row: rows {
+            record: JsonDocument
+            if !NativeAssert(test, JsonRead(*record, row), "invalid scheduled compiler diagnostic") { return false }
+            message := CheckField(*record, record.root, "message")
+            offset: s64
+            while true {
+                at := TextFind(message, "scheduled ", offset)
+                if at < 0 { break }
+                start := at + 10; end := start
+                while end < message.count {
+                    byte := message[end]
+                    if !(byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95 || byte == 46) { break }
+                    end += 1
+                }
+                VecPush(names, TextDetach(TextCopy(message[start:end]))); offset = end
+            }
+        }
+        if !NativeAssert(test, names.count == paths.count, "scheduled diagnostic count differs") { return false }
+        for index: cast(s64)0..names.count - 1 { if !NativeAssert(test, names[index] == PathName(paths[index]), "scheduled diagnostics lost deterministic source order") { return false } }
+    }
+    return true
+}
+
+ParallelPeak :: (context: ParallelContext, parallel: bool = false) -> bool {
+    document: JsonDocument
+    if !ParallelReadState(context.test, *document) { return false }
+    peak := CheckInteger(*document, document.root, "peak")
+    return NativeAssert(context.test, peak >= 1 && peak <= context.workers && (!parallel || context.workers < 2 || peak > 1), "native worker concurrency exceeded its budget or failed to run concurrently")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--compiler" { return ParallelCompiler(argc, argv) }
+    test := NativeStart(argc, argv, "native-build-parallel-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeUnset(*test, "ZIRAN_PROFILE")
+    compiler := NativeCompiler()
+    affinity: Vec(u8)
+    capacity: s64 = 128
+    while true {
+        if !NativeAssert(*test, VecResize(affinity, capacity), "allocate affinity mask") { return 1 }
+        if ParallelReadAffinity(affinity[:]) { break }
+        if !NativeAssert(*test, LinuxErrno() == 22 && capacity < 1048576, "read process CPU affinity") { return 1 }
+        capacity *= 2
+    }
+    cpus: s64; first_cpu: s64 = -1
+    for index: cast(s64)0..affinity.count - 1 {
+        for bit: 0..7 {
+            if (affinity[index] & (cast(u8)1 << cast(u8)bit)) != cast(u8)0 {
+                if first_cpu < 0 { first_cpu = index * 8 + bit }; cpus += 1
+            }
+        }
+    }
+    if !NativeAssert(*test, cpus > 0, "empty process affinity") { return 1 }
+    memory_workers: s64 = 16
+    memory, memory_valid := ReadEntireFile("/proc/meminfo")
+    if memory_valid {
+        lines := TextLines(memory)
+        for line: lines {
+            if TextHasPrefix(line, "MemAvailable:") {
+                words: Vec(string)
+                if NativeWords(line, *words) && words.count >= 2 {
+                    value, valid := TextInteger(words[1]); if valid { memory_workers = value / 1024 / 512 }
+                }
+            }
+        }
+    }
+    if memory_workers < 1 { memory_workers = 1 }
+    workers := cpus / 2; if workers < 1 { workers = 1 }; if workers > 2 { workers = 2 }; if workers > memory_workers { workers = memory_workers }
+    output := CheckPath(test.work, "out with spaces")
+    group := CheckPath(test.work, "group")
+    source := CheckPath(test.work, "sub/app.zi")
+    for index: cast(s64)0..15 {
+        number := CheckNumber(index); name := ifx index < 10 then CheckConcat("0", number) else number
+        if !NativeWrite(*test, CheckPath(group, CheckConcat("m", CheckConcat(name, ".zi"))), "Read :: () -> s32 { return 1 }\n") { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(test.work, "base.c"), "int base(void) { return 26; }\n") { return 1 }
+    compile := string.[compiler, "-c", CheckPath(test.work, "base.c"), "-o", CheckPath(test.work, "base.o")]; unused NativeRun(*test, compile[:])
+    archive := string.["ar", "rcs", CheckPath(test.work, "libbase.a"), CheckPath(test.work, "base.o")]; unused NativeRun(*test, archive[:])
+    if !NativeWrite(*test, CheckPath(output, "host.c"), "extern int base(void); int helper(void) { return base() + BUMP; }\n") { return 1 }
+    NativeSet(*test, "ZIRAN_JOBS", CheckNumber(workers)); NativeSet(*test, "CC", compiler); NativeSet(*test, "CFLAGS", "-O2 -DBUMP=0")
+    NativeSet(*test, "LDFLAGS", CheckConcat("-L", test.work)); NativeSet(*test, "LDLIBS", "-lbase")
+    command := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "app:Answer", "--diagnostics=json", "--root", test.work, "--module-path", CheckConcat("group=", group), "-o", output, source]
+    context := ParallelContext.{*test, command[:], output, workers}
+    if !ParallelProgram(*test, source, 0) { return 1 }
+    unused NativeRun(*test, command[:])
+    if !ParallelAnswer(*test, output, 42) { return 1 }
+    sources := NativeFiles(output, ".c")
+    first_source := ""; last_source := ""
+    for file: sources {
+        if TextHasSuffix(file, "m00.c") { first_source = TextDetach(TextCopy(PathName(file))) }
+        if TextHasSuffix(file, "m15.c") { last_source = TextDetach(TextCopy(PathName(file))) }
+    }
+    if !NativeAssert(*test, first_source != "" && last_source != "", "missing generated package module identities") { return 1 }
+    if !NativeWrite(*test, CheckPath(output, "dead/old.c"), "/* Generated by zi2c from old.zi. */\n#error stale nested source\n") ||
+        !NativeWrite(*test, CheckPath(output, "app.c"), "/* Generated by zi2c from app.zi. */\n#error stale root source\n") { return 1 }
+    wrapper := CheckPath(test.work, "cc")
+    if !NativeWrite(*test, wrapper, CheckConcat("#!/bin/sh\nexec ", CheckConcat(CheckQuote(TextFromCString(argv[0])), " --compiler \"$@\"\n"))) { return 1 }
+    chmod := string.["chmod", "700", wrapper]; unused NativeRun(*test, chmod[:])
+    NativeSet(*test, "CC", wrapper); NativeSet(*test, "REAL_CC", compiler); NativeSet(*test, "BUILD_TEST_DIR", test.work)
+    children: Vec(NativeChild)
+    defer NativeChildrenStop(*children)
+    if !ParallelProgram(*test, source, 1) || !ParallelReset(*test) { return 1 }
+    VecPush(children, ParallelStart(context, "json", true))
+    if !ParallelWaitActive(context, workers) || !ParallelAnswer(*test, output, 42) || !ParallelLocked(*test, output) || !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") ||
+        !ParallelWaitFile(*test, "link.ready") || !ParallelAnswer(*test, output, 42) || !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelJoin(*test, *children[0], false) ||
+        !ParallelAnswer(*test, output, 42) || !ParallelNoTemporary(*test, output) || !NativeAssert(*test, !PathExists(CheckPath(output, "app.c")), "stale root source was not pruned") { return 1 }
+    diagnostics := TextLines(NativeRead(*test, children[0].error))
+    for line: diagnostics {
+        document: JsonDocument
+        if !NativeAssert(*test, JsonRead(*document, line) && CheckField(*document, document.root, "code") == "zir_c.toolchain", "invalid failed-link diagnostic") { return 1 }
+    }
+    if !ParallelReset(*test) { return 1 }
+    first := children.count; VecPush(children, ParallelStart(context)); second := children.count; VecPush(children, ParallelStart(context))
+    if !ParallelWaitActive(context, workers) || !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !ParallelWaitFile(*test, "link.ready") ||
+        !ParallelAnswer(*test, output, 42) || !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelJoin(*test, *children[first]) || !ParallelJoin(*test, *children[second]) ||
+        !ParallelPeak(context, true) || !ParallelAnswer(*test, output, 43) || !ParallelNoTemporary(*test, output) { return 1 }
+    modes := string.["json", "text"]
+    for mode, index: modes {
+        if workers < 2 { break }
+        number := index + 2
+        if !ParallelProgram(*test, source, number) || !ParallelReset(*test) { return 1 }
+        profile := CheckPath(test.work, CheckConcat("profile-", CheckConcat(mode, ".jsonl")))
+        extra := string.[CheckConcat("BUILD_HOLD_SOURCE=", first_source), "BUILD_MESSAGES=1", CheckConcat("ZIRAN_PROFILE=", profile)]
+        child := children.count; VecPush(children, ParallelStart(context, mode, false, extra[:]))
+        if !ParallelWaitActive(context, workers) || !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !ParallelWaitFile(*test, "hold.waiting") ||
+            !ParallelWaitFile(*test, CheckConcat("started-", last_source)) || !NativeAssert(*test, !PathExists(CheckPath(test.work, "hold.release")) && !PathExists(CheckPath(test.work, "link.ready")), "held worker allowed early linking") ||
+            !ParallelPeak(context) || !ParallelAnswer(*test, output, cast(s32)(41 + number)) || !NativeWrite(*test, CheckPath(test.work, "hold.release"), "") ||
+            !ParallelWaitFile(*test, "link.ready") || !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelJoin(*test, *children[child]) ||
+            !ParallelAnswer(*test, output, cast(s32)(42 + number)) || !ParallelProfile(context, profile, children[child].error, mode) { return 1 }
+    }
+    if workers > 1 {
+        if !ParallelReset(*test) { return 1 }
+        extra := string.[CheckConcat("BUILD_HOLD_SOURCE=", first_source), "BUILD_NOISE=1"]
+        child := children.count; VecPush(children, ParallelStart(context, "json", false, extra[:]))
+        if !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !ParallelWaitFile(*test, "hold.waiting") || !ParallelWaitFile(*test, CheckConcat("started-", last_source)) ||
+            !NativeAssert(*test, !PathExists(CheckPath(test.work, "link.ready")), "noisy held worker allowed early link") || !NativeWrite(*test, CheckPath(test.work, "hold.release"), "") ||
+            !ParallelWaitFile(*test, "link.ready") || !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelJoin(*test, *children[child]) { return 1 }
+        lines := TextLines(NativeRead(*test, children[child].error)); truncated := false
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(*test, JsonRead(*document, line), "invalid noisy compiler diagnostic") { return 1 }
+            if TextContains(CheckField(*document, document.root, "message"), "output truncated") ||
+                JsonKindOf(*document, JsonMember(*document, JsonMember(*document, document.root, "truncation"), "message")) == .True { truncated = true }
+        }
+        if !NativeAssert(*test, truncated, "large live compiler output did not report truncation") { return 1 }
+        if !ParallelProgram(*test, source, 4) || !ParallelReset(*test) { return 1 }
+        failure := string.[CheckConcat("BUILD_FAIL_SOURCE=", first_source), "BUILD_HOLD_OTHERS=1"]
+        failing := children.count; VecPush(children, ParallelStart(context, "json", false, failure[:]))
+        if !ParallelWaitActive(context, workers) || !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !ParallelWaitFile(*test, "failed") { return 1 }
+        failed_pid, valid := TextInteger(TextTrim(NativeRead(*test, CheckPath(test.work, "failed"))))
+        if !NativeAssert(*test, valid && failed_pid > 0, "missing failed compiler PID") { return 1 }
+        deadline := MonotonicMilliseconds() + 30000
+        while PathExists(CheckConcat("/proc/", CheckNumber(failed_pid))) {
+            if !NativeAssert(*test, MonotonicMilliseconds() < deadline, "failed compiler was not reaped") { return 1 }; unused SleepMilliseconds(2)
+        }
+        state: JsonDocument
+        if !ParallelReadState(*test, *state) || !NativeAssert(*test, CheckInteger(*state, state.root, "started") == workers && !PathExists(CheckPath(test.work, "link.ready")), "builder scheduled new work after reaping a failure") ||
+            !NativeWrite(*test, CheckPath(test.work, "hold.release"), "") || !ParallelJoin(*test, *children[failing], false) || !ParallelReadState(*test, *state) ||
+            !NativeAssert(*test, CheckInteger(*state, state.root, "started") == workers && CheckInteger(*state, state.root, "active") == 0 && !PathExists(CheckPath(test.work, "link.ready")), "failed build did not drain all started workers") || !ParallelAnswer(*test, output, 45) { return 1 }
+    }
+    if !ParallelProgram(*test, source, 4) || !ParallelReset(*test) { return 1 }
+    killed := children.count; VecPush(children, ParallelStart(context))
+    if !ParallelWaitActive(context, workers) { return 1 }
+    state: JsonDocument
+    if !ParallelReadState(*test, *state) { return 1 }
+    parents := JsonMember(*state, state.root, "parents")
+    parent, parent_valid := JsonInteger(*state, JsonElement(*state, parents, 0))
+    if !NativeAssert(*test, parent_valid && parent > 0 && JsonCount(*state, parents) > 0, "missing owned builder PID") { return 1 }
+    for index: cast(s32)0..JsonCount(*state, parents) - 1 {
+        other, valid := JsonInteger(*state, JsonElement(*state, parents, index))
+        if !NativeAssert(*test, valid && other == parent, "workers did not share one owned builder") { return 1 }
+    }
+    command_line := NativeRead(*test, CheckConcat("/proc/", CheckConcat(CheckNumber(parent), "/cmdline")))
+    separator := TextFind(command_line, "\0")
+    if !NativeAssert(*test, separator > 0 && PathName(command_line[:separator]) == "zi2c", "compiler parent is not this fixture's zi2c builder") { return 1 }
+    if !NativeAssert(*test, ParallelKillBuilder(cast(s32)parent), "kill the owned blocked builder") || !ParallelJoin(*test, *children[killed], false) || !ParallelLocked(*test, output) ||
+        !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelWaitActive(context, 0, true) { return 1 }
+    if !ParallelProgram(*test, source, 4) { return 1 }
+    shell := CheckPath(test.work, "shell-cc")
+    if !NativeWrite(*test, shell, "exec \"$REAL_CC\" \"$@\"\n") { return 1 }
+    chmod_shell := string.["chmod", "700", shell]; unused NativeRun(*test, chmod_shell[:])
+    shell_profile := CheckPath(test.work, "profile-shell.jsonl")
+    environment_base := test.environment.count
+    NativeSet(*test, "CC", shell); NativeSet(*test, "ZIRAN_PROFILE", shell_profile)
+    unused NativeRun(*test, command[:]); unused VecResize(test.environment, environment_base)
+    profile: JsonDocument
+    counters := NativeProfileCounters(*test, shell_profile, *profile)
+    if !NativeAssert(*test, NativeCounter(*profile, counters, "native_process_spawn") + NativeCounter(*profile, counters, "native_process_fork") > 0, "shebang-free compiler fallback did not start native processes") || !ParallelAnswer(*test, output, 46) { return 1 }
+    if !ParallelProgram(*test, source, 5) || !ParallelReset(*test) { return 1 }
+    affinity_profile := CheckPath(test.work, "profile-affinity.jsonl")
+    extra := string.[CheckConcat("ZIRAN_PROFILE=", affinity_profile)]
+    pinned := children.count; VecPush(children, ParallelStart(context, "json", false, extra[:], affinity[:], first_cpu))
+    if !ParallelWaitActive(context, 1) || !NativeWrite(*test, CheckPath(test.work, "compile.release"), "") || !ParallelWaitFile(*test, "link.ready") ||
+        !NativeWrite(*test, CheckPath(test.work, "link.release"), "") || !ParallelJoin(*test, *children[pinned]) { return 1 }
+    counters = NativeProfileCounters(*test, affinity_profile, *profile)
+    if !ParallelReadState(*test, *state) || !NativeAssert(*test, NativeCounter(*profile, counters, "native_worker_slots") == 1 && CheckInteger(*state, state.root, "peak") == 1 &&
+        CheckInteger(*state, state.root, "active") == 0, "native workers ignored child CPU affinity") || !ParallelAnswer(*test, output, 47) { return 1 }
+    NativeSet(*test, "CC", CheckPath(test.work, "absent-cc"))
+    rejected := NativeInvoke(*test, command[:])
+    lines := TextLines(rejected.error)
+    if !NativeAssert(*test, rejected.code != 0 && lines.count == 1, "missing compiler did not emit one diagnostic") { return 1 }
+    missing: JsonDocument
+    if !NativeAssert(*test, JsonRead(*missing, lines[0]) && CheckField(*missing, missing.root, "code") == "zir_c.toolchain" &&
+        TextContains(CheckField(*missing, missing.root, "message"), "cannot run") && TextContains(CheckField(*missing, missing.root, "message"), "absent-cc"), "missing compiler diagnostic changed") || !ParallelAnswer(*test, output, 47) { return 1 }
+    if test.failed { return 1 }
+    print("Local parallel native builds: worker budgets, gates, output locks, deterministic diagnostics, failure drain, affinity and atomic replacement passed\n")
+    return 0
+}

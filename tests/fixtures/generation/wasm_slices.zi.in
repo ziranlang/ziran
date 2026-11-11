@@ -1,0 +1,17 @@
+Sum :: (values: []s32) -> s32 {
+    total: s32; for values { total += it; } return total;
+}
+Answer :: () -> s32 {
+    values := s32.[2, 4, 8];
+    full := values[:];
+    prefix := values[:3];
+    suffix := values[1:];
+    empty := values[3:3];
+    tail := values[3:];
+    nested := full[:];
+    if full.count != 3 || prefix.count != 3 || suffix.count != 2 { return 1; }
+    if empty.count != 0 || tail.count != 0 || nested.count != 3 { return 2; }
+    if Sum(full) != 14 || Sum(prefix) != 14 || Sum(suffix) != 12 { return 3; }
+    if Sum(empty) != 0 || Sum(tail) != 0 || Sum(nested) != 14 { return 4; }
+    return 42;
+}

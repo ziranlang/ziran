@@ -4,7 +4,7 @@ ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
-python3 "$repo/tests/numeric_width_matrix.py" "$work/width_matrix.zi"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/numeric_width_matrix_gen.zi" -- "$work/width_matrix.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/width_matrix.zi"
 for form in source saved; do
     root=$work

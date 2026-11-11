@@ -1,0 +1,1 @@
+UnlockAtReturn :: (value: *Mutex) #go_defer #foreign go_sync "(*Mutex).Unlock";

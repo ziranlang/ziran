@@ -5,7 +5,8 @@ set -eu
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 source=$repo/tests/spec/language_contract.zi
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/language-contract-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" check --root "$repo/tests/spec" "$source"
@@ -163,14 +164,7 @@ pointer: *s32;
 EOF
 "$ziran" ir --root "$work" -o "$work/pointer-ir" \
     "$work/pointer_global.zi"
-python3 - "$work/pointer-ir/pointer_global.zir" \
-    "$work/pointer-ir/forged.zir" <<'PY'
-from pathlib import Path
-import sys
-saved = Path(sys.argv[1]).read_bytes()
-assert saved.count(b"*s32") == 1
-Path(sys.argv[2]).write_bytes(saved.replace(b"*s32", b"s32*"))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" pointer
 expect_rejection 'C-style pointer type was accepted from saved IR' "$work/forged_pointer.err" \
     "$ziran" check --root "$work" "$work/pointer-ir/forged.zir"
 grep -Fq 'C-style pointer type is not Jai syntax' \

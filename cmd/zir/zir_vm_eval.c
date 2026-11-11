@@ -2033,6 +2033,9 @@ static int
 function_collection_type(const char *type);
 
 static int
+function_value_type(Frame *frame, const char *type);
+
+static int
 function_expression_plan(ScalarFunctionBuilder *builder, int index)
 {
     ScalarBuilder expression = {.frame = builder->frame,
@@ -2043,7 +2046,11 @@ function_expression_plan(ScalarFunctionBuilder *builder, int index)
     for(int i = 0; i < expression.count; i++) {
         ScalarStep step = expression.steps[i];
         const ZirExpr *node = step.expression;
+        /* Flat record locals can feed scalar field reads directly. Keep
+         * aggregate-producing expressions on the canonical ownership path. */
         if(!function_type(node->type) && !function_collection_type(node->type) &&
+           !(step.op == SCALAR_LEAF && node->kind == ZIR_EXPR_IDENT &&
+             function_value_type(builder->frame, node->type)) &&
            !(step.op == SCALAR_CALL && !strcmp(node->type, "void"))) return -1;
         if(step.op == SCALAR_CALL) builder->calls = 1;
         if(step.op == SCALAR_LEAF) {
@@ -2069,11 +2076,7 @@ function_expression_plan(ScalarFunctionBuilder *builder, int index)
                     step.literal_bits = integer_bits(*value);
                 } else return -1;
             } else return -1;
-        } else if((step.op == SCALAR_MEMBER &&
-                   (strcmp(node->name, "count") ||
-                    (strcmp(builder->frame->function->exprs[node->left].type, "string") &&
-                     !function_collection_type(builder->frame->function->exprs[node->left].type)))) ||
-                  step.op == SCALAR_POINTER_MEMBER ||
+        } else if(step.op == SCALAR_POINTER_MEMBER ||
                   (step.op == SCALAR_INDEX &&
                    strcmp(builder->frame->function->exprs[node->left].type, "string") &&
                    !function_collection_type(builder->frame->function->exprs[node->left].type)) ||
@@ -2083,7 +2086,13 @@ function_expression_plan(ScalarFunctionBuilder *builder, int index)
         if(step.op == SCALAR_BINARY &&
            (function_collection_type(builder->frame->function->exprs[node->left].type) ||
             function_collection_type(builder->frame->function->exprs[node->right].type))) return -1;
-        if(step.op == SCALAR_MEMBER) step.op = SCALAR_STRING_COUNT;
+        if(step.op == SCALAR_MEMBER) {
+            const char *container = builder->frame->function->exprs[node->left].type;
+            if(!strcmp(container, "string") || function_collection_type(container)) {
+                if(strcmp(node->name, "count")) return -1;
+                step.op = SCALAR_STRING_COUNT;
+            } else if(!function_value_type(builder->frame, container)) return -1;
+        }
         if(step.op == SCALAR_BINARY &&
            (!strcmp(builder->frame->function->exprs[node->left].type, "string") ||
             !strcmp(builder->frame->function->exprs[node->right].type, "string")))
@@ -2363,7 +2372,7 @@ scalar_function_plan(Frame *frame, VmSignature *signature)
     int valid = function_sequence(&builder, 0, frame->function->stmt_count, 0, NULL);
     vm->constant_sites = builder.literal_vm.constant_sites;
     size_t bytes = sizeof(ScalarPlan) + (size_t)builder.count * sizeof(ScalarStep);
-    if(valid && builder.count >= 8 && bytes <= SCALAR_FUNCTION_BYTES - vm->scalar_function_bytes) {
+    if(valid && bytes <= SCALAR_FUNCTION_BYTES - vm->scalar_function_bytes) {
         ScalarPlan *plan = malloc(bytes);
         if(plan != NULL) {
             plan->count = (unsigned short)builder.count;
@@ -2732,6 +2741,11 @@ scalar_run_function(Frame *frame, const ScalarPlan *plan, Flow *flow,
             }
             values[step->output] = scalar_coerce(frame, output, step->expression->type,
                 (ScalarConversion)step->conversion, output);
+            continue;
+        case SCALAR_MEMBER:
+            *output = scalar_member(frame, step->expression, *values[step->left], 0,
+                (ScalarConversion)step->conversion, step->local);
+            values[step->output] = output;
             continue;
         case SCALAR_INDEX: {
             const Value *left = values[step->left], *right = values[step->right];

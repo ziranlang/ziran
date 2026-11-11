@@ -1,0 +1,3 @@
+host_api :: #system_library "host_api";
+Measure :: (value: s32) -> s32 #foreign host_api;
+Measured :: (value: s32) -> s32 { return Measure(value) }

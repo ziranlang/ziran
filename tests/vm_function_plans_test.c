@@ -54,9 +54,18 @@ execute(VmInstance *instance, const ZirFunction *function, const Value *args,
                signature->scalar_plan->output <= SCALAR_PLAN_STEPS + 1);
         if(signature->scalar_plan->calls) {
             assert(!strncmp(function->name, "Call", 4) || !strncmp(function->name, "TextCall", 8) ||
-                   !strncmp(function->name, "Collection", 10));
+                   !strncmp(function->name, "Collection", 10) || !strncmp(function->name, "Record", 6));
         } else assert(vm->allocation == allocation);
         if(!strcmp(function->name, "Large")) assert(signature->scalar_plan->count > 255);
+        if(!strcmp(function->name, "ShortRead")) assert(signature->scalar_plan->count < 8);
+        if(!strncmp(function->name, "Record", 6)) {
+            int members = 0;
+            for(int i = 0; i < signature->scalar_plan->count; i++) {
+                assert(signature->scalar_plan->steps[i].op != SCALAR_EVAL);
+                members += signature->scalar_plan->steps[i].op == SCALAR_MEMBER;
+            }
+            assert(members > 0);
+        }
     } else flow = execute_sequence(&frame, 0, function->stmt_count, 0, result);
     assert(vm->evaluation_roots == roots);
     if(flow == FLOW_ERROR) vm->failed = 1;
@@ -83,7 +92,8 @@ main(int argc, char **argv)
     const char *names[] = {"Kernel", "Named", "Numeric", "Skipped", "Failure", "RealFailure", "Large",
         "TextScan", "TextFailure", "TextCopy", "TextCompare",
         "CallOrdering", "CallErrors", "CallRecursive", "CallSlot", "TextCalls", "TextCallScan",
-        "TextCallMutation", "CollectionCopies", "CollectionStrings", "CollectionZero"};
+        "TextCallMutation", "CollectionCopies", "CollectionStrings", "CollectionZero",
+        "RecordFields", "RecordCountField", "ShortRead"};
     unsigned char bytes[] = {0, 'a', 255, 'b', 0xc3, 0xa9, 0, 13, 'z'};
     canonical->vm.collection_threshold = compiled->vm.collection_threshold = 1;
     const int limits[] = {-1, 0, 1, 2, 7, 16, 23, 64};

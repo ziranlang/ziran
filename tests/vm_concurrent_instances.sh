@@ -32,27 +32,8 @@ for form in source saved; do
     "$work/test" "$work/$form.zx" --bundle
     rm -f "$work/$form-profile.jsonl"
     ZIRAN_PROFILE="$work/$form-profile.jsonl" "$work/test" "$work/$form.zx"
-    python3 - "$work/$form-profile.jsonl" <<'PY'
-import json, sys
-records = [json.loads(line) for line in open(sys.argv[1])]
-assert len(records) == 1
-record = records[0]
-assert record['counters']['concurrent_probe'] == 8 * 600
-phase = next(value for value in record['phases'] if value['name'] == 'concurrent_probe_phase')
-assert phase['calls'] == 8 * 600
-assert record['workspace_allocation_calls'] >= 8 * 600
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- concurrent-profile "$work/$form-profile.jsonl"
 done
 ZIRAN_DIAGNOSTICS=json "$work/test" "$work/source.zx" 2>"$work/diagnostics.jsonl"
-python3 - "$work/diagnostics.jsonl" <<'PY'
-import json, sys
-records = [json.loads(line) for line in open(sys.argv[1])]
-assert len(records) == 8
-assert all(record['code'] == 'zx.entry' and record['path'] == '<bundle>' for record in records)
-PY
-python3 - "$work/cold-profile.jsonl" <<'PY'
-import json, sys
-record, = [json.loads(line) for line in open(sys.argv[1])]
-assert record['counters']['concurrent_probe'] == 8 * 600
-assert next(value for value in record['phases'] if value['name'] == 'concurrent_probe_phase')['calls'] == 8 * 600
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- concurrent-diagnostics "$work/diagnostics.jsonl"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- concurrent-cold "$work/cold-profile.jsonl"

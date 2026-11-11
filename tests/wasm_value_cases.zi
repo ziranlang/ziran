@@ -1,0 +1,86 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+WasmValueCase :: struct { name: string; expected: string }
+
+WasmValueCommand :: (test: *NativeTest, arguments: []string) -> NativeCommand {
+    result := NativeInvoke(test, arguments, "", 45000)
+    unused NativeAssert(test, result.code == 0, CheckConcat("WebAssembly local test command failed: ", CheckConcat(TextDetach(TextJoin(arguments, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
+    return result
+}
+
+WasmValueFixture :: (test: *NativeTest, name: string, fixture: string) -> bool {
+    return NativeWrite(test, CheckPath(test.work, CheckConcat(name, ".zi")), NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/generation/", fixture))))
+}
+
+WasmValueRun :: (test: *NativeTest, cases: []WasmValueCase, compare_images: bool) -> bool {
+    tools := PathParent(test.ziran)
+    for item: cases {
+        name := item.name; source := CheckPath(test.work, CheckConcat(name, ".zi")); ir := CheckPath(test.work, CheckConcat("ir-", name))
+        save := string.[CheckPath(tools, "zi2zir"), "--root", test.work, "-o", ir, source]; unused WasmValueCommand(test, save[:])
+        if test.failed { return false }
+        for form: 0..1 {
+            root := ifx form == 0 then test.work else ir
+            input := ifx form == 0 then source else CheckPath(ir, CheckConcat(name, ".zir"))
+            prefix := CheckPath(test.work, CheckConcat(name, ifx form == 0 then "-source" else "-saved")); image := CheckConcat(prefix, ".wasm"); bundle := CheckConcat(prefix, ".zx")
+            entry := CheckConcat(name, ":Answer")
+            wasm := string.[CheckPath(tools, "zi2wasm"), "--root", root, "--entry", entry, "-o", image, input]
+            zx := string.[CheckPath(tools, "zi2zx"), "bundle", "--root", root, "--entry", entry, "-o", bundle, input]
+            unused WasmValueCommand(test, wasm[:]); unused WasmValueCommand(test, zx[:])
+            if test.failed { return false }
+            node := string.["node", CheckPath(test.repo, "scripts/site_target_wasm.cjs"), image]; vm := string.[CheckPath(tools, "zi2zx"), "run", "--vm", bundle]
+            actual_wasm := WasmValueCommand(test, node[:]); actual_vm := WasmValueCommand(test, vm[:])
+            if !NativeAssert(test, !test.failed && TextTrim(actual_wasm.output) == item.expected && TextTrim(actual_vm.output) == item.expected, CheckConcat("WebAssembly or VM value differs: ", name)) { return false }
+        }
+        if compare_images && !NativeAssert(test, NativeSameFile(CheckPath(test.work, CheckConcat(name, "-source.wasm")), CheckPath(test.work, CheckConcat(name, "-saved.wasm"))), "WebAssembly source and saved IR outputs differ") { return false }
+    }
+    return true
+}
+
+WasmValueEnums :: (test: *NativeTest) -> bool {
+    widths := s64.[8, 8, 16, 16, 32, 32, 64, 64]; kinds := string.["s8", "u8", "s16", "u16", "s32", "u32", "s64", "u64"]
+    declarations: Vec(u8); checks: Vec(u8); cases: Vec(WasmValueCase)
+    VecPush(cases, WasmValueCase.{"widths", "42"}); VecPush(cases, WasmValueCase.{"storage", "42"})
+    for index: cast(s64)0..kinds.count - 1 {
+        kind := kinds[index]; width := widths[index]; signed := index % 2 == 0
+        minimum := ifx signed then CheckConcat("-", NativeUnsigned(cast(u64)1 << cast(u64)(width - 1))) else "0"
+        bits := ifx signed || width == 64 then width - 1 else width
+        maximum := NativeUnsigned(~cast(u64)0 >> cast(u64)(64 - bits)); name := CheckConcat("E", kind)
+        parts := string.[name, " :: enum ", kind, " { Low :: ", minimum, "; High :: ", maximum, "; }\nPass", kind, " :: (value: ", name, ") -> ", name, " { return value; }\n"]
+        BuilderAppend(declarations, TextJoin(parts[:], ""))
+        check_parts := string.["if Pass", kind, "(", name, ".High) != ", name, ".High { return 0; }\nif cast(", kind, ")", name, ".Low >= cast(", kind, ")", name, ".High { return 0; }\nif size_of(", name, ") != ", CheckNumber(width / 8), " { return 0; }\n"]
+        BuilderAppend(checks, TextJoin(check_parts[:], ""))
+        labels := string.["low", "high"]; values := string.[minimum, maximum]
+        for value_index: 0..1 {
+            entry := CheckConcat("entry_", CheckConcat(kind, CheckConcat("_", labels[value_index])))
+            entry_parts := string.["Mode :: enum ", kind, " { Value :: ", values[value_index], "; }\nAnswer :: () -> Mode { return .Value; }\n"]
+            if !NativeWrite(test, CheckPath(test.work, CheckConcat(entry, ".zi")), TextJoin(entry_parts[:], "")) { return false }
+            VecPush(cases, WasmValueCase.{entry, values[value_index]})
+        }
+    }
+    parts := string.[TextDetach(BuilderFinish(declarations)), "Answer :: () -> s64 {\n", TextDetach(BuilderFinish(checks)), "return 42;\n}\n"]
+    if !NativeWrite(test, CheckPath(test.work, "widths.zi"), TextJoin(parts[:], "")) || !WasmValueFixture(test, "foreign", "wasm_foreign_enums.zi.in") || !WasmValueFixture(test, "storage", "wasm_enum_storage.zi.in") { return false }
+    if !WasmValueRun(test, cases[:], true) { return false }
+    print("WebAssembly and VM: eight enum backings, limits, flags, storage, imports and entries agree from source and saved IR in local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "wasm-values-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc == 4, "pass slices or enums") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "enums" { valid = WasmValueEnums(*test) }
+    else if mode == "slices" {
+        cases := WasmValueCase.[.{"slices", "42"}]
+        valid = WasmValueFixture(*test, "slices", "wasm_slices.zi.in") && WasmValueRun(*test, cases[:], false)
+        if valid { print("Wasm and VM: omitted slice bounds, full-length and empty slices agree from source and saved IR in local tests\n") }
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

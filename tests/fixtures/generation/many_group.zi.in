@@ -1,0 +1,4 @@
+Sprint@COUNT@ :: (@PARAMETERS@) -> string #foreign fmt "Sprint";
+Sum@COUNT@ :: (@PARAMETERS@) -> s64 { return @TOTAL@ }
+Text@COUNT@ :: () -> string { return Sprint@COUNT@(@VALUES@) }
+Total@COUNT@ :: () -> s64 { return Sum@COUNT@(@VALUES@) }

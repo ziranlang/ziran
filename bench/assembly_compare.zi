@@ -1,0 +1,571 @@
+#!/usr/bin/env ziran
+// Deterministic comparison of bounded, same-host ZX benchmark receipts.
+// This processor never measures or compiles a benchmark workload.
+#import "benchmark_statistics"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/math"
+#import "std/number_text"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+MAX_INPUT_BYTES :: 4194304;
+MAX_REQUIRED_CELLS :: 512;
+MAX_RECEIPTS :: 2048;
+MAX_SAMPLES_PER_RECEIPT :: 4096;
+MAX_TOTAL_SAMPLES :: 65536;
+MAX_TEXT :: 1024;
+
+core_engines: [5]string = .[
+"old-portable-vm",
+"new-portable",
+"old-c-tinycc-native",
+"new-native",
+"direct-aot",
+];
+
+RequiredCell :: struct {
+    case_id: string
+    phase: string
+    metric: string
+    unit: string
+}
+
+Receipt :: struct {
+    receipt_id: string
+    case_id: string
+    physical_host: string
+    host_mode: string
+    vm: string
+    cpu: string
+    os: string
+    toolchain: string
+    flags: Vec(string)
+    workload: string
+    input_checksum: string
+    engine: string
+    phase: string
+    metric: string
+    unit: string
+    semantic_settings: string
+    correctness_expected: string
+    correctness_actual: string
+    iterations: s64
+    repeats: s64
+    samples: Vec(float64)
+    statistics: BenchmarkSampleStatistics
+}
+
+Markdown :: struct {
+    bytes: Vec(u8)
+    valid: bool
+}
+
+Cat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+Put :: (output: *Markdown, text: string) {
+    if output.valid { output.valid = BuilderAppend(output.bytes, text) }
+}
+
+SafeText :: (text: string, limit: s64 = MAX_TEXT) -> bool {
+    if text.count == 0 || text.count > limit { return false }
+    for byte: text { if byte < 32 || byte == 127 { return false } }
+    return true
+}
+
+FieldInto :: (document: *JsonDocument, object: s32, name: string,
+    output: *string, limit: s64 = MAX_TEXT) -> bool {
+    node := JsonMember(document, object, name)
+    if JsonKindOf(document, node) != .String { return false }
+    value := TextDetach(JsonString(document, node))
+    if !SafeText(value, limit) { return false }
+    <<output = value
+    return true
+}
+
+IntegerField :: (document: *JsonDocument, object: s32, name: string,
+    minimum: s64, maximum: s64, output: *s64) -> bool {
+    value, valid := JsonInteger(document, JsonMember(document, object, name))
+    if !valid || value < minimum || value > maximum { return false }
+    <<output = value
+    return true
+}
+
+ParseRequiredCell :: (document: *JsonDocument, node: s32,
+    result: *RequiredCell) -> bool {
+    return JsonKindOf(document, node) == .Object && JsonCount(document, node) == 4 &&
+    FieldInto(document, node, "case", *result.case_id, 256) &&
+    FieldInto(document, node, "phase", *result.phase, 128) &&
+    FieldInto(document, node, "metric", *result.metric, 128) &&
+    FieldInto(document, node, "unit", *result.unit, 128)
+}
+
+ParseReceipt :: (document: *JsonDocument, node: s32, result: *Receipt) -> bool {
+    if JsonKindOf(document, node) != .Object || JsonCount(document, node) != 21 {
+        return false
+    }
+    if !FieldInto(document, node, "receipt_id", *result.receipt_id, 256) ||
+    !FieldInto(document, node, "case", *result.case_id, 256) ||
+    !FieldInto(document, node, "physical_host", *result.physical_host, 256) ||
+    !FieldInto(document, node, "host_mode", *result.host_mode, 64) ||
+    !FieldInto(document, node, "vm", *result.vm, 256) ||
+    !FieldInto(document, node, "cpu", *result.cpu) ||
+    !FieldInto(document, node, "os", *result.os) ||
+    !FieldInto(document, node, "toolchain", *result.toolchain) ||
+    !FieldInto(document, node, "workload", *result.workload) ||
+    !FieldInto(document, node, "input_checksum", *result.input_checksum, 256) ||
+    !FieldInto(document, node, "engine", *result.engine, 128) ||
+    !FieldInto(document, node, "phase", *result.phase, 128) ||
+    !FieldInto(document, node, "metric", *result.metric, 128) ||
+    !FieldInto(document, node, "unit", *result.unit, 128) ||
+    !FieldInto(document, node, "semantic_settings", *result.semantic_settings) ||
+    !FieldInto(document, node, "correctness_expected", *result.correctness_expected) ||
+    !FieldInto(document, node, "correctness_actual", *result.correctness_actual) ||
+    !IntegerField(document, node, "iterations", 1, 9223372036854775807, *result.iterations) ||
+    !IntegerField(document, node, "repeats", 3, MAX_SAMPLES_PER_RECEIPT, *result.repeats) {
+        return false
+    }
+    flags := JsonMember(document, node, "flags")
+    if JsonKindOf(document, flags) != .Array || JsonCount(document, flags) > 64 {
+        return false
+    }
+    for index: cast(s32)0..JsonCount(document, flags) - 1 {
+        flag_node := JsonElement(document, flags, index)
+        if JsonKindOf(document, flag_node) != .String { return false }
+        flag := TextDetach(JsonString(document, flag_node))
+        if !SafeText(flag, 256) { return false }
+        VecPush(result.flags, flag)
+    }
+    samples := JsonMember(document, node, "samples")
+    if JsonKindOf(document, samples) != .Array ||
+    JsonCount(document, samples) != result.repeats { return false }
+    for index: cast(s32)0..JsonCount(document, samples) - 1 {
+        sample_node := JsonElement(document, samples, index)
+        if JsonKindOf(document, sample_node) != .Number { return false }
+        value, valid := ParseFloat64(JsonNumberText(document, sample_node))
+        if !valid || value <= 0.0 || !Finite64(value) { return false }
+        VecPush(result.samples, value)
+    }
+    statistics := BenchmarkAnalyze(result.samples[:])
+    result.statistics.valid = statistics.valid
+    result.statistics.lower = statistics.lower
+    result.statistics.upper = statistics.upper
+    result.statistics.median = statistics.median
+    VecSwap(result.statistics.excluded, statistics.excluded)
+    VecSwap(result.statistics.included, statistics.included)
+    return result.statistics.valid
+}
+
+SameCell :: (left: *Receipt, right: *Receipt) -> bool {
+    return left.case_id == right.case_id && left.phase == right.phase &&
+    left.metric == right.metric
+}
+
+CompatibilityProblem :: (left: *Receipt, right: *Receipt) -> string {
+    if left.physical_host != right.physical_host { return "physical_host changed" }
+    if left.host_mode != right.host_mode { return "host_mode changed" }
+    if left.vm != right.vm { return "VM identity changed" }
+    if left.cpu != right.cpu { return "CPU identity changed" }
+    if left.os != right.os { return "OS identity changed" }
+    if left.workload != right.workload { return "workload changed" }
+    if left.input_checksum != right.input_checksum { return "workload input checksum changed" }
+    if left.iterations != right.iterations { return "iteration count changed" }
+    if left.unit != right.unit { return "measurement unit changed" }
+    if left.semantic_settings != right.semantic_settings { return "semantic settings changed" }
+    if left.correctness_expected != right.correctness_expected {
+        return "expected correctness identity changed"
+    }
+    return ""
+}
+
+ValidateCampaign :: (required: []RequiredCell, receipts: []Receipt) -> bool {
+    for index: cast(s64)0..required.count - 1 {
+        for other: index + 1..required.count - 1 {
+            if required[index].case_id == required[other].case_id &&
+            required[index].phase == required[other].phase &&
+            required[index].metric == required[other].metric &&
+            required[index].unit == required[other].unit {
+                print("assembly comparison: duplicate required cell %/%/%\n",
+                    required[index].case_id, required[index].phase, required[index].metric)
+                return false
+            }
+        }
+    }
+    if receipts.count == 0 {
+        print("assembly comparison: receipts must not be empty\n")
+        return false
+    }
+    first := *receipts[0]
+    for index: cast(s64)0..receipts.count - 1 {
+        receipt := *receipts[index]
+        if receipt.host_mode != "physical" || receipt.vm != "none" {
+            print("assembly comparison: receipt % is not a direct physical-host measurement\n",
+                receipt.receipt_id)
+            return false
+        }
+        if receipt.correctness_expected != receipt.correctness_actual {
+            print("assembly comparison: receipt % failed its correctness identity\n",
+                receipt.receipt_id)
+            return false
+        }
+        global_problem := CompatibilityProblem(first, receipt)
+        if global_problem == "physical_host changed" || global_problem == "host_mode changed" ||
+        global_problem == "VM identity changed" || global_problem == "CPU identity changed" ||
+        global_problem == "OS identity changed" {
+            print("assembly comparison: incompatible campaign receipt %: %\n",
+                receipt.receipt_id, global_problem)
+            return false
+        }
+        for other: index + 1..receipts.count - 1 {
+            candidate := *receipts[other]
+            if receipt.receipt_id == candidate.receipt_id {
+                print("assembly comparison: duplicate receipt_id %\n", receipt.receipt_id)
+                return false
+            }
+            if SameCell(receipt, candidate) && receipt.engine == candidate.engine {
+                print("assembly comparison: duplicate engine cell %/%/%/%\n",
+                    receipt.case_id, receipt.phase, receipt.metric, receipt.engine)
+                return false
+            }
+            if SameCell(receipt, candidate) {
+                problem := CompatibilityProblem(receipt, candidate)
+                if problem != "" {
+                    print("assembly comparison: incompatible receipts % and %: %\n",
+                        receipt.receipt_id, candidate.receipt_id, problem)
+                    return false
+                }
+            }
+        }
+    }
+    return true
+}
+
+MetricDirection :: (metric: string) -> s32 {
+    if metric == "throughput" { return 1 }
+    if metric == "duration" || metric == "memory" ||
+    metric == "code-size" || metric == "bundle-size" { return -1 }
+    return 0
+}
+
+FindReceipt :: (receipts: []Receipt, cell: *RequiredCell, engine: string) -> s64 {
+    for index: cast(s64)0..receipts.count - 1 {
+        receipt := *receipts[index]
+        if receipt.case_id == cell.case_id && receipt.phase == cell.phase &&
+        receipt.metric == cell.metric && receipt.unit == cell.unit &&
+        receipt.engine == engine { return index }
+    }
+    return -1
+}
+
+ContainsCell :: (cells: []RequiredCell, candidate: *RequiredCell) -> bool {
+    for cell: cells {
+        if cell.case_id == candidate.case_id && cell.phase == candidate.phase &&
+        cell.metric == candidate.metric && cell.unit == candidate.unit { return true }
+    }
+    return false
+}
+
+AllCells :: (required: []RequiredCell, receipts: []Receipt) -> Vec(RequiredCell) {
+    cells: Vec(RequiredCell)
+    for cell: required { VecPush(cells, cell) }
+    for index: cast(s64)0..receipts.count - 1 {
+        receipt := *receipts[index]
+        cell: RequiredCell = .{.case_id = receipt.case_id, .phase = receipt.phase,
+            .metric = receipt.metric, .unit = receipt.unit}
+        if !ContainsCell(cells[:], *cell) { VecPush(cells, cell) }
+    }
+    return cells
+}
+
+EscapeMarkdown :: (value: string) -> string {
+    no_pipe := TextDetach(TextReplace(value, "|", "\\|"))
+    no_newline := TextDetach(TextReplace(no_pipe, "\n", " "))
+    return TextDetach(TextReplace(no_newline, "\r", " "))
+}
+
+Decimal :: (value: float64, places: s32) -> string {
+    buffer: [64]u8
+    return TextDetach(TextCopy(FormatDecimal(value, places, buffer[:])))
+}
+
+MedianText :: (receipt: *Receipt) -> string {
+    return Cat(TextDetach(Float64Repr(receipt.statistics.median)),
+        Cat(" ", EscapeMarkdown(receipt.unit)))
+}
+
+IndicesText :: (indices: []s64) -> string {
+    output: Vec(u8)
+    unused BuilderAppend(output, "[")
+    for index: cast(s64)0..indices.count - 1 {
+        if index > 0 { unused BuilderAppend(output, ", ") }
+        buffer: [32]u8
+        unused BuilderAppend(output, FormatInteger(indices[index], buffer[:]))
+    }
+    unused BuilderAppend(output, "]")
+    return TextDetach(BuilderFinish(output))
+}
+
+SamplesText :: (samples: []float64) -> string {
+    output: Vec(u8)
+    unused BuilderAppend(output, "[")
+    for index: cast(s64)0..samples.count - 1 {
+        if index > 0 { unused BuilderAppend(output, ", ") }
+        unused BuilderAppend(output, Float64Repr(samples[index]))
+    }
+    unused BuilderAppend(output, "]")
+    return TextDetach(BuilderFinish(output))
+}
+
+CellValue :: (receipts: []Receipt, cell: *RequiredCell, engine: string) -> string {
+    index := FindReceipt(receipts, cell, engine)
+    if index < 0 { return "missing" }
+    return MedianText(*receipts[index])
+}
+
+CountMissing :: (required: []RequiredCell, receipts: []Receipt) -> s64 {
+    count: s64
+    for cell: required {
+        for engine: core_engines {
+            if FindReceipt(receipts, *cell, engine) < 0 { count += 1 }
+        }
+    }
+    return count
+}
+
+PairRow :: (output: *Markdown, receipts: []Receipt, cell: *RequiredCell,
+    baseline: string, candidate: string, optional: bool = false) {
+    base := FindReceipt(receipts, cell, baseline)
+    next := FindReceipt(receipts, cell, candidate)
+    if optional && next < 0 { return }
+    Put(output, "| "); Put(output, EscapeMarkdown(cell.case_id)); Put(output, " | ")
+    Put(output, EscapeMarkdown(cell.phase)); Put(output, " / ")
+    Put(output, EscapeMarkdown(cell.metric)); Put(output, " | ")
+    Put(output, baseline); Put(output, " → "); Put(output, candidate); Put(output, " | ")
+    Put(output, ifx base >= 0 then MedianText(*receipts[base]) else "missing")
+    Put(output, " | ")
+    Put(output, ifx next >= 0 then MedianText(*receipts[next]) else "missing")
+    Put(output, " | ")
+    if base < 0 || next < 0 {
+        Put(output, "not compared: missing receipt")
+    } else {
+        direction := MetricDirection(cell.metric)
+        if direction == 0 {
+            Put(output, "noncomparable: unknown metric direction")
+        } else {
+            baseline_value := receipts[base].statistics.median
+            candidate_value := receipts[next].statistics.median
+            ratio := ifx direction > 0 then candidate_value / baseline_value else baseline_value / candidate_value
+            Put(output, Decimal(ratio, 3)); Put(output, "x; ")
+            if ratio > 1.0 {
+                Put(output, "improvement +")
+                Put(output, Decimal((ratio - 1.0) * 100.0, 2)); Put(output, "%")
+            } else if ratio < 1.0 {
+                Put(output, "regression ")
+                Put(output, Decimal((1.0 - ratio) * 100.0, 2)); Put(output, "%")
+            } else {
+                Put(output, "unchanged")
+            }
+        }
+    }
+    Put(output, " |\n")
+}
+
+BuildReport :: (campaign: string, required: []RequiredCell,
+    receipts: []Receipt) -> (text: string, valid: bool) {
+    output: Markdown
+    output.valid = true
+    missing := CountMissing(required, receipts)
+    Put(*output, "# ZX Assembly Performance Comparison\n\n")
+    Put(*output, "Campaign: `"); Put(*output, EscapeMarkdown(campaign)); Put(*output, "`\n\n")
+    Put(*output, "Status: ")
+    if missing == 0 { Put(*output, "complete required comparison matrix") }
+    else {
+        Put(*output, "incomplete — ")
+        buffer: [32]u8
+        Put(*output, FormatInteger(missing, buffer[:]))
+        Put(*output, " required engine/phase cells missing")
+    }
+    Put(*output, ".\n\n")
+    Put(*output, "This report contains no aggregate or geometric mean. Each row keeps its absolute median, ratio, raw samples, and audited outlier indices. Ratios are candidate/baseline for throughput and baseline/candidate for duration, memory, code size, and bundle size.\n\n")
+    Put(*output, "## Environment\n\n")
+    first := *receipts[0]
+    Put(*output, "- Physical host: `"); Put(*output, EscapeMarkdown(first.physical_host)); Put(*output, "` (`")
+    Put(*output, EscapeMarkdown(first.host_mode)); Put(*output, "`, VM `")
+    Put(*output, EscapeMarkdown(first.vm)); Put(*output, "`)\n")
+    Put(*output, "- CPU: `"); Put(*output, EscapeMarkdown(first.cpu)); Put(*output, "`\n")
+    Put(*output, "- OS: `"); Put(*output, EscapeMarkdown(first.os)); Put(*output, "`\n\n")
+
+    cells := AllCells(required, receipts)
+    Put(*output, "## Absolute medians and required matrix\n\n")
+    Put(*output, "| Case | Phase / metric | Unit | old portable VM | new portable | old C/TinyCC native | new native | direct AOT | C control | Go control | Wasm control |\n")
+    Put(*output, "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |\n")
+    for cell: cells {
+        Put(*output, "| "); Put(*output, EscapeMarkdown(cell.case_id)); Put(*output, " | ")
+        Put(*output, EscapeMarkdown(cell.phase)); Put(*output, " / ")
+        Put(*output, EscapeMarkdown(cell.metric)); Put(*output, " | ")
+        Put(*output, EscapeMarkdown(cell.unit)); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "old-portable-vm")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "new-portable")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "old-c-tinycc-native")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "new-native")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "direct-aot")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "control-c")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "control-go")); Put(*output, " | ")
+        Put(*output, CellValue(receipts, *cell, "control-wasm")); Put(*output, " |\n")
+    }
+
+    Put(*output, "\n## Per-case comparisons\n\n")
+    Put(*output, "| Case | Phase / metric | Comparison | Baseline median | Candidate median | Result |\n")
+    Put(*output, "| --- | --- | --- | ---: | ---: | --- |\n")
+    for cell: cells {
+        PairRow(*output, receipts, *cell, "old-portable-vm", "new-portable")
+        PairRow(*output, receipts, *cell, "old-c-tinycc-native", "new-native")
+        PairRow(*output, receipts, *cell, "old-c-tinycc-native", "direct-aot")
+        PairRow(*output, receipts, *cell, "old-portable-vm", "control-c", true)
+        PairRow(*output, receipts, *cell, "old-portable-vm", "control-go", true)
+        PairRow(*output, receipts, *cell, "old-portable-vm", "control-wasm", true)
+    }
+
+    Put(*output, "\n## Missing required cells\n\n")
+    if missing == 0 { Put(*output, "None.\n") }
+    else {
+        for cell: required {
+            for engine: core_engines {
+                if FindReceipt(receipts, *cell, engine) < 0 {
+                    Put(*output, "- `"); Put(*output, EscapeMarkdown(cell.case_id)); Put(*output, "` / `")
+                    Put(*output, EscapeMarkdown(cell.phase)); Put(*output, "` / `")
+                    Put(*output, EscapeMarkdown(cell.metric)); Put(*output, "` / `")
+                    Put(*output, EscapeMarkdown(cell.unit)); Put(*output, "`: missing `")
+                    Put(*output, engine); Put(*output, "`\n")
+                }
+            }
+        }
+    }
+
+    Put(*output, "\n## Raw receipt audit\n\n")
+    Put(*output, "Outliers use the canonical symmetric 1.5×IQR fences with linearly interpolated inclusive quartiles. Indices below are zero-based positions in the unchanged raw sample array.\n\n")
+    for receipt_index: cast(s64)0..receipts.count - 1 {
+        receipt := *receipts[receipt_index]
+        Put(*output, "### "); Put(*output, EscapeMarkdown(receipt.receipt_id)); Put(*output, "\n\n")
+        Put(*output, "- Cell: `"); Put(*output, EscapeMarkdown(receipt.case_id)); Put(*output, "` / `")
+        Put(*output, EscapeMarkdown(receipt.phase)); Put(*output, "` / `")
+        Put(*output, EscapeMarkdown(receipt.metric)); Put(*output, "`; engine `")
+        Put(*output, EscapeMarkdown(receipt.engine)); Put(*output, "`\n")
+        Put(*output, "- Workload: `"); Put(*output, EscapeMarkdown(receipt.workload)); Put(*output, "`; input checksum `")
+        Put(*output, EscapeMarkdown(receipt.input_checksum)); Put(*output, "`; iterations `")
+        buffer: [32]u8
+        Put(*output, FormatInteger(receipt.iterations, buffer[:]))
+        Put(*output, "`; semantics `"); Put(*output, EscapeMarkdown(receipt.semantic_settings)); Put(*output, "`\n")
+        Put(*output, "- Toolchain: `"); Put(*output, EscapeMarkdown(receipt.toolchain)); Put(*output, "`; flags: ")
+        if receipt.flags.count == 0 { Put(*output, "(none)") }
+        else {
+            for index: cast(s64)0..receipt.flags.count - 1 {
+                if index > 0 { Put(*output, ", ") }
+                Put(*output, "`"); Put(*output, EscapeMarkdown(receipt.flags[index])); Put(*output, "`")
+            }
+        }
+        Put(*output, "\n- Correctness identity: `"); Put(*output, EscapeMarkdown(receipt.correctness_expected))
+        Put(*output, "` = `"); Put(*output, EscapeMarkdown(receipt.correctness_actual)); Put(*output, "`\n")
+        Put(*output, "- Raw samples ("); Put(*output, EscapeMarkdown(receipt.unit)); Put(*output, "): `")
+        Put(*output, SamplesText(receipt.samples[:])); Put(*output, "`\n")
+        Put(*output, "- Excluded indices: `"); Put(*output, IndicesText(receipt.statistics.excluded[:]))
+        Put(*output, "`; retained median: `"); Put(*output, MedianText(receipt)); Put(*output, "`\n\n")
+    }
+    if !output.valid { return "", false }
+    return TextDetach(BuilderFinish(output.bytes)), true
+}
+
+#scope_export
+ProcessComparison :: (input: string, output: string) -> bool {
+    if input == output {
+        print("assembly comparison: input and output paths must differ\n")
+        return false
+    }
+    query := PathQuery(input)
+    if !query.valid || query.info.kind != .File || query.info.size < 2 ||
+    query.info.size > MAX_INPUT_BYTES {
+        print("assembly comparison: input must be a 2-byte..4-MiB regular file\n")
+        return false
+    }
+    text, readable := ReadEntireFile(input)
+    if !readable || text.count != query.info.size {
+        print("assembly comparison: input could not be read completely\n")
+        return false
+    }
+    document: JsonDocument
+    if !JsonRead(*document, text) || JsonKindOf(*document, document.root) != .Object ||
+    JsonCount(*document, document.root) != 4 {
+        print("assembly comparison: malformed root receipt document\n")
+        return false
+    }
+    schema, schema_valid := JsonInteger(*document, JsonMember(*document, document.root, "schema_version"))
+    campaign := ""
+    if !schema_valid || schema != 1 ||
+    !FieldInto(*document, document.root, "campaign", *campaign, 256) {
+        print("assembly comparison: unsupported schema or invalid campaign\n")
+        return false
+    }
+    required_node := JsonMember(*document, document.root, "required_cells")
+    receipts_node := JsonMember(*document, document.root, "receipts")
+    if JsonKindOf(*document, required_node) != .Array ||
+    JsonCount(*document, required_node) == 0 ||
+    JsonCount(*document, required_node) > MAX_REQUIRED_CELLS ||
+    JsonKindOf(*document, receipts_node) != .Array ||
+    JsonCount(*document, receipts_node) > MAX_RECEIPTS {
+        print("assembly comparison: required_cells or receipts exceeds its bound\n")
+        return false
+    }
+    required: Vec(RequiredCell)
+    for index: cast(s32)0..JsonCount(*document, required_node) - 1 {
+        cell: RequiredCell
+        if !ParseRequiredCell(*document, JsonElement(*document, required_node, index), *cell) {
+            print("assembly comparison: malformed required cell at index %\n", index)
+            return false
+        }
+        VecPush(required, cell)
+    }
+    receipts: Vec(Receipt)
+    total_samples: s64
+    for index: cast(s32)0..JsonCount(*document, receipts_node) - 1 {
+        receipt: Receipt
+        if !ParseReceipt(*document, JsonElement(*document, receipts_node, index), *receipt) {
+            print("assembly comparison: malformed receipt or invalid samples at index %\n", index)
+            return false
+        }
+        total_samples += receipt.samples.count
+        if total_samples > MAX_TOTAL_SAMPLES {
+            print("assembly comparison: total raw sample bound exceeded\n")
+            return false
+        }
+        VecPush(receipts, receipt)
+    }
+    if !ValidateCampaign(required[:], receipts[:]) { return false }
+    report, valid := BuildReport(campaign, required[:], receipts[:])
+    if !valid {
+        print("assembly comparison: report construction failed\n")
+        return false
+    }
+    if !CreateDirectories(PathParent(output)) || !ReplaceFile(output, report) {
+        print("assembly comparison: atomic report replacement failed\n")
+        return false
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 3 {
+        print("usage: assembly_compare.zi INPUT.json OUTPUT.md\n")
+        return 2
+    }
+    input := TextDetach(TextCopy(TextFromCString(argv[1])))
+    output := TextDetach(TextCopy(TextFromCString(argv[2])))
+    return ifx ProcessComparison(input, output) then 0 else 1
+}

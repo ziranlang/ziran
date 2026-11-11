@@ -1,0 +1,30 @@
+#import "benchmark_statistics"
+#import "std/math"
+
+#program_export
+main :: () -> s32 {
+    both_tails: [9]float64 = .[1.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 100.0]
+    result := BenchmarkAnalyze(both_tails[:])
+    if !result.valid || result.excluded.count != 2 || result.excluded[0] != 0 ||
+        result.excluded[1] != 8 || result.included.count != 7 || result.median != 10.0 { return 1 }
+    raw: [9]float64 = .[10.0, 11.0, 12.0, 13.0, 14.0, 15.0, 16.0, 17.0, 200.0]
+    one_tail := BenchmarkAnalyze(raw[:])
+    if !one_tail.valid || raw[8] != 200.0 || one_tail.excluded.count != 1 ||
+        one_tail.excluded[0] != 8 || one_tail.median != 13.5 { return 2 }
+    small: [3]float64 = .[3.0, 2.0, 1.0]
+    few := BenchmarkAnalyze(small[:])
+    if !few.valid || few.excluded.count != 0 || few.median != 2.0 { return 3 }
+    short := BenchmarkAnalyze(small[:2])
+    if short.valid { return 4 }
+    small[2] = 0.0
+    zero := BenchmarkAnalyze(small[:])
+    if zero.valid { return 5 }
+    small[2] = Infinity()
+    infinite := BenchmarkAnalyze(small[:])
+    if infinite.valid { return 6 }
+    small[2] = NotANumber()
+    nan := BenchmarkAnalyze(small[:])
+    if nan.valid { return 7 }
+    print("Symmetric outlier filtering preserves raw samples, excludes both tails and handles small batches\n")
+    return 0
+}

@@ -76,8 +76,10 @@
   <url><loc>https://ziran-lang.org/std/image</loc></url>
   <url><loc>https://ziran-lang.org/std/io_go</loc></url>
   <url><loc>https://ziran-lang.org/std/jpeg</loc></url>
+  <url><loc>https://ziran-lang.org/std/json_bytes</loc></url>
   <url><loc>https://ziran-lang.org/std/json_document</loc></url>
   <url><loc>https://ziran-lang.org/std/json_go</loc></url>
+  <url><loc>https://ziran-lang.org/std/json_quote</loc></url>
   <url><loc>https://ziran-lang.org/std/json_scan</loc></url>
   <url><loc>https://ziran-lang.org/std/map_go</loc></url>
   <url><loc>https://ziran-lang.org/std/mapped_file_linux</loc></url>

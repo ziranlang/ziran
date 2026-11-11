@@ -1,0 +1,127 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ResetPromotion :: (test: *NativeTest, app: string, manifest: string, lock: string) -> bool {
+    return NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) && NativeWrite(test, CheckPath(app, "ziran.lock"), lock)
+}
+
+Promotion :: (test: *NativeTest) -> bool {
+    root := test.work
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    leaf := CheckPath(root, "library"); provider := CheckPath(root, "provider")
+    independent := CheckPath(root, "independent"); tool := CheckPath(root, "tool"); app := CheckPath(root, "app")
+    repos := string.[leaf, provider, independent, tool]
+    names := string.["Library", "Provider", "Independent"]
+    for index: cast(s64)0..repos.count - 1 {
+        repo := repos[index]
+        if !FixtureInit(test, repo) || !NativeWrite(test, CheckPath(repo, "VERSION"), "1\n") { return false }
+        if index < 3 {
+            manifest := CheckConcat("[package]\nname = ", CheckConcat(FixtureQuote(names[index]), "\nmodule_roots = [\"src\"]\n"))
+            if index == 1 { manifest = CheckConcat(manifest, CheckConcat("[dependencies.Library]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(leaf)), "\nref = \"master\"\n"))) }
+            manifest = CheckConcat(manifest, "[exports]\nValue = \"src/Value.zi\"\n")
+            if !NativeWrite(test, CheckPath(repo, "ziran.toml"), manifest) || !NativeWrite(test, CheckPath(repo, "src/Value.zi"), "Value :: 1;\n") { return false }
+        }
+        unused FixtureCommit(test, repo, "initial promotion fixture")
+    }
+    pieces := string.["[package]\nname = \"Promotion\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\nref = \"master\"\n[dependencies.Provider]\ngit = ",
+        FixtureQuote(FixtureUri(provider)), "\n[dependencies.Independent]\ngit = ", FixtureQuote(FixtureUri(independent)), "\n"]
+    original := TextDetach(TextJoin(pieces[:], ""))
+    aliases := string.["ziran", "Library", "Provider", "Independent"]
+    targets := string.[tool, leaf, provider, independent]
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), original) || !FixtureOverrides(test, app, aliases[:], targets[:]) { return false }
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    locked := NativeRead(test, CheckPath(app, "ziran.lock"))
+    before: JsonDocument
+    if !NativeAssert(test, JsonRead(*before, locked), "parse promotion baseline") { return false }
+    prior_library := FixturePackage(*before, "Library")
+    library_id := CheckField(*before, prior_library, "id")
+    if !NativeAssert(test, library_id != "", "missing transitive package") { return false }
+    newer := string.[leaf, independent, tool]
+    for repo: newer {
+        if !NativeWrite(test, CheckPath(repo, "VERSION"), "2\n") { return false }
+        unused FixtureCommit(test, repo, "newer promotion fixture")
+        branch := string.["branch", "v2"]; unused FixtureGit(test, repo, branch[:])
+    }
+    independent_path := CheckPath(independent, "ziran.toml")
+    independent_manifest := NativeRead(test, independent_path)
+    if !NativeWrite(test, independent_path, CheckConcat(independent_manifest, "[dependencies.Unrequested]\ngit = \"https://ziran-lang.org/fixtures/unrequested.git\"\n")) { return false }
+    update := string.["update", "Provider"]; unused PackageCommand(test, app, update[:])
+    if !NativeWrite(test, independent_path, independent_manifest) { return false }
+    targeted: JsonDocument
+    if !FixtureLock(test, app, *targeted) { return false }
+    updated_library := FixturePackage(*targeted, "Library")
+    head := string.["rev-parse", "HEAD"]
+    if !NativeAssert(test, FixtureJsonSame(*targeted, JsonMember(*targeted, targeted.root, "toolchain"), *before, JsonMember(*before, before.root, "toolchain")) &&
+        FixtureJsonSame(*targeted, FixturePackage(*targeted, "Independent"), *before, FixturePackage(*before, "Independent")) &&
+        CheckField(*targeted, updated_library, "commit") == FixtureGit(test, leaf, head[:]) &&
+        CheckField(*targeted, updated_library, "commit") != CheckField(*before, prior_library, "commit") &&
+        CheckField(*targeted, JsonMember(*targeted, FixturePackage(*targeted, "Provider"), "dependencies"), "Library") == CheckField(*targeted, updated_library, "id") &&
+        JsonCount(*targeted, JsonMember(*targeted, targeted.root, "packages")) == JsonCount(*before, JsonMember(*before, before.root, "packages")),
+        "targeted update changed unrelated pins or failed to update the selected tree") { return false }
+    for name: names { if !NativeAssert(test, FixturePackage(*targeted, name) >= 0, "targeted update changed package inventory") { return false } }
+    if !ResetPromotion(test, app, original, locked) { return false }
+    add := string.["add", FixtureUri(leaf), "--name", "direct"]; unused PackageCommand(test, app, add[:])
+    after: JsonDocument; expected: JsonDocument
+    if !FixtureLock(test, app, *after) || !NativeAssert(test, JsonRead(*expected, locked), "parse expected promotion") { return false }
+    expected_root := JsonMember(*expected, expected.root, "root")
+    CheckPut(*expected, JsonMember(*expected, expected_root, "dependencies"), "direct", library_id)
+    CheckPut(*expected, JsonMember(*expected, expected_root, "dependency_refs"), "direct", "master")
+    path := string.["pkg", "path", "direct"]
+    if !NativeAssert(test, FixtureJsonSame(*after, after.root, *expected, expected.root) && TextTrim(PackageCommand(test, app, path[:])) == leaf,
+        "transitive promotion rewrote a saved package or toolchain pin") { return false }
+    if !ResetPromotion(test, app, original, locked) { return false }
+    blocked := CheckPath(app, "ziran.lock.tmp")
+    if !NativeAssert(test, CreateDirectories(blocked), "block atomic lock write") { return false }
+    failed := PackageCommand(test, app, add[:], false)
+    if !NativeAssert(test, TextContains(failed, "cannot write ziran.lock") && NativeRead(test, CheckPath(app, "ziran.toml")) == original &&
+        NativeRead(test, CheckPath(app, "ziran.lock")) == locked && RemoveTree(blocked), "failed promotion changed the manifest or lock") { return false }
+    if !ResetPromotion(test, app, original, locked) { return false }
+    source_add := string.["add", FixtureUri(leaf), "--source"]; unused PackageCommand(test, app, source_add[:])
+    source_lock: JsonDocument
+    if !FixtureLock(test, app, *source_lock) { return false }
+    source_id := CheckField(*source_lock, JsonMember(*source_lock, JsonMember(*source_lock, source_lock.root, "root"), "dependencies"), "library")
+    source := FixturePackage(*source_lock, source_id, "id")
+    library := FixturePackage(*source_lock, "Library")
+    if !NativeAssert(test, JsonKindOf(*source_lock, JsonMember(*source_lock, source, "source")) == .True &&
+        source_id != CheckField(*source_lock, library, "id") && CheckField(*source_lock, source, "commit") == CheckField(*source_lock, library, "commit"),
+        "source and package checkouts were conflated") { return false }
+    if !ResetPromotion(test, app, original, locked) { return false }
+    overrides_path := CheckPath(app, "ziran.local.toml"); overrides := NativeRead(test, overrides_path)
+    if !NativeWrite(test, overrides_path, TextReplace(overrides, CheckConcat("Library = ", CheckConcat(FixtureQuote(leaf), "\n")), "")) { return false }
+    ref_add := string.["add", FixtureUri(leaf), "--ref", "v2"]; unused PackageCommand(test, app, ref_add[:])
+    ref_lock: JsonDocument
+    if !FixtureLock(test, app, *ref_lock) { return false }
+    direct_id := CheckField(*ref_lock, JsonMember(*ref_lock, JsonMember(*ref_lock, ref_lock.root, "root"), "dependencies"), "library")
+    direct := FixturePackage(*ref_lock, direct_id, "id")
+    if !NativeAssert(test, CheckField(*ref_lock, direct, "ref") == "v2" && direct_id != library_id &&
+        CheckField(*ref_lock, JsonMember(*ref_lock, ref_lock.root, "toolchain"), "commit") != CheckField(*before, JsonMember(*before, before.root, "toolchain"), "commit"),
+        "different revision reused the old graph node") || !NativeWrite(test, overrides_path, overrides) { return false }
+    drift := string.[TextDetach(TextReplace(original, "name = \"Promotion\"", "name = \"Renamed\"")), CheckConcat(original, "ref = \"v2\"\n")]
+    for manifest: drift {
+        if !ResetPromotion(test, app, manifest, locked) { return false }
+        resolve := string.["add", FixtureUri(leaf)]; unused PackageCommand(test, app, resolve[:])
+        resolved: JsonDocument
+        if !FixtureLock(test, app, *resolved) || !NativeAssert(test,
+            CheckField(*resolved, JsonMember(*resolved, resolved.root, "toolchain"), "commit") != CheckField(*before, JsonMember(*before, before.root, "toolchain"), "commit"),
+            "root or dependency-ref drift promoted stale graph metadata") { return false }
+    }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-transitive-add-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !Promotion(*test) { return 1 }
+    print("Local package promotion: targeted updates, exact pins, atomic rollback, source identities and manifest drift passed\n")
+    return 0
+}

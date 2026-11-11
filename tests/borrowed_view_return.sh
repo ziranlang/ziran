@@ -6,6 +6,7 @@
 # rejected with a diagnostic naming that parameter. Accepted programs run the
 # same from source and saved IR on the VM, C and Go.
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=${1:?pass the ziran command}
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -64,25 +65,7 @@ expect_rejected() {
         echo "$1 returned a view that outlives its storage" >&2
         exit 1
     fi
-    python3 - "$work/$1.err" "$2" <<'PY'
-import json
-import sys
-from pathlib import Path
-
-diagnostics = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-expected = sys.argv[2]
-lifetime = [item for item in diagnostics if item["code"] == "check.slice_lifetime"]
-assert len(lifetime) == 1, diagnostics
-item = lifetime[0]
-if expected.startswith("pointer:"):
-    name = expected.split(":", 1)[1]
-    assert f"borrows backing storage behind pointer parameter {name}, which the caller lends only for this call" in item["message"], item
-    assert "pass that storage as a slice parameter" in item["message"], item
-    notes = [node.get("message") for node in item["related_graph"]["nodes"]]
-    assert f"pointer parameter {name} is declared here" in notes, item
-else:
-    assert expected in item["message"], item
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- lifetime-return "$work/$1.err" "$2"
 }
 expect_rejected direct pointer:owner
 expect_rejected wrapped pointer:owner

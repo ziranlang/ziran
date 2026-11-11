@@ -2,7 +2,8 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/assembly-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/app.zi" <<'ZI'

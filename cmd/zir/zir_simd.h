@@ -60,7 +60,7 @@ const char *SimdSignature(const SimdOp *op, const char *result,
 
 /* The memory operand of a load, store or gather: its element type, and
  * whether it is a slice, a fixed array or a pointer. */
-enum { SIMD_MEMORY_NONE, SIMD_MEMORY_SLICE, SIMD_MEMORY_ARRAY, SIMD_MEMORY_POINTER };
+enum { SIMD_MEMORY_NONE, SIMD_MEMORY_SLICE, SIMD_MEMORY_ARRAY, SIMD_MEMORY_POINTER, SIMD_MEMORY_STRING };
 int SimdMemory(const char *type, char *element, size_t size, int *capacity);
 
 /* Lanes of `type` in one 128-bit block. */

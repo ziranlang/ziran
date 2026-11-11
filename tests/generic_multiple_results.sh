@@ -3,7 +3,9 @@
 # and survive a separately saved library across every execution backend.
 set -eu
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/generic-multiple-results-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/lib.zi" <<'ZI'
@@ -166,13 +168,7 @@ rg -q 'return gives 3 values but the procedure has 2 results' "$work/count.err"
 # declarations must still match. Do not conceal a forged effect classification.
 mkdir "$work/forged"
 cp "$work/named.zi" "$work/forged/named.zi"
-python3 - "$work/library-ir/lib.zir" "$work/forged/lib.zir" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert b'pure' in data
-Path(sys.argv[2]).write_bytes(data.replace(b'pure', b'fake', 1))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- --replace-first "$work/library-ir/lib.zir" "$work/forged/lib.zir" pure fake
 if "$ziran" check --root "$work/forged" "$work/forged/named.zi" 2> "$work/forged.err"; then
     echo 'changed saved library declaration was accepted' >&2
     exit 1

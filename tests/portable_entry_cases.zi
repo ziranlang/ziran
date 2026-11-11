@@ -1,0 +1,92 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+PortableEntryCase :: struct { name: string; kind: string; body: string; expected: string; bits: u64; has_value: bool }
+
+PortableEntryAdd :: (cases: *Vec(PortableEntryCase), name: string, kind: string, body: string,
+    expected: string, bits: u64, has_value: bool = true) {
+    VecPush(<<cases, PortableEntryCase.{name, kind, body, expected, bits, has_value})
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "portable-entry-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    cases: Vec(PortableEntryCase)
+    widths: [4]s64 = .[8, 16, 32, 64]
+    prefixes: [2]string = .["s", "u"]
+    for width: widths {
+        for prefix: prefixes {
+            signed := prefix == "s"
+            kind := CheckConcat(prefix, CheckNumber(width))
+            maximum := cast(u64)-1 >> cast(u64)(64 - width + ifx signed then 1 else 0)
+            PortableEntryAdd(*cases, CheckConcat(kind, "_0"), kind, "return 0", "0", cast(u64)0)
+            maximum_text := NativeUnsigned(maximum)
+            PortableEntryAdd(*cases, CheckConcat(kind, "_1"), kind, CheckConcat("return ", maximum_text), maximum_text, maximum)
+            if signed {
+                magnitude := cast(u64)1 << cast(u64)(width - 1)
+                minimum := CheckConcat("-", NativeUnsigned(magnitude))
+                PortableEntryAdd(*cases, CheckConcat(kind, "_2"), kind, CheckConcat("return ", minimum), minimum, cast(u64)0 - magnitude)
+            }
+        }
+    }
+    PortableEntryAdd(*cases, "u64_arithmetic", "u64", "return (cast(u64)1 << 63) | cast(u64)123",
+        NativeUnsigned((cast(u64)1 << 63) | cast(u64)123), (cast(u64)1 << 63) | cast(u64)123)
+    PortableEntryAdd(*cases, "u8_narrow", "u8", "return cast(u8)511", "255", cast(u64)255)
+    PortableEntryAdd(*cases, "s8_narrow", "s8", "return cast(s8)255", "-1", cast(u64)-1)
+    PortableEntryAdd(*cases, "true", "bool", "return true", "1", cast(u64)1)
+    PortableEntryAdd(*cases, "false", "bool", "return false", "0", cast(u64)0)
+    PortableEntryAdd(*cases, "void", "void", "return", "", cast(u64)0, false)
+    PortableEntryAdd(*cases, "void_fallthrough", "void", "", "", cast(u64)0, false)
+    source_text: Vec(u8)
+    for entry: cases {
+        BuilderAppend(source_text, "#program_export\n")
+        BuilderAppend(source_text, entry.name); BuilderAppend(source_text, " :: () -> ")
+        BuilderAppend(source_text, entry.kind); BuilderAppend(source_text, " {\n")
+        BuilderAppend(source_text, entry.body); BuilderAppend(source_text, "\n}\n")
+    }
+    source := CheckPath(test.work, "entries.zi")
+    if !NativeWrite(*test, source, BuilderFinish(source_text)) { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save: [8]string = .[test.ziran, "ir", "--root", test.work, "-o", ir, source, ""]
+    unused NativeRun(*test, save[:7])
+    forms: [2]string = .["source", "saved"]
+    for entry: cases {
+        expected := ifx entry.has_value then CheckConcat(entry.expected, "\n") else ""
+        for form: forms {
+            root := ifx form == "source" then test.work else ir
+            input := ifx form == "source" then source else CheckPath(ir, "entries.zir")
+            bundle := CheckPath(test.work, CheckConcat(entry.name, CheckConcat("-", CheckConcat(form, ".zx"))))
+            command: [10]string = .[test.ziran, "bundle", "--root", root, "--entry", CheckConcat("entries:", entry.name), "-o", bundle, input, ""]
+            unused NativeRun(*test, command[:9])
+            run: [3]string = .[test.ziran, "run", bundle]
+            if !NativeExpect(*test, run[:], expected) { return 1 }
+            host: [4]string = .[CheckPath(test.work, "host"), bundle, NativeUnsigned(entry.bits), ifx entry.has_value then "1" else "0"]
+            unused NativeRun(*test, host[:])
+        }
+        if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, CheckConcat(entry.name, "-source.zx")),
+            CheckPath(test.work, CheckConcat(entry.name, "-saved.zx"))), "source and saved entry bundles differ") { return 1 }
+    }
+    invalid_names: [4]string = .["real", "text", "parameter", "sized"]
+    signatures: [4]string = .["() -> float64", "() -> string", "(value: s32) -> s32", "() -> usize"]
+    bodies: [4]string = .["return 1.5", "return \"unsupported entry\"", "return value", "return 1"]
+    VecPush(test.environment, "ZIRAN_DIAGNOSTICS=json")
+    for index: cast(s64)0..3 {
+        input := CheckPath(test.work, CheckConcat(invalid_names[index], ".zi"))
+        parts: [5]string = .["#program_export\nAnswer :: ", signatures[index], " {\n", bodies[index], "\n}\n"]
+        if !NativeWrite(*test, input, TextJoin(parts[:], "")) { return 1 }
+        command: [9]string = .[test.ziran, "bundle", "--root", test.work, "--entry", CheckConcat(invalid_names[index], ":Answer"),
+            "-o", CheckPath(test.work, CheckConcat(invalid_names[index], ".zx")), input]
+        rejected := NativeInvoke(*test, command[:])
+        if !NativeAssert(*test, rejected.code != 0 && TextContains(rejected.error, "zx.entry"), "invalid portable entry was not rejected with zx.entry") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("% portable scalar entries passed from source and saved IR through CLI and host APIs\n", cases.count)
+    return 0
+}

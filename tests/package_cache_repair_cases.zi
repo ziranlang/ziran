@@ -1,0 +1,132 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+RepairContext :: struct { test: *NativeTest; app: string; entry: string; head: string; lock: string }
+
+RepairPath :: (test: *NativeTest, app: string, flags: []string, success: bool = true) -> string {
+    arguments: Vec(string)
+    VecPush(arguments, "pkg"); VecPush(arguments, "path"); VecPush(arguments, "Payload")
+    for flag: flags { VecPush(arguments, flag) }
+    return TextDetach(TextCopy(TextTrim(PackageCommand(test, app, arguments[:], success))))
+}
+
+RepairUsable :: (context: RepairContext) -> bool {
+    test := context.test
+    if !NativeAssert(test, IsFile(CheckPath(context.entry, "include/value.h")) && IsFile(CheckPath(context.entry, "src/value.c")), "repaired cache payload is missing") { return false }
+    object := CheckPath(test.work, "value.o")
+    compile := string.[NativeCompiler(), "-std=c99", "-Werror", "-I", CheckPath(context.entry, "include"), "-c", CheckPath(context.entry, "src/value.c"), "-o", object]
+    unused NativeRun(test, compile[:], context.app)
+    head := string.["rev-parse", "HEAD"]; status := string.["status", "--porcelain"]
+    return NativeAssert(test, PathStatus(object).size > 0 && NativeRead(test, CheckPath(context.app, "ziran.lock")) == context.lock &&
+        FixtureGit(test, context.entry, head[:]) == context.head && FixtureGit(test, context.entry, status[:]) == "", "repair changed the lock, revision or clean status")
+}
+
+RepairRefused :: (context: RepairContext) -> bool {
+    test := context.test
+    status := string.["status", "--porcelain", "--ignored"]
+    head := string.["rev-parse", "HEAD"]
+    before := FixtureGit(test, context.entry, status[:])
+    for offline: bool.[true, false] {
+        flags := string.["--locked", "--offline"]
+        result := RepairPath(test, context.app, flags[:ifx offline then 2 else 1], false)
+        if !NativeAssert(test, TextContains(result, "package cache") && TextContains(result, "preserved") &&
+            FixtureGit(test, context.entry, status[:]) == before && FixtureGit(test, context.entry, head[:]) == context.head, "cache refusal modified owner data or lost its explanation") { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-cache-repair-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    NativeSet(*test, "ZIRAN_PINNED_LAUNCHER", "1")
+    source := CheckPath(test.work, "source"); tool := CheckPath(test.work, "tool"); app := CheckPath(test.work, "app")
+    repos := string.[source, tool]
+    for repo: repos { if !FixtureInit(*test, repo) || !NativeWrite(*test, CheckPath(repo, "VERSION"), "1\n") { return 1 } }
+    if !NativeWrite(*test, CheckPath(source, "include/value.h"), "int value(void);\n") ||
+        !NativeWrite(*test, CheckPath(source, "src/value.c"), "#include \"value.h\"\nint value(void) { return 42; }\n") || !NativeWrite(*test, CheckPath(source, ".gitignore"), "local-private/\n") { return 1 }
+    for repo: repos { unused FixtureCommit(*test, repo, "fixture") }
+    manifest := string.["[package]\nname = \"CacheRepair\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\nref = \"master\"\n[dependencies.Payload]\ngit = ", FixtureQuote(FixtureUri(source)), "\nref = \"master\"\nsource = true\n"]
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(manifest[:], "")) { return 1 }
+    lock := string.["lock"]; unused PackageCommand(*test, app, lock[:])
+    fetch := string.["fetch", "--locked"]; unused PackageCommand(*test, app, fetch[:])
+    saved := NativeRead(*test, CheckPath(app, "ziran.lock"))
+    locked := string.["--locked", "--offline"]
+    entry := RepairPath(*test, app, locked[:])
+    head_command := string.["rev-parse", "HEAD"]
+    head := FixtureGit(*test, entry, head_command[:])
+    context := RepairContext.{*test, app, entry, head, saved}
+    unavailable := CheckPath(test.work, "unavailable-origin")
+    if !NativeAssert(*test, RenameNoReplace(source, unavailable), "make this fixture's origin unavailable") { return 1 }
+    original_time := PathStatus(CheckPath(entry, "src/value.c"))
+    if !NativeAssert(*test, RepairPath(*test, app, locked[:]) == entry, "healthy cache changed its selected path") { return 1 }
+    reused_time := PathStatus(CheckPath(entry, "src/value.c"))
+    if !NativeAssert(*test, original_time.modified == reused_time.modified && original_time.modified_nanoseconds == reused_time.modified_nanoseconds, "healthy cache rewrote tracked payload") || !RepairUsable(context) { return 1 }
+    note := CheckPath(entry, "local-private/owner-note")
+    if !NativeWrite(*test, note, "retained build data\n") || !NativeAssert(*test, RepairPath(*test, app, locked[:]) == entry && NativeRead(*test, note) == "retained build data\n", "healthy cache touched ignored owner data") { return 1 }
+    unused RemoveTree(CheckPath(entry, "local-private"))
+    remove := string.["rm", "-q", "-r", "--", "."]; unused FixtureGit(*test, entry, remove[:])
+    names: Vec(string)
+    if !NativeAssert(*test, ListDirectory(entry, *names) && names.count == 1 && names[0] == ".git" && FixtureGit(*test, entry, head_command[:]) == head && RepairPath(*test, app, locked[:]) == entry, "matching-HEAD staged deletions were not repaired") || !RepairUsable(context) { return 1 }
+    value := CheckPath(entry, "src/value.c")
+    unused RemoveFile(value)
+    offline_fetch := string.["fetch", "--locked", "--offline"]; unused PackageCommand(*test, app, offline_fetch[:])
+    if !RepairUsable(context) { return 1 }
+    original := NativeRead(*test, value)
+    add := string.["add", "src/value.c"]
+    staged_cases := bool.[false, true]
+    for staged: staged_cases {
+        if !NativeWrite(*test, value, "owner modification\n") { return 1 }
+        if staged { unused FixtureGit(*test, entry, add[:]) }
+        if !RepairRefused(context) || !NativeAssert(*test, NativeRead(*test, value) == "owner modification\n", "refusal lost a tracked modification") || !NativeWrite(*test, value, original) { return 1 }
+        unused FixtureGit(*test, entry, add[:])
+    }
+    owner_paths := string.["owner-note", "local-private/owner-note"]
+    for name: owner_paths {
+        marker := CheckPath(entry, name)
+        if !NativeWrite(*test, marker, "owner data\n") { return 1 }
+        unused RemoveFile(value)
+        if !RepairRefused(context) || !NativeAssert(*test, NativeRead(*test, marker) == "owner data\n", "refusal lost untracked or ignored data") { return 1 }
+        unused RemoveFile(marker)
+        if TextHasPrefix(name, "local-private/") { unused RemoveTree(CheckPath(entry, "local-private")) }
+        if !NativeAssert(*test, RepairPath(*test, app, locked[:]) == entry, "deletion did not become repairable after fixture-owned data was removed") || !RepairUsable(context) { return 1 }
+    }
+    skip := string.["update-index", "--skip-worktree", "src/value.c"]; unused FixtureGit(*test, entry, skip[:])
+    unused RemoveFile(value)
+    if !RepairRefused(context) { return 1 }
+    unskip := string.["update-index", "--no-skip-worktree", "src/value.c"]; unused FixtureGit(*test, entry, unskip[:])
+    if !NativeAssert(*test, RepairPath(*test, app, locked[:]) == entry, "unflagged deletion was not repaired") || !RepairUsable(context) { return 1 }
+    sparse := string.["config", "core.sparseCheckout", "true"]; unused FixtureGit(*test, entry, sparse[:])
+    if !RepairRefused(context) { return 1 }
+    unsparse := string.["config", "--unset", "core.sparseCheckout"]; unused FixtureGit(*test, entry, unsparse[:])
+    read_origin := string.["config", "--get", "remote.origin.url"]
+    origin := FixtureGit(*test, entry, read_origin[:])
+    wrong_origin := string.["config", "remote.origin.url", FixtureUri(tool)]; unused FixtureGit(*test, entry, wrong_origin[:])
+    if !RepairRefused(context) { return 1 }
+    restore_origin := string.["config", "remote.origin.url", origin]; unused FixtureGit(*test, entry, restore_origin[:])
+    external := CheckPath(test.work, "external-checkout")
+    if !NativeAssert(*test, RenameNoReplace(entry, external), "move this fixture's cache entry") { return 1 }
+    unused RemoveFile(CheckPath(external, "src/value.c"))
+    link := string.["ln", "-s", external, entry]; unused NativeRun(*test, link[:])
+    if !RepairRefused(context) || !NativeAssert(*test, !PathExists(CheckPath(external, "src/value.c")), "redirected entry was repaired through its symlink") { return 1 }
+    unused RemoveFile(entry)
+    if !NativeAssert(*test, RenameNoReplace(external, entry) && RepairPath(*test, app, locked[:]) == entry, "restored canonical cache entry was not repaired") || !RepairUsable(context) { return 1 }
+    unused FixtureGit(*test, unavailable, remove[:])
+    if !NativeWrite(*test, CheckPath(unavailable, "owner-note"), "keep this\n") || !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), CheckConcat("[overrides]\nPayload = ", CheckConcat(FixtureQuote(unavailable), "\n"))) { return 1 }
+    status := string.["status", "--porcelain"]
+    before := FixtureGit(*test, unavailable, status[:])
+    offline := string.["--offline"]
+    if !NativeAssert(*test, RepairPath(*test, app, offline[:]) == unavailable && FixtureGit(*test, unavailable, status[:]) == before &&
+        !PathExists(CheckPath(unavailable, "src/value.c")) && NativeRead(*test, CheckPath(unavailable, "owner-note")) == "keep this\n", "explicit override was repaired or its data changed") { return 1 }
+    if test.failed { return 1 }
+    print("Local package cache repair: offline deletion recovery, native compilation and owner-data/override/symlink preservation passed\n")
+    return 0
+}

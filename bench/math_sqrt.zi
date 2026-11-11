@@ -1,0 +1,68 @@
+#import "std/math"
+#import "std/binary"
+#import "std/timer_linux"
+#import "math_sqrt_reference"
+#import "benchmark_statistics"
+
+Measure :: (values: []float64, reference: bool) -> float64 {
+    total: float64 = 0.0
+    started := MonotonicNanoseconds()
+    for repeat: 0..999 {
+        for value: values {
+            if reference { total += ReferenceSqrt(value) }
+            else { total += Sqrt(value) }
+        }
+    }
+    elapsed := MonotonicNanoseconds() - started
+    print("checksum %\n", total)
+    return cast(float64)elapsed / (cast(float64)values.count * 1000.0)
+}
+
+Report :: (name: string, samples: []float64) -> float64 {
+    result := BenchmarkAnalyze(samples)
+    for index: cast(s64)0..samples.count - 1 { print("% sample % ns_per_call %\n", name, index, samples[index]) }
+    for index: result.excluded { print("% excluded_index %\n", name, index) }
+    print("% median_ns_per_call %\n", name, result.median)
+    if !result.valid { return 0.0 }
+    return result.median
+}
+
+Run :: (name: string, values: []float64) -> bool {
+    baseline: [9]float64
+    candidate: [9]float64
+    Measure(values, true)
+    Measure(values, false)
+    for sample: 0..8 {
+        if sample % 2 == 0 {
+            baseline[sample] = Measure(values, true)
+            candidate[sample] = Measure(values, false)
+        } else {
+            candidate[sample] = Measure(values, false)
+            baseline[sample] = Measure(values, true)
+        }
+    }
+    print("distribution %\n", name)
+    before := Report("reference", baseline[:])
+    after := Report("candidate", candidate[:])
+    print("speedup %\n", before / after)
+    return before > 0.0 && after > 0.0
+}
+
+#program_export
+main :: () -> s32 {
+    geometry: [1024]float64
+    spread: [1024]float64
+    state: u64 = 88172645463325252
+    for index: 0..1023 {
+        state ^= state << cast(u64)13
+        state ^= state >> cast(u64)7
+        state ^= state << cast(u64)17
+        geometry[index] = 0.000001 + cast(float64)(state & 0xffffff) / 16777216.0 * 16.0
+        bits := ((cast(u64)index * 2045 / 1023 + 1) << cast(u64)52) | (state & 0x000fffffffffffff)
+        spread[index] = Float64FromBits(bits)
+        if Sqrt(geometry[index]) != ReferenceSqrt(geometry[index]) ||
+            Sqrt(spread[index]) != ReferenceSqrt(spread[index]) { return 1 }
+    }
+    if !Run("geometry_0_to_16", geometry[:]) || !Run("normal_exponent_spread", spread[:]) { return 2 }
+    return 0
+}

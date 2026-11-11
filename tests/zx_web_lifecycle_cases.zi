@@ -1,0 +1,96 @@
+#import "native_test"
+#import "native_browser"
+#import "loopback_server"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+LifecyclePage :: (test: *NativeTest, mode: string) -> bool {
+    page := NativeRead(test, CheckPath(test.repo, "tests/fixtures/zx_web_lifecycle/page.html.in"))
+    arguments: JsonDocument; arguments.root = JsonNewArray(*arguments)
+    JsonAppend(*arguments, arguments.root, JsonNewStringCopy(*arguments, mode))
+    fixtures := string.["old", "new", "wrong", "init", "unrelated"]
+    for name: fixtures { JsonAppend(*arguments, arguments.root, JsonNewStringCopy(*arguments, CheckConcat("/fixtures/", CheckConcat(name, ".zx")))) }
+    page = TextDetach(TextReplace(page, "{{FILE}}", mode))
+    page = TextDetach(TextReplace(page, "{{EXPORT}}", ifx mode == "wasm" then "ZxWebLifecycleWasm" else "ZxWebLifecycleLinked"))
+    page = TextDetach(TextReplace(page, "{{ARGUMENTS}}", JsonWrite(*arguments, arguments.root, JsonCompactStyle())))
+    return NativeWrite(test, CheckPath(test.work, CheckConcat(mode, ".html")), page)
+}
+
+LifecycleCheck :: (test: *NativeTest, browser: *NativeBrowser, base: string, mode: string) -> bool {
+    params: JsonDocument; params.root = JsonNewObject(*params)
+    CheckPut(*params, params.root, "url", CheckConcat(base, CheckConcat(mode, ".html")))
+    reply: JsonDocument
+    if !BrowserCommand(test, browser, "Page.navigate", *params, *reply) { return NativeAssert(test, false, "could not navigate private lifecycle page") }
+    status := BrowserUntil(test, browser, "globalThis.lifecycleDone", *reply)
+    value, valid := JsonInteger(*reply, status)
+    if !NativeAssert(test, valid && value == 0, "browser lifecycle host returned failure") { return false }
+    lines := BrowserEvaluate(test, browser, "globalThis.lifecycleLines.slice()", *reply)
+    if !NativeAssert(test, JsonKindOf(*reply, lines) == .Array, "browser lifecycle did not report its results") { return false }
+    reported: Vec(string)
+    for index: cast(s32)0..JsonCount(*reply, lines) - 1 {
+        line := TextDetach(JsonString(*reply, JsonElement(*reply, lines, index)))
+        print("%: %\n", mode, line)
+        if !NativeAssert(test, !TextHasPrefix(line, "FAIL") && !TextHasPrefix(line, "stderr:") && !TextHasPrefix(line, "load error:"), "browser host emitted failure diagnostics") { return false }
+        VecPush(reported, line)
+    }
+    required := string.["identity-entry-abi", "instance-state-migration", "component-independent-state", "typed-abi-replacement-rejected", "replacement-state-continuity", "stale-reference-rejected", "migration-failure-rollback", "verification-failure-rollback", "initialization-failure-rollback", "unrelated-component-live"]
+    for name: required {
+        expected := CheckConcat("PASS ", name)
+        found := false; for line: reported { if line == expected { found = true } }
+        if !NativeAssert(test, found, CheckConcat("missing browser lifecycle result: ", name)) { return false }
+    }
+    independent := ifx mode == "wasm" then "wasm-provider-independent" else "linked-independent"
+    extra := string.[CheckConcat("PASS ", independent), CheckConcat("PASS browser-lifecycle ", mode)]
+    for expected: extra {
+        found := false; for line: reported { if line == expected { found = true } }
+        if !NativeAssert(test, found, CheckConcat("missing browser lifecycle result: ", expected)) { return false }
+    }
+    if mode == "wasm" {
+        found := false; for line: reported { if line == "PASS wasm-engine-active" { found = true } }
+        if !NativeAssert(test, found, "Wasm fixture used the wrong execution engine") { return false }
+    }
+    for message: browser.errors { print("browser exception: %\n", message) }
+    return NativeAssert(test, browser.errors.count == 0, "unhandled browser exception")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 5 && TextFromCString(argv[1]) == "--server" {
+        return LoopbackServer("static", TextFromCString(argv[3]), TextFromCString(argv[4]))
+    }
+    test := NativeStart(argc, argv, "zx-web-lifecycle-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    chromium := ifx argc > 3 then TextFromCString(argv[3]) else "chromium"
+    if !LifecyclePage(*test, "wasm") || !LifecyclePage(*test, "linked") { return 1 }
+    port_file := CheckPath(test.work, "native-server-port")
+    unused RemoveFile(port_file)
+    serve := string.[TextFromCString(argv[0]), "--server", "static", test.work, port_file]
+    options: ProcessOptions = .{.arguments = serve[:], .environment = test.environment[:], .new_session = true,
+        .output_path = CheckPath(test.work, "native-server.stdout"), .error_path = CheckPath(test.work, "native-server.stderr")}
+    server: ProcessRun
+    if !NativeAssert(*test, StartProcess(options, *server), "start private fixture server") { return 1 }
+    defer NativeStop(*server, 3000)
+    deadline := MonotonicMilliseconds() + 5000
+    while !PathExists(port_file) {
+        if !NativeAssert(*test, !PollProcess(*server) && MonotonicMilliseconds() < deadline, "private fixture server did not bind") { return 1 }
+        unused SleepMilliseconds(5)
+    }
+    port := TextTrim(NativeRead(*test, port_file))
+    number, valid := TextInteger(port)
+    if !NativeAssert(*test, valid && number > 0 && number < 65536, "invalid private fixture server port") { return 1 }
+    base := CheckConcat("http://127.0.0.1:", CheckConcat(port, "/"))
+    browser: NativeBrowser
+    defer BrowserClose(*browser)
+    if !BrowserStart(*test, *browser, chromium) || !LifecycleCheck(*test, *browser, base, "wasm") || !LifecycleCheck(*test, *browser, base, "linked") { return 1 }
+    if test.failed { return 1 }
+    print("Private Chromium ZX lifecycle passed: independent engines/state, atomic migration, stale/ABI rejection and rollback\n")
+    return 0
+}

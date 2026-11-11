@@ -165,10 +165,9 @@ RUNTIME_OBJECTS := $(call obj,cmd/zir/zir_runtime.c) $(BUILD_DIR)/obj/runtime_he
 LEAN ?= lean
 # make check runs CHECK_JOBS checks at once (default: the build queue's
 # BUILD_QUEUE_JOBS, else every CPU); CHECK_FILTER runs only checks whose name
-# contains it; CHECK_SHARD=N/M runs part N of M, as CI does.
+# contains it. Every ordinary run executes the complete retained suite.
 CHECK_JOBS ?=
 CHECK_FILTER ?=
-CHECK_SHARD ?=
 all: $(BIN_DIR)/zi-edit $(BIN_DIR)/ziran $(BIN_DIR)/zi-fmt $(BIN_DIR)/zi2zir $(BIN_DIR)/zi-api $(BIN_DIR)/zi-inspect $(BIN_DIR)/zi2c $(BIN_DIR)/zi2go $(BIN_DIR)/zi2zx $(BIN_DIR)/zi2wasm $(BUILD_DIR)/libziran.a
 	$(RM) $(BIN_DIR)/zi2py $(BIN_DIR)/zi2zib $(BIN_DIR)/zi2cpp $(BIN_DIR)/zi2rust $(BIN_DIR)/zi2zx-vm
 
@@ -194,13 +193,15 @@ install-user: all
 	$(RM) $(USER_SHARE)/build/bin/ziran_pkg.py $(USER_SHARE)/build/bin/ziran-add
 	$(RM) $(USER_SHARE)/build/bin/zi2py $(USER_SHARE)/build/bin/zi2zib $(USER_SHARE)/build/bin/zi2cpp $(USER_SHARE)/build/bin/zi2rust $(USER_SHARE)/build/bin/zi2zx-vm
 	@# Another tool's launcher, such as a build queue wrapper, stays in place.
-	@launcher='exec "$(USER_SHARE)/build/bin/ziran" "$$@"'; \
-	if test -e $(USER_BIN)/ziran && ! grep -qxF "$$launcher" $(USER_BIN)/ziran; then \
-		echo "install-user: kept $(USER_BIN)/ziran, which launches something else"; \
-	else \
-		printf '%s\n' '#!/bin/sh' 'set -eu' "$$launcher" > $(USER_BIN)/ziran; \
-		chmod 755 $(USER_BIN)/ziran; \
-	fi
+	@set -e; for tool in ziran zi2zx; do \
+		launcher="exec \"$(USER_SHARE)/build/bin/$$tool\" \"\$$@\""; \
+		if test -e "$(USER_BIN)/$$tool" && ! grep -qxF "$$launcher" "$(USER_BIN)/$$tool"; then \
+			echo "install-user: kept $(USER_BIN)/$$tool, which launches something else"; \
+		else \
+			printf '%s\n' '#!/bin/sh' 'set -eu' "$$launcher" > "$(USER_BIN)/$$tool"; \
+			chmod 755 "$(USER_BIN)/$$tool"; \
+		fi; \
+	done
 
 # A reused build directory must not mix sanitized and ordinary objects.
 # Preserve the stamp's mtime unless the actual compiler configuration changes.
@@ -627,21 +628,27 @@ $(BIN_DIR)/vm-vec-scope-test: tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a 
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
 		tests/vm_vec_scope_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
-$(BIN_DIR)/vm-locale-test: tests/vm_locale_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
-	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -I$(IR_C) -o $@ \
-		tests/vm_locale_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
-
 $(BIN_DIR)/process-host-test: tests/process_host_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/process_host_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
 $(BIN_DIR)/slice-host-test: tests/host_slice_test.c $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(SANITIZE_FLAGS) -D_GNU_SOURCE -std=c11 -Iinclude -o $@ tests/host_slice_test.c $(BUILD_DIR)/libziran.a $(RUNTIME_LIBS)
 
-check: all $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/vm-locale-test $(BIN_DIR)/zx-wasm-engine-test
+CHECK_RUNNER_SOURCES := tests/run_check.zi tests/check_support.zi tests/check_plan.zi \
+    tests/check_go.zi tests/check_cache.zi tests/check_runner_test.zi
+CHECK_RUNNER_C := $(BUILD_DIR)/check-runner-c
+check_quote = '$(subst ','"'"',$(1))'
+
+$(BIN_DIR)/check-runner: $(CHECK_RUNNER_SOURCES) $(wildcard std/*.zi) $(BIN_DIR)/zi2c | $(BIN_DIR)
+	$(BIN_DIR)/zi2c --entry run_check:main $(ZIRAN_DEFINES) --root tests --module-path std \
+	    -o $(CHECK_RUNNER_C) tests/run_check.zi
+	$(NICE) $(CC) $(CFLAGS) $(SANITIZE_FLAGS) -I$(CHECK_RUNNER_C) -o $@ $(CHECK_RUNNER_C)/*.c -lm
+
+check: all $(BIN_DIR)/check-runner $(BIN_DIR)/bundle-link-test $(BIN_DIR)/host-capability-test $(BIN_DIR)/record-host-test $(BIN_DIR)/record-fields-by-name-test $(BIN_DIR)/array-host-test $(BIN_DIR)/slice-host-test $(BIN_DIR)/process-host-test $(BIN_DIR)/startup-graph-test $(BIN_DIR)/vm-vec-scope-test $(BIN_DIR)/zx-wasm-engine-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/startup-graph-test
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BIN_DIR)/zx-wasm-engine-test
-	python3 tests/run_check.py --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
-	    $(if $(CHECK_FILTER),--filter $(CHECK_FILTER)) $(if $(CHECK_SHARD),--shard $(CHECK_SHARD))
+	$(BIN_DIR)/check-runner --bin-dir $(BIN_DIR) $(if $(CHECK_JOBS),--jobs $(CHECK_JOBS)) \
+	    $(if $(CHECK_FILTER),--filter $(call check_quote,$(CHECK_FILTER)))
 
 .PHONY: check-bundle-step-limit
 check-bundle-step-limit: $(BIN_DIR)/ziran $(BUILD_DIR)/libziran-vm.a $(BUILD_DIR)/libziran.a
@@ -678,15 +685,16 @@ fuzz:
 	$(SANITIZE_ENV) python3 scripts/fuzz.py --compiler $(SANITIZE_DIR)/bin/zi2zir \
 	    --seconds $(FUZZ_SECONDS) --out $(SANITIZE_DIR)/fuzz
 
-curl-http-test: $(BIN_DIR)/zi2c
-	python3 tests/net_http_curl_linux_test.py $(BIN_DIR)/zi2c
+curl-http-test: $(BIN_DIR)/ziran $(BIN_DIR)/zi2c
+	$(BIN_DIR)/ziran run --target=c --root tests tests/net_http_curl_cases.zi -- $(BIN_DIR)/zi2c
 
 .PHONY: gzip-test
-gzip-test: $(BIN_DIR)/zi2c
-	python3 tests/gzip_linux_test.py $(BIN_DIR)/zi2c
+gzip-test: $(BIN_DIR)/ziran $(BIN_DIR)/zi2c
+	$(BIN_DIR)/ziran run --target=c --root tests tests/gzip_cases.zi -- $(BIN_DIR)/zi2c
 
 clean:
 	rm -rf $(BUILD_DIR)
 
 # The native ZX engine adds itself to libziran.a on hosts TinyCC targets.
 include native-zx.mk
+include assembly.mk

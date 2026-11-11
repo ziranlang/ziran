@@ -1,56 +1,14 @@
 #!/bin/sh
 set -eu
 ziran=${1:?pass the ziran command}
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/go-many-parameters-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 # Exercise the complete checked parameter list, including the former 16-argument
 # foreign-call and 32-argument procedure-signature boundaries.
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-
-root = Path(sys.argv[1])
-parts = [
-    '#import "go_types"',
-    'io :: #import "io_go";',
-    'sql :: #import "sql_go";',
-    'fmt :: #system_library "go:fmt";',
-    'database :: #system_library "go:database/sql";',
-    'PrintResult :: struct { count: isize; error: Error; }',
-]
-for count in [16, 17, 32, 33, 64]:
-    parameters = ', '.join(f'p{i}: s64' for i in range(count))
-    values = ', '.join(f'cast(s64){i + 1}' for i in range(count))
-    total = ' + '.join(f'p{i}' for i in range(count))
-    parts.extend([
-        f'Sprint{count} :: ({parameters}) -> string #foreign fmt "Sprint";',
-        f'Sum{count} :: ({parameters}) -> s64 {{ return {total} }}',
-        f'Text{count} :: () -> string {{ return Sprint{count}({values}) }}',
-        f'Total{count} :: () -> s64 {{ return Sum{count}({values}) }}',
-    ])
-parameters = ', '.join(f'p{i}: s64' for i in range(63))
-values = ', '.join(f'cast(s64){i + 1}' for i in range(63))
-parts.extend([
-    f'Print :: (writer: io.Writer, {parameters}) -> PrintResult #go_results #foreign fmt "Fprint";',
-    f'PrintAll :: (writer: io.Writer) -> PrintResult {{ return Print(writer, {values}) }}',
-    f'Cleanup :: (writer: io.Writer, {parameters}) #go_defer #foreign fmt "Fprint";',
-    f'Deferred :: (writer: io.Writer) {{ Cleanup(writer, {values}) }}',
-])
-pointers = ', '.join(f'p{i}: *s64' for i in range(63))
-addresses = ', '.join(f'*values[{i}]' for i in range(63))
-parts.extend([
-    f'Scan :: (row: *sql.Row, {pointers}) -> Error #foreign database "(*Row).Scan";',
-    'Read :: (row: *sql.Row) -> s64 {',
-    '    values: [63]s64',
-    f'    if Scan(row, {addresses}) != null {{ return -1 }}',
-    '    result: s64 = 0',
-    '    for value: values { result += value }',
-    '    return result',
-    '}',
-])
-(root / 'many.zi').write_text('\n'.join(parts) + '\n')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" go-many
 
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/many.zi"
 for input in source saved; do

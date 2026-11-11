@@ -1,0 +1,7 @@
+using E :: #import "inner/Entry";
+using V :: #import "inner/Public";
+WrappedEcho :: (value: V.Value) -> V.Value { return E.Echo(value) }
+RoundTrip :: (number: s32) -> s32 {
+    value: V.Value; value.number = number
+    return E.Echo(value).number
+}

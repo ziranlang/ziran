@@ -1,0 +1,18 @@
+// Process UTF-8: search, replace, split and count scalars. Input
+// preparation happens during warmup; output allocation stays in each call.
+using V :: #import "vec"
+using T :: #import "text_tools"
+Utf8 :: #import "utf8"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 { for index: 0..1023 { if !BuilderAppend(input,"alpha λ😀 beta\n") { return -1 } } }
+    text:=TextView(input[:])
+    found:=TextFind(text,"beta\n",text.count-18)
+    if found!=text.count-5||Utf8.Count(text)!=14336 { return -2 }
+    rewritten:=TextReplace(text,"alpha","A")
+    if rewritten.count!=14336 { return -3 }
+    lines:=TextSplit(rewritten,"\n")
+    if lines.count!=1025||lines[0]!="A λ😀 beta"||lines[1024]!="" { return -4 }
+    return found+rewritten.count+lines.count
+}

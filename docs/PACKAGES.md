@@ -623,8 +623,8 @@ sources, link decisions and assets stay in those providers.
 Run the focused native fixture independently before adopting provider recipes:
 
 ```sh
-env -u DISPLAY -u WAYLAND_DISPLAY TMPDIR="$PWD/work" python3 tests/package_artifacts.py build/bin/ziran
+env -u DISPLAY -u WAYLAND_DISPLAY build/bin/ziran run --target=c --root tests tests/package_artifacts_cases.zi -- build/bin/ziran
 ```
 
 The regular `sh tests/packages.sh build/bin/ziran` runner includes this fixture.
-It creates only disposable miniature input repositories under ignored `work/`.
+It creates only disposable miniature input repositories under `build/tests/`.

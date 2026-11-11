@@ -6,7 +6,9 @@ unset DISPLAY WAYLAND_DISPLAY
 # Conversions and literals that would round, and infinite or NaN results,
 # stay unknown.
 ziran=${1:?pass ziran}
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/law-floats-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/floats.zi" <<'ZI'
@@ -66,23 +68,4 @@ fi
 if "$ziran" check --root "$work" "$work/false.zi" > "$work/false.json" 2> /dev/null; then
     echo 'a false float law was accepted' >&2; exit 1
 fi
-python3 - "$work" <<'PY'
-import json, sys
-from pathlib import Path
-work = Path(sys.argv[1])
-def statuses(name):
-    return {entry['law']: entry['status']
-            for entry in map(json.loads, (work / name).read_text().splitlines())}
-proved = statuses('floats.json')
-assert proved == {'DelayMatches': 'proved', 'DelayOrdered': 'proved',
-                  'SmallMatches': 'proved', 'MixedCompare': 'proved',
-                  'SignificandEdge': 'proved', 'ThroughParameter': 'proved',
-                  'ComparedInCall': 'proved', 'ExactLiteral': 'proved',
-                  'Arithmetic': 'proved', 'ThirdSingle': 'proved',
-                  'ThirdDouble': 'proved', 'SingleRounds': 'proved'}, proved
-unknown = statuses('unknown.json')
-assert unknown == {'WideCast': 'unknown', 'Overflow': 'unknown',
-                   'RoundedLiteral': 'unknown'}, unknown
-false = statuses('false.json')
-assert false == {'AlwaysFive': 'disproved'}, false
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/law_assertions.zi" -- "$ziran" "$work" floats

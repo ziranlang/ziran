@@ -1,4 +1,7 @@
 /build/
+/backup/
+/tests/build/
+/.fuse_hidden*
 /work/
 __pycache__/
 /.wrangler/

@@ -1,0 +1,63 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ResolutionFixture :: struct { test: *NativeTest; library: string; a: string; b: string; app: string; manifest: string }
+
+ResolutionSource :: (test: *NativeTest, name: string) -> string {
+    return NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/package_resolution/", name)))
+}
+
+ResolutionProject :: (name: string, entry: string = "src/app.zi", roots: string = "[\"src\"]") -> string {
+    parts := string.["[package]\nname = ", FixtureQuote(name), "\nentry = ", FixtureQuote(entry), "\nmodule_roots = ", roots,
+        "\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\nref = \"master\"\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+ResolutionDependency :: (alias: string, path: string, ref: string = "master", source: bool = false) -> string {
+    parts := string.["[dependencies.", alias, "]\ngit = ", FixtureQuote(FixtureUri(path)), "\nref = ", FixtureQuote(ref),
+        ifx source then "\nsource = true\n" else "\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+ResolutionOverrides :: (test: *NativeTest, app: string) -> bool {
+    aliases := string.["ziran"]; paths := string.[test.repo]
+    return FixtureOverrides(test, app, aliases[:], paths[:])
+}
+
+ResolutionProviderManifest :: (name: string, library: string, ref: string, export_name: string = "") -> string {
+    exported := ifx export_name == "" then name else export_name
+    parts := string.["[package]\nname = ", FixtureQuote(name), "\nmodule_roots = [\"src\"]\n", ResolutionDependency("Library", library, ref),
+        "[exports]\n", exported, " = ", FixtureQuote(CheckConcat("src/", CheckConcat(exported, ".zi"))), "\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+ResolutionSetup :: (test: *NativeTest) -> ResolutionFixture {
+    fixture: ResolutionFixture; fixture.test = test
+    if !FixtureIsolation(test, test.work) { return .{} }
+    fixture.library = CheckPath(test.work, "library"); fixture.a = CheckPath(test.work, "A"); fixture.b = CheckPath(test.work, "B"); fixture.app = CheckPath(test.work, "app")
+    if !FixtureInit(test, fixture.library) || !NativeWrite(test, CheckPath(fixture.library, "ziran.toml"), "[package]\nname = \"Library\"\nmodule_roots = [\"src\"]\n[exports]\nValue = \"src/Value.zi\"\nvalue = \"src/module.zi\"\n") ||
+        !NativeWrite(test, CheckPath(fixture.library, "src/module.zi"), ResolutionSource(test, "library_module.zi")) { return .{} }
+    for value: 1..2 {
+        if !NativeWrite(test, CheckPath(fixture.library, "src/Value.zi"), CheckConcat("Value :: () -> s32 { return ", CheckConcat(CheckNumber(value), " }\n"))) { return .{} }
+        unused FixtureCommit(test, fixture.library, "library revision")
+        branch := string.["branch", CheckConcat("v", CheckNumber(value))]; unused FixtureGit(test, fixture.library, branch[:])
+    }
+    providers := string.[fixture.a, fixture.b]; names := string.["A", "B"]; files := string.["a.zi", "b.zi"]
+    for index: cast(s64)0..1 {
+        repo := providers[index]; name := names[index]
+        if !FixtureInit(test, repo) || !NativeWrite(test, CheckPath(repo, "ziran.toml"), ResolutionProviderManifest(name, fixture.library, CheckConcat("v", CheckNumber(index + 1)))) ||
+            !NativeWrite(test, CheckPath(repo, CheckConcat("src/", CheckConcat(name, ".zi"))), ResolutionSource(test, files[index])) { return .{} }
+        unused FixtureCommit(test, repo, "provider revision")
+    }
+    fixture.manifest = CheckConcat(TextDetach(TextReplace(ResolutionProject("App"), "https://github.com/ziranlang/ziran.git", FixtureUri(test.repo))),
+        CheckConcat(ResolutionDependency("A", fixture.a), ResolutionDependency("B", fixture.b)))
+    if !NativeWrite(test, CheckPath(fixture.app, "ziran.toml"), fixture.manifest) || !ResolutionOverrides(test, fixture.app) ||
+        !NativeWrite(test, CheckPath(fixture.app, "src/Public/module.zi"), ResolutionSource(test, "public.zi")) ||
+        !NativeWrite(test, CheckPath(fixture.app, "src/app.zi"), ResolutionSource(test, "app.zi")) { return .{} }
+    return fixture
+}

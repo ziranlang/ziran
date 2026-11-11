@@ -1,0 +1,2 @@
+#import "Value"
+FromB :: () -> s32 { return Value() }

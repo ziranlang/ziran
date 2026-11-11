@@ -2045,6 +2045,12 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirS
     return includes;
 }
 
+void
+CollectNativeSimdUses(const char *text, ZirSimdUses *simd)
+{
+    native_runtime_includes(text, NULL, simd);
+}
+
 /* Resolve both dependency marks before writing the final native text. */
 int
 EmitNativeHelpers(FILE *file, const char *text, ZirSimdUses *simd)

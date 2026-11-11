@@ -1,0 +1,23 @@
+// } ) :: = #string COMMENT
+Same::(a: string, b: string)->bool { return a == b }
+Echo::(value: string)->string { return value }
+Answer::()->s32 {
+/* } ) = :: " #string BLOCK
+   /* nested { ( => */
+   trailing comment bytes = ::   
+*/
+value: string="} ( :: = \"" // } ) " :: =
+if !Same(value, "} ( :: = \"") { return 0 }
+if !Same(Echo(#string FIRST
+  { } ( ) :: = " \   
+FIRST), Echo(#string SECOND
+  { } ( ) :: = " \   
+SECOND)) { return 0 }
+// END_EXTRA is content, not a closing delimiter.
+raw: string = #string END
+END_EXTRA
+  body = :: { )   
+END;
+if !Same(raw, "END_EXTRA\n  body = :: { )   \n") { return 0 }
+return 42 // { ( = ::
+}

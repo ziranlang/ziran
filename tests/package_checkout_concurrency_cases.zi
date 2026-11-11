@@ -1,0 +1,92 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+CheckoutAll :: (test: *NativeTest, url: string, commit: string, count: s64 = 12) -> string {
+    children: Vec(NativeChild)
+    defer NativeChildrenStop(*children)
+    command := string.[test.ziran, url, commit]
+    for index: cast(s64)0..count - 1 { unused index; VecPush(children, NativeSpawn(test, command[:], "checkout")) }
+    complete := false
+    while !complete && !test.failed {
+        complete = true
+        for index: cast(s64)0..children.count - 1 {
+            if !NativeAssert(test, !TerminationRequested() && MonotonicMilliseconds() - children[index].started < 120000, "parallel checkout timed out or was interrupted") { return "" }
+            if !PollProcess(*children[index].run) { complete = false; continue }
+            if !NativeAssert(test, children[index].run.code == 0, CheckConcat(CheckTail(children[index].output), CheckTail(children[index].error))) { return "" }
+        }
+        if !complete { unused SleepMilliseconds(2) }
+    }
+    path := ""
+    for index: cast(s64)0..children.count - 1 {
+        selected := TextDetach(TextCopy(TextTrim(NativeRead(test, children[index].output))))
+        if path == "" { path = selected }
+        if !NativeAssert(test, selected != "" && selected == path, "parallel checkouts selected distinct cache entries") { return "" }
+    }
+    return path
+}
+
+CheckoutHealthy :: (test: *NativeTest, path: string, sources: string, commit: string, ignored: string = "") -> bool {
+    if !NativeAssert(test, PathParent(path) == sources, "checkout escaped the selected cache") { return false }
+    names: Vec(string)
+    if !NativeAssert(test, ListDirectory(sources, *names), "list checkout cache") { return false }
+    count: s64
+    for name: names {
+        if TextHasSuffix(name, ".lock") || name == ignored { continue }
+        if !NativeAssert(test, name == PathName(path), "checkout left an extra entry or temporary directory") { return false }
+        count += 1
+    }
+    head := string.["rev-parse", "HEAD"]
+    clean := string.["status", "--porcelain", "--untracked-files=all"]
+    files := NativeFiles(CheckPath(path, "src"), "")
+    return NativeAssert(test, count == 1 && FixtureGit(test, path, head[:]) == commit && FixtureGit(test, path, clean[:]) == "" && files.count == 40,
+        "published checkout is incomplete, dirty or at the wrong revision")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-checkout-concurrency-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    cases := string.["fresh", "repair", "stale"]
+    for name: cases {
+        root := CheckPath(test.work, name)
+        if !FixtureIsolation(*test, root) { return 1 }
+        source := CheckPath(root, "source")
+        if !FixtureInit(*test, source) { return 1 }
+        for version: cast(s64)0..2 {
+            for number: cast(s64)0..39 {
+                file := CheckPath(source, CheckConcat("src/part", CheckConcat(CheckNumber(number), ".zi")))
+                text := CheckConcat("Value", CheckConcat(CheckNumber(number), CheckConcat(" :: ", CheckConcat(CheckNumber(version), ";\n"))))
+                if !NativeWrite(*test, file, text) { return 1 }
+            }
+            unused FixtureCommit(*test, source, CheckConcat("fixture ", CheckNumber(version)))
+        }
+        revision := string.["rev-parse", "HEAD~1"]
+        commit := FixtureGit(*test, source, revision[:])
+        url := CheckConcat("file://", source)
+        sources := CheckPath(root, "cache/ziran/sources")
+        path := CheckoutAll(*test, url, commit, ifx name == "fresh" then 12 else 1)
+        if !CheckoutHealthy(*test, path, sources, commit) { return 1 }
+        if name == "repair" {
+            for number: cast(s64)0..39 { if number % 3 == 0 { unused RemoveFile(CheckPath(path, CheckConcat("src/part", CheckConcat(CheckNumber(number), ".zi")))) } }
+            if !NativeAssert(*test, CheckoutAll(*test, url, commit) == path, "parallel repairs selected another entry") || !CheckoutHealthy(*test, path, sources, commit) { return 1 }
+        } else if name == "stale" {
+            stale := CheckConcat(path, ".tmp-crashd")
+            clone := string.["clone", "-q", "--no-checkout", url, stale]; unused FixtureGit(*test, root, clone[:])
+            if !NativeAssert(*test, RemoveTree(path), "remove this fixture's cached entry") { return 1 }
+            if !NativeAssert(*test, CheckoutAll(*test, url, commit, 4) == path, "stale sibling changed selected entry") || !CheckoutHealthy(*test, path, sources, commit, PathName(stale)) ||
+                !NativeAssert(*test, IsDirectory(stale), "another checkout removed a stale sibling it does not own") { return 1 }
+        }
+    }
+    if test.failed { return 1 }
+    print("Local package checkout tests: 12 parallel fresh/repair consumers share a healthy pinned entry and preserve stale siblings\n")
+    return 0
+}

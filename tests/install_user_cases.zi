@@ -1,0 +1,63 @@
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "install-user-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    make := CheckExecutable("gmake"); if make == "" { make = CheckExecutable("make") }
+    share := CheckPath(test.work, "bootstrap")
+    bin := CheckPath(test.work, "bin")
+    // Reuse the exact already-built toolchain during a disposable installation.
+    command := string.[make, "--no-print-directory", "-s", "-o", "all", "install-user", CheckConcat("BUILD_DIR=", PathParent(PathParent(test.ziran))), CheckConcat("USER_BIN=", bin), CheckConcat("USER_SHARE=", share)]
+    unused NativeRun(*test, command[:])
+    source := CheckPath(test.work, "live.zi")
+    if !NativeWrite(*test, source, "#program_export\nmain :: () -> s32 { while true {} return 0 }\n") { return 1 }
+    bundle := CheckPath(test.work, "live.zx")
+    build := string.[test.ziran, "bundle", "--root", test.work, "--entry", "live:main", "-o", bundle, source]
+    unused NativeRun(*test, build[:])
+    installed := CheckPath(share, "build/bin/zi2zx")
+    before := PathStatus(installed)
+    run := string.[installed, "run", bundle]
+    child: ProcessRun
+    options: ProcessOptions = .{.arguments = run[:], .environment = test.environment[:], .new_session = true,
+        .output_path = CheckPath(test.work, "busy.stdout"), .error_path = CheckPath(test.work, "busy.stderr")}
+    if !NativeAssert(*test, !test.failed && StartProcess(options, *child), "start installed runner") { return 1 }
+    defer {
+        if !PollProcess(*child) { unused SignalProcess(*child, 15, true) }
+        unused WaitProcess(*child)
+    }
+    unused SleepMilliseconds(100)
+    if !NativeAssert(*test, !PollProcess(*child), "busy runner exited before reinstall") { return 1 }
+    unused NativeRun(*test, command[:])
+    after := PathStatus(installed)
+    if !NativeAssert(*test, before.identity_valid && after.identity_valid && before.inode != after.inode && !PollProcess(*child), "installation interrupted the busy executable or overwrote its inode") { return 1 }
+    if !NativeAssert(*test, NativeSameFile(installed, CheckPath(PathParent(test.ziran), "zi2zx")), "installed binary differs") { return 1 }
+    version := string.[CheckPath(bin, "ziran"), "version"]
+    actual := NativeRun(*test, version[:])
+    if !NativeAssert(*test, TextHasPrefix(actual.output, "ziran "), "installed launcher failed") { return 1 }
+    hello := CheckPath(test.work, "hello.zi")
+    if !NativeWrite(*test, hello, "main :: () { print(\"Hello, World!\\n\") }\n") { return 1 }
+    ziran := string.[CheckPath(bin, "ziran"), "run", "hello.zi"]
+    direct := string.[CheckPath(bin, "zi2zx"), "hello.zi"]
+    unused NativeExpect(*test, ziran[:], "Hello, World!\n", test.work)
+    unused NativeExpect(*test, direct[:], "Hello, World!\n", test.work)
+    tools := string.["ziran", "zi2zx"]
+    marker := "#!/bin/sh\n# Owner's existing launcher\nexit 23\n"
+    for tool: tools { if !NativeWrite(*test, CheckPath(bin, tool), marker) { return 1 } }
+    unused NativeRun(*test, command[:])
+    for tool: tools {
+        if !NativeAssert(*test, NativeRead(*test, CheckPath(bin, tool)) == marker, "installation overwrote an existing launcher") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("Local installation tests: busy binaries, existing launchers and both one-line run commands passed\n")
+    return 0
+}

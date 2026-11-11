@@ -19,9 +19,13 @@ do not import a UI library.
   language rules.
 - Run relevant checks with `DISPLAY` and `WAYLAND_DISPLAY` removed. Any test
   that needs a display must use a private Xvfb/Xephyr display.
-- Test with `make check` (every check, run in parallel on `BUILD_QUEUE_JOBS`)
-  and `make check-bootstrap`; `make check CHECK_FILTER=text` reruns only the
-  checks whose name contains `text`. Full logs are in `build/check-logs/`.
+- Test with `make check` and `make check-bootstrap`. The owner requested a
+  physically pruned suite of the most useful checks, about half the former
+  entry points. Run all retained checks locally and in CI; do not substitute
+  sharding or skipped tests for pruning. `make check CHECK_FILTER=text` runs every
+  check whose name contains `text`. Full logs are in `build/check-logs/`.
+- Write retained test logic and test helpers in Ziran. Remove redundant tests
+  and their unused helpers instead of growing another parallel test suite.
 
 - Module roots are ordinary repeatable search folders. Keep package manifests,
   CLI forwarding, editor paths and loader storage dynamically sized; do not add
@@ -34,10 +38,16 @@ do not import a UI library.
   including authentication commands. The workflow's Cloudflare action owns
   uploads.
 
-- Do not create a `backup/` directory in this repository. Keep reusable
-  benchmark scripts in Ziran under `bench/`, and retained benchmark reports
-  and logs under tracked `bench/results/` paths. Temporary compiler and test
-  outputs belong in the existing `build/` layout.
+- Keep private transfer and recovery state under the ignored `backup/`
+  directory. Keep reusable benchmark scripts in Ziran under `bench/`, and
+  retained benchmark reports and logs under tracked `bench/results/` paths.
+  Temporary compiler and test outputs belong in the existing `build/` layout.
+
+- Owner instruction, 2026-11-11: run all benchmarks on Alpha's physical host
+  directly, without the personal VM.
+  Keep benchmark compilation and measurement off the current desktop; if
+  Alpha is unavailable, report that instead of falling back locally. Record
+  the actual execution host and keep before/after comparisons on that host.
 
 - Exclude statistical anomalies from benchmark results using the same symmetric
   1.5×IQR rule for all targets and platforms (inclusive interpolated quartiles).

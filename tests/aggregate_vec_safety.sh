@@ -190,31 +190,15 @@ if "$ziran" check --diagnostics=json --root "$work" \
     echo 'assignment over live aggregate Vec storage was accepted' >&2
     exit 1
 fi
-python3 - "$work/field_use_after_move.err" \
-         "$work/field_sibling_and_use_after_move.err" \
-         "$work/field_move_enclosing_record.err" \
-         "$work/indexed_field_move.err" \
-         "$work/pointer_field_move.err" \
-         "$work/global_field_move.err" \
-         "$work/global_nested_field_move.err" \
-         "$work/use_after_move.err" "$work/overwrite.err" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-for path, expected in [(sys.argv[1], 'used after moving'),
-                       (sys.argv[2], 'owned record field is used after moving'),
-                       (sys.argv[3], 'owned aggregate is used after moving'),
-                       (sys.argv[4], 'moves a binding or takes a call result'),
-                       (sys.argv[5], 'moves a binding or takes a call result'),
-                       (sys.argv[6], 'move into the call and empty the global'),
-                       (sys.argv[7], 'move into the Vec and empty the global'),
-                       (sys.argv[8], 'used after moving'),
-                       (sys.argv[9], 'leaks it')]:
-    diagnostics = [json.loads(line)
-                   for line in Path(path).read_text().splitlines()]
-    assert any(expected in item['message'] for item in diagnostics), diagnostics
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- messages \
+    "$work/field_use_after_move.err" "used after moving" \
+    "$work/field_sibling_and_use_after_move.err" "owned record field is used after moving" \
+    "$work/field_move_enclosing_record.err" "owned aggregate is used after moving" \
+    "$work/indexed_field_move.err" "moves a binding or takes a call result" \
+    "$work/pointer_field_move.err" "moves a binding or takes a call result" \
+    "$work/global_field_move.err" "move into the call and empty the global" \
+    "$work/global_nested_field_move.err" "move into the Vec and empty the global" \
+    "$work/use_after_move.err" "used after moving" "$work/overwrite.err" "leaks it"
 
 "$ziran" check --root "$work" --module-path "$repo/std" "$work/owned.zi"
 "$ziran" ir --root "$work" --module-path "$repo/std" \

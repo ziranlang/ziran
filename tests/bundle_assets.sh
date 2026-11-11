@@ -2,7 +2,8 @@
 set -eu
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/bundle-assets-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir -p "$work/assets/sub"
 printf 'a\000b' > "$work/assets/a.bin"
@@ -48,27 +49,7 @@ test "$("$ziran" run "$work/source.zx")" = 42
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -Wno-main -I"$repo/include" -I"$work/c" "$work/c"/*.c \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -lpthread -o "$work/read"
 "$work/read" "$work/source.zx"
-python3 - "$work" <<'PY'
-from pathlib import Path
-import struct
-import sys
-root = Path(sys.argv[1])
-data = (root / "source.zx").read_bytes()
-at = data.index(b"assets/a.bin")
-for name, replacement in [
-    ("traversal", b"../bad/a.bin"),
-    ("absolute", b"/ssets/a.bin"),
-    ("backslash", b"assets\\a.bin"),
-    ("nul", b"assets\x00a.bin"),
-]:
-    assert len(replacement) == len(b"assets/a.bin")
-    (root / (name + ".zx")).write_bytes(data[:at] + replacement + data[at + len(replacement):])
-(root / "truncated.zx").write_bytes(data[:-1])
-count_offset = at - 8
-(root / "oversized.zx").write_bytes(data[:count_offset] + struct.pack("<I", 0xffffffff) + data[count_offset + 4:])
-at = data.index(b"assets/sub/z.bin")
-(root / "unsorted.zx").write_bytes(data[:at] + b"assets/aaa/z.bin" + data[at + 16:])
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" assets
 for case in traversal absolute backslash nul truncated oversized unsorted; do
     if "$work/read" "$work/$case.zx" >/dev/null 2>&1; then
         echo "accepted malformed bundle assets: $case" >&2

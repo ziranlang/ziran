@@ -1,0 +1,72 @@
+
+#include <fcntl.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/wait.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+    volatile int revision = REVISION;
+    (void)revision;
+    int gated = 0;
+    for(int i=1;i<argc;i++) if(strstr(argv[i], "/host.c")) gated=1;
+    char option[64];
+    char **command = calloc((size_t)argc + 2, sizeof(*command));
+    if(!command) return 1;
+    int count = 0, piped = 0, compile = 0, null_input = 0;
+    command[count++] = REAL_CC;
+    if(getenv("CACHE_CONFIG")) {
+        FILE *file = fopen(getenv("CACHE_CONFIG"), "r");
+        int value;
+        if(!file || fscanf(file, "%d", &value) != 1 || fclose(file) != 0) return 1;
+        snprintf(option, sizeof(option), "-DCACHE_ADDEND=%d", value);
+        command[count++] = option;
+    }
+    for(int i=1;i<argc;i++) {
+        command[count++] = argv[i];
+        piped += !strcmp(argv[i], "-pipe");
+        compile |= !strcmp(argv[i], "-c");
+        null_input |= !strcmp(argv[i], "/dev/null");
+    }
+    if(null_input && getenv("CACHE_PROBE_LOG")) {
+        FILE *file = fopen(getenv("CACHE_PROBE_LOG"), "a");
+        if(!file) return 1;
+        fprintf(file, "%s\n", piped ? "pipe" : compile ? "compile" : "other");
+        if(fclose(file) != 0) return 1;
+    }
+    if(compile && !null_input && getenv("CACHE_COMPILE_LOG")) {
+        FILE *file = fopen(getenv("CACHE_COMPILE_LOG"), "a");
+        if(!file) return 1;
+        fprintf(file, "%d\n", piped);
+        if(fclose(file) != 0) return 1;
+    }
+    if(null_input && getenv("CACHE_FAIL_PROBE")) return 1;
+    if(null_input && getenv("CACHE_PROBE_TEXT")) {
+        FILE *file = fopen(getenv("CACHE_PROBE_TEXT"), "r");
+        if(!file) return 1;
+        char bytes[4096]; size_t length;
+        while((length=fread(bytes, 1, sizeof(bytes), file)))
+            if(fwrite(bytes, 1, length, stderr) != length) return 1;
+        return ferror(file) || fclose(file) != 0;
+    }
+    if(null_input && getenv("CACHE_EMPTY_PROBE")) return 0;
+    if(null_input && getenv("CACHE_BINARY_PROBE")) fputc(0, stderr);
+    if(null_input && getenv("CACHE_LARGE_PROBE"))
+        for(int i=0;i<70000;i++) fputc('x', stderr);
+    if(null_input && getenv("CACHE_AMBIGUOUS_PROBE"))
+        fputs("#include <...> search starts here:\nambiguous interleaved output\nEnd of search list.\n", stderr);
+    if(null_input && getenv("CACHE_VERSION_CONFIG")) {
+        FILE *file = fopen(getenv("CACHE_VERSION_CONFIG"), "r");
+        int value;
+        if(!file || fscanf(file, "%d", &value) != 1 || fclose(file) != 0) return 1;
+        fprintf(stderr, "Test math library version %d\n", value);
+    }
+    if(!gated || !getenv("CACHE_GATE")) { execv(REAL_CC, command); return 127; }
+    pid_t child=fork();
+    if(child==0) { execv(REAL_CC, command); _exit(127); }
+    int status;
+    if(child<0 || waitpid(child,&status,0)!=child || !WIFEXITED(status) || WEXITSTATUS(status)) return 1;
+    close(open(getenv("CACHE_READY"), O_WRONLY|O_CREAT, 0600));
+    for(int i=0;i<5000;i++) { if(access(getenv("CACHE_RELEASE"), F_OK)==0) return 0; usleep(1000); }
+    return 1;
+}

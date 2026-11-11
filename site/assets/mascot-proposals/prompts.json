@@ -1,0 +1,199 @@
+{
+  "project": "Ziran",
+  "request": "Four original recognizable animal mascot proposals, with no text, letters, numbers or wordmarks in any image.",
+  "generation_mode": "built-in image_gen",
+  "generation_calls_planned": 4,
+  "created_date": "2026-11-10",
+  "references": [
+    {
+      "url": "https://go.dev/blog/gopher",
+      "image_url": "https://go.dev/blog/gopher/gopher.png",
+      "observation": "Recognizable original character, economical anatomy and a compact silhouette. Inspiration for mascot role only, not likeness."
+    },
+    {
+      "url": "https://harelang.org/",
+      "image_url": "https://harelang.org/mascot.png",
+      "observation": "Recognizable animal, distinctive ink silhouette. Inspiration for animal-led identity only, not likeness."
+    }
+  ],
+  "proposals": [
+    {
+      "id": "01-capybara",
+      "animal": "Capybara",
+      "direction": "Calm, approachable full-body mascot with a broad horizontal silhouette.",
+      "prompt": "Use case: precise-object-edit\nAsset type: existing animal mascot logo, remove lettering.\nInput image 1: edit target, the existing capybara proposal.\nPrimary request: Remove ALL text from this image. Completely erase the entire wordmark below the animal, including every letter and the dot over the i, leaving only the single capybara animal.\nConstraints: Preserve the animal's exact original design, pose, proportions, expression, linework and colors. Keep every part of the animal intact. Center that same animal alone within the transparent square canvas, with a clear margin around the whole animal. Genuine transparent background; keep alpha transparency.\nText: NONE. No words, letters, numbers, labels, captions, signatures or watermarks anywhere.\nAvoid: Redesigning the animal, changing its colors or features, adding objects, extra limbs, scenery, decorations or symbols, replacing the removed wordmark with anything else, a solid background.",
+      "file": "01-capybara.png",
+      "text_expected": "",
+      "transparent_background": true,
+      "status": "complete",
+      "actual": {
+        "dimensions": [
+          1254,
+          1254
+        ],
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "content_bbox_alpha_gt_1": [
+          121,
+          167,
+          1142,
+          1059
+        ],
+        "bytes": 694066,
+        "sha256": "dc5d2aba9d78d80a285d726df0cbeffb50f0411e649fb1f4b30b0c25a12b2df1"
+      },
+      "visual_review": {
+        "no_text_verified": true,
+        "recognizable_animal": true,
+        "letter_monogram": false
+      },
+      "original_generation": {
+        "prompt": "Use case: logo-brand\nAsset type: original programming-language animal mascot and wordmark, one finished proposal.\nPrimary request: Design an original capybara mascot for the Ziran programming language. It should have the enduring, friendly recognition of a great open-source animal mascot, with its own entirely original anatomy and personality.\nSubject: One calm capybara in a low, broad, full-body three-quarter seated pose. Make the species unmistakable: broad blunt rectangular muzzle, nostrils high on the snout, small round ears high on the head, sturdy short legs, little visible tail. Modest attentive eyes and a tiny relaxed smile. A grounded horizontal body with the head gently turned toward the viewer, four believable limbs, two front paws visible.\nStyle/medium: Confident hand-drawn flat illustration, very simple bold earth-brown outline, large quiet areas of color, warm personality, a small amount of purposeful irregularity. A designed logo mascot with a readable silhouette and minimal interior marks.\nComposition/framing: One isolated mascot centered above a single clean readable wordmark; generous clear margins, balanced compact square composition. The animal is the focal point. Genuine transparent background.\nColor palette: Jade-green body with one lake-blue underside plane, deep earth-brown outline and text, a very small muted light-orange inner-ear accent. Clear contrast, at most four ink colors.\nText (verbatim): \"Ziran\". Spell Z-i-r-a-n, capital Z then lowercase i r a n. Exactly this one word, large and legible beneath the animal, in a friendly sturdy humanist sans-serif. No other letters or text.\nConstraints: Original animal design. Natural animal silhouette with no hidden letter geometry. Works as a small website logo and sticker. Preserve complete ears, paws, and wordmark within frame.\nAvoid: Gopher anatomy, buck teeth, giant protruding eyes, rabbit ears, existing mascot likenesses, letter-shaped bodies, Z monograms, abstract symbols, code brackets, props, clothing, shields, scenery, mockups, borders, gradients, glow, glossy 3D, textures, drop shadows, extra animals, extra labels, watermark.",
+        "sha256": "f81eb215bc801d01a962c2934e8604fae2859805780f5beec9bfe0a40509ea0f",
+        "backup": "backup/mascot-proposals/with-wordmark/01-capybara.png"
+      },
+      "input_image": "backup/mascot-proposals/with-wordmark/01-capybara.png"
+    },
+    {
+      "id": "02-kingfisher",
+      "animal": "Kingfisher",
+      "direction": "Crisp avian emblem with a long beak and compact folded wing.",
+      "prompt": "Use case: precise-object-edit\nAsset type: existing animal mascot logo, remove lettering.\nInput image 1: edit target, the existing kingfisher proposal.\nPrimary request: Remove ALL text from this image. Completely erase the entire wordmark below the animal, including every letter and the dot over the i, leaving only the single kingfisher animal.\nConstraints: Preserve the animal's exact original design, pose, proportions, expression, linework and colors. Keep every part of the animal intact. Center that same animal alone within the transparent square canvas, with a clear margin around the whole animal. Genuine transparent background; keep alpha transparency.\nText: NONE. No words, letters, numbers, labels, captions, signatures or watermarks anywhere.\nAvoid: Redesigning the animal, changing its colors or features, adding objects, extra limbs, scenery, decorations or symbols, replacing the removed wordmark with anything else, a solid background.",
+      "file": "02-kingfisher.png",
+      "text_expected": "",
+      "transparent_background": true,
+      "status": "complete",
+      "actual": {
+        "dimensions": [
+          1254,
+          1254
+        ],
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "content_bbox_alpha_gt_1": [
+          153,
+          156,
+          1186,
+          1061
+        ],
+        "bytes": 545126,
+        "sha256": "00b4d5ed437a1c8452d16e16dbb64128638948e4c06328a504ccc33bedf17128"
+      },
+      "visual_review": {
+        "no_text_verified": true,
+        "recognizable_animal": true,
+        "letter_monogram": false
+      },
+      "original_generation": {
+        "prompt": "Use case: logo-brand\nAsset type: original programming-language animal emblem and wordmark, one finished proposal.\nPrimary request: Create a distinctive kingfisher emblem for the Ziran programming language, an original animal identity with the clear recognition and restraint of a lasting open-source language logo.\nSubject: One unmistakable kingfisher standing still in side profile. Large angular head, a long straight pointed bill, small observant eye, compact body, short tail, folded wing, two small feet tucked below. A calm alert bird with elegant proportions; strong natural silhouette rather than a geometric puzzle.\nStyle/medium: Refined two-dimensional cut-paper and woodcut-inspired logo, bold mostly solid color planes, crisp edges, a few deliberate negative-space incisions defining cheek and folded wing. Sophisticated editorial emblem rather than a cartoon character. The bird remains readable at favicon scale.\nComposition/framing: One complete bird centered over the wordmark in a balanced spacious square composition, bird occupying most of the width without cropped beak or tail. Isolated on a genuine transparent background. No branch or backdrop.\nColor palette: Deep pine green outline and bill, lake-blue head and upper back, jade-green wing, a small pale-orange throat plane. Wordmark in deep pine green. Flat inks and purposeful negative space.\nText (verbatim): \"Ziran\". Spell Z-i-r-a-n with uppercase Z and lowercase i r a n. Exactly one word beneath the bird, beautifully spaced, large and readable in a restrained humanist serif with sturdy strokes.\nConstraints: Entirely original kingfisher design. One bird, one wordmark. Anatomically coherent, immediately recognizable animal, compact flat identity ready for a language website.\nAvoid: Any Z silhouette or hidden letter, letter monograms, abstract zigzags, generic swooshes, existing mascots, eagles, corporate wing logos, decorative crest or shield, circles around the bird, extra feathers floating away, branches, leaves, scenery, code symbols, multiple logo options, mockups, gradients, shadows, 3D, photographic detail, tiny feather textures, extra text, watermark.",
+        "sha256": "4a98fe82bdcefa09e9c0dc4c2e7eac51e3cd731199baaabd3d4789e0131fb9bc",
+        "backup": "backup/mascot-proposals/with-wordmark/02-kingfisher.png"
+      },
+      "input_image": "backup/mascot-proposals/with-wordmark/02-kingfisher.png"
+    },
+    {
+      "id": "03-pangolin",
+      "animal": "Pangolin",
+      "direction": "Protective and patient walking pangolin with a bold overlapping scale pattern.",
+      "prompt": "Use case: precise-object-edit\nAsset type: existing animal mascot logo, remove lettering.\nInput image 1: edit target, the existing pangolin proposal.\nPrimary request: Remove ALL text from this image. Completely erase the entire wordmark below the animal, including every letter and the dot over the i, leaving only the single pangolin animal.\nConstraints: Preserve the animal's exact original design, pose, proportions, expression, linework and colors. Keep every part of the animal intact. Center that same animal alone within the transparent square canvas, with a clear margin around the whole animal. Genuine transparent background; keep alpha transparency.\nText: NONE. No words, letters, numbers, labels, captions, signatures or watermarks anywhere.\nAvoid: Redesigning the animal, changing its colors or features, adding objects, extra limbs, scenery, decorations or symbols, replacing the removed wordmark with anything else, a solid background.",
+      "file": "03-pangolin.png",
+      "text_expected": "",
+      "transparent_background": true,
+      "status": "complete",
+      "actual": {
+        "dimensions": [
+          1262,
+          1246
+        ],
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "content_bbox_alpha_gt_1": [
+          33,
+          398,
+          1214,
+          861
+        ],
+        "bytes": 486037,
+        "sha256": "f4832ff5327e59cc5bd455ef9d17c7f6c461f86eed170770f912763a770c57c7"
+      },
+      "visual_review": {
+        "no_text_verified": true,
+        "recognizable_animal": true,
+        "letter_monogram": false
+      },
+      "original_generation": {
+        "prompt": "Use case: logo-brand\nAsset type: original programming-language animal mascot emblem with wordmark, one finished proposal.\nPrimary request: Design an original, memorable pangolin identity for the Ziran programming language. Give it the compact clarity of a great language mascot while preserving a distinctive real animal character.\nSubject: One small pangolin walking slowly in side profile, its little pointed head lifted slightly, quiet dark eye, short sturdy legs with restrained curved claws, long thick tapering tail resting behind it. Clearly recognizable overlapping leaf-shaped scales on its gently arched back and tail; simplify to a small rhythm of large scales rather than many tiny marks. The face and lower belly are smooth. A curious, patient, self-possessed creature, completely visible.\nStyle/medium: Bold handmade linocut-style emblem, solid ink-like color planes and gently organic edges, no surface distress texture. Clean enough to be a durable logo and read small. Balanced beautiful negative space separates the legs and scales. More emblematic than plush or chibi.\nComposition/framing: Animal centered over one wordmark, low horizontal full-body silhouette occupying the upper-middle of a compact square composition. Genuine transparent background and ample margins. Tail is a natural taper, not curled into a symbol.\nColor palette: Deep pine-green body silhouette, jade-green large scales separated with pale negative space, earth-brown wordmark, a tiny restrained light-orange cheek accent. No gradients.\nText (verbatim): \"Ziran\". Exact spelling Z-i-r-a-n. Capital Z, all remaining letters lowercase. Only this one word beneath the animal, large and readable in a sturdy softly rounded slab-serif wordmark.\nConstraints: Original pangolin; recognizable long tapered scaled tail, small pointed snout, coherent four-legged anatomy. Minimal interior detail, no hidden letter geometry, one animal only.\nAvoid: A letter Z, monograms, spirals, circular curled animal, armadillo shell bands, hedgehog spikes, dinosaur, dragon, existing animal brand likenesses, armor props, shields, branches, decorative crests, scenery, code symbols, extra captions, mockup, patterns behind the subject, tiny scales, photorealism, 3D, gradients, glow, drop shadows, watermark.",
+        "sha256": "5a30fd7ef02c59d52e0c0c75946f415a798a3bb70f23187846340cc5a2e6f879",
+        "backup": "backup/mascot-proposals/with-wordmark/03-pangolin.png"
+      },
+      "input_image": "backup/mascot-proposals/with-wordmark/03-pangolin.png"
+    },
+    {
+      "id": "04-tree-frog",
+      "animal": "Tree frog",
+      "direction": "Curious, lightly hand-inked frog mascot with rounded toe pads.",
+      "prompt": "Use case: precise-object-edit\nAsset type: existing animal mascot logo, remove lettering.\nInput image 1: edit target, the existing tree frog proposal.\nPrimary request: Remove ALL text from this image. Completely erase the entire wordmark below the animal, including every letter and the dot over the i, leaving only the single tree frog animal.\nConstraints: Preserve the animal's exact original design, pose, proportions, expression, linework and colors. Keep every part of the animal intact. Center that same animal alone within the transparent square canvas, with a clear margin around the whole animal. Genuine transparent background; keep alpha transparency.\nText: NONE. No words, letters, numbers, labels, captions, signatures or watermarks anywhere.\nAvoid: Redesigning the animal, changing its colors or features, adding objects, extra limbs, scenery, decorations or symbols, replacing the removed wordmark with anything else, a solid background.",
+      "file": "04-tree-frog.png",
+      "text_expected": "",
+      "transparent_background": true,
+      "status": "complete",
+      "actual": {
+        "dimensions": [
+          1254,
+          1254
+        ],
+        "mode": "RGBA",
+        "alpha_extrema": [
+          0,
+          255
+        ],
+        "content_bbox_alpha_gt_1": [
+          159,
+          195,
+          1007,
+          1124
+        ],
+        "bytes": 657278,
+        "sha256": "fa94d0b947447dfb9e289005d317ab5933a6842ee769b576e24b0bea571ce338"
+      },
+      "visual_review": {
+        "no_text_verified": true,
+        "recognizable_animal": true,
+        "letter_monogram": false
+      },
+      "original_generation": {
+        "prompt": "Use case: logo-brand\nAsset type: original programming-language animal mascot and wordmark, one finished proposal.\nPrimary request: Create a lively but calm original tree-frog mascot for the Ziran programming language. Aim for a character people can recognize, draw from memory, and enjoy as a small open-source community mascot.\nSubject: One tree frog in a compact natural crouch, three-quarter view, slightly tilted curious head, two eyes set naturally atop the head rather than enormous cartoon eyes. Broad gently smiling mouth, tapered body, two beautifully bent rear legs and two slender forelegs. Three clearly separated rounded toe pads visible on each front foot, with the front feet planted confidently. Keep all limbs anatomically attached and the pose easy to read.\nStyle/medium: Expressive economical ink drawing with selective flat color, an appealing hand-drawn outline, slightly varied confident line weight, simple rounded forms. A charming natural creature rather than a plush toy, emoji or videogame character. Few well-chosen lines and no texture fill.\nComposition/framing: One whole frog centered above a single readable wordmark in a generous square canvas, isolated with a genuine transparent background. Clear gaps between belly, arms and feet; nothing clipped. The frog is the single focal point.\nColor palette: Quiet jade-green frog, lake-blue flank and leg accent, deep earth-brown outlines and wordmark, very small pale-orange toe-pad accents. Flat colors and clear contrast.\nText (verbatim): \"Ziran\". Spell Z-i-r-a-n exactly, uppercase Z then lowercase i r a n, with a clearly dotted lowercase i. One word only below the frog, large and readable in an original friendly lightly humanist lettering style, consistent stroke weight and restrained personality.\nConstraints: Original tree-frog identity with a recognizable amphibian silhouette and rounded toe pads. One coherent animal and one clean wordmark; works as a website logo and a community sticker.\nAvoid: Go gopher proportions or features, frog memes, existing frog mascots, superhero likenesses, huge eyeballs, human hands, extra limbs, extra fingers, crowns, hats, clothing, lily pads, leaves, ponds, circles or shields, hidden letters, Z monograms, abstract symbols, code brackets, props, scenery, glossy 3D, gradients, shadows, extra words, watermark.",
+        "sha256": "1f8f686e564d1f41818f2bbb77089eb0a89c1df51d72a2044041001f6132b58f",
+        "backup": "backup/mascot-proposals/with-wordmark/04-tree-frog.png"
+      },
+      "input_image": "backup/mascot-proposals/with-wordmark/04-tree-frog.png"
+    }
+  ],
+  "generation_calls_completed": 4,
+  "validation": {
+    "local_tests": "passed",
+    "tests": [
+      "Four requested proposal files are distinct decodable PNG images.",
+      "Each image is RGBA with both fully transparent and opaque pixels.",
+      "Visible content above alpha=1 lies inside image bounds.",
+      "All four outputs visually inspected: one animal and no text.",
+      "Every edited image differs from its original; exact originals retained in ignored backup."
+    ],
+    "scope": "Asset-only local validation of 01-capybara, 02-kingfisher, 03-pangolin and 04-tree-frog. Other files in the folder are outside this task's edits.",
+    "notes": "Generated pixels and alpha preserved without retouching. Subtle generated shading and faint alpha artifacts may remain. Raster exploration proposals."
+  },
+  "edit_calls_completed": 4,
+  "revision": "Animal-only correction requested by owner; all lettering removed.",
+  "selected_proposal": "01-capybara",
+  "selected_asset": "site/assets/logo-capybara.png",
+  "selection": "Owner selected the text-free capybara mascot for Ziran."
+}

@@ -1,0 +1,18 @@
+NoGreater :: (values: [2]s64) -> bool { return values[0] <= values[1] }
+#law ExactLarge custom !NoGreater(s64.[9007199254740993, 9007199254740992]);
+#law UnsignedOrder custom cast(u64)18446744073709551615 > cast(u64)9223372036854775808;
+#law UnsignedDivide custom cast(u64)18446744073709551615 / cast(u64)3 == cast(u64)6148914691236517205;
+#law UnsignedSignedCast custom cast(s64)(cast(u64)18446744073709551615) == cast(s64)(-1);
+#law NarrowSignedCast custom cast(u8)(cast(s8)(-1)) == cast(u8)255;
+#law InvertByte custom ~cast(u8)0 == cast(u8)255;
+#law ShiftByte custom (cast(s8)(-128) >> cast(s8)1) == cast(s8)(-64);
+#law MinDivide custom cast(s64)(-9223372036854775808) / cast(s64)(-1) == cast(s64)(-9223372036854775808);
+Code :: enum u8 { Ok, Failed }
+#law EnumCast custom cast(u8)(cast(Code)255) == cast(u8)255;
+#program_export
+Answer :: () -> s32 {
+@CHECKS@
+    if NoGreater(s64.[9007199254740993, 9007199254740992]) { return 2 }
+    if cast(u64)18446744073709551615 <= cast(u64)9223372036854775808 { return 3 }
+    return 42
+}

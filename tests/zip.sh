@@ -3,7 +3,9 @@ set -eu
 
 ziran=$1
 tool_dir=$(dirname "$ziran")
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/zip-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" check --root tests/spec --module-path std tests/spec/zip_test.zi
@@ -33,13 +35,6 @@ int main(int argc, char **argv) {
     return StreamingTest((uint8_t *)argv[1], (uint8_t *)argv[2]);
 }
 EOF
-python3 - "$work/large.zip" <<'PY'
-from zipfile import ZIP_DEFLATED, ZipFile
-import sys
-
-with ZipFile(sys.argv[1], "w") as archive:
-    archive.writestr("long", b"OggS" + b"A" * 150000,
-                     compress_type=ZIP_DEFLATED)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/zip_interop_cases.zi" -- "$ziran" "$work" generate
 (cd "$work" && env -u DISPLAY -u WAYLAND_DISPLAY "$work/zip-test" \
     "$work/large.zip" "$work/large-output.bin")

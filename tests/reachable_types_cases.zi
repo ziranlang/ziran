@@ -1,0 +1,101 @@
+#import "native_test"
+#import "header_graph_fixture"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LateFieldOracle :: (seed: s64, consumers: s64) -> s64 {
+    return (3 * seed + 3) * consumers * (consumers + 1) / 2 + seed + 3
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "reachable-types-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    settings := string.["GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOWORK=off"]
+    for setting: settings { VecPush(test.environment, setting) }
+    groups: s64 = 8; width: s64 = 64; consumers: s64 = 32
+    source := CheckPath(test.work, "source")
+    if !HeaderGraphFixture(*test, source, groups, width, consumers) { return 1 }
+    for number: cast(s64)0..consumers - 1 {
+        path := CheckPath(source, CheckConcat("consumer", CheckConcat(GraphNumber(number, 2), ".zi")))
+        text := NativeRead(*test, path)
+        old := "cast(s64)(value.g0.l0.value)"
+        at := TextFind(text, old)
+        if !NativeAssert(*test, at >= 0 && TextFind(text, old, at + old.count) < 0, "late field fixture was not applied exactly once") { return 1 }
+        if !NativeWrite(*test, path, TextReplace(text, old, "cast(s64)(value.g0.l0.value * 2 + value.g7.l63.value)")) { return 1 }
+    }
+    imports: Vec(u8)
+    BuilderAppend(imports, "#scope_export\nCommon :: #import \"common\";\n")
+    for number: cast(s64)0..consumers - 1 {
+        BuilderAppend(imports, CheckConcat("C", CheckConcat(CheckNumber(number), CheckConcat(" :: #import \"consumer", CheckConcat(GraphNumber(number, 2), "\";\n")))))
+    }
+    opened := TextDetach(BuilderFinish(imports))
+    body: Vec(u8)
+    BuilderAppend(body, "#program_export\nAnswer :: (seed: s64) -> s64 {\nvalue: Common.Bundle\nvalue.g0.l0.value = cast(u32)(seed)\nresult := cast(s64)(Prepare(*value, cast(u32)(seed)))\n")
+    for number: cast(s64)0..consumers - 1 { BuilderAppend(body, CheckConcat("result += C", CheckConcat(CheckNumber(number), ".Read(*value)\n"))) }
+    BuilderAppend(body, "return result\n}\n#program_export\nMain :: () -> s64 { return Answer(7) + Answer(9) }\n#program_export\nCheck :: () -> s32 { ")
+    expected7 := CheckNumber(LateFieldOracle(7, consumers)); expected9 := CheckNumber(LateFieldOracle(9, consumers))
+    BuilderAppend(body, CheckConcat("if Answer(7) != ", CheckConcat(expected7, CheckConcat(" { return 1 }; if Answer(9) != ", CheckConcat(expected9, " { return 1 }; return 0 }\n")))))
+    declarations := TextDetach(BuilderFinish(body))
+    prepare := "Prepare :: (value: *Common.Bundle, seed: u32) -> u32 { value.g7.l63.value = seed + 3; return value.g7.l63.value }\n"
+    entry_source := CheckPath(source, "app.zi")
+    if !NativeWrite(*test, entry_source, CheckConcat(opened, CheckConcat(prepare, declarations))) { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", source, "-o", ir, entry_source]; unused NativeRun(*test, save[:])
+    forms := string.["source", "saved"]
+    targets := string.["c", "go"]
+    expected := CheckConcat(CheckNumber(LateFieldOracle(7, consumers) + LateFieldOracle(9, consumers)), "\n")
+    for form: forms {
+        root := ifx form == "source" then source else ir
+        entry := ifx form == "source" then entry_source else CheckPath(ir, "app.zir")
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        portable := string.[test.ziran, "bundle", "--root", root, "--entry", "app:Main", "-o", bundle, entry]; unused NativeRun(*test, portable[:])
+        execute := string.[test.ziran, "run", bundle]; unused NativeExpect(*test, execute[:], expected)
+        for target: targets {
+            output := CheckPath(test.work, CheckConcat(form, CheckConcat("-", target)))
+            generate: Vec(string)
+            options := string.[test.ziran, "build", CheckConcat("--target=", target), "--root", root, "-o", output]
+            for option: options { VecPush(generate, option) }
+            if target == "go" { VecPush(generate, "--pkg"); VecPush(generate, "main") }
+            VecPush(generate, entry); unused NativeRun(*test, generate[:])
+            compile: Vec(string)
+            if target == "c" {
+                host := CheckConcat("#include \"app.h\"\nint main(void) { return Answer(7) == ", CheckConcat(expected7, CheckConcat(" && Answer(9) == ", CheckConcat(expected9, " ? 0 : 1; }\n"))))
+                if !NativeWrite(*test, CheckPath(output, "driver.c"), host) { return 1 }
+                flags := string.[NativeCompiler(), "-O2", "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+                for flag: flags { VecPush(compile, flag) }
+            } else {
+                host := CheckConcat("package main\nfunc main() { if App_Answer(7) != ", CheckConcat(expected7, CheckConcat(" || App_Answer(9) != ", CheckConcat(expected9, " { panic(\"late record fields\") } }\n"))))
+                if !NativeWrite(*test, CheckPath(output, "main.go"), host) { return 1 }
+                VecPush(compile, "go"); VecPush(compile, "build")
+            }
+            executable := CheckPath(output, "run")
+            VecPush(compile, "-o"); VecPush(compile, executable)
+            files := NativeFiles(output, ifx target == "c" then ".c" else ".go")
+            for file: files { VecPush(compile, file) }
+            unused NativeRun(*test, compile[:])
+            run := string.[executable]; unused NativeRun(*test, run[:])
+        }
+    }
+    if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "source.zx"), CheckPath(test.work, "saved.zx")), "late-field bundles differ") { return 1 }
+    foreign := "host :: #system_library \"host\";\nPrepare :: (value: *Common.Bundle, seed: u32) -> u32 #foreign host \"prepare\";\n"
+    if !NativeWrite(*test, entry_source, CheckConcat(opened, CheckConcat(foreign, declarations))) { return 1 }
+    foreign_ir := CheckPath(test.work, "foreign-ir")
+    save_foreign := string.[test.ziran, "ir", "--root", source, "-o", foreign_ir, entry_source]; unused NativeRun(*test, save_foreign[:])
+    for form: forms {
+        root := ifx form == "source" then source else foreign_ir
+        entry := ifx form == "source" then entry_source else CheckPath(foreign_ir, "app.zir")
+        output := CheckPath(test.work, CheckConcat("foreign-", form))
+        if !NativeWrite(*test, CheckPath(output, "host.c"), HeaderGraphHost(groups, width)) { return 1 }
+        generate := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "app:Check", "--root", root, "-o", output, entry]
+        unused NativeRun(*test, generate[:])
+        run := string.[CheckPath(output, "app")]; unused NativeRun(*test, run[:])
+    }
+    if test.failed { return 1 }
+    print("554-module late fields preserve source/saved VM/C/Go execution and the complete 2048-byte foreign ABI\n")
+    return 0
+}

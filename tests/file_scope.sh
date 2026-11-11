@@ -2,7 +2,9 @@
 set -eu
 
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/file-scope-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/part.zi" <<'ZI'
@@ -368,7 +370,7 @@ cat > "$work/main.zi" <<'ZI'
 Answer :: () -> s32 { return 2 }
 ZI
 reject 'colliding #program_export procedure: Answer'
-long=$(python3 -c 'print(", ".join("a%d_%s: T" % (i, "x" * 120) for i in range(30)))')
+long=$("$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" private-signature)
 printf '#scope_file\nT :: struct { v: s32 }\nUse :: (%s) { }\n' "$long" > "$work/part.zi"
 cat > "$work/main.zi" <<'ZI'
 #load "part.zi";

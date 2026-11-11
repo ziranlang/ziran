@@ -1,0 +1,37 @@
+// Exercise the native Wasmtime CLI with real Wasm imports and exported calls.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "wasmtime-engine-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc >= 6, "pass native Wasmtime, mode and module") { return 1 }
+    engine := TextFromCString(argv[3]); mode := TextFromCString(argv[4])
+    if !NativeAssert(*test, mode == "scalar" && argc == 7 || mode == "budget" && argc == 6 || mode == "simd", "invalid native Wasmtime host arguments") { return 1 }
+    last: s32 = ifx mode == "simd" then argc - 1 else 5
+    for index: cast(s32)5..last {
+        command: Vec(string); VecPush(command, engine); VecPush(command, "run"); VecPush(command, "--invoke"); VecPush(command, ifx mode == "simd" then "Answer" else "zx_entry")
+        if mode != "simd" {
+            budget := ifx mode == "budget" then "5" else TextFromCString(argv[6]); value, valid := TextInteger(budget)
+            if !NativeAssert(*test, valid && value > 0, "invalid Wasmtime budget") { return 1 }
+            host := CheckPath(test.work, "wasmtime-host.wat")
+            parts := string.["(module (global (export \"budget\") (mut i64) (i64.const ", NativeSigned(value), ")) (func (export \"overrun\") unreachable))\n"]
+            if !NativeWrite(*test, host, TextJoin(parts[:], "")) { return 1 }
+            VecPush(command, "--preload"); VecPush(command, CheckConcat("zx=", host))
+        }
+        VecPush(command, TextFromCString(argv[index])); result := NativeInvoke(*test, command[:], "", 45000)
+        if mode == "budget" {
+            if !NativeAssert(*test, (result.code == 1 || result.code == 134) && !result.timed_out && TextContains(result.error, "wasm trap: wasm `unreachable` instruction executed"),
+                CheckConcat("native Wasmtime did not trap in the imported overrun handler (exit ", CheckConcat(NativeSigned(result.code), CheckConcat("): ", result.error)))) { return 1 }
+        } else {
+            if !NativeAssert(*test, result.code == 0, CheckConcat("native Wasmtime module failed: ", result.error)) { return 1 }
+            print("%", result.output)
+        }
+    }
+    return 0
+}

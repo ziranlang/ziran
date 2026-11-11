@@ -1,9 +1,11 @@
 #!/bin/sh
 # Exercise the real diagnostic writer with Android's log sink stubbed locally.
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-mkdir -p "$root/work"
-work=$(mktemp -d "$root/work/diagnostic-android.XXXXXX")
+ziran=${1:-"$root/build/bin/ziran"}
+mkdir -p "$root/build/tests"
+work=$(mktemp -d "$root/build/tests/diagnostic-android.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir "$work/android"
 cat > "$work/android/log.h" <<'HEADER'
@@ -69,12 +71,5 @@ for target in native android; do
     "$work/test-$target" 2> "$work/$target.stderr"
 done
 cmp "$work/native.stderr" "$work/android.stderr"
-python3 - "$work/native.stderr" <<'PY'
-import json,sys
-from pathlib import Path
-lines=Path(sys.argv[1]).read_text().splitlines()
-assert lines[:2] == ['fixture.zi:7:3: portable execution failed in Frame',
-                    'fixture.zi:7:3: warning: warning 42'], lines
-assert json.loads(lines[2])['message'] == 'second failure', lines
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- diagnostic-android "$work/native.stderr"
 echo 'local diagnostic test: Android logcat receives errors/warnings; native stderr text and JSON preserved'

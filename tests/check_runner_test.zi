@@ -1,0 +1,146 @@
+// Exercise the real native controller with disposable files and child
+// processes; no Python mocks or second implementation of the controller.
+#import "check_support"
+#import "check_plan"
+#import "check_cache"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+CheckTestInvoke :: (self: string, root: string, flags: []string, environment: []string = check_empty_environment[:]) -> (output: string, code: s32) {
+    arguments: Vec(string)
+    VecPush(arguments, self)
+    VecPush(arguments, "--repo"); VecPush(arguments, root)
+    VecPush(arguments, "--bin-dir"); VecPush(arguments, CheckPath(root, "build/bin"))
+    VecPush(arguments, "--jobs"); VecPush(arguments, "1")
+    VecPush(arguments, "--filter"); VecPush(arguments, "fixture")
+    for flag: flags { VecPush(arguments, flag) }
+    output, code := CheckCapture(arguments[:], root, environment)
+    return output, code
+}
+
+CheckTestReport :: (root: string, name: string) -> s64 {
+    text, valid := ReadEntireFile(CheckPath(root, "build/check-logs/results.json"))
+    document: JsonDocument
+    if !valid || !JsonRead(*document, text) { return -1 }
+    return CheckInteger(*document, document.root, name)
+}
+
+CheckTestRun :: (self: string, root: string, flags: []string, wanted: s64, reused: s64,
+    failed: s64 = 0, environment: []string = check_empty_environment[:]) -> bool {
+    output, code := CheckTestInvoke(self, root, flags, environment)
+    valid := code == (ifx failed > 0 then 1 else 0) &&
+        CheckTestReport(root, "total") == 1 && CheckTestReport(root, "executed") == wanted &&
+        CheckTestReport(root, "reused") == reused && CheckTestReport(root, "failed") == failed
+    if !valid { print("Native check fixture failed: %\n", output) }
+    return valid
+}
+
+CheckPlanTest :: () -> bool {
+    cases: Vec(CheckCase)
+    names: [7]string = .["a.sh", "b.sh", "c.sh", "d.sh", "e.sh", "f.sh", "g.sh"]
+    for name: names {
+        cost: s64 = ifx name == "b.sh" then 800 else ifx name == "d.sh" then 650 else ifx name == "f.sh" then 300 else 0
+        VecPush(cases, CheckCase.{.name = name, .cost = cost})
+    }
+    selected := PlanChecks(cases[:]); expected := s64.[1, 3, 5, 0, 2, 4, 6]
+    if selected.count != expected.count { return false }
+    for index: cast(s64)0..expected.count - 1 { if selected[index] != expected[index] { return false } }
+    return true
+}
+
+CheckCacheTest :: (self: string, root: string) -> bool {
+    if !CreateDirectories(CheckPath(root, "tests")) || !CreateDirectories(CheckPath(root, "build/bin")) { return false }
+    if !WriteEntireFile(CheckPath(root, ".gitignore"), "build/\n") ||
+        !WriteEntireFile(CheckPath(root, "fixture"), "one") ||
+        !WriteEntireFile(CheckPath(root, "tests/fixture.sh"), "exit \"${FIXTURE_STATUS:-0}\"\n") ||
+        !WriteEntireFile(CheckPath(root, "tests/other.sh"), "exit 0\n") { return false }
+    true_path := CheckExecutable("true")
+    if true_path == "" || !CopyFile(true_path, CheckPath(root, "build/bin/ziran")) { return false }
+    git: [3]string = .["git", "init", "-q"]
+    git_output, git_code := CheckCapture(git[:], root)
+    if git_code != 0 { print("%\n", git_output); return false }
+    audit: JsonDocument
+    audit.root = JsonNewObject(*audit)
+    CheckPut(*audit, audit.root, "fixture.sh", CheckHash(CheckPath(root, "tests/fixture.sh")))
+    CheckPut(*audit, audit.root, "other.sh", CheckHash(CheckPath(root, "tests/other.sh")))
+    if !WriteEntireFile(CheckPath(root, "tests/check_cache_audits.json"), JsonWrite(*audit, audit.root, JsonCompactStyle())) { return false }
+    incremental: [1]string = .["--incremental"]
+    empty: [0]string
+    if !CheckTestRun(self, root, incremental[:], 1, 0) || !CheckTestRun(self, root, incremental[:], 0, 1) { return false }
+    if !WriteEntireFile(CheckPath(root, "fixture"), "two") || !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
+    bypass: [2]string = .["--incremental", "--full"]
+    if !CheckTestRun(self, root, bypass[:], 1, 0) { return false }
+    bypass[1] = "--no-cache"
+    if !CheckTestRun(self, root, bypass[:], 1, 0) || !CheckTestRun(self, root, empty[:], 1, 0) { return false }
+    failure: [1]string = .["FIXTURE_STATUS=1"]
+    for repetition: cast(s32)0..1 {
+        unused repetition
+        if !CheckTestRun(self, root, incremental[:], 1, 0, 1, failure[:]) { return false }
+    }
+    if !CheckTestRun(self, root, incremental[:], 1, 0) || !CheckTestRun(self, root, incremental[:], 0, 1) { return false }
+    if !CheckTestRun(self, root, bypass[:], 1, 0, 1, failure[:]) || !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
+    if !WriteEntireFile(CheckPath(root, "build/check-logs/incremental.json"), "{broken") ||
+        !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
+    if !WriteEntireFile(CheckPath(root, "tests/fixture.sh"), "exit 0 # dependency scope changed\n") { return false }
+    if !CheckTestRun(self, root, incremental[:], 1, 0) || !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
+    return true
+}
+
+CheckScratchAndFailureTest :: (self: string, root: string) -> bool {
+    script := CheckPath(root, "tests/fixture.sh")
+    text := "test -d \"$TMPDIR\" || exit 5\ntest -z \"${DISPLAY:-}\" || exit 6\nprintf '%s\\n' \"$TMPDIR\"\nprintf 'first diagnostic\\n'\ni=0\nwhile test $i -lt 100000; do printf 'line\\n'; i=$((i+1)); done\nprintf 'final diagnostic\\n' >&2\nexit 124\n"
+    if !WriteEntireFile(script, text) { return false }
+    flags: [0]string
+    output, code := CheckTestInvoke(self, root, flags[:])
+    if code != 1 || TextContains(output, "first diagnostic") || !TextContains(output, "final diagnostic") { return false }
+    log := CheckPath(root, "build/check-logs/fixture.sh.log")
+    if PathStatus(log).size < 500000 { return false }
+    tail := CheckTail(log)
+    lines := TextLines(tail)
+    if lines.count > 60 || !TextContains(tail, "final diagnostic") { return false }
+    file := OpenRead(log)
+    if !file.valid { return false }
+    bytes: [4096]u8
+    count := ReadAt(file, bytes[:], 0)
+    CloseFile(file)
+    if count <= 0 { return false }
+    prefix := TextLines(TextFromBytes(bytes[:count]))
+    if prefix.count < 2 || PathExists(prefix[0]) || prefix[1] != "first diagnostic" { return false }
+    return true
+}
+
+CheckGoAdapterTest :: (self: string, root: string) -> bool {
+    folder := CheckPath(root, "go")
+    if !CreateDirectories(folder) { return false }
+    fake := CheckPath(folder, "tool")
+    if !WriteEntireFile(fake, "#!/bin/sh\nif test \"$1\" = list; then printf '{\"IgnoredGoFiles\":[\"ignored.go\"]}\\n'; exit 0; fi\nprintf '%s\\n' \"$@\"\n") ||
+        !SetPathMode(fake, 493) ||
+        !WriteEntireFile(CheckPath(folder, "ignored.go"), "// Code generated by zi2go\n//go:build cgo\npackage main\n") ||
+        !WriteEntireFile(CheckPath(folder, "plain.go"), "package main\n") { return false }
+    command: [8]string = .[self, "--go", fake, "build", "-tags", "example", CheckPath(folder, "ignored.go"), CheckPath(folder, "plain.go")]
+    output, code := CheckCapture(command[:], folder)
+    return code == 0 && !TextContains(output, "ignored.go") && TextContains(output, "plain.go") &&
+        TextHasPrefix(output, "build\n-tags\nexample\n")
+}
+
+CheckRunnerTests :: (self: string, repo: string) -> s32 {
+    if !CheckPlanTest() { print("check planner regression\n"); return 1 }
+    parent := CheckPath(repo, "build/check-logs")
+    if !CreateDirectories(parent) { return 1 }
+    root := TextDetach(CreateTemporaryDirectory(parent, "runner-test."))
+    if root == "" { return 1 }
+    defer { unused RemoveTree(root) }
+    if !CheckCacheTest(self, root) { print("native incremental cache regression\n"); return 2 }
+    if !CheckScratchAndFailureTest(self, root) { print("native scratch or failure-log regression\n"); return 3 }
+    if !CheckGoAdapterTest(self, root) { print("native Go adapter regression\n"); return 4 }
+    if CheckCost(CheckPath(root, "tests/fixture.sh")) != 0 { return 5 }
+    if !WriteEntireFile(CheckPath(root, "tests/cost.sh"), "#!/bin/sh\n# check-cost: 815\nset -eu\n") ||
+        CheckCost(CheckPath(root, "tests/cost.sh")) != 815 { return 6 }
+    print("Native Ziran check-controller tests: complete selection, cache invalidation, failures, private scratch and Go constraints passed\n")
+    return 0
+}

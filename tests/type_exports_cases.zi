@@ -1,0 +1,90 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "type-exports-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    settings := string.["GOTOOLCHAIN=local", "GOPROXY=off", "GOSUMDB=off", "GOWORK=off"]
+    for setting: settings { VecPush(test.environment, setting) }
+    source := CheckPath(test.work, "source")
+    for index: cast(s64)0..63 {
+        text := CheckConcat("#scope_export\n", ifx index < 63 then CheckConcat("using Next :: #import \"hop", CheckConcat(CheckNumber(index + 1), "\";\n"))
+            else "using Cycle :: #import \"hop0\";\nValue :: struct { number: s64 }\n")
+        if !NativeWrite(*test, CheckPath(source, CheckConcat("hop", CheckConcat(CheckNumber(index), ".zi"))), text) { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(source, "app.zi"), "#import \"hop0\";\nSurface :: #import \"hop0\";\n#program_export\nAnswer :: (seed: s64) -> s64 {\na: Value\nb: Surface.Value\na.number = seed * 3 + 5\nb.number = seed + 1\nsaved := a\na = b\nreturn saved.number + a.number\n}\n#program_export\nMain :: () -> s64 { return Answer(7) + Answer(9) }\n#program_export\nCheck :: () -> s32 { if Answer(7) != 34 { return 1 }; if Answer(9) != 42 { return 1 }; return 0 }\n") { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", source, "-o", ir, CheckPath(source, "app.zi")]
+    unused NativeRun(*test, save[:])
+    forms := string.["source", "saved"]
+    for form: forms {
+        root := ifx form == "source" then source else ir
+        entry := CheckPath(root, ifx form == "source" then "app.zi" else "app.zir")
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        portable := string.[test.ziran, "bundle", "--root", root, "--entry", "app:Main", "-o", bundle, entry]
+        unused NativeRun(*test, portable[:])
+        execute := string.[test.ziran, "run", bundle]
+        unused NativeExpect(*test, execute[:], "76\n")
+        targets := string.["c", "go"]
+        for target: targets {
+            output := CheckPath(test.work, CheckConcat(form, CheckConcat("-", target)))
+            build := string.[test.ziran, "build", CheckConcat("--target=", target), "--root", root, "-o", output]
+            command: Vec(string)
+            for item: build { VecPush(command, item) }
+            if target == "go" { VecPush(command, "--pkg"); VecPush(command, "main") }
+            VecPush(command, entry)
+            unused NativeRun(*test, command[:])
+            executable := CheckPath(output, "run")
+            compile: Vec(string)
+            if target == "c" {
+                if !NativeWrite(*test, CheckPath(output, "driver.c"), "#include \"app.h\"\nint main(void) { return Answer(7) == 34 && Answer(9) == 42 ? 0 : 1; }\n") { return 1 }
+                flags := string.[NativeCompiler(), "-O2", "-std=c11", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+                for flag: flags { VecPush(compile, flag) }
+            } else {
+                if !NativeWrite(*test, CheckPath(output, "main.go"), "package main\nfunc main() { if App_Answer(7) != 34 || App_Answer(9) != 42 { panic(\"deep exported types\") } }\n") { return 1 }
+                VecPush(compile, "go"); VecPush(compile, "build")
+            }
+            files := NativeFiles(output, ifx target == "c" then ".c" else ".go")
+            VecPush(compile, "-o"); VecPush(compile, executable)
+            for file: files { VecPush(compile, file) }
+            unused NativeRun(*test, compile[:])
+            run := string.[executable]
+            unused NativeRun(*test, run[:])
+        }
+    }
+    if !NativeAssert(*test, NativeSameFile(CheckPath(test.work, "source.zx"), CheckPath(test.work, "saved.zx")), "deep export bundles differ") { return 1 }
+    scopes := string.["module", "file"]
+    for scope: scopes {
+        folder := CheckPath(test.work, CheckConcat("private-", scope))
+        if !NativeWrite(*test, CheckPath(folder, "leaf.zi"), "Value :: struct { number: s64 }\n") { return 1 }
+        if !NativeWrite(*test, CheckPath(folder, "bridge.zi"), CheckConcat("#scope_", CheckConcat(scope, "\nusing Hidden :: #import \"leaf\";\n#scope_export\nRead :: () -> s64 { item: Value; item.number = 42; return item.number }\n"))) { return 1 }
+        if !NativeWrite(*test, CheckPath(folder, "good.zi"), "Bridge :: #import \"bridge\";\n#program_export\nAnswer :: () -> s64 { return Bridge.Read() }\n") { return 1 }
+        if !NativeWrite(*test, CheckPath(folder, "bad.zi"), "#import \"bridge\";\nBad :: (item: Value) -> s64 { return item.number }\n") { return 1 }
+        build := string.[test.ziran, "bundle", "--root", folder, "--entry", "good:Answer", "-o", CheckPath(folder, "good.zx"), CheckPath(folder, "good.zi")]
+        unused NativeRun(*test, build[:])
+        execute := string.[test.ziran, "run", CheckPath(folder, "good.zx")]
+        unused NativeExpect(*test, execute[:], "42\n")
+        reject := string.[test.ziran, "check", "--root", folder, CheckPath(folder, "bad.zi")]
+        result := NativeInvoke(*test, reject[:])
+        if !NativeAssert(*test, result.code != 0, CheckConcat("private import leaked: ", scope)) { return 1 }
+    }
+    ambiguous := CheckPath(test.work, "ambiguous")
+    names := string.["left", "right"]
+    for name: names {
+        if !NativeWrite(*test, CheckPath(ambiguous, CheckConcat(name, ".zi")), "Value :: struct { number: s64 }\n") { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(ambiguous, "facade.zi"), "using Left :: #import \"left\";\nusing Right :: #import \"right\";\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(ambiguous, "app.zi"), "#import \"facade\";\n#import \"left\";\nBad :: (item: Value) -> s64 { return item.number }\n") { return 1 }
+    reject := string.[test.ziran, "check", "--root", ambiguous, CheckPath(ambiguous, "app.zi")]
+    result := NativeInvoke(*test, reject[:])
+    if !NativeAssert(*test, result.code != 0, "ambiguous re-export ignored in favor of a direct import") { return 1 }
+    if test.failed { return 1 }
+    print("Public re-exports preserve source/saved VM/C/Go values, private boundaries and nested ambiguity\n")
+    return 0
+}

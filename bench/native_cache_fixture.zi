@@ -1,0 +1,29 @@
+// Emit the same source/FFI fixture exercised by the native cache regression.
+#import "native_test"
+#import "native_cache_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 3 { print("pass compiler and fixture directory\n"); return 2 }
+    test: NativeTest
+    test.repo = TextDetach(ResolvePath(PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))))
+    test.ziran = TextDetach(ResolvePath(TextFromCString(argv[1])))
+    directory := TextFromCString(argv[2])
+    if !NativeAssert(*test, CreateDirectories(directory), "create requested native fixture directory") { return 1 }
+    test.work = TextDetach(ResolvePath(directory)); output := CheckPath(test.work, "out with spaces"); compiler := NativeCompiler()
+    command := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "app:Answer", "--diagnostics=json", "--root", test.work, "-o", output, CheckPath(test.work, "app.zi")]
+    fixture := CacheFixture.{*test, command[:], compiler, output}
+    if !CachePrepare(fixture) { return 1 }
+    document: JsonDocument; document.root = JsonNewObject(*document)
+    CheckPut(*document, document.root, "out", output); CheckPut(*document, document.root, "headers", CheckPath(test.work, "headers"))
+    arguments := JsonNewArray(*document); for argument: command { JsonAppend(*document, arguments, JsonNewString(*document, argument)) }; JsonSet(*document, document.root, "command", arguments)
+    print("%\n", JsonWrite(*document, document.root, JsonCompactStyle()))
+    return 0
+}

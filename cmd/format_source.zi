@@ -11,6 +11,7 @@ FormatState :: struct {
     quote: u8
     escaped: bool
     delimiter: string
+    law_continuation: bool
 }
 
 Horizontal :: (byte: u8) -> bool {
@@ -51,9 +52,11 @@ RawMarker :: (line: string, at: s64) -> string {
 }
 
 TrimOutput :: (output: *Vec(u8), start: s64) {
-    while (<<output).count > start && Horizontal((<<output)[(<<output).count - 1]) {
-        unused VecPop(<<output)
+    count := (<<output).count
+    while count > start && Horizontal((<<output)[count - 1]) {
+        count -= 1
     }
+    unused VecResize(<<output, count)
 }
 
 // Structure is counted only in code. Strings and nested comments retain
@@ -105,6 +108,10 @@ ScanLine :: (state: *FormatState, line: string, output: *Vec(u8), spacing: bool)
             continue
         }
         if byte == #char "#" {
+            if index == 0 && state.indent == 0 && line.count > 4 &&
+            line[0:4] == "#law" && Horizontal(line[4]) {
+                state.law_continuation = true
+            }
             marker := RawMarker(line, index)
             if marker.count > 0 {
                 state.delimiter = marker
@@ -118,6 +125,9 @@ ScanLine :: (state: *FormatState, line: string, output: *Vec(u8), spacing: bool)
         if byte == #char "(" { state.parentheses += 1 }
         if byte == #char ")" && state.parentheses > 0 { state.parentheses -= 1 }
         token: string = ""
+        if byte == #char ";" && state.parentheses == 0 {
+            state.law_continuation = false
+        }
         if spacing {
             if byte == #char ":" && next_byte == #char ":" { token = " :: " }
             else if byte == #char "=" && next_byte == #char ">" { token = " => " }
@@ -170,7 +180,7 @@ FormatSource :: (source: string) -> Vec(u8) {
             if first < line.count {
                 indentation: s64 = state.indent
                 if line[first] == #char "}" && indentation > 0 { indentation -= 1 }
-                if state.parentheses > 0 { indentation += 1 }
+                if state.parentheses > 0 || state.law_continuation { indentation += 1 }
                 level: s64 = 0
                 while level < indentation {
                     BuilderAppend(result, "    ")

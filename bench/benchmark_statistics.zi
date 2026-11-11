@@ -1,0 +1,48 @@
+// Shared native benchmark statistics. Keep raw samples in their original order;
+// symmetric inclusive-quartile Tukey fences determine the displayed median.
+#import "std/math"
+#import "std/sort"
+using Vectors :: #import "std/vec"
+
+BenchmarkSampleStatistics :: struct {
+    valid: bool
+    lower: float64
+    upper: float64
+    median: float64
+    excluded: Vec(s64)
+    included: Vec(float64)
+}
+
+BenchmarkQuantile :: (sorted: []float64, fraction: float64) -> float64 {
+    if sorted.count == 0 { return 0.0 }
+    position := cast(float64)(sorted.count - 1) * fraction
+    lower := cast(s64)position
+    upper := ifx lower + 1 < sorted.count then lower + 1 else lower
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - cast(float64)lower)
+}
+
+BenchmarkAnalyze :: (samples: []float64) -> BenchmarkSampleStatistics {
+    if samples.count < 3 { return .{} }
+    sorted: Vec(float64)
+    for sample: samples {
+        if sample <= 0.0 || !Finite64(sample) { return .{} }
+        VecPush(sorted, sample)
+    }
+    Sort(sorted[:])
+    q1 := BenchmarkQuantile(sorted[:], 0.25)
+    q3 := BenchmarkQuantile(sorted[:], 0.75)
+    result: BenchmarkSampleStatistics
+    result.lower = q1 - 1.5 * (q3 - q1)
+    result.upper = q3 + 1.5 * (q3 - q1)
+    for index: cast(s64)0..samples.count - 1 {
+        if samples[index] < result.lower || samples[index] > result.upper { VecPush(result.excluded, index) }
+        else { VecPush(result.included, samples[index]) }
+    }
+    if result.included.count < 3 { return .{} }
+    kept: Vec(float64)
+    for value: result.included { VecPush(kept, value) }
+    Sort(kept[:])
+    result.median = BenchmarkQuantile(kept[:], 0.5)
+    result.valid = true
+    return result
+}

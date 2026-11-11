@@ -1,0 +1,102 @@
+#import "native_test"
+#import "native_build_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+CacheFixture :: struct { test: *NativeTest; command: []string; compiler: string; output: string }
+cache_no_names: [0]string;
+
+// Shared setup for the cache regression and the controlled-probe benchmark.
+// The benchmark consumes these ordinary source files instead of executing a
+// Python test module's prefix to recover its fixtures.
+CachePrepare :: (fixture: CacheFixture) -> bool {
+    test := fixture.test; header := CheckPath(test.work, "headers/config #$ space.h")
+    if !NativeWrite(test, header, "#define CONFIG 11\n") || !NativeWrite(test, CheckPath(test.work, "shared.zi"), "Increment :: 7;\n") ||
+        !NativeWrite(test, CheckPath(test.work, "leaf.zi"), CacheLeaf(1)) || !NativeWrite(test, CheckPath(test.work, "stable.zi"), "Read :: () -> s32 { return 3 }\n") ||
+        !NativeWrite(test, CheckPath(test.work, "app.zi"), "Leaf :: #import \"leaf\";\nStable :: #import \"stable\";\nlib :: #system_library \"host\";\nHost :: () -> s32 #foreign lib \"host\";\n#program_export\nAnswer :: () -> s32 { return Leaf.Read() + Stable.Read() + Host() }\n") ||
+        !NativeWrite(test, CheckPath(fixture.output, "host.c"), "#include \"config #$ space.h\"\n#ifndef BUMP\n#define BUMP 0\n#endif\nextern int base(void); int host(void) { return CONFIG + base() + BUMP; }\n") || !CacheLibrary(fixture, 20) { return false }
+    NativeSet(test, "CC", fixture.compiler); NativeSet(test, "CFLAGS", CheckConcat("-O2 -isystem ", CheckPath(test.work, "headers")))
+    NativeSet(test, "LDFLAGS", CheckConcat("-L", test.work)); NativeSet(test, "LDLIBS", "-lbase")
+    return !test.failed
+}
+
+CacheBuild :: (fixture: CacheFixture, answer: s32, mode: string = "", required: []string = cache_no_names[:], absent: []string = cache_no_names[:], fail: bool = false, directory: string = "") -> bool {
+    test := fixture.test
+    if test.failed { return false }
+    before := NativeObjects(fixture.output)
+    result := NativeInvoke(test, fixture.command, directory)
+    if !NativeAssert(test, ifx fail then result.code > 0 && result.code < 124 else result.code == 0, CheckConcat("unexpected native cache build result\n", result.error)) { return false }
+    diagnostics := TextLines(result.error)
+    for line: diagnostics {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, line) && CheckField(*document, document.root, "code") == "zir_c.toolchain", "unexpected native compiler diagnostic") { return false }
+    }
+    run := string.[CheckPath(fixture.output, "app")]
+    unused NativeRun(test, run[:], "", answer)
+    after := NativeObjects(fixture.output)
+    changes := NativeObjectUpdates(before[:], after[:])
+    if mode == "all" && !NativeAssert(test, changes.count == after.count && after.count > 0, "compiler identity did not invalidate every object") { return false }
+    if mode == "exact" && !NativeRequireNames(test, changes[:], required) { return false }
+    if mode == "contains" {
+        for name: required {
+            found := false; for changed: changes { if changed == name { found = true } }
+            if !NativeAssert(test, found, CheckConcat("expected object rebuild: ", name)) { return false }
+        }
+    }
+    for name: absent {
+        for changed: changes { if !NativeAssert(test, changed != name, CheckConcat("unexpected object rebuild: ", name)) { return false } }
+    }
+    return !test.failed
+}
+
+CacheLeaf :: (value: s64) -> string {
+    return CheckConcat("Shared :: #import \"shared\";\n#scope_file\nStep :: () -> s32 { return ", CheckConcat(CheckNumber(value), " }\n#scope_export\nRead :: () -> s32 { return Shared.Increment + Step() }\n"))
+}
+
+CacheLibrary :: (fixture: CacheFixture, value: s64) -> bool {
+    test := fixture.test
+    source := CheckPath(test.work, "base.c"); object := CheckPath(test.work, "base.o")
+    if !NativeWrite(test, source, CheckConcat("int base(void) { return ", CheckConcat(CheckNumber(value), "; }\n"))) { return false }
+    compile := string.[fixture.compiler, "-c", source, "-o", object]; unused NativeRun(test, compile[:])
+    pack := string.["ar", "rcs", CheckPath(test.work, "libbase.a"), object]; unused NativeRun(test, pack[:])
+    return !test.failed
+}
+
+CachePreserveTime :: (test: *NativeTest, path: string, reference: string, restore: bool) -> bool {
+    if restore {
+        command := string.["touch", "-r", reference, path]; unused NativeRun(test, command[:])
+        info := PathStatus(path); saved := PathStatus(reference)
+        return NativeAssert(test, info.modified == saved.modified && info.modified_nanoseconds == saved.modified_nanoseconds, "fixture mtime was not preserved")
+    }
+    command := string.["cp", "-p", path, reference]; unused NativeRun(test, command[:])
+    return !test.failed
+}
+
+CacheProxy :: (fixture: CacheFixture, source: string, output: string, revision: s64) -> bool {
+    define := CheckConcat("-DREAL_CC=", TextDetach(JsonQuote(fixture.compiler)))
+    command := string.[fixture.compiler, "-D_GNU_SOURCE", CheckConcat("-DREVISION=", CheckNumber(revision)), define, source, "-o", output]
+    unused NativeRun(fixture.test, command[:])
+    return !fixture.test.failed
+}
+
+CacheRepeatedLines :: (test: *NativeTest, path: string, value: string, count: s64) -> bool {
+    contents := NativeRead(test, path)
+    lines := TextLines(contents)
+    if !NativeAssert(test, lines.count == count, "wrong native compiler observation count") { return false }
+    for line: lines { if !NativeAssert(test, line == value, CheckConcat("unexpected native compiler argument: ", line)) { return false } }
+    return true
+}
+
+CacheProbeText :: (test: *NativeTest, path: string, lines: []string, assembler: string, insert: s64) -> bool {
+    output: Vec(u8)
+    for index: cast(s64)0..lines.count {
+        if index == insert { BuilderAppend(output, assembler); BuilderAppend(output, "\n") }
+        if index < lines.count { BuilderAppend(output, lines[index]); BuilderAppend(output, "\n") }
+    }
+    return NativeWrite(test, path, BuilderFinish(output))
+}

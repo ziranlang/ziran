@@ -158,7 +158,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "VALUE :: #run 41 + 1\n#assert VALUE == 42\n#program_export\nAnswer :: () -> s32 { return VALUE }\n",
         rejected_example = "#assert 0\n#program_export\nAnswer :: () -> s32 { return 0 }\n",
         rejection = "A false compile-time assertion fails checking.",
-        evidence = "tests/compile_run.sh\ntests/compile_time.sh\ncheck.assert\n",
+        evidence = "tests/compile_run.sh\ncheck.assert\n",
         targets = assert_targets
     },
     .{
@@ -169,7 +169,7 @@ Features :: (arguments: []string) -> s32 {
         accepted_example = "Text :: #import \"text\";\n#program_export\nAnswer :: () -> s32 {\n    if Text.LowerASCII(cast(u8)65) != cast(u8)97 { return 1 }\n    return 0\n}\n",
         rejected_example = "Text :: #import <text>;\nAnswer :: () -> s32 { return 0 }\n",
         rejection = "Jai imports require a quoted module or file name.",
-        evidence = "tests/module_paths.sh\ntests/named_imports.sh\nparse.syntax\n",
+        evidence = "tests/features.sh\nparse.syntax\n",
         targets = module_targets
     },
     .{
@@ -216,7 +216,7 @@ Features :: (arguments: []string) -> s32 {
     output_feature.accepted_example = print_accepted
     output_feature.rejected_example = print_rejected
     output_feature.rejection = "print requires a string literal format."
-    output_feature.evidence = "tests/print.sh\ntests/print_enums.sh\n"
+    output_feature.evidence = "tests/print.sh\n"
     output_feature.targets = print_targets
     law_feature: PkgFeature
     law_feature.id = "compile.laws"
@@ -236,7 +236,7 @@ Features :: (arguments: []string) -> s32 {
     widening_feature.accepted_example = "#program_export\nAnswer :: () -> s64 {\n    small: s32 = 40\n    big: s64 = small\n    return big + small\n}\n"
     widening_feature.rejected_example = "Narrow :: (x: s64) -> s32 { return x }\n"
     widening_feature.rejection = "Narrowing, sign changes, and integer-to-float conversions need an explicit cast."
-    widening_feature.evidence = "tests/implicit_widening.sh\n"
+    widening_feature.evidence = "tests/features.sh\n"
     widening_feature.targets = numeric_targets
     contract_targets: [3]PkgTargetSupport = .[
         .{target = "c", status = "supported", limit = ""},
@@ -283,7 +283,7 @@ Features :: (arguments: []string) -> s32 {
             accepted_example = "Square :: (value: s64) -> s64 { return value * value }\n#program_export\nAnswer :: () -> s64 {\n    #parallel_gpu for 0..3 {\n        local := Square(it)\n    }\n    return 42\n}\n",
             rejected_example = "shared: s64;\nAnswer :: () {\n    #parallel_gpu for 0..3 {\n        shared += it\n    }\n}\n",
             rejection = "GPU fallback retains the checked parallel-region effect rules.",
-            evidence = "tests/gpu.sh\ntests/capabilities.sh\n",
+            evidence = "tests/capabilities.sh\n",
             status = "implemented",
             targets = gpu_targets
         },
@@ -327,7 +327,7 @@ Features :: (arguments: []string) -> s32 {
             accepted_example = "Callback :: #type (value: s32) -> s32;\nIncrement :: (value: s32) -> s32 { return value + 1 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\n#program_export\nAnswer :: () -> s32 { return Apply(Increment) }\n",
             rejected_example = "Callback :: #type (value: s32) -> s32;\nWrong :: (value: bool) -> s32 { return 0 }\nApply :: (callback: Callback) -> s32 { return callback(41) }\nAnswer :: () -> s32 { return Apply(Wrong) }\n",
             rejection = "Procedure values must match their checked parameter and result signature.",
-            evidence = "tests/slots.sh\ntests/stored_slots.sh\ntests/slot_field_values.sh\n",
+            evidence = "tests/features.sh\n",
             status = "implemented",
             targets = contract_targets
         },

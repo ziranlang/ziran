@@ -3,6 +3,10 @@
 This page reports the local repository as it exists now. [Architecture](ARCHITECTURE.md),
 [`.zir`](ZIR.md), and [`.zx`](ZX.md) define the target state.
 
+Test citations below include historical verification. The lean-suite pruning
+removed redundant scripts; those fixtures remain in Git history. Run
+`make check` for the complete current suite.
+
 ## Working now
 
 - `std/simd` vector types and operations run with identical bits in native
@@ -1625,7 +1629,7 @@ This page reports the local repository as it exists now. [Architecture](ARCHITEC
   available comparison languages.
 - Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
-  `ziran add --source` are covered by `tests/packages.py`.
+  `ziran add --source` are covered by `tests/package_resolution_cases.zi`.
 - Polymorphic procedures bind `$T` through a direct, slice (`[]$T`), or
   pointer (`*$T`) parameter. `tests/generic_slice_parameter.sh` runs slice
   binders over scalars, 64-bit values, records, and subslices through source

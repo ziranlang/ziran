@@ -32,13 +32,7 @@ Answer :: () -> s32 {
         Other.first_value + Other.second_value + Other.third_value
 }
 ZI
-python3 - "$work/first.zi" <<'PYGEN'
-import sys
-with open(sys.argv[1], 'a') as source:
-    source.write('Wide :: () -> s32 {\n total: s32\n')
-    source.write(' total += One(1)\n' * 4101)
-    source.write(' return total\n}\n')
-PYGEN
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" vm-metadata
 "$ziran" ir --root "$work" -o "$work/ir" "$work/first.zi" "$work/second.zi"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/vm_metadata_cache_test.c" "$repo"/cmd/zir/zir_vm*.c \

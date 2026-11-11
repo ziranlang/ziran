@@ -1,0 +1,99 @@
+// Check selection is independent of execution. Every ordinary run selects the
+// complete retained suite, with expensive checks first.
+#import "check_support"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/byte_text_linux"
+#import "std/process_run_linux"
+using Vectors :: #import "std/vec"
+
+CheckCase :: struct {
+    name: string
+    cost: s64
+    log: string
+    scratch: string
+    started: s64
+    nanoseconds: s64
+    code: s32
+    reused: bool
+    finished: bool
+    run: ProcessRun
+}
+
+CheckCost :: (path: string) -> s64 {
+    file := OpenRead(path)
+    if !file.valid { return 0 }
+    bytes: [4096]u8
+    count := ReadAt(file, bytes[:], 0)
+    CloseFile(file)
+    if count <= 0 { return 0 }
+    lines := TextLines(TextFromBytes(bytes[:count]))
+    for line: lines {
+        prefix := "# check-cost: "
+        if TextHasPrefix(line, prefix) {
+            value, valid := TextInteger(line[prefix.count:])
+            if valid && value >= 0 { return value }
+        }
+    }
+    return 0
+}
+
+PlanChecks :: (checks: []CheckCase) -> Vec(s64) {
+    costly: Vec(s64)
+    rest: Vec(s64)
+    selected: Vec(s64)
+    for index: cast(s64)0..checks.count - 1 {
+        if checks[index].cost <= 0 { VecPush(rest, index); continue }
+        VecPush(costly, index)
+        at := costly.count - 1
+        while at > 0 {
+            left := costly[at - 1]
+            right := costly[at]
+            if checks[left].cost > checks[right].cost || checks[left].cost == checks[right].cost &&
+                CheckTextOrder(checks[left].name, checks[right].name) <= 0 { break }
+            before := costly[at - 1]
+            costly[at - 1] = costly[at]
+            costly[at] = before
+            at -= 1
+        }
+    }
+    for index: costly { VecPush(selected, index) }
+    for index: rest { VecPush(selected, index) }
+    return selected
+}
+
+CheckArguments :: (name: string, bin: string, tests: string) -> Vec(string) {
+    result: Vec(string)
+    if name == "bundle-link-test" {
+        VecPush(result, CheckPath(bin, name))
+        return result
+    }
+    VecPush(result, "sh")
+    VecPush(result, CheckPath(tests, name))
+    VecPush(result, CheckPath(bin, "ziran"))
+    extra := ""
+    if name == "host_capability.sh" { extra = "host-capability-test" }
+    if name == "host_slices.sh" { extra = "slice-host-test" }
+    if name == "host_arrays.sh" { extra = "array-host-test" }
+    if name == "portable_host_records.sh" { extra = "record-host-test" }
+    if name == "record_fields_by_name.sh" { extra = "record-fields-by-name-test" }
+    if name == "process.sh" { extra = "process-host-test" }
+    if name == "vm_vec_scope.sh" { extra = "vm-vec-scope-test" }
+    if extra != "" { VecPush(result, CheckPath(bin, extra)) }
+    return result
+}
+
+DiscoverChecks :: (repo: string, bin: string, filter: string) -> Vec(CheckCase) {
+    checks: Vec(CheckCase)
+    tests := CheckPath(repo, "tests")
+    if TextContains("bundle-link-test", filter) { VecPush(checks, CheckCase.{.name = "bundle-link-test"}) }
+    names: Vec(string)
+    if !ListDirectory(tests, *names) { return .{} }
+    for name: names {
+        if TextHasSuffix(name, ".sh") && TextContains(name, filter) {
+            VecPush(checks, CheckCase.{.name = name, .cost = CheckCost(CheckPath(tests, name))})
+        }
+    }
+    return checks
+}

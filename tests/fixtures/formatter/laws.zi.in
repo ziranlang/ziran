@@ -1,0 +1,15 @@
+Mode :: enum { Off, On }
+Add :: (a: s64, b: s64) -> s64 { return a + b }
+#law Multiline forall left: -1..1,
+right: 0..1,
+mode: Mode,
+bits: [2]0..1 =>
+// A comment, not a terminator; parentheses ( do not change indentation.
+Add(left, right) == Add(right, left) &&
+(Add(left, 0) == left || mode == .On) &&
+bits[0] <= 1;
+#law Second custom 1 == 1 &&
+true;
+After :: () -> s64 {
+return Add(20, 22)
+}

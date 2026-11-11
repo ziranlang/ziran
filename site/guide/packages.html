@@ -507,9 +507,9 @@ command to the existing Ziran project tool, then replacing consumer source/link
 reconstruction with this request and descriptor consumption. Platform-specific
 sources, link decisions and assets stay in those providers.</p>
 <p>Run the focused native fixture independently before adopting provider recipes:</p>
-<pre><code class="language-sh">env -u DISPLAY -u WAYLAND_DISPLAY TMPDIR=&quot;$PWD/work&quot; python3 tests/package_artifacts.py build/bin/ziran
+<pre><code class="language-sh">env -u DISPLAY -u WAYLAND_DISPLAY build/bin/ziran run --target=c --root tests tests/package_artifacts_cases.zi -- build/bin/ziran
 </code></pre>
 <p>The regular <code>sh tests/packages.sh build/bin/ziran</code> runner includes this fixture.
-It creates only disposable miniature input repositories under ignored <code>work/</code>.</p></section>
+It creates only disposable miniature input repositories under <code>build/tests/</code>.</p></section>
 </div></div></main>
 <footer><div class="footer-top"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><nav aria-label="Footer"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html">Docs</a><a href="../status.html">Status</a><a href="../index.html#support">Support</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a></nav></div><div class="footer-bottom"><p>A language for useful software.</p><p>© 2026 Kryon Labs · <a href="https://waozi.xyz/">Made by Waozi</a></p></div></footer></body></html>

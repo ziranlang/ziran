@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/target-diagnostics-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/plain.zi" <<'ZI'
@@ -57,15 +59,7 @@ for form in source saved; do
                 c_api) capability=ffi.c ;;
                 c_callback) capability=procedures.c-call ;;
             esac
-            python3 - "$diagnostics" "$target" "$capability" <<'PY'
-import json, pathlib, sys
-items = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
-assert len(items) == 1, items
-item = items[0]
-assert item['schema_version'] == 2 and item['severity'] == 'error', item
-assert item['target'] == sys.argv[2] and item['capability'] == sys.argv[3], item
-assert item['code'] in ('check.record', 'check.foreign') and item['line'] > 0, item
-PY
+            "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- target-unsupported "$diagnostics" "$target" "$capability"
         done
         if [ "$target" = go ]; then
             output=$work/$form-callback-output
@@ -89,11 +83,7 @@ PY
                 exit 1
             fi
             test ! -d "$output" || test -z "$(find "$output" -type f -print -quit)"
-            python3 - "$work/build.jsonl" "$target" <<'PY'
-import json, pathlib, sys
-items = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
-assert len(items) == 1 and items[0]['target'] == sys.argv[2], items
-PY
+            "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- target-build "$work/build.jsonl" "$target"
         fi
     done
     for target in go zx; do
@@ -102,11 +92,6 @@ PY
             echo "$target accepted an aggregate union during checking" >&2
             exit 1
         fi
-        python3 - "$work/union.jsonl" "$target" <<'PY'
-import json, pathlib, sys
-items = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
-assert len(items) == 1 and items[0]['target'] == sys.argv[2], items
-assert items[0]['capability'] == 'unions.scalar', items
-PY
+        "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- target-union "$work/union.jsonl" "$target"
     done
 done

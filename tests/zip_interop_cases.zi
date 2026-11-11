@@ -1,0 +1,35 @@
+// Info-ZIP is the independent archive producer and consumer for these tests.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ZipInteropGenerate :: (test: *NativeTest) -> bool {
+    contents: Vec(u8); BuilderAppend(contents, "OggS")
+    for index: 0..149999 { VecPush(contents, 65) }
+    if !NativeWrite(test, CheckPath(test.work, "long"), BuilderFinish(contents)) { return false }
+    command := string.["zip", "-q", "-Z", "deflate", CheckPath(test.work, "large.zip"), "long"]
+    unused NativeRun(test, command[:], test.work)
+    return !test.failed
+}
+
+ZipInteropRead :: (test: *NativeTest) -> bool {
+    path := CheckPath(test.work, "archive.zip"); list := string.["unzip", "-Z1", path]; names := NativeRun(test, list[:])
+    if !NativeAssert(test, !test.failed && names.output == "meta\na\n", "independent ZIP reader found the wrong names or order") { return false }
+    metadata := string.["unzip", "-p", path, "meta"]; message := string.["unzip", "-p", path, "a"]
+    first := NativeRun(test, metadata[:]); second := NativeRun(test, message[:])
+    return NativeAssert(test, !test.failed && first.output == "{}" && second.output == "hello", "independent ZIP reader found different entry bytes")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zip-interop-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc == 4, "pass generate or read") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "generate" { valid = ZipInteropGenerate(*test) }
+    else if mode == "read" { valid = ZipInteropRead(*test) }
+    return ifx valid && !test.failed then 0 else 1
+}

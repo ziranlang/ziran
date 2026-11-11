@@ -1,0 +1,4 @@
+#program_export
+main :: () #asm("x86_64+popcnt", "", "", "", "memory", "volatile") {
+    return
+}

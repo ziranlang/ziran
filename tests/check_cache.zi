@@ -1,0 +1,154 @@
+// Successful incremental results are reusable only for explicitly audited
+// scripts and an unchanged content fingerprint. Unknown inputs disable reuse.
+#import "check_support"
+#import "std/sort"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/json_document"
+using Vectors :: #import "std/vec"
+
+CheckAddPath :: (paths: *Vec(string), value: string) {
+    for index: cast(s64)0..paths.count - 1 { if (<<paths)[index] == value { return } }
+    VecPush(<<paths, value)
+}
+
+CheckWalkInputs :: (directory: string, paths: *Vec(string)) -> bool {
+    if !IsDirectory(directory) { return true }
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return false }
+    for name: names {
+        if name == "__pycache__" { continue }
+        path := CheckPath(directory, name)
+        status := PathStatus(path, false)
+        if status.kind == .Link { return false }
+        if status.kind == .Directory {
+            if !CheckWalkInputs(path, paths) { return false }
+        } else { CheckAddPath(paths, path) }
+    }
+    return true
+}
+
+CheckExecutable :: (name: string) -> string {
+    if TextContains(name, "/") {
+        status := PathStatus(name)
+        if status.kind == .File && (status.mode & 73) != 0 { return TextDetach(ResolvePath(name)) }
+        return ""
+    }
+    folders := TextSplit(EnvironmentText("PATH"), ":")
+    for folder: folders {
+        path := CheckPath(ifx folder == "" then "." else folder, name)
+        status := PathStatus(path)
+        if status.kind == .File && (status.mode & 73) != 0 { return TextDetach(ResolvePath(path)) }
+    }
+    return ""
+}
+
+CheckElf :: (path: string) -> bool {
+    file := OpenRead(path)
+    if !file.valid { return false }
+    header: [4]u8
+    count := ReadAt(file, header[:], 0)
+    CloseFile(file)
+    return count == 4 && header[0] == 127 && header[1] == 69 && header[2] == 76 && header[3] == 70
+}
+
+CheckInputFingerprint :: (repo: string, bin: string, logs: string, environment: []string) -> string {
+    if bin != CheckPath(repo, "build/bin") || IsDirectory(CheckPath(PathParent(bin), "std")) ||
+        IsDirectory(CheckPath(PathParent(bin), "include")) { return "" }
+    external: [9]string = .["ZIRAN_STD", "ZIRAN_INCLUDE", "ZIRAN_PACKAGE_MAP", "LD_PRELOAD", "LD_AUDIT",
+        "LOCPATH", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"]
+    for name: external { if EnvironmentText(name) != "" { return "" } }
+    paths: Vec(string)
+    command: [6]string = .["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
+    output, code := CheckCapture(command[:], repo, environment)
+    if code != 0 { return "" }
+    zero: [1]u8
+    filenames := TextSplit(output, TextFromBytes(zero[:]))
+    for name: filenames {
+        if name != "" { CheckAddPath(*paths, CheckPath(repo, name)) }
+    }
+    folders: [4]string = .["tests", "std", "include", "templates"]
+    for name: folders { if !CheckWalkInputs(CheckPath(repo, name), *paths) { return "" } }
+    binaries: Vec(string)
+    if !ListDirectory(bin, *binaries) { return "" }
+    for name: binaries { if IsFile(CheckPath(bin, name)) { CheckAddPath(*paths, CheckPath(bin, name)) } }
+    libraries: Vec(string)
+    if !ListDirectory(PathParent(bin), *libraries) { return "" }
+    for name: libraries {
+        if TextHasSuffix(name, ".a") && IsFile(CheckPath(PathParent(bin), name)) {
+            CheckAddPath(*paths, CheckPath(PathParent(bin), name))
+        }
+    }
+    tools: Vec(string)
+    tool_names: [13]string = .["sh", "cat", "grep", "sed", "cmp", "mktemp", "rm", "dirname", "basename", "mkdir", "cp", "timeout", "sha256sum"]
+    for name: tool_names {
+        path := CheckExecutable(name)
+        if path == "" { return "" }
+        VecPush(tools, path)
+    }
+    for name: binaries { if IsFile(CheckPath(bin, name)) { VecPush(tools, CheckPath(bin, name)) } }
+    for path: tools {
+        if !CheckElf(path) { return "" }
+        CheckAddPath(*paths, path)
+        linked: [2]string = .["ldd", path]
+        listing, result := CheckCapture(linked[:], "", environment)
+        if result != 0 || TextContains(listing, "not found") { return "" }
+        lines := TextLines(listing)
+        for line: lines {
+            tokens := TextSplit(TextTrim(line), " ")
+            for token: tokens {
+                if TextHasPrefix(token, "/") { CheckAddPath(*paths, TextDetach(ResolvePath(token))) }
+            }
+        }
+    }
+    // Hash the environment inside the child pipeline; secret values are never
+    // written to the fingerprint file or emitted to the test log.
+    environment_changes: Vec(string)
+    for value: environment { VecPush(environment_changes, value) }
+    VecPush(environment_changes, "INVOCATION_ID"); VecPush(environment_changes, "HARMONY_BUILD_OWNER")
+    env_command: [3]string = .["sh", "-c", "env -0 | sort -z | sha256sum"]
+    env_hash, env_code := CheckCapture(env_command[:], "", environment_changes[:])
+    if env_code != 0 || env_hash.count < 64 { return "" }
+    names: [2]string = .["uname", "-a"]
+    system, system_code := CheckCapture(names[:])
+    if system_code != 0 { return "" }
+    metadata: Vec(u8)
+    BuilderAppend(metadata, env_hash[:64]); BuilderAppend(metadata, "\n")
+    BuilderAppend(metadata, system); BuilderAppend(metadata, repo)
+    SortText(paths[:])
+    for path: paths {
+        status := PathStatus(path, false)
+        if status.kind == .Link { return "" }
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, path)
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, CheckNumber(cast(s64)status.mode))
+        if status.kind == .Missing { BuilderAppend(metadata, "\nmissing"); continue }
+        if status.kind != .File { return "" }
+        digest := CheckHash(path)
+        if digest == "" { return "" }
+        BuilderAppend(metadata, "\n"); BuilderAppend(metadata, digest)
+    }
+    destination := CheckPath(logs, "fingerprint.inputs")
+    if !WriteEntireFile(destination, BuilderFinish(metadata)) { return "" }
+    return CheckHash(destination)
+}
+
+CheckCacheKey :: (name: string, command: []string, repo: string, logs: string, fingerprint: string) -> string {
+    if fingerprint == "" { return "" }
+    text, valid := ReadEntireFile(CheckPath(repo, "tests/check_cache_audits.json"))
+    audit: JsonDocument
+    if !valid || !JsonRead(*audit, text) { return "" }
+    pinned := CheckField(*audit, audit.root, name)
+    if pinned == "" || pinned != CheckHash(CheckPath(repo, CheckConcat("tests/", name))) { return "" }
+    identity: Vec(u8)
+    BuilderAppend(identity, fingerprint)
+    document: JsonDocument
+    arguments := JsonNewArray(*document)
+    for value: command { JsonAppend(*document, arguments, JsonNewStringCopy(*document, value)) }
+    BuilderAppend(identity, JsonWrite(*document, arguments, JsonCompactStyle()))
+    path := CheckPath(logs, "cache-key.inputs")
+    if !WriteEntireFile(path, BuilderFinish(identity)) { return "" }
+    return CheckHash(path)
+}

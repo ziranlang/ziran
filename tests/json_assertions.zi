@@ -1,0 +1,316 @@
+// Native assertions shared by shell launchers. JSON is parsed independently
+// with std/json_document; malformed or missing records always fail.
+#import "native_test"
+#import "native_build_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+JsonTestNumber :: (document: *JsonDocument, object: s32, name: string) -> float64 {
+    text := TextDetach(JsonNumberText(document, JsonMember(document, object, name)))
+    value, valid := ParseFloat64(text)
+    return ifx valid then value else -1.0
+}
+JsonTestTrue :: (document: *JsonDocument, object: s32, name: string) -> bool {
+    return JsonKindOf(document, JsonMember(document, object, name)) == .True
+}
+JsonTestFalse :: (document: *JsonDocument, object: s32, name: string) -> bool {
+    return JsonKindOf(document, JsonMember(document, object, name)) == .False
+}
+JsonTestNamed :: (document: *JsonDocument, rows: s32, name: string, key: string = "name") -> s32 {
+    found: s32 = -1
+    for index: cast(s32)0..JsonCount(document, rows) - 1 {
+        item := JsonElement(document, rows, index)
+        if CheckField(document, item, key) == name {
+            if found >= 0 { return -1 }
+            found = item
+        }
+    }
+    return found
+}
+
+JsonTestMetadata :: (test: *NativeTest, contents: string) -> bool {
+    prefixes := string.["initializer type mismatch", "argument type mismatch", "assignment type mismatch", "return type mismatch"]
+    expected := string.["bool", "s32", "s32", "s32"]
+    actual := string.["real", "string", "string", "string"]
+    related_lines := s64.[0, 1, 5, 2]
+    counts: [4]s64
+    lines := TextLines(contents)
+    if !NativeAssert(test, lines.count > 0, "missing type mismatch metadata") { return false }
+    for line: lines {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, line) && CheckInteger(*document, document.root, "schema_version") == 2, "invalid metadata schema") { return false }
+        root := document.root
+        for index: cast(s64)0..prefixes.count - 1 {
+            if !TextHasPrefix(CheckField(*document, root, "message"), prefixes[index]) { continue }
+            counts[index] += 1
+            cause := JsonMember(*document, root, "cause")
+            if !NativeAssert(test, CheckField(*document, cause, "kind") == "type_mismatch" && CheckField(*document, cause, "subject") != "" &&
+                CheckField(*document, root, "expected_type") == expected[index] && CheckField(*document, root, "actual_type") == actual[index], "incorrect type mismatch cause or types") { return false }
+            if related_lines[index] > 0 {
+                nodes := JsonMember(*document, JsonMember(*document, root, "related_graph"), "nodes")
+                related := JsonElement(*document, nodes, 1)
+                if !NativeAssert(test, CheckInteger(*document, related, "line") == related_lines[index] && PathName(CheckField(*document, related, "path")) == "types.zi" &&
+                    CheckField(*document, related, "message") != "", "related declaration came from the wrong source location") { return false }
+            }
+        }
+    }
+    for count: counts { if !NativeAssert(test, count == 1, "missing or duplicate type mismatch diagnostic") { return false } }
+    return true
+}
+
+JsonTestNames :: (test: *NativeTest, contents: string, path: string) -> bool {
+    data := NativeRead(test, path)
+    hash := CheckHash(path)
+    lines := TextLines(data)
+    diagnostics := TextLines(contents)
+    count_found := false; compute_found := false
+    for diagnostic: diagnostics {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, diagnostic), "invalid name diagnostic") { return false }
+        root := document.root
+        suggestion := CheckField(*document, root, "suggested_name")
+        if suggestion == "count" { count_found = true }
+        else if suggestion == "Compute" { compute_found = true }
+        else { return NativeAssert(test, false, "unexpected name suggestion") }
+        kind := CheckField(*document, JsonMember(*document, root, "cause"), "kind")
+        alternatives := JsonMember(*document, root, "alternatives")
+        alternative := JsonElement(*document, alternatives, 0)
+        edits := JsonMember(*document, alternative, "edits")
+        edit := JsonElement(*document, edits, 0)
+        row := CheckInteger(*document, edit, "line") - 1
+        low := CheckInteger(*document, edit, "column") - 1
+        high := CheckInteger(*document, edit, "end_column") - 1
+        start := CheckInteger(*document, edit, "start_byte")
+        end := CheckInteger(*document, edit, "end_byte")
+        original := CheckField(*document, edit, "original")
+        if !NativeAssert(test, (kind == "unresolved_function" || kind == "unresolved_name") && JsonCount(*document, alternatives) == 1 && JsonCount(*document, edits) == 1 &&
+            TextHasPrefix(CheckField(*document, root, "semantic_id"), "zi:") && CheckField(*document, JsonMember(*document, root, "document"), "sha256") == hash &&
+            CheckField(*document, edit, "document_sha256") == hash && row >= 0 && row < lines.count && CheckInteger(*document, edit, "end_line") == row + 1 &&
+            low >= 0 && high >= low && high <= lines[row].count && start >= 0 && end >= start && end <= data.count, "invalid source-bound name edit") { return false }
+        if !NativeAssert(test, data[start:end] == original && lines[row][low:high] == original, "suggested edit does not select its original bytes") { return false }
+        lines[row] = CheckConcat(lines[row][:low], CheckConcat(CheckField(*document, edit, "replacement"), lines[row][high:]))
+    }
+    if !NativeAssert(test, count_found && compute_found, "missing name suggestions") { return false }
+    return NativeWrite(test, path, CheckConcat(TextDetach(TextJoin(lines[:], "\n")), "\n"))
+}
+
+JsonTestBoundedDiagnostic :: (test: *NativeTest, contents: string) -> bool {
+    lines := TextLines(contents)
+    if !NativeAssert(test, lines.count == 3, "wrong bounded diagnostic count") { return false }
+    for index: cast(s64)0..lines.count - 1 {
+        if !NativeAssert(test, lines[index].count + 1 <= 32768, "diagnostic exceeded byte bound") { return false }
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, lines[index]), "invalid bounded JSON") { return false }
+        root := document.root
+        alternatives := JsonMember(*document, root, "alternatives")
+        truncation := JsonMember(*document, root, "truncation")
+        if index == 0 {
+            graph := JsonMember(*document, root, "related_graph")
+            if !NativeAssert(test, CheckInteger(*document, root, "schema_version") == 2 && JsonCount(*document, truncation) == 2 &&
+                JsonTestTrue(*document, truncation, "message") && JsonTestTrue(*document, truncation, "metadata") &&
+                CheckField(*document, root, "message").count == 2048 && CheckField(*document, root, "actual_type") == "s32" &&
+                JsonKindOf(*document, JsonMember(*document, root, "expected_type")) == .Missing && JsonCount(*document, graph) == 2 &&
+                JsonCount(*document, JsonMember(*document, graph, "nodes")) == 0 && JsonCount(*document, JsonMember(*document, graph, "edges")) == 0 &&
+                JsonKindOf(*document, alternatives) == .Array && JsonCount(*document, alternatives) == 0, "bounded diagnostic dropped the wrong fields") { return false }
+        } else if index == 1 {
+            if !NativeAssert(test, CheckField(*document, root, "message") == "🙂é" && JsonCount(*document, truncation) == 2 &&
+                JsonTestFalse(*document, truncation, "message") && JsonTestFalse(*document, truncation, "metadata"), "UTF-8 diagnostic changed") { return false }
+        } else {
+            kind := JsonKindOf(*document, JsonMember(*document, root, "document"))
+            if !NativeAssert(test, CheckField(*document, root, "suggested_name") == "count" && JsonKindOf(*document, alternatives) == .Array && JsonCount(*document, alternatives) == 0 &&
+                kind != .Missing && kind != .Null, "stale source diagnostic lost its document or retained unsafe edits") { return false }
+        }
+    }
+    return true
+}
+
+JsonTestMessages :: (test: *NativeTest, argc: s32, argv: **u8) -> bool {
+    if !NativeAssert(test, argc >= 4 && (argc - 2) % 2 == 0, "pass diagnostic path/message pairs") { return false }
+    index: s32 = 2
+    while index < argc {
+        path := TextFromCString(argv[index]); expected := TextFromCString(argv[index + 1])
+        contents := NativeRead(test, path)
+        lines := TextLines(contents)
+        matched := false
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(test, JsonRead(*document, line), "malformed diagnostic") { return false }
+            if TextContains(CheckField(*document, document.root, "message"), expected) { matched = true }
+        }
+        if !NativeAssert(test, matched, CheckConcat("missing diagnostic message: ", expected)) { return false }
+        index += 2
+    }
+    return !test.failed
+}
+JsonTestProfile :: (test: *NativeTest, document: *JsonDocument, root: s32, portable: bool) -> bool {
+    if !NativeAssert(test, CheckInteger(document, root, "schema_version") == 1 && CheckInteger(document, root, "pid") > 0 &&
+        JsonTestNumber(document, root, "profile_elapsed_ms") > 0 && CheckInteger(document, root, "max_rss_kib") > 0, "invalid profile identity, timing or RSS") { return false }
+    calls := CheckInteger(document, root, "workspace_allocation_calls")
+    bytes := CheckInteger(document, root, "workspace_allocation_bytes")
+    phases := JsonMember(document, root, "phases")
+    counters := JsonMember(document, root, "counters")
+    if portable {
+        phase := JsonElement(document, phases, 0)
+        return NativeAssert(test, calls == 1 && bytes == 4096 && JsonCount(document, counters) == 1 && CheckInteger(document, counters, "portable") == 1 &&
+            JsonCount(document, phases) == 1 && CheckField(document, phase, "name") == "portable" && CheckInteger(document, phase, "calls") == 1 &&
+            JsonTestNumber(document, phase, "inclusive_ms") >= 0 && JsonTestNumber(document, phase, "inclusive_ms") <= JsonTestNumber(document, root, "profile_elapsed_ms"), "invalid portable profile")
+    }
+    if !NativeAssert(test, calls > 0 && bytes > 0 && CheckInteger(document, counters, "record_field_parse") > 0, "missing compiler profile counters") { return false }
+    required := string.["parse", "load", "check"]
+    for name: required { if !NativeAssert(test, JsonTestNamed(document, phases, name) >= 0, CheckConcat("missing phase ", name)) { return false } }
+    for index: cast(s32)0..JsonCount(document, phases) - 1 {
+        phase := JsonElement(document, phases, index)
+        if !NativeAssert(test, CheckInteger(document, phase, "calls") > 0 && JsonTestNumber(document, phase, "inclusive_ms") >= 0, "invalid compiler phase") { return false }
+    }
+    return true
+}
+
+JsonTestRecord :: (test: *NativeTest, document: *JsonDocument, mode: string, expected: string, index: s64) -> bool {
+    root := document.root
+    if mode == "native-children" {
+        counters := JsonMember(document, root, "counters")
+        return NativeAssert(test, NativeCounter(document, counters, "native_process_event") == 0 && NativeCounter(document, counters, "native_process_poll") == 2 &&
+            NativeCounter(document, counters, "native_process_spawn") == 0 && NativeCounter(document, counters, "native_process_fork") == 3, "owned compiler-child process counters changed")
+    }
+    if mode == "code" || mode == "code-count" { return NativeAssert(test, CheckField(document, root, "code") == expected, "wrong diagnostic code") }
+    if mode == "message" { return TextContains(CheckField(document, root, "message"), expected) }
+    if mode == "lifetime-backing" {
+        message := CheckField(document, root, "message")
+        return TextContains(message, "backing storage") || TextContains(message, "borrows local or temporary")
+    }
+    if mode == "move" {
+        message := CheckField(document, root, "message")
+        return TextContains(message, "binding is used after moving") || TextContains(message, "Vec operation moves its storage in an argument") ||
+            TextContains(message, "temporary Vec result must be bound") || TextContains(message, "temporary owned result must be bound")
+    }
+    if mode == "lifetime-return" {
+        if CheckField(document, root, "code") != "check.slice_lifetime" { return false }
+        message := CheckField(document, root, "message")
+        if !TextHasPrefix(expected, "pointer:") { return NativeAssert(test, TextContains(message, expected), "missing returned-view diagnostic") }
+        name := expected[8:]
+        if !NativeAssert(test, TextContains(message, CheckConcat("borrows backing storage behind pointer parameter ", CheckConcat(name, ", which the caller lends only for this call"))) &&
+            TextContains(message, "pass that storage as a slice parameter"), "pointer return diagnostic lost its explanation") { return false }
+        nodes := JsonMember(document, JsonMember(document, root, "related_graph"), "nodes")
+        found := false
+        for at: cast(s32)0..JsonCount(document, nodes) - 1 {
+            if CheckField(document, JsonElement(document, nodes, at), "message") == CheckConcat("pointer parameter ", CheckConcat(name, " is declared here")) { found = true }
+        }
+        return NativeAssert(test, found, "missing pointer declaration note")
+    }
+    if mode == "diagnostic-format" {
+        return NativeAssert(test, CheckField(document, root, "severity") == "error" && TextHasPrefix(CheckField(document, root, "code"), "check.") &&
+            PathName(CheckField(document, root, "path")) == PathName(expected) && CheckInteger(document, root, "line") > 0 && CheckInteger(document, root, "column") > 0 &&
+            CheckInteger(document, root, "end_line") >= CheckInteger(document, root, "line"), "invalid diagnostic format or source span")
+    }
+    if mode == "compiler-profile" || mode == "portable-profile" {
+        if !JsonTestProfile(test, document, root, mode == "portable-profile") { return false }
+        return index != 1 || NativeAssert(test, JsonTestNamed(document, JsonMember(document, root, "phases"), "emit.c") >= 0, "missing C emission phase")
+    }
+    if mode == "concurrent-profile" || mode == "concurrent-cold" {
+        phase := JsonTestNamed(document, JsonMember(document, root, "phases"), "concurrent_probe_phase")
+        return NativeAssert(test, CheckInteger(document, JsonMember(document, root, "counters"), "concurrent_probe") == 8 * 600 && CheckInteger(document, phase, "calls") == 8 * 600 &&
+            (mode == "concurrent-cold" || CheckInteger(document, root, "workspace_allocation_calls") >= 8 * 600), "concurrent profile lost updates")
+    }
+    if mode == "concurrent-diagnostics" {
+        return NativeAssert(test, CheckField(document, root, "code") == "zx.entry" && CheckField(document, root, "path") == "<bundle>", "invalid concurrent diagnostic")
+    }
+    if mode == "vm-profile" || mode == "vm-returns" {
+        if !NativeAssert(test, JsonTestTrue(document, root, "complete") && JsonTestFalse(document, root, "failed"), "incomplete VM profile") { return false }
+        functions := JsonMember(document, root, "functions")
+        if mode == "vm-profile" {
+            if !NativeAssert(test, CheckField(document, root, "clock") == "process_cpu" && CheckInteger(document, root, "live_value_bytes") >= 0 &&
+                JsonKindOf(document, JsonMember(document, root, "metadata_caches")) == .Missing, "invalid VM profile metadata") { return false }
+            names := string.["main", "Child", "Leaf"]
+            for name: names {
+                row := JsonTestNamed(document, functions, name, "function")
+                if !NativeAssert(test, CheckField(document, row, "module") == "app" && CheckInteger(document, row, "calls") == (ifx name == "main" then 1 else 1000), "wrong VM call count") { return false }
+                if name == "Leaf" && !NativeAssert(test, CheckInteger(document, row, "self_allocations") > 0, "missing leaf allocations") { return false }
+            }
+            for at: cast(s32)0..JsonCount(document, functions) - 1 {
+                row := JsonElement(document, functions, at)
+                if CheckField(document, row, "module") != "app" { continue }
+                own := JsonTestNumber(document, row, "self_cpu_ms")
+                if !NativeAssert(test, own >= 0 && JsonTestNumber(document, row, "inclusive_cpu_ms") >= own, "invalid inclusive/self VM timings") { return false }
+            }
+            return true
+        }
+        names := string.["MakeRecord", "MakeArray", "MakeArrayLiteral", "RelayRecord", "RelayArray", "GuardedRecord", "GuardedArray", "GuardedPointerArray", "GuardedNested"]
+        allocations := s64.[0, 1, 1, 0, 0, 0, 2, 2, 4]
+        for at: cast(s64)0..names.count - 1 {
+            row := JsonTestNamed(document, functions, names[at], "function")
+            calls := CheckInteger(document, row, "calls")
+            if !NativeAssert(test, calls > 0 && CheckInteger(document, row, "self_allocations") == calls * allocations[at], CheckConcat("wrong aggregate return allocations: ", names[at])) { return false }
+        }
+        return true
+    }
+    return NativeAssert(test, false, CheckConcat("unknown JSON assertion mode: ", mode))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 3 { print("pass assertion mode and JSONL path\n"); return 2 }
+    mode := TextFromCString(argv[1])
+    test: NativeTest
+    if mode == "messages" { return ifx JsonTestMessages(*test, argc, argv) then 0 else 1 }
+    path := TextFromCString(argv[2])
+    expected := ifx argc > 3 then TextFromCString(argv[3]) else ""
+    contents := NativeRead(*test, path)
+    if test.failed { return 1 }
+    if mode == "code-message" && argc == 5 {
+        lines := TextLines(TextTrimEnd(contents)); found := false
+        if !NativeAssert(*test, lines.count > 0, "missing diagnostic records") { return 1 }
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(*test, JsonRead(*document, line), "malformed diagnostic JSON") { return 1 }
+            if CheckField(*document, document.root, "code") == expected && TextContains(CheckField(*document, document.root, "message"), TextFromCString(argv[4])) { found = true }
+        }
+        return ifx NativeAssert(*test, found, CheckConcat("missing diagnostic code/message: ", expected)) then 0 else 1
+    }
+    if mode == "target-unsupported" || mode == "target-build" || mode == "target-union" {
+        rows := TextLines(TextTrimEnd(contents))
+        if !NativeAssert(*test, rows.count == 1, "expected one target diagnostic") { return 1 }
+        document: JsonDocument
+        if !NativeAssert(*test, JsonRead(*document, rows[0]) && CheckField(*document, document.root, "target") == expected, "wrong target diagnostic") { return 1 }
+        if mode == "target-build" { return 0 }
+        capability := ifx mode == "target-union" then "unions.scalar" else ifx argc > 4 then TextFromCString(argv[4]) else ""
+        if !NativeAssert(*test, capability != "" && CheckField(*document, document.root, "capability") == capability, "wrong unsupported target capability") { return 1 }
+        if mode == "target-union" { return 0 }
+        code := CheckField(*document, document.root, "code")
+        return ifx NativeAssert(*test, CheckInteger(*document, document.root, "schema_version") == 2 && CheckField(*document, document.root, "severity") == "error" &&
+            (code == "check.record" || code == "check.foreign") && CheckInteger(*document, document.root, "line") > 0, "invalid unsupported capability diagnostic schema or source location") then 0 else 1
+    }
+    if mode == "diagnostic-metadata" { return ifx JsonTestMetadata(*test, contents) then 0 else 1 }
+    if mode == "diagnostic-names" { return ifx JsonTestNames(*test, contents, expected) then 0 else 1 }
+    if mode == "diagnostic-bounds" { return ifx JsonTestBoundedDiagnostic(*test, contents) then 0 else 1 }
+    if mode == "diagnostic-android" {
+        lines := TextLines(contents)
+        if !NativeAssert(*test, lines.count == 3 && lines[0] == "fixture.zi:7:3: portable execution failed in Frame" && lines[1] == "fixture.zi:7:3: warning: warning 42", "native Android diagnostic text changed") { return 1 }
+        document: JsonDocument
+        return ifx NativeAssert(*test, JsonRead(*document, lines[2]) && CheckField(*document, document.root, "message") == "second failure", "native Android diagnostic JSON changed") then 0 else 1
+    }
+    lines := TextLines(TextTrimEnd(contents))
+    if !NativeAssert(*test, lines.count > 0, "missing JSON records") { return 1 }
+    wanted: s64 = -1
+    if mode == "compiler-profile" || mode == "vm-profile" { wanted = 2 }
+    if mode == "portable-profile" || mode == "concurrent-profile" || mode == "concurrent-cold" || mode == "vm-returns" || mode == "native-children" { wanted = 1 }
+    if mode == "concurrent-diagnostics" { wanted = 8 }
+    if wanted >= 0 && !NativeAssert(*test, lines.count == wanted, "wrong JSON record count") { return 1 }
+    if mode == "vm-profile" && !NativeAssert(*test, !TextContains(contents, "arguments-must-never-enter-a-profile"), "VM profile disclosed argument data") { return 1 }
+    matches: s64 = 0
+    for index: cast(s64)0..lines.count - 1 {
+        document: JsonDocument
+        if !NativeAssert(*test, JsonRead(*document, lines[index]), CheckConcat("malformed JSON: ", path)) { return 1 }
+        if JsonTestRecord(*test, *document, mode, expected, index) { matches += 1 }
+        if test.failed { return 1 }
+    }
+    any := mode == "message" || mode == "lifetime-backing" || mode == "move"
+    valid := ifx mode == "lifetime-return" then matches == 1 else ifx any then matches > 0 else matches == lines.count
+    if !NativeAssert(*test, valid, CheckConcat("JSON assertions failed: ", mode)) { return 1 }
+    return 0
+}

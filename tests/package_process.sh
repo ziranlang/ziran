@@ -3,29 +3,34 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/package-process-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
+"$ziran" build --target=c --exe --root "$repo/tests" --entry process_fixture:main \
+    -o "$work/child" "$repo/tests/process_fixture.zi"
+export ZIRAN_PROCESS_FIXTURE="$work/child/process_fixture"
 
 cat > "$work/transport.zi" <<'ZI'
 #import "package_process"
 #import "std/byte_text_linux"
 #import "std/file_linux"
+#import "std/environment_linux"
 
 Check :: (directory: string) -> s32 {
     output: [4096]u8
     names: [1]string = .["ZIRAN_PROCESS_TEST"]
     values: [1]string = .["child ; $literal"]
     none: [0]string
-    args: [4]string = .["python3", "-c", "import sys;sys.stdout.write(sys.argv[1])",
+    args: [3]string = .[EnvironmentText("ZIRAN_PROCESS_FIXTURE"), "text",
         "quotes ' \" ; $(literal) * spaces"]
     if RunProcess(args[:], "", none[:], none[:], output[:]) != 0 { return 1 }
-    if TextFromCString(*output[0]) != args[3] { return 2 }
-    args[2] = "import os;print(os.environ['ZIRAN_PROCESS_TEST'])"
+    if TextFromCString(*output[0]) != args[2] { return 2 }
+    args[1] = "environment"
+    args[2] = "ZIRAN_PROCESS_TEST"
     if RunProcess(args[:], "", names[:], values[:], output[:]) != 0 { return 3 }
     if TextFromCString(*output[0]) != "child ; $literal\n" { return 4 }
     if RunProcess(args[:], "", none[:], none[:], output[:]) != 0 { return 5 }
     if TextFromCString(*output[0]) != "parent\n" { return 6 }
-    args[2] = "import os;print(os.environ.get('ZIRAN_PROCESS_TEST','unset'))"
     clear: [1]string = .[""]
     if RunProcess(args[:], "", names[:], clear[:], output[:]) != 0 { return 25 }
     if TextFromCString(*output[0]) != "unset\n" { return 26 }
@@ -40,8 +45,8 @@ Check :: (directory: string) -> s32 {
     missing: [1]string = .["/ziran-test-no-such-executable"]
     if RunProcess(missing[:], "", none[:], none[:], output[:]) != 127 { return 12 }
     if RunProcess(pwd[:], "/ziran-test-no-such-directory", none[:], none[:], output[:]) != 127 { return 13 }
-    args[2] = "import os,sys;os.write(1,b'x'*1000000);open(sys.argv[1]+'/drained','w').write('done')"
-    args[3] = directory
+    args[1] = "drain"
+    args[2] = directory
     small: [4]u8
     if RunProcess(args[:], "", none[:], none[:], small[:]) != -1 { return 14 }
     if TextFromCString(*small[0]) != "xxx" { return 15 }

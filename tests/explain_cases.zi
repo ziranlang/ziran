@@ -1,0 +1,114 @@
+// Discover emitted codes independently from the registry used by explain.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/sort"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ExplainSpace :: (byte: u8) -> bool { return byte == 32 || byte >= 9 && byte <= 13 }
+ExplainCodeByte :: (byte: u8) -> bool { return byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95 || byte == 46 || byte == 45 }
+ExplainNameByte :: (byte: u8) -> bool { return byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95 }
+
+ExplainAdd :: (codes: *Vec(string), value: string) {
+    for index: cast(s64)0..codes.count - 1 { if (<<codes)[index] == value { return } }
+    VecPush(<<codes, TextDetach(TextCopy(value)))
+}
+
+ExplainLiteral :: (text: string, start: s64, limit: s64) -> string {
+    if start < 0 || start >= limit || text[start] != 34 { return "" }
+    at := start + 1
+    while at < limit && ExplainCodeByte(text[at]) { at += 1 }
+    if at > start + 1 && at < limit && text[at] == 34 { return text[start + 1:at] }
+    return ""
+}
+
+ExplainCalls :: (text: string, names: []string, codes: *Vec(string), mode: s32) {
+    for name: names {
+        cursor: s64
+        while cursor < text.count {
+            found := TextFind(text, name, cursor)
+            if found < 0 { break }; cursor = found + name.count
+            if mode == 2 && found > 0 && ExplainNameByte(text[found - 1]) { continue }
+            at := cursor
+            while at < text.count && ExplainSpace(text[at]) { at += 1 }
+            if at >= text.count || text[at] != 40 { continue }; at += 1
+            if mode == 0 {
+                limit := TextFind(text, ");", at); if limit < 0 { limit = text.count - 1 }
+                first := at
+                while first < limit && ExplainSpace(text[first]) { first += 1 }
+                declaration := "ZirSourceSpan"
+                if first + declaration.count <= limit && text[first:first + declaration.count] == declaration && (first + declaration.count == limit || !ExplainNameByte(text[first + declaration.count])) { continue }
+                quote := at
+                while quote < limit {
+                    if text[quote] == 34 {
+                        value := ExplainLiteral(text, quote, limit)
+                        if value != "" { ExplainAdd(codes, value); break }
+                    }
+                    quote += 1
+                }
+                continue
+            }
+            if mode == 1 {
+                while at < text.count && ExplainSpace(text[at]) { at += 1 }
+                value := ExplainLiteral(text, at, text.count)
+                if value != "" { ExplainAdd(codes, value) }
+                continue
+            }
+            start := at
+            while at < text.count && text[at] != 34 && text[at] != 10 && text[at] != 41 { at += 1 }
+            if at >= text.count || text[at] != 34 { continue }
+            prefix := TextTrimEnd(text[start:at])
+            if prefix.count > 0 && prefix[prefix.count - 1] == 44 {
+                value := ExplainLiteral(text, at, text.count)
+                if value != "" { ExplainAdd(codes, value) }
+            }
+        }
+    }
+}
+
+ExplainInventory :: (test: *NativeTest) -> bool {
+    item: JsonDocument; listing: JsonDocument
+    if !NativeAssert(test, JsonRead(*item, NativeRead(test, CheckPath(test.work, "item.json"))) && JsonRead(*listing, NativeRead(test, CheckPath(test.work, "list.json"))), "malformed explain JSON") { return false }
+    if !NativeAssert(test, JsonCount(*item, item.root) == 5 && CheckInteger(*item, item.root, "schema_version") == 1 && CheckField(*item, item.root, "stability") == "stable-code" &&
+        CheckField(*item, item.root, "code") == "zir.noncanonical" && CheckField(*item, item.root, "summary") == "A saved-IR input or serialization is invalid or noncanonical." &&
+        CheckField(*item, item.root, "next_step") == "Regenerate .zir from current source instead of editing it, and verify that source and saved-IR checks agree.", "explain changed its stable noncanonical-IR description") { return false }
+    nodes := JsonMember(*listing, listing.root, "codes")
+    if !NativeAssert(test, CheckInteger(*listing, listing.root, "schema_version") == 1 && CheckField(*listing, listing.root, "stability") == "stable-code" && JsonKindOf(*listing, nodes) == .Array && JsonCount(*listing, nodes) > 0, "invalid explain registry schema") { return false }
+    codes: Vec(string); suffixes := string.[".c", ".h"]; calls := string.["Diagnostic", "DiagnosticV", "DiagnosticDetailed", "DiagnosticTarget", "Warning"]
+    for suffix: suffixes {
+        files := NativeFiles(CheckPath(test.repo, "cmd"), suffix, true)
+        for path: files {
+            text := NativeRead(test, path); ExplainCalls(text, calls[:], *codes, 0)
+            names := string.["DiagnosticOutOfMemory"]
+            // Its fixed diagnostic code is supplied internally, with no literal argument.
+            for name: names {
+                cursor: s64
+                while cursor < text.count {
+                    at := TextFind(text, name, cursor); if at < 0 { break }; cursor = at + name.count
+                    next := cursor; while next < text.count && ExplainSpace(text[next]) { next += 1 }
+                    if next < text.count && text[next] == 40 { ExplainAdd(*codes, "compiler.memory"); break }
+                }
+            }
+        }
+    }
+    files := NativeFiles(CheckPath(test.repo, "cmd"), ".zi")
+    first_calls := string.["PkgFailCode", "Diagnostics.Emit"]; second_calls := string.["Diagnose", "Fatal", "Fail", "Report"]
+    for path: files { text := NativeRead(test, path); ExplainCalls(text, first_calls[:], *codes, 1); ExplainCalls(text, second_calls[:], *codes, 2) }
+    if test.failed { return false }
+    SortText(codes[:])
+    if !NativeAssert(test, codes.count == JsonCount(*listing, nodes), "explain registry count differs from independently discovered emitted codes") { return false }
+    for index: cast(s64)0..codes.count - 1 {
+        if !NativeAssert(test, JsonIs(*listing, JsonElement(*listing, nodes, cast(s32)index), codes[index]), CheckConcat("explain registry sorting or coverage differs at emitted code ", codes[index])) { return false }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "explain-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx ExplainInventory(*test) && !test.failed then 0 else 1
+}

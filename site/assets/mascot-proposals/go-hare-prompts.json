@@ -1,0 +1,31 @@
+{
+  "tool": "built-in image_gen",
+  "request": "Original Ziran logos inspired by Go and Hare",
+  "references": [
+    "https://go.dev/blog/gopher",
+    "https://harelang.org/"
+  ],
+  "proposals": [
+    {
+      "id": "05-swift",
+      "prompt": "Use case: logo-brand. Asset type: one original mascot logo proposal for the Ziran programming language. Inspired by the friendly, memorable animal identity of Go and the economical animal emblem of Hare, without copying either character or silhouette. One isolated whole animal above a beautifully spaced readable wordmark. Flat vector-friendly illustration, strong compact silhouette, very few intentional details, clear at small size. Cool jade green and lake blue, deep pine outline, a tiny muted light-orange accent if useful. Genuine transparent background. Text verbatim: \"Ziran\" — uppercase Z then lowercase i r a n, exact spelling, one word only. No extra labels, symbols, hidden Z geometry, code brackets, props, scenery, mockups, gradients, shadows, gloss, 3D, watermarks or existing mascot likenesses. Plenty of empty margin around the complete animal and wordmark. Subject: a compact swift bird, one graceful full-body side profile with a pointed swept-back wing, tiny beak and short forked tail, calmly perched on its own two tiny feet with no branch. Distinctive elegant natural bird silhouette. Style: bold cut-paper emblem with one clever negative-space cut distinguishing the folded wing, restrained humanist wordmark. Quiet confidence and simplicity.",
+      "file": "05-swift.png",
+      "transparent_background": true,
+      "visual_review": "Complete animal and correctly spelled Ziran wordmark; concept artwork, not a vector production master."
+    },
+    {
+      "id": "06-dormouse",
+      "prompt": "Use case: logo-brand. Asset type: one original mascot logo proposal for the Ziran programming language. Inspired by the friendly, memorable animal identity of Go and the economical animal emblem of Hare, without copying either character or silhouette. One isolated whole animal above a beautifully spaced readable wordmark. Flat vector-friendly illustration, strong compact silhouette, very few intentional details, clear at small size. Cool jade green and lake blue, deep pine outline, a tiny muted light-orange accent if useful. Genuine transparent background. Text verbatim: \"Ziran\" — uppercase Z then lowercase i r a n, exact spelling, one word only. No extra labels, symbols, hidden Z geometry, code brackets, props, scenery, mockups, gradients, shadows, gloss, 3D, watermarks or existing mascot likenesses. Plenty of empty margin around the complete animal and wordmark. Subject: an original woodland dormouse, sitting in three-quarter view, a compact rounded body, small attentive eyes, gently rounded ears, small paws resting on the belly, a long fluffy tail curved to one side. Recognizable dormouse anatomy, no buck teeth or bulging eyes. Style: friendly economical hand-inked community mascot, confident slightly irregular outline, soft natural pose, sturdy rounded humanist lettering. Warm personality without plush-toy proportions.",
+      "file": "06-dormouse.png",
+      "transparent_background": true,
+      "visual_review": "Complete animal and correctly spelled Ziran wordmark; concept artwork, not a vector production master."
+    },
+    {
+      "id": "07-tortoise",
+      "prompt": "Use case: logo-brand. Asset type: one original mascot logo proposal for the Ziran programming language. Inspired by the friendly, memorable animal identity of Go and the economical animal emblem of Hare, without copying either character or silhouette. One isolated whole animal above a beautifully spaced readable wordmark. Flat vector-friendly illustration, strong compact silhouette, very few intentional details, clear at small size. Cool jade green and lake blue, deep pine outline, a tiny muted light-orange accent if useful. Genuine transparent background. Text verbatim: \"Ziran\" — uppercase Z then lowercase i r a n, exact spelling, one word only. No extra labels, symbols, hidden Z geometry, code brackets, props, scenery, mockups, gradients, shadows, gloss, 3D, watermarks or existing mascot likenesses. Plenty of empty margin around the complete animal and wordmark. Subject: an original little land tortoise in full-body walking side profile, domed shell with just three broad shell plates, a small raised curious head, four short coherent legs and a tiny tail. Strong low horizontal silhouette. Style: minimal modern woodcut emblem, clear large color planes, little negative-space divisions, carefully balanced sturdy serif wordmark. A patient friendly self-possessed animal with quiet character.",
+      "file": "07-tortoise.png",
+      "transparent_background": true,
+      "visual_review": "Complete animal and correctly spelled Ziran wordmark; concept artwork, not a vector production master."
+    }
+  ]
+}

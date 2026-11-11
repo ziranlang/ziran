@@ -1,0 +1,75 @@
+#import "native_test"
+#import "check_support"
+#import "transport_assertions"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+transport_no_flags: [0]string;
+
+TransportRun :: (test: *NativeTest, action: string, path: string, flags: []string = transport_no_flags[:], accepted: bool = true) -> string {
+    command: Vec(string); VecPush(command, test.ziran); VecPush(command, action); VecPush(command, "--diagnostics=json")
+    for flag: flags { VecPush(command, flag) }; VecPush(command, path)
+    result := NativeInvoke(test, command[:], "", 30000)
+    if !NativeAssert(test, accepted && result.code == 0 || !accepted && result.code > 0 && result.code < 124, CheckConcat("transport acceptance differs: ", CheckConcat(action, CheckConcat("\n", result.error)))) { return "" }
+    if !accepted {
+        if !NativeAssert(test, result.output == "", "rejected transport command emitted source") { return "" }
+        lines := TextLines(TextTrimEnd(result.error))
+        for line: lines { document: JsonDocument; if !NativeAssert(test, JsonRead(*document, line) && CheckInteger(*document, document.root, "schema_version") == 2, "malformed transport diagnostic") { return "" } }
+    }
+    return result.output
+}
+
+TransportTests :: (test: *NativeTest) -> bool {
+    fixture := CheckPath(test.work, "canonical.zi"); compact := CheckPath(test.work, "source.zic"); map_path := CheckPath(test.work, "map.json"); expanded_map := CheckPath(test.work, "expanded-map.json")
+    source := "// é 🙂 ~ repeat transport preserves all payloads\n#program_export\nAnswer :: () -> s32 {\n    if true {\n        text := \"        ~~🙂\"\n        return 42\n    }\n    return 0\n}\n"
+    if !NativeWrite(test, fixture, source) { return false }
+    format := string.[test.ziran, "fmt", fixture]; unused NativeRun(test, format[:]); original := NativeRead(test, fixture)
+    map_flags := string.["--map", map_path]; encoded := TransportRun(test, "compact", fixture, map_flags[:])
+    if test.failed || !NativeWrite(test, compact, encoded) { return false }
+    expand_flags := string.["--map", expanded_map]; restored := TransportRun(test, "expand", compact, expand_flags[:])
+    if !NativeAssert(test, !test.failed && restored == original && TransportRun(test, "compact", fixture) == encoded && NativeRead(test, fixture) == original, "compact/expand was not exact, idempotent or read-only") { return false }
+    mapping: JsonDocument; expanded: JsonDocument
+    if !NativeAssert(test, JsonRead(*mapping, NativeRead(test, map_path)) && JsonRead(*expanded, NativeRead(test, expanded_map)) &&
+        JsonWrite(*mapping, mapping.root, JsonCompactStyle(false, true)) == JsonWrite(*expanded, expanded.root, JsonCompactStyle(false, true)), "compact and expand maps differ") { return false }
+    problems := TransportValidateMap(test, *mapping, original, encoded)
+    if !NativeAssert(test, !test.failed && problems.count == 0, CheckConcat("transport map is not independently reproducible: ", TextDetach(TextJoin(problems[:], "; ")))) { return false }
+    for offset: cast(s64)0..original.count - 1 { kind, at := TransportMapOffset(*mapping, offset); if !NativeAssert(test, kind != "" && at >= 0 && at < encoded.count, "transport map omitted a canonical UTF-8 byte") { return false } }
+    invalid := string.["", "ZI-COMPACT-0\n", "ZI-COMPACT-1\n~", "ZI-COMPACT-1\n~x9;", "ZI-COMPACT-1\n~s0;", "ZI-COMPACT-1\n~s08;", "ZI-COMPACT-1\n~s7;", "ZI-COMPACT-1\n~s99999999999999999999999999;", "ZI-COMPACT-1\n~s16777217;", "ZI-COMPACT-1\na~s8;~s8;\n"]
+    for bytes: invalid { if !NativeWrite(test, compact, bytes) { return false }; unused TransportRun(test, "expand", compact, transport_no_flags[:], false); if test.failed { return false } }
+    unformatted := CheckPath(test.work, "unformatted.zi")
+    if !NativeWrite(test, unformatted, "Answer::()->s32{return 42}\n") { return false }
+    unused TransportRun(test, "compact", unformatted, transport_no_flags[:], false)
+    inputs := string.["", "Answer :: () -> s32 { return 42 }\r\n", "TEXT :: #string RAW\n        ~~~~ payload\nRAW;\n", NativeRead(test, CheckPath(test.repo, "std/vec.zi")), NativeRead(test, CheckPath(test.repo, "cmd/compiler_expression.zi"))]
+    for index: cast(s64)0..inputs.count - 1 {
+        path := CheckPath(test.work, CheckConcat("case", CheckConcat(CheckNumber(index), ".zi")))
+        if !NativeWrite(test, path, inputs[index]) { return false }; args := string.[test.ziran, "fmt", path]; unused NativeRun(test, args[:]); expected := NativeRead(test, path)
+        if test.failed || !NativeWrite(test, compact, TransportRun(test, "compact", path)) { return false }
+        if !NativeAssert(test, TransportRun(test, "expand", compact) == expected && !test.failed, "empty, CRLF, raw-string or real-module transport changed bytes") { return false }
+    }
+    linked := CheckPath(test.work, "linked.json")
+    if PathStatus(linked, false).kind != .Missing { unused RemoveFile(linked) }
+    for hard: 0..1 {
+        args: Vec(string); VecPush(args, "ln"); if hard == 0 { VecPush(args, "-s") }; VecPush(args, fixture); VecPush(args, linked); unused NativeRun(test, args[:])
+        flags := string.["--map", linked]; unused TransportRun(test, "compact", fixture, flags[:], false)
+        if !NativeAssert(test, !test.failed && NativeRead(test, fixture) == original && RemoveFile(linked), "mapping output followed a source alias or damaged canonical bytes") { return false }
+    }
+    broken := CheckPath(test.work, "broken.zi")
+    if !NativeWrite(test, broken, TextReplace(original, "return 42", "return \"bad\"")) || !NativeWrite(test, compact, TransportRun(test, "compact", broken, map_flags[:])) { return false }
+    expanded_source := TransportRun(test, "expand", compact)
+    if test.failed || !NativeWrite(test, broken, expanded_source) { return false }
+    check := string.[test.ziran, "check", "--root", test.work, "--diagnostics=json", broken]; result := NativeInvoke(test, check[:]); rows := TextLines(TextTrimEnd(result.error)); diagnostic: JsonDocument
+    if !NativeAssert(test, result.code > 0 && result.code < 124 && rows.count > 0 && JsonRead(*diagnostic, rows[0]) && CheckInteger(*diagnostic, JsonMember(*diagnostic, diagnostic.root, "document"), "bytes") == expanded_source.count, "expanded-source diagnostics address different canonical bytes") { return false }
+    print("transport: exact roundtrip, malformed/overflow rejection, complete UTF-8 maps and canonical formatting passed local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "transport-view-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx TransportTests(*test) && !test.failed then 0 else 1
+}

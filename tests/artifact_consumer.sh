@@ -1,4 +1,4 @@
 #!/bin/sh
 set -eu
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-exec python3 "$root/tests/artifact_consumer_test.py"
+exec "$1" run --target=c --root "$root/tests" "$root/tests/artifact_consumer_cases.zi" -- "$1"

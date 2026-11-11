@@ -1,0 +1,134 @@
+// Execute a package's real conformance program from source and checked IR.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ConformanceOptions :: struct {
+    ziran: string
+    tools: string
+    source: string
+    entry: string
+    library: string
+    libraries: string
+    target: string
+    build: string
+    has_libraries: bool
+}
+
+ConformanceUsage :: () {
+    print("test_native_package.sh --source FILE --entry MODULE:FUNCTION --library-dir DIR --libraries FLAGS\n")
+    print("    [--ziran COMMAND] [--tools DIR] [--target all|c|go] [--build-dir DIR]\n")
+}
+
+ConformanceOptionsRead :: (argc: s32, argv: **u8, options: *ConformanceOptions) -> bool {
+    index: s32 = 1
+    while index < argc {
+        argument := TextFromCString(argv[index]); split := TextFind(argument, "="); option := argument; value := ""
+        if split >= 0 { option = TextDetach(TextCopy(argument[:split])); value = TextDetach(TextCopy(argument[split + 1:])) }
+        else {
+            if index + 1 >= argc { print("% needs a value\n", argument); return false }
+            index += 1; value = TextFromCString(argv[index])
+        }
+        if option == "--ziran" { options.ziran = value }
+        else if option == "--tools" { options.tools = value }
+        else if option == "--source" { options.source = value }
+        else if option == "--entry" { options.entry = value }
+        else if option == "--library-dir" { options.library = value }
+        else if option == "--libraries" { options.libraries = value; options.has_libraries = true }
+        else if option == "--target" { options.target = value }
+        else if option == "--build-dir" { options.build = value }
+        else { print("unknown conformance option: %\n", option); return false }
+        index += 1
+    }
+    return options.source != "" && options.entry != "" && options.library != "" && options.has_libraries &&
+        (options.target == "all" || options.target == "c" || options.target == "go")
+}
+
+ConformanceCommand :: (test: *NativeTest, command: []string, directory: string = "") -> NativeCommand {
+    result := NativeInvoke(test, command, directory, 300000)
+    unused NativeAssert(test, result.code == 0, CheckConcat("package conformance command failed: ", CheckConcat(TextDetach(TextJoin(command, " ")), CheckConcat("\n", CheckConcat(result.output, result.error)))))
+    return result
+}
+
+ConformanceArguments :: (test: *NativeTest, value: string) -> Vec(string) {
+    result: Vec(string)
+    unused NativeAssert(test, NativeWords(value, *result), "invalid quoted native command or link flags")
+    return result
+}
+
+ConformanceRun :: (options: ConformanceOptions) -> bool {
+    test: NativeTest; test.repo = TextDetach(ResolvePath("."))
+    if !NativeAssert(*test, options.build != "" && CreateDirectories(options.build), "create package conformance output") { return false }
+    test.work = TextDetach(ResolvePath(options.build))
+    removals := string.["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"]
+    for name: removals { NativeUnset(*test, name) }; NativeSet(*test, "HARMONY_DESKTOP_RECOVERY", "0"); NativeSet(*test, "YUE_DESKTOP_RECOVERY", "0")
+    launcher := ConformanceArguments(*test, options.ziran)
+    if !NativeAssert(*test, !test.failed && launcher.count > 0, "empty package compiler command") { return false }
+    query: Vec(string); for argument: launcher { VecPush(query, argument) }; VecPush(query, "pkg"); VecPush(query, "path"); VecPush(query, "ziran")
+    located := ConformanceCommand(*test, query[:]); toolchain := TextDetach(ResolvePath(TextTrim(located.output)))
+    tools := ifx options.tools == "" then CheckPath(toolchain, "build/bin") else TextDetach(ResolvePath(options.tools))
+    standalone := CheckPath(tools, "ziran"); library := TextDetach(ResolvePath(options.library))
+    if !NativeAssert(*test, !test.failed && toolchain != "" && tools != "" && library != "" && IsFile(standalone), "missing package toolchain, tools or native library directory") { return false }
+    NativeSet(*test, "LDFLAGS", CheckConcat(CheckQuote(CheckConcat("-L", library)), CheckConcat(" ", EnvironmentText("LDFLAGS"))))
+    NativeSet(*test, "LDLIBS", options.libraries); NativeSet(*test, "LD_LIBRARY_PATH", CheckConcat(library, CheckConcat(":", EnvironmentText("LD_LIBRARY_PATH"))))
+    NativeSet(*test, "GO111MODULE", "off"); NativeSet(*test, "CGO_ENABLED", "1")
+    source_launcher: Vec(string); source_options: Vec(string)
+    if options.tools != "" {
+        VecPush(source_launcher, standalone); VecPush(source_options, "--root"); VecPush(source_options, "src"); VecPush(source_options, "--module-path"); VecPush(source_options, "tests")
+    } else {
+        for argument: launcher { VecPush(source_launcher, argument) }; VecPush(source_options, "--project")
+        if !PathExists("ziran.local.toml") { VecPush(source_options, "--locked") }
+    }
+    ir := CheckPath(test.work, "ir")
+    if IsDirectory(ir) {
+        previous := NativeFiles(ir, ".zir", true)
+        for path: previous { if !NativeAssert(*test, RemoveFile(path), "remove the conformance runner's previous generated IR") { return false } }
+    }
+    actions := string.["check", "ir"]
+    for action: actions {
+        command: Vec(string); for argument: source_launcher { VecPush(command, argument) }; VecPush(command, action); for argument: source_options { VecPush(command, argument) }
+        if action == "ir" { VecPush(command, "--entry"); VecPush(command, options.entry); VecPush(command, "-o"); VecPush(command, ir) }
+        VecPush(command, options.source); unused ConformanceCommand(*test, command[:]); if test.failed { return false }
+    }
+    saved := NativeFiles(ir, ".zir", true)
+    if !NativeAssert(*test, saved.count > 0, "no checked saved modules were emitted") { return false }
+    targets := string.["c", "go"]; kinds := string.["source", "saved"]
+    for target: targets {
+        if options.target != "all" && options.target != target { continue }
+        for kind: kinds {
+            output := CheckPath(test.work, CheckConcat(target, CheckConcat("/", kind))); command: Vec(string)
+            if kind == "source" { for argument: source_launcher { VecPush(command, argument) }; VecPush(command, "build"); for argument: source_options { VecPush(command, argument) } }
+            else { VecPush(command, standalone); VecPush(command, "build"); VecPush(command, "--root"); VecPush(command, ir) }
+            VecPush(command, CheckConcat("--target=", target)); VecPush(command, "--entry"); VecPush(command, options.entry); VecPush(command, "-o"); VecPush(command, output)
+            if target == "go" { VecPush(command, "--pkg"); VecPush(command, "main"); VecPush(command, "--exe") }
+            if kind == "source" { VecPush(command, options.source) } else { for path: saved { VecPush(command, path) } }
+            unused ConformanceCommand(*test, command[:]); if test.failed { return false }
+            program := CheckPath(output, "conformance")
+            if target == "c" {
+                compiler := ConformanceArguments(*test, ifx EnvironmentText("CC") == "" then "cc" else EnvironmentText("CC")); VecPush(compiler, "-O2"); VecPush(compiler, "-std=c99")
+                VecPush(compiler, CheckConcat("-I", CheckPath(toolchain, "include"))); VecPush(compiler, CheckConcat("-I", output)); sources := NativeFiles(output, ".c")
+                for path: sources { VecPush(compiler, path) }
+                VecPush(compiler, CheckConcat("-L", library)); flags := ConformanceArguments(*test, EnvironmentText("LDFLAGS")); for flag: flags { VecPush(compiler, flag) }
+                libraries := ConformanceArguments(*test, options.libraries); for flag: libraries { VecPush(compiler, flag) }; VecPush(compiler, "-o"); VecPush(compiler, program)
+                unused ConformanceCommand(*test, compiler[:])
+            } else { build := string.["go", "build", "-o", program, "."]; unused ConformanceCommand(*test, build[:], output) }
+            if test.failed { return false }; run := string.[program]; unused ConformanceCommand(*test, run[:]); if test.failed { return false }
+            print("PASS % (%)\n", target, kind)
+        }
+    }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    for index: cast(s32)1..argc - 1 { if TextFromCString(argv[index]) == "--help" || TextFromCString(argv[index]) == "-h" { ConformanceUsage(); return 0 } }
+    options: ConformanceOptions
+    options.ziran = "ziran"; options.target = "all"; options.build = "build/backends"
+    if !ConformanceOptionsRead(argc, argv, *options) { ConformanceUsage(); return 2 }
+    return ifx ConformanceRun(options) then 0 else 1
+}

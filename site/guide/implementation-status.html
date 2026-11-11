@@ -6,6 +6,9 @@
 <div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#working-now">Working now</a><a href="#still-required">Still required</a></aside><div class="article-body">
 <section class="prose"><p>This page reports the local repository as it exists now. <a href="architecture.html">Architecture</a>,
 <a href="zir.html"><code>.zir</code></a>, and <a href="zx.html"><code>.zx</code></a> define the target state.</p>
+<p>Test citations below include historical verification. The lean-suite pruning
+removed redundant scripts; those fixtures remain in Git history. Run
+<code>make check</code> for the complete current suite.</p>
 <h2 id="working-now">Working now</h2>
 <ul>
 <li>
@@ -1766,7 +1769,7 @@
   available comparison languages.</li>
 <li>Package manifests and lockfiles can pin source-only dependencies without a
   Ziran manifest. Resolution, checkout, map generation, drift detection, and
-  <code>ziran add --source</code> are covered by <code>tests/packages.py</code>.</li>
+  <code>ziran add --source</code> are covered by <code>tests/package_resolution_cases.zi</code>.</li>
 <li>Polymorphic procedures bind <code>$T</code> through a direct, slice (<code>[]$T</code>), or
   pointer (<code>*$T</code>) parameter. <code>tests/generic_slice_parameter.sh</code> runs slice
   binders over scalars, 64-bit values, records, and subslices through source

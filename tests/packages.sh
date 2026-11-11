@@ -2,6 +2,7 @@
 # check-cost: 290
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-python3 "$repo/tests/packages.py" "${1:?pass ziran launcher}"
-python3 "$repo/tests/package_cache_repair.py" "$1"
-python3 "$repo/tests/package_diagnostics.py" "$1"
+ziran=${1:?pass ziran launcher}
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
+shift
+exec "$ziran" run --target=c --root "$repo/tests" "$repo/tests/packages_cases.zi" -- "$ziran" "$@"

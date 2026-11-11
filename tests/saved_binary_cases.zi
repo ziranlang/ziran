@@ -1,0 +1,106 @@
+#import "native_test"
+#import "check_support"
+#import "binary_fixture_support"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+SavedBinaryAssertion :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "assert-ir/assert_selected.zir"))
+    pattern := CheckConcat(BinaryString("1"), BinaryString("\"checked marker\"")); at := TextFind(data, pattern)
+    if !NativeAssert(test, BinaryOccurrences(data, pattern) == 1, "checked assertion source must occur exactly once") { return false }
+    changed := BinaryReplaceAt(test, data, at + 1, 1, "0")
+    return !test.failed && NativeWrite(test, CheckPath(test.work, "assert-forged.zir"), changed)
+}
+
+SavedBinaryPointer :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "pointer-ir/pointer_global.zir"))
+    if !NativeAssert(test, BinaryOccurrences(data, "*s32") == 1, "pointer type must occur exactly once") { return false }
+    return NativeWrite(test, CheckPath(test.work, "pointer-ir/forged.zir"), TextReplace(data, "*s32", "s32*"))
+}
+
+SavedBinaryAssembly :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "ir/blocks.zir")); operand := "r:source=class"; first := TextFind(data, operand); second := TextFind(data, operand, first + 1)
+    if !NativeAssert(test, BinaryOccurrences(data, operand) == 6 && second > first, "saved assembly binding count differs") { return false }
+    mismatch := BinaryReplaceAt(test, data, second, operand.count, "r:source=ghost")
+    if !NativeWrite(test, CheckPath(test.work, "mismatch.zir"), mismatch) || !NativeWrite(test, CheckPath(test.work, "unknown.zir"), TextReplace(data, operand, "r:source=ghost")) { return false }
+    named := "popcnt %[value], %[total]"; replacement := "movq   %[value], %[total]"
+    if !NativeAssert(test, BinaryOccurrences(data, named) == 1 && named.count == replacement.count, "named assembly template must have one fixed-size field") ||
+        !NativeWrite(test, CheckPath(test.work, "named-mismatch.zir"), TextReplace(data, named, replacement)) { return false }
+    tag := BinaryNumber(cast(u64)1 | (cast(u64)1 << cast(u64)30)); at := TextFind(data, tag)
+    if !NativeAssert(test, at >= 0, "assembly statement tag is missing") { return false }
+    wrong := BinaryReplaceAt(test, data, at, tag.count, BinaryNumber(cast(u64)3 | (cast(u64)1 << cast(u64)30)))
+    if !NativeWrite(test, CheckPath(test.work, "wrong-kind.zir"), wrong) { return false }
+    length_at := BinarySkipString(test, data, at + tag.count); assembly_tag, end := BinaryReadNumber(test, data, length_at)
+    if !NativeAssert(test, !test.failed && assembly_tag % cast(u64)2 == 0 && assembly_tag / cast(u64)2 > 0 && assembly_tag / cast(u64)2 < 4096,
+        "assembly payload has an unexpected string encoding") { return false }
+    changed := BinaryReplaceAt(test, data, length_at, end - length_at + cast(s64)(assembly_tag / cast(u64)2), BinaryNumber(0))
+    return !test.failed && NativeWrite(test, CheckPath(test.work, "empty.zir"), changed)
+}
+
+SavedBinaryHeader :: (test: *NativeTest) -> bool {
+    lines := TextLines(NativeRead(test, CheckPath(test.repo, "cmd/zir/zir_serial.c"))); version: s64 = -1; prefix := "#define ZIR_FORMAT_VERSION "
+    for line: lines {
+        if TextHasPrefix(line, prefix) && TextHasSuffix(line, "u") {
+            document: JsonDocument
+            if !NativeAssert(test, version < 0 && JsonRead(*document, line[prefix.count:line.count - 1]), "duplicate or invalid IR format version") { return false }
+            value, valid := JsonInteger(*document, document.root)
+            if !NativeAssert(test, valid && value >= 0 && value <= 4294967295, "invalid IR version range") { return false }; version = value
+        }
+    }
+    data := NativeRead(test, CheckPath(test.work, "ir/hello.zir"))
+    if !NativeAssert(test, version >= 0 && data.count >= 8 && data[:4] == "ZIR\x00", "saved IR header is missing") { return false }
+    for index: cast(s64)0..3 { if !NativeAssert(test, data[4 + index] == cast(u8)((cast(u64)version >> cast(u64)(index * 8)) & cast(u64)255), "saved IR version differs from serializer") { return false } }
+    return true
+}
+
+SavedBinaryFlow :: (test: *NativeTest, input: string, output: string, typed: bool) -> bool {
+    data := NativeRead(test, CheckPath(test.work, input)); changed := ""
+    if typed {
+        at := TextFindLast(data, "42")
+        if !NativeAssert(test, BinaryOccurrences(data, "42") == 2 && at > TextFind(data, "return 42") + "return 42".count, "typed value must follow the diagnostic source text") { return false }
+        changed = BinaryReplaceAt(test, data, at, 2, "43")
+    } else {
+        if !NativeAssert(test, BinaryOccurrences(data, "return 42") == 1 && BinaryOccurrences(data, "else if value == 12") == 1, "diagnostic source mutation must select unique fields") { return false }
+        changed = TextDetach(TextReplace(TextDetach(TextReplace(data, "return 42", "return xx")), "else if value == 12", "xxxx if value == 12"))
+    }
+    return !test.failed && NativeWrite(test, CheckPath(test.work, output), changed)
+}
+
+SavedBinaryBundleErrors :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "app.zx"))
+    if !NativeAssert(test, data.count >= 17 && data[:8] == "ZX\x00\x00\x1a\x00\x00\x00", "unexpected bundle version before corruption") { return false }
+    return NativeWrite(test, CheckPath(test.work, "bad-bundle.zx"), data[:17]) && NativeWrite(test, CheckPath(test.work, "old-bundle.zx"), BinaryReplaceAt(test, data, 4, 1, "\x13"))
+}
+
+SavedBinaryIrErrors :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "blocks-ir/blockapp.zir"))
+    if !NativeAssert(test, data.count >= 17, "saved IR too short before corruption") { return false }
+    return NativeWrite(test, CheckPath(test.work, "corrupt.zir"), data[:17]) && NativeWrite(test, CheckPath(test.work, "version.zir"), BinaryReplaceAt(test, data, 4, 1, "\x1f"))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "saved-binary-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc >= 4, "pass a saved binary test mode") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "assertion" { valid = SavedBinaryAssertion(*test) }
+    else if mode == "pointer" { valid = SavedBinaryPointer(*test) }
+    else if mode == "assembly" { valid = SavedBinaryAssembly(*test) }
+    else if mode == "header" { valid = SavedBinaryHeader(*test) }
+    else if (mode == "flow-text" || mode == "flow-typed") && argc == 6 { valid = SavedBinaryFlow(*test, TextFromCString(argv[4]), TextFromCString(argv[5]), mode == "flow-typed") }
+    else if mode == "bundle-errors" { valid = SavedBinaryBundleErrors(*test) }
+    else if mode == "ir-errors" { valid = SavedBinaryIrErrors(*test) }
+    else if mode == "reachable" {
+        data := NativeRead(*test, CheckPath(test.work, "reachable.zx")); valid = true; names := string.["UnusedRecord", "dead_library", "UnusedDead"]
+        for name: names { if !NativeAssert(*test, !TextContains(data, name), CheckConcat("unreachable declaration retained in bundle: ", name)) { valid = false } }
+    }
+    else if mode == "diagnostic-json" {
+        document: JsonDocument
+        valid = NativeAssert(*test, JsonRead(*document, NativeRead(*test, CheckPath(test.work, "diagnostic.json"))), "malformed standalone diagnostic JSON")
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

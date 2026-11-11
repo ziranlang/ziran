@@ -71,5 +71,5 @@ C
         fi
     done
 done
-python3 "$repo/tests/type_exports_test.py" "$ziran" "$work/deep"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/type_exports_cases.zi" -- "$ziran"
 echo 'plain import of a re-exporting module and its constants: VM, C, and Go passed'

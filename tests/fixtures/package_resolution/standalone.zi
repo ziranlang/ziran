@@ -1,0 +1,3 @@
+#import "std/text"
+#program_export
+main :: () -> s32 { return cast(s32)LowerASCII(cast(u8)65) - 97 }

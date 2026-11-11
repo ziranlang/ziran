@@ -2,7 +2,8 @@
 set -eu
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/bundle-libraries-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 mkdir -p "$work/shared"
 printf 'one shared asset' > "$work/shared/message.txt"
@@ -45,14 +46,7 @@ test ! -e "$work/invalid.zx"
     -o "$work/thin.zx" "$work/app.zi"
 "$ziran" bundle --root "$work" --entry app:main --include-library "$work/common.zx" \
     -o "$work/standalone.zx" "$work/app.zi"
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-for name in ('common', 'thin', 'standalone'):
-    data=(Path(sys.argv[1])/(name+'.zx')).read_bytes()
-    # Procedures keep their #asm variants; local blocks become plain blocks.
-    assert (b'LIBRARY_NATIVE_FN' in data) == (name != 'thin') and b'LIBRARY_NATIVE_BLOCK' not in data
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" libraries
 mkdir -p "$work/wrong"
 cat > "$work/wrong/common.zi" <<'ZI'
 #program_export

@@ -1,0 +1,17 @@
+Twice :: (value: s64) -> s64 { return value * 2 }
+
+#program_export
+Answer :: () -> s32 {
+    total: s64 = 0
+    index: s64 = 0
+    while index < 7 {
+        if index == 3 { index += 1; continue }
+        total += index
+        index += 1
+    }
+    if total != 18 { return 1 }
+    if false && Twice(3) == 6 { return 2 }
+    if !(true || Twice(4) == 8) { return 3 }
+    selected := ifx total == 18 then Twice(total) else 5
+    return cast(s32)(selected + 6)
+}

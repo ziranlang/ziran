@@ -3,7 +3,9 @@ set -eu
 ulimit -c 0
 
 ziran=${1:?pass the ziran command}
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/default-bounds-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/bounds.zi" <<'ZI'
@@ -75,24 +77,6 @@ for input in source saved; do
     # opt-in bounds flag: the language must guard these accesses itself.
     "$compiler" -std="$standard" -O2 -DNDEBUG -I"$output" \
         "$output"/*.$suffix -o "$output/program"
-    python3 - "$output/program" <<'PY'
-import signal
-import subprocess
-import sys
-
-program = sys.argv[1]
-for function, index, expected in [("read", "1", "42"),
-                                  ("write", "0", "17"),
-                                  ("text", "1", "90"),
-                                  ("unsigned", "1", "42")]:
-    result = subprocess.run([program, function, index], capture_output=True, text=True)
-    assert result.returncode == 0 and result.stdout.strip() == expected, result
-
-for function in ["read", "write", "text", "unsigned"]:
-    for index in ["-1", "2", "4294967296", "9223372036854775807"]:
-        result = subprocess.run([program, function, index], capture_output=True, text=True)
-        assert result.returncode == -signal.SIGABRT, (function, index, result)
-        assert "out of bounds" in result.stderr, (function, index, result.stderr)
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" bounds "$output/program"
 done
 echo 'default release bounds: fixed arrays, record writes, text and wide indices checked'

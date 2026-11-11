@@ -1,0 +1,2 @@
+#program_export
+main :: () -> s32 { print("7\n"); return 0 }

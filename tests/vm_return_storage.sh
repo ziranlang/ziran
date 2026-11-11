@@ -17,18 +17,7 @@ for form in source saved; do
     "$ziran" bundle --root "$root" --entry "$module:Answer" -o "$work/$form.zx" "$input"
     for run in 1 2; do
         test "$(ZIRAN_VM_PROFILE="$work/$form-$run.jsonl" "$run_vm" run --vm "$work/$form.zx")" = 42
-        python3 - "$work/$form-$run.jsonl" <<'PY'
-import json, sys
-sample = json.loads(open(sys.argv[1]).read().splitlines()[-1])
-assert sample['complete'] and not sample['failed']
-functions = {f['function']: f for f in sample['functions']}
-for name, per_call in {'MakeRecord': 0, 'MakeArray': 1, 'MakeArrayLiteral': 1,
-                       'RelayRecord': 0, 'RelayArray': 0, 'GuardedRecord': 0,
-                       'GuardedArray': 2, 'GuardedPointerArray': 2,
-                       'GuardedNested': 4}.items():
-    f = functions[name]
-    assert f['calls'] > 0 and f['self_allocations'] == per_call * f['calls'], (name, f)
-PY
+        "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- vm-returns "$work/$form-$run.jsonl"
     done
     output=$work/$form-c
     "$ziran" build --target=c --root "$root" -o "$output" "$input"

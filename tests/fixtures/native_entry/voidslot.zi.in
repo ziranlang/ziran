@@ -1,0 +1,5 @@
+Callback :: #type () -> void;
+#program_export
+main :: () { return }
+#program_export
+Probe :: () -> s32 { value: Callback = main; value(); return 42 }

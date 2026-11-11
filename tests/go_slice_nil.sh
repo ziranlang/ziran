@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -24,15 +25,7 @@ LocalEmpty :: () -> bool {
 Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/native.zi"
-python3 - "$work/ir/native.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'BytesNil :: (value: []u8) -> bool #foreign builtin "is_nil";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/native.zir" "$repo/tests/fixtures/saved_signatures/go_slice_nil.txt"
 for input in source saved; do
     root=$work
     file=$root/native.zi

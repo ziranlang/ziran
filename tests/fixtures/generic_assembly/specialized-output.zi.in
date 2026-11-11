@@ -1,0 +1,2 @@
+F :: (x:$T)->T #asm("x86_64","","=r;=r","r","",""){return x}
+Answer::()->s32{v: s32 = 1;return F(v)}

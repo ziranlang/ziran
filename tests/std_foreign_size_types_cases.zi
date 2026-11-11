@@ -1,0 +1,104 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+Code :: #import "compiler_scan"
+using Vectors :: #import "std/vec"
+
+SizedToken :: (source: string, tokens: []Code.Scan, index: s64) -> string {
+    if index < 0 || index >= tokens.count { return "" }
+    return TextDetach(TextCopy(source[tokens[index].begin:tokens[index].end]))
+}
+
+SizedType :: (source: string, tokens: []Code.Scan, start: s64, end: s64, parameter: bool) -> string {
+    at := start
+    if parameter {
+        while at < end && SizedToken(source, tokens, at) != ":" { at += 1 }
+        if at == end { return "" }; at += 1
+    }
+    text: Vec(u8)
+    while at < end { BuilderAppend(text, SizedToken(source, tokens, at)); at += 1 }
+    return TextDetach(BuilderFinish(text))
+}
+
+SizedBindings :: (test: *NativeTest, expected: *JsonDocument, path: string) -> s64 {
+    source := NativeRead(test, path); tokens: Vec(Code.Scan); at: s64; line: s32 = 1; column: s32 = 1
+    while true {
+        token := Code.NextCodeToken(source, at, line, column)
+        if token.kind == .Eof { break }
+        if !NativeAssert(test, token.end > at, "foreign-binding source scanner made no progress") { return 0 }
+        VecPush(tokens, token); at = token.end; line = token.after_line; column = token.after_column
+    }
+    checked: s64
+    for index: cast(s64)0..tokens.count - 4 {
+        if tokens[index].kind != .Ident || SizedToken(source, tokens[:], index + 1) != "::" || SizedToken(source, tokens[:], index + 2) != "(" { continue }
+        close := index + 3; depth: s64 = 1
+        while close < tokens.count {
+            text := SizedToken(source, tokens[:], close)
+            if text == "(" { depth += 1 } else if text == ")" { depth -= 1 }
+            if depth == 0 { break }; close += 1
+        }
+        if close >= tokens.count { continue }
+        foreign := close + 1
+        while foreign < tokens.count {
+            text := SizedToken(source, tokens[:], foreign)
+            if text == "#foreign" || text == "{" || text == "}" || text == ";" || text == "::" { break }
+            foreign += 1
+        }
+        if SizedToken(source, tokens[:], foreign) != "#foreign" { continue }
+        library := SizedToken(source, tokens[:], foreign + 1)
+        if library == "kernel32" || library == "ws2_32" || library == "crt" { continue }
+        symbol := SizedToken(source, tokens[:], index)
+        if foreign + 2 < tokens.count && tokens[foreign + 2].kind == .String {
+            raw := SizedToken(source, tokens[:], foreign + 2)
+            if raw.count >= 2 { symbol = TextDetach(TextCopy(raw[1:raw.count - 1])) }
+        }
+        contract := JsonMember(expected, expected.root, symbol)
+        if contract < 0 { continue }
+        checked += 1
+        parameters: Vec(string); begin := index + 3; cursor := begin; nested: s64
+        while cursor <= close {
+            text := SizedToken(source, tokens[:], cursor)
+            if cursor == close || text == "," && nested == 0 {
+                if cursor > begin { VecPush(parameters, SizedType(source, tokens[:], begin, cursor, true)) }
+                begin = cursor + 1
+            } else if text == "(" || text == "[" { nested += 1 }
+            else if text == ")" || text == "]" { nested -= 1 }
+            cursor += 1
+        }
+        result := ifx SizedToken(source, tokens[:], close + 1) == "->" then SizedType(source, tokens[:], close + 2, foreign, false) else ""
+        requirement := JsonFirst(expected, contract)
+        while requirement >= 0 {
+            position := TextDetach(JsonKey(expected, requirement)); wanted := TextDetach(JsonString(expected, requirement)); actual := ""; where := "result"
+            if position == "r" { actual = result }
+            else {
+                number: JsonDocument
+                if !NativeAssert(test, JsonRead(*number, position), "invalid pointer-sized binding fixture") { return 0 }
+                slot, valid := JsonInteger(*number, number.root)
+                if !NativeAssert(test, valid && slot >= 0, "invalid binding parameter position") { return 0 }
+                if slot < parameters.count { actual = parameters[slot] }
+                where = CheckConcat("parameter ", CheckNumber(slot + 1))
+            }
+            message := string.[PathName(path), ":", CheckNumber(tokens[index].line), ": ", symbol, " ", where, " is ", ifx actual == "" then "missing" else actual, "; C uses a pointer-sized type: ", wanted]
+            if !NativeAssert(test, actual == wanted, TextDetach(TextJoin(message[:], ""))) { return 0 }
+            requirement = JsonNext(expected, requirement)
+        }
+    }
+    return checked
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "foreign-size-types-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    expected: JsonDocument
+    if !NativeAssert(*test, JsonRead(*expected, NativeRead(*test, CheckPath(test.repo, "tests/fixtures/std_sized_foreign.json"))), "invalid foreign-binding contract") { return 1 }
+    checked: s64; paths := NativeFiles(CheckPath(test.repo, "std"), ".zi")
+    for path: paths { checked += SizedBindings(*test, *expected, path); if test.failed { return 1 } }
+    if !NativeAssert(*test, checked >= 15, "too few standard foreign bindings matched") { return 1 }
+    print("std foreign size_t bindings: % checked, local tests passed\n", checked)
+    return 0
+}

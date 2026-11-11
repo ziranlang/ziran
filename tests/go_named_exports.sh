@@ -1,7 +1,9 @@
 #!/bin/sh
 set -eu
 ziran=${1:?pass the ziran command}
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/go-named-exports-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/exports.zi" <<'ZI'
@@ -87,15 +89,7 @@ ZI
 done
 
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/caller.zi" "$work/checks_test.zi" "$work/left/collision_test.zi" "$work/right/Collision_test.zi"
-python3 - "$work/ir/exports.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-statement = b'return GetValue()'
-assert data.count(statement) == 1
-path.write_bytes(data.replace(statement, b'?' * len(statement)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/exports.zir" "$repo/tests/fixtures/saved_signatures/go_named_exports.txt"
 for form in source saved; do
     inputs="$work/caller.zi $work/checks_test.zi $work/left/collision_test.zi $work/right/Collision_test.zi"
     entry=$work/exports.zi

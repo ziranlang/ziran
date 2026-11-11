@@ -1,0 +1,174 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+SEMANTIC_BASE :: "#program_export\nAnswer :: () -> s32 { return 41 }\n";
+
+SemanticContext :: struct { test: *NativeTest; root: string; source: string; request: string }
+SemanticEdit :: struct { start: s64; end: s64; original: string; replacement: string; identity: string }
+
+SemanticReset :: (context: SemanticContext, data: string = SEMANTIC_BASE) -> bool {
+    return NativeWrite(context.test, context.source, data) && NativeAssert(context.test, SetPathMode(context.source, 416), "set semantic edit source mode")
+}
+
+SemanticSpan :: (context: SemanticContext, original: string = "41", replacement: string = "42") -> SemanticEdit {
+    bytes := NativeRead(context.test, context.source); at := TextFind(bytes, original)
+    unused NativeAssert(context.test, at >= 0, "semantic fixture span is missing")
+    return SemanticEdit.{at, at + original.count, original, replacement, ""}
+}
+
+SemanticRequest :: (context: SemanticContext, edits: []SemanticEdit) -> JsonDocument {
+    result: JsonDocument; result.root = JsonNewObject(*result)
+    JsonSet(*result, result.root, "schema_version", JsonNewInteger(*result, 1)); CheckPut(*result, result.root, "path", "main.zi")
+    CheckPut(*result, result.root, "document_sha256", CheckHash(context.source)); nodes := JsonNewArray(*result)
+    for edit: edits {
+        node := JsonNewObject(*result)
+        if edit.identity == "" { JsonSet(*result, node, "start_byte", JsonNewInteger(*result, edit.start)); JsonSet(*result, node, "end_byte", JsonNewInteger(*result, edit.end)) }
+        else { CheckPut(*result, node, "semantic_id", edit.identity) }
+        CheckPut(*result, node, "original", edit.original); CheckPut(*result, node, "replacement", edit.replacement); JsonAppend(*result, nodes, node)
+    }
+    JsonSet(*result, result.root, "edits", nodes)
+    return result
+}
+
+SemanticNoTemporary :: (context: SemanticContext) -> bool {
+    names: Vec(string)
+    if !ListDirectory(context.root, *names) { return false }
+    for name: names { if TextHasPrefix(name, ".zi-edit-") { return false } }
+    return true
+}
+
+SemanticRaw :: (context: SemanticContext, request: string, apply: bool = true, accepted: bool = true, edit_root: string = "", module_path: string = "") -> bool {
+    test := context.test; before := NativeRead(test, context.source)
+    if !NativeWrite(test, context.request, request) { return false }
+    command: Vec(string); prefix := string.[test.ziran, "edit", "--root", ifx edit_root == "" then context.root else edit_root, "--diagnostics=json"]
+    for argument: prefix { VecPush(command, argument) }
+    if module_path != "" { VecPush(command, "--module-path"); VecPush(command, module_path) }
+    if apply { VecPush(command, "--apply") }; VecPush(command, context.request)
+    result := NativeInvoke(test, command[:], "", 30000)
+    if !NativeAssert(test, result.code == 0 && accepted || result.code > 0 && result.code < 124 && !accepted, CheckConcat("semantic edit acceptance differs\n", CheckConcat(request, CheckConcat("\n", result.error)))) { return false }
+    after := NativeRead(test, context.source)
+    if !accepted {
+        lines := TextLines(TextTrimEnd(result.error))
+        if !NativeAssert(test, !test.failed && after == before && result.output == "" && lines.count > 0 && SemanticNoTemporary(context), "failed semantic edit changed source, leaked a temporary or omitted diagnostics") { return false }
+        for line: lines { document: JsonDocument; if !NativeAssert(test, JsonRead(*document, line) && CheckInteger(*document, document.root, "schema_version") == 2, "failed semantic edit emitted malformed diagnostics") { return false } }
+        return true
+    }
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, result.output) && CheckInteger(*document, document.root, "schema_version") == 1 &&
+        JsonKindOf(*document, JsonMember(*document, document.root, "applied")) == (ifx apply then JsonKind.True else JsonKind.False), "invalid semantic edit response") { return false }
+    return NativeAssert(test, ifx apply then after == CheckField(*document, document.root, "source") else after == before, "semantic preview wrote source or applied output disagrees with source")
+}
+
+SemanticTry :: (context: SemanticContext, request: *JsonDocument, apply: bool = true, accepted: bool = true, edit_root: string = "", module_path: string = "") -> bool {
+    return SemanticRaw(context, JsonWrite(request, request.root, JsonCompactStyle()), apply, accepted, edit_root, module_path)
+}
+
+SemanticSimple :: (context: SemanticContext, replacement: string = "42", accepted: bool = true, data: string = SEMANTIC_BASE, module_path: string = "") -> bool {
+    if !SemanticReset(context, data) { return false }
+    edits := SemanticEdit.[SemanticSpan(context, "41", replacement)]; request := SemanticRequest(context, edits[:])
+    return SemanticTry(context, *request, true, accepted, "", module_path)
+}
+
+SemanticIdentity :: (context: SemanticContext) -> string {
+    arguments := string.[context.test.ziran, "api", "--json", "--root", context.root, "--symbol", "Answer", context.source]; result := NativeRun(context.test, arguments[:]); document: JsonDocument
+    if !NativeAssert(context.test, !context.test.failed && JsonRead(*document, result.output), "read actual semantic API identity") { return "" }
+    module := JsonElement(*document, JsonMember(*document, document.root, "modules"), 0); function := JsonElement(*document, JsonMember(*document, module, "functions"), 0)
+    identity := CheckField(*document, function, "id"); unused NativeAssert(context.test, TextHasPrefix(identity, "zi:"), "checked API omitted semantic identity")
+    return TextDetach(TextCopy(identity))
+}
+
+SemanticTests :: (test: *NativeTest) -> bool {
+    context := SemanticContext.{test, CheckPath(test.work, "source"), CheckPath(test.work, "source/main.zi"), CheckPath(test.work, "request.json")}
+    if !SemanticReset(context) { return false }
+    edits := SemanticEdit.[SemanticSpan(context)]; request := SemanticRequest(context, edits[:])
+    if !SemanticTry(context, *request, false) || !SemanticTry(context, *request) || !NativeAssert(test, TextContains(NativeRead(test, context.source), "42") && PathStatus(context.source).mode == 416, "semantic apply changed source permissions or omitted replacement") || !SemanticTry(context, *request, true, false) { return false }
+    versions := string.["0", "2", "true", "\"1\""]
+    for version: versions {
+        if !SemanticReset(context) { return false }; current := SemanticEdit.[SemanticSpan(context)]; patch := SemanticRequest(context, current[:]); value: JsonDocument
+        if !JsonRead(*value, version) { return false }; JsonSet(*patch, patch.root, "schema_version", JsonCopy(*patch, *value, value.root))
+        if !SemanticTry(context, *patch, true, false) { return false }
+    }
+    if !SemanticReset(context) || !SemanticRaw(context, "{\"schema_version\":1,\"schema_version\":1,\"path\":\"main.zi\",\"document_sha256\":\"x\",\"edits\":[]}", true, false) { return false }
+    fields := string.["path", "path", "path", "document_sha256", "unknown"]; values := string.["../main.zi", "/main.zi", "./main.zi", "0000000000000000000000000000000000000000000000000000000000000000", ""]
+    for index: cast(s64)0..fields.count - 1 {
+        if !SemanticReset(context) { return false }; current := SemanticEdit.[SemanticSpan(context)]; patch := SemanticRequest(context, current[:])
+        if fields[index] == "unknown" { JsonSet(*patch, patch.root, fields[index], JsonNewInteger(*patch, 0)) } else { CheckPut(*patch, patch.root, fields[index], values[index]) }
+        if !SemanticTry(context, *patch, true, false) { return false }
+    }
+    for variant: 0..4 {
+        if !SemanticReset(context) { return false }; span := SemanticSpan(context)
+        if variant == 0 { span.original = "40" }
+        if variant == 2 { span.end = span.start; span.original = "" }
+        if variant == 3 { span.start = -1 }
+        current: Vec(SemanticEdit); VecPush(current, span); if variant == 1 || variant == 2 { VecPush(current, span) }
+        patch := SemanticRequest(context, current[:])
+        if variant == 4 { node := JsonElement(*patch, JsonMember(*patch, patch.root, "edits"), 0); JsonSet(*patch, node, "end_byte", JsonNewNumber(*patch, "18446744073709551616")) }
+        if !SemanticTry(context, *patch, true, false) { return false }
+    }
+    invalid := string.["\"wrong\"", "???", "41", " 41 "]
+    for replacement: invalid { if !SemanticSimple(context, replacement, false) { return false } }
+    imports := string.["#import, file \"../outside.zi\"\n", "#import, file \"/outside.zi\"\n", "#load \"../outside.zi\"\n"]
+    for text: imports {
+        if !SemanticReset(context) { return false }; current := SemanticEdit.[.{0, 0, "", text, ""}, SemanticSpan(context)]; patch := SemanticRequest(context, current[:])
+        if !SemanticTry(context, *patch, true, false) { return false }
+    }
+    if !SemanticReset(context, CheckConcat("// é\n", SEMANTIC_BASE)) { return false }
+    split := SemanticEdit.[.{4, 4, "", "x", ""}]; split_patch := SemanticRequest(context, split[:])
+    if !SemanticTry(context, *split_patch, true, false) || !SemanticReset(context) { return false }
+    canonical := SemanticEdit.[SemanticSpan(context)]; canonical_patch := SemanticRequest(context, canonical[:]); CheckPut(*canonical_patch, canonical_patch.root, "path", context.source[1:])
+    if !SemanticTry(context, *canonical_patch, true, true, "/") { return false }
+    both_source := CheckConcat(SEMANTIC_BASE, "Other :: () -> s32 { return 7 }\n")
+    if !SemanticReset(context, both_source) { return false }
+    both := SemanticEdit.[SemanticSpan(context, "7", "8"), SemanticSpan(context)]; both_patch := SemanticRequest(context, both[:])
+    if !SemanticTry(context, *both_patch) || !SemanticReset(context, both_source) { return false }
+    collision := SemanticEdit.[SemanticSpan(context, "Other", "Answer")]; collision_patch := SemanticRequest(context, collision[:])
+    if !SemanticTry(context, *collision_patch, true, false) || !SemanticReset(context) { return false }
+    identity := SemanticIdentity(context); old := "Answer :: () -> s32 { return 41 }"
+    declarations := SemanticEdit.[.{0, 0, old, "Answer :: () -> s32 { return 43 }", identity}]; declaration_patch := SemanticRequest(context, declarations[:])
+    if test.failed || !SemanticTry(context, *declaration_patch) { return false }
+    originals := string.["Answer", old]; replacements := string.["Other", "Answer :: () -> s32 { return 42 }"]
+    for index: 0..1 {
+        if !SemanticReset(context) { return false }
+        id := ifx index == 0 then identity else "zi:0000000000000000000000000000000000000000000000000000000000000000"
+        current := SemanticEdit.[.{0, 0, originals[index], replacements[index], id}]; patch := SemanticRequest(context, current[:])
+        if !SemanticTry(context, *patch, true, false) { return false }
+    }
+    commented := "Answer :: () -> s32 {\n    // }\n    /* } */\n    return 41;\n}"
+    if !SemanticReset(context, CheckConcat("#program_export\n", CheckConcat(commented, "\n"))) { return false }
+    comment_id := SemanticIdentity(context); comment_edit := SemanticEdit.[.{0, 0, commented, "Answer :: () -> s32 { return 44 }", comment_id}]; comment_patch := SemanticRequest(context, comment_edit[:])
+    if !SemanticTry(context, *comment_patch) || !SemanticReset(context, TextReplace(SEMANTIC_BASE, "41", "\"bad\"")) { return false }
+    repair := SemanticEdit.[SemanticSpan(context, "\"bad\"", "42")]; repair_patch := SemanticRequest(context, repair[:])
+    if !SemanticTry(context, *repair_patch) || !NativeWrite(test, CheckPath(context.root, "library.zi"), "Value :: () -> s32 { return 6 }\n") || !SemanticSimple(context, "Value()", true, CheckConcat("#import \"library\"\n", SEMANTIC_BASE)) { return false }
+    outside := CheckPath(test.work, "outside.zi"); link := CheckPath(context.root, "escape.zi")
+    if !NativeWrite(test, outside, "Value :: () -> s32 { return 9 }\n") { return false }
+    if PathStatus(link, false).kind != .Missing { unused RemoveFile(link) }
+    args := string.["ln", "-s", outside, link]; unused NativeRun(test, args[:])
+    if test.failed || !SemanticReset(context) { return false }
+    escaped := SemanticEdit.[.{0, 0, "", "#import \"escape\"\n", ""}, SemanticSpan(context, "41", "Value()")]; escaped_patch := SemanticRequest(context, escaped[:])
+    if !SemanticTry(context, *escaped_patch, true, false) || !SemanticSimple(context, "42", false, CheckConcat(SEMANTIC_BASE, "#law AnswerValue custom Answer() == 41;\n")) { return false }
+    dependency := CheckPath(test.work, "dependency")
+    if !NativeWrite(test, CheckPath(dependency, "external.zi"), "External :: () -> s32 { return 8 }\n") { return false }
+    external := CheckConcat("#import \"external\"\n", SEMANTIC_BASE)
+    if !SemanticSimple(context, "External()", false, external) || !SemanticSimple(context, "External()", true, external, dependency) || !SemanticSimple(context, "42", true, CheckConcat("#import \"std/vec\"\n", SEMANTIC_BASE)) { return false }
+    if !NativeWrite(test, context.source, CheckConcat(NativeRead(test, context.source), "main :: () { print(\"%\\n\", Answer()); }\n")) { return false }
+    output := CheckPath(test.work, "ir"); save := string.[test.ziran, "ir", "--root", context.root, "-o", output, context.source]; unused NativeRun(test, save[:])
+    for form: 0..1 {
+        root := ifx form == 0 then context.root else output; input := ifx form == 0 then context.source else CheckPath(output, "main.zir"); bundle := CheckPath(test.work, ifx form == 0 then "source.zx" else "saved.zx")
+        build := string.[test.ziran, "bundle", "--root", root, "--entry", "main:main", "-o", bundle, input]; unused NativeRun(test, build[:]); run := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "run", "--vm", bundle]; result := NativeRun(test, run[:])
+        if !NativeAssert(test, !test.failed && result.output == "42\n", "edited source and saved IR no longer execute the repaired program") { return false }
+    }
+    print("semantic edit: preview/apply, declaration IDs, rollback, paths, imports, UTF-8 and stale versions passed local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "semantic-edit-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx SemanticTests(*test) && !test.failed then 0 else 1
+}

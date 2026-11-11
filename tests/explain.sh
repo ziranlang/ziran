@@ -3,7 +3,8 @@ set -eu
 
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/explain-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" --help > "$work/help.txt"
@@ -16,55 +17,7 @@ grep -Fq 'borrowed slice or text view' "$work/text.txt"
 grep -Fq 'Keep the owner live and immutable' "$work/text.txt"
 "$ziran" explain zir.noncanonical --json > "$work/item.json"
 "$ziran" explain --list --json > "$work/list.json"
-python3 - "$repo" "$work/item.json" "$work/list.json" <<'PY'
-import json
-from pathlib import Path
-import re
-import sys
-
-repo = Path(sys.argv[1])
-item = json.loads(Path(sys.argv[2]).read_text())
-listing = json.loads(Path(sys.argv[3]).read_text())
-assert item == {
-    "schema_version": 1,
-    "stability": "stable-code",
-    "code": "zir.noncanonical",
-    "summary": "A saved-IR input or serialization is invalid or noncanonical.",
-    "next_step": "Regenerate .zir from current source instead of editing it, and verify that source and saved-IR checks agree.",
-}
-assert listing["schema_version"] == 1
-assert listing["stability"] == "stable-code"
-assert len(listing["codes"]) >= 1
-assert listing["codes"] == sorted(listing["codes"])
-
-emitted = set()
-sources = (path for path in (repo / "cmd").rglob("*")
-           if path.suffix in (".c", ".h"))
-for path in sources:
-    text = path.read_text()
-    for match in re.finditer(r"(?:Diagnostic(?:V|Detailed|Target)?|Warning)\s*\(", text):
-        end = match.end()
-        tail = text[end:text.find(");", end)]
-        # Function declarations are not diagnostic calls. Metadata in their
-        # bodies (such as cause kinds) must not become registered codes.
-        if re.match(r"\s*ZirSourceSpan\b", tail):
-            continue
-        literal = re.search(r'"([A-Za-z0-9_.-]+)"', tail)
-        if literal:
-            emitted.add(literal.group(1))
-    if re.search(r"DiagnosticOutOfMemory\s*\(", text):
-        emitted.add("compiler.memory")
-for path in (repo / "cmd").glob("*.zi"):
-    text = path.read_text()
-    emitted.update(re.findall(r'(?:PkgFailCode|Diagnostics\.Emit)\s*\(\s*"([A-Za-z0-9_.-]+)"', text))
-    # IR modules report through compiler_services, as Diagnose(span, "code", ...)
-    # or a wrapper spelled the same way.
-    emitted.update(re.findall(r'\b(?:Diagnose|Fatal|Fail|Report)\s*\([^"\n)]*,\s*"([A-Za-z0-9_.-]+)"', text))
-assert set(listing["codes"]) == emitted, (
-    sorted(emitted - set(listing["codes"])),
-    sorted(set(listing["codes"]) - emitted),
-)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/explain_cases.zi" -- "$ziran" "$work"
 cat > "$work/go-import.zi" <<'ZI'
 libc :: #system_library "libc";
 Read :: (value: []u8) -> s32 #foreign libc "read";
@@ -75,15 +28,7 @@ if "$ziran" build --target=go --diagnostics=json --root "$work" \
     echo 'Go accepted an unsupported C ABI slice parameter' >&2
     exit 1
 fi
-python3 - "$work/go-import.jsonl" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any(item["code"] == "zir_go.import" and
-           "C ABI symbol" in item["message"] for item in items), items
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- code-message "$work/go-import.jsonl" zir_go.import 'C ABI symbol'
 cat > "$work/output.zi" <<'ZI'
 #program_export
 Answer :: () -> s32 { return 42 }
@@ -94,15 +39,7 @@ if "$ziran" build --target=go --diagnostics=json --root "$work" \
     echo 'Go output failure did not fail the build' >&2
     exit 1
 fi
-python3 - "$work/output.jsonl" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any(item["code"] == "zir_go.global" and
-           "/proc/ziran-go-output" in item["message"] for item in items), items
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- code-message "$work/output.jsonl" zir_go.global /proc/ziran-go-output
 
 if "$ziran" build --target=c --diagnostics=json --root "$work" \
     -o /proc/ziran-c-output "$work/output.zi" \
@@ -110,15 +47,7 @@ if "$ziran" build --target=c --diagnostics=json --root "$work" \
     echo "c output failure did not fail the build" >&2
     exit 1
 fi
-python3 - "$work/c-output.jsonl" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-items = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any(item["code"] == "zir_c.global" and "/proc/ziran-" in item["message"]
-           for item in items), items
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- code-message "$work/c-output.jsonl" zir_c.global /proc/ziran-
 
 if "$ziran" explain check.not_a_code > "$work/bad.out" 2> "$work/bad.err"; then
     echo 'explain accepted an unknown diagnostic code' >&2

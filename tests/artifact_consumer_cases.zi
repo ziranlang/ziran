@@ -1,0 +1,253 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+consumer_empty: [0]string;
+
+ConsumerCall :: (test: *NativeTest, operation: string, descriptor: string, extra: []string = consumer_empty[:], success: bool = true) -> string {
+    command: Vec(string)
+    prefix := string.["python3", CheckPath(test.repo, "scripts/ziran_artifacts.py"), operation, descriptor]
+    for argument: prefix { VecPush(command, argument) }
+    for argument: extra { VecPush(command, argument) }
+    result := NativeInvoke(test, command[:])
+    unused NativeAssert(test, ifx success then result.code == 0 else result.code > 0 && result.code < 124,
+        CheckConcat("artifact consumer result: ", CheckConcat(result.error, result.output)))
+    return ifx success then result.output else result.error
+}
+
+ConsumerDescriptor :: (test: *NativeTest, root: string, names: []string, artifact: string = "support", platform: string = "linux-x86_64-gnu") -> string {
+    text: Vec(u8)
+    BuilderAppend(text, "schema\t1\npackage\tprovider\nartifact\t"); BuilderAppend(text, artifact)
+    BuilderAppend(text, "\nplatform\t"); BuilderAppend(text, platform); BuilderAppend(text, "\nkey\t")
+    for index: 0..63 { BuilderAppend(text, "a") }; BuilderAppend(text, "\n")
+    for name: names { BuilderAppend(text, name); BuilderAppend(text, "\t"); BuilderAppend(text, CheckHash(CheckPath(root, name))); BuilderAppend(text, "\n") }
+    path := CheckPath(root, "artifact.tsv")
+    if !NativeWrite(test, path, BuilderFinish(text)) { return "" }
+    return path
+}
+
+ConsumerMake :: (test: *NativeTest, root: string, names: []string, contents: []string, artifact: string = "support", platform: string = "linux-x86_64-gnu") -> string {
+    if !NativeAssert(test, names.count == contents.count, "mismatched descriptor fixture") { return "" }
+    for index: cast(s64)0..names.count - 1 { if !NativeWrite(test, CheckPath(root, names[index]), contents[index]) { return "" } }
+    return ConsumerDescriptor(test, root, names, artifact, platform)
+}
+
+ConsumerArray :: (test: *NativeTest, actual: string, expected: []string) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, actual) && JsonKindOf(*document, document.root) == .Array && JsonCount(*document, document.root) == expected.count,
+        CheckConcat("invalid artifact argv: ", actual)) { return false }
+    for index: cast(s64)0..expected.count - 1 {
+        if !NativeAssert(test, JsonIs(*document, JsonElement(*document, document.root, cast(s32)index), expected[index]), CheckConcat("artifact argv order/value changed: ", actual)) { return false }
+    }
+    return true
+}
+
+ConsumerString :: (test: *NativeTest, actual: string, expected: string) -> bool {
+    document: JsonDocument
+    return NativeAssert(test, JsonRead(*document, actual) && JsonIs(*document, document.root, expected), CheckConcat("unexpected artifact path: ", actual))
+}
+
+ConsumerIntegrity :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "integrity"); names := string.["data"]; contents := string.["original"]
+    descriptor := ConsumerMake(test, root, names[:], contents[:])
+    expected := string.["data", "--artifact", "support", "--platform", "linux-x86_64-gnu"]
+    if !ConsumerString(test, ConsumerCall(test, "output", descriptor, expected[:]), CheckPath(root, "data")) { return false }
+    wrong_name := string.["--artifact", "other"]; wrong_platform := string.["--platform", "windows-x86_64-mingw"]
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "inspect", descriptor, wrong_name[:], false), "mismatch") &&
+        TextContains(ConsumerCall(test, "inspect", descriptor, wrong_platform[:], false), "mismatch"), "artifact identity mismatch was accepted") ||
+        !NativeWrite(test, CheckPath(root, "data"), "corrupt") { return false }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "inspect", descriptor, consumer_empty[:], false), "digest") && RemoveFile(CheckPath(root, "data")), "corruption was accepted") { return false }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "inspect", descriptor, consumer_empty[:], false), "digest"), "missing output was accepted") { return false }
+    descriptor = ConsumerMake(test, root, names[:], contents[:])
+    original := NativeRead(test, descriptor)
+    key: Vec(u8); for index: 0..63 { BuilderAppend(key, "a") }
+    invalid := string.[CheckConcat(original, "schema\t1\n"), CheckConcat(original, "broken\n"), TextDetach(TextReplace(original, "schema\t1", "schema\t2")),
+        TextDetach(TextReplace(original, CheckConcat("key\t", TextDetach(BuilderFinish(key))), "key\tinvalid")),
+        TextDetach(TextReplace(original, "package\tprovider\n", "")), CheckConcat(original, "name\tbad\tvalue\n")]
+    for content: invalid {
+        if !NativeWrite(test, descriptor, content) { return false }
+        unused ConsumerCall(test, "inspect", descriptor, consumer_empty[:], false)
+    }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "inspect", "relative/artifact.tsv", consumer_empty[:], false), "absolute"), "relative descriptor was accepted") || !NativeWrite(test, descriptor, original) { return false }
+    invalid_paths := string.["", ".", "../outside", "/etc/passwd", "data/../other", "nested//file", "./data", "nested\\file"]
+    for name: invalid_paths { extra := string.[name]; unused ConsumerCall(test, "path", descriptor, extra[:], false) }
+    undeclared := string.["schema", "missing"]
+    for name: undeclared {
+        extra := string.[name]
+        if !NativeAssert(test, TextContains(ConsumerCall(test, "output", descriptor, extra[:], false), "undeclared"), "undeclared output was accepted") { return false }
+    }
+    symlink := string.["ln", "-s", test.work, CheckPath(root, "escape")]; unused NativeRun(test, symlink[:])
+    escape := string.["escape/data"]
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "path", descriptor, escape[:], false), "escapes"), "symlink traversal was accepted") { return false }
+    outside := CheckPath(test.work, "outside")
+    if !NativeWrite(test, outside, "original") || !NativeAssert(test, RemoveFile(CheckPath(root, "data")), "replace declared data with symlink") { return false }
+    declared_symlink := string.["ln", "-s", outside, CheckPath(root, "data")]; unused NativeRun(test, declared_symlink[:])
+    return NativeAssert(test, TextContains(ConsumerCall(test, "inspect", descriptor, consumer_empty[:], false), "escapes"), "declared symlink escaped output root") && !test.failed
+}
+
+ConsumerMetadata :: (test: *NativeTest) -> bool {
+    schemas := string.["1", "true", "2", "1", "1"]
+    artifacts := string.["support", "support", "support", "other", "support"]
+    platforms := string.["linux-x86_64-gnu", "linux-x86_64-gnu", "linux-x86_64-gnu", "linux-x86_64-gnu", "windows-x86_64-mingw"]
+    names := string.["metadata.json"]; extra := string.["metadata.json"]
+    for index: cast(s64)0..schemas.count - 1 {
+        pieces := string.["{\"schema\":", schemas[index], ",\"artifact\":", TextDetach(JsonQuote(artifacts[index])), ",\"platform\":", TextDetach(JsonQuote(platforms[index])), ",\"custom\":[\"a\",\"b\"]}"]
+        contents := string.[TextDetach(TextJoin(pieces[:], ""))]
+        descriptor := ConsumerMake(test, CheckPath(test.work, CheckConcat("metadata-", CheckNumber(index))), names[:], contents[:])
+        output := ConsumerCall(test, "metadata", descriptor, extra[:], index == 0)
+        if index == 0 {
+            document: JsonDocument
+            if !NativeAssert(test, JsonRead(*document, output), "metadata did not return JSON") { return false }
+            custom := JsonMember(*document, document.root, "custom")
+            if !NativeAssert(test, JsonCount(*document, custom) == 2 && JsonIs(*document, JsonElement(*document, custom, 0), "a") &&
+                JsonIs(*document, JsonElement(*document, custom, 1), "b"), "custom metadata was not preserved") { return false }
+        } else if !NativeAssert(test, TextContains(output, "metadata"), "invalid metadata identity was accepted") { return false }
+    }
+    return !test.failed
+}
+
+ConsumerLinks :: (test: *NativeTest) -> bool {
+    child_root := CheckPath(test.work, "child"); parent_root := CheckPath(test.work, "parent")
+    child_names := string.["child.a", "link.txt"]; child_contents := string.["child", "archive\tchild.a\nlibrary\t-lm\n"]
+    child := ConsumerMake(test, child_root, child_names[:], child_contents[:], "foreign")
+    names := string.["second.a", "first.a", "link.txt"]; contents := string.["second", "first", "archive\tsecond.a\nflag\t-flto=1\narchive\tfirst.a\n"]
+    parent := ConsumerMake(test, parent_root, names[:], contents[:])
+    dependencies := CheckPath(parent_root, "dependencies.tsv")
+    if !NativeWrite(test, dependencies, CheckConcat("self:foreign\t", CheckConcat(child, "\n"))) { return false }
+    expected := string.[CheckPath(parent_root, "second.a"), "-flto=1", CheckPath(parent_root, "first.a"), CheckPath(child_root, "child.a"), "-lm"]
+    omit_expected := string.["-flto=1", CheckPath(child_root, "child.a"), "-lm"]; omit := string.["--omit-archives"]
+    if !ConsumerArray(test, ConsumerCall(test, "link-flags", parent), expected[:]) ||
+        !ConsumerArray(test, ConsumerCall(test, "link-flags", parent, omit[:]), omit_expected[:]) || !NativeWrite(test, CheckPath(child_root, "child.a"), "corrupt") { return false }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "link-flags", parent, consumer_empty[:], false), "digest"), "corrupt prerequisite was accepted") { return false }
+    simple_names := string.["link.txt"]; simple_contents := string.["flag\t-pthread\n"]
+    child = ConsumerMake(test, child_root, simple_names[:], simple_contents[:], "foreign")
+    parent = ConsumerMake(test, parent_root, simple_names[:], simple_contents[:])
+    invalid := string.[CheckConcat("self:other\t", CheckConcat(child, "\n")), CheckConcat("bad-selection\t", CheckConcat(child, "\n")),
+        CheckConcat("self:foreign\t", CheckConcat(child, CheckConcat("\nself:foreign\t", CheckConcat(child, "\n")))), "self:foreign\trelative\n"]
+    for text: invalid {
+        if !NativeWrite(test, dependencies, text) { return false }
+        unused ConsumerCall(test, "link-flags", parent, consumer_empty[:], false)
+    }
+    child = ConsumerMake(test, child_root, simple_names[:], simple_contents[:], "foreign", "windows-x86_64-mingw")
+    if !NativeWrite(test, dependencies, CheckConcat("self:foreign\t", CheckConcat(child, "\n"))) { return false }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "link-flags", parent, consumer_empty[:], false), "platform"), "cross-platform prerequisite was accepted") { return false }
+    alias := CheckPath(test.work, "alias.tsv"); symlink := string.["ln", "-s", parent, alias]; unused NativeRun(test, symlink[:])
+    if !NativeWrite(test, dependencies, CheckConcat("self:support\t", CheckConcat(alias, "\n"))) { return false }
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "link-flags", parent, consumer_empty[:], false), "cycle"), "canonical descriptor cycle was accepted") { return false }
+    leaf_contents := string.["library\t-lm\n"]
+    leaf := ConsumerMake(test, CheckPath(test.work, "leaf"), simple_names[:], leaf_contents[:], "leaf")
+    branches: Vec(u8)
+    branch_names := string.["left", "right"]
+    for name: branch_names {
+        branch_contents := string.[CheckConcat("flag\t-", CheckConcat(name, "\n"))]
+        branch_root := CheckPath(test.work, name)
+        branch := ConsumerMake(test, branch_root, simple_names[:], branch_contents[:], name)
+        if !NativeWrite(test, CheckPath(branch_root, "dependencies.tsv"), CheckConcat("self:leaf\t", CheckConcat(leaf, "\n"))) { return false }
+        BuilderAppend(branches, "self:"); BuilderAppend(branches, name); BuilderAppend(branches, "\t"); BuilderAppend(branches, branch); BuilderAppend(branches, "\n")
+    }
+    root_contents := string.["flag\t-root\n"]; parent = ConsumerMake(test, parent_root, simple_names[:], root_contents[:])
+    if !NativeWrite(test, dependencies, BuilderFinish(branches)) { return false }
+    shared_expected := string.["-root", "-left", "-lm", "-right", "-lm"]
+    if !ConsumerArray(test, ConsumerCall(test, "link-flags", parent), shared_expected[:]) { return false }
+    if !NativeAssert(test, RemoveFile(dependencies), "remove shared dependency fixture") { return false }
+    bad_rows := string.["future\tignored", "embed\tdata@../outside", "embed\tdata@/../outside", "embed\tdata@/first@/second", "embed\tdata@/first/./second", "embed\tdata@/first\\second", "archive\tmissing"]
+    bad_names := string.["data", "link.txt"]
+    for row: bad_rows {
+        bad_contents := string.["data", CheckConcat(row, "\n")]
+        parent = ConsumerMake(test, parent_root, bad_names[:], bad_contents[:])
+        unused ConsumerCall(test, "link-flags", parent, consumer_empty[:], false)
+    }
+    return !test.failed
+}
+
+ConsumerProbe :: (argc: s32, argv: **u8) -> s32 {
+    document: JsonDocument; document.root = JsonNewObject(*document)
+    arguments := JsonNewArray(*document)
+    for index: cast(s32)2..argc - 1 { JsonAppend(*document, arguments, JsonNewStringCopy(*document, TextFromCString(argv[index]))) }
+    JsonSet(*document, document.root, "arguments", arguments)
+    keys := string.["PATH", "PKG_CONFIG", "ZIRAN_ARTIFACT_PROBE_SENTINEL"]
+    for key: keys { CheckPut(*document, document.root, key, EnvironmentText(key)) }
+    if !WriteEntireFile(EnvironmentText("ZIRAN_ARTIFACT_PROBE_OUTPUT"), JsonWrite(*document, document.root, JsonCompactStyle())) { return 1 }
+    print("%\n", EnvironmentText("ZIRAN_ARTIFACT_PROBE_REPLY"))
+    return 0
+}
+
+ConsumerProbeArguments :: (test: *NativeTest, path: string, expected: []string) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, path)) && CheckField(*document, document.root, "ZIRAN_ARTIFACT_PROBE_SENTINEL") == "literal ; $value",
+        "artifact child lost supplied environment") { return false }
+    return ConsumerArray(test, TextDetach(JsonWrite(*document, JsonMember(*document, document.root, "arguments"), JsonCompactStyle())), expected)
+}
+
+ConsumerArgv :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "argv"); probe := CheckPath(root, "tool path/pkg-config"); log := CheckPath(root, "argv.json")
+    if !NativeWrite(test, probe, "#!/bin/sh\nexec \"$ZIRAN_ARTIFACT_PROBE_EXEC\" --argv-probe \"$@\"\n") { return false }
+    chmod := string.["chmod", "755", probe]; unused NativeRun(test, chmod[:])
+    NativeSet(test, "ZIRAN_ARTIFACT_PROBE_EXEC", TextDetach(ResolvePath("/proc/self/exe")))
+    NativeSet(test, "ZIRAN_ARTIFACT_PROBE_OUTPUT", log)
+    NativeSet(test, "ZIRAN_ARTIFACT_PROBE_SENTINEL", "literal ; $value")
+    NativeSet(test, "ZIRAN_ARTIFACT_PROBE_REPLY", "'-Lwith spaces' -lvalue")
+    NativeSet(test, "PKG_CONFIG", CheckConcat("'", CheckConcat(probe, "' --static")))
+    names := string.["web glue.js", "bundle.zx", "link.txt"]
+    contents := string.["glue", "bundle", "js-library\tweb glue.js\nembed\tbundle.zx@/program.zx\npkg-config\tstatic-lib 'name with spaces'\n"]
+    descriptor := ConsumerMake(test, CheckPath(root, "provider"), names[:], contents[:])
+    expected := string.["--js-library", CheckPath(PathParent(descriptor), "web glue.js"), "--embed-file", CheckConcat(CheckPath(PathParent(descriptor), "bundle.zx"), "@/program.zx"), "-Lwith spaces", "-lvalue"]
+    pkg_argv := string.["--static", "--libs", "static-lib", "name with spaces"]
+    if !ConsumerArray(test, ConsumerCall(test, "link-flags", descriptor), expected[:]) || !ConsumerProbeArguments(test, log, pkg_argv[:]) { return false }
+    data_names := string.["data"]; data_contents := string.["data"]
+    descriptor = ConsumerMake(test, CheckPath(root, "request"), data_names[:], data_contents[:])
+    NativeSet(test, "ZIRAN_ARTIFACT_PROBE_REPLY", descriptor)
+    options := string.["provider:mode=value with spaces;$unexpanded", "support:sdk.path=/a=b"]
+    arguments := string.["linux-x86_64-gnu", "--project", root, "--ziran", probe, "--option", options[0], "--option", options[1]]
+    if !ConsumerString(test, ConsumerCall(test, "request", "provider:support", arguments[:]), descriptor) { return false }
+    request_argv := string.["pkg", "artifact", "provider:support", "--platform", "linux-x86_64-gnu", "--option", options[0], "--option", options[1], "--locked"]
+    if !ConsumerProbeArguments(test, log, request_argv[:]) || !NativeWrite(test, CheckPath(root, "ziran.local.toml"), "[overrides]\n") { return false }
+    unused ConsumerCall(test, "request", "provider:support", arguments[:])
+    if !ConsumerProbeArguments(test, log, request_argv[:request_argv.count - 1]) { return false }
+    before := NativeRead(test, log)
+    if !NativeAssert(test, TextContains(ConsumerCall(test, "request", "malformed", arguments[:], false), "selection") && NativeRead(test, log) == before,
+        "malformed selection started an artifact provider") { return false }
+    return !test.failed
+}
+
+ConsumerStaticLink :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "static"); names := string.["main", "first", "second"]
+    contents := string.["int first(void); int main(void) { return first() != 42; }\n", "int second(void); int first(void) { return second(); }\n", "int second(void) { return 42; }\n"]
+    for index: cast(s64)0..names.count - 1 {
+        source := CheckPath(root, CheckConcat(names[index], ".c"))
+        if !NativeWrite(test, source, contents[index]) { return false }
+        if index > 0 {
+            object := CheckPath(root, CheckConcat(names[index], ".o"))
+            compile := string.[NativeCompiler(), "-c", source, "-o", object]; unused NativeRun(test, compile[:])
+            archive := string.["ar", "rcs", CheckPath(root, CheckConcat(names[index], ".a")), object]; unused NativeRun(test, archive[:])
+        }
+    }
+    provider := CheckPath(root, "provider")
+    archive_names := string.["first.a", "second.a", "link.txt"]
+    archive_contents := string.[NativeRead(test, CheckPath(root, "first.a")), NativeRead(test, CheckPath(root, "second.a")), "archive\tfirst.a\narchive\tsecond.a\n"]
+    descriptor := ConsumerMake(test, provider, archive_names[:], archive_contents[:])
+    output := ConsumerCall(test, "link-flags", descriptor)
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, output), "invalid static link argv") { return false }
+    command: Vec(string); VecPush(command, NativeCompiler()); VecPush(command, CheckPath(root, "main.c"))
+    for index: cast(s32)0..JsonCount(*document, document.root) - 1 { VecPush(command, TextDetach(JsonString(*document, JsonElement(*document, document.root, index)))) }
+    binary := CheckPath(root, "foreign-consumer"); VecPush(command, "-o"); VecPush(command, binary)
+    unused NativeRun(test, command[:]); run := string.[binary]; unused NativeRun(test, run[:])
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--argv-probe" { return ConsumerProbe(argc, argv) }
+    test := NativeStart(argc, argv, "artifact-consumer-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !ConsumerIntegrity(*test) || !ConsumerMetadata(*test) || !ConsumerLinks(*test) || !ConsumerArgv(*test) || !ConsumerStaticLink(*test) { return 1 }
+    print("Local artifact consumers: integrity, paths, metadata, dependency order, real argv and foreign static linking passed\n")
+    return 0
+}

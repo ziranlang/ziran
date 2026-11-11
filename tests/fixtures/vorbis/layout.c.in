@@ -1,0 +1,9 @@
+
+#include <stdio.h>
+#include <vorbis/vorbisfile.h>
+int main(void) {
+    printf("%zu\n%zu\n%zu\n%zu\n%zu\n%zu\n%zu\n%zu\n", sizeof(ogg_sync_state), sizeof(ogg_stream_state),
+           sizeof(oggpack_buffer), sizeof(vorbis_info), sizeof(vorbis_dsp_state), sizeof(vorbis_block),
+           sizeof(ov_callbacks), sizeof(OggVorbis_File));
+    return 0;
+}

@@ -1,5 +1,27 @@
 # Runtime and compiler benchmarks
 
+Run benchmark builds and measurements on Alpha's physical host, as requested
+by the owner on 2026-11-11. The commands below run from the canonical Ziran
+repository on Alpha, using the managed direct-host transfer and build route
+documented in Harmony's `docs/ALPHA_BUILDS.md`. Do not use the personal VM.
+If Alpha is unavailable, wait rather than running the
+benchmark on the current desktop. Record the host in every report and collect
+both sides of a comparison on the same host; retained desktop results keep
+their original provenance.
+
+Timed compiler/codec kernels are an explicit benchmark command, outside
+`make check`: `build-queue -- sh bench/compiler_kernel_benchmarks.sh` on Alpha.
+Routine tests still validate benchmark statistics and command interfaces.
+
+## JSON and UTF-8 workloads
+
+On Alpha, run `python3 bench/json_text.py --samples 11` to build and measure
+the six Ziran programs in `bench/json_text/`. Each timed batch verifies its
+result. The website retains generated artifacts, raw samples and compiler
+diagnostics for unsupported targets in `site/generated/json-text/`.
+The qualified Alpha snapshot is retained in `bench/results/json-text/alpha-matrix.json`.
+Use `python3 bench/json_text.py --check` to validate that snapshot without timing it.
+
 ## Portable ZX execution
 
 ```sh

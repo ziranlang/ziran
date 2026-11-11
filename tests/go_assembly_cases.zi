@@ -1,0 +1,209 @@
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/environment_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GoAssemblyFixture :: (test: *NativeTest, name: string) -> string {
+    path := CheckPath(CheckPath(test.repo, "tests/fixtures/go_assembly"), name)
+    text, valid := ReadEntireFile(path)
+    if !NativeAssert(test, valid, CheckConcat("missing assembly fixture: ", path)) { return "" }
+    return text
+}
+
+GoAssemblyEnvironment :: (test: *NativeTest, baseline: s64, cgo: string, flags: string = "") {
+    unused VecResize(test.environment, baseline)
+    VecPush(test.environment, CheckConcat("CGO_ENABLED=", cgo))
+    VecPush(test.environment, CheckConcat("GOFLAGS=", flags))
+}
+
+GoAssemblyRecord :: (document: *JsonDocument, records: s32, form: string, mode: string, marker: s64) {
+    node := JsonNewObject(document)
+    CheckPut(document, node, "form", form); CheckPut(document, node, "mode", mode)
+    JsonSet(document, node, "marker", JsonNewInteger(document, marker))
+    JsonAppend(document, records, node)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "go-assembly-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    go := CheckExecutable("go")
+    if go == "" { print("Go toolchain unavailable; native Go assembly execution not checked\n"); return 0 }
+    removed: [4]string = .["CGO_CFLAGS", "CGO_CPPFLAGS", "GOFLAGS", "GOEXPERIMENT"]
+    for name: removed { VecPush(test.environment, name) }
+    VecPush(test.environment, "GO111MODULE=off")
+    baseline := test.environment.count
+    machine_command: [2]string = .["uname", "-m"]
+    machine_result := NativeRun(*test, machine_command[:])
+    x86 := TextTrim(machine_result.output) == "x86_64"
+    source := CheckPath(test.work, "source")
+    if !CreateDirectories(source) { return 1 }
+    input_names: [2]string = .["go_assembly_test.zi", "native_assembly_test.zi"]
+    for name: input_names {
+        if !CopyFile(CheckPath(CheckPath(test.repo, "tests/spec"), name), CheckPath(source, name)) { return 1 }
+    }
+    ir := CheckPath(test.work, "ir")
+    save: [8]string = .[test.ziran, "ir", "--root", source, "-o", ir,
+        CheckPath(source, input_names[0]), CheckPath(source, input_names[1])]
+    unused NativeRun(*test, save[:])
+    document: JsonDocument
+    records := JsonNewArray(*document)
+    forms: [2]string = .["source", "saved"]
+    modes: [7]string = .["portable", "ordinary", "native", "forced", "checked", "direct", "direct-forced"]
+    for form: forms {
+        root := ifx form == "source" then source else ir
+        first := CheckPath(root, ifx form == "source" then "go_assembly_test.zi" else "go_assembly_test.zir")
+        second := CheckPath(root, ifx form == "source" then "native_assembly_test.zi" else "native_assembly_test.zir")
+        output := CheckPath(test.work, form)
+        build: [12]string = .[test.ziran, "build", "--target=go", "--pkg", "main", "--root", root,
+            "--prune-stale", "-o", output, first, second]
+        unused NativeRun(*test, build[:])
+        assembly_go := NativeFiles(output, ".assembly.go")
+        assembly_headers := NativeFiles(output, ".assembly.h")
+        if !NativeAssert(*test, assembly_go.count > 0 && assembly_headers.count > 0, "native assembly companions were not generated") { return 1 }
+        for mode: modes {
+            direct := mode == "direct" || mode == "direct-forced"
+            tagged := mode == "native" || mode == "forced" || mode == "checked" || direct
+            GoAssemblyEnvironment(*test, baseline, ifx mode == "portable" || direct then "0" else "1", ifx tagged then "-tags=ziran_asm" else "")
+            if mode == "forced" { VecPush(test.environment, "CGO_CFLAGS=-O2 -g -DZIRAN_NO_ASM") }
+            if mode == "checked" { VecPush(test.environment, "GOEXPERIMENT=cgocheck2") }
+            fallback := mode == "portable" || mode == "ordinary" || mode == "forced" || mode == "direct-forced" || mode == "direct" && !x86
+            marker: s64 = ifx fallback then 3 else 7
+            if mode == "direct-forced" {
+                override: Vec(u8)
+                BuilderAppend(override, "package main\nfunc init(){")
+                files := NativeFiles(output, ".assembly_dispatch.go")
+                for file: files {
+                    text, valid := ReadEntireFile(file)
+                    if !valid { return 1 }
+                    lines := TextLines(text)
+                    for line: lines {
+                        end := TextFind(line, " func(")
+                        if TextHasPrefix(line, "var ") && end > 4 {
+                            BuilderAppend(override, line[4:end]); BuilderAppend(override, " = nil; ")
+                        }
+                    }
+                }
+                BuilderAppend(override, "}\n")
+                if !NativeWrite(*test, CheckPath(output, "direct_override.go"), BuilderFinish(override)) { return 1 }
+            }
+            host := TextReplace(GoAssemblyFixture(*test, "host.go.in"), "EXPECTED", CheckNumber(marker))
+            if !NativeWrite(*test, CheckPath(output, "main.go"), host) { return 1 }
+            command: [5]string = .["go", "build", "-o", CheckPath(output, "run"), "."]
+            unused NativeRun(*test, command[:], output)
+            execute: [1]string = .[CheckPath(output, "run")]
+            if !NativeExpect(*test, execute[:], CheckConcat(CheckNumber(marker), ifx marker == 3 then " 3\n" else " 9\n")) { return 1 }
+            if mode == "direct" && x86 {
+                vet: [4]string = .["go", "vet", "-asmdecl", "."]
+                unused NativeRun(*test, vet[:], output)
+            }
+            unused RemoveFile(CheckPath(output, "direct_override.go"))
+            GoAssemblyRecord(*document, records, form, mode, marker)
+        }
+        if form == "source" {
+            real_go := EnvironmentText("ZIRAN_TEST_GO_REAL")
+            if real_go == "" { real_go = go }
+            for selection: cast(s64)0..2 {
+                marker: s64 = ifx selection == 0 then 3 else 7
+                GoAssemblyEnvironment(*test, baseline, "1")
+                if !NativeWrite(*test, CheckPath(output, "main.go"), TextReplace(GoAssemblyFixture(*test, "host.go.in"), "EXPECTED", CheckNumber(marker))) { return 1 }
+                command: Vec(string)
+                VecPush(command, CheckPath(PathParent(test.ziran), "check-runner"))
+                VecPush(command, "--go"); VecPush(command, real_go); VecPush(command, "build")
+                if selection == 1 { VecPush(command, "-tags"); VecPush(command, "ziran_asm") }
+                if selection == 2 { VecPush(command, "-tags=ziran_asm") }
+                VecPush(command, "-o"); VecPush(command, CheckPath(output, "file-list"))
+                files := NativeFiles(output, ".go")
+                for file: files { VecPush(command, file) }
+                unused NativeRun(*test, command[:], output)
+                execute: [1]string = .[CheckPath(output, "file-list")]
+                if !NativeExpect(*test, execute[:], CheckConcat(CheckNumber(marker), ifx marker == 3 then " 3\n" else " 9\n")) { return 1 }
+            }
+            node := JsonNewObject(*document)
+            JsonSet(*document, node, "file_list_tag_selection", JsonNewBool(*document, true)); JsonAppend(*document, records, node)
+        }
+        unused VecResize(test.environment, baseline)
+        for file: assembly_go {
+            text, valid := ReadEntireFile(file)
+            if !NativeAssert(*test, valid && !TextContains(text, "*/ and"), "GNU text leaked into the Go preamble") { return 1 }
+        }
+        native := CheckPath(test.work, CheckConcat(form, "-c"))
+        generate_c: [8]string = .[test.ziran, "build", "--target=c", "--root", root, "-o", native, first]
+        unused NativeRun(*test, generate_c[:])
+        if !NativeWrite(*test, CheckPath(native, "main.c"), GoAssemblyFixture(*test, "memory.c.in")) { return 1 }
+        compile: Vec(string)
+        initial: [5]string = .["cc", "-O2", "-std=c11", CheckConcat("-I", native), ""]
+        for index: cast(s64)0..3 { VecPush(compile, initial[index]) }
+        sources := NativeFiles(native, ".c")
+        for file: sources { VecPush(compile, file) }
+        VecPush(compile, "-o"); VecPush(compile, CheckPath(native, "run"))
+        unused NativeRun(*test, compile[:])
+        execute: [1]string = .[CheckPath(native, "run")]
+        unused NativeRun(*test, execute[:])
+        node := JsonNewObject(*document)
+        CheckPut(*document, node, "form", form); CheckPut(*document, node, "target", "c")
+        JsonSet(*document, node, "memory_alias", JsonNewBool(*document, true)); JsonAppend(*document, records, node)
+    }
+    suite := CheckPath(test.work, "suite")
+    if !NativeWrite(*test, CheckPath(suite, "suite_test.zi"), GoAssemblyFixture(*test, "suite_test.zi")) { return 1 }
+    suite_go := CheckPath(test.work, "suite-go")
+    generate_suite: [10]string = .[test.ziran, "build", "--target=go", "--pkg", "suite", "--root", suite, "-o", suite_go, CheckPath(suite, "suite_test.zi")]
+    unused NativeRun(*test, generate_suite[:])
+    if !NativeAssert(*test, IsFile(CheckPath(suite_go, "suite_test.go")), "test-only Go module was not generated") { return 1 }
+    for mode: cast(s64)0..2 {
+        cgo := ifx mode == 2 then "1" else "0"
+        flags := ifx mode == 0 then "" else "-tags=ziran_asm"
+        GoAssemblyEnvironment(*test, baseline, cgo, flags)
+        run: [3]string = .["go", "test", "."]
+        unused NativeRun(*test, run[:], suite_go)
+        node := JsonNewObject(*document)
+        JsonSet(*document, node, "native_test_module", JsonNewBool(*document, true))
+        CheckPut(*document, node, "cgo", cgo); CheckPut(*document, node, "tags", flags); JsonAppend(*document, records, node)
+    }
+    collision := CheckPath(test.work, "collision")
+    if !NativeWrite(*test, CheckPath(collision, "collision.zi"), GoAssemblyFixture(*test, "collision.zi")) { return 1 }
+    collision_go := CheckPath(test.work, "collision-go")
+    generate_collision: [10]string = .[test.ziran, "build", "--target=go", "--pkg", "main", "--root", collision,
+        "-o", collision_go, CheckPath(collision, "collision.zi")]
+    unused NativeRun(*test, generate_collision[:])
+    if !NativeWrite(*test, CheckPath(collision_go, "main.go"), GoAssemblyFixture(*test, "collision.go.in")) { return 1 }
+    GoAssemblyEnvironment(*test, baseline, "1", "-tags=ziran_asm")
+    run_go: [3]string = .["go", "run", "."]
+    unused NativeRun(*test, run_go[:], collision_go)
+    node := JsonNewObject(*document)
+    JsonSet(*document, node, "local_name_collision", JsonNewBool(*document, true)); JsonAppend(*document, records, node)
+    prune := CheckPath(test.work, "prune")
+    file := CheckPath(prune, "prune.zi")
+    if !NativeWrite(*test, file, GoAssemblyFixture(*test, "prune.zi")) { return 1 }
+    output := CheckPath(test.work, "prune-go")
+    generate_prune: [11]string = .[test.ziran, "build", "--target=go", "--pkg", "main", "--prune-stale", "--root", prune, "-o", output, file]
+    unused NativeRun(*test, generate_prune[:])
+    names: Vec(string)
+    if !ListDirectory(output, *names) { return 1 }
+    owned: Vec(string)
+    for name: names { if TextContains(name, "assembly") { VecPush(owned, name) } }
+    VecPush(owned, "zi2go.assembly_enabled.go"); VecPush(owned, "zi2go.assembly_disabled.go")
+    if !NativeWrite(*test, CheckPath(output, "owner.go"), GoAssemblyFixture(*test, "owner.go.in")) || !NativeWrite(*test, file, GoAssemblyFixture(*test, "plain.zi")) { return 1 }
+    unused NativeRun(*test, generate_prune[:])
+    for name: owned { if !NativeAssert(*test, !PathExists(CheckPath(output, name)), "owned assembly companion was not pruned") { return 1 } }
+    GoAssemblyEnvironment(*test, baseline, "0")
+    unused NativeRun(*test, run_go[:], output)
+    node = JsonNewObject(*document)
+    JsonSet(*document, node, "owned_companions_pruned", JsonNewBool(*document, true)); JsonAppend(*document, records, node)
+    report := JsonNewObject(*document)
+    JsonSet(*document, report, "records", records)
+    sources := JsonNewObject(*document)
+    for name: input_names { CheckPut(*document, sources, name, CheckHash(CheckPath(source, name))) }
+    JsonSet(*document, report, "sources", sources)
+    if !NativeWrite(*test, CheckPath(test.work, "verification.json"), JsonWrite(*document, report, JsonPythonStyle(2))) { return 1 }
+    if test.failed { return 1 }
+    print("Go assembly passed cgo/direct/portable dispatch, strict pointer checks, aliases, ABI offsets, source/saved IR and concurrent calls\n")
+    return 0
+}

@@ -1,0 +1,762 @@
+using IR :: #import "compiler_lowered_ir"
+using Native :: #import "compiler_lowered_x64"
+using Test :: #import "native_test"
+using Vectors :: #import "std/vec"
+using Check :: #import "check_support"
+using Bytes :: #import "std/byte_text_linux"
+using Files :: #import "std/file"
+using Texts :: #import "std/text_tools"
+
+#scope_file
+native_execution: bool;
+aggregate_record_fields: [2]s32 = .[7, 11];
+aggregate_top_fields: [5]s32 = .[12, 13, 10, 15, 16];
+
+#scope_export
+
+Little :: (bytes: []u8, at: s64, count: s64) -> u64 {
+    if at < 0 || count < 0 || at > bytes.count || count > bytes.count - at { return 0 }
+    result: u64
+    for index: cast(s64)0..count - 1 { result |= cast(u64)bytes[at + index] << cast(u64)(index * 8) }
+    return result
+}
+
+Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNativeRange, code_size: s64) -> bool {
+    section_bits := Little(bytes, 40, 8)
+    if !NativeAssert(test, section_bits <= cast(u64)bytes.count && Little(bytes, 60, 2) == 5 &&
+        Little(bytes, 62, 2) == 2, "ELF section directory and names index") { return false }
+    section_at := cast(s64)section_bits
+    if !NativeAssert(test, section_at % 8 == 0 && section_at + 320 == bytes.count, "ELF section directory extent") { return false }
+    symbol_at := Little(bytes, section_at + 256 + 24, 8)
+    symbol_size := Little(bytes, section_at + 256 + 32, 8)
+    string_at := Little(bytes, section_at + 192 + 24, 8)
+    string_size := Little(bytes, section_at + 192 + 32, 8)
+    if !NativeAssert(test, Little(bytes, section_at + 256 + 4, 4) == 2 &&
+        Little(bytes, section_at + 256 + 40, 4) == 3 && Little(bytes, section_at + 256 + 44, 4) == 1 &&
+        Little(bytes, section_at + 256 + 48, 8) == 8 && Little(bytes, section_at + 256 + 56, 8) == 24 &&
+        symbol_size == cast(u64)(program.functions.count + 3) * 24 && symbol_at + symbol_size == section_bits &&
+        string_at <= symbol_at && string_size <= symbol_at - string_at, "ELF symbol and string table layout") { return false }
+    for index: cast(s64)0..23 {
+        if !NativeAssert(test, bytes[cast(s64)symbol_at + index] == 0, "ELF null symbol") { return false }
+    }
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        symbol := cast(s64)symbol_at + (function_index + 3) * 24
+        name := Little(bytes, symbol, 4)
+        expected := CheckConcat(CheckConcat(program.modules[function.module], ":"), function.name)
+        if !NativeAssert(test, name < string_size && cast(u64)expected.count < string_size - name,
+            "ELF function name extent") { return false }
+        for index: cast(s64)0..expected.count - 1 {
+            if !NativeAssert(test, bytes[cast(s64)(string_at + name) + index] == expected[index], "ELF qualified function names") { return false }
+        }
+        if !NativeAssert(test, bytes[cast(s64)(string_at + name) + expected.count] == 0 &&
+            Little(bytes, symbol + 4, 1) == 18 && Little(bytes, symbol + 6, 2) == 1,
+            "ELF function symbol kind and code section") { return false }
+        begin: s64 = -1
+        end := code_size
+        for range: ranges {
+            if range.block == -1 && range.function == cast(s32)function_index { begin = range.begin }
+            if range.block == -1 && range.function == cast(s32)function_index + 1 { end = range.begin }
+        }
+        if !NativeAssert(test, begin >= 35 && Little(bytes, symbol + 8, 8) == cast(u64)(4194424 + begin) &&
+            Little(bytes, symbol + 16, 8) == cast(u64)(end - begin), "ELF symbols match final mapped function bytes") { return false }
+    }
+    return !test.failed
+}
+
+Types :: (types: []LirType) {
+    types[0] = .{.kind = .Void}
+    types[1] = .{.kind = .Bool, .bits = 1}
+    for index: 2..9 {
+        types[index] = .{.kind = .Integer, .bits = cast(s32)(8 << ((index - 2) / 2)), .is_signed = index % 2 == 0}
+    }
+}
+
+AggregateTypes :: (types: []LirType) {
+    Types(types[:10])
+    types[10] = .{.kind = .Pointer, .element = 7}
+    types[11] = .{.kind = .Array, .element = 7, .count = 3}
+    types[12] = .{.kind = .Record, .fields = aggregate_record_fields[:]}
+    types[13] = .{.kind = .Array, .element = 12, .count = 2}
+    types[14] = .{.kind = .Record, .fields = aggregate_top_fields[:]}
+    types[15] = .{.kind = .Float, .bits = 32}
+    types[16] = .{.kind = .Float, .bits = 64}
+}
+
+Instruction :: (op: LirOp, result: s64, operands: []s32, symbol: s64 = -1) -> LirInstruction {
+    return .{.op = op, .result = cast(s32)result, .operands = operands, .symbol = cast(s32)symbol, .origin = -1}
+}
+
+Execute :: (test: *NativeTest, program: LirProgram, expected: s32, label: string) {
+    if test.failed { return }
+    empty: [0]u8
+    measured := LirX64Elf(program, empty[:])
+    raw_size := LirX64Encode(program, empty[:])
+    no_ranges: [0]LirNativeRange
+    range_size := LirX64Ranges(program, no_ranges[:])
+    ranges: Vec(LirNativeRange)
+    if !NativeAssert(test, range_size.problem == .None && range_size.size > 2 &&
+        VecResize(ranges, range_size.size + 1), "measure and allocate native ranges") { return }
+    for range_index: cast(s64)0..ranges.count - 1 { ranges[range_index].begin = 12345 }
+    short_ranges := LirX64Ranges(program, ranges[:range_size.size - 1])
+    unused NativeAssert(test, short_ranges.problem == .Limit && short_ranges.size == range_size.size, "short map reports range count")
+    for range: ranges { unused NativeAssert(test, range.begin == 12345, "short map leaves output unchanged") }
+    mapped := LirX64Ranges(program, ranges[:])
+    unused NativeAssert(test, mapped.problem == .None && mapped.size == range_size.size &&
+        ranges[range_size.size].begin == 12345, "complete map leaves output tail unchanged")
+    previous: s64
+    for range_index: cast(s64)0..range_size.size - 1 {
+        range := ranges[range_index]
+        unused NativeAssert(test, range.begin == previous && range.end >= range.begin, "native map is contiguous")
+        previous = range.end
+    }
+    unused NativeAssert(test, previous == raw_size.size, "native map covers final encoded bytes")
+    if !NativeAssert(test, measured.problem == .None && measured.size > 120, CheckConcat("measure ", label)) {
+        print("native problem %\n", cast(s32)measured.problem); return
+    }
+    bytes: Vec(u8); again: Vec(u8); raw: Vec(u8)
+    if !NativeAssert(test, VecResize(bytes, measured.size + 16) && VecResize(again, measured.size) &&
+        VecResize(raw, raw_size.size), "allocate encoding buffers") { return }
+    for index: cast(s64)0..bytes.count - 1 { bytes[index] = 165 }
+    short := LirX64Elf(program, bytes[:measured.size - 1])
+    unused NativeAssert(test, short.problem == .Limit && short.size == measured.size, "short buffer reports full size")
+    for byte: bytes { unused NativeAssert(test, byte == 165, "short buffer unchanged") }
+    written := LirX64Elf(program, bytes[:])
+    second := LirX64Elf(program, again[:])
+    encoded := LirX64Encode(program, raw[:])
+    unused NativeAssert(test, written.problem == .None && written.size == measured.size &&
+        second.problem == .None && encoded.problem == .None && encoded.size + 120 < measured.size, "complete encodings")
+    for index: cast(s64)0..measured.size - 1 { unused NativeAssert(test, bytes[index] == again[index], "deterministic output") }
+    for index: measured.size..bytes.count - 1 { unused NativeAssert(test, bytes[index] == 165, "output tail unchanged") }
+    for index: cast(s64)0..raw.count - 1 { unused NativeAssert(test, bytes[index + 120] == raw[index], "raw and ELF code match") }
+    if !Symbols(test, program, bytes[:measured.size], ranges[:range_size.size], raw_size.size) { return }
+    entry: [5]u8 = .[72, 131, 228, 240, 232]
+    for index: 0..4 { unused NativeAssert(test, raw[index] == entry[index], "SysV entry bytes") }
+    path := CheckPath(test.work, "direct-elf")
+    if !NativeWrite(test, path, TextFromBytes(bytes[:measured.size])) { return }
+    chmod: [3]string = .["/usr/bin/chmod", "700", path]
+    unused NativeRun(test, chmod[:])
+    command: [1]string = .[path]
+    if native_execution { unused NativeRun(test, command[:], "", expected) }
+    if test.failed { print("native execution: %\n", label) }
+}
+
+Scalar :: (test: *NativeTest, types: []LirType, type: s64, op: LirOp, left_bits: u64, right_bits: u64,
+    expected: s32, result_type: s64 = -1) {
+    result := cast(s32)(ifx result_type < 0 then type else result_type)
+    constants: [2]LirConstant = .[.{.type = cast(s32)type, .bits = left_bits}, .{.type = cast(s32)type, .bits = right_bits}]
+    operands: [2]s32 = .[0, 1]
+    returned: [1]s32 = .[2]
+    values: [3]s32 = .[cast(s32)type, cast(s32)type, result]
+    empty: [0]s32
+    unary := op == .Negate || op == .BitNot || op == .Convert || op == .Bitcast
+    instructions: [4]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(op, 2, operands[:ifx unary then 1 else 2]), Instruction(.Return, -1, returned[:])]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "scalar", .module = 0, .result = result,
+        .values = values[:], .blocks = blocks[:], .entry = 0, .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types,
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    label := CheckConcat(LirOpName(op), CheckConcat(" type ", CheckNumber(type)))
+    Execute(test, program, expected, label)
+}
+
+NestedAggregates :: (test: *NativeTest) {
+    types: [17]LirType
+    AggregateTypes(types[:])
+    constants: [10]LirConstant = .[
+        .{.type = 7, .bits = 10}, .{.type = 7, .bits = 20}, .{.type = 7, .bits = 30},
+        .{.type = 7, .bits = 40}, .{.type = 7, .bits = 50},
+        .{.type = 15, .bits = 0x80000000}, .{.type = 16, .bits = 0x7ff8000000000042},
+        .{.type = 7, .bits = 0x80000000}, .{.type = 9, .bits = 0x7ff8000000000042},
+        .{.type = 9, .bits = 0x8000000000000000}]
+    empty: [0]s32
+    array_values: [3]s32 = .[0, 1, 2]
+    first_record_values: [2]s32 = .[3, 7]
+    second_record_values: [2]s32 = .[4, 7]
+    record_array_values: [2]s32 = .[8, 9]
+    top_values: [5]s32 = .[8, 10, 11, 5, 6]
+    top_array: [1]s32 = .[12]
+    second_record: [1]s32 = .[13]
+    nested_array: [1]s32 = .[14]
+    last_array_value: [1]s32 = .[15]
+    replace_array_value: [2]s32 = .[15, 4]
+    first_array_value: [1]s32 = .[17]
+    top_pointer: [1]s32 = .[12]
+    pointer_equal: [2]s32 = .[19, 20]
+    top_float32: [1]s32 = .[12]
+    float32_bits: [1]s32 = .[22]
+    float32_equal: [2]s32 = .[23, 24]
+    top_float64: [1]s32 = .[12]
+    float64_bits: [1]s32 = .[26]
+    float64_equal: [2]s32 = .[27, 28]
+    pointer_answer: [1]s32 = .[21]
+    float32_answer: [1]s32 = .[25]
+    float64_answer: [1]s32 = .[29]
+    first_sum: [2]s32 = .[16, 18]
+    second_sum: [2]s32 = .[33, 30]
+    third_sum: [2]s32 = .[34, 31]
+    fourth_sum: [2]s32 = .[35, 32]
+    unsigned_source: [1]s32 = .[37]
+    unsigned_float: [1]s32 = .[38]
+    unsigned_equal: [2]s32 = .[37, 39]
+    unsigned_answer: [1]s32 = .[40]
+    final_sum: [2]s32 = .[36, 41]
+    returned: [1]s32 = .[42]
+    instructions: [44]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.Constant, 4, empty[:], 4), Instruction(.Constant, 5, empty[:], 5),
+        Instruction(.Constant, 6, empty[:], 6),
+        Instruction(.Aggregate, 7, array_values[:]), Instruction(.Aggregate, 8, first_record_values[:]),
+        Instruction(.Aggregate, 9, second_record_values[:]), Instruction(.Aggregate, 10, record_array_values[:]),
+        Instruction(.Null, 11, empty[:]), Instruction(.Aggregate, 12, top_values[:]),
+        Instruction(.Extract, 13, top_array[:]), Instruction(.Extract, 14, second_record[:]),
+        Instruction(.Extract, 15, nested_array[:]), Instruction(.Extract, 16, last_array_value[:]),
+        Instruction(.Insert, 17, replace_array_value[:]), Instruction(.Extract, 18, first_array_value[:]),
+        Instruction(.Extract, 19, top_pointer[:]), Instruction(.Null, 20, empty[:]),
+        Instruction(.Equal, 21, pointer_equal[:]), Instruction(.Extract, 22, top_float32[:]),
+        Instruction(.Bitcast, 23, float32_bits[:]), Instruction(.Constant, 24, empty[:], 7),
+        Instruction(.Equal, 25, float32_equal[:]), Instruction(.Extract, 26, top_float64[:]),
+        Instruction(.Bitcast, 27, float64_bits[:]), Instruction(.Constant, 28, empty[:], 8),
+        Instruction(.Equal, 29, float64_equal[:]), Instruction(.Convert, 30, pointer_answer[:]),
+        Instruction(.Convert, 31, float32_answer[:]), Instruction(.Convert, 32, float64_answer[:]),
+        Instruction(.Add, 33, first_sum[:]), Instruction(.Add, 34, second_sum[:]),
+        Instruction(.Add, 35, third_sum[:]), Instruction(.Add, 36, fourth_sum[:]),
+        Instruction(.Constant, 37, empty[:], 9), Instruction(.Convert, 38, unsigned_source[:]),
+        Instruction(.Convert, 39, unsigned_float[:]), Instruction(.Equal, 40, unsigned_equal[:]),
+        Instruction(.Convert, 41, unsigned_answer[:]), Instruction(.Add, 42, final_sum[:]),
+        Instruction(.Return, -1, returned[:])]
+    instructions[13].immediate = 1
+    instructions[14].immediate = 1
+    instructions[15].immediate = 1
+    instructions[16].immediate = 2
+    instructions[17].immediate = 0
+    instructions[18].immediate = 0
+    instructions[19].immediate = 2
+    instructions[22].immediate = 3
+    instructions[26].immediate = 4
+    values: [43]s32 = .[
+        7, 7, 7, 7, 7, 15, 16, 11, 12, 12, 13, 10, 14, 13, 12, 11, 7, 11, 7,
+        10, 10, 1, 15, 7, 7, 1, 16, 9, 9, 1, 7, 7, 7, 7, 7, 7, 7,
+        9, 16, 9, 1, 7, 7]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "nested-values", .module = 0, .result = 7,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 84, "nested aggregate values, pointer null, and float payload bits")
+}
+
+AggregateOracle :: (test: *NativeTest) {
+    if !native_execution || test.failed { return }
+    source := #string END
+#include <stdint.h>
+#include <string.h>
+typedef struct { uint32_t value; uint32_t data[3]; } Row;
+typedef struct { Row head; Row rows[2]; void *pointer; float f32; double f64; } Top;
+int main(void) {
+    Top original = {0};
+    uint32_t negative_zero = 0x80000000u;
+    original.head.data[2] = 3;
+    memcpy(&original.f32, &negative_zero, sizeof(negative_zero));
+    Top changed = original;
+    changed.head.data[2] = 9;
+    uint32_t observed = 0;
+    memcpy(&observed, &changed.f32, sizeof(observed));
+    return (int)(changed.head.data[2] + 30 + (observed == negative_zero));
+}
+END
+    source_path := CheckPath(test.work, "aggregate-oracle.c")
+    executable_path := CheckPath(test.work, "aggregate-oracle")
+    if !NativeWrite(test, source_path, source) { return }
+    compile: [5]string = .["/usr/bin/cc", "-std=c11", source_path, "-o", executable_path]
+    unused NativeRun(test, compile[:])
+    command: [1]string = .[executable_path]
+    unused NativeRun(test, command[:], "", 40)
+}
+
+AggregateCalls :: (test: *NativeTest) {
+    types: [17]LirType
+    AggregateTypes(types[:])
+    constants: [10]LirConstant = .[
+        .{.type = 7, .bits = 1}, .{.type = 7, .bits = 2}, .{.type = 7, .bits = 3},
+        .{.type = 7, .bits = 4}, .{.type = 7, .bits = 5}, .{.type = 7, .bits = 9},
+        .{.type = 7, .bits = 30}, .{.type = 15, .bits = 0x80000000},
+        .{.type = 16, .bits = 0}, .{.type = 7, .bits = 0x80000000}]
+    empty: [0]s32
+    array_values: [3]s32 = .[0, 1, 2]
+    first_record_values: [2]s32 = .[3, 9]
+    second_record_values: [2]s32 = .[4, 9]
+    record_array_values: [2]s32 = .[10, 11]
+    top_values: [5]s32 = .[10, 12, 13, 7, 8]
+    builder_arguments: [9]s32 = .[0, 14, 0, 1, 2, 3, 4, 5, 5]
+    reducer_arguments: [3]s32 = .[15, 6, 7]
+    entry_return: [1]s32 = .[16]
+    entry_instructions: [18]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.Constant, 4, empty[:], 4), Instruction(.Constant, 5, empty[:], 5),
+        Instruction(.Constant, 6, empty[:], 6), Instruction(.Constant, 7, empty[:], 7),
+        Instruction(.Constant, 8, empty[:], 8), Instruction(.Aggregate, 9, array_values[:]),
+        Instruction(.Aggregate, 10, first_record_values[:]), Instruction(.Aggregate, 11, second_record_values[:]),
+        Instruction(.Aggregate, 12, record_array_values[:]), Instruction(.Null, 13, empty[:]),
+        Instruction(.Aggregate, 14, top_values[:]), Instruction(.Call, 15, builder_arguments[:], 1),
+        Instruction(.Call, 16, reducer_arguments[:], 2), Instruction(.Return, -1, entry_return[:])]
+    entry_instructions[15].effect = 1
+    entry_instructions[16].effect = 2
+    entry_values: [17]s32 = .[7, 7, 7, 7, 7, 7, 7, 15, 16, 11, 12, 12, 13, 10, 14, 14, 7]
+    builder_parameters: [9]s32 = .[7, 14, 7, 7, 7, 7, 7, 7, 7]
+    builder_parameter_values: [9]s32 = .[0, 1, 2, 3, 4, 5, 6, 7, 8]
+    builder_top: [1]s32 = .[1]
+    builder_record: [1]s32 = .[9]
+    replace_last: [2]s32 = .[10, 8]
+    replace_array: [2]s32 = .[9, 11]
+    replace_record: [2]s32 = .[1, 12]
+    builder_return: [1]s32 = .[13]
+    builder_instructions: [6]LirInstruction = .[
+        Instruction(.Extract, 9, builder_top[:]), Instruction(.Extract, 10, builder_record[:]),
+        Instruction(.Insert, 11, replace_last[:]), Instruction(.Insert, 12, replace_array[:]),
+        Instruction(.Insert, 13, replace_record[:]), Instruction(.Return, -1, builder_return[:])]
+    builder_instructions[0].immediate = 0
+    builder_instructions[1].immediate = 1
+    builder_instructions[2].immediate = 2
+    builder_instructions[3].immediate = 1
+    builder_instructions[4].immediate = 0
+    builder_values: [14]s32 = .[7, 14, 7, 7, 7, 7, 7, 7, 7, 12, 11, 11, 12, 14]
+    reducer_parameters: [3]s32 = .[14, 7, 15]
+    reducer_parameter_values: [3]s32 = .[0, 1, 2]
+    reducer_top: [1]s32 = .[0]
+    reducer_record: [1]s32 = .[3]
+    reducer_array: [1]s32 = .[4]
+    reducer_float: [1]s32 = .[2]
+    reducer_equal: [2]s32 = .[6, 7]
+    reducer_answer: [1]s32 = .[8]
+    reducer_first_sum: [2]s32 = .[5, 1]
+    reducer_second_sum: [2]s32 = .[10, 9]
+    reducer_return: [1]s32 = .[11]
+    reducer_instructions: [10]LirInstruction = .[
+        Instruction(.Extract, 3, reducer_top[:]), Instruction(.Extract, 4, reducer_record[:]),
+        Instruction(.Extract, 5, reducer_array[:]), Instruction(.Bitcast, 6, reducer_float[:]),
+        Instruction(.Constant, 7, empty[:], 9), Instruction(.Equal, 8, reducer_equal[:]),
+        Instruction(.Convert, 9, reducer_answer[:]), Instruction(.Add, 10, reducer_first_sum[:]),
+        Instruction(.Add, 11, reducer_second_sum[:]), Instruction(.Return, -1, reducer_return[:])]
+    reducer_instructions[0].immediate = 0
+    reducer_instructions[1].immediate = 1
+    reducer_instructions[2].immediate = 2
+    reducer_values: [12]s32 = .[14, 7, 15, 12, 11, 7, 7, 7, 1, 7, 7, 7]
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    builder_blocks: [1]LirBlock = .[.{.parameters = builder_parameter_values[:], .instructions = builder_instructions[:]}]
+    reducer_blocks: [1]LirBlock = .[.{.parameters = reducer_parameter_values[:], .instructions = reducer_instructions[:]}]
+    functions: [3]LirFunction = .[
+        .{.name = "aggregate-entry", .module = 0, .result = 7,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "aggregate-builder", .module = 0, .parameters = builder_parameters[:], .result = 14,
+            .values = builder_values[:], .blocks = builder_blocks[:], .origin = -1},
+        .{.name = "aggregate-reducer", .module = 0, .parameters = reducer_parameters[:], .result = 7,
+            .values = reducer_values[:], .blocks = reducer_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    AggregateOracle(test)
+    Execute(test, program, 40, "packed aggregate results and mixed calls beyond register limits")
+}
+
+AggregateRecursive :: (test: *NativeTest) {
+    types: [17]LirType
+    AggregateTypes(types[:])
+    constants: [7]LirConstant = .[
+        .{.type = 7, .bits = 0}, .{.type = 7, .bits = 1}, .{.type = 7, .bits = 2},
+        .{.type = 7, .bits = 40}, .{.type = 7, .bits = 5},
+        .{.type = 7, .bits = 0}, .{.type = 7, .bits = 1}]
+    empty: [0]s32
+    initial_array_values: [3]s32 = .[0, 1, 2]
+    initial_record_values: [2]s32 = .[3, 5]
+    recursive_arguments: [2]s32 = .[4, 6]
+    entry_record: [1]s32 = .[7]
+    entry_record_again: [1]s32 = .[7]
+    entry_array: [1]s32 = .[9]
+    entry_sum: [2]s32 = .[8, 10]
+    entry_return: [1]s32 = .[11]
+    entry_instructions: [13]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.Constant, 4, empty[:], 4), Instruction(.Aggregate, 5, initial_array_values[:]),
+        Instruction(.Aggregate, 6, initial_record_values[:]), Instruction(.Call, 7, recursive_arguments[:], 1),
+        Instruction(.Extract, 8, entry_record[:]), Instruction(.Extract, 9, entry_record_again[:]),
+        Instruction(.Extract, 10, entry_array[:]), Instruction(.Add, 11, entry_sum[:]),
+        Instruction(.Return, -1, entry_return[:])]
+    entry_instructions[7].effect = 1
+    entry_instructions[8].immediate = 0
+    entry_instructions[9].immediate = 1
+    entry_instructions[10].immediate = 0
+    entry_values: [12]s32 = .[7, 7, 7, 7, 7, 11, 12, 12, 7, 11, 7, 7]
+    recursive_parameters: [2]s32 = .[7, 12]
+    recursive_parameter_values: [2]s32 = .[0, 1]
+    zero_equal: [2]s32 = .[0, 2]
+    condition: [1]s32 = .[3]
+    branch_edges: [2]LirEdge = .[.{.block = 0}, .{.block = 1}]
+    dispatch: [3]LirInstruction = .[
+        Instruction(.Constant, 2, empty[:], 5), Instruction(.Equal, 3, zero_equal[:]),
+        .{.op = .Branch, .result = -1, .operands = condition[:], .edges = branch_edges[:],
+            .symbol = -1, .origin = -1}]
+    base_return: [1]s32 = .[1]
+    base: [1]LirInstruction = .[Instruction(.Return, -1, base_return[:])]
+    next_depth: [2]s32 = .[0, 4]
+    state_array: [1]s32 = .[1]
+    current_value: [1]s32 = .[6]
+    updated_value: [2]s32 = .[7, 0]
+    replace_value: [2]s32 = .[6, 8]
+    replace_array: [2]s32 = .[1, 9]
+    recursive_call_arguments: [2]s32 = .[5, 10]
+    original_scalar: [1]s32 = .[1]
+    restore_scalar: [2]s32 = .[11, 12]
+    recursive_return: [1]s32 = .[13]
+    recursive: [11]LirInstruction = .[
+        Instruction(.Constant, 4, empty[:], 6), Instruction(.Subtract, 5, next_depth[:]),
+        Instruction(.Extract, 6, state_array[:]), Instruction(.Extract, 7, current_value[:]),
+        Instruction(.Add, 8, updated_value[:]), Instruction(.Insert, 9, replace_value[:]),
+        Instruction(.Insert, 10, replace_array[:]), Instruction(.Call, 11, recursive_call_arguments[:], 1),
+        Instruction(.Extract, 12, original_scalar[:]), Instruction(.Insert, 13, restore_scalar[:]),
+        Instruction(.Return, -1, recursive_return[:])]
+    recursive[2].immediate = 1
+    recursive[3].immediate = 0
+    recursive[5].immediate = 0
+    recursive[6].immediate = 1
+    recursive[7].effect = 1
+    recursive[8].immediate = 0
+    recursive[9].immediate = 0
+    recursive_values: [14]s32 = .[7, 12, 7, 1, 7, 7, 11, 7, 7, 11, 12, 12, 7, 12]
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    recursive_blocks: [3]LirBlock = .[
+        .{.instructions = base[:]}, .{.instructions = recursive[:]},
+        .{.parameters = recursive_parameter_values[:], .instructions = dispatch[:]}]
+    functions: [2]LirFunction = .[
+        .{.name = "recursive-entry", .module = 0, .result = 7,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "recursive-aggregate", .module = 0, .parameters = recursive_parameters[:], .result = 12,
+            .values = recursive_values[:], .blocks = recursive_blocks[:], .entry = 2, .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 55, "recursive aggregate results preserve caller values")
+}
+
+AggregateFlow :: (test: *NativeTest) {
+    types: [17]LirType
+    AggregateTypes(types[:])
+    constants: [5]LirConstant = .[
+        .{.type = 7, .bits = 10}, .{.type = 7, .bits = 20}, .{.type = 7, .bits = 1},
+        .{.type = 7, .bits = 0}, .{.type = 7, .bits = 2}]
+    empty: [0]s32
+    first_array_values: [3]s32 = .[0, 2, 2]
+    second_array_values: [3]s32 = .[1, 4, 4]
+    first_record_values: [2]s32 = .[0, 5]
+    second_record_values: [2]s32 = .[1, 6]
+    initial_arguments: [3]s32 = .[7, 8, 3]
+    initial_edge: [1]LirEdge = .[.{.block = 1, .arguments = initial_arguments[:]}]
+    initial: [10]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.Constant, 4, empty[:], 2), Instruction(.Aggregate, 5, first_array_values[:]),
+        Instruction(.Aggregate, 6, second_array_values[:]), Instruction(.Aggregate, 7, first_record_values[:]),
+        Instruction(.Aggregate, 8, second_record_values[:]),
+        .{.op = .Jump, .result = -1, .edges = initial_edge[:], .symbol = -1, .origin = -1}]
+    loop_parameters: [3]s32 = .[9, 10, 11]
+    increment: [2]s32 = .[11, 12]
+    compare: [2]s32 = .[13, 14]
+    loop_condition: [1]s32 = .[15]
+    swapped_arguments: [3]s32 = .[10, 9, 13]
+    final_arguments: [2]s32 = .[9, 10]
+    loop_edges: [2]LirEdge = .[
+        .{.block = 1, .arguments = swapped_arguments[:]},
+        .{.block = 2, .arguments = final_arguments[:]}]
+    loop: [5]LirInstruction = .[
+        Instruction(.Constant, 12, empty[:], 2), Instruction(.Add, 13, increment[:]),
+        Instruction(.Constant, 14, empty[:], 4), Instruction(.Less, 15, compare[:]),
+        .{.op = .Branch, .result = -1, .operands = loop_condition[:], .edges = loop_edges[:],
+            .symbol = -1, .origin = -1}]
+    final_parameters: [2]s32 = .[16, 17]
+    first_scalar: [1]s32 = .[16]
+    second_scalar: [1]s32 = .[17]
+    difference: [2]s32 = .[18, 19]
+    final_return: [1]s32 = .[20]
+    final: [4]LirInstruction = .[
+        Instruction(.Extract, 18, first_scalar[:]), Instruction(.Extract, 19, second_scalar[:]),
+        Instruction(.Subtract, 20, difference[:]), Instruction(.Return, -1, final_return[:])]
+    final[0].immediate = 0
+    final[1].immediate = 0
+    values: [21]s32 = .[
+        7, 7, 7, 7, 7, 11, 11, 12, 12, 12, 12, 7, 7, 7, 7, 1, 12, 12, 7, 7, 7]
+    blocks: [3]LirBlock = .[
+        .{.instructions = initial[:]}, .{.parameters = loop_parameters[:], .instructions = loop[:]},
+        .{.parameters = final_parameters[:], .instructions = final[:]}]
+    functions: [1]LirFunction = .[.{.name = "aggregate-copy-cycle", .module = 0, .result = 7,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 10, "aggregate parallel-copy cycle")
+}
+
+Arithmetic :: (test: *NativeTest, types: []LirType) {
+    for type: 2..9 {
+        bits := cast(u64)types[type].bits
+        mask := ifx bits == cast(u64)64 then cast(u64)0 - cast(u64)1 else (cast(u64)1 << bits) - cast(u64)1
+        minimum := cast(u64)1 << (bits - cast(u64)1)
+        Scalar(test, types, type, .Add, mask, 43, 42)
+        Scalar(test, types, type, .Subtract, 0, 1, 255)
+        Scalar(test, types, type, .Multiply, mask, 2, 254)
+        Scalar(test, types, type, .Negate, 1, 0, 255)
+        Scalar(test, types, type, .BitNot, 0, 0, 255)
+        Scalar(test, types, type, .BitAnd, 126, 42, 42)
+        Scalar(test, types, type, .BitOr, 32, 10, 42)
+        Scalar(test, types, type, .BitXor, 63, 21, 42)
+        Scalar(test, types, type, .ShiftLeft, 21, 1, 42)
+        Scalar(test, types, type, .ShiftRight, mask, 1, ifx types[type].is_signed || bits > 8 then 255 else 127)
+        Scalar(test, types, type, .ShiftLeft, 1, bits, 125)
+        Scalar(test, types, type, .ShiftRight, 1, mask, 125)
+        Scalar(test, types, type, .Divide, 126, 3, 42)
+        Scalar(test, types, type, .Remainder, 127, 85, 42)
+        Scalar(test, types, type, .Divide, 42, 0, 125)
+        Scalar(test, types, type, .Remainder, 42, 0, 125)
+        Scalar(test, types, type, .Equal, mask, mask, 1, 1)
+        Scalar(test, types, type, .NotEqual, mask, 0, 1, 1)
+        Scalar(test, types, type, .Less, mask, 0, ifx types[type].is_signed then 1 else 0, 1)
+        Scalar(test, types, type, .Greater, mask, 0, ifx types[type].is_signed then 0 else 1, 1)
+        Scalar(test, types, type, .LessEqual, 42, 42, 1, 1)
+        Scalar(test, types, type, .GreaterEqual, 42, 42, 1, 1)
+        if types[type].is_signed {
+            Scalar(test, types, type, .Divide, minimum, mask, ifx bits == 8 then 128 else 0)
+            Scalar(test, types, type, .Remainder, minimum, mask, 0)
+            Scalar(test, types, type, .Divide, mask - cast(u64)125, 3, 214)
+            Scalar(test, types, type, .Remainder, mask - cast(u64)126, 85, 214)
+        } else {
+            Scalar(test, types, type, .Divide, mask, 2, ifx bits == 8 then 127 else 255)
+        }
+        for destination: 2..9 {
+            Scalar(test, types, type, .Convert, mask, 0, 255, destination)
+        }
+        Scalar(test, types, type, .Bitcast, mask, 0, 255, ifx type % 2 == 0 then type + 1 else type - 1)
+    }
+}
+
+Flow :: (test: *NativeTest, types: []LirType, choose: bool) {
+    empty: [0]s32
+    constants: [5]LirConstant = .[.{.type = 6, .bits = 1}, .{.type = 6, .bits = 2},
+        .{.type = 6, .bits = 0}, .{.type = 6, .bits = 1}, .{.type = 6, .bits = 2}]
+    p0: [3]s32 = .[3, 4, 5]
+    initial: [3]s32 = .[0, 1, 2]
+    swap: [3]s32 = .[4, 3, 7]
+    add: [2]s32 = .[5, 6]
+    less: [2]s32 = .[7, 8]
+    final_parameters: [1]s32 = .[10]
+    final_argument: [1]s32 = .[3]
+    final_return: [1]s32 = .[10]
+    first_edge: [1]LirEdge = .[.{.block = 1, .arguments = initial[:]}]
+    edges: [2]LirEdge = .[.{.block = 1, .arguments = swap[:]}, .{.block = 2, .arguments = final_argument[:]}]
+    condition: [1]s32 = .[9]
+    first: [4]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), .{.op = .Jump, .result = -1, .edges = first_edge[:], .symbol = -1, .origin = -1}]
+    loop: [5]LirInstruction = .[Instruction(.Constant, 6, empty[:], 3), Instruction(.Add, 7, add[:]),
+        Instruction(.Constant, 8, empty[:], 4), Instruction(.Less, 9, less[:]),
+        .{.op = .Branch, .result = -1, .operands = condition[:], .edges = edges[:], .symbol = -1, .origin = -1}]
+    last: [1]LirInstruction = .[Instruction(.Return, -1, final_return[:])]
+    values: [11]s32 = .[6, 6, 6, 6, 6, 6, 6, 6, 6, 1, 6]
+    if !choose { constants[4].bits = 1 }
+    blocks: [3]LirBlock = .[.{.instructions = first[:]}, .{.parameters = p0[:], .instructions = loop[:]},
+        .{.parameters = final_parameters[:], .instructions = last[:]}]
+    functions: [1]LirFunction = .[.{.name = "cyclic-edge", .module = 0, .result = 6, .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types,
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, ifx choose then 2 else 1, "loop parallel copies and branch")
+}
+
+Calls :: (test: *NativeTest, types: []LirType) {
+    empty: [0]s32
+    constants: [6]LirConstant
+    for index: 0..5 { constants[index] = .{.type = 6, .bits = cast(u64)(index + 1)} }
+    operands: [6]s32 = .[0, 1, 2, 3, 4, 5]
+    returned: [1]s32 = .[9]
+    caller_values: [10]s32 = .[6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
+    caller: [11]LirInstruction
+    for index: 0..5 { caller[index] = Instruction(.Constant, index, empty[:], index) }
+    caller[6] = Instruction(.Call, 6, operands[:], 1); caller[6].effect = 1
+    preserved: [2]s32 = .[6, 5]
+    combined: [2]s32 = .[7, 8]
+    caller[7] = Instruction(.Add, 7, preserved[:])
+    caller[8] = Instruction(.Call, 8, operands[:], 1); caller[8].effect = 2
+    caller[9] = Instruction(.Add, 9, combined[:])
+    caller[10] = Instruction(.Return, -1, returned[:])
+    parameters: [6]s32 = .[6, 6, 6, 6, 6, 6]
+    callee_values: [11]s32 = .[6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]
+    adds: [10]s32 = .[0, 1, 6, 2, 7, 3, 8, 4, 9, 5]
+    callee: [6]LirInstruction
+    for index: 0..4 { callee[index] = Instruction(.Add, index + 6, adds[index * 2:index * 2 + 2]) }
+    ret: [1]s32 = .[10]
+    callee[5] = Instruction(.Return, -1, ret[:])
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller[:]}]
+    callee_blocks: [1]LirBlock = .[.{.parameters = operands[:], .instructions = callee[:]}]
+    functions: [2]LirFunction = .[
+        .{.name = "caller", .module = 0, .result = 6, .values = caller_values[:], .blocks = caller_blocks[:], .origin = -1},
+        .{.name = "callee", .module = 0, .parameters = parameters[:], .result = 6,
+            .values = callee_values[:], .blocks = callee_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types,
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 48, "six register calls preserve live values")
+    bytes: [512]u8
+    for index: 0..511 { bytes[index] = 165 }
+    functions[0].parameters = parameters[:1]
+    caller_blocks[0].parameters = operands[:1]
+    rejected := LirX64Elf(program, bytes[:])
+    unused NativeAssert(test, rejected.problem == .Calling, "entry arguments rejected")
+    for byte: bytes { unused NativeAssert(test, byte == 165, "rejection leaves output unchanged") }
+}
+
+Recursive :: (test: *NativeTest, types: []LirType) {
+    empty: [0]s32
+    parameters: [1]s32 = .[6]
+    parameter_values: [1]s32 = .[0]
+    values: [7]s32 = .[6, 6, 1, 6, 6, 6, 6]
+    constants: [3]LirConstant = .[.{.type = 6, .bits = 0}, .{.type = 6, .bits = 1}, .{.type = 6, .bits = 10}]
+    equal: [2]s32 = .[0, 1]
+    condition: [1]s32 = .[2]
+    edges: [2]LirEdge = .[.{.block = 0}, .{.block = 1}]
+    first: [3]LirInstruction = .[Instruction(.Constant, 1, empty[:], 0), Instruction(.Equal, 2, equal[:]),
+        .{.op = .Branch, .result = -1, .symbol = -1, .origin = -1, .operands = condition[:], .edges = edges[:]}]
+    base: [1]LirInstruction = .[Instruction(.Return, -1, parameter_values[:])]
+    subtract: [2]s32 = .[0, 3]
+    argument: [1]s32 = .[4]
+    add: [2]s32 = .[0, 5]
+    returned: [1]s32 = .[6]
+    recursive: [5]LirInstruction = .[Instruction(.Constant, 3, empty[:], 1), Instruction(.Subtract, 4, subtract[:]),
+        Instruction(.Call, 5, argument[:], 0), Instruction(.Add, 6, add[:]), Instruction(.Return, -1, returned[:])]
+    recursive[2].effect = 1
+    blocks: [3]LirBlock = .[.{.instructions = base[:]}, .{.instructions = recursive[:]},
+        .{.parameters = parameter_values[:], .instructions = first[:]}]
+    caller_values: [2]s32 = .[6, 6]
+    caller_return: [1]s32 = .[1]
+    caller: [3]LirInstruction = .[Instruction(.Constant, 0, empty[:], 2),
+        Instruction(.Call, 1, parameter_values[:], 0), Instruction(.Return, -1, caller_return[:])]
+    caller[1].effect = 1
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller[:]}]
+    functions: [2]LirFunction = .[
+        .{.name = "recursive-sum", .module = 0, .parameters = parameters[:], .result = 6,
+            .values = values[:], .blocks = blocks[:], .entry = 2, .origin = -1},
+        .{.name = "entry", .module = 0, .result = 6, .values = caller_values[:], .blocks = caller_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types,
+        .constants = constants[:], .functions = functions[:], .entry = 1}
+    Execute(test, program, 55, "recursive backward calls and nonzero entries")
+}
+
+Rejections :: (test: *NativeTest) {
+    for mode: 0..8 {
+        types: [11]LirType
+        Types(types[:10])
+        types[10] = .{.kind = .Integer, .bits = 64}
+        constants: [1]LirConstant = .[.{.type = 6, .bits = 42}]
+        empty: [0]s32
+        value: [1]s32 = .[0]
+        values: [1]s32 = .[6]
+        instructions: [2]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0), Instruction(.Return, -1, value[:])]
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        functions: [1]LirFunction = .[.{.name = "reject", .module = 0, .result = 6,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        problem: LirProblem = .Unsupported
+        if mode == 0 { types[10] = .{.kind = .Function, .result = 0} }
+        if mode == 1 { types[10] = .{.kind = .Float, .bits = 16}; problem = .Type }
+        if mode == 2 { types[10] = .{.kind = .Record} }
+        if mode == 3 { types[10].native_width = true }
+        if mode == 4 { functions[0].calling = .C }
+        if mode == 5 { functions[0].variadic = true }
+        if mode == 6 { instructions[1].operands = empty[:]; problem = .Operand }
+        if mode == 7 { instructions[0].symbol = 99; problem = .Constant }
+        if mode == 8 { instructions[0].origin = 99; problem = .Origin }
+        modules: [1]string = .["native-test"]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .functions = functions[:], .entry = 0}
+        bytes: [512]u8
+        for index: 0..511 { bytes[index] = 165 }
+        result := LirX64Elf(program, bytes[:])
+        unused NativeAssert(test, result.problem == problem && result.size == 0, CheckConcat("reject mode ", CheckNumber(mode)))
+        result = LirX64Encode(program, bytes[:])
+        unused NativeAssert(test, result.problem == problem && result.size == 0, "raw rejection agrees")
+        for byte: bytes { unused NativeAssert(test, byte == 165, "rejected program leaves output unchanged") }
+    }
+}
+
+Markers :: (test: *NativeTest, types: []LirType) {
+    for mode: 0..2 {
+        empty: [0]s32
+        returned: [1]s32 = .[0]
+        values: [1]s32 = .[6]
+        constants: [1]LirConstant = .[.{.type = 6, .bits = 42}]
+        instructions: [3]LirInstruction = .[Instruction(.Fuel, -1, empty[:]),
+            Instruction(.Constant, 0, empty[:], 0), Instruction(.Return, -1, returned[:])]
+        instructions[0].immediate = 1; instructions[0].effect = 1
+        if mode > 0 { instructions[2] = Instruction(ifx mode == 1 then LirOp.Trap else LirOp.Unreachable, -1, empty[:]) }
+        if mode == 1 { instructions[2].effect = 2 }
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        functions: [1]LirFunction = .[.{.name = "markers", .module = 0, .result = 6,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        modules: [1]string = .["native-test"]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types,
+            .constants = constants[:], .functions = functions[:], .entry = 0}
+        Execute(test, program, ifx mode == 0 then 42 else 125, "unbudgeted AOT fuel and traps")
+        if mode == 0 {
+            expected: [80]u8 = .[
+                72, 131, 228, 240, 232, 26, 0, 0, 0, 72, 137, 199, 184, 60, 0, 0, 0, 15, 5, 15, 11,
+                191, 125, 0, 0, 0, 184, 60, 0, 0, 0, 15, 5, 15, 11,
+                85, 72, 137, 229, 72, 129, 236, 16, 0, 0, 0, 233, 0, 0, 0, 0,
+                72, 184, 42, 0, 0, 0, 0, 0, 0, 0, 72, 99, 192, 72, 137, 133, 248, 255, 255, 255,
+                72, 139, 133, 248, 255, 255, 255, 201, 195]
+            bytes: [80]u8
+            result := LirX64Encode(program, bytes[:])
+            unused NativeAssert(test, result.problem == .None && result.size == 80, "known encoding size")
+            for index: 0..79 { unused NativeAssert(test, bytes[index] == expected[index], "known instruction bytes") }
+            tool := OpenRead("/usr/bin/objdump")
+            if tool.valid { CloseFile(tool) }
+            if tool.valid && native_execution {
+                command: [3]string = .["/usr/bin/objdump", "-d", CheckPath(test.work, "direct-elf")]
+                disassembled := NativeRun(test, command[:])
+                unused NativeAssert(test, TextContains(disassembled.output, "Disassembly of section .text") &&
+                    TextContains(disassembled.output, "<_start>:") && TextContains(disassembled.output, "<_zir_trap>:") &&
+                    TextContains(disassembled.output, CheckConcat(program.modules[0], ":")) &&
+                    TextContains(disassembled.output, "syscall") && TextContains(disassembled.output, "ret"), "inspect symbolized final ELF instructions")
+            }
+        }
+    }
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "lowered-x64")
+    defer NativeCleanup(*test)
+    host_command := string.["uname", "-s", "-m"]
+    host := NativeRun(*test, host_command[:])
+    native_execution = TextContains(host.output, "Linux") && TextContains(host.output, "x86_64")
+    if !native_execution { print("direct ELF encoding/maps only: execution requires Linux x86-64\n") }
+    types: [10]LirType
+    Types(types[:])
+    Arithmetic(*test, types[:])
+    Scalar(*test, types[:], 1, .Equal, 0, 1, 0, 1)
+    Scalar(*test, types[:], 1, .NotEqual, 0, 1, 1, 1)
+    NestedAggregates(*test)
+    AggregateCalls(*test)
+    AggregateRecursive(*test)
+    AggregateFlow(*test)
+    Flow(*test, types[:], true)
+    Flow(*test, types[:], false)
+    Calls(*test, types[:])
+    Recursive(*test, types[:])
+    Rejections(*test)
+    Markers(*test, types[:])
+    if test.failed { return 1 }
+    print("direct lowered x86-64 ELF local tests passed\n")
+    return 0
+}

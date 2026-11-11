@@ -2,8 +2,8 @@
 set -eu
 # The wasm execution tier must agree with the native tier and the portable
 # VM on the scalar fixture, and reject out-of-subset programs with a
-# diagnostic instead of guessing. Node or Python Wasmtime runs the emitted
-# modules; an explicit ZIRAN_WASM_PYTHON selects Wasmtime for every check.
+# diagnostic instead of guessing. Node or the native Wasmtime CLI runs the
+# emitted modules; ZIRAN_WASM_ENGINE=wasmtime selects Wasmtime for every check.
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 build=$(CDPATH= cd -- "$(dirname -- "$ziran")/.." && pwd)
@@ -15,59 +15,29 @@ entry=zx_wasm_test:Answer
 expected=9091
 nodebin=${ZIRAN_WASM_NODE:-node}
 
-wasmpython=${ZIRAN_WASM_PYTHON:-python3}
-python_engine=0
-python_available=0
-if command -v "$wasmpython" >/dev/null 2>&1 &&
-   "$wasmpython" -c 'import wasmtime' >/dev/null 2>&1; then
-    python_available=1
-    if test -n "${ZIRAN_WASM_PYTHON:-}" || ! command -v "$nodebin" >/dev/null 2>&1; then
-        python_engine=1
-    fi
-fi
-if test -n "${ZIRAN_WASM_PYTHON:-}" && test "$python_available" != 1; then
-    echo "zx-wasm-test: $wasmpython cannot import wasmtime" >&2
+wasmtime=${ZIRAN_WASMTIME:-wasmtime}
+native_engine=${ZIRAN_WASM_ENGINE:-node}
+wasmtime_available=0
+if command -v "$wasmtime" >/dev/null 2>&1; then wasmtime_available=1; fi
+if test "$native_engine" != node && test "$native_engine" != wasmtime; then
+    echo 'zx-wasm-test: ZIRAN_WASM_ENGINE must be node or wasmtime' >&2
     exit 1
 fi
-if test "$python_engine" != 1 && ! command -v "$nodebin" >/dev/null 2>&1; then
-    echo 'zx-wasm-test: needs node or Python wasmtime for execution' >&2
+if test "$native_engine" = wasmtime && test "$wasmtime_available" != 1; then
+    echo "zx-wasm-test: native Wasmtime is unavailable: $wasmtime" >&2
+    exit 1
+fi
+if ! command -v "$nodebin" >/dev/null 2>&1; then
+    echo 'zx-wasm-test: needs node for host-output interoperability' >&2
     test "${WASM_REQUIRED:-0}" != 1
     exit
 fi
 
 # Both engines use the same modules and budget trap contract.
-cat >"$work/run_wasm.py" <<'EOF'
-import sys
-from wasmtime import Engine, Store, Linker, Module, Global, GlobalType, ValType, FuncType, Trap
-mode, *args = sys.argv[1:]
-engine = Engine()
-for path in args if mode == 'simd' else args[:1]:
-    store = Store(engine)
-    linker = Linker(engine)
-    if mode != 'simd':
-        def overrun():
-            raise Trap('budget spent')
-        linker.define_func('zx', 'overrun', FuncType([], []), overrun)
-        budget = 5 if mode == 'budget' else int(args[1])
-        linker.define(store, 'zx', 'budget', Global(store, GlobalType(ValType.i64(), True), budget))
-    module = Module.from_file(engine, path)
-    instance = linker.instantiate(store, module)
-    if mode == 'budget':
-        try:
-            instance.exports(store)['zx_entry'](store)
-        except Trap as error:
-            if 'budget spent' not in str(error):
-                raise
-        else:
-            raise RuntimeError('no overrun trap')
-    else:
-        name = 'Answer' if mode == 'simd' else 'zx_entry'
-        print(instance.exports(store)[name](store))
-EOF
 run_engine() {
     mode=$1; shift
-    if test "$python_engine" = 1; then
-        "$wasmpython" "$work/run_wasm.py" "$mode" "$@"
+    if test "$native_engine" = wasmtime; then
+        "$ziran" run --target=c --root "$repo/tests" "$repo/tests/wasmtime_engine.zi" -- "$ziran" "$work" "$wasmtime" "$mode" "$@"
     else
         case $mode in
             scalar) "$nodebin" "$run_wasm" "$@" ;;
@@ -162,8 +132,8 @@ EOF
 run_engine budget "$work/zx_wasm_test.wasm"
 
 # A second engine, when available, must agree on the same module.
-if test "$python_available" = 1 && test "$python_engine" != 1; then
-    test "$("$wasmpython" "$work/run_wasm.py" scalar "$work/zx_wasm_test.wasm" 10000000)" = "$expected"
+if test "$wasmtime_available" = 1 && test "$native_engine" != wasmtime; then
+    test "$("$ziran" run --target=c --root "$repo/tests" "$repo/tests/wasmtime_engine.zi" -- "$ziran" "$work" "$wasmtime" scalar "$work/zx_wasm_test.wasm" 10000000)" = "$expected"
 fi
 
 # Enum values use their checked backing integers in direct WebAssembly.

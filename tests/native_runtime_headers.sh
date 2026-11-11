@@ -3,39 +3,14 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/native-runtime-headers-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
 # Restored sources can be older than a reused embedded-runtime output. Both
 # ordinary and seed builds must refresh its bytes, then preserve its timestamp.
-for bootstrap in 0 1; do
-    refresh=$work/refresh-$bootstrap
-    mkdir -p "$refresh"
-    printf '/* stale embedded runtime */\n' > "$refresh/runtime_headers.c"
-    python3 - "$repo" "$refresh/runtime_headers.c" <<'PYTIME'
-import os, sys
-from pathlib import Path
-repo = Path(sys.argv[1])
-inputs = [repo / 'scripts/embed_headers.sh', *(repo / 'include').glob('*.h')]
-newer = max(p.stat().st_mtime_ns for p in inputs) + 1_000_000_000
-os.utime(sys.argv[2], ns=(newer, newer))
-PYTIME
-    make -s -C "$repo" BOOTSTRAP="$bootstrap" NATIVE_ZX=0 \
-        BUILD_DIR="$refresh" "$refresh/runtime_headers.c"
-    grep -q 'SliceRangeAt(' "$refresh/runtime_headers.c"
-    python3 - "$repo" "$refresh" "$bootstrap" <<'PYTIME'
-from pathlib import Path
-import os, subprocess, sys
-repo, refresh, bootstrap = sys.argv[1:]
-output = Path(refresh) / 'runtime_headers.c'
-os.utime(output, ns=(1000000000, 1000000000))
-before = output.stat().st_mtime_ns
-subprocess.run(['make', '-s', '-C', repo, 'BOOTSTRAP=' + bootstrap,
-                'NATIVE_ZX=0', 'BUILD_DIR=' + refresh, str(output)], check=True)
-assert output.stat().st_mtime_ns == before, 'unchanged embedded runtime was rewritten'
-PYTIME
-done
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" headers-refresh
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \
     "$repo/tests/native_helpers_test.c" "${ZIRAN_LIB:-$repo/build/libziran.a}" \
     -lm -pthread -o "$work/helpers"
@@ -158,15 +133,8 @@ sh "$repo/scripts/embed_headers.sh" "$repo/include/zir_string.h" \
     "$work/copy.c" "$repo/cmd/zir/zir_runtime.c" "$work/embedded.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -o "$work/copy"
 "$work/copy" "$work/copied" "$work/copied/use.c"
-python3 - "$work" <<'PY'
-import os, pathlib, subprocess, sys
-root = pathlib.Path(sys.argv[1]); headers = list((root/'copied').glob('*.h'))
-assert {p.name for p in headers} == {'zir_string.h', 'zir_string_types.h'}
-for p in headers: os.utime(p, ns=(1000000000, 1000000000))
-subprocess.run([root/'copy', root/'copied', root/'copied/use.c'], check=True)
-assert all(p.stat().st_mtime_ns == 1000000000 for p in headers)
-PY
-python3 "$repo/tests/native_c_large_output_test.py" "$ziran" "$work/large-output"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" headers-copy
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_c_large_output_cases.zi" -- "$ziran" "$work/large-output"
 "${CC:-cc}" -std=c11 -Werror=implicit-function-declaration "$work/copied/use.c" -o "$work/copied/program"
 "$work/copied/program"
 echo 'Standalone native runtime headers: source, saved IR and C passed'

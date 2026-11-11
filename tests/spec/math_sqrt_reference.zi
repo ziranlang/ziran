@@ -1,0 +1,58 @@
+#import "std/math"
+
+#scope_file
+ReferenceParts :: struct {
+    mantissa: float64
+    exponent: s32
+}
+
+ReferencePower :: (exponent: s32) -> float64 {
+    result: float64 = 1.0
+    count := exponent
+    if count < 0 { count = 0 - count }
+    factor: float64 = ifx exponent < 0 then 0.5 else 2.0
+    while count > 0 { result *= factor; count -= 1 }
+    return result
+}
+
+ReferenceSplit :: (value: float64) -> ReferenceParts {
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    exponent: s32 = 0
+    while value >= step { value *= back; exponent += 64 }
+    while value < 1.0 { value *= step; exponent -= 64 }
+    width: s32 = 32
+    while width >= 1 {
+        power := ReferencePower(width)
+        if value >= power { value /= power; exponent += width }
+        width /= 2
+    }
+    return .{.mantissa = value, .exponent = exponent}
+}
+
+ReferenceScale :: (value: float64, exponent: s32) -> float64 {
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    while exponent > 64 && value != 0.0 && Finite64(value) { value *= step; exponent -= 64 }
+    while exponent < -64 && value != 0.0 { value *= back; exponent += 64 }
+    return value * ReferencePower(exponent)
+}
+
+#scope_export
+#program_export
+ReferenceSqrt :: (value: float64) -> float64 {
+    if value < 0.0 { return NotANumber() }
+    if value == 0.0 || !Finite64(value) { return value }
+    parts := ReferenceSplit(value)
+    mantissa := parts.mantissa
+    exponent := parts.exponent
+    if exponent % 2 != 0 { mantissa *= 2.0; exponent -= 1 }
+    root: float64 = 0.5 + 0.5 * mantissa * 0.5 + 0.25
+    step: s32 = 0
+    while step < 6 { root = 0.5 * (root + mantissa / root); step += 1 }
+    low := root * (1.0 - 1.1102230246251565e-16)
+    if (low * low - mantissa) * (low * low - mantissa) < (root * root - mantissa) * (root * root - mantissa) {
+        root = low
+    }
+    return ReferenceScale(root, exponent / 2)
+}

@@ -1,0 +1,42 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-package-conformance-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    app := CheckPath(test.work, "package"); library := CheckPath(app, "native libraries")
+    manifest := "[package]\nname = \"ConformanceFixture\"\nentry = \"tests/conformance.zi\"\nmodule_roots = [\"src\", \"tests\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n"
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), manifest) { return 1 }
+    aliases := string.["ziran"]; roots := string.[test.repo]
+    if !FixtureOverrides(*test, app, aliases[:], roots[:]) ||
+        !NativeWrite(*test, CheckPath(app, "src/fixture.zi"), "Native :: #system_library \"conformance_fixture\";\nFixtureRaw :: (value: s32) -> s32 #foreign Native \"fixture_value\";\n#scope_export\nValue :: (value: s32) -> s32 { return FixtureRaw(value) }\n") ||
+        !NativeWrite(*test, CheckPath(app, "tests/conformance.zi"), "Fixture :: #import \"fixture\";\n#program_export\nmain :: () -> s32 {\n    for value: -9..9 { if Fixture.Value(cast(s32)value) != value * 3 + 7 { return 1 } }\n    print(\"native package fixture passed\\n\")\n    return 0\n}\n") ||
+        !NativeWrite(*test, CheckPath(library, "fixture.c"), "int fixture_value(int value) { return value * 3 + 7; }\n") { return 1 }
+    compile := string.[NativeCompiler(), "-c", CheckPath(library, "fixture.c"), "-o", CheckPath(library, "fixture.o")]; unused NativeRun(*test, compile[:])
+    archive := string.["ar", "rcs", CheckPath(library, "libconformance_fixture.a"), CheckPath(library, "fixture.o")]; unused NativeRun(*test, archive[:])
+    lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
+    script := CheckPath(test.repo, "scripts/test_native_package.sh")
+    for explicit_tools: 0..1 {
+        command: Vec(string); prefix := string.["sh", script, "--ziran", CheckQuote(test.ziran), "--source", "tests/conformance.zi", "--entry", "conformance:main", "--library-dir", library,
+            "--libraries=-lconformance_fixture -lm", "--build-dir", CheckPath(app, ifx explicit_tools == 0 then "build/project" else "build/standalone")]
+        for argument: prefix { VecPush(command, argument) }
+        if explicit_tools == 1 { VecPush(command, "--tools"); VecPush(command, PathParent(test.ziran)) }
+        result := NativeRun(*test, command[:], app)
+        expected := string.["PASS c (source)", "PASS c (saved)", "PASS go (source)", "PASS go (saved)"]
+        for line: expected { if !NativeAssert(*test, !test.failed && TextContains(result.output, line), CheckConcat("native package driver omitted an actual backend/form: ", CheckConcat(line, CheckConcat("\n", CheckConcat(result.output, result.error))))) { return 1 } }
+    }
+    help := string.["sh", script, "--help"]; usage := NativeRun(*test, help[:])
+    if !NativeAssert(*test, !test.failed && TextContains(usage.output, "--target all|c|go"), "native package driver omitted target discovery") { return 1 }
+    invalid := string.["sh", script, "--target=invalid"]; unused NativeRun(*test, invalid[:], "", 2)
+    if test.failed { return 1 }
+    print("Native package conformance driver: project and explicit toolchains, C/Go source/saved IR and a real static foreign library passed local tests\n")
+    return 0
+}

@@ -2,7 +2,8 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/assembly-features-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
@@ -230,17 +231,7 @@ fi
 
 # Compile every advertised runtime feature, including the corresponding
 # target attribute and detection primitive, on its destination architecture.
-python3 - "$work/matrix.zi" <<'PY'
-from pathlib import Path
-import sys
-features = ['popcnt', 'sse2', 'ssse3', 'sse4.1', 'sse4.2', 'avx', 'avx2',
-            'avx512f', 'bmi', 'bmi2', 'lzcnt', 'fma', 'aes', 'pclmul']
-targets = [arch+'+'+feature for arch in ['x86', 'x86_64'] for feature in features]
-targets += ['aarch64+'+f for f in ['aes', 'crc32', 'pmull', 'sha2', 'atomics', 'simd']]
-targets += ['aarch64+aes+crc32', 'arm+neon']
-Path(sys.argv[1]).write_text('\n'.join(
-    f'F{i} :: () #asm("{target}", "", "", "", "", "") {{}}' for i, target in enumerate(targets)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" assembly-features
 "$ziran" build --target=c --root "$work" -o "$work/matrix" "$work/matrix.zi"
 "${CC:-cc}" -O2 -Werror -I"$repo/include" -I"$work/matrix" \
     -c "$work/matrix/matrix.c" -o "$work/matrix/native.o"

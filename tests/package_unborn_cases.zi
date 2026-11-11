@@ -1,0 +1,137 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+UnbornRefused :: (test: *NativeTest, app: string, arguments: []string, expected: string) -> bool {
+    output := PackageCommand(test, app, arguments, false)
+    return NativeAssert(test, TextContains(output, expected), CheckConcat("missing package rejection: ", CheckConcat(expected, CheckConcat("\n", output))))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-unborn-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    NativeSet(*test, "ZIRAN_PINNED_LAUNCHER", "1")
+    library := CheckPath(test.work, "library"); provider := CheckPath(test.work, "provider"); source := CheckPath(test.work, "source"); tool := CheckPath(test.work, "tool")
+    repos := string.[library, provider, source, tool]
+    for repo: repos { if !FixtureInit(*test, repo) { return 1 } }
+    if !NativeWrite(*test, CheckPath(library, "ziran.toml"), "[package]\nname = \"Library\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[exports]\napi = \"src/api.zi\"\n") ||
+        !NativeWrite(*test, CheckPath(library, "src/api.zi"), "Value :: struct { number: s32 }\nNew :: () -> Value { return .{ number = 42 } }\n") { return 1 }
+    provider_manifest := string.["[package]\nname = \"Provider\"\nmodule_roots = [\"src\"]\n[dependencies.Library]\ngit = ", FixtureQuote(FixtureUri(library)), "\nref = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\"\n[exports]\napi = \"src/api.zi\"\n"]
+    if !NativeWrite(*test, CheckPath(provider, "ziran.toml"), TextJoin(provider_manifest[:], "")) ||
+        !NativeWrite(*test, CheckPath(provider, "src/api.zi"), "#import \"Library/api\"\nEcho :: (value: Value) -> Value { return value }\n") ||
+        !NativeWrite(*test, CheckPath(source, "payload.txt"), "uncommitted source\n") || !NativeWrite(*test, CheckPath(tool, "VERSION"), "uncommitted toolchain\n") { return 1 }
+    app := CheckPath(test.work, "app")
+    manifest := string.["[package]\nname = \"Unborn\"\nentry = \"src/main.zi\"\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[dependencies.Provider]\ngit = ", FixtureQuote(FixtureUri(provider)),
+        "\n[dependencies.raw]\ngit = ", FixtureQuote(FixtureUri(source)), "\nsource = true\n"]
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(manifest[:], "")) { return 1 }
+    aliases := string.["ziran", "Provider", "Library", "direct", "raw"]
+    paths := string.[test.repo, provider, library, library, source]
+    if !FixtureOverrides(*test, app, aliases[:], paths[:]) { return 1 }
+    local := NativeRead(*test, CheckPath(app, "ziran.local.toml"))
+    lock_command := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock_command[:])
+    add := string.["add", FixtureUri(library), "--name", "direct"]; unused PackageCommand(*test, app, add[:])
+    if !NativeWrite(*test, CheckPath(app, "src/main.zi"), "#import \"direct/api\"\n#import \"Provider/api\"\n#program_export\nmain :: () -> s32 {\nif Echo(New()).number != 42 { return 1 }\nreturn 0\n}\n") { return 1 }
+    lock_path := CheckPath(app, "ziran.lock")
+    locked := NativeRead(*test, lock_path)
+    document: JsonDocument
+    if !NativeAssert(*test, JsonRead(*document, locked), "invalid unborn fixture lock") { return 1 }
+    packages := JsonMember(*document, document.root, "packages")
+    if !NativeAssert(*test, JsonCount(*document, packages) == 3, "unborn aliases did not share package identities") { return 1 }
+    for index: cast(s32)0..JsonCount(*document, packages) - 1 {
+        item := JsonElement(*document, packages, index)
+        name := CheckField(*document, item, "name")
+        root := ifx name == "Library" then library else ifx name == "Provider" then provider else ifx name == "raw" then source else ""
+        if !NativeAssert(*test, root != "" && JsonKindOf(*document, JsonMember(*document, item, "commit")) == .Missing &&
+            CheckField(*document, item, "development") == CheckConcat("unborn:", FixtureDigest(*test, TextDetach(ResolvePath(root)))), "invalid unborn package marker or invented commit") { return 1 }
+    }
+    if !NativeAssert(*test, CheckField(*document, JsonMember(*document, document.root, "toolchain"), "commit").count == 40, "committed compiler lost its real revision") { return 1 }
+    unused PackageCommand(*test, app, lock_command[:])
+    update := string.["update", "direct"]
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == locked, "unborn relock is not stable") || !UnbornRefused(*test, app, update[:], "targeted update cannot preserve an unborn package snapshot") ||
+        !NativeAssert(*test, NativeRead(*test, lock_path) == locked, "refused targeted update changed the lock") { return 1 }
+    direct_path := string.["pkg", "path", "direct", "--offline"]; raw_path := string.["pkg", "path", "raw", "--offline"]
+    if !NativeAssert(*test, TextTrim(PackageCommand(*test, app, direct_path[:])) == library && TextTrim(PackageCommand(*test, app, raw_path[:])) == source, "unborn override selected the wrong root") { return 1 }
+    check := string.["check", "--offline"]; run := string.["run", "--offline"]
+    unused PackageCommand(*test, app, check[:]); unused PackageCommand(*test, app, run[:])
+    tool_alias := string.["ziran"]; tool_path := string.[test.repo]
+    if !FixtureOverrides(*test, library, tool_alias[:], tool_path[:]) { return 1 }
+    unused PackageCommand(*test, library, lock_command[:]); unused PackageCommand(*test, library, check[:])
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == locked, "checking a package changed a consumer's lock") { return 1 }
+    locked_check := string.["check", "--locked", "--offline"]
+    if !UnbornRefused(*test, app, locked_check[:], "local overrides") { return 1 }
+    unused RemoveFile(CheckPath(app, "ziran.local.toml"))
+    fetch_locked := string.["fetch", "--locked", "--offline"]; fetch := string.["fetch", "--offline"]
+    if !UnbornRefused(*test, app, fetch_locked[:], "development-only") || !UnbornRefused(*test, app, fetch[:], "requires an explicit local override") || !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), local) { return 1 }
+    nongit := CheckPath(test.work, "nongit"); corrupt := CheckPath(test.work, "corrupt")
+    if !NativeAssert(*test, CreateDirectories(nongit), "create non-Git fixture") || !FixtureInit(*test, corrupt) ||
+        !NativeWrite(*test, CheckPath(corrupt, ".git/refs/heads/master"), "ffffffffffffffffffffffffffffffffffffffff\n") { return 1 }
+    invalid_roots := string.[CheckPath(library, "src"), nongit, corrupt]
+    for invalid: invalid_roots {
+        if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), TextReplace(local, library, invalid)) || !UnbornRefused(*test, app, lock_command[:], "override") ||
+            !NativeAssert(*test, NativeRead(*test, lock_path) == locked, "invalid override changed a valid lock") { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), local) { return 1 }
+    bogus_values := string.["ffffffffffffffffffffffffffffffffffffffff", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz", "unborn:invalid"]
+    for bogus: bogus_values {
+        broken: JsonDocument
+        if !NativeAssert(*test, JsonRead(*broken, locked), "reload lock fixture") { return 1 }
+        first := JsonElement(*broken, JsonMember(*broken, broken.root, "packages"), 0)
+        CheckPut(*broken, first, "commit", bogus)
+        if !NativeWrite(*test, lock_path, JsonWrite(*broken, broken.root, JsonCompactStyle())) || !UnbornRefused(*test, app, fetch[:], "cannot read ziran.lock") { return 1 }
+    }
+    if !NativeWrite(*test, lock_path, locked) { return 1 }
+    manifest_path := CheckPath(app, "ziran.toml")
+    current := NativeRead(*test, manifest_path)
+    changed := TextDetach(TextReplace(current, "ref = \"master\"", "ref = \"other\""))
+    if !NativeAssert(*test, changed != current, "dependency ref fixture did not change") || !NativeWrite(*test, manifest_path, changed) ||
+        !UnbornRefused(*test, app, fetch[:], "dependencies differ") || !NativeWrite(*test, manifest_path, current) { return 1 }
+    local_tool := TextDetach(TextReplace(local, CheckConcat("ziran = ", FixtureQuote(test.repo)), CheckConcat("ziran = ", FixtureQuote(tool))))
+    if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), local_tool) { return 1 }
+    unused PackageCommand(*test, app, lock_command[:])
+    tool_lock := NativeRead(*test, lock_path)
+    tool_document: JsonDocument
+    if !NativeAssert(*test, JsonRead(*tool_document, tool_lock), "read unborn toolchain lock") { return 1 }
+    toolchain := JsonMember(*tool_document, tool_document.root, "toolchain")
+    if !NativeAssert(*test, JsonKindOf(*tool_document, JsonMember(*tool_document, toolchain, "commit")) == .Missing &&
+        TextHasPrefix(CheckField(*tool_document, toolchain, "development"), "unborn:"), "unborn toolchain invented a committed revision") ||
+        !UnbornRefused(*test, app, update[:], "targeted update cannot preserve an unborn toolchain snapshot") || !NativeAssert(*test, NativeRead(*test, lock_path) == tool_lock, "refused toolchain update changed the lock") { return 1 }
+    unused PackageCommand(*test, app, direct_path[:])
+    no_tool := TextDetach(TextReplace(local, CheckConcat("ziran = ", CheckConcat(FixtureQuote(test.repo), "\n")), ""))
+    if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), no_tool) || !UnbornRefused(*test, app, fetch[:], "development-only toolchain") { return 1 }
+    invalid_tools := string.[nongit, corrupt]
+    for invalid: invalid_tools {
+        invalid_local := TextDetach(TextReplace(local, CheckConcat("ziran = ", FixtureQuote(test.repo)), CheckConcat("ziran = ", FixtureQuote(invalid))))
+        if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), invalid_local) || !UnbornRefused(*test, app, fetch[:], "override") { return 1 }
+    }
+    if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), local) { return 1 }
+    development := NativeRead(*test, lock_path)
+    revision := FixtureCommit(*test, library, "first fixture commit")
+    unused PackageCommand(*test, app, check[:])
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == development, "checking an override rewrote the development lock") { return 1 }
+    unused PackageCommand(*test, app, lock_command[:])
+    committed: JsonDocument
+    if !NativeAssert(*test, JsonRead(*committed, NativeRead(*test, lock_path)), "read committed fixture lock") { return 1 }
+    rows := JsonMember(*committed, committed.root, "packages")
+    found := false
+    for index: cast(s32)0..JsonCount(*committed, rows) - 1 {
+        item := JsonElement(*committed, rows, index)
+        if CheckField(*committed, item, "name") == "Library" {
+            found = true
+            if !NativeAssert(*test, CheckField(*committed, item, "commit") == revision && JsonKindOf(*committed, JsonMember(*committed, item, "development")) == .Missing, "first fixture commit did not replace its development marker") { return 1 }
+        }
+    }
+    if !NativeAssert(*test, found, "committed library missing from lock") { return 1 }
+    unused PackageCommand(*test, app, check[:])
+    if test.failed { return 1 }
+    print("Local unborn overrides: add, shared identities, exports, check/run, invalid roots and development lock rejection passed\n")
+    return 0
+}

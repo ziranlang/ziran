@@ -1,0 +1,340 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "package_resolution_support"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ResolutionUrls :: (fixture: ResolutionFixture) -> bool {
+    test := fixture.test; root := test.work; library := fixture.library
+    add_app := CheckPath(root, "add-app")
+    if !NativeWrite(test, CheckPath(add_app, "ziran.toml"), ResolutionProject("AddConsumer")) || !ResolutionOverrides(test, add_app) ||
+        !NativeWrite(test, CheckPath(add_app, "src/app.zi"), "#import \"value\"\n") { return false }
+    shortcut_prefix := string.["https://github.com/ziranlang/library.git"]; shortcut_target := string.[FixtureUri(library)]
+    if !FixtureRedirects(test, shortcut_prefix[:], shortcut_target[:]) { return false }
+    shortcut := string.["add", "ziranlang/library"]; unused PackageCommand(test, add_app, shortcut[:])
+    check := string.["check", "--project"]; unused PackageCommand(test, add_app, check[:])
+    if !NativeAssert(test, TextContains(NativeRead(test, CheckPath(add_app, "ziran.toml")), "[dependencies.library]"), "shortcut did not add manifest declaration") { return false }
+    app := CheckPath(root, "url-app")
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), ResolutionProject("UrlConsumer")) || !ResolutionOverrides(test, app) ||
+        !NativeWrite(test, CheckPath(app, "src/app.zi"), ResolutionSource(test, "url.zi")) { return false }
+    ssh := "git@ziran-lang.org:owner/ssh-library.git"; https := "https://ziran-lang.org/owner/ssh-library.git"
+    prefixes := string.[ssh, https, "git@ziran-lang.org:owner/fallback", "https://ziran-lang.org/owner/fallback.git"]
+    targets := string.[FixtureUri(library), FixtureUri(library), "file:///nonexistent-ssh-transport/", FixtureUri(library)]
+    if !FixtureRedirects(test, prefixes[:], targets[:]) { return false }
+    add := string.["add", ssh]; added := PackageCommand(test, app, add[:])
+    manifest_path := CheckPath(app, "ziran.toml"); manifest := NativeRead(test, manifest_path)
+    if !NativeAssert(test, TextContains(added, CheckConcat("added ssh_library from ", ssh)) && TextContains(added, "#import \"ssh_library/Value\"") &&
+        TextContains(manifest, CheckConcat("git = ", FixtureQuote(ssh))), "SSH URL lost transport, alias or import guidance") ||
+        !FixtureCompile(test, app, CheckPath(root, "url-c"), CheckPath(app, "src/app.zi"), true) ||
+        !NativeWrite(test, manifest_path, TextReplace(manifest, ssh, "https://ziran-lang.org/owner/ssh-library")) { return false }
+    unused PackageCommand(test, app, check[:])
+    duplicate := string.["add", https]
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, duplicate[:], false), "already the dependency ssh_library"), "equivalent HTTPS transport created duplicate package") ||
+        !NativeWrite(test, manifest_path, manifest) { return false }
+    fallback := string.["add", "git@ziran-lang.org:owner/fallback.git", "--name", "fallback"]
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, fallback[:]), "added fallback"), "SSH failure did not fall back to HTTPS") { return false }
+    list := string.["pkg", "list"]; listed := PackageCommand(test, app, list[:])
+    if !NativeAssert(test, TextContains(listed, "#import \"fallback/Value\"") && TextContains(listed, "#import \"std/NAME\""), "package list omitted import guidance") { return false }
+    invalid := string.["https://user:secret@ziran-lang.org/owner/repo.git", "-oProxyCommand=touch@ziran-lang.org:owner/repo.git", "git@ziran-lang.org:../escape.git", "not a url"]
+    for value: invalid {
+        command := string.["add", value]
+        if !NativeAssert(test, TextContains(PackageCommand(test, app, command[:], false), "not a Git repository URL"), "invalid repository URL was accepted") { return false }
+    }
+    if !NativeWrite(test, manifest_path, CheckConcat(manifest, CheckConcat("\n[dependencies.over_https]\ngit = ", CheckConcat(FixtureQuote(https), "\n")))) { return false }
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    shared: JsonDocument
+    if !FixtureLock(test, app, *shared) { return false }
+    deps := JsonMember(*shared, JsonMember(*shared, shared.root, "root"), "dependencies")
+    if !NativeAssert(test, JsonCount(*shared, JsonMember(*shared, shared.root, "packages")) == 1 &&
+        CheckField(*shared, deps, "over_https") == CheckField(*shared, deps, "ssh_library"), "transports assigned multiple type identities") || !NativeWrite(test, manifest_path, manifest) { return false }
+    unused PackageCommand(test, app, lock[:])
+    return !test.failed
+}
+
+ResolutionStandalone :: (test: *NativeTest) -> bool {
+    standalone := CheckPath(test.work, "standalone")
+    if !NativeWrite(test, CheckPath(standalone, "main.zi"), ResolutionSource(test, "standalone.zi")) { return false }
+    check := string.["check", "--root", standalone, "--module-path", CheckPath(test.repo, "std"), CheckPath(standalone, "main.zi")]
+    unused PackageCommand(test, test.work, check[:])
+    if !NativeWrite(test, CheckPath(standalone, "other.zi"), "#import \"dependency/Widgets\"\n") { return false }
+    other := string.["check", "--root", standalone, CheckPath(standalone, "other.zi")]
+    if !NativeAssert(test, TextContains(PackageCommand(test, test.work, other[:], false), "needs a project"), "dependency import outside project lost diagnostic") { return false }
+    flat := CheckPath(test.work, "flat")
+    if !NativeWrite(test, CheckPath(flat, "ziran.toml"), ResolutionProject("Flat", "flat.zi", "[\".\"]")) || !ResolutionOverrides(test, flat) ||
+        !NativeWrite(test, CheckPath(flat, "helper.zi"), "Helper :: () -> s32 { return 0 }\n") ||
+        !NativeWrite(test, CheckPath(flat, "flat.zi"), "#import \"helper\"\nFlat :: () -> s32 { return Helper() }\n") { return false }
+    lock := string.["lock"]; unused PackageCommand(test, flat, lock[:])
+    flat_check := string.["check", "--project", "flat.zi"]; unused PackageCommand(test, flat, flat_check[:])
+    return !test.failed
+}
+
+ResolutionRoots :: (fixture: ResolutionFixture) -> bool {
+    test := fixture.test; app := fixture.app; manifest_path := CheckPath(app, "ziran.toml")
+    extra: Vec(string); roots: Vec(u8); BuilderAppend(roots, "[\"src\"")
+    for index: 0..272 {
+        name := CheckConcat("root", CheckNumber(index)); VecPush(extra, name)
+        if !NativeAssert(test, CreateDirectories(CheckPath(app, name)), "create ordinary module root") { return false }
+        BuilderAppend(roots, ", "); BuilderAppend(roots, FixtureQuote(name))
+    }
+    BuilderAppend(roots, "]")
+    root_list := TextDetach(BuilderFinish(roots))
+    if !NativeWrite(test, manifest_path, TextReplace(fixture.manifest, "module_roots = [\"src\"]", CheckConcat("module_roots = ", root_list))) ||
+        !NativeWrite(test, CheckPath(app, CheckConcat(extra[extra.count - 1], "/WideLast.zi")), "#program_export\nValue :: () -> s32 { return 42 }\n") ||
+        !NativeWrite(test, CheckPath(app, "src/WideRoots.zi"), "#import \"WideLast\"\n#program_export\nResult :: () -> s32 { return Value() }\n") { return false }
+    list := string.["pkg", "list", "--offline"]; unused PackageCommand(test, app, list[:])
+    check := string.["check", "--project", "src/WideRoots.zi"]; unused PackageCommand(test, app, check[:])
+    ir := string.["ir", "--project", "-o", "wide-ir", "src/WideRoots.zi"]; unused PackageCommand(test, app, ir[:])
+    if !NativeWrite(test, CheckPath(app, "src/WideScript.zi"), "#import \"WideLast\"\n#program_export\nmain :: () -> s32 { return Value() - 42 }\n") { return false }
+    script := string.["run", "--project", "--target=c", "src/WideScript.zi"]; unused PackageCommand(test, app, script[:])
+    unused RemoveFile(CheckPath(app, "src/WideScript.zi"))
+    if !NativeWrite(test, manifest_path, fixture.manifest) { return false }
+    generated: Vec(string); VecPush(generated, "check"); VecPush(generated, "--project")
+    for name: extra { VecPush(generated, "--module-path"); VecPush(generated, CheckPath(app, name)) }
+    VecPush(generated, "src/WideRoots.zi"); unused PackageCommand(test, app, generated[:])
+    provider := fixture.a; provider_path := CheckPath(provider, "ziran.toml"); previous := NativeRead(test, provider_path)
+    dep_roots: Vec(string); dep_list: Vec(u8); BuilderAppend(dep_list, "[\"src\"")
+    for index: 0..272 {
+        name := CheckConcat("wide", CheckNumber(index)); VecPush(dep_roots, name)
+        if !NativeAssert(test, CreateDirectories(CheckPath(provider, name)), "create dependency module root") { return false }
+        BuilderAppend(dep_list, ", "); BuilderAppend(dep_list, FixtureQuote(name))
+    }
+    BuilderAppend(dep_list, "]")
+    wide_manifest := TextDetach(TextReplace(previous, "module_roots = [\"src\"]", CheckConcat("module_roots = ", TextDetach(BuilderFinish(dep_list)))))
+    dep_file := CheckConcat(dep_roots[dep_roots.count - 1], "/WideDep.zi")
+    wide_manifest = TextDetach(TextReplace(wide_manifest, "[exports]", CheckConcat("[exports]\nWideDep = ", FixtureQuote(dep_file))))
+    override_aliases := string.["ziran", "A"]; override_paths := string.[test.repo, provider]
+    if !NativeWrite(test, provider_path, wide_manifest) || !NativeWrite(test, CheckPath(provider, dep_file), "Value :: () -> s32 { return 42 }\n") ||
+        !FixtureOverrides(test, app, override_aliases[:], override_paths[:]) ||
+        !NativeWrite(test, CheckPath(app, "src/DependencyRoots.zi"), "#import \"A/WideDep\"\nResult :: () -> s32 { return Value() }\n") { return false }
+    dep_check := string.["check", "--project", "src/DependencyRoots.zi"]; unused PackageCommand(test, app, dep_check[:])
+    if !NativeWrite(test, provider_path, previous) { return false }
+    for name: dep_roots { if !NativeAssert(test, RemoveTree(CheckPath(provider, name)), "remove generated dependency root") { return false } }
+    unused RemoveFile(CheckPath(app, "src/DependencyRoots.zi"))
+    if !ResolutionOverrides(test, app) { return false }
+    malformed := string.["[\"\"]", "[1]", "\"src\""]
+    for value: malformed {
+        if !NativeWrite(test, manifest_path, TextReplace(fixture.manifest, "module_roots = [\"src\"]", CheckConcat("module_roots = ", value))) { return false }
+        if !NativeAssert(test, TextContains(PackageCommand(test, app, list[:], false), "module_roots must be an array of non-empty strings"), "invalid module roots were accepted") { return false }
+    }
+    unused RemoveFile(CheckPath(app, "src/WideRoots.zi"))
+    for name: extra { if !NativeAssert(test, RemoveTree(CheckPath(app, name)), "remove generated root") { return false } }
+    return NativeWrite(test, manifest_path, fixture.manifest) && !test.failed
+}
+
+ResolutionExecution :: (fixture: ResolutionFixture) -> bool {
+    test := fixture.test; app := fixture.app
+    path := string.["pkg", "path", "A", "--offline"]; entry := TextDetach(TextCopy(TextTrim(PackageCommand(test, app, path[:]))))
+    head_args := string.["rev-parse", "HEAD"]; head := FixtureGit(test, entry, head_args[:])
+    stale := string.["commit", "--allow-empty", "-qm", "stale interrupted cache"]
+    unused FixtureGit(test, entry, stale[:])
+    offline := string.["fetch", "--offline"]; unused PackageCommand(test, app, offline[:], false)
+    fetch := string.["fetch"]; unused PackageCommand(test, app, fetch[:])
+    if !NativeAssert(test, FixtureGit(test, entry, head_args[:]) == head, "online fetch failed to repair interrupted checkout") { return false }
+    check := string.["check", "--project"]; unused PackageCommand(test, app, check[:])
+    bootstrap := CheckPath(test.work, "bootstrap/build/bin/ziran")
+    if !NativeAssert(test, CreateDirectories(PathParent(bootstrap)) && CopyFileNew(test.ziran, bootstrap), "copy launcher bootstrap fixture") { return false }
+    bootstrap_check := string.[bootstrap, "check", "--project"]; unused NativeRun(test, bootstrap_check[:], app)
+    map := NativeRead(test, CheckPath(app, "build/.ziran/module-map.tsv")); lines := TextSplit(map, "\n"); count: s64
+    for line: lines {
+        fields := TextSplit(line, "\t")
+        if fields.count >= 3 && fields[0] == "M" && fields[2] == "Value" { count += 1 }
+    }
+    if !NativeAssert(test, count == 2, "divergent revisions did not retain distinct Value modules") ||
+        !FixtureCompile(test, app, CheckPath(test.work, "source-c"), CheckPath(app, "src/app.zi"), true) { return false }
+    ir_dir := CheckPath(test.work, "ir")
+    ir := string.["ir", "--project", "--entry", "app:main", "-o", ir_dir, CheckPath(app, "src/app.zi")]; unused PackageCommand(test, app, ir[:])
+    files := NativeFiles(ir_dir, "_Value.zir"); count = 0
+    for file: files { if TextHasPrefix(PathName(file), "p") { count += 1 } }
+    if !NativeAssert(test, count == 2, "saved IR merged package namespaces") || !FixtureCompile(test, app, CheckPath(test.work, "saved-c"), CheckPath(ir_dir, "app.zir"), false) { return false }
+    if CheckExecutable("go") != "" {
+        go_dir := CheckPath(test.work, "go")
+        go_build := string.["build", "--project", "--target=go", "--pkg", "main", "--entry", "app:main", "-o", go_dir, CheckPath(app, "src/app.zi")]
+        unused PackageCommand(test, app, go_build[:])
+        NativeSet(test, "GO111MODULE", "off"); NativeSet(test, "GOCACHE", CheckPath(test.work, "go-cache"))
+        go := string.["go", "test", "."]; unused NativeRun(test, go[:], go_dir)
+        NativeUnset(test, "GO111MODULE"); NativeUnset(test, "GOCACHE")
+    }
+    source_bundle := CheckPath(test.work, "source.zx"); saved_bundle := CheckPath(test.work, "saved.zx")
+    source := string.["bundle", "--project", "--entry", "app:main", "-o", source_bundle, CheckPath(app, "src/app.zi")]
+    saved := string.["bundle", "--root", ir_dir, "--entry", "app:main", "-o", saved_bundle, CheckPath(ir_dir, "app.zir")]
+    unused PackageCommand(test, app, source[:]); unused PackageCommand(test, app, saved[:])
+    run := string.["run", source_bundle]; project_run := string.["run", "--project", source_bundle]
+    if !NativeAssert(test, NativeSameFile(source_bundle, saved_bundle) && TextTrim(PackageCommand(test, app, run[:])) == "0" &&
+        TextTrim(PackageCommand(test, app, project_run[:])) == "0", "source/saved bundle identity or pinned execution diverged") { return false }
+    locked := string.["check", "--project", "--locked"]
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, locked[:], false), "local overrides"), "locked mode accepted development overrides") ||
+        !NativeWrite(test, CheckPath(app, "ziran.toml"), CheckConcat(fixture.manifest, "\n[dependencies.Extra]\ngit = \"https://ziran-lang.org/fixtures/extra.git\"\n")) { return false }
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, check[:], false), "differ from ziran.lock"), "manifest drift reused stale lock") { return false }
+    return NativeWrite(test, CheckPath(app, "ziran.toml"), fixture.manifest) && !test.failed
+}
+
+ResolutionCollisions :: (fixture: ResolutionFixture) -> string {
+    test := fixture.test; app := fixture.app
+    if !NativeWrite(test, CheckPath(fixture.b, "src/A.zi"), ResolutionSource(test, "b_collision.zi")) ||
+        !NativeWrite(test, CheckPath(fixture.b, "ziran.toml"), ResolutionProviderManifest("B", fixture.library, "v2", "A")) { return "" }
+    unused FixtureCommit(test, fixture.b, "conflicting public export")
+    update_b := string.["update", "b"]; unused PackageCommand(test, app, update_b[:])
+    check := string.["check", "--project"]; collision := PackageCommand(test, app, check[:], false)
+    if !NativeAssert(test, TextContains(collision, "exported by more than one dependency; import one of A/A, B/A"), "export collision did not name qualified alternatives") ||
+        !NativeWrite(test, CheckPath(app, "src/Public/module.zi"), ResolutionSource(test, "qualified.zi")) { return "" }
+    unused PackageCommand(test, app, check[:])
+    aliased := TextDetach(TextReplace(fixture.manifest, ResolutionDependency("B", fixture.b), CheckConcat(ResolutionDependency("B", fixture.b), "module_aliases = { A = \"OtherA\" }\n")))
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), aliased) || !NativeWrite(test, CheckPath(app, "src/Public/module.zi"), ResolutionSource(test, "aliased.zi")) ||
+        !NativeWrite(test, CheckPath(app, "src/app.zi"), ResolutionSource(test, "app.zi")) { return "" }
+    unused PackageCommand(test, app, check[:])
+    before: JsonDocument
+    if !FixtureLock(test, app, *before) { return "" }
+    old := ""; packages := JsonMember(*before, before.root, "packages")
+    for index: cast(s32)0..JsonCount(*before, packages) - 1 {
+        item := JsonElement(*before, packages, index)
+        if CheckField(*before, item, "name") == "Library" && CheckField(*before, item, "ref") == "v1" { old = CheckField(*before, item, "commit") }
+    }
+    checkout := string.["checkout", "v1"]; unused FixtureGit(test, fixture.library, checkout[:])
+    if !NativeWrite(test, CheckPath(fixture.library, "src/Value.zi"), "Value :: () -> s32 { return 3 }\n") { return "" }
+    unused FixtureCommit(test, fixture.library, "advance selected transitive revision")
+    master := string.["checkout", "master"]; unused FixtureGit(test, fixture.library, master[:])
+    update := string.["update", "A"]; unused PackageCommand(test, app, update[:])
+    after: JsonDocument
+    if !FixtureLock(test, app, *after) { return "" }
+    fresh := ""; after_packages := JsonMember(*after, after.root, "packages")
+    for index: cast(s32)0..JsonCount(*after, after_packages) - 1 {
+        item := JsonElement(*after, after_packages, index)
+        if CheckField(*after, item, "name") == "Library" && CheckField(*after, item, "ref") == "v1" { fresh = CheckField(*after, item, "commit") }
+    }
+    unused NativeAssert(test, old != "" && fresh != "" && old != fresh, "targeted update failed to refresh selected dependency tree")
+    return aliased
+}
+
+ResolutionSources :: (fixture: ResolutionFixture, aliased: string) -> bool {
+    test := fixture.test; app := fixture.app; root := test.work
+    backend_source := CheckPath(root, "backend-source")
+    if !FixtureInit(test, backend_source) || !NativeWrite(test, CheckPath(backend_source, "src/raylib.h"), "/* pinned backend */\n") { return false }
+    unused FixtureCommit(test, backend_source, "backend submodule fixture")
+    backend_url := "https://ziran-lang.org/fixtures/backend-source.git"
+    prefixes := string.[backend_url]; targets := string.[FixtureUri(backend_source)]
+    if !FixtureRedirects(test, prefixes[:], targets[:]) { return false }
+    backend := CheckPath(root, "backend")
+    if !FixtureInit(test, backend) || !NativeWrite(test, CheckPath(backend, "ziran.toml"), "[package]\nname = \"Backend\"\nmodule_roots = [\"src\"]\n[exports]\nBackend = \"src/Backend.zi\"\n") ||
+        !NativeWrite(test, CheckPath(backend, "src/Backend.zi"), "BackendValue :: 1;\n") { return false }
+    submodule := string.["submodule", "add", backend_url, "vendor/raylib"]; unused FixtureGit(test, backend, submodule[:])
+    unused FixtureCommit(test, backend, "package with source submodule")
+    manifest_path := CheckPath(app, "ziran.toml"); backend_manifest := CheckConcat(aliased, ResolutionDependency("Backend", backend))
+    if !NativeWrite(test, manifest_path, backend_manifest) { return false }
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    offline := string.["pkg", "path", "Backend", "--submodules", "--offline"]
+    missing := PackageCommand(test, app, offline[:], false)
+    if !NativeAssert(test, TextContains(missing, "submodules") && TextContains(missing, "missing"), "missing submodule was not rejected offline") { return false }
+    path := string.["pkg", "path", "Backend", "--submodules"]
+    backend_path := TextDetach(TextCopy(TextTrim(PackageCommand(test, app, path[:]))))
+    if !NativeAssert(test, IsFile(CheckPath(backend_path, "vendor/raylib/src/raylib.h")) && TextTrim(PackageCommand(test, app, offline[:])) == backend_path,
+        "submodule initialization did not persist for offline use") { return false }
+    native := CheckPath(root, "native")
+    if !FixtureInit(test, native) || !NativeWrite(test, CheckPath(native, "native.c"), "int native_value(void) { return 7; }\n") { return false }
+    unused FixtureCommit(test, native, "manifest-free native source")
+    sourced := CheckConcat(backend_manifest, ResolutionDependency("native", native, "master", true))
+    if !NativeWrite(test, manifest_path, sourced) { return false }
+    unused PackageCommand(test, app, lock[:])
+    document: JsonDocument
+    if !FixtureLock(test, app, *document) { return false }
+    native_entry := FixturePackage(*document, "native")
+    if !NativeAssert(test, native_entry >= 0 && JsonKindOf(*document, JsonMember(*document, native_entry, "source")) == .True &&
+        JsonCount(*document, JsonMember(*document, native_entry, "dependencies")) == 0, "manifest-free source entry acquired package dependencies") { return false }
+    packages := JsonMember(*document, document.root, "packages")
+    for index: cast(s32)0..JsonCount(*document, packages) - 1 {
+        item := JsonElement(*document, packages, index)
+        if CheckField(*document, item, "name") != "native" && !NativeAssert(test, JsonMember(*document, item, "source") < 0, "ordinary package was marked as raw source") { return false }
+    }
+    native_path_command := string.["pkg", "path", "native"]
+    native_path := TextDetach(TextCopy(TextTrim(PackageCommand(test, app, native_path_command[:]))))
+    fetch := string.["fetch", "--offline"]; check := string.["check", "--project"]
+    if !NativeAssert(test, IsFile(CheckPath(native_path, "native.c")), "source checkout omitted native payload") { return false }
+    unused PackageCommand(test, app, fetch[:]); unused PackageCommand(test, app, check[:])
+    lock_path := CheckPath(app, "ziran.lock"); saved_lock := NativeRead(test, lock_path)
+    unused PackageCommand(test, app, lock[:])
+    if !NativeAssert(test, NativeRead(test, lock_path) == saved_lock, "source lock was not deterministic") { return false }
+    digest := FixtureDigest(test, CheckConcat(CheckField(*document, native_entry, "url"), CheckConcat("\n", CheckField(*document, native_entry, "commit"))))
+    legacy_id := CheckConcat("p", TextDetach(TextCopy(digest[:16])))
+    CheckPut(*document, native_entry, "id", legacy_id)
+    CheckPut(*document, JsonMember(*document, JsonMember(*document, document.root, "root"), "dependencies"), "native", legacy_id)
+    if !NativeWrite(test, lock_path, JsonWrite(*document, document.root, JsonCompactStyle())) { return false }
+    unused PackageCommand(test, app, fetch[:]); unused PackageCommand(test, app, check[:])
+    if !NativeWrite(test, lock_path, saved_lock) || !NativeWrite(test, manifest_path, CheckConcat(sourced, ResolutionDependency("backend_files", backend, "master", true))) { return false }
+    unused PackageCommand(test, app, lock[:])
+    both: JsonDocument
+    if !FixtureLock(test, app, *both) { return false }
+    both_packages := JsonMember(*both, both.root, "packages"); package_id := ""; source_id := ""; package_commit := ""; source_commit := ""; count: s64
+    for index: cast(s32)0..JsonCount(*both, both_packages) - 1 {
+        item := JsonElement(*both, both_packages, index)
+        if CheckField(*both, item, "url") == FixtureUri(backend) {
+            count += 1
+            if JsonKindOf(*both, JsonMember(*both, item, "source")) == .True { source_id = CheckField(*both, item, "id"); source_commit = CheckField(*both, item, "commit") }
+            else { package_id = CheckField(*both, item, "id"); package_commit = CheckField(*both, item, "commit") }
+        }
+    }
+    if !NativeAssert(test, count == 2 && source_id != "" && package_id != "" && package_id != source_id && package_commit == source_commit, "package and source views did not retain separate identities") { return false }
+    unused PackageCommand(test, app, check[:])
+    files_path_command := string.["pkg", "path", "backend_files"]
+    files_path := TextDetach(TextCopy(TextTrim(PackageCommand(test, app, files_path_command[:]))))
+    if !NativeAssert(test, IsFile(CheckPath(files_path, "ziran.toml")), "raw repository view omitted package manifest") { return false }
+    update_files := string.["update", "backend_files"]; unused PackageCommand(test, app, update_files[:])
+    if !NativeWrite(test, manifest_path, sourced) { return false }
+    unused PackageCommand(test, app, lock[:])
+    if !NativeWrite(test, manifest_path, TextReplace(sourced, "source = true\n", "")) { return false }
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, check[:], false), "differ from ziran.lock"), "source declaration drift reused a package lock") ||
+        !NativeWrite(test, manifest_path, TextReplace(sourced, "source = true", "source = yes")) { return false }
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, lock[:], false), "cannot resolve"), "invalid source boolean was accepted") || !NativeWrite(test, manifest_path, sourced) { return false }
+    saved_lock = NativeRead(test, lock_path)
+    nested_aliases := string.["ziran", "native"]; nested_paths := string.[test.repo, CheckPath(fixture.library, "src")]
+    if !FixtureOverrides(test, app, nested_aliases[:], nested_paths[:]) { return false }
+    update_native := string.["update", "native"]; nested := PackageCommand(test, app, update_native[:], false)
+    if !NativeAssert(test, TextContains(nested, "override is not the top of a Git checkout") && NativeRead(test, lock_path) == saved_lock,
+        "nested override pinned enclosing checkout or changed lock") || !ResolutionOverrides(test, app) ||
+        !NativeWrite(test, manifest_path, CheckConcat(sourced, ResolutionDependency("pinned_library", fixture.library, "v2"))) { return false }
+    unused PackageCommand(test, app, lock[:])
+    pinned_aliases := string.["ziran", "pinned_library"]; pinned_paths := string.[test.repo, fixture.library]
+    if !FixtureOverrides(test, app, pinned_aliases[:], pinned_paths[:]) { return false }
+    pinned_path := string.["pkg", "path", "pinned_library"]
+    if !NativeAssert(test, TextTrim(PackageCommand(test, app, pinned_path[:])) == fixture.library, "alias override did not select source checkout") ||
+        !ResolutionOverrides(test, app) || !NativeWrite(test, manifest_path, sourced) { return false }
+    unused PackageCommand(test, app, lock[:])
+    add_app := CheckPath(root, "add-app")
+    native_prefixes := string.["https://ziran-lang.org/fixtures/native.git"]; native_targets := string.[FixtureUri(native)]
+    if !FixtureRedirects(test, native_prefixes[:], native_targets[:]) { return false }
+    add := string.["add", "native", "--git", native_prefixes[0], "--source"]; unused PackageCommand(test, add_app, add[:])
+    added_manifest := NativeRead(test, CheckPath(add_app, "ziran.toml"))
+    added_path := TextDetach(TextCopy(TextTrim(PackageCommand(test, add_app, native_path_command[:]))))
+    return NativeAssert(test, TextContains(added_manifest, "[dependencies.native]") && TextContains(added_manifest, "source = true") && IsFile(CheckPath(added_path, "native.c")),
+        "add --source failed to declare and resolve native repository") && !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-resolution-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    fixture := ResolutionSetup(*test)
+    if test.failed || !ResolutionUrls(fixture) || !ResolutionStandalone(*test) { return 1 }
+    app := fixture.app; lock := string.["lock"]; lock_path := CheckPath(app, "ziran.lock")
+    unused PackageCommand(*test, app, lock[:]); saved_lock := NativeRead(*test, lock_path)
+    unused PackageCommand(*test, app, lock[:])
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == saved_lock, "repeated lock changed bytes") { return 1 }
+    aliases := string.["ziran", "A"]; paths := string.[test.repo, fixture.b]
+    if !FixtureOverrides(*test, app, aliases[:], paths[:]) { return 1 }
+    tool_update := string.["update", "ziran"]; unused PackageCommand(*test, app, tool_update[:])
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == saved_lock, "toolchain-only update consumed unrelated invalid override") || !ResolutionOverrides(*test, app) { return 1 }
+    update := string.["update"]; unused PackageCommand(*test, app, update[:])
+    if !NativeAssert(*test, NativeRead(*test, lock_path) == saved_lock, "unchanged update rewrote lock") { return 1 }
+    fetch := string.["fetch", "--offline"]; check := string.["check", "--project"]
+    unused PackageCommand(*test, app, fetch[:]); unused PackageCommand(*test, app, check[:])
+    if !ResolutionRoots(fixture) || !ResolutionExecution(fixture) { return 1 }
+    aliased := ResolutionCollisions(fixture)
+    if test.failed || !ResolutionSources(fixture, aliased) { return 1 }
+    print("Local package resolution: URLs, roots, immutable revisions, all compiler targets, aliases, submodules and source checkouts passed\n")
+    return 0
+}

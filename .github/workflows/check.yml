@@ -14,13 +14,9 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check:
-    name: check (${{ matrix.shard }}/2)
+    name: check
     runs-on: ubuntu-24.04
     timeout-minutes: 20
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
         # site_pages.sh marks std modules shipped in the latest v* tag.
@@ -31,7 +27,7 @@ jobs:
           go-version: '1.24'
       - name: Install ripgrep, MinGW, Vorbis, ARMv7 and Wasm tools, and the private display for the test scripts
         timeout-minutes: 5
-        run: sh scripts/ci_packages.sh ccache ripgrep gcc-mingw-w64-x86-64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
+        run: sh scripts/ci_packages.sh ccache ripgrep zip unzip gcc-mingw-w64-x86-64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
       - name: Keep compile results between runs
         uses: ./.github/actions/compile-cache
         with:
@@ -39,7 +35,7 @@ jobs:
       - name: Build the toolchain
         run: make
       - name: Run the language, backend, and portable runtime checks
-        run: env -u DISPLAY -u WAYLAND_DISPLAY WINDOWS_REQUIRED=1 ARM_REQUIRED=1 WASM_REQUIRED=1 ZIRAN_WASM_CC=clang-18 make check CHECK_JOBS=4 CHECK_SHARD=${{ matrix.shard }}/2
+        run: env -u DISPLAY -u WAYLAND_DISPLAY WINDOWS_REQUIRED=1 ARM_REQUIRED=1 WASM_REQUIRED=1 ZIRAN_WASM_CC=clang-18 make check CHECK_JOBS=4
       - name: Show how much the compile cache saved
         if: always()
         run: ccache --show-stats || true
@@ -47,7 +43,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: check-logs-${{ matrix.shard }}
+          name: check-logs
           path: build/check-logs/
   macos:
     runs-on: macos-latest
@@ -69,14 +65,10 @@ jobs:
           cd "$RUNNER_TEMP/hello"
           test "$("$ziran" run)" = "Hello, world!"
   sanitize:
-    name: sanitize (${{ matrix.shard }}/2)
+    name: sanitize
     runs-on: ubuntu-24.04
-    # A shard takes 15-20 minutes; runner speed varies by about twice.
+    # Runner speed varies; execute the whole lean suite under both sanitizers.
     timeout-minutes: 35
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
         # site_pages.sh marks std modules shipped in the latest v* tag.
@@ -87,13 +79,13 @@ jobs:
           go-version: '1.24'
       - name: Install ripgrep and Vorbis for the test scripts
         timeout-minutes: 5
-        run: sh scripts/ci_packages.sh ccache ripgrep ffmpeg libvorbis-dev python3-markdown
+        run: sh scripts/ci_packages.sh ccache ripgrep zip unzip ffmpeg libvorbis-dev python3-markdown
       - name: Keep compile results between runs
         uses: ./.github/actions/compile-cache
         with:
           key: sanitize
       - name: Run the checks under AddressSanitizer and UBSan
-        run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4 CHECK_SHARD=${{ matrix.shard }}/2
+        run: env -u DISPLAY -u WAYLAND_DISPLAY make sanitize CHECK_JOBS=4
       - name: Show how much the compile cache saved
         if: always()
         run: ccache --show-stats || true
@@ -101,7 +93,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: sanitizer-check-logs-${{ matrix.shard }}
+          name: sanitizer-check-logs
           path: build/sanitize/check-logs/
   fuzz:
     runs-on: ubuntu-24.04
@@ -143,7 +135,7 @@ jobs:
       - name: Test every backend from source and saved IR with the current compiler
         working-directory: package
         run: |
-          python3 "$GITHUB_WORKSPACE/scripts/test_native_package.py" \
+          sh "$GITHUB_WORKSPACE/scripts/test_native_package.sh" \
             --ziran "$GITHUB_WORKSPACE/build/bin/ziran" \
             --tools "$GITHUB_WORKSPACE/build/bin" \
             --source "tests/${{ matrix.package }}_test.zi" \

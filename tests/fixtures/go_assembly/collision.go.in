@@ -1,0 +1,2 @@
+package main
+func main(){v:=int32(25);if Collision_F(42)!=42 || Collision_G(17,&v)!=42 || Collision_H(17,&v)!=42 {panic("assembly name collision")}}

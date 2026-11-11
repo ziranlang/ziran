@@ -5,7 +5,8 @@ set -eu
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 . "$repo/tests/lib/native_answer.sh"
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/compile-run-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/app.zi" <<'ZI'
@@ -267,19 +268,7 @@ Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" check --root "$work" "$work/assert_selected.zi"
 "$ziran" ir --root "$work" -o "$work/assert-ir" "$work/assert_selected.zi"
-python3 - "$work/assert-ir/assert_selected.zir" "$work/assert-forged.zir" <<'PY'
-from pathlib import Path
-from struct import pack
-import sys
-
-data = bytearray(Path(sys.argv[1]).read_bytes())
-message = b'"checked marker"'
-# Strings new to the file are twice their length, then their bytes.
-needle = bytes([2]) + b'1' + bytes([2 * len(message)]) + message
-assert data.count(needle) == 1
-data[data.index(needle) + 1] = ord('0')
-Path(sys.argv[2]).write_bytes(data)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" assertion
 expect_rejection 'saved IR accepted a falsified compile-time assertion' "$work/assert-forged.err" \
     "$ziran" check --root "$work" "$work/assert-forged.zir"
 rg -q '#assert failed' "$work/assert-forged.err"

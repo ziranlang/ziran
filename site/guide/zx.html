@@ -39,6 +39,9 @@ A graphical <code>.zx</code> then runs with <code>ziran run app.zx</code> withou
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.</p>
 <h2 id="experimental-versions-26-and-27">Experimental versions 26 and 27</h2>
+<p>Run source in one command: <code>ziran run hello.zi</code> or <code>zi2zx hello.zi</code>.
+Both check the file and execute its <code>main</code>; its folder is the default module
+root. The direct runner also accepts saved <code>.zir</code> and portable <code>.zx</code> files.</p>
 <p><code>zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...</code>
 loads explicit inputs and their extensionless imports, then links reachable
 modules. <code>zi2zx run [--vm] FILE</code> validates and executes a bundle file, or

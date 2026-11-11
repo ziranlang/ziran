@@ -18,6 +18,17 @@ it does not prove what a foreign procedure does.
 
 ## Write an obligation and certificate
 
+Long quantified laws can continue after each domain's comma and after `=>`.
+Put each predicate on its own line, continuing after `&&` or `||`. The
+formatter keeps these continuations indented until the terminating `;`:
+
+```zi
+#law AddCommutes forall left: 0..4,
+    right: 0..4 =>
+    Add(left, right) == Add(right, left) &&
+    Add(left, 0) == left;
+```
+
 In `scalar.zi`:
 
 ```zi

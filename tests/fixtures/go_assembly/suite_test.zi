@@ -1,0 +1,8 @@
+native :: #system_library "go:testing";
+Test :: #type #foreign native "T";
+Fatal :: (test: *Test, message: string) #foreign native "(*T).Fatal";
+Box :: struct { value: s32 }
+Marker :: () -> s32 #asm("x86_64", "movl $7, %[out]", "=r", "", "", "") #asm("aarch64", "mov %w[out], #7", "=r", "", "", "") { return 3 }
+Boxed :: () -> Box #asm("x86_64", "movl $7, %[out_value]", "=r", "", "", "") #asm("aarch64", "mov %w[out_value], #7", "=r", "", "", "") { return Box.{3} }
+#program_export "TestAssembly"
+Check :: (test: *Test) { if Boxed().value != Marker() { Fatal(test, "native test record") } }

@@ -1,0 +1,57 @@
+// Independent verification of compact transport maps used by the CLI test.
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+TRANSPORT_HEADER :: "ZI-COMPACT-1\n";
+
+TransportMapError :: (message: string) -> Vec(string) { result: Vec(string); VecPush(result, message); return result }
+
+TransportValidateMap :: (test: *NativeTest, mapping: *JsonDocument, source: string, transport: string) -> Vec(string) {
+    names := string.["schema_version", "coordinate_space", "source_sha256", "transport_sha256", "source_bytes", "transport_bytes", "header_bytes", "segments"]
+    if JsonKindOf(mapping, mapping.root) != .Object || JsonCount(mapping, mapping.root) != names.count { return TransportMapError("map members differ") }
+    for name: names { if JsonMember(mapping, mapping.root, name) < 0 { return TransportMapError("map member is missing") } }
+    problems: Vec(string)
+    if CheckInteger(mapping, mapping.root, "schema_version") != 1 || CheckField(mapping, mapping.root, "coordinate_space") != "utf8_bytes" { VecPush(problems, "unsupported map version or coordinates") }
+    if CheckField(mapping, mapping.root, "source_sha256") != FixtureDigest(test, source) || CheckField(mapping, mapping.root, "transport_sha256") != FixtureDigest(test, transport) { VecPush(problems, "map digests do not bind both documents") }
+    if CheckInteger(mapping, mapping.root, "source_bytes") != source.count || CheckInteger(mapping, mapping.root, "transport_bytes") != transport.count { VecPush(problems, "map lengths differ") }
+    if CheckInteger(mapping, mapping.root, "header_bytes") != TRANSPORT_HEADER.count || !TextHasPrefix(transport, TRANSPORT_HEADER) { VecPush(problems, "transport header differs") }
+    a: s64; b := TRANSPORT_HEADER.count; segments := JsonMember(mapping, mapping.root, "segments")
+    if JsonKindOf(mapping, segments) != .Array { VecPush(problems, "segments must be an array") }
+    for index: cast(s32)0..JsonCount(mapping, segments) - 1 {
+        part := JsonElement(mapping, segments, index); low := CheckInteger(mapping, part, "source_start"); packed_low := CheckInteger(mapping, part, "transport_start")
+        high := CheckInteger(mapping, part, "source_end"); packed_high := CheckInteger(mapping, part, "transport_end")
+        if low != a || packed_low != b { VecPush(problems, "segments are not consecutive"); break }
+        if low < 0 || high < low || high > source.count || packed_low < 0 || packed_high < packed_low || packed_high > transport.count { VecPush(problems, "segment range leaves its document"); break }
+        a = high; b = packed_high; raw := source[low:high]; packed := transport[packed_low:packed_high]; kind := CheckField(mapping, part, "kind"); valid := false
+        if kind == "literal" { valid = raw == packed && raw.count > 0 }
+        else if kind == "escape" { valid = raw == "~" && packed == "~~" }
+        else if kind == "repeat" && packed.count > 3 && packed[0] == 126 && packed[packed.count - 1] == 59 {
+            fill: u8; recognized := true
+            if packed[1] == 115 { fill = 32 } else if packed[1] == 116 { fill = 9 } else if packed[1] == 110 { fill = 10 } else if packed[1] == 114 { fill = 13 } else { recognized = false }
+            count: s64; digits := packed[2:packed.count - 1]; bounded := digits.count > 0
+            for byte: digits {
+                if byte < 48 || byte > 57 || count > 16777216 / 10 { bounded = false; break }
+                count = count * 10 + cast(s64)byte - 48; if count > 16777216 { bounded = false; break }
+            }
+            valid = recognized && bounded && count == raw.count && raw.count >= 8
+            for byte: raw { if byte != fill { valid = false; break } }
+        }
+        if !valid { VecPush(problems, "segment does not reproduce its source bytes"); break }
+    }
+    if problems.count == 0 && (a != source.count || b != transport.count) { VecPush(problems, "segments do not cover both documents") }
+    return problems
+}
+
+TransportMapOffset :: (mapping: *JsonDocument, offset: s64) -> (kind: string, at: s64) {
+    segments := JsonMember(mapping, mapping.root, "segments")
+    for index: cast(s32)0..JsonCount(mapping, segments) - 1 {
+        part := JsonElement(mapping, segments, index); low := CheckInteger(mapping, part, "source_start"); high := CheckInteger(mapping, part, "source_end")
+        if low <= offset && offset < high {
+            kind := CheckField(mapping, part, "kind"); at := CheckInteger(mapping, part, "transport_start"); if kind == "literal" { at += offset - low }; return kind, at
+        }
+    }
+    return "", -1
+}

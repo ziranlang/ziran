@@ -2,7 +2,8 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/assembly-blocks-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
@@ -206,39 +207,7 @@ cmp "$work/source-c/blocks.c" "$work/saved-c/blocks.c"
 
 # A native payload cannot disagree with the statement it accompanies, and
 # changing both copies still requires a real lexical binding.
-python3 - "$work/ir/blocks.zir" "$work" <<'PY'
-from pathlib import Path
-import sys
-data=Path(sys.argv[1]).read_bytes();out=Path(sys.argv[2])
-needle=b'r:source=class';assert data.count(needle)==6
-first=data.find(needle);second=data.find(needle,first+1)
-changed=data[:second]+data[second:].replace(needle,b'r:source=ghost',1)
-(out/'mismatch.zir').write_bytes(changed)
-(out/'unknown.zir').write_bytes(data.replace(needle,b'r:source=ghost'))
-# A named template still binds the payload to its constant's actual value.
-named=b'popcnt %[value], %[total]';assert data.count(named)==1
-replacement=b'movq   %[value], %[total]';assert len(named)==len(replacement)
-(out/'named-mismatch.zir').write_bytes(data.replace(named,replacement))
-def number(value):
-    out=bytearray()
-    while True:
-        byte=value&0x7f;value>>=7
-        out.append(byte|(0x80 if value else 0))
-        if not value:return bytes(out)
-def read_number(at):
-    value=shift=0
-    while True:
-        byte=data[at];at+=1;value|=(byte&0x7f)<<shift;shift+=7
-        if byte<0x80:return value,at
-def skip_string(at):
-    tag,at=read_number(at)
-    return at+(0 if tag&1 else tag//2)
-tag=number(1|(1<<30));at=data.find(tag);assert at>=0
-(out/'wrong-kind.zir').write_bytes(data[:at]+number(3|(1<<30))+data[at+len(tag):])
-length_at=skip_string(at+len(tag));assembly_tag,end=read_number(length_at)
-assert assembly_tag%2==0 and 0<assembly_tag//2<4096
-(out/'empty.zir').write_bytes(data[:length_at]+number(0)+data[end+assembly_tag//2:])
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" assembly
 for bad in mismatch named-mismatch unknown wrong-kind empty; do
     if "$ziran" check --root "$work" "$work/$bad.zir" > "$work/$bad.log" 2>&1; then
         echo 'invalid saved assembly metadata accepted' >&2;exit 1
@@ -311,18 +280,7 @@ ZI
 
 # The native worker's existing capture bound must produce a diagnostic,
 # rather than emitting a worker with undeclared operand references.
-python3 - "$work/limit.zi" <<'PY'
-from pathlib import Path
-import sys
-parameters=', '.join(f'arg{i}:s64' for i in range(17))
-operands=';'.join(f'r:arg{i}' for i in range(17))
-Path(sys.argv[1]).write_text(f'''F :: ({parameters}) {{
-    #parallel for 0..2 {{
-        #asm("x86_64", "", "", "{operands}", "", "") {{}}
-    }}
-}}
-''')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" assembly-capture-limit
 "$ziran" ir --root "$work" -o "$work/limit-ir" "$work/limit.zi"
 for form in source saved; do
     root=$work; input=$work/limit.zi

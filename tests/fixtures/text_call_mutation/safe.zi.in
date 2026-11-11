@@ -1,0 +1,31 @@
+Node :: struct { bytes: [2]u8; other: [2]u8; result: s32 }
+Write :: (node: *Node) { node.bytes[0] = cast(u8)98 }
+
+    global_bytes: [2]u8 = .[97, 98];
+    global_view: string;
+    Hold :: () { global_view = TextView(global_bytes[:]) }
+    Read :: (node: *Node) -> s32 { return cast(s32)node.bytes[0] }
+    Sibling :: (node: *Node) { node.other[0] = cast(u8)99 }
+    Forward :: (node: *Node) { Sibling(node) }
+    Params :: (first: *Node, second: *Node) -> s32 {
+        text := TextView(first.bytes[:])
+        second.result = 42
+        return cast(s32)text[0]
+    }
+    #program_export
+    Answer :: () -> s32 {
+        Hold()
+        node: Node
+        node.bytes[0] = 97
+        node.bytes[1] = 98
+        {
+            text := TextView(node.bytes[:])
+            Forward(*node)
+            if Read(*node) != 97 || text != "ab" { return 1 }
+            if Params(*node, *node) != 97 { return 2 }
+        }
+        Write(*node)
+        if node.bytes[0] != 98 || node.other[0] != 99 { return 3 }
+        if global_view != "ab" { return 4 }
+        return node.result
+    }

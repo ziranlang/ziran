@@ -1,0 +1,64 @@
+#import "native_test"
+#import "check_support"
+using Vectors :: #import "std/vec"
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "lowered-verify-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    NativeSet(*test, "GOWORK", "off")
+    module := "compiler_lowered_verify_test"
+    root := CheckPath(test.repo, "tests/spec")
+    modules := CheckPath(test.repo, "cmd")
+    source := CheckPath(root, CheckConcat(module, ".zi"))
+    saved := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", root, "--module-path", modules, "-o", saved, source]
+    unused NativeRun(*test, save[:])
+    if test.failed { return 1 }
+    expected: string
+    inputs := string.[source, CheckPath(saved, CheckConcat(module, ".zir"))]
+    forms := string.["source", "saved"]
+    entries := string.["Answer", "Fingerprint"]
+    for index: 0..inputs.count - 1 {
+        input := inputs[index]
+        form := forms[index]
+        for entry: entries {
+            bundle := CheckPath(test.work, CheckConcat(form, CheckConcat("-", CheckConcat(entry, ".zx"))))
+            build := string.[test.ziran, "bundle", "--root", root, "--module-path", modules,
+                "--entry", CheckConcat(module, CheckConcat(":", entry)), "-o", bundle, input]
+            unused NativeRun(*test, build[:])
+            vm := string.[test.ziran, "run", "--vm", bundle]
+            result := NativeRun(*test, vm[:])
+            if test.failed { return 1 }
+            if entry == "Answer" {
+                if !NativeAssert(*test, result.output == "42\n", "verifier cases must pass in the explicit portable VM") { return 1 }
+            } else {
+                combined := CheckConcat("42 ", result.output)
+                if expected == "" { expected = combined }
+                else if !NativeAssert(*test, expected == combined, "source and saved verifier fingerprints must agree") { return 1 }
+            }
+        }
+        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", CheckConcat(module, ":Run"),
+            "--root", root, "--module-path", modules, "-o", c_output, input]
+        unused NativeRun(*test, c_build[:])
+        c_run := string.[CheckPath(c_output, module)]
+        if test.failed || !NativeExpect(*test, c_run[:], expected) { return 1 }
+        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", CheckConcat(module, ":Run"),
+            "--root", root, "--module-path", modules, "-o", go_output, input]
+        unused NativeRun(*test, go_build[:])
+        go_run: Vec(string)
+        VecPush(go_run, "go")
+        VecPush(go_run, "run")
+        go_files := NativeFiles(go_output, ".go")
+        for path: go_files { VecPush(go_run, path) }
+        if test.failed || !NativeExpect(*test, go_run[:], expected) { return 1 }
+    }
+    print("lowered verifier: source/saved IR C, Go and explicit portable VM local tests passed\n")
+    return 0
+}

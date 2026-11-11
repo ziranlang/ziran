@@ -1,0 +1,81 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+SelfCompile :: (test: *NativeTest, app: string, output: string, source: string, project: bool) -> bool {
+    arguments: Vec(string)
+    initial := string.["build", "--target=c", "--exe", "--entry", "app:main", "-o", output]
+    for argument: initial { VecPush(arguments, argument) }
+    if project { VecPush(arguments, "--project"); VecPush(arguments, "--offline") }
+    else { VecPush(arguments, "--root"); VecPush(arguments, TextDetach(TextCopy(PathParent(source)))) }
+    VecPush(arguments, source)
+    unused PackageCommand(test, app, arguments[:])
+    run := string.[CheckPath(output, "app")]; unused NativeRun(test, run[:], app)
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-self-import-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    leaf := CheckPath(test.work, "leaf"); provider := CheckPath(test.work, "provider"); app := CheckPath(test.work, "app")
+    if !FixtureInit(*test, leaf) || !FixtureInit(*test, provider) { return 1 }
+    if !NativeWrite(*test, CheckPath(leaf, "ziran.toml"), "[package]\nname = \"Library\"\nmodule_roots = [\"src\"]\n[exports]\nPublic = \"src/value.zi\"\nEntry = \"src/entry.zi\"\nlocal = \"src/value.zi\"\nPublicLocal = \"src/value.zi\"\n") ||
+        !NativeWrite(*test, CheckPath(leaf, "src/value.zi"), "Value :: struct { number: s32 }\n") || !NativeWrite(*test, CheckPath(leaf, "src/private.zi"), "Secret :: 7;\n") { return 1 }
+    entry := NativeRead(*test, CheckPath(test.repo, "tests/fixtures/package_self/entry.zi.in"))
+    if !NativeWrite(*test, CheckPath(leaf, "src/entry.zi"), entry) { return 1 }
+    provider_manifest := string.["[package]\nname = \"Provider\"\nmodule_roots = [\"src\"]\n[dependencies.inner]\ngit = ", FixtureQuote(FixtureUri(leaf)), "\n[exports]\nWrapper = \"src/wrapper.zi\"\n"]
+    if !NativeWrite(*test, CheckPath(provider, "ziran.toml"), TextJoin(provider_manifest[:], "")) ||
+        !NativeWrite(*test, CheckPath(provider, "src/wrapper.zi"), NativeRead(*test, CheckPath(test.repo, "tests/fixtures/package_self/wrapper.zi.in"))) { return 1 }
+    app_manifest := string.["[package]\nname = \"Application\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[dependencies.outer]\ngit = ", FixtureQuote(FixtureUri(provider)),
+        "\n[dependencies.renamed]\ngit = ", FixtureQuote(FixtureUri(leaf)), "\n[exports]\nPublicLocal = \"src/local.zi\"\nOnlyOwn = \"src/local.zi\"\n"]
+    manifest := TextDetach(TextJoin(app_manifest[:], ""))
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), manifest) { return 1 }
+    aliases := string.["ziran", "outer", "renamed", "Library", "inner", "Application"]
+    paths := string.[test.repo, provider, leaf, leaf, leaf, leaf]
+    overrides: Vec(u8); BuilderAppend(overrides, "[overrides]\n")
+    for index: cast(s64)0..aliases.count - 1 { BuilderAppend(overrides, CheckConcat(aliases[index], CheckConcat(" = ", CheckConcat(FixtureQuote(paths[index]), "\n")))) }
+    if !NativeWrite(*test, CheckPath(app, "ziran.local.toml"), BuilderFinish(overrides)) || !NativeWrite(*test, CheckPath(app, "src/local.zi"), "LocalNumber :: 3;\n") ||
+        !NativeWrite(*test, CheckPath(app, "src/private.zi"), "Secret :: 9;\n") { return 1 }
+    source := NativeRead(*test, CheckPath(test.repo, "tests/fixtures/package_self/app.zi.in"))
+    direct := CheckConcat("[dependencies.renamed]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(leaf)), "\n"))
+    if !NativeAssert(*test, TextContains(manifest, direct), "missing direct dependency fixture") { return 1 }
+    transitive_manifest := TextDetach(TextReplace(manifest, direct, ""))
+    transitive := TextDetach(TextReplace(source, "using V :: #import \"renamed/Public\";\n", ""))
+    transitive = TextDetach(TextReplace(transitive, "    value: V.Value; value.number = Own.LocalNumber\n    return P.WrappedEcho(value).number - Short.LocalNumber", "    return P.RoundTrip(Own.LocalNumber) - Short.LocalNumber"))
+    if !NativeAssert(*test, !TextContains(transitive_manifest, "[dependencies.renamed]") && !TextContains(transitive, "renamed/Public"), "transitive test kept its direct alias") ||
+        !NativeWrite(*test, CheckPath(app, "ziran.toml"), transitive_manifest) || !NativeWrite(*test, CheckPath(app, "src/app.zi"), transitive) { return 1 }
+    lock := string.["lock", "--offline"]; unused PackageCommand(*test, app, lock[:])
+    check := string.["check", "--project", "--offline", "src/app.zi"]; unused PackageCommand(*test, app, check[:])
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), manifest) || !NativeWrite(*test, CheckPath(app, "src/app.zi"), source) { return 1 }
+    unused PackageCommand(*test, app, lock[:])
+    if !SelfCompile(*test, app, CheckPath(app, "build/native"), CheckPath(app, "src/app.zi"), true) { return 1 }
+    ir := CheckPath(app, "build/ir")
+    save := string.["ir", "--project", "--offline", "--entry", "app:main", "-o", ir, "src/app.zi"]; unused PackageCommand(*test, app, save[:])
+    if !SelfCompile(*test, app, CheckPath(app, "build/saved"), CheckPath(ir, "app.zir"), false) { return 1 }
+    rejected_paths := string.[CheckPath(app, "src/app.zi"), CheckPath(leaf, "src/entry.zi"), CheckPath(app, "src/app.zi"), CheckPath(app, "src/app.zi")]
+    good := string.[source, entry, source, source]
+    spellings := string.["Application/private", "Library/private", "inner/Public", "Library/Public"]
+    for index: cast(s64)0..spellings.count - 1 {
+        if !NativeWrite(*test, rejected_paths[index], CheckConcat("#import \"", CheckConcat(spellings[index], CheckConcat("\"\n", good[index])))) { return 1 }
+        refused := PackageCommand(*test, app, check[:], false)
+        if !NativeAssert(*test, TextContains(refused, CheckConcat("module ", CheckConcat(spellings[index], " is not exported"))), "self import exposed a private module or transitive alias") ||
+            !NativeWrite(*test, rejected_paths[index], good[index]) { return 1 }
+    }
+    collision := NativeRead(*test, CheckPath(test.repo, "tests/fixtures/package_self/collision.zi.in"))
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), CheckConcat(manifest, CheckConcat("\n[dependencies.Application]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(leaf)), "\n")))) ||
+        !NativeWrite(*test, CheckPath(app, "src/app.zi"), collision) { return 1 }
+    unused PackageCommand(*test, app, lock[:])
+    if !SelfCompile(*test, app, CheckPath(app, "build/collision"), CheckPath(app, "src/app.zi"), true) ||
+        !NativeWrite(*test, CheckPath(app, "src/app.zi"), CheckConcat("#import \"Application/OnlyOwn\"\n", collision)) { return 1 }
+    refused := PackageCommand(*test, app, check[:], false)
+    if !NativeAssert(*test, TextContains(refused, "module Application/OnlyOwn is not exported"), "dependency prefix did not retain namespace precedence") || test.failed { return 1 }
+    print("Local public self imports: aliases, transitive identity, visibility, prefix precedence and native/saved IR passed\n")
+    return 0
+}

@@ -1,0 +1,46 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "site-pages-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    script := CheckPath(test.repo, "scripts/site_pages.py")
+    // This is the real production generator, including its public freshness
+    // check. Test orchestration and assertions stay in this Ziran program.
+    check := string.["python3", script, "--ziran", test.ziran, "--check"]
+    unused NativeRun(*test, check[:])
+    source := CheckPath(test.work, "src")
+    loader := CheckPath(source, "loader.zi")
+    if !NativeWrite(*test, loader, "// Loader module.\n\n#load \"part.zi\";\n") ||
+        !NativeWrite(*test, CheckPath(source, "part.zi"), "// Part file.\n\n\n\n\n\n// Doubles a number.\nDouble :: (n: s32) -> s32 {\n    return n * 2;\n}\n") { return 1 }
+    query := string.["python3", script, "--ziran", test.ziran, "--module-api", loader, "--module-root", source]
+    result := NativeRun(*test, query[:])
+    document: JsonDocument
+    if !NativeAssert(*test, JsonRead(*document, result.output), "invalid generated module documentation") { return 1 }
+    root := document.root
+    entries := JsonMember(*document, root, "entries")
+    entry := JsonElement(*document, entries, 0)
+    if !NativeAssert(*test, CheckField(*document, root, "summary") == "Loader module." && JsonCount(*document, entries) == 1 &&
+        JsonString(*document, JsonElement(*document, entry, 1)) == "Double :: (n: s32) -> s32" &&
+        JsonString(*document, JsonElement(*document, entry, 2)) == "Doubles a number.", "loaded declaration documentation came from the wrong file or line") { return 1 }
+    hello := NativeRead(*test, CheckPath(test.repo, "site/examples/hello.zi"))
+    if !NativeWrite(*test, CheckPath(test.work, "hello.zi"), hello) { return 1 }
+    run := string.[test.ziran, "run", "hello.zi"]
+    direct := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "hello.zi"]
+    unused NativeExpect(*test, run[:], "Hello, World!\n", test.work)
+    unused NativeExpect(*test, direct[:], "Hello, World!\n", test.work)
+    examples := NativeRead(*test, CheckPath(test.repo, "site/examples.html"))
+    started := NativeRead(*test, CheckPath(test.repo, "site/get-started.html"))
+    if !NativeAssert(*test, TextContains(examples, "ziran run hello.zi") && TextContains(started, "ziran run hello.zi") &&
+        !TextContains(examples, "build/bin/ziran bundle") && !TextContains(started, "build/bin/ziran bundle"), "website examples lost the direct run command") { return 1 }
+    if test.failed { return 1 }
+    print("Local site tests: generated pages, loaded-file documentation and one-line examples passed\n")
+    return 0
+}

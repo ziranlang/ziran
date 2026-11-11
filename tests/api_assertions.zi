@@ -1,0 +1,188 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/sort"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ApiRow :: struct { module: string; kind: string; row: s32 }
+
+ApiRows :: (document: *JsonDocument) -> Vec(ApiRow) {
+    rows: Vec(ApiRow); modules := JsonMember(document, document.root, "modules"); kinds := string.["imports", "constants", "globals", "types", "functions", "laws"]
+    for index: cast(s32)0..JsonCount(document, modules) - 1 {
+        module := JsonElement(document, modules, index)
+        for kind: kinds {
+            items := JsonMember(document, module, kind)
+            for at: cast(s32)0..JsonCount(document, items) - 1 { VecPush(rows, ApiRow.{CheckField(document, module, "name"), kind, JsonElement(document, items, at)}) }
+        }
+    }
+    return rows
+}
+
+ApiIds :: (document: *JsonDocument) -> Vec(string) {
+    result: Vec(string); rows := ApiRows(document)
+    for row: rows { VecPush(result, CheckField(document, row.row, "id")) }; SortText(result[:]); return result
+}
+
+ApiSameNames :: (left: []string, right: []string) -> bool {
+    if left.count != right.count { return false }
+    for index: cast(s64)0..left.count - 1 { if left[index] != right[index] { return false } }; return true
+}
+
+ApiJsonSame :: (left: *JsonDocument, a: s32, right: *JsonDocument, b: s32) -> bool {
+    return JsonWrite(left, a, JsonCompactStyle(false, true)) == JsonWrite(right, b, JsonCompactStyle(false, true))
+}
+
+ApiRead :: (test: *NativeTest, document: *JsonDocument, name: string) -> bool {
+    return NativeAssert(test, JsonRead(document, NativeRead(test, CheckPath(test.work, CheckConcat(name, ".json")))), CheckConcat("invalid API JSON: ", name))
+}
+
+ApiNamed :: (document: *JsonDocument, array: s32, name: string) -> s32 {
+    found: s32 = -1
+    for index: cast(s32)0..JsonCount(document, array) - 1 {
+        item := JsonElement(document, array, index)
+        if CheckField(document, item, "name") == name { if found >= 0 { return -1 }; found = item }
+    }
+    return found
+}
+
+ApiNames :: (test: *NativeTest, document: *JsonDocument, array: s32, names: string) -> bool {
+    expected := TextSplit(names, "|")
+    if !NativeAssert(test, JsonCount(document, array) == expected.count, "API projection member count differs") { return false }
+    for name: expected { if !NativeAssert(test, ApiNamed(document, array, name) >= 0, CheckConcat("missing or duplicate API name: ", name)) { return false } }
+    return true
+}
+
+ApiDiscovery :: (test: *NativeTest) -> bool {
+    names := string.["source", "saved"]
+    for name: names {
+        document: JsonDocument
+        if !ApiRead(test, *document, name) || !NativeAssert(test, CheckInteger(*document, document.root, "schema_version") == 1, "API schema changed") { return false }
+        modules := JsonMember(*document, document.root, "modules")
+        if !ApiNames(test, *document, modules, "main|library") { return false }
+        library := ApiNamed(*document, modules, "library"); main := ApiNamed(*document, modules, "main")
+        functions := JsonMember(*document, library, "functions")
+        if !ApiNames(test, *document, functions, "Visible|Again") { return false }
+        visible := ApiNamed(*document, functions, "Visible")
+        if !NativeAssert(test, CheckField(*document, visible, "parameters") == "value: s32" && CheckField(*document, visible, "defaults") != "" &&
+            CheckField(*document, visible, "return_type") == "Choice" && CheckField(*document, visible, "effect") == "pure", "API lost default arguments, result type or effect") { return false }
+        types := JsonMember(*document, library, "types")
+        if !ApiNames(test, *document, types, "Choice|Handler") { return false }
+        choice := ApiNamed(*document, types, "Choice"); handler := ApiNamed(*document, types, "Handler")
+        if !NativeAssert(test, JsonKindOf(*document, JsonMember(*document, choice, "procedure")) == .False && CheckField(*document, choice, "return_type") == "" &&
+            JsonKindOf(*document, JsonMember(*document, handler, "procedure")) == .True && CheckField(*document, handler, "return_type") == "bool" &&
+            CheckField(*document, handler, "body") == "value: s32", "API confused procedure and record types") ||
+            !ApiNames(test, *document, JsonMember(*document, library, "constants"), "PUBLIC_CONSTANT") ||
+            !ApiNames(test, *document, JsonMember(*document, library, "globals"), "public_global") ||
+            !NativeAssert(test, CheckField(*document, JsonElement(*document, JsonMember(*document, library, "globals"), 0), "type") == "s32", "API global lost its type") { return false }
+        imports := JsonMember(*document, main, "imports")
+        if !NativeAssert(test, JsonCount(*document, imports) > 0, "API omitted main imports") { return false }
+        for index: cast(s32)0..JsonCount(*document, imports) - 1 { if !NativeAssert(test, CheckField(*document, JsonElement(*document, imports, index), "kind") == "open", "API import kind changed") { return false } }
+        foreign := JsonMember(*document, library, "imports"); row := JsonElement(*document, foreign, 0)
+        if !NativeAssert(test, JsonCount(*document, foreign) == 1 && CheckField(*document, row, "kind") == "foreign" && CheckField(*document, row, "name") == "CallHost" &&
+            CheckField(*document, row, "foreign_target") == "host" && CheckField(*document, row, "parameters") == "value: s32", "foreign API import changed") ||
+            !ApiNames(test, *document, JsonMember(*document, main, "functions"), "Answer") { return false }
+    }
+    text := NativeRead(test, CheckPath(test.work, "source.txt"))
+    if !NativeAssert(test, TextContains(text, "Visible :: (value: s32 = 42) -> Choice") && !TextContains(text, "Hidden") && !TextContains(text, "HIDDEN_CONSTANT") &&
+        !TextContains(text, "hidden_global") && TextContains(text, "PUBLIC_CONSTANT") && TextContains(text, "public_global"), "text API exposed private declarations or omitted public declarations") { return false }
+    defined: JsonDocument
+    if !ApiRead(test, *defined, "defined") { return false }
+    library := ApiNamed(*defined, JsonMember(*defined, defined.root, "modules"), "library")
+    return ApiNames(test, *defined, JsonMember(*defined, library, "functions"), "Visible|Again|Extra")
+}
+
+ApiMetadata :: (test: *NativeTest) -> bool {
+    source: JsonDocument; saved: JsonDocument
+    if !ApiRead(test, *source, "source") || !ApiRead(test, *saved, "saved") || !NativeAssert(test, CheckInteger(*source, source.root, "schema_version") == 1 &&
+        CheckInteger(*saved, saved.root, "schema_version") == 1 && JsonKindOf(*source, JsonMember(*source, JsonMember(*source, source.root, "truncation"), "complete")) == .True, "API metadata schema or completeness changed") { return false }
+    source_ids := ApiIds(*source); saved_ids := ApiIds(*saved)
+    if !NativeAssert(test, ApiSameNames(source_ids[:], saved_ids[:]), "source/saved API semantic IDs differ") { return false }
+    rows := ApiRows(*source); saved_rows := ApiRows(*saved)
+    for row: rows {
+        name := CheckField(*source, row.row, "name")
+        if CheckField(*source, row.row, "symbol_kind") != "law" && !NativeAssert(test, !TextHasPrefix(name, "Hidden") && !TextHasPrefix(name, "__") && !TextHasPrefix(name, "zi_default_"), "API exposed a private or generated name") { return false }
+        if row.kind == "laws" && !NativeAssert(test, CheckField(*source, row.row, "visibility") == "module_contract", "law lost module-contract visibility") { return false }
+        if row.module == "vec" { continue }
+        document := JsonMember(*source, row.row, "document"); span := JsonMember(*source, row.row, "span")
+        path := CheckPath(test.work, CheckField(*source, span, "path")); data := NativeRead(test, path)
+        start := CheckInteger(*source, span, "start_byte"); end := CheckInteger(*source, span, "end_byte")
+        if !NativeAssert(test, JsonKindOf(*source, JsonMember(*source, document, "available")) == .True && CheckField(*source, document, "sha256") == CheckHash(path) &&
+            CheckInteger(*source, document, "bytes") == data.count && CheckField(*source, span, "kind") == "declaration_anchor" && start >= 0 && end >= start && end <= data.count,
+            "API document identity or UTF-8 byte span differs") { return false }
+    }
+    for row: saved_rows {
+        document := JsonMember(*saved, row.row, "document")
+        if !NativeAssert(test, JsonKindOf(*saved, JsonMember(*saved, document, "available")) == .False && JsonKindOf(*saved, JsonMember(*saved, document, "sha256")) == .Null, "saved API invented source document bytes") { return false }
+    }
+    scoped: JsonDocument
+    if !ApiRead(test, *scoped, "scoped") || !ApiNames(test, *scoped, JsonMember(*scoped, scoped.root, "modules"), "library") { return false }
+    library := JsonElement(*scoped, JsonMember(*scoped, scoped.root, "modules"), 0); take := JsonElement(*scoped, JsonMember(*scoped, library, "functions"), 0)
+    ownership: JsonDocument
+    unused JsonRead(*ownership, "{\"result\":\"move\",\"parameters\":[{\"name\":\"values\",\"mode\":\"move\"},{\"name\":\"view\",\"mode\":\"borrow\"},{\"name\":\"pointer\",\"mode\":\"borrow\"}]}")
+    if !NativeAssert(test, CheckField(*scoped, take, "name") == "Take" && ApiJsonSame(*scoped, JsonMember(*scoped, take, "ownership"), *ownership, ownership.root) &&
+        JsonKindOf(*scoped, JsonMember(*scoped, take, "examples")) == .Null, "API ownership or example metadata changed") || !NativeWrite(test, CheckPath(test.work, "symbol-id"), CheckField(*scoped, take, "id")) { return false }
+    limited: JsonDocument; bounded: JsonDocument; imports: JsonDocument; conditional: JsonDocument
+    if !ApiRead(test, *limited, "limited") || !ApiRead(test, *bounded, "bytes") || !ApiRead(test, *imports, "imports") || !ApiRead(test, *conditional, "conditional") { return false }
+    limited_rows := ApiRows(*limited)
+    if !NativeAssert(test, limited_rows.count == 2 && JsonKindOf(*limited, JsonMember(*limited, JsonMember(*limited, limited.root, "truncation"), "complete")) == .False &&
+        NativeRead(test, CheckPath(test.work, "bytes.json")).count <= 2048 && JsonKindOf(*bounded, JsonMember(*bounded, JsonMember(*bounded, bounded.root, "truncation"), "byte_limit")) == .True, "bounded API exceeded symbol or byte budget") { return false }
+    import_rows := ApiRows(*imports)
+    for row: import_rows { if !NativeAssert(test, row.kind == "imports", "imports-only API emitted a declaration") { return false } }
+    conditional_rows := ApiRows(*conditional); extra: s32 = -1; proved := false
+    for row: conditional_rows { if CheckField(*conditional, row.row, "name") == "Extra" { extra = row.row } }
+    for row: rows {
+        if !NativeAssert(test, CheckField(*source, row.row, "name") != "Extra", "conditional declaration leaked into base projection") { return false }
+        if CheckField(*source, row.row, "name") == "PureEffect" { proved = CheckField(*source, row.row, "status") == "proved" }
+    }
+    if !NativeAssert(test, extra >= 0 && proved, "conditional declaration or proved law was omitted") { return false }
+    span := JsonMember(*conditional, extra, "span"); data := NativeRead(test, CheckPath(test.work, CheckField(*conditional, span, "path"))); start := CheckInteger(*conditional, span, "start_byte")
+    return NativeAssert(test, start >= 0 && start + 5 <= data.count && data[start:start + 5] == "Extra", "conditional anchor did not point at its declaration")
+}
+
+ApiMoved :: (test: *NativeTest) -> bool {
+    before: JsonDocument; after: JsonDocument
+    if !ApiRead(test, *before, "scoped") || !ApiRead(test, *after, "moved") { return false }
+    a := JsonElement(*before, JsonMember(*before, JsonElement(*before, JsonMember(*before, before.root, "modules"), 0), "functions"), 0)
+    b := JsonElement(*after, JsonMember(*after, JsonElement(*after, JsonMember(*after, after.root, "modules"), 0), "functions"), 0)
+    return NativeAssert(test, CheckField(*before, a, "id") == CheckField(*after, b, "id") && CheckInteger(*before, JsonMember(*before, a, "span"), "line") + 1 ==
+        CheckInteger(*after, JsonMember(*after, b, "span"), "line") && CheckField(*before, JsonMember(*before, a, "document"), "sha256") != CheckField(*after, JsonMember(*after, b, "document"), "sha256"),
+        "moving a declaration changed its semantic identity or lost its new document version")
+}
+
+ApiRewritten :: (test: *NativeTest) -> bool {
+    document: JsonDocument
+    if !ApiRead(test, *document, "rewritten") { return false }
+    module := JsonElement(*document, JsonMember(*document, document.root, "modules"), 0)
+    if !NativeAssert(test, JsonKindOf(*document, JsonMember(*document, JsonMember(*document, module, "document"), "rewritten")) == .True, "rewritten document was not labeled") ||
+        !ApiNames(test, *document, JsonMember(*document, module, "functions"), "After|Answer") { return false }
+    kinds := string.["constants", "functions"]
+    for kind: kinds {
+        rows := JsonMember(*document, module, kind)
+        for index: cast(s32)0..JsonCount(*document, rows) - 1 {
+            span := JsonMember(*document, JsonElement(*document, rows, index), "span")
+            if !NativeAssert(test, CheckField(*document, span, "coordinate_space") == "rewritten_source" && JsonKindOf(*document, JsonMember(*document, span, "start_byte")) == .Null &&
+                JsonKindOf(*document, JsonMember(*document, span, "end_byte")) == .Null, "rewritten API invented original source offsets") { return false }
+        }
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "api-assertions-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    mode := ifx argc > 3 then TextFromCString(argv[3]) else ""; valid := false
+    if mode == "discovery" { valid = ApiDiscovery(*test) }
+    else if mode == "metadata" { valid = ApiMetadata(*test) }
+    else if mode == "moved" { valid = ApiMoved(*test) }
+    else if mode == "rewritten" { valid = ApiRewritten(*test) }
+    else if mode == "matched" {
+        document: JsonDocument
+        valid = ApiRead(*test, *document, "by-id") && NativeAssert(*test, CheckInteger(*document, JsonMember(*document, document.root, "truncation"), "matched_symbols") == 1, "semantic ID lookup was not exact")
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

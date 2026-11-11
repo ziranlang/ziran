@@ -1,0 +1,34 @@
+
+    Identity :: struct { name: string; context: *void }
+    Owner :: struct { identity: Identity }
+    current: Identity;
+    Keep :: (identity: Identity) -> Identity { return identity }
+    ReplaceDescriptor :: () -> s32 {
+        current.name = "a"
+        snapshot := Keep(current)
+        current = Identity.{.name = "b"}
+        current = snapshot
+        return cast(s32)snapshot.name[0]
+    }
+    Signer :: #type (context: *void, text: string, output: []u8) -> bool;
+    Sign :: (context: *void, text: string, output: []u8) -> bool {
+        unused context
+        output[0] = text[0]
+        return true
+    }
+    Send :: (identity: Identity, sign: Signer, output: []u8) -> bool {
+        return sign(identity.context, identity.name, output)
+    }
+    FromRecord :: (owner: *Owner, sign: Signer) -> s32 {
+        bytes: [1]u8
+        if !Send(owner.identity, sign, bytes[:]) { return 0 }
+        return cast(s32)bytes[0]
+    }
+    #program_export
+    CheckIdentity :: () -> s32 {
+        if ReplaceDescriptor() != 97 { return 2 }
+        owner: Owner
+        owner.identity.name = "a"
+        if FromRecord(*owner, Sign) != 97 { return 1 }
+        return 0
+    }

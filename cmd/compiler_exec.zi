@@ -1,0 +1,1135 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Binary :: #import "std/binary"
+using Math :: #import "std/math"
+using Vectors :: #import "std/vec"
+#import "std/option"
+
+LirExecProblem :: enum s32 {
+    None; InvalidProgram; NotReady; Busy; Allocation
+    WorkLimit; FuelLimit; FrameLimit; ValueLimit; AddressLimit; ValueBytes
+    Type; Pointer; Calling; DivideByZero; InvalidShift; InvalidConversion
+    Trap; Unreachable; Unsupported
+}
+
+LirExecLimits :: struct {
+    work: s64
+    fuel: s64
+    frames: s64
+    values: s64
+    addresses: s64
+    value_bytes: s64
+}
+
+LirExecValue :: struct { type: s32; bits: u64; bytes: s64 }
+LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8 }
+
+LirExecResult :: struct {
+    problem: LirExecProblem
+    verification: LirDiagnostic
+    function: s32
+    block: s32
+    instruction: s32
+    origin: s32
+    trap: u64
+    value: LirExecValue
+    work_remaining: s64
+    fuel_remaining: s64
+}
+
+LirExecFunctionPlan :: struct {
+    value_base: s64
+    frame_bytes: s64
+    scratch_offset: s64
+    scratch_bytes: s64
+}
+
+LirExecPlan :: struct {
+    program: LirProgram
+    type_sizes: Vec(s64)
+    value_offsets: Vec(s64)
+    functions: Vec(LirExecFunctionPlan)
+    global_offsets: Vec(s64)
+    global_bytes: s64
+    ready: bool
+}
+
+LirExecAddress :: struct {
+    token: u64
+    global: s32
+    offset: s64
+    type: s32
+}
+
+LirExecFrame :: struct {
+    function: s32
+    block: s32
+    instruction: s32
+    return_value: s32
+    base: s64
+    valid_base: s64
+}
+
+LirExecInstance :: struct {
+    plan: *LirExecPlan
+    limits: LirExecLimits
+    identity: u32
+    globals: Vec(u8)
+    addresses: Vec(LirExecAddress)
+    storage: Vec(u8)
+    validity: Vec(u8)
+    frames: Vec(LirExecFrame)
+    result_bytes: Vec(u8)
+    result_value: LirExecValue
+    live_values: s64
+    work_remaining: s64
+    fuel_remaining: s64
+    failure: LirExecResult
+    ready: bool
+    running: bool
+}
+
+#scope_file
+
+ExecNoDiagnostic :: () -> LirDiagnostic {
+    return .{.problem = .None, .function = LirNoId, .block = LirNoId,
+        .instruction = LirNoId, .value = LirNoId, .origin = LirNoId}
+}
+
+ExecResult :: (problem: LirExecProblem) -> LirExecResult {
+    return .{.problem = problem, .verification = ExecNoDiagnostic(),
+        .function = LirNoId, .block = LirNoId, .instruction = LirNoId,
+        .origin = LirNoId}
+}
+
+ExecMask :: (bits: s32) -> u64 {
+    if bits == 64 { return ~cast(u64)0 }
+    return (cast(u64)1 << cast(u64)bits) - cast(u64)1
+}
+
+ExecSigned :: (value: u64, bits: s32) -> s64 {
+    value &= ExecMask(bits)
+    if bits < 64 && (value & (cast(u64)1 << cast(u64)(bits - 1))) != 0 {
+        value |= ~ExecMask(bits)
+    }
+    return cast(s64)value
+}
+
+ExecReadBits :: (bytes: []u8, at: s64, count: s64) -> u64 {
+    result: u64
+    for index: cast(s64)0..count - 1 {
+        result |= cast(u64)bytes[at + index] << cast(u64)(index * 8)
+    }
+    return result
+}
+
+ExecWriteBits :: (bytes: []u8, at: s64, count: s64, value: u64) {
+    for index: cast(s64)0..count - 1 {
+        bytes[at + index] = cast(u8)(value >> cast(u64)(index * 8))
+    }
+}
+
+ExecFloat64Bits :: (input: float64) -> u64 {
+    negative := input < 0.0 || input == 0.0 && 1.0 / input < 0.0
+    value := ifx negative then 0.0 - input else input
+    sign := ifx negative then cast(u64)1 << cast(u64)63 else cast(u64)0
+    if value != value { return sign | cast(u64)0x7ff8000000000000 }
+    if value == 0.0 { return sign }
+    if !Finite64(value) { return sign | cast(u64)0x7ff0000000000000 }
+    exponent: s32
+    step: float64 = 18446744073709551616.0
+    back: float64 = 5.42101086242752217003726400434970855712890625e-20
+    while value >= step { value *= back; exponent += 64 }
+    while value < 1.0 { value *= step; exponent -= 64 }
+    if value >= 4294967296.0 { value *= 2.3283064365386962890625e-10; exponent += 32 }
+    if value >= 65536.0 { value *= 0.0000152587890625; exponent += 16 }
+    if value >= 256.0 { value *= 0.00390625; exponent += 8 }
+    if value >= 16.0 { value *= 0.0625; exponent += 4 }
+    if value >= 4.0 { value *= 0.25; exponent += 2 }
+    if value >= 2.0 { value *= 0.5; exponent += 1 }
+    if exponent >= -1022 {
+        fraction := cast(u64)((value - 1.0) * 4503599627370496.0)
+        return sign | (cast(u64)(exponent + 1023) << cast(u64)52) | fraction
+    }
+    fraction := cast(u64)ScaleByPowerOfTwo(value, exponent + 1074)
+    return sign | fraction
+}
+
+ExecFloat32Bits :: (input: float32) -> u64 {
+    original := cast(float64)input
+    negative := original < 0.0 || original == 0.0 && 1.0 / original < 0.0
+    value := ifx negative then 0.0 - original else original
+    sign := ifx negative then cast(u64)1 << cast(u64)31 else cast(u64)0
+    if value != value { return sign | cast(u64)0x7fc00000 }
+    if value == 0.0 { return sign }
+    if !Finite64(value) { return sign | cast(u64)0x7f800000 }
+    exponent: s32
+    while value >= 2.0 { value *= 0.5; exponent += 1 }
+    while value < 1.0 { value *= 2.0; exponent -= 1 }
+    if exponent >= -126 {
+        fraction := cast(u64)((value - 1.0) * 8388608.0)
+        return sign | (cast(u64)(exponent + 127) << cast(u64)23) | fraction
+    }
+    fraction := cast(u64)ScaleByPowerOfTwo(value, exponent + 149)
+    return sign | fraction
+}
+
+ExecFloat :: (type: LirType, bits: u64) -> float64 {
+    if type.bits == 32 { return Float32FromBits(cast(u32)bits) }
+    return Float64FromBits(bits)
+}
+
+ExecTypeChildren :: (type: LirType) -> s64 {
+    if type.kind == .Record { return type.fields.count }
+    if type.kind == .Array { return 1 }
+    return 0
+}
+
+ExecTypeChild :: (type: LirType, index: s64) -> s32 {
+    if type.kind == .Record { return type.fields[index] }
+    return type.element
+}
+
+ExecPlanLayouts :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> LirExecProblem {
+    colors: Vec(u8)
+    stack: Vec(s32)
+    next: Vec(s64)
+    count := program.types.count
+    if !VecResizeBounded(plan.type_sizes, count, count) ||
+        !VecResizeBounded(colors, count, count) || !VecResizeBounded(stack, count, count) ||
+        !VecResizeBounded(next, count, count) { return .Allocation }
+    if count == 0 { return .None }
+    for index: cast(s64)0..count - 1 { plan.type_sizes[index] = -1 }
+    for root: cast(s32)0..cast(s32)count - 1 {
+        if colors[root] == 2 { continue }
+        depth: s64
+        stack[0] = root
+        while depth >= 0 {
+            id := stack[depth]
+            type := program.types[id]
+            colors[id] = 1
+            children := ExecTypeChildren(type)
+            if next[id] < children {
+                child := ExecTypeChild(type, next[id])
+                next[id] += 1
+                if colors[child] == 1 { return .InvalidProgram }
+                if colors[child] == 0 { depth += 1; stack[depth] = child }
+                continue
+            }
+            size: s64
+            if type.kind == .Bool { size = 1 }
+            else if type.kind == .Integer || type.kind == .Float { size = type.bits / 8 }
+            else if type.kind == .Pointer || type.kind == .Function { size = 8 }
+            else if type.kind == .Array {
+                child := plan.type_sizes[type.element]
+                if type.count != 0 && child > maximum / type.count { return .ValueBytes }
+                size = child * type.count
+            } else if type.kind == .Record {
+                for field: type.fields {
+                    field_size := plan.type_sizes[field]
+                    if field_size > maximum - size { return .ValueBytes }
+                    size += field_size
+                }
+            }
+            if size < 0 || size > maximum { return .ValueBytes }
+            plan.type_sizes[id] = size
+            colors[id] = 2
+            depth -= 1
+        }
+    }
+    return .None
+}
+
+ExecPlanFunctions :: (program: LirProgram, plan: *LirExecPlan, maximum: s64) -> LirExecProblem {
+    values: s64
+    for function: program.functions {
+        if function.values.count > 9223372036854775807 - values { return .ValueLimit }
+        values += function.values.count
+    }
+    if !VecResizeBounded(plan.value_offsets, values, values) ||
+        !VecResizeBounded(plan.functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(plan.global_offsets, program.globals.count, program.globals.count) { return .Allocation }
+    value_at: s64
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        offset: s64
+        for value: function.values {
+            plan.value_offsets[value_at] = offset
+            value_at += 1
+            size := plan.type_sizes[value]
+            if size > maximum - offset { return .ValueBytes }
+            offset += size
+        }
+        scratch: s64
+        for block: function.blocks {
+            size: s64
+            for parameter: block.parameters {
+                part := plan.type_sizes[function.values[parameter]]
+                if part > maximum - size { return .ValueBytes }
+                size += part
+            }
+            if size > scratch { scratch = size }
+        }
+        if scratch > maximum - offset { return .ValueBytes }
+        plan.functions[function_index] = .{.value_base = value_at - function.values.count,
+            .frame_bytes = offset + scratch, .scratch_offset = offset, .scratch_bytes = scratch}
+    }
+    offset: s64
+    for global_index: cast(s64)0..program.globals.count - 1 {
+        plan.global_offsets[global_index] = offset
+        size := plan.type_sizes[program.globals[global_index].type]
+        if size > maximum - offset { return .ValueBytes }
+        offset += size
+    }
+    plan.global_bytes = offset
+    return .None
+}
+
+ExecInstructionOrigin :: (instance: *LirExecInstance, frame: LirExecFrame) -> s32 {
+    function := instance.plan.program.functions[frame.function]
+    if frame.block < 0 || frame.block >= function.blocks.count { return function.origin }
+    block := function.blocks[frame.block]
+    if frame.instruction < 0 || frame.instruction >= block.instructions.count { return function.origin }
+    origin := block.instructions[frame.instruction].origin
+    return ifx origin != LirNoId then origin else function.origin
+}
+
+ExecFail :: (instance: *LirExecInstance, problem: LirExecProblem, trap: u64 = 0) -> bool {
+    if instance.failure.problem != .None { return false }
+    result := ExecResult(problem)
+    result.trap = trap
+    result.work_remaining = instance.work_remaining
+    result.fuel_remaining = instance.fuel_remaining
+    if instance.frames.count != 0 {
+        frame := instance.frames[instance.frames.count - 1]
+        result.function = frame.function
+        result.block = frame.block
+        result.instruction = frame.instruction
+        result.origin = ExecInstructionOrigin(instance, frame)
+    }
+    instance.failure = result
+    return false
+}
+
+ExecInitialLocation :: (instance: *LirExecInstance, function_id: s32) {
+    if instance.failure.problem == .None || instance.failure.function != LirNoId ||
+        function_id < 0 || function_id >= instance.plan.program.functions.count { return }
+    function := instance.plan.program.functions[function_id]
+    instance.failure.function = function_id
+    instance.failure.block = function.entry
+    instance.failure.instruction = 0
+    instruction := function.blocks[function.entry].instructions[0]
+    instance.failure.origin = ifx instruction.origin != LirNoId then instruction.origin else function.origin
+}
+
+ExecSpend :: (instance: *LirExecInstance, count: s64) -> bool {
+    if count < 0 || count > instance.work_remaining { return ExecFail(instance, .WorkLimit) }
+    instance.work_remaining -= count
+    return true
+}
+
+ExecCopyCost :: (count: s64) -> s64 { return 1 + (count + 7) / 8 }
+
+ExecFrameValueOffset :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
+    frame := instance.frames[frame_index]
+    function_plan := instance.plan.functions[frame.function]
+    return frame.base + instance.plan.value_offsets[function_plan.value_base + value]
+}
+
+ExecValueSize :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> s64 {
+    frame := instance.frames[frame_index]
+    type := instance.plan.program.functions[frame.function].values[value]
+    return instance.plan.type_sizes[type]
+}
+
+ExecValueValid :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> bool {
+    frame := instance.frames[frame_index]
+    if instance.validity[frame.valid_base + value] == 0 { return ExecFail(instance, .Type) }
+    return true
+}
+
+ExecMarkValue :: (instance: *LirExecInstance, frame_index: s64, value: s32) {
+    frame := instance.frames[frame_index]
+    instance.validity[frame.valid_base + value] = 1
+}
+
+ExecSlotBits :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> u64 {
+    if !ExecValueValid(instance, frame_index, value) { return 0 }
+    size := ExecValueSize(instance, frame_index, value)
+    return ExecReadBits(instance.storage[:], ExecFrameValueOffset(instance, frame_index, value), size)
+}
+
+ExecWriteSlotBits :: (instance: *LirExecInstance, frame_index: s64, value: s32, bits: u64) {
+    frame := instance.frames[frame_index]
+    function := instance.plan.program.functions[frame.function]
+    type := instance.plan.program.types[function.values[value]]
+    size := instance.plan.type_sizes[function.values[value]]
+    if type.kind == .Bool { bits = cast(u64)(bits != 0) }
+    if type.kind == .Integer { bits &= ExecMask(type.bits) }
+    ExecWriteBits(instance.storage[:], ExecFrameValueOffset(instance, frame_index, value), size, bits)
+    ExecMarkValue(instance, frame_index, value)
+}
+
+ExecCopyStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    for index: cast(s64)0..count - 1 { instance.storage[destination + index] = instance.storage[source + index] }
+    return true
+}
+
+ExecCopyGlobalToStorage :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    for index: cast(s64)0..count - 1 { instance.storage[destination + index] = instance.globals[source + index] }
+    return true
+}
+
+ExecCopyStorageToGlobal :: (instance: *LirExecInstance, source: s64, destination: s64, count: s64) -> bool {
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    for index: cast(s64)0..count - 1 { instance.globals[destination + index] = instance.storage[source + index] }
+    return true
+}
+
+ExecCopySlot :: (instance: *LirExecInstance, frame_index: s64, source: s32, destination: s32) -> bool {
+    if !ExecValueValid(instance, frame_index, source) { return false }
+    size := ExecValueSize(instance, frame_index, source)
+    if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, source),
+        ExecFrameValueOffset(instance, frame_index, destination), size) { return false }
+    ExecMarkValue(instance, frame_index, destination)
+    return true
+}
+
+ExecMember :: (instance: *LirExecInstance, type_id: s32, member: u64, offset: *s64, member_type: *s32) -> bool {
+    type := instance.plan.program.types[type_id]
+    if type.kind == .Array {
+        if member >= cast(u64)type.count { return ExecFail(instance, .Type) }
+        <<member_type = type.element
+        <<offset = cast(s64)member * instance.plan.type_sizes[type.element]
+        return true
+    }
+    if type.kind != .Record || member >= cast(u64)type.fields.count { return ExecFail(instance, .Type) }
+    result: s64
+    for index: cast(s64)0..cast(s64)member - 1 {
+        if !ExecSpend(instance, 1) { return false }
+        result += instance.plan.type_sizes[type.fields[index]]
+    }
+    <<member_type = type.fields[cast(s64)member]
+    <<offset = result
+    return true
+}
+
+ExecAddressToken :: (identity: u32, index: s64) -> u64 {
+    return (cast(u64)identity << cast(u64)32) | cast(u64)(index + 1)
+}
+
+ExecFindAddress :: (instance: *LirExecInstance, token: u64) -> s32 {
+    if token == 0 || cast(u32)(token >> cast(u64)32) != instance.identity { return -1 }
+    low := token & cast(u64)0xffffffff
+    if low == 0 { return -1 }
+    index := cast(s64)(low - cast(u64)1)
+    if index < 0 || index >= instance.addresses.count || instance.addresses[index].token != token { return -1 }
+    return cast(s32)index
+}
+
+ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, target_type: s32) -> u64 {
+    base := instance.addresses[parent]
+    member_offset: s64
+    member_type: s32
+    if !ExecMember(instance, base.type, member, *member_offset, *member_type) || member_type != target_type { return 0 }
+    offset := base.offset + member_offset
+    for index: cast(s64)0..instance.addresses.count - 1 {
+        if !ExecSpend(instance, 1) { return 0 }
+        address := instance.addresses[index]
+        if address.global == base.global && address.offset == offset && address.type == target_type { return address.token }
+    }
+    if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
+        unused ExecFail(instance, .AddressLimit); return 0
+    }
+    index := instance.addresses.count
+    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
+        .global = base.global, .offset = offset, .type = target_type}
+    if !VecPush(instance.addresses, address) { unused ExecFail(instance, .Allocation); return 0 }
+    return address.token
+}
+
+ExecResizeStorage :: (instance: *LirExecInstance, count: s64) -> bool {
+    available := instance.limits.value_bytes - instance.globals.count - instance.result_bytes.count
+    if count < 0 || available < 0 || count > available { return ExecFail(instance, .ValueBytes) }
+    if !VecResizeBounded(instance.storage, count, available) { return ExecFail(instance, .Allocation) }
+    return true
+}
+
+ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
+    operands: []s32, return_value: s32, arguments: []LirExecArgument) -> bool {
+    if function_id < 0 || function_id >= instance.plan.program.functions.count { return ExecFail(instance, .Calling) }
+    function := instance.plan.program.functions[function_id]
+    if operands.count != 0 && arguments.count != 0 ||
+        operands.count == 0 && arguments.count != function.parameters.count ||
+        operands.count != 0 && operands.count != function.parameters.count { return ExecFail(instance, .Calling) }
+    if instance.frames.count >= instance.limits.frames {
+        unused ExecFail(instance, .FrameLimit)
+        if caller < 0 { ExecInitialLocation(instance, function_id) }
+        return false
+    }
+    if function.values.count > instance.limits.values - instance.live_values {
+        unused ExecFail(instance, .ValueLimit)
+        if caller < 0 { ExecInitialLocation(instance, function_id) }
+        return false
+    }
+    plan := instance.plan.functions[function_id]
+    base := instance.storage.count
+    valid_base := instance.validity.count
+    if !ExecResizeStorage(instance, base + plan.frame_bytes) {
+        if caller < 0 { ExecInitialLocation(instance, function_id) }
+        return false
+    }
+    if !VecResizeBounded(instance.validity, valid_base + function.values.count, instance.limits.values) {
+        unused ExecFail(instance, .Allocation)
+        if caller < 0 { ExecInitialLocation(instance, function_id) }
+        return false
+    }
+    frame := LirExecFrame.{.function = function_id, .block = function.entry,
+        .return_value = return_value, .base = base, .valid_base = valid_base}
+    if !VecPush(instance.frames, frame) {
+        unused ExecFail(instance, .Allocation)
+        if caller < 0 { ExecInitialLocation(instance, function_id) }
+        return false
+    }
+    instance.live_values += function.values.count
+    frame_index := instance.frames.count - 1
+    entry := function.blocks[function.entry]
+    for index: cast(s64)0..function.parameters.count - 1 {
+        destination := entry.parameters[index]
+        type_id := function.parameters[index]
+        size := instance.plan.type_sizes[type_id]
+        destination_at := ExecFrameValueOffset(instance, frame_index, destination)
+        if operands.count != 0 {
+            source := operands[index]
+            if !ExecValueValid(instance, caller, source) { return false }
+            if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, caller, source), destination_at, size) { return false }
+        } else {
+            argument := arguments[index]
+            if argument.type != type_id { return ExecFail(instance, .Type) }
+            type := instance.plan.program.types[type_id]
+            composite := type.kind == .Record || type.kind == .Array
+            if composite {
+                if argument.bytes.count != size || !ExecSpend(instance, ExecCopyCost(size)) { return false }
+                for byte: cast(s64)0..size - 1 { instance.storage[destination_at + byte] = argument.bytes[byte] }
+            } else {
+                if argument.bytes.count != 0 { return ExecFail(instance, .Type) }
+                bits := argument.bits
+                if type.kind == .Bool { bits = cast(u64)(bits != 0) }
+                if type.kind == .Integer { bits &= ExecMask(type.bits) }
+                ExecWriteBits(instance.storage[:], destination_at, size, bits)
+            }
+        }
+        ExecMarkValue(instance, frame_index, destination)
+    }
+    return true
+}
+
+ExecPopFrame :: (instance: *LirExecInstance) {
+    frame := instance.frames[instance.frames.count - 1]
+    function := instance.plan.program.functions[frame.function]
+    instance.live_values -= function.values.count
+    unused VecResize(instance.storage, frame.base)
+    unused VecResize(instance.validity, frame.valid_base)
+    unused VecPop(instance.frames)
+}
+
+ExecEdge :: (instance: *LirExecInstance, frame_index: s64, edge: LirEdge) -> bool {
+    frame := instance.frames[frame_index]
+    function := instance.plan.program.functions[frame.function]
+    plan := instance.plan.functions[frame.function]
+    target := function.blocks[edge.block]
+    scratch := frame.base + plan.scratch_offset
+    at: s64
+    for index: cast(s64)0..edge.arguments.count - 1 {
+        source := edge.arguments[index]
+        if !ExecValueValid(instance, frame_index, source) { return false }
+        size := instance.plan.type_sizes[function.values[source]]
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, source), scratch + at, size) { return false }
+        at += size
+    }
+    at = 0
+    for index: cast(s64)0..target.parameters.count - 1 {
+        destination := target.parameters[index]
+        size := instance.plan.type_sizes[function.values[destination]]
+        if !ExecCopyStorage(instance, scratch + at, ExecFrameValueOffset(instance, frame_index, destination), size) { return false }
+        ExecMarkValue(instance, frame_index, destination)
+        at += size
+    }
+    instance.frames[frame_index].block = edge.block
+    instance.frames[frame_index].instruction = 0
+    return true
+}
+
+ExecIntegerBinary :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: LirInstruction, type: LirType) -> bool {
+    left := ExecSlotBits(instance, frame_index, instruction.operands[0]) & ExecMask(type.bits)
+    right := ExecSlotBits(instance, frame_index, instruction.operands[1])
+    if instance.failure.problem != .None { return false }
+    if instruction.op == .ShiftLeft || instruction.op == .ShiftRight {
+        frame := instance.frames[frame_index]
+        function := instance.plan.program.functions[frame.function]
+        count_type := instance.plan.program.types[function.values[instruction.operands[1]]]
+        right &= ExecMask(count_type.bits)
+    } else { right &= ExecMask(type.bits) }
+    result: u64
+    if instruction.op == .Add { result = left + right }
+    else if instruction.op == .Subtract { result = left - right }
+    else if instruction.op == .Multiply { result = left * right }
+    else if instruction.op == .BitAnd { result = left & right }
+    else if instruction.op == .BitOr { result = left | right }
+    else if instruction.op == .BitXor { result = left ^ right }
+    else if instruction.op == .Divide || instruction.op == .Remainder {
+        if right == 0 { return ExecFail(instance, .DivideByZero) }
+        if type.is_signed {
+            signed_left := ExecSigned(left, type.bits)
+            signed_right := ExecSigned(right, type.bits)
+            minimum := cast(u64)1 << cast(u64)(type.bits - 1)
+            if left == minimum && signed_right == -1 {
+                result = ifx instruction.op == .Divide then minimum else 0
+            } else if instruction.op == .Divide { result = cast(u64)(signed_left / signed_right) }
+            else { result = cast(u64)(signed_left % signed_right) }
+        } else if instruction.op == .Divide { result = left / right }
+        else { result = left % right }
+    } else if instruction.op == .ShiftLeft || instruction.op == .ShiftRight {
+        count := right
+        if count >= cast(u64)type.bits { return ExecFail(instance, .InvalidShift) }
+        if instruction.op == .ShiftLeft { result = left << count }
+        else {
+            result = left >> count
+            if type.is_signed && count != 0 && (left & (cast(u64)1 << cast(u64)(type.bits - 1))) != 0 {
+                result |= ExecMask(type.bits) ^ (ExecMask(type.bits) >> count)
+            }
+        }
+    } else { return ExecFail(instance, .Unsupported) }
+    ExecWriteSlotBits(instance, frame_index, instruction.result, result)
+    return true
+}
+
+ExecFloatBinary :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: LirInstruction, type: LirType) -> bool {
+    left := ExecFloat(type, ExecSlotBits(instance, frame_index, instruction.operands[0]))
+    right := ExecFloat(type, ExecSlotBits(instance, frame_index, instruction.operands[1]))
+    if instance.failure.problem != .None { return false }
+    bits: u64
+    if type.bits == 32 {
+        a := cast(float32)left
+        b := cast(float32)right
+        value: float32
+        if instruction.op == .Add { value = a + b }
+        else if instruction.op == .Subtract { value = a - b }
+        else if instruction.op == .Multiply { value = a * b }
+        else if instruction.op == .Divide { value = a / b }
+        else { return ExecFail(instance, .Unsupported) }
+        bits = ExecFloat32Bits(value)
+    } else {
+        value: float64
+        if instruction.op == .Add { value = left + right }
+        else if instruction.op == .Subtract { value = left - right }
+        else if instruction.op == .Multiply { value = left * right }
+        else if instruction.op == .Divide { value = left / right }
+        else { return ExecFail(instance, .Unsupported) }
+        bits = ExecFloat64Bits(value)
+    }
+    ExecWriteSlotBits(instance, frame_index, instruction.result, bits)
+    return true
+}
+
+ExecCompare :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: LirInstruction, type: LirType) -> bool {
+    left := ExecSlotBits(instance, frame_index, instruction.operands[0])
+    right := ExecSlotBits(instance, frame_index, instruction.operands[1])
+    if instance.failure.problem != .None { return false }
+    answer: bool
+    if type.kind == .Float {
+        a := ExecFloat(type, left)
+        b := ExecFloat(type, right)
+        if instruction.op == .Equal { answer = a == b }
+        if instruction.op == .NotEqual { answer = a != b }
+        if instruction.op == .Less { answer = a < b }
+        if instruction.op == .LessEqual { answer = a <= b }
+        if instruction.op == .Greater { answer = a > b }
+        if instruction.op == .GreaterEqual { answer = a >= b }
+    } else if type.kind == .Integer && type.is_signed {
+        a := ExecSigned(left, type.bits)
+        b := ExecSigned(right, type.bits)
+        if instruction.op == .Equal { answer = a == b }
+        if instruction.op == .NotEqual { answer = a != b }
+        if instruction.op == .Less { answer = a < b }
+        if instruction.op == .LessEqual { answer = a <= b }
+        if instruction.op == .Greater { answer = a > b }
+        if instruction.op == .GreaterEqual { answer = a >= b }
+    } else {
+        if type.kind == .Integer { left &= ExecMask(type.bits); right &= ExecMask(type.bits) }
+        if instruction.op == .Equal { answer = left == right }
+        if instruction.op == .NotEqual { answer = left != right }
+        if instruction.op == .Less { answer = left < right }
+        if instruction.op == .LessEqual { answer = left <= right }
+        if instruction.op == .Greater { answer = left > right }
+        if instruction.op == .GreaterEqual { answer = left >= right }
+    }
+    ExecWriteSlotBits(instance, frame_index, instruction.result, cast(u64)answer)
+    return true
+}
+
+ExecConvert :: (instance: *LirExecInstance, frame_index: s64, instruction: LirInstruction,
+    source: LirType, destination: LirType) -> bool {
+    bits := ExecSlotBits(instance, frame_index, instruction.operands[0])
+    if instance.failure.problem != .None { return false }
+    if instruction.op == .Bitcast {
+        ExecWriteSlotBits(instance, frame_index, instruction.result, bits)
+        return true
+    }
+    result: u64
+    if source.kind == .Bool && destination.kind == .Integer { result = cast(u64)(bits != 0) }
+    else if source.kind == .Integer && destination.kind == .Bool { result = cast(u64)((bits & ExecMask(source.bits)) != 0) }
+    else if source.kind == .Integer && destination.kind == .Integer {
+        result = bits & ExecMask(source.bits)
+        if source.is_signed && source.bits < 64 && (result & (cast(u64)1 << cast(u64)(source.bits - 1))) != 0 {
+            result |= ~ExecMask(source.bits)
+        }
+    } else if source.kind == .Integer && destination.kind == .Float {
+        if destination.bits == 32 {
+            value := ifx source.is_signed then cast(float32)ExecSigned(bits, source.bits) else cast(float32)(bits & ExecMask(source.bits))
+            result = ExecFloat32Bits(value)
+        } else {
+            value := ifx source.is_signed then cast(float64)ExecSigned(bits, source.bits) else cast(float64)(bits & ExecMask(source.bits))
+            result = ExecFloat64Bits(value)
+        }
+    } else if source.kind == .Float && destination.kind == .Float {
+        value := ExecFloat(source, bits)
+        result = ifx destination.bits == 32 then ExecFloat32Bits(cast(float32)value) else ExecFloat64Bits(value)
+    } else if source.kind == .Float && destination.kind == .Integer {
+        value := ExecFloat(source, bits)
+        if !Finite64(value) { return ExecFail(instance, .InvalidConversion) }
+        if destination.is_signed {
+            bound := ScaleByPowerOfTwo(1.0, destination.bits - 1)
+            if value < 0.0 - bound || value >= bound { return ExecFail(instance, .InvalidConversion) }
+            result = cast(u64)cast(s64)value
+        } else {
+            bound := ScaleByPowerOfTwo(1.0, destination.bits)
+            if value < 0.0 || value >= bound { return ExecFail(instance, .InvalidConversion) }
+            result = cast(u64)value
+        }
+    } else { return ExecFail(instance, .Unsupported) }
+    ExecWriteSlotBits(instance, frame_index, instruction.result, result)
+    return true
+}
+
+ExecAggregate :: (instance: *LirExecInstance, frame_index: s64, instruction: LirInstruction) -> bool {
+    destination := ExecFrameValueOffset(instance, frame_index, instruction.result)
+    at: s64
+    for operand: instruction.operands {
+        if !ExecValueValid(instance, frame_index, operand) { return false }
+        size := ExecValueSize(instance, frame_index, operand)
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, operand), destination + at, size) { return false }
+        at += size
+    }
+    ExecMarkValue(instance, frame_index, instruction.result)
+    return true
+}
+
+ExecExtractInsert :: (instance: *LirExecInstance, frame_index: s64, instruction: LirInstruction) -> bool {
+    frame := instance.frames[frame_index]
+    function := instance.plan.program.functions[frame.function]
+    aggregate := instruction.operands[0]
+    if !ExecValueValid(instance, frame_index, aggregate) { return false }
+    aggregate_type := function.values[aggregate]
+    offset: s64
+    member_type: s32
+    if !ExecMember(instance, aggregate_type, instruction.immediate, *offset, *member_type) { return false }
+    if instruction.op == .Extract {
+        size := instance.plan.type_sizes[member_type]
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, aggregate) + offset,
+            ExecFrameValueOffset(instance, frame_index, instruction.result), size) { return false }
+    } else {
+        if !ExecCopySlot(instance, frame_index, aggregate, instruction.result) { return false }
+        member := instruction.operands[1]
+        if !ExecValueValid(instance, frame_index, member) { return false }
+        size := instance.plan.type_sizes[member_type]
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, member),
+            ExecFrameValueOffset(instance, frame_index, instruction.result) + offset, size) { return false }
+    }
+    ExecMarkValue(instance, frame_index, instruction.result)
+    return true
+}
+
+ExecFinishFrame :: (instance: *LirExecInstance, frame_index: s64, instruction: LirInstruction) -> bool {
+    frame := instance.frames[frame_index]
+    function := instance.plan.program.functions[frame.function]
+    result_type := function.result
+    result_size := instance.plan.type_sizes[result_type]
+    if frame_index == 0 {
+        available := instance.limits.value_bytes - instance.globals.count - instance.storage.count
+        if result_size > available { return ExecFail(instance, .ValueBytes) }
+        if !VecResizeBounded(instance.result_bytes, result_size,
+            instance.limits.value_bytes - instance.globals.count) { return ExecFail(instance, .Allocation) }
+        bits: u64
+        if result_size != 0 {
+            source := instruction.operands[0]
+            if !ExecValueValid(instance, frame_index, source) || !ExecSpend(instance, ExecCopyCost(result_size)) { return false }
+            source_at := ExecFrameValueOffset(instance, frame_index, source)
+            for index: cast(s64)0..result_size - 1 { instance.result_bytes[index] = instance.storage[source_at + index] }
+            type := instance.plan.program.types[result_type]
+            if type.kind != .Record && type.kind != .Array { bits = ExecReadBits(instance.result_bytes[:], 0, result_size) }
+        }
+        instance.result_value = .{.type = result_type, .bits = bits, .bytes = result_size}
+        ExecPopFrame(instance)
+        return true
+    }
+    caller := frame_index - 1
+    if result_size != 0 {
+        if frame.return_value == LirNoId || !ExecValueValid(instance, frame_index, instruction.operands[0]) {
+            return ExecFail(instance, .Calling)
+        }
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, instruction.operands[0]),
+            ExecFrameValueOffset(instance, caller, frame.return_value), result_size) { return false }
+        ExecMarkValue(instance, caller, frame.return_value)
+    } else if frame.return_value != LirNoId { return ExecFail(instance, .Calling) }
+    ExecPopFrame(instance)
+    return true
+}
+
+ExecCallInstruction :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction) -> bool {
+    target := instruction.symbol
+    skip: s64
+    if instruction.op == .CallIndirect {
+        bits := ExecSlotBits(instance, frame_index, instruction.operands[0])
+        if instance.failure.problem != .None || bits == 0 ||
+            bits > cast(u64)instance.plan.program.functions.count { return ExecFail(instance, .Calling) }
+        target = cast(s32)(bits - 1)
+        skip = 1
+        signature := instance.plan.program.types[function.values[instruction.operands[0]]]
+        actual := instance.plan.program.functions[target]
+        if signature.result != actual.result || signature.parameters.count != actual.parameters.count {
+            return ExecFail(instance, .Calling)
+        }
+        for index: cast(s64)0..signature.parameters.count - 1 {
+            if signature.parameters[index] != actual.parameters[index] { return ExecFail(instance, .Calling) }
+        }
+    }
+    arguments := instruction.operands[skip:]
+    no_arguments: [0]LirExecArgument
+    if !ExecPushFrame(instance, target, frame_index, arguments, instruction.result, no_arguments[:]) { return false }
+    instance.frames[frame_index].instruction += 1
+    return true
+}
+
+ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction, result_type: s32) -> bool {
+    if instruction.op == .FieldAddress {
+        token := ExecSlotBits(instance, frame_index, instruction.operands[0])
+        address := ExecFindAddress(instance, token)
+        if address < 0 { return ExecFail(instance, .Pointer) }
+        target := instance.plan.program.types[result_type].element
+        child := ExecFieldAddress(instance, address, instruction.immediate, target)
+        if instance.failure.problem != .None { return false }
+        ExecWriteSlotBits(instance, frame_index, instruction.result, child)
+        return true
+    }
+    token := ExecSlotBits(instance, frame_index, instruction.operands[0])
+    address_index := ExecFindAddress(instance, token)
+    if address_index < 0 { return ExecFail(instance, .Pointer) }
+    address := instance.addresses[address_index]
+    if instruction.op == .Load {
+        size := instance.plan.type_sizes[result_type]
+        if address.type != result_type { return ExecFail(instance, .Type) }
+        if !ExecCopyGlobalToStorage(instance, address.offset,
+            ExecFrameValueOffset(instance, frame_index, instruction.result), size) { return false }
+        ExecMarkValue(instance, frame_index, instruction.result)
+        return true
+    }
+    value := instruction.operands[1]
+    if !ExecValueValid(instance, frame_index, value) || function.values[value] != address.type {
+        return ExecFail(instance, .Type)
+    }
+    size := instance.plan.type_sizes[address.type]
+    return ExecCopyStorageToGlobal(instance, ExecFrameValueOffset(instance, frame_index, value),
+        address.offset, size)
+}
+
+ExecUnaryInstruction :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction) -> bool {
+    source_type := instance.plan.program.types[function.values[instruction.operands[0]]]
+    bits := ExecSlotBits(instance, frame_index, instruction.operands[0])
+    if instance.failure.problem != .None { return false }
+    if source_type.kind == .Integer {
+        ExecWriteSlotBits(instance, frame_index, instruction.result,
+            ifx instruction.op == .Negate then cast(u64)0 - bits else ~bits)
+    } else {
+        sign := ifx source_type.bits == 32 then cast(u64)0x80000000 else cast(u64)0x8000000000000000
+        ExecWriteSlotBits(instance, frame_index, instruction.result, bits ^ sign)
+    }
+    return true
+}
+
+ExecNumericInstruction :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction, result_type: s32) -> bool {
+    op := instruction.op
+    opcode := cast(s32)op
+    if opcode >= cast(s32)LirOp.Add && opcode <= cast(s32)LirOp.Remainder ||
+        opcode >= cast(s32)LirOp.BitAnd && opcode <= cast(s32)LirOp.ShiftRight {
+        type := instance.plan.program.types[function.values[instruction.operands[0]]]
+        if type.kind == .Integer { return ExecIntegerBinary(instance, frame_index, instruction, type) }
+        return ExecFloatBinary(instance, frame_index, instruction, type)
+    }
+    if opcode >= cast(s32)LirOp.Equal && opcode <= cast(s32)LirOp.GreaterEqual {
+        type := instance.plan.program.types[function.values[instruction.operands[0]]]
+        return ExecCompare(instance, frame_index, instruction, type)
+    }
+    if op == .Convert || op == .Bitcast {
+        source := instance.plan.program.types[function.values[instruction.operands[0]]]
+        destination := instance.plan.program.types[result_type]
+        return ExecConvert(instance, frame_index, instruction, source, destination)
+    }
+    return ExecFail(instance, .Unsupported)
+}
+
+ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction) -> bool {
+    op := instruction.op
+    result_type := ifx instruction.result == LirNoId then LirNoId else function.values[instruction.result]
+    if op == .Constant {
+        constant := instance.plan.program.constants[instruction.symbol]
+        ExecWriteSlotBits(instance, frame_index, instruction.result, constant.bits)
+    } else if op == .Null { ExecWriteSlotBits(instance, frame_index, instruction.result, 0) }
+    else if op == .GlobalAddress {
+        ExecWriteSlotBits(instance, frame_index, instruction.result, instance.addresses[instruction.symbol].token)
+    } else if op == .FunctionAddress {
+        ExecWriteSlotBits(instance, frame_index, instruction.result, cast(u64)(instruction.symbol + 1))
+    } else if op == .Aggregate {
+        if !ExecAggregate(instance, frame_index, instruction) { return false }
+    } else if op == .Extract || op == .Insert {
+        if !ExecExtractInsert(instance, frame_index, instruction) { return false }
+    } else if op == .FieldAddress || op == .Load || op == .Store {
+        if !ExecMemoryInstruction(instance, frame_index, function, instruction, result_type) { return false }
+    } else if op == .Negate || op == .BitNot {
+        if !ExecUnaryInstruction(instance, frame_index, function, instruction) { return false }
+    } else if !ExecNumericInstruction(instance, frame_index, function, instruction, result_type) { return false }
+    instance.frames[frame_index].instruction += 1
+    return true
+}
+
+ExecStep :: (instance: *LirExecInstance) -> bool {
+    frame_index := instance.frames.count - 1
+    frame := instance.frames[frame_index]
+    function := instance.plan.program.functions[frame.function]
+    block := function.blocks[frame.block]
+    instruction := block.instructions[frame.instruction]
+    if !ExecSpend(instance, 1) { return false }
+    op := instruction.op
+    if op == .Fuel {
+        amount := cast(s64)instruction.immediate
+        if amount > instance.fuel_remaining { return ExecFail(instance, .FuelLimit) }
+        instance.fuel_remaining -= amount
+        instance.frames[frame_index].instruction += 1
+        return true
+    }
+    if op == .Trap { return ExecFail(instance, .Trap, instruction.immediate) }
+    if op == .Unreachable { return ExecFail(instance, .Unreachable) }
+    if op == .Jump { return ExecEdge(instance, frame_index, instruction.edges[0]) }
+    if op == .Branch {
+        condition := ExecSlotBits(instance, frame_index, instruction.operands[0]) != 0
+        if instance.failure.problem != .None { return false }
+        return ExecEdge(instance, frame_index, instruction.edges[ifx condition then 0 else 1])
+    }
+    if op == .Return { return ExecFinishFrame(instance, frame_index, instruction) }
+    if op == .Call || op == .CallIndirect {
+        return ExecCallInstruction(instance, frame_index, function, instruction)
+    }
+    return ExecValueInstruction(instance, frame_index, function, instruction)
+}
+
+ExecResetRun :: (instance: *LirExecInstance) -> bool {
+    if !VecResize(instance.frames, 0) || !VecResize(instance.storage, 0) ||
+        !VecResize(instance.validity, 0) || !VecResize(instance.result_bytes, 0) { return false }
+    instance.live_values = 0
+    instance.result_value = .{.type = LirNoId}
+    instance.failure = ExecResult(.None)
+    instance.work_remaining = instance.limits.work
+    instance.fuel_remaining = instance.limits.fuel
+    return true
+}
+
+ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument) -> LirExecResult {
+    if instance == null || !instance.ready || instance.plan == null || !instance.plan.ready {
+        return ExecResult(.NotReady)
+    }
+    if instance.running { return ExecResult(.Busy) }
+    if !ExecResetRun(instance) { return ExecResult(.Allocation) }
+    instance.running = true
+    no_operands: [0]s32
+    if !ExecPushFrame(instance, function, -1, no_operands[:], LirNoId, arguments) {
+        instance.running = false
+        result := instance.failure
+        unused VecResize(instance.frames, 0)
+        unused VecResize(instance.storage, 0)
+        unused VecResize(instance.validity, 0)
+        instance.live_values = 0
+        return result
+    }
+    while instance.frames.count != 0 && instance.failure.problem == .None {
+        if !ExecStep(instance) { break }
+    }
+    instance.running = false
+    if instance.failure.problem != .None {
+        result := instance.failure
+        unused VecResize(instance.frames, 0)
+        unused VecResize(instance.storage, 0)
+        unused VecResize(instance.validity, 0)
+        instance.live_values = 0
+        return result
+    }
+    result := ExecResult(.None)
+    result.value = instance.result_value
+    result.work_remaining = instance.work_remaining
+    result.fuel_remaining = instance.fuel_remaining
+    return result
+}
+
+#scope_export
+
+LirExecDefaultLimits :: () -> LirExecLimits {
+    return .{.work = 16000000, .fuel = 16000000, .frames = 128,
+        .values = 1048576, .addresses = 1048576, .value_bytes = 268435456}
+}
+
+LirExecPlanFree :: (plan: *LirExecPlan) {
+    if plan == null { return }
+    VecFree(plan.type_sizes)
+    VecFree(plan.value_offsets)
+    VecFree(plan.functions)
+    VecFree(plan.global_offsets)
+    plan.program = .{}
+    plan.global_bytes = 0
+    plan.ready = false
+}
+
+LirExecInstanceClose :: (instance: *LirExecInstance) {
+    if instance == null { return }
+    VecFree(instance.globals)
+    VecFree(instance.addresses)
+    VecFree(instance.storage)
+    VecFree(instance.validity)
+    VecFree(instance.frames)
+    VecFree(instance.result_bytes)
+    instance.plan = null
+    instance.limits = .{}
+    instance.identity = 0
+    instance.result_value = .{.type = LirNoId}
+    instance.live_values = 0
+    instance.work_remaining = 0
+    instance.fuel_remaining = 0
+    instance.failure = ExecResult(.None)
+    instance.ready = false
+    instance.running = false
+}
+
+LirExecPlanBuild :: (program: LirProgram, verify_limits: LirLimits, output: *LirExecPlan) -> LirExecResult {
+    if output == null { return ExecResult(.NotReady) }
+    LirExecPlanFree(output)
+    diagnostic := LirVerify(program, verify_limits)
+    if diagnostic.problem != .None {
+        result := ExecResult(.InvalidProgram)
+        result.verification = diagnostic
+        result.function = diagnostic.function
+        result.block = diagnostic.block
+        result.instruction = diagnostic.instruction
+        result.origin = diagnostic.origin
+        return result
+    }
+    output.program = program
+    problem := ExecPlanLayouts(program, output, verify_limits.bytes)
+    if problem == .None { problem = ExecPlanFunctions(program, output, verify_limits.bytes) }
+    if problem != .None {
+        result := ExecResult(problem)
+        LirExecPlanFree(output)
+        return result
+    }
+    output.ready = true
+    return ExecResult(.None)
+}
+
+LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32,
+    output: *LirExecInstance) -> LirExecResult {
+    if output == null { return ExecResult(.NotReady) }
+    LirExecInstanceClose(output)
+    if plan == null || !plan.ready || identity == 0 ||
+        limits.work < 0 || limits.fuel < 0 || limits.frames < 1 || limits.values < 0 ||
+        limits.addresses < 0 || limits.value_bytes < 0 {
+        return ExecResult(.NotReady)
+    }
+    if limits.addresses < plan.program.globals.count { return ExecResult(.AddressLimit) }
+    if plan.global_bytes > limits.value_bytes { return ExecResult(.ValueBytes) }
+    output.plan = plan
+    output.limits = limits
+    output.identity = identity
+    output.work_remaining = limits.work
+    output.fuel_remaining = limits.fuel
+    output.failure = ExecResult(.None)
+    if !VecResizeBounded(output.globals, plan.global_bytes, limits.value_bytes) ||
+        !VecResizeBounded(output.addresses, plan.program.globals.count, limits.addresses) {
+        LirExecInstanceClose(output)
+        return ExecResult(.Allocation)
+    }
+    for global_index: cast(s64)0..plan.program.globals.count - 1 {
+        global := plan.program.globals[global_index]
+        offset := plan.global_offsets[global_index]
+        output.addresses[global_index] = .{.token = ExecAddressToken(identity, global_index),
+            .global = cast(s32)global_index, .offset = offset, .type = global.type}
+        if global.constant != LirNoId {
+            constant := plan.program.constants[global.constant]
+            type := plan.program.types[global.type]
+            bits := constant.bits
+            if type.kind == .Bool { bits = cast(u64)(bits != 0) }
+            if type.kind == .Integer { bits &= ExecMask(type.bits) }
+            ExecWriteBits(output.globals[:], offset, plan.type_sizes[global.type], bits)
+        }
+    }
+    output.ready = true
+    return ExecResult(.None)
+}
+
+LirExecRun :: (instance: *LirExecInstance) -> LirExecResult {
+    if instance == null || !instance.ready || instance.plan.program.entry == LirNoId {
+        return ExecResult(.NotReady)
+    }
+    no_arguments: [0]LirExecArgument
+    return ExecRunFunction(instance, instance.plan.program.entry, no_arguments[:])
+}
+
+LirExecCall :: (instance: *LirExecInstance, function: s32, arguments: []LirExecArgument) -> LirExecResult {
+    return ExecRunFunction(instance, function, arguments)
+}
+
+LirExecResultCopy :: (instance: *LirExecInstance, output: []u8) -> bool {
+    if instance == null || !instance.ready || instance.result_value.type == LirNoId ||
+        output.count < instance.result_bytes.count { return false }
+    for index: cast(s64)0..instance.result_bytes.count - 1 { output[index] = instance.result_bytes[index] }
+    return true
+}
+
+LirExecProblemName :: (problem: LirExecProblem) -> string {
+    if problem == .None { return "none" }
+    if problem == .InvalidProgram { return "invalid-program" }
+    if problem == .NotReady { return "not-ready" }
+    if problem == .Busy { return "busy" }
+    if problem == .Allocation { return "allocation" }
+    if problem == .WorkLimit { return "work-limit" }
+    if problem == .FuelLimit { return "fuel-limit" }
+    if problem == .FrameLimit { return "frame-limit" }
+    if problem == .ValueLimit { return "value-limit" }
+    if problem == .AddressLimit { return "address-limit" }
+    if problem == .ValueBytes { return "value-bytes" }
+    if problem == .Type { return "type" }
+    if problem == .Pointer { return "pointer" }
+    if problem == .Calling { return "calling" }
+    if problem == .DivideByZero { return "divide-by-zero" }
+    if problem == .InvalidShift { return "invalid-shift" }
+    if problem == .InvalidConversion { return "invalid-conversion" }
+    if problem == .Trap { return "trap" }
+    if problem == .Unreachable { return "unreachable" }
+    return "unsupported"
+}

@@ -16,6 +16,8 @@
 
 #include "zir_emit.h"
 #include "zir_profile.h"
+#include "zir_simd.h"
+#include "zir_runtime.h"
 
 #include <stdio.h>
 #include <ctype.h>
@@ -130,6 +132,54 @@ read_worker_outputs(int fd)
  * disjoint sets of them on the CPUs the build may use. Each reports the
  * paths it wrote, which pruning and the native build need. Machine-readable
  * diagnostics stay serial so that every record stays whole. */
+// Unlinked programs lower separately, possibly in forked workers. Their
+// pruned SIMD header must contain the union of helpers, not the last module's
+// subset. Collect only this invocation's recorded outputs after workers finish.
+static int
+finish_simd_helpers(const char *out_dir)
+{
+    int simd = 0;
+    for(int i = 0; GeneratedOutputPath(i) != NULL; i++) {
+        const char *path = GeneratedOutputPath(i);
+        const char *name = strrchr(path, '/');
+        if(!strcmp(name ? name + 1 : path, "ziran_simd_ops.h")) { simd = 1; break; }
+    }
+    if(!simd) return 1;
+    ZirSimdUses uses = {0};
+    int ok = 1;
+    for(int i = 0; ok && GeneratedOutputPath(i) != NULL; i++) {
+        const char *path = GeneratedOutputPath(i);
+        size_t length = strlen(path);
+        if(length < 2 || path[length - 2] != '.' ||
+           (path[length - 1] != 'c' && path[length - 1] != 'h')) continue;
+        const char *name = strrchr(path, '/');
+        name = name ? name + 1 : path;
+        int runtime = 0;
+        for(size_t h = 0; ZirRuntimeHeaders[h].name != NULL; h++)
+            if(!strcmp(name, ZirRuntimeHeaders[h].name)) { runtime = 1; break; }
+        if(runtime) continue;
+        // Scan public headers too: an inline body may be the only user of
+        // a helper. Embedded runtime headers are deliberately excluded.
+        FILE *file = fopen(path, "rb");
+        if(file == NULL) { ok = 0; break; }
+        long size = -1;
+        if(fseek(file, 0, SEEK_END) == 0) size = ftell(file);
+        char *text = size >= 0 && (uintmax_t)size < SIZE_MAX ? malloc((size_t)size + 1) : NULL;
+        if(text == NULL || fseek(file, 0, SEEK_SET) != 0 ||
+           fread(text, 1, (size_t)size, file) != (size_t)size) ok = 0;
+        if(fclose(file) != 0) ok = 0;
+        if(ok) {
+            text[size] = '\0';
+            CollectNativeSimdUses(text, &uses);
+        }
+        free(text);
+    }
+    if(ok && uses.names.count > 0) ok = EmitSimdOps(out_dir, &uses);
+    SimdUsesFree(&uses);
+    if(!ok) Diagnostic((ZirSourceSpan){0}, "zir_c.global", "cannot finish shared SIMD helpers in %s", out_dir);
+    return ok;
+}
+
 static int
 lower_programs(ZirProgram **progs, int count, const char *root, const char *out_dir,
                const ZirCModuleSyms *syms, int symbol_count)
@@ -141,7 +191,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
     if(workers < 2 || DiagnosticJsonEnabled()) {
         for(int i = 0; i < count; i++)
             if(!c_lower(progs[i], root, out_dir, syms, symbol_count, 0)) return 0;
-        return 1;
+        return finish_simd_helpers(out_dir);
     }
     int recorded = 0;
     while(GeneratedOutputPath(recorded) != NULL) recorded++;
@@ -187,7 +237,7 @@ lower_programs(ZirProgram **progs, int count, const char *root, const char *out_
     if(start_error)
         Diagnostic((ZirSourceSpan){0}, "zir_c.global", "cannot start C emission workers: %s",
                    strerror(start_error));
-    return ok;
+    return ok && finish_simd_helpers(out_dir);
 }
 
 int

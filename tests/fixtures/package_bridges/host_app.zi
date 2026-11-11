@@ -1,0 +1,5 @@
+#import "hosted/Hosted"
+#program_export
+Doubled :: (value: s32) -> s32 { return value * 2 }
+#program_export
+main :: () -> s32 { return HostedValue() }

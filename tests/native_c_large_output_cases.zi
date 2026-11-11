@@ -1,0 +1,73 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/file"
+using Vectors :: #import "std/vec"
+
+GeneratedFileState :: struct { path: string; digest: string; modified: s64; fraction: u32 }
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "large-c-output-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    VecPush(test.environment, "CFLAGS=-O0 -std=c11")
+    text: Vec(u8)
+    expected: s64 = 0
+    for index: cast(s64)0..511 {
+        number := CheckNumber(index)
+        BuilderAppend(text, CheckConcat("Step", CheckConcat(number, " :: (input: s64) -> s64 {\nvalue := input + ")))
+        BuilderAppend(text, number)
+        BuilderAppend(text, "\nvalue = value * 3\nif value % 2 == 0 { value += 5 } else { value -= 7 }\nreturn value ^ 17\n}\n")
+        value := (17 + index) * 3
+        expected += (value + ifx value % 2 == 0 then 5 else -7) ^ 17
+    }
+    BuilderAppend(text, "#program_export\nmain :: () -> s32 {\nresult: s64 = 0\n")
+    for index: cast(s64)0..511 {
+        BuilderAppend(text, CheckConcat("result += Step", CheckConcat(CheckNumber(index), "(17)\n")))
+    }
+    BuilderAppend(text, "print(\"%\\n\", result)\nreturn 0\n}\n")
+    source := CheckPath(test.work, "large.zi")
+    if !NativeWrite(*test, source, BuilderFinish(text)) { return 1 }
+    ir := CheckPath(test.work, "ir")
+    save: [7]string = .[test.ziran, "ir", "--root", test.work, "-o", ir, source]
+    unused NativeRun(*test, save[:])
+    forms: [2]string = .["source", "saved"]
+    for form: forms {
+        root := ifx form == "source" then test.work else ir
+        input := ifx form == "source" then source else CheckPath(ir, "large.zir")
+        output := CheckPath(test.work, form)
+        command: [11]string = .[test.ziran, "build", "--target=c", "--exe", "--entry", "large:main", "--root", root, "-o", output, input]
+        unused NativeRun(*test, command[:])
+        if !NativeAssert(*test, PathStatus(CheckPath(output, "large.c")).size > 65536,
+            "fixture must cross many output-buffer boundaries") { return 1 }
+        run: [1]string = .[CheckPath(output, "large")]
+        if !NativeExpect(*test, run[:], CheckConcat(NativeSigned(expected), "\n")) { return 1 }
+        before: Vec(GeneratedFileState)
+        suffixes: [2]string = .[".c", ".h"]
+        for suffix: suffixes {
+            paths := NativeFiles(output, suffix, true)
+            for path: paths {
+                status := PathStatus(path)
+                VecPush(before, GeneratedFileState.{path, CheckHash(path), status.modified, status.modified_nanoseconds})
+            }
+        }
+        unused NativeRun(*test, command[:])
+        if !NativeExpect(*test, run[:], CheckConcat(NativeSigned(expected), "\n")) { return 1 }
+        count: s64 = 0
+        for suffix: suffixes {
+            paths := NativeFiles(output, suffix, true)
+            count += paths.count
+        }
+        if !NativeAssert(*test, count == before.count, "generated file set changed on an identical build") { return 1 }
+        for state: before {
+            after := PathStatus(state.path)
+            if !NativeAssert(*test, state.digest == CheckHash(state.path) && state.modified == after.modified &&
+                state.fraction == after.modified_nanoseconds, CheckConcat("unchanged generated file was rewritten: ", state.path)) { return 1 }
+        }
+    }
+    if test.failed { return 1 }
+    print("Large source/saved C modules finish, execute every generated function and retain unchanged output timestamps\n")
+    return 0
+}

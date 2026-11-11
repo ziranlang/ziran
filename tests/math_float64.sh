@@ -5,7 +5,7 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+work=$(mktemp -d "$repo/build/math-float64.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY
 printf '#import "math"\n#program_export\nMathCheckLinked :: () -> float64 { return Sqrt(2.0) }\n' > "$work/math_check.zi"
@@ -99,7 +99,7 @@ int main(void)
     return failures != 0;
 }
 C
-cc -std=c11 -O2 -iquote "$work/c" "$work/c"/*.c "$work/compare.c" -lm -o "$work/compare"
+"${CC:-cc}" -std=c11 -O2 -iquote "$work/c" "$work/c"/*.c "$work/compare.c" -lm -o "$work/compare"
 "$work/compare"
 # The same functions in the portable interpreter, against libm's values.
 cat > "$work/bundle_check.zi" <<'ZI'

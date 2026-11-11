@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Measure complete native builds under controlled probe-version interleaving."""
 import argparse
-import ast
 import hashlib
 import json
 import os
@@ -11,7 +10,6 @@ import shlex
 import shutil
 import statistics
 import subprocess
-import sys
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -40,33 +38,36 @@ def main():
     if not compiler or not timer: parser.error('requires cc and GNU or BusyBox time')
     sha = lambda p: hashlib.sha256(p.read_bytes()).hexdigest()
 
-    # Reuse the regression's real C compiler shim and five-object FFI fixture.
-    # Execute only its setup, before the first build or any test mutations.
-    test = ROOT/'tests/native_build_cache_test.py'
-    tree = ast.parse(test.read_text(),str(test))
-    setup = []
-    for node in tree.body:
-        if isinstance(node,ast.Expr) and isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Name) and node.value.func.id == 'build': break
-        setup.append(node)
-    assert len(setup) < len(tree.body)
-    helper = [node.value.args[0].value for node in tree.body
-              if isinstance(node,ast.Expr) and isinstance(node.value,ast.Call) and isinstance(node.value.func,ast.Attribute)
-              and isinstance(node.value.func.value,ast.Name) and node.value.func.value.id == 'proxy_source' and node.value.func.attr == 'write_text']
-    assert len(helper) == 1
+    # The native regression and benchmark share one Ziran fixture producer.
+    # Its real C compiler shim is ordinary input data, not a Python test import.
+    test = ROOT/'bench/native_cache_fixture.zi'
+    proxy_source = ROOT/'tests/fixtures/native_cache/proxy.c.in'
     shim = out/'gcc'
-    subprocess.run([compiler,'-D_GNU_SOURCE','-DREVISION=0','-DREAL_CC='+json.dumps(compiler),'-x','c','-','-o',shim],input=helper[0],text=True,env=env,check=True)
+    subprocess.run([compiler,'-D_GNU_SOURCE','-DREVISION=0','-DREAL_CC='+json.dumps(compiler),'-x','c',proxy_source,'-o',shim],env=env,check=True)
     cases = {}
     prefix = '\tcompiled by GNU C version 99.0.0, '
     banner = 'GNU assembler version 2.44 (target) using BFD version 2.44\n'
     for label,tools in [('before',args.before_bin_dir.resolve()),('current',args.bin_dir.resolve())]:
         work = out/label; work.mkdir()
-        scope = {'__file__':str(test),'__name__':'fixture'}
-        original = sys.argv
-        try:
-            sys.argv = [str(test),str(tools/'ziran'),str(work)]
-            exec(compile(ast.Module(body=setup,type_ignores=[]),str(test),'exec'),scope)
-        finally: sys.argv = original
-        scope['env'].update(env)
+        prepared = subprocess.run([args.bin_dir.resolve()/'ziran', 'run', '--target=c',
+            '--root', ROOT/'bench', '--module-path', ROOT/'tests', test, '--', tools/'ziran', work],
+            env=env,capture_output=True,text=True,check=True)
+        record = json.loads(prepared.stdout)
+        output, headers = Path(record['out']), Path(record['headers'])
+        scope = dict(out=output,headers=headers,command=record['command'],env=dict(env))
+        def objects(output=output):
+            return {str(path.relative_to(output/'.objects')): (path.stat().st_mtime_ns,path.stat().st_ino)
+                    for path in (output/'.objects').rglob('*.o')}
+        def build(answer,changed=None,scope=scope,objects=objects):
+            before=objects()
+            result=subprocess.run(scope['command'],env=scope['env'],capture_output=True,text=True,timeout=30)
+            assert result.returncode==0,result.stderr
+            for line in result.stderr.splitlines(): assert json.loads(line)['code']=='zir_c.toolchain',line
+            assert subprocess.run([scope['out']/'app'],env=scope['env']).returncode==answer
+            updates={name for name,value in objects().items() if before.get(name)!=value}
+            if changed is not None: assert updates==changed,(updates,changed)
+            return updates
+        scope.update(objects=objects,build=build)
         scope['env'].update(CC=str(shim),CFLAGS='-O2 -isystem '+str(scope['headers']),LDFLAGS='-L'+str(work),LDLIBS='-lbase')
         probe = subprocess.run([compiler,*shlex.split(scope['env']['CFLAGS']),'-I',scope['out'],'-pthread','-I',ROOT/'include','-pipe','-v','-x','c','-c','/dev/null','-o','/dev/null'],env=scope['env'],capture_output=True,text=True,check=True).stderr
         saved = work/'probe.txt';scope['env']['CACHE_PROBE_TEXT'] = str(saved)
@@ -117,6 +118,7 @@ def main():
     assert all(identity.values()),identity
     metadata=dict(schema=1,repetitions=args.repetitions,compiler=compiler,compiler_version=subprocess.check_output([compiler,'--version'],text=True),measurement_launcher=timer,
                   cpu_affinity=sorted(os.sched_getaffinity(0)) if hasattr(os,'sched_getaffinity') else None,generator_sha256=sha(Path(__file__)),fixture_sha256=sha(test),shim_sha256=sha(shim),
+                  fixture_sources_sha256={str(path.relative_to(ROOT)):sha(path) for path in [test,ROOT/'tests/native_cache_support.zi',proxy_source]},
                   source_hashes={str(p.relative_to(ROOT)):sha(p) for folder in ['cmd','std','include'] for p in (ROOT/folder).rglob('*') if p.is_file() and p.suffix in ['.c','.h','.zi']},
                   tool_hashes={label:{name:sha(tools/name) for name in ['ziran','zi2c']} for label,tools in [('before',args.before_bin_dir.resolve()),('current',args.bin_dir.resolve())]},
                   flags={label:{k:case['scope']['env'][k] for k in ['CC','CFLAGS','LDFLAGS','LDLIBS']} for label,case in cases.items()},output_identity=identity,

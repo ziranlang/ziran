@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -109,15 +110,7 @@ NativeEntry :: () -> s32 { return Success() }
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/policy.zi"
 # Checked metadata must survive removal of the source signature spelling.
-python3 - "$work/ir/policy.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'Use :: (handle: *types.Handle, bytes: *u8, length: *usize) -> s32 #foreign c "fixture_use";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/policy.zir" "$repo/tests/fixtures/saved_signatures/go_c_headers.txt"
 for form in source saved; do
     input=$work/policy.zi
     if test "$form" = saved; then input=$work/ir/policy.zir; fi

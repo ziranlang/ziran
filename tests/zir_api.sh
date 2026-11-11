@@ -36,53 +36,13 @@ cmp "$work/source.json" "$work/repeated.json"
 "$ziran" api --json --max-symbols 2 --root "$work" --module-path "$repo/std" "$work/main.zi" > "$work/limited.json"
 "$ziran" api --json --module library --max-bytes 2048 --root "$work" --module-path "$repo/std" "$work/main.zi" > "$work/bytes.json"
 "$ziran" api --json --define EXTRA --root "$work" --module-path "$repo/std" "$work/main.zi" > "$work/conditional.json"
-python3 - "$work" <<'PY'
-import hashlib, json, pathlib, sys
-root=pathlib.Path(sys.argv[1])
-get=lambda n: json.loads((root/(n+'.json')).read_bytes())
-a,b=get('source'),get('saved')
-rows=lambda v: [(m,r) for m in v['modules'] for k in ('imports','constants','globals','types','functions','laws') for r in m[k]]
-assert a['schema_version']==b['schema_version']==1
-assert a['truncation']['complete']
-assert {r['id'] for _,r in rows(a)}=={r['id'] for _,r in rows(b)}
-assert not any(r['symbol_kind']!='law' and r['name'].startswith(('Hidden','__','zi_default_')) for _,r in rows(a))
-assert all(r['visibility']=='module_contract' for m in a['modules'] for r in m['laws'])
-assert all(not r['document']['available'] and r['document']['sha256'] is None for _,r in rows(b))
-for m,r in rows(a):
-    if m['name']=='vec': continue
-    doc=r['document']; assert doc['available']
-    data=(root/r['span']['path']).read_bytes()
-    assert doc['sha256']==hashlib.sha256(data).hexdigest() and doc['bytes']==len(data)
-    span=r['span']; assert span['kind']=='declaration_anchor'
-    assert 0<=span['start_byte']<=span['end_byte']<=len(data)
-scope=get('scoped'); assert [m['name'] for m in scope['modules']]==['library']
-take=scope['modules'][0]['functions'][0]
-assert take['name']=='Take' and take['ownership']=={'result':'move','parameters':[{'name':'values','mode':'move'},{'name':'view','mode':'borrow'},{'name':'pointer','mode':'borrow'}]}
-assert take['examples'] is None
-(root/'symbol-id').write_text(take['id'])
-assert len(rows(get('limited')))==2 and not get('limited')['truncation']['complete']
-assert len((root/'bytes.json').read_bytes())<=2048 and get('bytes')['truncation']['byte_limit']
-assert all(k=='imports' or not m[k] for m in get('imports')['modules'] for k in ('imports','constants','globals','types','functions','laws'))
-assert any(r['name']=='Extra' for _,r in rows(get('conditional')))
-assert not any(r['name']=='Extra' for _,r in rows(a))
-extra=next(r for _,r in rows(get('conditional')) if r['name']=='Extra')
-data=(root/extra['span']['path']).read_bytes(); start=extra['span']['start_byte']
-assert data[start:start+5]==b'Extra'
-assert next(r for _,r in rows(a) if r['name']=='PureEffect')['status']=='proved'
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" metadata
 "$ziran" api --json --symbol "$(cat "$work/symbol-id")" --root "$work" --module-path "$repo/std" "$work/main.zi" > "$work/by-id.json"
-python3 - "$work/by-id.json" <<'PY'
-import json,sys
-v=json.load(open(sys.argv[1])); assert v['truncation']['matched_symbols']==1
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" matched
 # Positions may change without changing semantic identities.
 sed -i '1i// leading comment' "$work/library.zi"
 "$ziran" api --json --module library --symbol Take --root "$work" --module-path "$repo/std" "$work/main.zi" > "$work/moved.json"
-python3 - "$work" <<'PY'
-import json,pathlib,sys
-p=pathlib.Path(sys.argv[1]); a=json.loads((p/'scoped.json').read_bytes())['modules'][0]['functions'][0]; b=json.loads((p/'moved.json').read_bytes())['modules'][0]['functions'][0]
-assert a['id']==b['id'] and a['span']['line']+1==b['span']['line'] and a['document']['sha256']!=b['document']['sha256']
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" moved
 mkdir -p "$work/many"
 : > "$work/many/main.zi"
 i=0
@@ -106,16 +66,7 @@ RAW; After :: () -> s32 { return 7 }
 Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" api --json --root "$work" "$work/rewritten.zi" > "$work/rewritten.json"
-python3 - "$work/rewritten.json" <<'PY2'
-import json,sys
-v=json.load(open(sys.argv[1])); m=v['modules'][0]
-assert m['document']['rewritten']
-assert {r['name'] for r in m['functions']}=={'After','Answer'}
-for k in ('constants','functions'):
-    for r in m[k]:
-        assert r['span']['coordinate_space']=='rewritten_source'
-        assert r['span']['start_byte'] is None and r['span']['end_byte'] is None
-PY2
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/api_assertions.zi" -- "$ziran" "$work" rewritten
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" "$repo/tests/zir_api_document.c" "$(dirname "$ziran")/../libziran.a" -lm -pthread -ldl -o "$work/documents"
 "$work/documents"
 echo 'zir api: scoped checked retrieval, stable identities, captured document hashes/UTF8 spans, saved-IR unknown bytes, ownership/laws, deterministic complete bounded JSON passed'

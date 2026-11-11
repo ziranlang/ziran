@@ -1,0 +1,156 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+DirectSite :: (test: *NativeTest, code: string, name: string) -> string {
+    at := TextFind(code, CheckConcat("func GoDirectAssemblyTest_", CheckConcat(name, "(")))
+    if !NativeAssert(test, at >= 0, CheckConcat("missing direct function ", name)) { return "" }
+    end := TextFind(code, "\nfunc ", at + 5)
+    body := code[at:ifx end < 0 then code.count else end]
+    site := NativeIdentifierAfter(body, "zirGoAssemblyEnabled && ")
+    unused NativeAssert(test, site != "" && TextContains(body, CheckConcat(site, " != nil")), CheckConcat("missing direct call site ", name))
+    return site
+}
+
+DirectArtifactHashes :: (test: *NativeTest, directory: string) -> string {
+    output: Vec(u8)
+    files := NativeFiles(directory, "")
+    for file: files {
+        name := PathName(file)
+        if name == "main.go" || name == "probe.go" { continue }
+        if TextHasSuffix(file, ".go") || TextHasSuffix(file, ".s") || TextHasSuffix(file, ".h") {
+            BuilderAppend(output, name); BuilderAppend(output, " "); BuilderAppend(output, CheckHash(file)); BuilderAppend(output, "\n")
+        }
+    }
+    return TextDetach(BuilderFinish(output))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "go-direct-assembly-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    settings := string.["GO111MODULE=off", "GOFLAGS", "GOEXPERIMENT", "CGO_CFLAGS", "CGO_CPPFLAGS"]
+    for setting: settings { VecPush(test.environment, setting) }
+    host := NativeRead(*test, CheckPath(test.repo, "tests/fixtures/go_direct_assembly/host.go.in"))
+    source := CheckPath(test.repo, "tests/spec/go_direct_assembly_test.zi")
+    ir := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", PathParent(source), "-o", ir, source]
+    unused NativeRun(*test, save[:])
+    machine := string.["uname", "-m"]
+    architecture := NativeRun(*test, machine[:])
+    amd64 := TextTrim(architecture.output) == "x86_64"
+    expected_features := ""
+    if amd64 {
+        features := string.["popcnt", "sse2", "ssse3", "sse4.1", "sse4.2", "avx", "avx2", "avx512f", "bmi", "bmi2", "lzcnt", "fma", "aes", "pclmul"]
+        cpu: Vec(u8)
+        BuilderAppend(cpu, "#include <stdio.h>\nint main(void){unsigned long long flags=0;__builtin_cpu_init();")
+        for index: cast(s64)0..features.count - 1 {
+            BuilderAppend(cpu, CheckConcat("if(__builtin_cpu_supports(\"", CheckConcat(features[index], CheckConcat("\"))flags|=1ULL<<", CheckConcat(CheckNumber(index), ";")))))
+        }
+        BuilderAppend(cpu, "printf(\"%llu\",flags);}\n")
+        cpu_source := CheckPath(test.work, "cpu.c")
+        cpu_exe := CheckPath(test.work, "cpu")
+        if !NativeWrite(*test, cpu_source, BuilderFinish(cpu)) { return 1 }
+        compile := string.[NativeCompiler(), "-O2", cpu_source, "-o", cpu_exe]
+        unused NativeRun(*test, compile[:])
+        run := string.[cpu_exe]
+        result := NativeRun(*test, run[:]); expected_features = result.output
+    }
+    report: JsonDocument
+    report.root = JsonNewObject(*report)
+    records := JsonNewArray(*report); JsonSet(*report, report.root, "records", records)
+    source_hashes := ""
+    forms := string.["source", "saved"]
+    for form: forms {
+        path := ifx form == "source" then source else CheckPath(ir, "go_direct_assembly_test.zir")
+        output := CheckPath(test.work, form)
+        generate := string.[test.ziran, "build", "--target=go", "--pkg", "main", "--root", PathParent(path), "-o", output, path]
+        unused NativeRun(*test, generate[:])
+        hashes := DirectArtifactHashes(*test, output)
+        if form == "source" { source_hashes = hashes }
+        else if !NativeAssert(*test, hashes == source_hashes, "direct Go source/saved artifacts differ") { return 1 }
+        code_bytes: Vec(u8)
+        files := NativeFiles(output, "_ziran.go")
+        for file: files { BuilderAppend(code_bytes, NativeRead(*test, file)); BuilderAppend(code_bytes, "\n") }
+        code := TextDetach(BuilderFinish(code_bytes))
+        modes := string.["ordinary", "direct", "cgo", "forced"]
+        for mode: modes {
+            base := test.environment.count
+            VecPush(test.environment, ifx mode == "ordinary" || mode == "direct" then "CGO_ENABLED=0" else "CGO_ENABLED=1")
+            if mode != "ordinary" { VecPush(test.environment, "GOFLAGS=-tags=ziran_asm") }
+            if mode == "forced" { VecPush(test.environment, "CGO_CFLAGS=-O2 -DZIRAN_NO_ASM") }
+            native := amd64 && (mode == "direct" || mode == "cgo")
+            marker := ifx native then "7" else "3"
+            unknown := ifx native && mode == "cgo" then "99" else "3"
+            replaced := TextDetach(TextReplace(host, "MARKER", marker))
+            if !NativeWrite(*test, CheckPath(output, "main.go"), TextReplace(replaced, "UNKNOWN", unknown)) { return 1 }
+            if mode == "direct" && expected_features != "" {
+                assembly: Vec(u8)
+                declarations := NativeFiles(output, ".assembly_direct_amd64.go")
+                for file: declarations { BuilderAppend(assembly, NativeRead(*test, file)) }
+                text := TextDetach(BuilderFinish(assembly))
+                suffix := TextFind(text, "Features = func() uint64")
+                if !NativeAssert(*test, suffix >= 0, "missing CPU feature detector") { return 1 }
+                start := suffix
+                while start > 0 && text[start - 1] != 32 && text[start - 1] != 10 { start -= 1 }
+                detector := text[start:suffix + 8]
+                checks: Vec(u8)
+                BuilderAppend(checks, CheckConcat("package main\nfunc init(){if ", CheckConcat(detector, CheckConcat(" != ", CheckConcat(expected_features, " {panic(\"CPU feature predicates\")};")))))
+                required := string.["Marker", "Compare", "Subtract", "Multiply", "Labels", "Copy", "CopySigned", "Retained", "Divide", "Alternative"]
+                unsupported := string.["Unknown", "Priority", "Reserved", "Stack"]
+                for name: required {
+                    BuilderAppend(checks, CheckConcat("if ", CheckConcat(DirectSite(*test, code, name), CheckConcat(" == nil {panic(\"missing direct ", CheckConcat(name, "\")};")))))
+                }
+                for name: unsupported {
+                    BuilderAppend(checks, CheckConcat("if ", CheckConcat(DirectSite(*test, code, name), CheckConcat(" != nil {panic(\"unsupported direct ", CheckConcat(name, "\")};")))))
+                }
+                BuilderAppend(checks, "}\n")
+                if !NativeWrite(*test, CheckPath(output, "probe.go"), BuilderFinish(checks)) { return 1 }
+            }
+            executable := CheckPath(output, "run")
+            compile := string.["go", "build", "-o", executable, "."]
+            unused NativeRun(*test, compile[:], output)
+            VecPush(test.environment, "GOGC=1")
+            run := string.[executable]; unused NativeRun(*test, run[:])
+            if mode == "direct" {
+                vet := string.["go", "vet", "-asmdecl", "."]; unused NativeRun(*test, vet[:], output)
+            }
+            unused RemoveFile(CheckPath(output, "probe.go"))
+            unused VecResize(test.environment, base)
+            record := JsonNewObject(*report)
+            CheckPut(*report, record, "form", form); CheckPut(*report, record, "mode", mode)
+            JsonSet(*report, record, "marker", JsonNewNumber(*report, marker))
+            JsonSet(*report, record, "unsupported_marker", JsonNewNumber(*report, unknown))
+            JsonAppend(*report, records, record)
+        }
+        if form == "source" {
+            systems := string.["windows", "darwin", "linux", "linux"]
+            architectures := string.["amd64", "amd64", "arm64", "386"]
+            for index: cast(s64)0..3 {
+                base := test.environment.count
+                VecPush(test.environment, CheckConcat("GOOS=", systems[index])); VecPush(test.environment, CheckConcat("GOARCH=", architectures[index]))
+                VecPush(test.environment, "CGO_ENABLED=0"); VecPush(test.environment, "GOFLAGS=-tags=ziran_asm")
+                replaced := TextDetach(TextReplace(host, "MARKER", ifx architectures[index] == "amd64" then "7" else "3"))
+                if !NativeWrite(*test, CheckPath(output, "main.go"), TextReplace(replaced, "UNKNOWN", "3")) { return 1 }
+                executable := CheckPath(output, CheckConcat("cross-", CheckConcat(systems[index], CheckConcat("-", architectures[index]))))
+                compile := string.["go", "build", "-o", executable, "."]; unused NativeRun(*test, compile[:], output)
+                unused VecResize(test.environment, base)
+                record := JsonNewObject(*report)
+                JsonSet(*report, record, "cross_built", JsonNewBool(*report, true))
+                CheckPut(*report, record, "os", systems[index]); CheckPut(*report, record, "arch", architectures[index]); JsonAppend(*report, records, record)
+            }
+        }
+    }
+    JsonSet(*report, report.root, "source_saved_identical", JsonNewBool(*report, true))
+    JsonSet(*report, report.root, "cpu_features", ifx expected_features == "" then JsonNewNull(*report) else JsonNewNumber(*report, expected_features))
+    if !NativeWrite(*test, CheckPath(test.work, "verification.json"), JsonWrite(*report, report.root, JsonPythonStyle(2))) { return 1 }
+    if test.failed { return 1 }
+    print("Direct Go ABI passed scalar layouts, fixed/tied/alternative operands, CPU predicates, fallback priority, GC/stack stress and cross builds\n")
+    return 0
+}

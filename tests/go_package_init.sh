@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -55,15 +56,7 @@ Portable :: () -> s32 { return 42 }
 VoidEntry :: () {}
 ZI
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
-python3 - "$work/ir/plain.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'InitializeRaw :: () #foreign driver "init";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/plain.zir" "$repo/tests/fixtures/saved_signatures/go_package_init.txt"
 for form in source saved; do
     input=$work/app.zi
     if test "$form" = saved; then input=$work/ir/app.zir; fi

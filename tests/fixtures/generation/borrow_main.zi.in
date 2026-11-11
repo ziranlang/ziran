@@ -1,0 +1,9 @@
+#import "layer_0";
+#program_export
+Answer :: () -> s32 {
+    p := New(s32)
+    <<p = 42
+    value := <<p
+    free(p)
+    return value
+}

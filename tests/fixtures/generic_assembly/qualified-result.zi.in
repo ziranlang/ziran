@@ -1,0 +1,2 @@
+ops :: #import "generic_assembly_ops"
+F :: (x: $Pair) -> ops.Pair #asm("x86_64", "", "=r", "r", "", "") { return ops.Pair.{0, 0} }

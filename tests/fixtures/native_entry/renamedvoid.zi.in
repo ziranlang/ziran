@@ -1,0 +1,6 @@
+Callback :: #type () -> void;
+Count: s32 = 0;
+#program_export "Other"
+main :: () { Count += 1 }
+#program_export
+Probe :: () -> s32 { value: Callback = main; value(); return Count + 40 }

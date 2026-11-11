@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -43,15 +44,7 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/results.zi"
-python3 - "$work/ir/results.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'Split :: (address: string) -> HostPort #go_results #foreign net "SplitHostPort";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/results.zir" "$repo/tests/fixtures/saved_signatures/go_results.txt"
 for input in source saved; do
     root=$work; file=$root/results.zi
     if test "$input" = saved; then root=$work/ir; file=$root/results.zir; fi

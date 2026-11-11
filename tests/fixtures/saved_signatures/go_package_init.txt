@@ -1,0 +1,1 @@
+InitializeRaw :: () #foreign driver "init";

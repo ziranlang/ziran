@@ -1,0 +1,102 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+MapExpected :: (root: string, name: string) -> string {
+    parts := string.["P\troot\t", root, "\nM\troot\tValue\t", CheckPath(root, CheckConcat(name, "/Value.zi")), "\nP\tstd\t", root, "\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+MapSetup :: (test: *NativeTest, root: string) -> bool {
+    return NativeAssert(test, CreateDirectories(CheckPath(root, "std")), "create fixture standard root") &&
+        NativeWrite(test, CheckPath(root, "left/Value.zi"), "Value :: 1;\n") && NativeWrite(test, CheckPath(root, "right/Value.zi"), "Value :: 1;\n")
+}
+MapProbe :: (test: *NativeTest, root: string, name: string, success: bool = true) -> string {
+    command := string.[test.ziran, root, name]
+    result := NativeInvoke(test, command[:])
+    if !NativeAssert(test, ifx success then result.code == 0 else result.code > 0 && result.code < 124, CheckConcat("map probe result: ", result.error)) { return "" }
+    return ifx success then TextDetach(TextCopy(TextTrim(result.output))) else ""
+}
+MapNoTemporary :: (test: *NativeTest, root: string) -> bool {
+    names: Vec(string)
+    if !NativeAssert(test, ListDirectory(CheckPath(root, "build/.ziran"), *names), "read map cache") { return false }
+    for name: names { if !NativeAssert(test, !TextContains(name, ".tmp."), "map publication left temporary files") { return false } }
+    return true
+}
+MapParallel :: (test: *NativeTest, root: string) -> bool {
+    unused MapProbe(test, root, "left")
+    left := MapExpected(root, "left"); right := MapExpected(root, "right")
+    children: Vec(NativeChild)
+    defer NativeChildrenStop(*children)
+    active: s64; next: s64; done: s64; observations: s64
+    while done < 32 && !test.failed {
+        while next < 32 && active < 8 {
+            command := string.[test.ziran, root, ifx next % 2 == 0 then "left" else "right"]
+            VecPush(children, NativeSpawn(test, command[:], "map-publisher"))
+            active += 1; next += 1
+        }
+        latest := NativeRead(test, CheckPath(root, "build/.ziran/module-map.tsv"))
+        if !NativeAssert(test, latest == left || latest == right, "reader observed a partial or unselected latest map") { return false }
+        observations += 1
+        for index: cast(s64)0..children.count - 1 {
+            if children[index].run.finished { continue }
+            if !NativeAssert(test, MonotonicMilliseconds() - children[index].started < 60000, "parallel map probe timed out") { return false }
+            if PollProcess(*children[index].run) {
+                if !NativeAssert(test, children[index].run.code == 0, CheckTail(children[index].error)) { return false }
+                active -= 1; done += 1
+            }
+        }
+        unused SleepMilliseconds(1)
+    }
+    first_left := ""; first_right := ""
+    for index: cast(s64)0..children.count - 1 {
+        path := TextTrim(NativeRead(test, children[index].output))
+        name := ifx index % 2 == 0 then "left" else "right"
+        expected := MapExpected(root, name)
+        if !NativeAssert(test, NativeRead(test, path) == expected, "publisher selected the wrong immutable snapshot") { return false }
+        if name == "left" {
+            if first_left == "" { first_left = path }
+            else if !NativeAssert(test, path == first_left, "identical left graphs used distinct snapshots") { return false }
+        } else {
+            if first_right == "" { first_right = path }
+            else if !NativeAssert(test, path == first_right, "identical right graphs used distinct snapshots") { return false }
+        }
+    }
+    if !NativeAssert(test, done == 32 && observations > 0 && first_left != "" && first_right != "" && first_left != first_right, "parallel map observation coverage incomplete") { return false }
+    print("32 parallel map publications; % complete latest-map observations\n", observations)
+    return MapNoTemporary(test, root)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-map-concurrency-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    root := CheckPath(test.work, "immutable")
+    if !MapSetup(*test, root) { return 1 }
+    left := MapProbe(*test, root, "left"); right := MapProbe(*test, root, "right")
+    if !NativeAssert(*test, left != right && NativeRead(*test, left) == MapExpected(root, "left") && NativeRead(*test, right) == MapExpected(root, "right") &&
+        MapProbe(*test, root, "left") == left && NativeRead(*test, right) == MapExpected(root, "right"), "a later graph changed an earlier command's selected map") { return 1 }
+    parallel := CheckPath(test.work, "parallel")
+    if !MapSetup(*test, parallel) || !MapParallel(*test, parallel) { return 1 }
+    blocked := CheckPath(test.work, "blocked-snapshot")
+    if !MapSetup(*test, blocked) { return 1 }
+    selected := MapProbe(*test, blocked, "left")
+    expected_file := CheckPath(test.work, "expected-right.tsv")
+    if !NativeWrite(*test, expected_file, MapExpected(blocked, "right")) { return 1 }
+    target := CheckPath(blocked, CheckConcat("build/.ziran/module-map.", CheckConcat(CheckHash(expected_file), ".tsv")))
+    if !NativeAssert(*test, CreateDirectories(target), "block snapshot publication") { return 1 }
+    unused MapProbe(*test, blocked, "right", false)
+    if !NativeAssert(*test, NativeRead(*test, selected) == MapExpected(blocked, "left") && NativeRead(*test, CheckPath(blocked, "build/.ziran/module-map.tsv")) == MapExpected(blocked, "left"), "failed snapshot replaced a complete map") || !MapNoTemporary(*test, blocked) { return 1 }
+    latest := CheckPath(test.work, "blocked-latest")
+    if !MapSetup(*test, latest) || !NativeAssert(*test, CreateDirectories(CheckPath(latest, "build/.ziran/module-map.tsv")), "block latest map publication") { return 1 }
+    unused MapProbe(*test, latest, "left", false)
+    if !MapNoTemporary(*test, latest) || test.failed { return 1 }
+    print("Local package-map tests: immutable selection, atomic publication and failure cleanup passed\n")
+    return 0
+}

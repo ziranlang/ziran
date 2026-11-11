@@ -129,6 +129,7 @@ char *EmitConstantTablesEnd(void);
 #define CONSTANT_TABLES_MARK "/* ziran constant tables */\n"
 /* With simd, also record the SIMD helper names the text holds. */
 struct ZirSimdUses;
+void CollectNativeSimdUses(const char *text, struct ZirSimdUses *simd);
 int EmitNativeHelpers(FILE *out, const char *text, struct ZirSimdUses *simd);
 void EmitGoPrintSupport(FILE *out);
 /* Appends each Go numeric helper that text calls and *written lacks. */

@@ -1,0 +1,8 @@
+#import "native_test"
+#program_export
+main :: () -> s32 {
+    compiler := NativeCompiler()
+    if compiler == "" { print("a direct C compiler is required\n"); return 1 }
+    print("%\n", compiler)
+    return 0
+}

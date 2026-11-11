@@ -1,0 +1,6 @@
+#program_export
+main :: (argc: s32, argv: **u8) {
+    unused argv
+    if argc == 3 { print("void\n"); return }
+    print("bad\n")
+}

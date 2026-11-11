@@ -1,0 +1,2 @@
+F :: (x:$T)->T #asm("x86_64","mov %[x], %[out]","=r","r","",""){return not_a_binding}
+Answer::()->s32{v: s32 = 1;return F(v)}

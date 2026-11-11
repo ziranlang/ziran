@@ -1,0 +1,3 @@
+using Qualified :: #import "Library/Public";
+using Short :: #import "value";
+Echo :: (value: Qualified.Value) -> Short.Value { return value }

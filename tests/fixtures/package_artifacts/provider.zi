@@ -1,0 +1,19 @@
+#import "package_common"
+#import "std/byte_text_linux"
+#import "std/c_string"
+main :: (argc: s32, argv: **u8) -> s32 {
+    output := PkgGetenv("ZIRAN_ARTIFACT_OUTPUT")
+    if argc != 7 || TextFromCString(argv[1]) != "artifact" { return 3 }
+    countfile := PkgJoin(PkgGetenv("ZIRAN_PACKAGE_ROOT"), "/build/count")
+    prior := PkgRead(countfile)
+    unused PkgWrite(countfile, PkgJoin(prior.text, "x"))
+    args: [5]string = .["cc", "-c", PkgJoin(PkgGetenv("ZIRAN_PACKAGE_ROOT"), "/src/value.c"), "-o", PkgJoin(output, "/value.o")]
+    empty: [0]string
+    code := PkgRun(args[:], "", empty[:], empty[:])
+    if code != 0 { return code }
+    resolved := PkgRead(PkgGetenv("ZIRAN_TOOL_OPTIONS"))
+    if !resolved.valid || !PkgWrite(PkgJoin(output, "/options.txt"), resolved.text) { return 5 }
+    if PkgGetenv("FAIL_PROVIDER") == "1" { return 6 }
+    if !PkgWrite(PkgJoin(output, "/resource.txt"), PkgGetenv("ZIRAN_ARTIFACT_TARGET")) { return 4 }
+    return 0
+}

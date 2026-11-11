@@ -2,7 +2,9 @@
 set -eu
 
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/go-foreign-types-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/json_types.zi" <<'ZI'
@@ -152,14 +154,7 @@ for body in 'return Raw.{}' 'return size_of(Raw)'; do
         exit 1
     fi
 done
-python3 - "$work/ir/json_types.zir" "$work/tampered.zir" <<'PY'
-from pathlib import Path
-import sys
-original = Path(sys.argv[1]).read_bytes()
-old = b'go:encoding/json.RawMessage'
-assert old in original
-Path(sys.argv[2]).write_bytes(original.replace(old, b'go:encoding/json.RawMessa!e'))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- --replace-all "$work/ir/json_types.zir" "$work/tampered.zir" go:encoding/json.RawMessage go:encoding/json.RawMessa!e
 if "$ziran" build --target=go --no-main --root "$work" -o "$work/tampered-go" "$work/tampered.zir" > "$work/tampered.out" 2>&1; then
     echo 'invalid saved foreign type target accepted' >&2
     exit 1

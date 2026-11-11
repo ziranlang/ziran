@@ -1,8 +1,11 @@
 #!/bin/sh
 set -eu
 
-tool_dir=$(dirname "$1")
-work=$(mktemp -d)
+ziran=$1
+tool_dir=$(dirname "$ziran")
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/zip-file-linux-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$1" check --root tests/spec --module-path std \
@@ -21,11 +24,4 @@ int main(int argc, char **argv) {
 }
 EOF
 env -u DISPLAY -u WAYLAND_DISPLAY "$work/test" "$work/archive.tmp" "$work/archive.zip"
-python3 - "$work/archive.zip" <<'PY'
-import sys
-from zipfile import ZipFile
-with ZipFile(sys.argv[1]) as archive:
-    assert archive.namelist() == ['meta', 'a']
-    assert archive.read('meta') == b'{}'
-    assert archive.read('a') == b'hello'
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/zip_interop_cases.zi" -- "$ziran" "$work" read

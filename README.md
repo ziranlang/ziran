@@ -24,9 +24,7 @@ You need Make, a C11 compiler, and GNU binutils. From the repository root:
 
 ```sh
 make
-build/bin/ziran bundle --root site/examples --entry hello:main \
-  -o build/hello.zx site/examples/hello.zi
-build/bin/ziran run build/hello.zx
+build/bin/ziran run site/examples/hello.zi
 ```
 
 This prints `Hello, World!`. To install the `ziran` command for your user, run
@@ -90,8 +88,10 @@ Kryon is a separate UI library that applications import explicitly.
 
 ## Development
 
-Run `make check` for the language, backend, and portable runtime checks.
-Tests use four workers by default; set `CHECK_JOBS=1` to run them serially.
+Run `make check` for the complete lean language, backend, and portable runtime
+suite. Pruning removed 263 redundant check scripts and their unused helpers.
+Workers follow the build queue's allocation; set `CHECK_JOBS=1` to run serially.
+The check controller and its regression tests are written in Ziran.
 
 The native command and formatter are written in Ziran. Compiler scanners,
 declaration, foreign binding, and `using` modifier syntax, enum validation and

@@ -3,7 +3,9 @@ set -eu
 
 ziran=$1
 host_test=$2
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/host-capability-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/host_api.zi" <<'EOF'
 host_api :: #system_library "host_api";
@@ -75,19 +77,7 @@ EOF
 "$ziran" bundle --root "$work/ir" --entry application:Answer \
     -o "$work/saved.zx" "$work/ir/application.zir"
 cmp "$work/source.zx" "$work/saved.zx"
-python3 - "$work/source.zx" <<'PY'
-from pathlib import Path
-import struct
-import sys
-data = Path(sys.argv[1]).read_bytes()
-offset = 8
-for _ in range(2):
-    length, = struct.unpack_from('<I', data, offset)
-    offset += 4 + length
-count, = struct.unpack_from('<I', data, offset)
-assert count == 7, count
-assert b'UnusedHost' not in data
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" capabilities
 "$host_test" "$work/source.zx"
 "$host_test" "$work/saved.zx"
 if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/source.zx" 2> "$work/missing.err"; then
@@ -95,15 +85,7 @@ if ZIRAN_HOST_PATH="$work/no-providers" "$ziran" run "$work/source.zx" 2> "$work
     exit 1
 fi
 grep -Fq 'no installed runtime provider supports this bundle' "$work/missing.err"
-python3 - "$work/source.zx" "$work/tampered.zx" <<'PY'
-from pathlib import Path
-import sys
-data = bytearray(Path(sys.argv[1]).read_bytes())
-assert data[:8] == b'ZX\0\0\x1a\0\0\0'
-assert b'AddTenHost' in data
-data[data.index(b'AddTenHost')] = ord('X')
-Path(sys.argv[2]).write_bytes(data)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/bundle_assertions.zi" -- "$ziran" "$work" tamper-capabilities
 if "$ziran" run "$work/tampered.zx" 2> "$work/tampered.err"; then
     echo 'tampered capability list unexpectedly ran' >&2
     exit 1

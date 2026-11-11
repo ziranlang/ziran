@@ -1,0 +1,566 @@
+#import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+#scope_file
+State :: struct {
+    remaining: s64
+    bytes: s64
+    limits: LirLimits
+    diagnostic: LirDiagnostic
+}
+
+Fail :: (state: *State, problem: LirProblem) -> bool {
+    if state.diagnostic.problem == .None { state.diagnostic.problem = problem }
+    return false
+}
+
+Spend :: (state: *State, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    return true
+}
+
+Charge :: (state: *State, count: s64, width: s64) -> bool {
+    if count < 0 || count > 2147483647 || width < 1 ||
+        count > (state.limits.bytes - state.bytes) / width { return Fail(state, .Limit) }
+    state.bytes += count * width
+    return Spend(state, count)
+}
+
+Id :: (id: s32, count: s64) -> bool { return id >= 0 && id < count }
+Optional :: (id: s32, count: s64) -> bool { return id == LirNoId || Id(id, count) }
+ValueType :: (program: LirProgram, id: s32) -> bool {
+    return Id(id, program.types.count) && program.types[id].kind != .Void
+}
+Numeric :: (type: LirType) -> bool { return type.kind == .Integer || type.kind == .Float }
+Composite :: (type: LirType) -> bool { return type.kind == .Record || type.kind == .Array }
+
+Text :: (state: *State, text: string) -> bool {
+    if !Charge(state, text.count, 1) { return false }
+    if text.count == 0 { return Fail(state, .Function) }
+    for byte: text { if byte == 0 { return Fail(state, .Function) } }
+    return true
+}
+
+Inventory :: (state: *State, program: LirProgram) -> bool {
+    if program.types.count > state.limits.types || program.functions.count > state.limits.functions ||
+        !Charge(state, program.types.count, 128) || !Charge(state, program.functions.count, 160) ||
+        !Charge(state, program.modules.count, 16) || !Charge(state, program.sources.count, 16) ||
+        !Charge(state, program.constants.count, 40) || !Charge(state, program.globals.count, 48) ||
+        !Charge(state, program.origins.count, 40) { return Fail(state, .Limit) }
+    for name: program.modules { if !Text(state, name) { return false } }
+    for name: program.sources { if !Text(state, name) { return false } }
+    for type: program.types {
+        if !Charge(state, type.fields.count, 4) || !Charge(state, type.parameters.count, 4) { return false }
+    }
+    for constant: program.constants { if !Charge(state, constant.bytes.count, 1) { return false } }
+    for global: program.globals { if !Text(state, global.name) { return false } }
+    blocks: s64 = 0
+    values: s64 = 0
+    instructions: s64 = 0
+    for function: program.functions {
+        if !Text(state, function.name) || !Charge(state, function.parameters.count, 4) ||
+            !Charge(state, function.values.count, 4) || !Charge(state, function.blocks.count, 40) { return false }
+        if function.blocks.count > state.limits.blocks - blocks || function.values.count > state.limits.values - values {
+            return Fail(state, .Limit)
+        }
+        blocks += function.blocks.count
+        values += function.values.count
+        for block: function.blocks {
+            if block.instructions.count > state.limits.instructions - instructions ||
+                !Charge(state, block.parameters.count, 4) || !Charge(state, block.instructions.count, 104) { return Fail(state, .Limit) }
+            instructions += block.instructions.count
+            for instruction: block.instructions {
+                if !Charge(state, instruction.operands.count, 4) || !Charge(state, instruction.edges.count, 24) { return false }
+                for edge: instruction.edges { if !Charge(state, edge.arguments.count, 4) { return false } }
+            }
+        }
+    }
+    return true
+}
+
+Types :: (state: *State, program: LirProgram) -> bool {
+    for type: program.types {
+        if !Spend(state, 1) { return false }
+        if cast(s32)type.kind <= cast(s32)LirTypeKind.Invalid || cast(s32)type.kind > cast(s32)LirTypeKind.Capability { return Fail(state, .Type) }
+        if type.native_width || type.kind == .Vector || type.kind == .Capability { return Fail(state, .Unsupported) }
+        if type.kind != .Record && type.fields.count != 0 || type.kind != .Function && type.parameters.count != 0 ||
+            type.kind != .Array && type.count != 0 || type.kind != .Integer && type.is_signed { return Fail(state, .Type) }
+        if type.kind == .Integer {
+            if type.bits != 8 && type.bits != 16 && type.bits != 32 && type.bits != 64 { return Fail(state, .Type) }
+        } else if type.kind == .Float {
+            if type.bits != 32 && type.bits != 64 { return Fail(state, .Type) }
+        } else if type.kind == .Bool {
+            if type.bits != 1 { return Fail(state, .Type) }
+        } else if type.bits != 0 { return Fail(state, .Type) }
+        if type.kind == .Pointer {
+            if !Id(type.element, program.types.count) || program.types[type.element].kind == .Function { return Fail(state, .Type) }
+        }
+        if type.kind == .Array {
+            if !ValueType(program, type.element) || type.count < 0 { return Fail(state, .Type) }
+            if type.count > state.limits.bytes { return Fail(state, .Limit) }
+        }
+        for field: type.fields {
+            if !Spend(state, 1) { return false }
+            if !ValueType(program, field) { return Fail(state, .Type) }
+        }
+        if type.kind == .Function {
+            if !Id(type.result, program.types.count) { return Fail(state, .Type) }
+            for parameter: type.parameters {
+                if !Spend(state, 1) { return false }
+                if !ValueType(program, parameter) { return Fail(state, .Type) }
+            }
+        }
+    }
+    colors: Vec(u8)
+    stack: Vec(s32)
+    next: Vec(s64)
+    sizes: Vec(s64)
+    if !Charge(state, program.types.count, 32) { return false }
+    if !VecResizeBounded(colors, program.types.count, program.types.count) ||
+        !VecResizeBounded(stack, program.types.count, program.types.count) ||
+        !VecResizeBounded(next, program.types.count, program.types.count) ||
+        !VecResizeBounded(sizes, program.types.count, program.types.count) { return Fail(state, .Allocation) }
+    for root: cast(s32)0..cast(s32)program.types.count - 1 {
+        if colors[root] == 2 { continue }
+        depth: s64 = 0
+        stack[0] = root
+        while depth >= 0 {
+            if !Spend(state, 1) { return false }
+            id := stack[depth]
+            type := program.types[id]
+            colors[id] = 1
+            children := ifx type.kind == .Record then type.fields.count else ifx type.kind == .Array then 1 else 0
+            if next[id] < children {
+                child := ifx type.kind == .Record then type.fields[next[id]] else type.element
+                next[id] += 1
+                if colors[child] == 1 { return Fail(state, .Type) }
+                if colors[child] == 0 { depth += 1; stack[depth] = child }
+                continue
+            }
+            size: s64 = 1
+            if type.kind == .Integer || type.kind == .Float { size = type.bits / 8 }
+            if type.kind == .Array {
+                if type.count != 0 && sizes[type.element] > state.limits.bytes / type.count { return Fail(state, .Limit) }
+                size = sizes[type.element] * type.count
+            }
+            if type.kind == .Record {
+                size = 0
+                for field: type.fields {
+                    if !Spend(state, 1) { return false }
+                    if sizes[field] > state.limits.bytes - size { return Fail(state, .Limit) }
+                    size += sizes[field]
+                }
+            }
+            sizes[id] = size
+            colors[id] = 2
+            depth -= 1
+        }
+    }
+    return true
+}
+
+Origins :: (state: *State, program: LirProgram) -> bool {
+    colors: Vec(u8)
+    if !Charge(state, program.origins.count, 1) { return false }
+    if !VecResizeBounded(colors, program.origins.count, program.origins.count) { return Fail(state, .Allocation) }
+    for index: cast(s32)0..cast(s32)program.origins.count - 1 {
+        origin := program.origins[index]
+        state.diagnostic.origin = index
+        if !Spend(state, 1) { return false }
+        if !Id(origin.file, program.sources.count) || !Optional(origin.parent, program.origins.count) ||
+            origin.line < 1 || origin.column < 1 || origin.begin < 0 || origin.end < origin.begin { return Fail(state, .Origin) }
+    }
+    for root: cast(s32)0..cast(s32)program.origins.count - 1 {
+        state.diagnostic.origin = root
+        id := root
+        while id != LirNoId && colors[id] == 0 {
+            if !Spend(state, 1) { return false }
+            colors[id] = 1
+            id = program.origins[id].parent
+        }
+        if id != LirNoId && colors[id] == 1 { return Fail(state, .Origin) }
+        id = root
+        while id != LirNoId && colors[id] == 1 {
+            if !Spend(state, 1) { return false }
+            colors[id] = 2
+            id = program.origins[id].parent
+        }
+    }
+    state.diagnostic.origin = LirNoId
+    return true
+}
+
+Declarations :: (state: *State, program: LirProgram) -> bool {
+    for constant: program.constants {
+        if !Spend(state, 1) { return false }
+        if !ValueType(program, constant.type) { return Fail(state, .Constant) }
+        type := program.types[constant.type]
+        if type.kind != .Bool && type.kind != .Integer && type.kind != .Float { return Fail(state, .Unsupported) }
+        if constant.bytes.count != 0 || type.kind == .Bool && constant.bits > 1 ||
+            type.kind != .Bool && type.bits < 64 && constant.bits >> cast(u64)type.bits != 0 { return Fail(state, .Constant) }
+    }
+    for global: program.globals {
+        if !Spend(state, 1) { return false }
+        if !Id(global.module, program.modules.count) || !ValueType(program, global.type) ||
+            !Optional(global.constant, program.constants.count) { return Fail(state, .Global) }
+        if global.constant != LirNoId && program.constants[global.constant].type != global.type { return Fail(state, .Global) }
+    }
+    for index: cast(s32)0..cast(s32)program.functions.count - 1 {
+        function := program.functions[index]
+        state.diagnostic.function = index
+        state.diagnostic.origin = function.origin
+        if !Spend(state, 1) { return false }
+        if !Id(function.module, program.modules.count) || !Id(function.result, program.types.count) ||
+            !Optional(function.origin, program.origins.count) { return Fail(state, .Function) }
+        if function.calling != .Portable || function.variadic || function.external { return Fail(state, .Unsupported) }
+        for parameter: function.parameters {
+            if !Spend(state, 1) { return false }
+            if !ValueType(program, parameter) { return Fail(state, .Function) }
+        }
+        for type: function.values {
+            if !Spend(state, 1) { return false }
+            if !ValueType(program, type) { return Fail(state, .Result) }
+        }
+    }
+    state.diagnostic.function = LirNoId
+    state.diagnostic.origin = LirNoId
+    if !Optional(program.entry, program.functions.count) { return Fail(state, .Function) }
+    if program.entry != LirNoId && program.functions[program.entry].parameters.count != 0 { return Fail(state, .Calling) }
+    return true
+}
+
+Signature :: (state: *State, type: LirType, parameters: []s32, result: s32) -> bool {
+    if type.kind != .Function || type.result != result || type.parameters.count != parameters.count { return Fail(state, .Calling) }
+    for index: cast(s64)0..parameters.count - 1 {
+        if !Spend(state, 1) { return false }
+        if type.parameters[index] != parameters[index] { return Fail(state, .Calling) }
+    }
+    return true
+}
+
+Member :: (type: LirType, index: u64) -> s32 {
+    if type.kind == .Record {
+        if index >= cast(u64)type.fields.count { return LirNoId }
+        return type.fields[cast(s64)index]
+    }
+    if type.kind == .Array && index < cast(u64)type.count { return type.element }
+    return LirNoId
+}
+
+Opcode :: (state: *State, program: LirProgram, function: LirFunction, instruction: LirInstruction) -> bool {
+    op := instruction.op
+    operand_count := instruction.operands.count
+    result: s32 = LirNoId
+    first_type: s32 = LirNoId
+    second_type: s32 = LirNoId
+    if instruction.result != LirNoId { result = function.values[instruction.result] }
+    if operand_count > 0 { first_type = function.values[instruction.operands[0]] }
+    if operand_count > 1 { second_type = function.values[instruction.operands[1]] }
+    symbolic := op == .Constant || op == .GlobalAddress || op == .FunctionAddress || op == .Call || op == .HostCall
+    indexed := op == .Extract || op == .Insert || op == .FieldAddress || op == .Fuel || op == .Trap
+    memory := op == .Allocate || op == .Load || op == .Store || op == .Copy || op == .Zero
+    if !symbolic && instruction.symbol != LirNoId || !indexed && instruction.immediate != 0 { return Fail(state, .Instruction) }
+    if !memory && instruction.alignment != 0 { return Fail(state, .Alignment) }
+    if memory && instruction.alignment != 0 && instruction.alignment != 1 { return Fail(state, .Alignment) }
+    if op == .Allocate || op == .Copy || op == .Zero || op == .ElementAddress || op == .HostCall {
+        return Fail(state, .Unsupported)
+    }
+    if op == .Constant {
+        if operand_count != 0 || !Id(instruction.symbol, program.constants.count) || program.constants[instruction.symbol].type != result { return Fail(state, .Constant) }
+        return true
+    }
+    if op == .Null {
+        if operand_count != 0 || result == LirNoId ||
+            program.types[result].kind != .Pointer && program.types[result].kind != .Function { return Fail(state, .Instruction) }
+        return true
+    }
+    if op == .GlobalAddress {
+        if operand_count != 0 || !Id(instruction.symbol, program.globals.count) || result == LirNoId ||
+            program.types[result].kind != .Pointer || program.types[result].element != program.globals[instruction.symbol].type { return Fail(state, .Global) }
+        if !program.globals[instruction.symbol].writable { return Fail(state, .Unsupported) }
+        return true
+    }
+    if op == .FunctionAddress {
+        if operand_count != 0 || !Id(instruction.symbol, program.functions.count) || result == LirNoId { return Fail(state, .Calling) }
+        target := program.functions[instruction.symbol]
+        return Signature(state, program.types[result], target.parameters, target.result)
+    }
+    code := cast(s32)op
+    if op == .ShiftLeft || op == .ShiftRight {
+        if operand_count != 2 || result != first_type || !Numeric(program.types[first_type]) ||
+            !Numeric(program.types[second_type]) { return Fail(state, .Operand) }
+        if program.types[first_type].kind != .Integer || program.types[second_type].kind != .Integer { return Fail(state, .Unsupported) }
+        return true
+    }
+    if code >= cast(s32)LirOp.Add && code <= cast(s32)LirOp.Remainder ||
+        code >= cast(s32)LirOp.BitAnd && code <= cast(s32)LirOp.BitXor {
+        if operand_count != 2 || first_type != second_type || result != first_type || !Numeric(program.types[first_type]) { return Fail(state, .Operand) }
+        if code >= cast(s32)LirOp.BitAnd && program.types[first_type].kind != .Integer || op == .Remainder && program.types[first_type].kind != .Integer {
+            return Fail(state, .Unsupported)
+        }
+        return true
+    }
+    if op == .Negate || op == .BitNot {
+        if operand_count != 1 || result != first_type || !Numeric(program.types[first_type]) || op == .BitNot && program.types[first_type].kind != .Integer { return Fail(state, .Operand) }
+        return true
+    }
+    if code >= cast(s32)LirOp.Equal && code <= cast(s32)LirOp.GreaterEqual {
+        if operand_count != 2 || first_type != second_type || result == LirNoId || program.types[result].kind != .Bool { return Fail(state, .Operand) }
+        type := program.types[first_type]
+        if Numeric(type) || (op == .Equal || op == .NotEqual) && (type.kind == .Bool || type.kind == .Pointer || type.kind == .Function) { return true }
+        return Fail(state, .Unsupported)
+    }
+    if op == .Convert || op == .Bitcast {
+        if operand_count != 1 || result == LirNoId { return Fail(state, .Operand) }
+        source_type := program.types[first_type]
+        result_type := program.types[result]
+        numeric := Numeric(source_type) && Numeric(result_type)
+        boolean_integer := source_type.kind == .Bool && result_type.kind == .Integer ||
+            source_type.kind == .Integer && result_type.kind == .Bool
+        if !numeric && !(op == .Convert && boolean_integer) { return Fail(state, .Operand) }
+        if op == .Bitcast && program.types[first_type].bits != program.types[result].bits { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .Aggregate {
+        if result == LirNoId || !Composite(program.types[result]) { return Fail(state, .Result) }
+        type := program.types[result]
+        count := ifx type.kind == .Record then type.fields.count else type.count
+        if operand_count != count { return Fail(state, .Operand) }
+        for at: cast(s64)0..operand_count - 1 {
+            if !Spend(state, 1) { return false }
+            if function.values[instruction.operands[at]] != Member(type, cast(u64)at) { return Fail(state, .Operand) }
+        }
+        return true
+    }
+    if op == .Extract || op == .Insert {
+        expected := ifx op == .Extract then 1 else 2
+        if operand_count != expected { return Fail(state, .Operand) }
+        member := Member(program.types[first_type], instruction.immediate)
+        if member == LirNoId || op == .Extract && result != member ||
+            op == .Insert && (result != first_type || second_type != member) { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .FieldAddress {
+        if operand_count != 1 || result == LirNoId || program.types[first_type].kind != .Pointer || program.types[result].kind != .Pointer { return Fail(state, .Operand) }
+        target := program.types[program.types[first_type].element]
+        if target.kind != .Record || Member(target, instruction.immediate) != program.types[result].element { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .Load || op == .Store {
+        expected := ifx op == .Load then 1 else 2
+        if operand_count != expected || program.types[first_type].kind != .Pointer { return Fail(state, .Operand) }
+        element := program.types[first_type].element
+        if !ValueType(program, element) || op == .Load && element != result || op == .Store && element != second_type { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .Call || op == .CallIndirect {
+        parameters: []s32
+        returns: s32 = LirNoId
+        skip: s64 = 0
+        if op == .Call {
+            if !Id(instruction.symbol, program.functions.count) { return Fail(state, .Calling) }
+            parameters = program.functions[instruction.symbol].parameters
+            returns = program.functions[instruction.symbol].result
+        } else {
+            if operand_count < 1 || program.types[first_type].kind != .Function { return Fail(state, .Calling) }
+            parameters = program.types[first_type].parameters
+            returns = program.types[first_type].result
+            skip = 1
+        }
+        if operand_count - skip != parameters.count { return Fail(state, .Calling) }
+        if program.types[returns].kind == .Void {
+            if result != LirNoId { return Fail(state, .Result) }
+        } else if result != returns { return Fail(state, .Result) }
+        for at: cast(s64)0..parameters.count - 1 {
+            if !Spend(state, 1) { return false }
+            if function.values[instruction.operands[at + skip]] != parameters[at] { return Fail(state, .Calling) }
+        }
+        return true
+    }
+    if op == .Branch {
+        if operand_count != 1 || program.types[first_type].kind != .Bool { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .Return {
+        if program.types[function.result].kind == .Void {
+            if operand_count != 0 { return Fail(state, .Operand) }
+        } else if operand_count != 1 || first_type != function.result { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .Jump || op == .Unreachable || op == .Trap || op == .Fuel {
+        if operand_count != 0 { return Fail(state, .Operand) }
+        if op == .Fuel && (instruction.immediate == 0 || instruction.immediate > 9223372036854775807) { return Fail(state, .Instruction) }
+        return true
+    }
+    return Fail(state, .Unsupported)
+}
+
+Reach :: (state: *State, function: LirFunction, excluded: s32, seen: []u8, queue: []s32) -> bool {
+    for at: cast(s64)0..seen.count - 1 {
+        if !Spend(state, 1) { return false }
+        seen[at] = 0
+    }
+    if function.entry == excluded { return true }
+    head: s64 = 0
+    tail: s64 = 1
+    queue[0] = function.entry
+    seen[function.entry] = 1
+    while head < tail {
+        if !Spend(state, 1) { return false }
+        block := function.blocks[queue[head]]
+        head += 1
+        terminal := block.instructions[block.instructions.count - 1]
+        for edge: terminal.edges {
+            if !Spend(state, 1) { return false }
+            if edge.block != excluded && seen[edge.block] == 0 {
+                seen[edge.block] = 1
+                queue[tail] = edge.block
+                tail += 1
+            }
+        }
+    }
+    return true
+}
+
+Use :: (state: *State, function: LirFunction, value: s32, block: s32, instruction: s32,
+    definitions: []s32, positions: []s32, seen: []u8, queue: []s32) -> bool {
+    state.diagnostic.value = value
+    if !Spend(state, 1) { return false }
+    if !Id(value, function.values.count) { return Fail(state, .Operand) }
+    owner := definitions[value]
+    if owner == block {
+        if positions[value] >= instruction { return Fail(state, .Dominance) }
+        return true
+    }
+    if !Reach(state, function, owner, seen, queue) { return false }
+    if seen[block] != 0 { return Fail(state, .Dominance) }
+    return true
+}
+
+Function :: (state: *State, program: LirProgram, function: LirFunction) -> bool {
+    if !Id(function.entry, function.blocks.count) { return Fail(state, .Block) }
+    definitions: Vec(s32)
+    positions: Vec(s32)
+    seen: Vec(u8)
+    queue: Vec(s32)
+    if !Charge(state, function.values.count, 8) || !Charge(state, function.blocks.count, 5) { return false }
+    if !VecResizeBounded(definitions, function.values.count, function.values.count) ||
+        !VecResizeBounded(positions, function.values.count, function.values.count) ||
+        !VecResizeBounded(seen, function.blocks.count, function.blocks.count) ||
+        !VecResizeBounded(queue, function.blocks.count, function.blocks.count) { return Fail(state, .Allocation) }
+    for at: cast(s64)0..function.values.count - 1 { definitions[at] = LirNoId }
+    for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+        state.diagnostic.block = block_index
+        state.diagnostic.instruction = LirNoId
+        state.diagnostic.value = LirNoId
+        state.diagnostic.origin = function.origin
+        block := function.blocks[block_index]
+        if block.instructions.count == 0 { return Fail(state, .Terminator) }
+        for value: block.parameters {
+            state.diagnostic.value = value
+            if !Spend(state, 1) { return false }
+            if !Id(value, function.values.count) || definitions[value] != LirNoId { return Fail(state, .Definition) }
+            definitions[value] = block_index
+            positions[value] = LirNoId
+        }
+        effect: s64 = 0
+        for at: cast(s32)0..cast(s32)block.instructions.count - 1 {
+            instruction := block.instructions[at]
+            state.diagnostic.instruction = at
+            state.diagnostic.origin = instruction.origin
+            state.diagnostic.value = instruction.result
+            if !Spend(state, 1) { return false }
+            if cast(s32)instruction.op <= cast(s32)LirOp.Invalid || cast(s32)instruction.op > cast(s32)LirOp.Unreachable { return Fail(state, .Instruction) }
+            if !Optional(instruction.origin, program.origins.count) { return Fail(state, .Origin) }
+            if LirTerminator(instruction.op) != (at == block.instructions.count - 1) { return Fail(state, .Terminator) }
+            if LirEffectful(instruction.op) {
+                effect += 1
+                if instruction.effect != effect { return Fail(state, .Effect) }
+            } else if instruction.effect != 0 { return Fail(state, .Effect) }
+            can_result := LirProducesValue(instruction.op)
+            call := instruction.op == .Call || instruction.op == .CallIndirect || instruction.op == .HostCall
+            if can_result && !call && !Id(instruction.result, function.values.count) ||
+                !can_result && instruction.result != LirNoId || call && !Optional(instruction.result, function.values.count) { return Fail(state, .Result) }
+            if instruction.result != LirNoId {
+                if definitions[instruction.result] != LirNoId { return Fail(state, .Definition) }
+                definitions[instruction.result] = block_index
+                positions[instruction.result] = at
+            }
+            edges: s64 = 0
+            if instruction.op == .Jump { edges = 1 }
+            if instruction.op == .Branch { edges = 2 }
+            if instruction.edges.count != edges { return Fail(state, .Edge) }
+            for edge: instruction.edges {
+                if !Spend(state, 1) { return false }
+                if !Id(edge.block, function.blocks.count) || edge.block == function.entry ||
+                    edge.arguments.count != function.blocks[edge.block].parameters.count { return Fail(state, .Edge) }
+            }
+        }
+    }
+    for value: cast(s32)0..cast(s32)function.values.count - 1 {
+        state.diagnostic.value = value
+        if !Spend(state, 1) { return false }
+        if definitions[value] == LirNoId { return Fail(state, .Definition) }
+    }
+    entry := function.blocks[function.entry]
+    if entry.parameters.count != function.parameters.count { return Fail(state, .Calling) }
+    for at: cast(s64)0..function.parameters.count - 1 {
+        if !Spend(state, 1) { return false }
+        if function.values[entry.parameters[at]] != function.parameters[at] { return Fail(state, .Calling) }
+    }
+    if !Reach(state, function, LirNoId, seen[:], queue[:]) { return false }
+    for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+        state.diagnostic.block = block_index
+        if seen[block_index] == 0 {
+            state.diagnostic.instruction = LirNoId
+            state.diagnostic.value = LirNoId
+            state.diagnostic.origin = function.origin
+            return Fail(state, .Block)
+        }
+    }
+    for block_index: cast(s32)0..cast(s32)function.blocks.count - 1 {
+        state.diagnostic.block = block_index
+        block := function.blocks[block_index]
+        for at: cast(s32)0..cast(s32)block.instructions.count - 1 {
+            instruction := block.instructions[at]
+            state.diagnostic.instruction = at
+            state.diagnostic.origin = instruction.origin
+            for value: instruction.operands {
+                if !Use(state, function, value, block_index, at, definitions[:], positions[:], seen[:], queue[:]) { return false }
+            }
+            for edge: instruction.edges {
+                target := function.blocks[edge.block]
+                for index: cast(s64)0..edge.arguments.count - 1 {
+                    value := edge.arguments[index]
+                    if !Use(state, function, value, block_index, at, definitions[:], positions[:], seen[:], queue[:]) { return false }
+                    if function.values[value] != function.values[target.parameters[index]] { return Fail(state, .Edge) }
+                }
+            }
+            state.diagnostic.value = instruction.result
+            if !Opcode(state, program, function, instruction) { return false }
+        }
+    }
+    return true
+}
+
+#scope_export
+LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
+    state := State.{remaining = limits.work, limits = limits,
+        diagnostic = .{problem = .None, function = LirNoId, block = LirNoId,
+            instruction = LirNoId, value = LirNoId, origin = LirNoId}}
+    if limits.work < 0 || limits.types < 0 || limits.functions < 0 || limits.blocks < 0 ||
+        limits.values < 0 || limits.instructions < 0 || limits.bytes < 0 { state.diagnostic.problem = .Limit; return state.diagnostic }
+    if program.version != LirVersion { state.diagnostic.problem = .Version; return state.diagnostic }
+    if !Inventory(*state, program) || !Types(*state, program) || !Origins(*state, program) || !Declarations(*state, program) { return state.diagnostic }
+    for id: cast(s32)0..cast(s32)program.functions.count - 1 {
+        state.diagnostic.function = id
+        state.diagnostic.block = LirNoId
+        state.diagnostic.instruction = LirNoId
+        state.diagnostic.value = LirNoId
+        state.diagnostic.origin = program.functions[id].origin
+        if !Function(*state, program, program.functions[id]) { return state.diagnostic }
+    }
+    return .{problem = .None, function = LirNoId, block = LirNoId,
+        instruction = LirNoId, value = LirNoId, origin = LirNoId}
+}

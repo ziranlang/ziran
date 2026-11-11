@@ -54,16 +54,5 @@ for name in double read_after push_after temporary_member; do
         echo "$name reused an owned vector after moving it" >&2
         exit 1
     fi
-    python3 - "$work/$name.err" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-diagnostics = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any('binding is used after moving' in item['message'] or
-           'Vec operation moves its storage in an argument' in item['message'] or
-           'temporary Vec result must be bound' in item['message'] or
-           'temporary owned result must be bound' in item['message']
-           for item in diagnostics), diagnostics
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- move "$work/$name.err"
 done

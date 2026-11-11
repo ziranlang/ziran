@@ -1,0 +1,44 @@
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/stdio_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+PackageProxy :: (argc: s32, argv: **u8, mode: string) -> s32 {
+    document: JsonDocument; document.root = JsonNewArray(*document)
+    arguments: Vec(string)
+    if mode != "--forwarded" { VecPush(arguments, EnvironmentText(ifx mode == "--guard-git" then "ZIRAN_FIXTURE_GUARD_REAL_GIT" else "ZIRAN_FIXTURE_REAL_GIT")) }
+    for index: cast(s32)2..argc - 1 {
+        argument := TextFromCString(argv[index])
+        VecPush(arguments, TextDetach(TextCopy(argument)))
+        JsonAppend(*document, document.root, JsonNewStringCopy(*document, argument))
+        if mode == "--guard-git" && (argument == "clone" || argument == "worktree" || argument == "fetch" || argument == "ls-remote") {
+            unused PrintError("constrained package fixtures forbid cloning, worktrees and fetching\n")
+            return 1
+        }
+    }
+    if mode == "--forwarded" {
+        if EnvironmentText("ZIRAN_PINNED_LAUNCHER") != "forwarded" { unused PrintError("missing pinned-launcher forwarding marker\n"); return 1 }
+        print("%\n", JsonWrite(*document, document.root, JsonCompactStyle()))
+        return 0
+    }
+    if mode == "--trace-git" {
+        trace := EnvironmentText("ZIRAN_FIXTURE_GIT_TRACE")
+        lock := LockPath(CheckConcat(trace, ".lock"))
+        if lock < 0 { return 1 }
+        previous, valid := ReadEntireFile(trace)
+        content := ifx valid then previous else ""
+        written := WriteEntireFile(trace, CheckConcat(content, CheckConcat(TextDetach(JsonWrite(*document, document.root, JsonCompactStyle())), "\n")))
+        UnlockPath(lock)
+        if !written { return 1 }
+    }
+    child: ProcessRun
+    options: ProcessOptions = .{.arguments = arguments[:]}
+    if !StartProcess(options, *child) || !WaitProcess(*child) { return 127 }
+    return child.code
+}

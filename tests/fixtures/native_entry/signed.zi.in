@@ -1,0 +1,7 @@
+#program_export
+main :: (argc: s32, argv: **s8) -> s32 {
+    if argc != 3 { return 71 }
+    if argv[1][0] != 97 || argv[2][0] != -49 || argv[2][1] != -128 { return 72 }
+    if argv[argc] != null { return 73 }
+    return argc + 39
+}

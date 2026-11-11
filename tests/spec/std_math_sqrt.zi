@@ -1,0 +1,60 @@
+#import "std/math"
+#import "std/binary"
+#import "math_sqrt_reference"
+
+SameSqrt :: (value: float64) -> bool {
+    actual := Sqrt(value)
+    expected := ReferenceSqrt(value)
+    if expected != expected { return actual != actual }
+    if actual != expected { return false }
+    if expected == 0.0 { return 1.0 / actual == 1.0 / expected }
+    return true
+}
+
+CheckBits :: (bits: u64) -> bool {
+    return SameSqrt(Float64FromBits(bits))
+}
+
+#program_export
+SelfTest :: () -> s32 {
+    edges: [20]u64 = .[0x0, 0x8000000000000000, 0x1, 0x8000000000000001,
+        0x000fffffffffffff, 0x0010000000000000, 0x0010000000000001,
+        0x3fefffffffffffff, 0x3ff0000000000000, 0x3ff0000000000001,
+        0x400fffffffffffff, 0x4010000000000000, 0x4010000000000001,
+        0x7fefffffffffffff, 0xffefffffffffffff, 0x7ff0000000000000,
+        0xfff0000000000000, 0x7ff8000000000000, 0xfff8000000000001,
+        0x7ff0000000000001]
+    for bits: edges { if !CheckBits(bits) { return 1 } }
+    exponent: u64 = 1
+    while exponent < 2047 {
+        bits := exponent << cast(u64)52
+        if !CheckBits(bits - 1) || !CheckBits(bits) || !CheckBits(bits + 1) { return 2 }
+        exponent += 63
+    }
+    if Sqrt(144.0) != 12.0 || Sqrt(4.0) != 2.0 || Sqrt(1.0) != 1.0 { return 3 }
+    return 42
+}
+
+#program_export
+main :: () -> s32 {
+    if SelfTest() != 42 { return 1 }
+    for exponent: cast(u64)1..2046 {
+        bits := exponent << cast(u64)52
+        if !CheckBits(bits - 1) || !CheckBits(bits) || !CheckBits(bits + 1) ||
+            !CheckBits(bits | 0x0008000000000000) ||
+            !CheckBits(bits | 0x000ffffffffffffe) { return 2 }
+    }
+    for shift: cast(u64)0..51 {
+        bits := cast(u64)1 << shift
+        if !CheckBits(bits - 1) || !CheckBits(bits) || !CheckBits(bits + 1) { return 3 }
+    }
+    state: u64 = 88172645463325252
+    for sample: 0..999999 {
+        state ^= state << cast(u64)13
+        state ^= state >> cast(u64)7
+        state ^= state << cast(u64)17
+        if !CheckBits(state) { print("Sqrt differs at bits %\n", state); return 4 }
+    }
+    print("math-sqrt-test-ok: exact reference parity, all normal exponents, subnormal boundaries, one million patterns\n")
+    return 0
+}

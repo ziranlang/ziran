@@ -1,0 +1,2 @@
+#import "measure"
+HostedValue :: () -> s32 { return Measured(20) + 1 }

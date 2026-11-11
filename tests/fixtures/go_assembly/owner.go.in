@@ -1,0 +1,2 @@
+package main
+func main(){if Prune_F()!=42{panic("pruned assembly")}}

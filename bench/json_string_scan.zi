@@ -1,0 +1,90 @@
+using V :: #import "std/vec"
+using T :: #import "std/timer_linux"
+using J :: #import "std/json_bytes"
+#import "benchmark_statistics"
+
+Reference :: (text: string, start: s64) -> s64 {
+    if start < 0 { return start }
+    at := start
+    while at < text.count {
+        byte := text[at]
+        if byte < 32 || byte == 34 || byte == 92 { break }
+        at += 1
+    }
+    return at
+}
+
+// Opaque native input and a compiler memory barrier prevent a pure repeated
+// scan from being hoisted out of the measured loop. No instructions are needed.
+Opaque :: (value: u64) -> u64
+#asm("x86_64", "", "=r", "0", "memory", "volatile")
+#asm("aarch64", "", "=r", "0", "memory", "volatile") {
+    return value
+}
+
+Check :: () -> bool {
+    bytes: [80]u8
+    for size: 0..79 {
+        for i: 0..79 { bytes[i] = 120 }
+        for position: 0..size {
+            for value: 0..255 {
+                bytes[position] = cast(u8)value
+                text := TextView(bytes[0:size])
+                for start: cast(s64)-1..size + 1 {
+                    if Reference(text,start) != JsonStringRunEnd(text,start) {
+                        print("scan mismatch: size % position % value % start %\n",size,position,value,start)
+                        return false
+                    }
+                }
+            }
+            bytes[position] = 120
+        }
+    }
+    return true
+}
+
+Measure :: (text: string, candidate: bool) -> float64 {
+    total: s64
+    started := MonotonicNanoseconds()
+    for n: 0..63 {
+        start := cast(s64)(Opaque(cast(u64)n) % cast(u64)7)
+        end := ifx candidate then JsonStringRunEnd(text,start) else Reference(text,start)
+        if end != text.count - 1 { return -1.0 }
+        total += end - start
+    }
+    elapsed := MonotonicNanoseconds() - started
+    if total != (text.count - 1) * 64 - 189 { return -1.0 }
+    return cast(float64)elapsed / 64.0
+}
+
+Numbers :: (values: []float64) {
+    for index: 0..values.count - 1 { if index > 0 { print(",") }; print("%",values[index]) }
+}
+Indices :: (values: []s64) {
+    for index: 0..values.count - 1 { if index > 0 { print(",") }; print("%",values[index]) }
+}
+
+#program_export
+main :: () -> s32 {
+    if !Check() { return 1 }
+    bytes: Vec(u8)
+    if !VecResize(bytes,1048577) { return 2 }
+    for i: 0..1048575 { bytes[i] = 120 }
+    bytes[1048576] = 34
+    text := TextView(bytes[:])
+    before: [9]float64
+    after: [9]float64
+    if Measure(text,false) <= 0.0 || Measure(text,true) <= 0.0 { return 3 }
+    for sample: 0..8 {
+        if sample % 2 == 0 { before[sample]=Measure(text,false); after[sample]=Measure(text,true) }
+        else { after[sample]=Measure(text,true); before[sample]=Measure(text,false) }
+    }
+    old := BenchmarkAnalyze(before[:]); current := BenchmarkAnalyze(after[:])
+    if !old.valid || !current.valid { return 4 }
+    print("{\"case\":\"json_plain_string_1mib\",\"unit\":\"ns_per_scan\",\"rule\":\"symmetric inclusive 1.5xIQR\",\"reference_raw\":[")
+    Numbers(before[:]); print("],\"candidate_raw\":["); Numbers(after[:])
+    print("],\"reference_excluded\":["); Indices(old.excluded[:])
+    print("],\"candidate_excluded\":["); Indices(current.excluded[:])
+    print("],\"reference_median\":%,\"candidate_median\":%,\"speedup\":%}\n",old.median,current.median,old.median/current.median)
+    return 0
+}

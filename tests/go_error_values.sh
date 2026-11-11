@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -43,20 +44,7 @@ Answer :: () -> s32 {
 }
 ZI
 "$ziran" ir --root "$work" --module-path std -o "$work/ir" "$work/native.zi"
-python3 - "$work/ir/native.zir" <<'PY'
-from pathlib import Path
-import sys
-path = Path(sys.argv[1])
-data = path.read_bytes()
-signature = b'PiRaw :: () -> float64 #go_field #foreign go_math "Pi";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-path = path.parent / 'errors_go.zir'
-data = path.read_bytes()
-signature = b'MessageRaw :: (error: Error) -> string #foreign builtin "error.Error";'
-assert data.count(signature) == 1
-path.write_bytes(data.replace(signature, b'?' * len(signature)))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- "$work/ir/native.zir" "$repo/tests/fixtures/saved_signatures/go_error_values.txt"
 for input in source saved; do
     root=$work
     file=$root/native.zi

@@ -4,24 +4,11 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/large-enums-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-work = Path(sys.argv[1])
-source = ['Large :: enum s32 {']
-source += [f'    Member{i};' for i in range(96)]
-source += ['}']
-for i in range(40):
-    source += [f'Enum{i} :: enum s32 {{ Zero; Last :: {i}; }}']
-source += ['#program_export', 'Answer :: () -> s32 {',
-           '    if cast(s32)Large.Member95 != 95 { return 1 }',
-           '    if cast(s32)Enum39.Last != 39 { return 2 }',
-           '    return 42', '}']
-(work / 'app.zi').write_text('\n'.join(source) + '\n')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" enums
 "$ziran" ir --root "$work" -o "$work/ir" "$work/app.zi"
 for form in source saved; do
     module=$work/app.zi

@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 ziran=${1:?pass the ziran command}
 work=$(mktemp -d)
@@ -87,15 +88,7 @@ for name in literal nested array field call pointer_escape; do
         echo "$name returned a view of local storage" >&2
         exit 1
     fi
-    python3 - "$work/$name.err" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-diagnostics = [json.loads(line) for line in Path(sys.argv[1]).read_text().splitlines()]
-assert any('backing storage' in item['message'] or
-           'borrows local or temporary' in item['message'] for item in diagnostics), diagnostics
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- lifetime-backing "$work/$name.err"
 done
 
 "$ziran" check --root "$work" "$work/pointer_local.zi"

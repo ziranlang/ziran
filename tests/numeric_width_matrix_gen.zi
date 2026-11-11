@@ -1,0 +1,98 @@
+// Integer conversion oracle based on unsigned masks and sign extension,
+// independent of the narrowing casts exercised by the generated program.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+using Vectors :: #import "std/vec"
+
+WidthType :: struct { name: string; signed: bool; width: u64 }
+
+WidthMask :: (width: u64) -> u64 { return cast(u64)-1 >> (cast(u64)64 - width) }
+
+WidthWrap :: (bits: u64, signed: bool, width: u64) -> u64 {
+    mask := WidthMask(width)
+    value := bits & mask
+    if signed && (value & (cast(u64)1 << (width - cast(u64)1))) != cast(u64)0 { value |= ~mask }
+    return value
+}
+
+WidthBefore :: (left: u64, right: u64, signed: bool) -> bool {
+    if signed {
+        left_negative := (left >> 63) != cast(u64)0
+        right_negative := (right >> 63) != cast(u64)0
+        if left_negative != right_negative { return left_negative }
+    }
+    return left < right
+}
+
+WidthLiteral :: (bits: u64, signed: bool) -> string {
+    if signed && (bits >> 63) != cast(u64)0 {
+        // Keep the signed minimum representable using signed literals alone.
+        if bits == (cast(u64)1 << 63) {
+            return CheckConcat("(-", CheckConcat(NativeUnsigned(cast(u64)-1 >> 1), " - 1)"))
+        }
+        return CheckConcat("(", CheckConcat(NativeSigned(cast(s64)bits), ")"))
+    }
+    return NativeUnsigned(bits)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { print("pass the generated source path\n"); return 2 }
+    destination := TextFromCString(argv[1])
+    types: Vec(WidthType)
+    widths: [4]u64 = .[8, 16, 32, 64]
+    signs: [2]string = .["s", "u"]
+    for width: widths {
+        for sign: signs { VecPush(types, WidthType.{CheckConcat(sign, NativeUnsigned(width)), sign == "s", width}) }
+    }
+    text: Vec(u8)
+    BuilderAppend(text, "// conformance: numeric.cast.width_pairs.all\n")
+    count: s64 = 0
+    for type_index: cast(s64)0..types.count - 1 {
+        source := types[type_index]
+        BuilderAppend(text, CheckConcat("Check", CheckConcat(CheckNumber(type_index), " :: () -> s32 {\n")))
+        minimum := ifx source.signed then cast(u64)0 - (cast(u64)1 << (source.width - cast(u64)1)) else cast(u64)0
+        maximum := cast(u64)-1 >> (cast(u64)64 - source.width + ifx source.signed then cast(u64)1 else cast(u64)0)
+        inputs: [11]u64 = .[minimum, maximum, cast(u64)-1, 0, 1, 127, 128, 255, 256,
+            cast(u64)0x0102030405060708, cast(u64)0xFEDCBA9876543210]
+        values: Vec(u64)
+        for input: inputs {
+            wrapped := WidthWrap(input, source.signed, source.width)
+            found := false
+            for value: values { if value == wrapped { found = true } }
+            if found { continue }
+            VecPush(values, wrapped)
+            at := values.count - 1
+            while at > 0 && WidthBefore(values[at], values[at - 1], source.signed) {
+                previous := values[at - 1]; values[at - 1] = values[at]; values[at] = previous; at -= 1
+            }
+        }
+        for value_index: cast(s64)0..values.count - 1 {
+            variable := CheckConcat("v", CheckNumber(value_index))
+            pieces: [8]string = .["    ", variable, ": ", source.name, " = cast(", source.name, ")", WidthLiteral(values[value_index], source.signed)]
+            for piece: pieces { BuilderAppend(text, piece) }
+            BuilderAppend(text, "\n")
+            for target: types {
+                count += 1
+                expected := WidthWrap(values[value_index], target.signed, target.width)
+                check: [11]string = .["    if cast(", target.name, ")", variable, " != cast(", target.name, ")",
+                    WidthLiteral(expected, target.signed), " { return ", CheckNumber(count), " }\n"]
+                for piece: check { BuilderAppend(text, piece) }
+            }
+        }
+        BuilderAppend(text, "    return 0\n}\n")
+    }
+    BuilderAppend(text, "#program_export\nAnswer :: () -> s32 {\n")
+    for index: cast(s64)0..types.count - 1 {
+        number := CheckNumber(index)
+        pieces: [8]string = .["    result", number, " := Check", number, "()\n    if result", number, " != 0 { return result", CheckConcat(number, " }\n")]
+        for piece: pieces { BuilderAppend(text, piece) }
+    }
+    BuilderAppend(text, "    return 42\n}\n#program_export\nRun :: () { print(\"%\\n\", Answer()) }\n")
+    if !CreateDirectories(PathParent(destination)) || !WriteEntireFile(destination, BuilderFinish(text)) { return 1 }
+    print("% conversions covering all 64 integer type pairs\n", count)
+    return 0
+}

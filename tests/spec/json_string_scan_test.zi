@@ -1,0 +1,82 @@
+#import "json_bytes"
+Simd :: #import "simd"
+
+Reference :: (text: string, start: s64,ascii: bool=false) -> s64 {
+    at := start
+    if at < 0 { return at }
+    while at < text.count {
+        value := text[at]
+        if value < 32 || value == 34 || value == 92 || (ascii&&value>=127) { break }
+        at += 1
+    }
+    return at
+}
+
+// Every byte value in every lane, every tail length, unaligned starts, empty
+// and exhausted inputs; bytes >= 128 must never become signed controls.
+ScanCases :: (limit: s64, exhaustive: bool) -> bool {
+    bytes: [96]u8
+    choices: [13]u8 = .[0,1,31,32,33,34,35,91,92,93,127,128,255]
+    for size: 0..limit {
+        for i: 0..95 { bytes[i] = 120 }
+        for position: 0..size {
+            count := ifx exhaustive then 256 else choices.count
+            for choice: 0..count - 1 {
+                bytes[position] = ifx exhaustive then cast(u8)choice else choices[choice]
+                text := TextView(bytes[:size])
+                starts: [5]s64 = .[-1,0,position,size,size + 1]
+                for start: starts {
+                    if JsonStringRunEnd(text,start) != Reference(text,start) { return false }
+                    if JsonQuoteRunEnd(text,start,false)!=Reference(text,start)||JsonQuoteRunEnd(text,start,true)!=Reference(text,start,true) { return false }
+                }
+            }
+            bytes[position] = 120
+        }
+    }
+    return true
+}
+
+#program_export
+SelfTest :: () -> s32 {
+    storage: [36]u8
+    initial := "x0123456789abcdef---abcdefghijklmnop"
+    for i: 0..initial.count - 1 { storage[i] = initial[i] }
+    storage[17] = 0; storage[18] = 128; storage[19] = 255
+    text := TextView(storage[:initial.count])
+    first := Simd.Load(u8x16,text,1)
+    if Simd.Lane(first,0) != 48 || Simd.Lane(first,15) != 102 { return 1 }
+    low := Simd.LoadLow(u8x16,text,17)
+    if Simd.Lane(low,0) != 0 || Simd.Lane(low,1) != 128 || Simd.Lane(low,2) != 255 ||
+        Simd.Lane(low,7) != 101 || Simd.Lane(low,8) != 0 || Simd.Lane(low,15) != 0 { return 2 }
+    wide := Simd.Load(u8x32,text[1:],0)
+    if Simd.Lane(wide,16) != 0 || Simd.Lane(wide,17) != 128 || Simd.Lane(wide,31) != 109 { return 3 }
+    if !ScanCases(33,false) { return 4 }
+    return 42
+}
+
+#program_export
+NativeMain :: () -> s32 {
+    if SelfTest() != 42 || !ScanCases(79,true) { return 1 }
+    return 0
+}
+
+#program_export
+InvalidNegative :: () -> s32 {
+    unused Simd.Load(u8x16,"0123456789abcdef",-1)
+    return 0
+}
+#program_export
+InvalidEnd :: () -> s32 {
+    unused Simd.Load(u8x16,"0123456789abcdef",1)
+    return 0
+}
+#program_export
+InvalidLowEnd :: () -> s32 {
+    unused Simd.LoadLow(u8x16,"0123456789abcdef",9)
+    return 0
+}
+#program_export
+InvalidWideEnd :: () -> s32 {
+    unused Simd.Load(u8x32,"0123456789abcdef0123456789abcdef",1)
+    return 0
+}

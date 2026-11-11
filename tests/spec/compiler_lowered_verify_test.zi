@@ -1,0 +1,395 @@
+using Lir :: #import "compiler_lowered_ir"
+using Verifier :: #import "compiler_lowered_verify"
+using Vectors :: #import "std/vec"
+
+Instruction :: (op: Lir.LirOp, result: s32) -> Lir.LirInstruction {
+    return .{op = op, result = result, symbol = -1, origin = -1}
+}
+
+Basic :: (mode: s32) -> Lir.LirDiagnostic {
+    types: [4]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 2}}
+    modules: [1]string = .{"test"}
+    sources: [1]string = .{"fixture.zi"}
+    origins: [2]Lir.LirOrigin = .{.{file = 0, line = 1, column = 1, begin = 0, end = 3, parent = -1},
+        .{file = 0, line = 2, column = 1, begin = 3, end = 4, parent = 0}}
+    constants: [2]Lir.LirConstant = .{.{type = 2, bits = 21}, .{type = 1, bits = 1}}
+    values: [3]s32 = .{2, 2, 2}
+    add: [2]s32 = .{0, 0}
+    ret: [1]s32 = .{1}
+    instructions: [3]Lir.LirInstruction
+    instructions[0] = Instruction(.Constant, 0)
+    instructions[0].symbol = 0
+    instructions[0].origin = 1
+    instructions[1] = Instruction(.Add, 1)
+    instructions[1].operands = add[:]
+    instructions[2] = Instruction(.Return, -1)
+    instructions[2].operands = ret[:]
+    blocks: [2]Lir.LirBlock
+    blocks[0].instructions = instructions[:]
+    functions: [1]Lir.LirFunction
+    functions[0] = .{module = 0, name = "answer", result = 2, values = values[:2],
+        blocks = blocks[:1], entry = 0, origin = 0}
+    globals: [1]Lir.LirGlobal = .{.{module = 0, name = "g", type = 2, constant = 0, writable = true}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], globals = globals[:],
+        origins = origins[:], functions = functions[:], entry = 0}
+    limits := Lir.LirDefaultLimits()
+    if mode == 1 { program.version = 999 }
+    if mode == 2 { limits.work = 0 }
+    if mode == 3 { limits.bytes = 1 }
+    if mode == 4 { program.types[2].bits = 7 }
+    if mode == 5 { program.types[2].native_width = true }
+    if mode == 6 { program.constants[0].bits = 0x100000000 }
+    if mode == 7 { program.constants[1].bits = 2 }
+    if mode == 8 { program.globals[0].constant = 1 }
+    if mode == 9 { program.origins[0].parent = 1 }
+    if mode == 10 { program.origins[0].file = 1 }
+    if mode == 11 { program.origins[1].begin = 5 }
+    if mode == 12 { program.functions[0].origin = 2 }
+    if mode == 13 { program.functions[0].blocks[0].instructions[0].origin = -2 }
+    if mode == 14 { program.functions[0].entry = 1 }
+    if mode == 15 { program.functions[0].blocks[0].instructions = program.functions[0].blocks[0].instructions[:2] }
+    if mode == 16 { program.functions[0].blocks[0].instructions[1] = program.functions[0].blocks[0].instructions[2] }
+    if mode == 17 { program.functions[0].blocks[0].instructions[1].result = 0 }
+    if mode == 18 { program.functions[0].values = values[:] }
+    if mode == 19 { program.functions[0].blocks[0].instructions[1].operands[0] = 1 }
+    if mode == 20 { program.functions[0].blocks[0].instructions[1].operands[0] = 999 }
+    if mode == 21 { program.functions[0].values[1] = 1 }
+    if mode == 22 { program.functions[0].blocks[0].instructions[0].effect = 1 }
+    if mode == 23 { program.functions[0].blocks[0].instructions[1].alignment = 4 }
+    if mode == 24 { program.functions[0].blocks[0].instructions[1].immediate = 1 }
+    if mode == 25 { program.functions[0].blocks[0].instructions[1].symbol = 0 }
+    if mode == 26 { program.functions[0].variadic = true }
+    if mode == 27 { program.functions[0].calling = .Host }
+    if mode == 28 { program.functions[0].external = true }
+    if mode == 29 { program.entry = 1 }
+    if mode == 30 { program.functions[0].blocks[0].instructions[2].result = 0 }
+    if mode == 31 { program.types[3].element = 999 }
+    if mode == 32 { program.types[3].kind = .Capability }
+    if mode == 33 { limits.types = 3 }
+    if mode == 34 { limits.functions = 0 }
+    if mode == 35 { limits.blocks = 0 }
+    if mode == 36 { limits.values = 1 }
+    if mode == 37 { limits.instructions = 2 }
+    if mode == 38 { limits.work = -1 }
+    if mode == 39 { program.functions[0].module = -1 }
+    if mode == 40 { program.constants[0].type = 999 }
+    if mode == 41 { program.globals[0].module = 1 }
+    if mode == 42 { program.functions[0].values[1] = 0 }
+    if mode == 43 { program.functions[0].blocks[0].instructions[0].symbol = 2 }
+    if mode == 44 { program.functions[0].blocks[0].instructions[1].op = .Invalid }
+    if mode == 45 { blocks[1].instructions = instructions[2:]; program.functions[0].blocks = blocks[:] }
+    return Verifier.LirVerify(program, limits)
+}
+
+Graph :: (mode: s32, work: s64 = 16000000) -> Lir.LirDiagnostic {
+    types: [3]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1}, .{kind = .Integer, bits = 64}}
+    modules: [1]string = .{"graph"}
+    values: [8]s32 = .{2, 2, 1, 2, 2, 1, 2, 2}
+    parameters: [3]s32 = .{2, 2, 1}
+    entry_parameters: [3]s32 = .{0, 1, 2}
+    header_parameters: [3]s32 = .{3, 4, 5}
+    exit_parameters: [2]s32 = .{6, 7}
+    initial: [3]s32 = .{0, 1, 2}
+    back: [3]s32 = .{4, 3, 5}
+    out: [2]s32 = .{3, 4}
+    condition: [1]s32 = .{5}
+    ret: [1]s32 = .{6}
+    entry_edges: [1]Lir.LirEdge = .{.{block = 1, arguments = initial[:]}}
+    header_edges: [2]Lir.LirEdge = .{.{block = 1, arguments = back[:]}, .{block = 2, arguments = out[:]}}
+    first: [1]Lir.LirInstruction
+    first[0] = Instruction(.Jump, -1)
+    first[0].edges = entry_edges[:]
+    header: [1]Lir.LirInstruction
+    header[0] = Instruction(.Branch, -1)
+    header[0].operands = condition[:]
+    header[0].edges = header_edges[:]
+    exit: [1]Lir.LirInstruction
+    exit[0] = Instruction(.Return, -1)
+    exit[0].operands = ret[:]
+    blocks: [3]Lir.LirBlock = .{.{parameters = entry_parameters[:], instructions = first[:]},
+        .{parameters = header_parameters[:], instructions = header[:]},
+        .{parameters = exit_parameters[:], instructions = exit[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "loop", parameters = parameters[:], result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], functions = functions[:], entry = -1}
+    if mode == 1 { program.functions[0].blocks[0].instructions[0].edges[0].arguments[0] = 3 }
+    if mode == 2 { program.functions[0].blocks[1].instructions[0].edges[0].arguments[0] = 6 }
+    if mode == 3 { program.functions[0].blocks[0].instructions[0].edges[0].arguments = initial[:2] }
+    if mode == 4 { program.functions[0].blocks[0].instructions[0].edges[0].block = 3 }
+    if mode == 5 { program.functions[0].blocks[1].instructions[0].edges[0].block = 0 }
+    if mode == 6 { program.functions[0].blocks[0].instructions[0].edges[0].arguments[2] = 0 }
+    if mode == 7 { program.functions[0].blocks[1].parameters[1] = 3 }
+    if mode == 8 { program.functions[0].blocks[2].instructions[0].operands[0] = 5 }
+    if mode == 9 { program.functions[0].blocks[1].instructions[0].edges[0].block = 2; program.functions[0].blocks[1].instructions[0].edges[0].arguments = out[:] }
+    if mode == 10 { program.functions[0].parameters[2] = 2 }
+    if mode == 11 { program.entry = 0 }
+    if mode == 12 { program.functions[0].blocks[1].instructions[0].edges = header_edges[:1] }
+    limits := Lir.LirDefaultLimits()
+    limits.work = work
+    return Verifier.LirVerify(program, limits)
+}
+
+Diamond :: (mode: s32) -> Lir.LirDiagnostic {
+    types: [3]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1}, .{kind = .Integer, bits = 32}}
+    modules: [1]string = .{"diamond"}
+    parameters: [2]s32 = .{1, 2}
+    values: [5]s32 = .{1, 2, 2, 2, 2}
+    entry_parameters: [2]s32 = .{0, 1}
+    joined: [1]s32 = .{4}
+    condition: [1]s32 = .{0}
+    unary: [1]s32 = .{1}
+    left_arg: [1]s32 = .{2}
+    right_arg: [1]s32 = .{3}
+    ret: [1]s32 = .{4}
+    branches: [2]Lir.LirEdge = .{.{block = 1}, .{block = 2}}
+    left_edge: [1]Lir.LirEdge = .{.{block = 3, arguments = left_arg[:]}}
+    right_edge: [1]Lir.LirEdge = .{.{block = 3, arguments = right_arg[:]}}
+    first: [1]Lir.LirInstruction
+    first[0] = Instruction(.Branch, -1); first[0].operands = condition[:]; first[0].edges = branches[:]
+    left: [2]Lir.LirInstruction
+    left[0] = Instruction(.Negate, 2); left[0].operands = unary[:]
+    left[1] = Instruction(.Jump, -1); left[1].edges = left_edge[:]
+    right: [2]Lir.LirInstruction
+    right[0] = Instruction(.BitNot, 3); right[0].operands = unary[:]
+    right[1] = Instruction(.Jump, -1); right[1].edges = right_edge[:]
+    last: [1]Lir.LirInstruction
+    last[0] = Instruction(.Return, -1); last[0].operands = ret[:]
+    blocks: [4]Lir.LirBlock = .{.{parameters = entry_parameters[:], instructions = first[:]},
+        .{instructions = left[:]}, .{instructions = right[:]}, .{parameters = joined[:], instructions = last[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "diamond", parameters = parameters[:], result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], functions = functions[:], entry = -1}
+    if mode == 1 { program.functions[0].blocks[3].instructions[0].operands[0] = 2 }
+    if mode == 2 { program.functions[0].blocks[2].instructions[1].edges[0].arguments[0] = 2 }
+    if mode == 3 { program.functions[0].blocks[0].instructions[0].edges[1].block = 1 }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits())
+}
+
+TypeGraph :: (mode: s32) -> Lir.LirDiagnostic {
+    links: [3]s32 = .{1, 2, 0}
+    types: [4]Lir.LirType = .{.{kind = .Record, fields = links[:1]},
+        .{kind = .Array, element = 2, count = 2}, .{kind = .Pointer, element = 0}, .{kind = .Void}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, types = types[:], entry = -1}
+    if mode == 1 { program.types[2].kind = .Record; program.types[2].fields = links[2:] }
+    if mode == 2 { program.types[1].element = 0 }
+    if mode == 3 { program.types[1].count = -1 }
+    if mode == 4 { program.types[0].fields[0] = 3 }
+    if mode == 5 { program.types[1].count = 9223372036854775807 }
+    if mode == 6 { program.types[2].kind = .Vector }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits())
+}
+
+Typed :: (mode: s32) -> Lir.LirDiagnostic {
+    fields: [2]s32 = .{2, 2}
+    signature: [1]s32 = .{2}
+    types: [9]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1}, .{kind = .Integer, bits = 32},
+        .{kind = .Float, bits = 32}, .{kind = .Pointer, element = 2}, .{kind = .Record, fields = fields[:]},
+        .{kind = .Function, parameters = signature[:], result = 2}, .{kind = .Pointer, element = 5},
+        .{kind = .Integer, bits = 64}}
+    modules: [1]string = .{"typed"}
+    values: [17]s32 = .{2, 4, 5, 7, 6, 2, 2, 5, 2, 4, 3, 2, 5, 4, 4, 3, 2}
+    parameters: [4]s32 = .{2, 4, 5, 7}
+    entry_parameters: [4]s32 = .{0, 1, 2, 3}
+    indirect: [2]s32 = .{4, 0}
+    pointer: [1]s32 = .{1}
+    record: [1]s32 = .{2}
+    pair: [2]s32 = .{0, 0}
+    field_pointer: [1]s32 = .{3}
+    unary: [1]s32 = .{0}
+    store: [2]s32 = .{1, 0}
+    insert: [2]s32 = .{2, 0}
+    convert: [1]s32 = .{15}
+    ret: [1]s32 = .{11}
+    instructions: [16]Lir.LirInstruction
+    instructions[0] = Instruction(.FunctionAddress, 4); instructions[0].symbol = 1
+    instructions[1] = Instruction(.CallIndirect, 5); instructions[1].operands = indirect[:]; instructions[1].effect = 1
+    instructions[2] = Instruction(.Load, 6); instructions[2].operands = pointer[:]; instructions[2].effect = 2
+    instructions[3] = Instruction(.Aggregate, 7); instructions[3].operands = pair[:]
+    instructions[4] = Instruction(.Extract, 8); instructions[4].operands = record[:]; instructions[4].immediate = 1
+    instructions[5] = Instruction(.FieldAddress, 9); instructions[5].operands = field_pointer[:]
+    instructions[6] = Instruction(.Bitcast, 10); instructions[6].operands = unary[:]
+    instructions[7] = Instruction(.Store, -1); instructions[7].operands = store[:]; instructions[7].effect = 3
+    instructions[8] = Instruction(.Call, 11); instructions[8].operands = unary[:]; instructions[8].symbol = 1; instructions[8].effect = 4
+    instructions[9] = Instruction(.Fuel, -1); instructions[9].immediate = 1; instructions[9].effect = 5
+    instructions[10] = Instruction(.Insert, 12); instructions[10].operands = insert[:]
+    instructions[11] = Instruction(.Null, 13)
+    instructions[12] = Instruction(.GlobalAddress, 14); instructions[12].symbol = 0
+    instructions[13] = Instruction(.Convert, 15); instructions[13].operands = unary[:]
+    instructions[14] = Instruction(.Convert, 16); instructions[14].operands = convert[:]
+    instructions[15] = Instruction(.Return, -1); instructions[15].operands = ret[:]
+    blocks: [1]Lir.LirBlock = .{.{parameters = entry_parameters[:], instructions = instructions[:]}}
+    target_parameters: [1]s32 = .{0}
+    target_values: [1]s32 = .{2}
+    target_ret: [1]s32 = .{0}
+    target_instructions: [1]Lir.LirInstruction
+    target_instructions[0] = Instruction(.Return, -1); target_instructions[0].operands = target_ret[:]
+    target_blocks: [1]Lir.LirBlock = .{.{parameters = target_parameters[:], instructions = target_instructions[:]}}
+    functions: [2]Lir.LirFunction = .{.{module = 0, name = "typed", parameters = parameters[:], result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "identity", parameters = signature[:], result = 2,
+        values = target_values[:], blocks = target_blocks[:], entry = 0, origin = -1}}
+    globals: [1]Lir.LirGlobal = .{.{module = 0, name = "slot", type = 2, constant = -1, writable = true}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], functions = functions[:], globals = globals[:], entry = -1}
+    if mode == 1 { program.functions[0].blocks[0].instructions[2].effect = 1 }
+    if mode == 2 { program.functions[0].blocks[0].instructions[2].alignment = 3 }
+    if mode == 3 { program.types[6].result = 0 }
+    if mode == 4 { program.functions[0].blocks[0].instructions[1].operands[1] = 1 }
+    if mode == 5 { program.functions[0].blocks[0].instructions[4].immediate = 2 }
+    if mode == 6 { program.functions[0].values[10] = 8 }
+    if mode == 7 { program.functions[0].blocks[0].instructions[7].operands[1] = 2 }
+    if mode == 8 { program.functions[0].blocks[0].instructions[9].effect = 0 }
+    if mode == 9 { program.functions[0].blocks[0].instructions[9].immediate = 0 }
+    if mode == 10 { program.functions[0].blocks[0].instructions[8].symbol = 9 }
+    if mode == 11 { program.functions[0].blocks[0].instructions[2].op = .Allocate; program.functions[0].blocks[0].instructions[2].operands = pointer[:0] }
+    if mode == 12 { program.functions[0].blocks[0].instructions[8].op = .HostCall }
+    if mode == 13 { program.functions[0].blocks[0].instructions[5].op = .ElementAddress }
+    if mode == 14 { program.functions[0].blocks[0].instructions[7].op = .Copy }
+    if mode == 15 { program.functions[0].blocks[0].instructions[7].op = .Zero }
+    if mode == 16 { program.globals[0].writable = false }
+    if mode == 17 { program.functions[0].values[13] = 2 }
+    if mode == 18 { program.functions[0].blocks[0].instructions[10].immediate = 99 }
+    if mode == 19 { program.functions[0].blocks[0].instructions[12].symbol = 1 }
+    if mode == 20 { program.functions[0].blocks[0].instructions[15] = Instruction(.Trap, -1); program.functions[0].blocks[0].instructions[15].effect = 6 }
+    if mode == 21 { program.functions[0].blocks[0].instructions[15] = Instruction(.Unreachable, -1) }
+    if mode == 22 { program.functions[0].values[13] = 6 }
+    if mode == 23 { program.functions[0].values[13] = 6; program.functions[0].blocks[0].instructions[11].operands = unary[:] }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits())
+}
+
+VoidCall :: (mode: s32) -> Lir.LirProblem {
+    types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 8}}
+    modules: [1]string = .{"void"}
+    instructions: [2]Lir.LirInstruction
+    instructions[0] = Instruction(.Call, -1); instructions[0].symbol = 0; instructions[0].effect = 1
+    instructions[1] = Instruction(.Return, -1)
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "void", result = 0, blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], functions = functions[:], entry = 0}
+    if mode == 1 { program.functions[0].blocks[0].instructions[0].result = 0 }
+    if mode == 2 { program.functions[0].result = 1 }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits()).problem
+}
+
+Expect :: (diagnostic: Lir.LirDiagnostic, expected: Lir.LirProblem, group: s32, mode: s32) -> bool {
+    if diagnostic.problem == expected { return true }
+    print("verifier fixture %:% got % expected % at %/%/% value %\n", group, mode,
+        cast(s32)diagnostic.problem, cast(s32)expected, diagnostic.function, diagnostic.block,
+        diagnostic.instruction, diagnostic.value)
+    return false
+}
+
+Depth :: (mode: s32) -> Lir.LirProblem {
+    types: Vec(Lir.LirType)
+    origins: Vec(Lir.LirOrigin)
+    count: s64 = 2048
+    if !VecResizeBounded(types, count, count) || !VecResizeBounded(origins, count, count) { return .Allocation }
+    for index: cast(s64)0..count - 2 {
+        types[index] = .{kind = .Array, element = cast(s32)(index + 1), count = 1}
+        origins[index] = .{file = 0, line = 1, column = 1, parent = cast(s32)(index + 1)}
+    }
+    types[count - 1] = .{kind = .Integer, bits = 8}
+    origins[count - 1] = .{file = 0, line = 1, column = 1, parent = -1}
+    if mode == 1 { types[count - 1] = .{kind = .Array, element = 0, count = 1} }
+    if mode == 2 { origins[count - 1].parent = 0 }
+    source: [1]string = .{"deep.zi"}
+    program := Lir.LirProgram.{version = Lir.LirVersion, sources = source[:], types = types[:], origins = origins[:], entry = -1}
+    limits := Lir.LirDefaultLimits()
+    if mode == 3 { limits.work = 12000 }
+    return Verifier.LirVerify(program, limits).problem
+}
+
+Operations :: () -> bool {
+    types: [4]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 64}, .{kind = .Float, bits = 64}}
+    modules: [1]string = .{"ops"}
+    parameters: [2]s32 = .{2, 2}
+    values: [3]s32 = .{2, 2, 2}
+    incoming: [2]s32 = .{0, 1}
+    operands: [2]s32 = .{0, 1}
+    ret: [1]s32 = .{2}
+    instructions: [2]Lir.LirInstruction
+    instructions[0] = Instruction(.Add, 2); instructions[0].operands = operands[:]
+    instructions[1] = Instruction(.Return, -1); instructions[1].operands = ret[:]
+    blocks: [1]Lir.LirBlock = .{.{parameters = incoming[:], instructions = instructions[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "op", parameters = parameters[:], result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], functions = functions[:], entry = -1}
+    binary: [16]Lir.LirOp = .{.Add, .Subtract, .Multiply, .Divide, .Remainder,
+        .BitAnd, .BitOr, .BitXor, .ShiftLeft, .ShiftRight, .Equal, .NotEqual, .Less, .LessEqual, .Greater, .GreaterEqual}
+    for type: cast(s32)2..3 {
+        program.functions[0].parameters[0] = type; program.functions[0].parameters[1] = type
+        program.functions[0].values[0] = type; program.functions[0].values[1] = type
+        for at: cast(s32)0..15 {
+            program.functions[0].blocks[0].instructions[0].op = binary[at]
+            result := ifx at >= 10 then 1 else type
+            program.functions[0].values[2] = result; program.functions[0].result = result
+            expected: Lir.LirProblem = .None
+            if type == 3 && at >= 4 && at <= 9 { expected = .Unsupported }
+            if !Expect(Verifier.LirVerify(program, Lir.LirDefaultLimits()), expected, 5, type * 100 + at) { return false }
+        }
+    }
+    return true
+}
+
+Budgets :: () -> bool {
+    completed: s64 = 0
+    for work: cast(s64)0..512 {
+        diagnostic := Graph(0, work)
+        if diagnostic.problem == .None { completed += 1 }
+        else if !Expect(diagnostic, .Limit, 6, cast(s32)work) { return false }
+    }
+    return completed > 0 && completed < 512
+}
+
+#program_export
+Answer :: () -> s32 {
+    basic: [46]Lir.LirProblem = .{.None, .Version, .Limit, .Limit, .Type, .Unsupported,
+        .Constant, .Constant, .Global, .Origin, .Origin, .Origin, .Function, .Origin,
+        .Block, .Terminator, .Terminator, .Definition, .Definition, .Dominance, .Operand,
+        .Operand, .Effect, .Alignment, .Instruction, .Instruction, .Unsupported, .Unsupported,
+        .Unsupported, .Function, .Result, .Type, .Unsupported, .Limit, .Limit, .Limit, .Limit,
+        .Limit, .Limit, .Function, .Constant, .Global, .Result, .Constant, .Instruction, .Block}
+    for mode: cast(s32)0..45 { if !Expect(Basic(mode), basic[mode], 0, mode) { return 0 } }
+    graph: [13]Lir.LirProblem = .{.None, .Dominance, .Dominance, .Edge, .Edge, .Edge,
+        .Edge, .Definition, .Operand, .None, .Calling, .Calling, .Edge}
+    for mode: cast(s32)0..12 { if !Expect(Graph(mode), graph[mode], 1, mode) { return 1 } }
+    diamond: [4]Lir.LirProblem = .{.None, .Dominance, .Dominance, .Block}
+    for mode: cast(s32)0..3 { if !Expect(Diamond(mode), diamond[mode], 2, mode) { return 2 } }
+    types: [7]Lir.LirProblem = .{.None, .Type, .Type, .Type, .Type, .Limit, .Unsupported}
+    for mode: cast(s32)0..6 { if !Expect(TypeGraph(mode), types[mode], 3, mode) { return 3 } }
+    typed: [24]Lir.LirProblem = .{.None, .Effect, .Alignment, .Calling, .Calling,
+        .Operand, .Operand, .Operand, .Effect, .Instruction, .Calling, .Unsupported,
+        .Unsupported, .Unsupported, .Unsupported, .Unsupported, .Unsupported, .Instruction,
+        .Operand, .Global, .None, .None, .None, .Instruction}
+    for mode: cast(s32)0..23 { if !Expect(Typed(mode), typed[mode], 4, mode) { return 4 } }
+    diagnostic := Basic(19)
+    if diagnostic.function != 0 || diagnostic.block != 0 || diagnostic.instruction != 1 || diagnostic.value != 1 { return 5 }
+    if Basic(0).problem != .None { return 6 }
+    deep: [4]Lir.LirProblem = .{.None, .Type, .Origin, .Limit}
+    for mode: cast(s32)0..3 {
+        if Depth(mode) != deep[mode] { print("depth % got %\n", mode, cast(s32)Depth(mode)); return 7 }
+    }
+    if !Operations() { return 8 }
+    if !Budgets() { return 9 }
+    if VoidCall(0) != .None || VoidCall(1) != .Result || VoidCall(2) != .Result { return 10 }
+    return 42
+}
+
+#program_export
+Fingerprint :: () -> s64 {
+    result: u32 = 2166136261
+    for mode: cast(s32)0..45 {
+        diagnostic := Basic(mode)
+        result = result * 16777619 ^ cast(u32)diagnostic.problem
+        result = result * 16777619 ^ cast(u32)diagnostic.function
+        result = result * 16777619 ^ cast(u32)diagnostic.block
+        result = result * 16777619 ^ cast(u32)diagnostic.instruction
+        result = result * 16777619 ^ cast(u32)diagnostic.value
+        result = result * 16777619 ^ cast(u32)diagnostic.origin
+    }
+    return cast(s64)result
+}
+
+Run :: () { print("% %\n", Answer(), Fingerprint()) }

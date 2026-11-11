@@ -1,0 +1,171 @@
+LirVersion :: 1
+LirNoId :: -1
+
+LirTypeKind :: enum s32 {
+    Invalid; Void; Bool; Integer; Float; Pointer; Array; Record; Vector; Function; Capability
+}
+
+LirType :: struct {
+    kind: LirTypeKind
+    bits: s32
+    is_signed: bool
+    native_width: bool
+    element: s32
+    count: s64
+    fields: []s32
+    parameters: []s32
+    result: s32
+}
+
+LirCalling :: enum s32 { Portable; C; System; Host }
+
+LirOp :: enum s32 {
+    Invalid
+    Constant; Null; GlobalAddress; FunctionAddress
+    Add; Subtract; Multiply; Divide; Remainder; Negate
+    BitAnd; BitOr; BitXor; BitNot; ShiftLeft; ShiftRight
+    Equal; NotEqual; Less; LessEqual; Greater; GreaterEqual
+    Convert; Bitcast
+    Aggregate; Extract; Insert
+    Allocate; Load; Store; Copy; Zero; FieldAddress; ElementAddress
+    Call; CallIndirect; HostCall
+    Fuel; Trap
+    Jump; Branch; Return; Unreachable
+}
+
+LirEdge :: struct { block: s32; arguments: []s32 }
+
+LirInstruction :: struct {
+    op: LirOp
+    result: s32
+    operands: []s32
+    edges: []LirEdge
+    immediate: u64
+    symbol: s32
+    alignment: u32
+    effect: s32
+    origin: s32
+}
+
+LirBlock :: struct { parameters: []s32; instructions: []LirInstruction }
+
+LirFunction :: struct {
+    module: s32
+    name: string
+    parameters: []s32
+    result: s32
+    calling: LirCalling
+    external: bool
+    variadic: bool
+    values: []s32
+    blocks: []LirBlock
+    entry: s32
+    origin: s32
+}
+
+LirConstant :: struct { type: s32; bits: u64; bytes: []u8 }
+LirGlobal :: struct { module: s32; name: string; type: s32; constant: s32; writable: bool }
+LirOrigin :: struct { file: s32; line: s32; column: s32; begin: s64; end: s64; parent: s32 }
+
+LirProgram :: struct {
+    version: s32
+    modules: []string
+    sources: []string
+    types: []LirType
+    constants: []LirConstant
+    globals: []LirGlobal
+    functions: []LirFunction
+    origins: []LirOrigin
+    entry: s32
+}
+
+LirProblem :: enum s32 {
+    None; Version; Limit; Allocation; Type; Constant; Global; Function; Origin
+    Block; Terminator; Instruction; Operand; Result; Definition; Dominance
+    Edge; Effect; Alignment; Calling; Unsupported
+}
+
+LirDiagnostic :: struct {
+    problem: LirProblem
+    function: s32
+    block: s32
+    instruction: s32
+    value: s32
+    origin: s32
+}
+
+LirLimits :: struct {
+    work: s64
+    types: s64
+    functions: s64
+    blocks: s64
+    values: s64
+    instructions: s64
+    bytes: s64
+}
+
+LirDefaultLimits :: () -> LirLimits {
+    return .{.work = 16000000, .types = 65536, .functions = 65536,
+        .blocks = 262144, .values = 1048576, .instructions = 1048576, .bytes = 268435456}
+}
+
+LirTerminator :: (op: LirOp) -> bool {
+    return op == .Jump || op == .Branch || op == .Return || op == .Unreachable || op == .Trap
+}
+
+LirEffectful :: (op: LirOp) -> bool {
+    return op == .Allocate || op == .Load || op == .Store || op == .Copy || op == .Zero ||
+        op == .Call || op == .CallIndirect || op == .HostCall || op == .Fuel || op == .Trap
+}
+
+LirProducesValue :: (op: LirOp) -> bool {
+    return cast(s32)op >= cast(s32)LirOp.Constant && cast(s32)op <= cast(s32)LirOp.Load || op == .FieldAddress || op == .ElementAddress ||
+        op == .Call || op == .CallIndirect || op == .HostCall
+}
+
+LirOpName :: (op: LirOp) -> string {
+    if op == .Constant { return "constant" }
+    if op == .Null { return "null" }
+    if op == .GlobalAddress { return "global.address" }
+    if op == .FunctionAddress { return "function.address" }
+    if op == .Add { return "add" }
+    if op == .Subtract { return "subtract" }
+    if op == .Multiply { return "multiply" }
+    if op == .Divide { return "divide" }
+    if op == .Remainder { return "remainder" }
+    if op == .Negate { return "negate" }
+    if op == .BitAnd { return "bit.and" }
+    if op == .BitOr { return "bit.or" }
+    if op == .BitXor { return "bit.xor" }
+    if op == .BitNot { return "bit.not" }
+    if op == .ShiftLeft { return "shift.left" }
+    if op == .ShiftRight { return "shift.right" }
+    if op == .Equal { return "equal" }
+    if op == .NotEqual { return "not.equal" }
+    if op == .Less { return "less" }
+    if op == .LessEqual { return "less.equal" }
+    if op == .Greater { return "greater" }
+    if op == .GreaterEqual { return "greater.equal" }
+    if op == .Convert { return "convert" }
+    if op == .Bitcast { return "bitcast" }
+    if op == .Aggregate { return "aggregate" }
+    if op == .Extract { return "extract" }
+    if op == .Insert { return "insert" }
+    if op == .Allocate { return "allocate" }
+    if op == .Load { return "load" }
+    if op == .Store { return "store" }
+    if op == .Copy { return "copy" }
+    if op == .Zero { return "zero" }
+    if op == .FieldAddress { return "field.address" }
+    if op == .ElementAddress { return "element.address" }
+    if op == .Call { return "call" }
+    if op == .CallIndirect { return "call.indirect" }
+    if op == .HostCall { return "host.call" }
+    if op == .Fuel { return "fuel" }
+    if op == .Trap { return "trap" }
+    if op == .Jump { return "jump" }
+    if op == .Branch { return "branch" }
+    if op == .Return { return "return" }
+    if op == .Unreachable { return "unreachable" }
+    return "invalid"
+}

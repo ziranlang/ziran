@@ -1,0 +1,692 @@
+using IR :: #import "compiler_lowered_ir"
+using Exec :: #import "compiler_exec"
+using Test :: #import "native_test"
+using Check :: #import "check_support"
+using Vectors :: #import "std/vec"
+
+#scope_file
+
+Instruction :: (op: LirOp, result: s32, operands: []s32, symbol: s32 = -1) -> LirInstruction {
+    return .{.op = op, .result = result, .operands = operands, .symbol = symbol, .origin = -1}
+}
+
+Types :: (types: []LirType, fields: []s32, parameters: []s32) {
+    types[0] = .{.kind = .Void}
+    types[1] = .{.kind = .Bool, .bits = 1}
+    types[2] = .{.kind = .Integer, .bits = 8, .is_signed = true}
+    types[3] = .{.kind = .Integer, .bits = 8}
+    types[4] = .{.kind = .Integer, .bits = 32, .is_signed = true}
+    types[5] = .{.kind = .Integer, .bits = 32}
+    types[6] = .{.kind = .Integer, .bits = 64, .is_signed = true}
+    types[7] = .{.kind = .Integer, .bits = 64}
+    types[8] = .{.kind = .Float, .bits = 32}
+    types[9] = .{.kind = .Float, .bits = 64}
+    types[10] = .{.kind = .Record, .fields = fields}
+    types[11] = .{.kind = .Array, .element = 4, .count = 3}
+    types[12] = .{.kind = .Pointer, .element = 10}
+    types[13] = .{.kind = .Pointer, .element = 4}
+    types[14] = .{.kind = .Function, .parameters = parameters, .result = 4}
+}
+
+Execute :: (program: LirProgram, limits: LirExecLimits = LirExecDefaultLimits(),
+    identity: u32 = 1) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, limits, identity, *instance)
+    if opened.problem != .None { return opened }
+    return LirExecRun(*instance)
+}
+
+Scalar :: (type_id: s32, op: LirOp, left: u64, right: u64,
+    result_type: s32 = -1) -> LirExecResult {
+    fields: [2]s32 = .[4, 4]
+    parameter: [1]s32 = .[4]
+    types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    result := ifx result_type < 0 then type_id else result_type
+    constants: [2]LirConstant = .[.{.type = type_id, .bits = left}, .{.type = type_id, .bits = right}]
+    empty: [0]s32
+    pair: [2]s32 = .[0, 1]
+    returned: [1]s32 = .[2]
+    values: [3]s32 = .[type_id, type_id, result]
+    unary := op == .Negate || op == .BitNot || op == .Convert || op == .Bitcast
+    instructions: [4]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(op, 2, pair[:ifx unary then 1 else 2]), Instruction(.Return, -1, returned[:])]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["scalar"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "scalar", .result = result,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    return Execute(program)
+}
+
+ScalarCases :: () -> bool {
+    if Scalar(2, .Add, 255, 43).value.bits != 42 { return false }
+    if Scalar(2, .Subtract, 0, 1).value.bits != 255 { return false }
+    if Scalar(3, .Multiply, 255, 2).value.bits != 254 { return false }
+    if Scalar(2, .Negate, 1, 0).value.bits != 255 { return false }
+    if Scalar(3, .BitNot, 0, 0).value.bits != 255 { return false }
+    if Scalar(3, .BitAnd, 126, 42).value.bits != 42 ||
+        Scalar(3, .BitOr, 32, 10).value.bits != 42 ||
+        Scalar(3, .BitXor, 63, 21).value.bits != 42 { return false }
+    if Scalar(2, .ShiftRight, 255, 1).value.bits != 255 ||
+        Scalar(3, .ShiftLeft, 21, 1).value.bits != 42 { return false }
+    if Scalar(2, .ShiftLeft, 1, 8).problem != .InvalidShift ||
+        Scalar(2, .ShiftRight, 1, 255).problem != .InvalidShift { return false }
+    if Scalar(2, .Divide, 128, 255).value.bits != 128 ||
+        Scalar(2, .Remainder, 128, 255).value.bits != 0 { return false }
+    if Scalar(2, .Divide, 42, 0).problem != .DivideByZero ||
+        Scalar(2, .Remainder, 42, 0).problem != .DivideByZero { return false }
+    if Scalar(2, .Less, 255, 0, 1).value.bits != 1 ||
+        Scalar(3, .Greater, 255, 0, 1).value.bits != 1 ||
+        Scalar(3, .Equal, 42, 42, 1).value.bits != 1 ||
+        Scalar(3, .LessEqual, 42, 42, 1).value.bits != 1 ||
+        Scalar(3, .GreaterEqual, 42, 42, 1).value.bits != 1 { return false }
+    if Scalar(2, .Convert, 255, 0, 4).value.bits != 0xffffffff ||
+        Scalar(2, .Bitcast, 255, 0, 3).value.bits != 255 ||
+        Scalar(4, .Convert, 2, 0, 1).value.bits != 1 ||
+        Scalar(1, .Convert, 1, 0, 4).value.bits != 1 { return false }
+    if Scalar(8, .Add, 0x3fc00000, 0x40100000).value.bits != 0x40700000 ||
+        Scalar(8, .Negate, 0x3fc00000, 0).value.bits != 0xbfc00000 ||
+        Scalar(8, .Add, 0x3f800000, 0x33800000).value.bits != 0x3f800000 ||
+        Scalar(8, .Add, 0x3f800000, 0x33800001).value.bits != 0x3f800001 ||
+        Scalar(9, .Negate, 0, 0).value.bits != 0x8000000000000000 ||
+        Scalar(9, .Negate, 0x7ff0000000000042, 0).value.bits != 0xfff0000000000042 ||
+        Scalar(9, .Subtract, 0x4045000000000000, 0x3ff0000000000000).value.bits != 0x4044800000000000 ||
+        Scalar(9, .Multiply, 0x3ff8000000000000, 0x4000000000000000).value.bits != 0x4008000000000000 {
+        return false
+    }
+    if Scalar(9, .Divide, 0x3ff0000000000000, 0).value.bits != 0x7ff0000000000000 { return false }
+    if Scalar(9, .Equal, 0x7ff8000000000000, 0x7ff8000000000000, 1).value.bits != 0 ||
+        Scalar(9, .NotEqual, 0x7ff8000000000000, 0, 1).value.bits != 1 { return false }
+    if Scalar(9, .Convert, 0x4045600000000000, 0, 4).value.bits != 42 ||
+        Scalar(9, .Convert, 0x7ff0000000000000, 0, 4).problem != .InvalidConversion ||
+        Scalar(8, .Convert, 0x3fc00000, 0, 9).value.bits != 0x3ff8000000000000 { return false }
+    return true
+}
+
+Flow :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [5]LirConstant = .[.{.type = 4, .bits = 1}, .{.type = 4, .bits = 2},
+        .{.type = 4, .bits = 0}, .{.type = 4, .bits = 1}, .{.type = 4, .bits = 2}]
+    empty: [0]s32
+    parameters: [3]s32 = .[3, 4, 5]
+    initial: [3]s32 = .[0, 1, 2]
+    swap: [3]s32 = .[4, 3, 7]
+    add: [2]s32 = .[5, 6]
+    less: [2]s32 = .[7, 8]
+    condition: [1]s32 = .[9]
+    final_parameter: [1]s32 = .[10]
+    final_argument: [1]s32 = .[3]
+    returned: [1]s32 = .[10]
+    first_edge: [1]LirEdge = .[.{.block = 1, .arguments = initial[:]}]
+    edges: [2]LirEdge = .[.{.block = 1, .arguments = swap[:]}, .{.block = 2, .arguments = final_argument[:]}]
+    first: [4]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0),
+        Instruction(.Constant, 1, empty[:], 1), Instruction(.Constant, 2, empty[:], 2),
+        .{.op = .Jump, .result = -1, .symbol = -1, .origin = -1, .edges = first_edge[:]}]
+    loop: [5]LirInstruction = .[Instruction(.Constant, 6, empty[:], 3), Instruction(.Add, 7, add[:]),
+        Instruction(.Constant, 8, empty[:], 4), Instruction(.Less, 9, less[:]),
+        .{.op = .Branch, .result = -1, .symbol = -1, .origin = -1,
+            .operands = condition[:], .edges = edges[:]}]
+    last: [1]LirInstruction = .[Instruction(.Return, -1, returned[:])]
+    values: [11]s32 = .[4, 4, 4, 4, 4, 4, 4, 4, 4, 1, 4]
+    blocks: [3]LirBlock = .[.{.instructions = first[:]}, .{.parameters = parameters[:], .instructions = loop[:]},
+        .{.parameters = final_parameter[:], .instructions = last[:]}]
+    modules: [1]string = .["flow"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "flow", .result = 4,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 2
+}
+
+AggregatesAndMemory :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [3]LirConstant = .[.{.type = 4, .bits = 10}, .{.type = 4, .bits = 20}, .{.type = 4, .bits = 99}]
+    empty: [0]s32; pair: [2]s32 = .[0, 1]; store_record: [2]s32 = .[3, 2]
+    record_pointer: [1]s32 = .[3]; store_field: [2]s32 = .[4, 5]; load_pointer: [1]s32 = .[3]
+    record_value: [1]s32 = .[6]; add: [2]s32 = .[7, 8]; returned: [1]s32 = .[9]
+    values: [10]s32 = .[4, 4, 10, 12, 13, 4, 10, 4, 4, 4]
+    instructions: [12]LirInstruction
+    instructions[0] = Instruction(.Constant, 0, empty[:], 0)
+    instructions[1] = Instruction(.Constant, 1, empty[:], 1)
+    instructions[2] = Instruction(.Aggregate, 2, pair[:])
+    instructions[3] = Instruction(.GlobalAddress, 3, empty[:], 0)
+    instructions[4] = Instruction(.Store, -1, store_record[:]); instructions[4].effect = 1
+    instructions[5] = Instruction(.FieldAddress, 4, record_pointer[:]); instructions[5].immediate = 1
+    instructions[6] = Instruction(.Constant, 5, empty[:], 2)
+    instructions[7] = Instruction(.Store, -1, store_field[:]); instructions[7].effect = 2
+    instructions[8] = Instruction(.Load, 6, load_pointer[:]); instructions[8].effect = 3
+    instructions[9] = Instruction(.Extract, 7, record_value[:])
+    instructions[10] = Instruction(.Extract, 8, record_value[:]); instructions[10].immediate = 1
+    instructions[11] = Instruction(.Add, 9, add[:])
+    tail: [1]LirInstruction = .[Instruction(.Return, -1, returned[:])]
+    blocks: [2]LirBlock = .[.{.instructions = instructions[:]}, .{.instructions = tail[:]}]
+    all: [13]LirInstruction
+    for index: 0..11 { all[index] = instructions[index] }
+    all[12] = tail[0]
+    one: [1]LirBlock = .[.{.instructions = all[:]}]
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "record", .type = 10, .constant = -1, .writable = true}]
+    modules: [1]string = .["aggregate"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "aggregate", .result = 4,
+        .values = values[:], .blocks = one[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 109
+}
+
+ArraysAndInsert :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [4]LirConstant = .[.{.type = 4, .bits = 20}, .{.type = 4, .bits = 20},
+        .{.type = 4, .bits = 1}, .{.type = 4, .bits = 21}]
+    empty: [0]s32
+    members: [3]s32 = .[0, 1, 2]
+    inserted: [2]s32 = .[3, 4]
+    array: [1]s32 = .[5]
+    add_first: [2]s32 = .[6, 7]
+    add_last: [2]s32 = .[8, 9]
+    returned: [1]s32 = .[10]
+    values: [11]s32 = .[4, 4, 4, 11, 4, 11, 4, 4, 4, 4, 4]
+    instructions: [12]LirInstruction
+    instructions[0] = Instruction(.Constant, 0, empty[:], 0)
+    instructions[1] = Instruction(.Constant, 1, empty[:], 1)
+    instructions[2] = Instruction(.Constant, 2, empty[:], 2)
+    instructions[3] = Instruction(.Aggregate, 3, members[:])
+    instructions[4] = Instruction(.Constant, 4, empty[:], 3)
+    instructions[5] = Instruction(.Insert, 5, inserted[:]); instructions[5].immediate = 1
+    instructions[6] = Instruction(.Extract, 6, array[:])
+    instructions[7] = Instruction(.Extract, 7, array[:]); instructions[7].immediate = 1
+    instructions[8] = Instruction(.Add, 8, add_first[:])
+    instructions[9] = Instruction(.Extract, 9, array[:]); instructions[9].immediate = 2
+    instructions[10] = Instruction(.Add, 10, add_last[:])
+    instructions[11] = Instruction(.Return, -1, returned[:])
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["array"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "array", .result = 4,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 42
+}
+
+MixedShift :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [2]LirConstant = .[.{.type = 3, .bits = 168}, .{.type = 7, .bits = 2}]
+    empty: [0]s32; operands: [2]s32 = .[0, 1]; returned: [1]s32 = .[2]
+    values: [3]s32 = .[3, 7, 3]
+    instructions: [4]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0),
+        Instruction(.Constant, 1, empty[:], 1), Instruction(.ShiftRight, 2, operands[:]),
+        Instruction(.Return, -1, returned[:])]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["shift"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "shift", .result = 3,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 42
+}
+
+Calls :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [2]LirConstant = .[.{.type = 4, .bits = 40}, .{.type = 4, .bits = 1}]
+    empty: [0]s32
+    direct_arguments: [1]s32 = .[0]
+    indirect_arguments: [2]s32 = .[2, 1]
+    returned: [1]s32 = .[3]
+    entry_values: [4]s32 = .[4, 4, 14, 4]
+    entry_instructions: [5]LirInstruction
+    entry_instructions[0] = Instruction(.Constant, 0, empty[:], 0)
+    entry_instructions[1] = Instruction(.Call, 1, direct_arguments[:], 1); entry_instructions[1].effect = 1
+    entry_instructions[2] = Instruction(.FunctionAddress, 2, empty[:], 1)
+    entry_instructions[3] = Instruction(.CallIndirect, 3, indirect_arguments[:]); entry_instructions[3].effect = 2
+    entry_instructions[4] = Instruction(.Return, -1, returned[:])
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    increment_parameter: [1]s32 = .[0]
+    increment_operands: [2]s32 = .[0, 1]
+    increment_return: [1]s32 = .[2]
+    increment_values: [3]s32 = .[4, 4, 4]
+    increment_instructions: [3]LirInstruction = .[Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Add, 2, increment_operands[:]), Instruction(.Return, -1, increment_return[:])]
+    increment_blocks: [1]LirBlock = .[.{.parameters = increment_parameter[:],
+        .instructions = increment_instructions[:]}]
+    modules: [1]string = .["calls"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "entry", .result = 4, .values = entry_values[:],
+            .blocks = entry_blocks[:], .origin = -1},
+        .{.module = 0, .name = "increment", .parameters = parameter[:], .result = 4,
+            .values = increment_values[:], .blocks = increment_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 42
+}
+
+Recursion :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constants: [3]LirConstant = .[.{.type = 4, .bits = 8}, .{.type = 4, .bits = 0},
+        .{.type = 4, .bits = 1}]
+    empty: [0]s32
+    entry_arguments: [1]s32 = .[0]; entry_return: [1]s32 = .[1]
+    entry_values: [2]s32 = .[4, 4]
+    entry_instructions: [3]LirInstruction
+    entry_instructions[0] = Instruction(.Constant, 0, empty[:], 0)
+    entry_instructions[1] = Instruction(.Call, 1, entry_arguments[:], 1); entry_instructions[1].effect = 1
+    entry_instructions[2] = Instruction(.Return, -1, entry_return[:])
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    recurse_parameter: [1]s32 = .[0]
+    equal_operands: [2]s32 = .[0, 1]
+    condition: [1]s32 = .[2]
+    branch_edges: [2]LirEdge = .[.{.block = 1}, .{.block = 2}]
+    base_return: [1]s32 = .[3]
+    subtract_operands: [2]s32 = .[0, 4]
+    recurse_arguments: [1]s32 = .[5]
+    recurse_return: [1]s32 = .[6]
+    recurse_values: [7]s32 = .[4, 4, 1, 4, 4, 4, 4]
+    choose: [3]LirInstruction = .[Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Equal, 2, equal_operands[:]),
+        .{.op = .Branch, .result = -1, .symbol = -1, .origin = -1,
+            .operands = condition[:], .edges = branch_edges[:]}]
+    base: [2]LirInstruction = .[Instruction(.Constant, 3, empty[:], 0),
+        Instruction(.Return, -1, base_return[:])]
+    step: [4]LirInstruction
+    step[0] = Instruction(.Constant, 4, empty[:], 2)
+    step[1] = Instruction(.Subtract, 5, subtract_operands[:])
+    step[2] = Instruction(.Call, 6, recurse_arguments[:], 1); step[2].effect = 1
+    step[3] = Instruction(.Return, -1, recurse_return[:])
+    recurse_blocks: [3]LirBlock = .[.{.parameters = recurse_parameter[:], .instructions = choose[:]},
+        .{.instructions = base[:]}, .{.instructions = step[:]}]
+    modules: [1]string = .["recursion"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "entry", .result = 4, .values = entry_values[:],
+            .blocks = entry_blocks[:], .origin = -1},
+        .{.module = 0, .name = "recurse", .parameters = parameter[:], .result = 4,
+            .values = recurse_values[:], .blocks = recurse_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    normal := Execute(program)
+    if normal.problem != .None || normal.value.bits != 8 { return false }
+    limits := LirExecDefaultLimits()
+    limits.frames = 4
+    limited := Execute(program, limits)
+    if limited.problem != .FrameLimit || limited.function != 1 || limited.block != 2 ||
+        limited.instruction != 2 { return false }
+    limits = LirExecDefaultLimits()
+    limits.values = 1
+    limited = Execute(program, limits)
+    return limited.problem == .ValueLimit && limited.function == 0 && limited.block == 0 &&
+        limited.instruction == 0
+}
+
+Instances :: () -> bool {
+    fields: [2]s32 = .[4, 4]; type_parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], type_parameter[:])
+    constants: [2]LirConstant = .[.{.type = 4, .bits = 40}, .{.type = 4, .bits = 1}]
+    empty: [0]s32
+    address_operand: [1]s32 = .[0]
+    add_operands: [2]s32 = .[1, 2]
+    store_operands: [2]s32 = .[0, 3]
+    returned: [1]s32 = .[3]
+    counter_values: [4]s32 = .[13, 4, 4, 4]
+    counter_instructions: [6]LirInstruction
+    counter_instructions[0] = Instruction(.GlobalAddress, 0, empty[:], 0)
+    counter_instructions[1] = Instruction(.Load, 1, address_operand[:]); counter_instructions[1].effect = 1
+    counter_instructions[2] = Instruction(.Constant, 2, empty[:], 1)
+    counter_instructions[3] = Instruction(.Add, 3, add_operands[:])
+    counter_instructions[4] = Instruction(.Store, -1, store_operands[:]); counter_instructions[4].effect = 2
+    counter_instructions[5] = Instruction(.Return, -1, returned[:])
+    counter_blocks: [1]LirBlock = .[.{.instructions = counter_instructions[:]}]
+    pointer_types: [1]s32 = .[13]
+    pointer_parameters: [1]s32 = .[0]
+    pointer_operand: [1]s32 = .[0]
+    pointer_return: [1]s32 = .[1]
+    pointer_values: [2]s32 = .[13, 4]
+    pointer_instructions: [2]LirInstruction
+    pointer_instructions[0] = Instruction(.Load, 1, pointer_operand[:]); pointer_instructions[0].effect = 1
+    pointer_instructions[1] = Instruction(.Return, -1, pointer_return[:])
+    pointer_blocks: [1]LirBlock = .[.{.parameters = pointer_parameters[:],
+        .instructions = pointer_instructions[:]}]
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "counter", .type = 4,
+        .constant = 0, .writable = true}]
+    modules: [1]string = .["instances"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "counter", .result = 4, .values = counter_values[:],
+            .blocks = counter_blocks[:], .origin = -1},
+        .{.module = 0, .name = "read", .parameters = pointer_types[:], .result = 4,
+            .values = pointer_values[:], .blocks = pointer_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    first: LirExecInstance
+    second: LirExecInstance
+    defer LirExecPlanFree(*plan)
+    defer LirExecInstanceClose(*first)
+    defer LirExecInstanceClose(*second)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None { return false }
+    limits := LirExecDefaultLimits()
+    small := limits; small.value_bytes = 3
+    if LirExecInstanceOpen(*plan, small, 1, *first).problem != .ValueBytes { return false }
+    small = limits; small.addresses = 0
+    if LirExecInstanceOpen(*plan, small, 1, *first).problem != .AddressLimit { return false }
+    if LirExecInstanceOpen(*plan, limits, 1, *first).problem != .None ||
+        LirExecInstanceOpen(*plan, limits, 2, *second).problem != .None { return false }
+    if LirExecRun(*first).value.bits != 41 || LirExecRun(*second).value.bits != 41 ||
+        LirExecRun(*first).value.bits != 42 || LirExecRun(*second).value.bits != 42 { return false }
+    cross: [1]LirExecArgument = .[.{.type = 13, .bits = first.addresses[0].token}]
+    rejected := LirExecCall(*second, 1, cross[:])
+    if rejected.problem != .Pointer || rejected.function != 1 || rejected.block != 0 ||
+        rejected.instruction != 0 { return false }
+    own: [1]LirExecArgument = .[.{.type = 13, .bits = second.addresses[0].token}]
+    if LirExecCall(*second, 1, own[:]).value.bits != 42 { return false }
+    if LirExecInstanceOpen(*plan, limits, 9, *second).problem != .None ||
+        LirExecRun(*second).value.bits != 41 { return false }
+    LirExecInstanceClose(*second)
+    LirExecInstanceClose(*second)
+    bad := program; bad.version = 0
+    if LirExecPlanBuild(bad, LirDefaultLimits(), *plan).problem != .InvalidProgram ||
+        plan.ready || plan.type_sizes.count != 0 { return false }
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None { return false }
+    LirExecPlanFree(*plan)
+    LirExecPlanFree(*plan)
+    return !plan.ready && plan.type_sizes.count == 0
+}
+
+Pointers :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    constant: [1]LirConstant = .[.{.type = 4, .bits = 0}]
+    global: [1]LirGlobal = .[.{.module = 0, .name = "value", .type = 4,
+        .constant = 0, .writable = true}]
+    empty: [0]s32; compare: [2]s32 = .[0, 1]; returned: [1]s32 = .[2]
+    values: [3]s32 = .[13, 13, 1]
+    instructions: [4]LirInstruction = .[Instruction(.GlobalAddress, 0, empty[:], 0),
+        Instruction(.Null, 1, empty[:]), Instruction(.NotEqual, 2, compare[:]),
+        Instruction(.Return, -1, returned[:])]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["pointers"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "pointers", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constant[:], .globals = global[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 1
+}
+
+AggregateApi :: () -> bool {
+    fields: [2]s32 = .[4, 4]; type_parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], type_parameter[:])
+    constants: [3]LirConstant = .[.{.type = 4, .bits = 20}, .{.type = 4, .bits = 21},
+        .{.type = 4, .bits = 1}]
+    empty: [0]s32
+    aggregate_operands: [3]s32 = .[0, 1, 2]
+    aggregate_return: [1]s32 = .[3]
+    aggregate_values: [4]s32 = .[4, 4, 4, 11]
+    aggregate_instructions: [5]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Aggregate, 3, aggregate_operands[:]),
+        Instruction(.Return, -1, aggregate_return[:])]
+    aggregate_blocks: [1]LirBlock = .[.{.instructions = aggregate_instructions[:]}]
+    array_types: [1]s32 = .[11]
+    array_parameter: [1]s32 = .[0]
+    array_operand: [1]s32 = .[0]
+    first_add: [2]s32 = .[1, 2]
+    last_add: [2]s32 = .[3, 4]
+    sum_return: [1]s32 = .[5]
+    sum_values: [6]s32 = .[11, 4, 4, 4, 4, 4]
+    sum_instructions: [6]LirInstruction
+    sum_instructions[0] = Instruction(.Extract, 1, array_operand[:])
+    sum_instructions[1] = Instruction(.Extract, 2, array_operand[:]); sum_instructions[1].immediate = 1
+    sum_instructions[2] = Instruction(.Add, 3, first_add[:])
+    sum_instructions[3] = Instruction(.Extract, 4, array_operand[:]); sum_instructions[3].immediate = 2
+    sum_instructions[4] = Instruction(.Add, 5, last_add[:])
+    sum_instructions[5] = Instruction(.Return, -1, sum_return[:])
+    sum_blocks: [1]LirBlock = .[.{.parameters = array_parameter[:], .instructions = sum_instructions[:]}]
+    modules: [1]string = .["aggregate_api"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "make", .result = 11, .values = aggregate_values[:],
+            .blocks = aggregate_blocks[:], .origin = -1},
+        .{.module = 0, .name = "sum", .parameters = array_types[:], .result = 4,
+            .values = sum_values[:], .blocks = sum_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    instance: LirExecInstance
+    defer LirExecPlanFree(*plan)
+    defer LirExecInstanceClose(*instance)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 20, *instance).problem != .None { return false }
+    made := LirExecRun(*instance)
+    bytes: [12]u8
+    if made.problem != .None || made.value.type != 11 || made.value.bytes != 12 ||
+        !LirExecResultCopy(*instance, bytes[:]) || bytes[0] != 20 || bytes[4] != 21 ||
+        bytes[8] != 1 { return false }
+    argument_bytes: [12]u8
+    argument_bytes[0] = 20; argument_bytes[4] = 20; argument_bytes[8] = 2
+    arguments: [1]LirExecArgument = .[.{.type = 11, .bytes = argument_bytes[:]}]
+    summed := LirExecCall(*instance, 1, arguments[:])
+    if summed.problem != .None || summed.value.bits != 42 { return false }
+    LirExecInstanceClose(*instance)
+    return !LirExecResultCopy(*instance, bytes[:])
+}
+
+LimitsAndTraps :: () -> bool {
+    fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
+    Types(types[:], fields[:], parameter[:])
+    empty: [0]s32
+    fuel_instructions: [2]LirInstruction
+    fuel_instructions[0] = Instruction(.Fuel, -1, empty[:]); fuel_instructions[0].immediate = 5
+    fuel_instructions[0].effect = 1; fuel_instructions[0].origin = 0
+    fuel_instructions[1] = Instruction(.Return, -1, empty[:]); fuel_instructions[1].origin = 0
+    fuel_blocks: [1]LirBlock = .[.{.instructions = fuel_instructions[:]}]
+    modules: [1]string = .["limits"]
+    sources: [1]string = .["limits.zi"]
+    origins: [1]LirOrigin = .[.{.file = 0, .line = 7, .column = 3, .begin = 10,
+        .end = 14, .parent = -1}]
+    fuel_functions: [1]LirFunction = .[.{.module = 0, .name = "fuel", .result = 0,
+        .blocks = fuel_blocks[:], .origin = 0}]
+    fuel_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .sources = sources[:], .types = types[:], .functions = fuel_functions[:],
+        .origins = origins[:], .entry = 0}
+    plan: LirExecPlan
+    instance: LirExecInstance
+    defer LirExecPlanFree(*plan)
+    defer LirExecInstanceClose(*instance)
+    if LirExecPlanBuild(fuel_program, LirDefaultLimits(), *plan).problem != .None { return false }
+    limits := LirExecDefaultLimits(); limits.fuel = 4
+    if LirExecInstanceOpen(*plan, limits, 10, *instance).problem != .None { return false }
+    first := LirExecRun(*instance)
+    second := LirExecRun(*instance)
+    if first.problem != .FuelLimit || second.problem != .FuelLimit ||
+        first.function != 0 || first.block != 0 || first.instruction != 0 || first.origin != 0 ||
+        first.fuel_remaining != 4 || second.fuel_remaining != 4 ||
+        first.work_remaining != second.work_remaining { return false }
+    limits = LirExecDefaultLimits(); limits.fuel = 5
+    if LirExecInstanceOpen(*plan, limits, 11, *instance).problem != .None { return false }
+    success := LirExecRun(*instance)
+    if success.problem != .None || success.fuel_remaining != 0 || success.value.type != 0 ||
+        success.value.bytes != 0 { return false }
+    limits = LirExecDefaultLimits(); limits.work = 0
+    if LirExecInstanceOpen(*plan, limits, 12, *instance).problem != .None ||
+        LirExecRun(*instance).problem != .WorkLimit { return false }
+    trap_instruction: [1]LirInstruction
+    trap_instruction[0] = Instruction(.Trap, -1, empty[:])
+    trap_instruction[0].immediate = 77; trap_instruction[0].effect = 1; trap_instruction[0].origin = 0
+    trap_blocks: [1]LirBlock = .[.{.instructions = trap_instruction[:]}]
+    trap_functions: [1]LirFunction = .[.{.module = 0, .name = "trap", .result = 0,
+        .blocks = trap_blocks[:], .origin = 0}]
+    trap_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .sources = sources[:], .types = types[:], .functions = trap_functions[:],
+        .origins = origins[:], .entry = 0}
+    trapped := Execute(trap_program)
+    if trapped.problem != .Trap || trapped.trap != 77 || trapped.function != 0 ||
+        trapped.block != 0 || trapped.instruction != 0 || trapped.origin != 0 { return false }
+    unreachable_instruction: [1]LirInstruction = .[Instruction(.Unreachable, -1, empty[:])]
+    unreachable_instruction[0].origin = 0
+    unreachable_blocks: [1]LirBlock = .[.{.instructions = unreachable_instruction[:]}]
+    unreachable_functions: [1]LirFunction = .[.{.module = 0, .name = "unreachable",
+        .result = 0, .blocks = unreachable_blocks[:], .origin = 0}]
+    unreachable_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .sources = sources[:], .types = types[:], .functions = unreachable_functions[:],
+        .origins = origins[:], .entry = 0}
+    stopped := Execute(unreachable_program)
+    return stopped.problem == .Unreachable && stopped.function == 0 && stopped.origin == 0 &&
+        LirExecProblemName(stopped.problem) == "unreachable"
+}
+
+VerifierBoundaries :: () -> bool {
+    modules: [1]string = .["invalid"]
+    void_type: [1]LirType = .[.{.kind = .Void}]
+    empty: [0]s32
+    host_instructions: [2]LirInstruction
+    host_instructions[0] = Instruction(.HostCall, -1, empty[:], 0); host_instructions[0].effect = 1
+    host_instructions[1] = Instruction(.Return, -1, empty[:])
+    host_blocks: [1]LirBlock = .[.{.instructions = host_instructions[:]}]
+    host_functions: [1]LirFunction = .[.{.module = 0, .name = "host", .result = 0,
+        .blocks = host_blocks[:], .origin = -1}]
+    host_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .types = void_type[:], .functions = host_functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    rejected := LirExecPlanBuild(host_program, LirDefaultLimits(), *plan)
+    if rejected.problem != .InvalidProgram || rejected.verification.problem != .Unsupported ||
+        rejected.function != 0 || rejected.block != 0 || rejected.instruction != 0 ||
+        plan.ready { return false }
+    native_type: [1]LirType = .[.{.kind = .Integer, .bits = 64, .native_width = true}]
+    native_program := LirProgram.{.version = LirVersion, .types = native_type[:], .entry = -1}
+    rejected = LirExecPlanBuild(native_program, LirDefaultLimits(), *plan)
+    if rejected.problem != .InvalidProgram || rejected.verification.problem != .Unsupported { return false }
+    no_types: [0]LirType
+    empty_program := LirProgram.{.version = LirVersion, .types = no_types[:], .entry = -1}
+    if LirExecPlanBuild(empty_program, LirDefaultLimits(), *plan).problem != .None ||
+        !plan.ready || plan.type_sizes.count != 0 { return false }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 99, *instance).problem != .None ||
+        LirExecRun(*instance).problem != .NotReady { return false }
+    return true
+}
+
+#scope_export
+
+Answer :: () -> s32 {
+    if !ScalarCases() { return 1 }
+    if !Flow() { return 2 }
+    if !AggregatesAndMemory() { return 3 }
+    if !ArraysAndInsert() { return 4 }
+    if !MixedShift() { return 5 }
+    if !Calls() { return 6 }
+    if !Recursion() { return 7 }
+    if !Instances() { return 8 }
+    if !Pointers() { return 9 }
+    if !AggregateApi() { return 10 }
+    if !LimitsAndTraps() { return 11 }
+    if !VerifierBoundaries() { return 12 }
+    return 42
+}
+
+#program_export
+
+Run :: () {
+    print("%\n", Answer())
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "lowered-exec-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, Answer() == 42, "native lowered executor cases") { return 1 }
+    VecPush(test.environment, "GOTOOLCHAIN=local")
+    VecPush(test.environment, "GOPROXY=off")
+    VecPush(test.environment, "GOSUMDB=off")
+    VecPush(test.environment, "GOWORK=off")
+    full_source := CheckPath(test.repo, "tests/lowered_exec_cases.zi")
+    full_saved := CheckPath(test.work, "full-ir")
+    full_save := string.[test.ziran, "ir", "--entry", "lowered_exec_cases:Run",
+        "--root", CheckPath(test.repo, "tests"), "--module-path", CheckPath(test.repo, "cmd"),
+        "-o", full_saved, full_source]
+    unused NativeRun(*test, full_save[:])
+    full_forms: [2]string = .["source", "saved"]
+    for form: full_forms {
+        full_input := ifx form == "source" then full_source else CheckPath(full_saved, "lowered_exec_cases.zir")
+        full_root := ifx form == "source" then CheckPath(test.repo, "tests") else full_saved
+        full_bundle := CheckPath(test.work, CheckConcat("full-", CheckConcat(form, ".zx")))
+        full_bundle_command := string.[test.ziran, "bundle", "--entry", "lowered_exec_cases:Run",
+            "--root", full_root, "--module-path", CheckPath(test.repo, "cmd"),
+            "-o", full_bundle, full_input]
+        unused NativeRun(*test, full_bundle_command[:])
+        full_vm := string.[test.ziran, "run", "--vm", full_bundle]
+        if !NativeExpect(*test, full_vm[:], "42\n") { return 1 }
+    }
+    full_input := CheckPath(full_saved, "lowered_exec_cases.zir")
+    full_c := CheckPath(test.work, "full-saved-c")
+    full_c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+        "lowered_exec_cases:Run", "--root", full_saved, "--module-path", CheckPath(test.repo, "cmd"),
+        "-o", full_c, full_input]
+    unused NativeRun(*test, full_c_build[:])
+    full_c_run := string.[CheckPath(full_c, "lowered_exec_cases")]
+    if !NativeExpect(*test, full_c_run[:], "42\n") { return 1 }
+    full_go := CheckPath(test.work, "full-saved-go")
+    full_go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+        "--entry", "lowered_exec_cases:Run", "--root", full_saved, "--module-path",
+        CheckPath(test.repo, "cmd"), "-o", full_go, full_input]
+    unused NativeRun(*test, full_go_build[:])
+    full_go_run: Vec(string)
+    VecPush(full_go_run, "go"); VecPush(full_go_run, "run")
+    full_go_files := NativeFiles(full_go, ".go")
+    for file: full_go_files { VecPush(full_go_run, file) }
+    if !NativeExpect(*test, full_go_run[:], "42\n") { return 1 }
+    source := CheckPath(test.work, "portable_exec.zi")
+    fixture := "using IR :: #import \"compiler_lowered_ir\"\nusing Exec :: #import \"compiler_exec\"\nInstruction :: (op: LirOp, result: s32, operands: []s32, symbol: s32 = -1) -> LirInstruction { return .{.op = op, .result = result, .operands = operands, .symbol = symbol, .origin = -1} }\n#program_export\nRun :: () {\ntypes: [2]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true}]\nconstants: [2]LirConstant = .[.{.type = 1, .bits = 20}, .{.type = 1, .bits = 22}]\nempty: [0]s32\npair: [2]s32 = .[0, 1]\nreturned: [1]s32 = .[2]\nvalues: [3]s32 = .[1, 1, 1]\ninstructions: [4]LirInstruction = .[Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1), Instruction(.Add, 2, pair[:]), Instruction(.Return, -1, returned[:])]\nblocks: [1]LirBlock = .[.{.instructions = instructions[:]}]\nmodules: [1]string = .[\"portable_exec\"]\nfunctions: [1]LirFunction = .[.{.module = 0, .name = \"answer\", .result = 1, .values = values[:], .blocks = blocks[:], .origin = -1}]\nprogram := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:], .constants = constants[:], .functions = functions[:], .entry = 0}\nplan: LirExecPlan\ninstance: LirExecInstance\nresult: s32 = 1\nif LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem == .None && LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 17, *instance).problem == .None {\nexecuted := LirExecRun(*instance)\nif executed.problem == .None && executed.value.bits == 42 { result = 42 }\n}\nLirExecInstanceClose(*instance)\nLirExecInstanceClose(*instance)\nLirExecPlanFree(*plan)\nLirExecPlanFree(*plan)\nprint(\"%\\n\", result)\n}\n"
+    if !NativeWrite(*test, source, fixture) { return 1 }
+    saved := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--entry", "portable_exec:Run",
+        "--root", test.work, "--module-path", CheckPath(test.repo, "cmd"),
+        "-o", saved, source]
+    unused NativeRun(*test, save[:])
+    forms: [2]string = .["source", "saved"]
+    for form: forms {
+        input := ifx form == "source" then source else CheckPath(saved, "portable_exec.zir")
+        root := ifx form == "source" then test.work else saved
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        bundle_command := string.[test.ziran, "bundle", "--entry", "portable_exec:Run",
+            "--root", root, "--module-path", CheckPath(test.repo, "cmd"), "-o", bundle, input]
+        unused NativeRun(*test, bundle_command[:])
+        vm := string.[test.ziran, "run", "--vm", bundle]
+        if !NativeExpect(*test, vm[:], "42\n") { return 1 }
+        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+            "portable_exec:Run", "--root", root, "--module-path", CheckPath(test.repo, "cmd"),
+            "-o", c_output, input]
+        unused NativeRun(*test, c_build[:])
+        c_run := string.[CheckPath(c_output, "portable_exec")]
+        if !NativeExpect(*test, c_run[:], "42\n") { return 1 }
+        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+            "--entry", "portable_exec:Run", "--root", root, "--module-path",
+            CheckPath(test.repo, "cmd"), "-o", go_output, input]
+        unused NativeRun(*test, go_build[:])
+        go_run: Vec(string)
+        VecPush(go_run, "go"); VecPush(go_run, "run")
+        go_files := NativeFiles(go_output, ".go")
+        for file: go_files { VecPush(go_run, file) }
+        if !NativeExpect(*test, go_run[:], "42\n") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("lowered exec: verified engine and source/saved C, Go and VM local tests passed\n")
+    return 0
+}

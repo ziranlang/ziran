@@ -1,0 +1,46 @@
+#import "native_test"
+#import "package_proxy"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--guard-git" { return PackageProxy(argc, argv, "--guard-git") }
+    local_only := false
+    for index: cast(s32)2..argc - 1 { if TextFromCString(argv[index]) == "--local-overrides-only" { local_only = true } }
+    test := NativeStart(ifx argc > 2 && TextFromCString(argv[2]) == "--local-overrides-only" then 2 else argc, argv, "packages-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if local_only {
+        real_git := CheckExecutable("git")
+        if !NativeAssert(*test, real_git != "", "constrained fixtures require Git") { return 1 }
+        guard := CheckPath(test.work, "guard/git")
+        if !NativeWrite(*test, guard, "#!/bin/sh\nexec \"$ZIRAN_FIXTURE_GUARD_PROXY\" --guard-git \"$@\"\n") { return 1 }
+        chmod := string.["chmod", "755", guard]; unused NativeRun(*test, chmod[:])
+        NativeSet(*test, "ZIRAN_FIXTURE_GUARD_REAL_GIT", real_git)
+        NativeSet(*test, "ZIRAN_FIXTURE_GUARD_PROXY", TextDetach(ResolvePath("/proc/self/exe")))
+        NativeSet(*test, "PATH", CheckConcat(PathParent(guard), CheckConcat(":", EnvironmentText("PATH"))))
+    }
+    cases := string.["package_self_import", "package_batch_paths", "package_unborn", "package_pin", "package_native_links",
+        "package_transitive_add", "package_override_graph", "package_artifacts", "package_generated_modules", "package_resolution",
+        "package_bridges", "package_tooling", "package_wide_exports", "package_templates", "package_cache_repair", "package_diagnostics"]
+    for index: cast(s64)0..cases.count - 1 {
+        if local_only && index >= 5 { break }
+        name := cases[index]
+        command: Vec(string)
+        prefix := string.[test.ziran, "run", "--target=c", "--root", CheckPath(test.repo, "tests"), CheckPath(test.repo, CheckConcat("tests/", CheckConcat(name, "_cases.zi"))), "--", test.ziran, CheckPath(test.work, name)]
+        for argument: prefix { VecPush(command, argument) }
+        if local_only && name == "package_pin" { VecPush(command, "--local-overrides-only") }
+        result := NativeInvoke(*test, command[:], "", 600000)
+        if !NativeAssert(*test, result.code == 0, CheckConcat(name, CheckConcat(" failed:\n", CheckConcat(result.output, result.error)))) { return 1 }
+        print("%", result.output)
+    }
+    if local_only { print("Local constrained package suite passed without clones, worktrees or fetching\n") }
+    else { print("Local package integration suites passed\n") }
+    return 0
+}

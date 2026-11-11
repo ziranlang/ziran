@@ -1,0 +1,51 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+BinaryOccurrences :: (data: string, pattern: string) -> s64 {
+    if pattern.count == 0 { return 0 }
+    count: s64; at: s64
+    while at <= data.count {
+        found := TextFind(data, pattern, at)
+        if found < 0 { break }; count += 1; at = found + pattern.count
+    }
+    return count
+}
+
+BinaryReplaceAt :: (test: *NativeTest, data: string, at: s64, count: s64, replacement: string) -> string {
+    if !NativeAssert(test, at >= 0 && count >= 0 && at <= data.count && count <= data.count - at, "binary mutation leaves its input") { return "" }
+    parts := string.[data[:at], replacement, data[at + count:]]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+BinaryNumber :: (value: u64) -> string {
+    bytes: Vec(u8); remaining := value
+    while remaining >= 128 { VecPush(bytes, cast(u8)(remaining & cast(u64)127) | cast(u8)128); remaining >>= cast(u64)7 }
+    VecPush(bytes, cast(u8)remaining)
+    return TextDetach(BuilderFinish(bytes))
+}
+
+BinaryString :: (text: string) -> string { return CheckConcat(BinaryNumber(cast(u64)text.count * cast(u64)2), text) }
+
+BinaryReadNumber :: (test: *NativeTest, data: string, start: s64) -> (value: u64, after: s64) {
+    value: u64; at := start; shift: u64
+    while at >= 0 && at < data.count && shift < 64 {
+        byte := data[at]; at += 1
+        if shift == 63 && byte > 1 { break }
+        value |= cast(u64)(byte & cast(u8)127) << shift
+        if byte < 128 { return value, at }; shift += 7
+    }
+    unused NativeAssert(test, false, "invalid binary variable-length number")
+    return cast(u64)0, -1
+}
+
+BinarySkipString :: (test: *NativeTest, data: string, start: s64) -> s64 {
+    tag, after := BinaryReadNumber(test, data, start)
+    if test.failed { return -1 }
+    if (tag & cast(u64)1) != 0 { return after }
+    length := tag >> cast(u64)1
+    if !NativeAssert(test, length <= cast(u64)(data.count - after), "binary string leaves its input") { return -1 }
+    return after + cast(s64)length
+}

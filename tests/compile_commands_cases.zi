@@ -1,0 +1,60 @@
+// Compilation-database assertions use the portable file API so the same test
+// runs natively on Linux and macOS. The shell wrapper executes the validated
+// argument vectors after each argument has been quoted independently.
+#import "std/file"
+#import "std/byte_text_linux"
+#import "std/json_document"
+#import "std/text_tools"
+#import "std/vec"
+
+QuoteArgument :: (argument: string) -> string {
+    parts := string.["'", TextReplace(argument, "'", "'\\''"), "'"]
+    return TextJoin(parts[:], "")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { return 1 }
+    work := TextFromCString(argv[1])
+    path_parts := string.[work, "/c/compile_commands.json"]
+    content, found := ReadEntireFile(TextJoin(path_parts[:], ""))
+    entries: JsonDocument
+    if !found || !JsonRead(*entries, content) || JsonKindOf(*entries, entries.root) != .Array ||
+        JsonCount(*entries, entries.root) == 0 { return 2 }
+    script: Vec(u8)
+    unused BuilderAppend(script, "#!/bin/sh\nset -eu\n")
+    include_parts := string.["-I", work, "/c"]
+    include := TextJoin(include_parts[:], "")
+    for index: cast(s32)0..JsonCount(*entries, entries.root) - 1 {
+        entry := JsonElement(*entries, entries.root, index)
+        arguments := JsonMember(*entries, entry, "arguments")
+        count := JsonCount(*entries, arguments)
+        source := JsonString(*entries, JsonMember(*entries, entry, "file"))
+        if JsonString(*entries, JsonMember(*entries, entry, "directory")) != work ||
+            JsonKindOf(*entries, arguments) != .Array || count < 4 { return 3 }
+        values: Vec(string)
+        for at: cast(s32)0..count - 1 {
+            node := JsonElement(*entries, arguments, at)
+            if JsonKindOf(*entries, node) != .String { return 4 }
+            VecPush(values, JsonString(*entries, node))
+        }
+        if !TextHasPrefix(values[0], "/") || values[1] != "-O2" ||
+            values[count - 2] != "-c" || values[count - 1] != source { return 5 }
+        standard := false; pedantic := false; includes := false
+        for argument: values {
+            standard = standard || argument == "-std=c99"
+            pedantic = pedantic || argument == "-pedantic-errors"
+            includes = includes || argument == include
+        }
+        if !standard || !pedantic || !includes { return 6 }
+        for at: cast(s32)0..count - 3 {
+            unused BuilderAppend(script, QuoteArgument(values[at]))
+            unused BuilderAppend(script, " ")
+        }
+        unused BuilderAppend(script, "-fsyntax-only ")
+        unused BuilderAppend(script, QuoteArgument(source))
+        unused BuilderAppend(script, "\n")
+    }
+    output_parts := string.[work, "/compile-commands.sh"]
+    return ifx WriteEntireFile(TextJoin(output_parts[:], ""), BuilderFinish(script)) then 0 else 7
+}

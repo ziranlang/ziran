@@ -1,0 +1,161 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/sort"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+InventoryKeys :: (test: *NativeTest, document: *JsonDocument, object: s32, names: string) -> bool {
+    fields := TextSplit(names, "|")
+    if !NativeAssert(test, JsonKindOf(document, object) == .Object && JsonCount(document, object) == fields.count, "inventory object members differ") { return false }
+    for field: fields { if !NativeAssert(test, JsonMember(document, object, field) >= 0, CheckConcat("missing inventory field: ", field)) { return false } }
+    return true
+}
+
+InventoryTargets :: (test: *NativeTest, document: *JsonDocument, array: s32, target: string = "") -> bool {
+    targets := string.["c", "go", "zx"]
+    if !NativeAssert(test, JsonCount(document, array) == (ifx target == "" then 3 else 1), "inventory target count changed") { return false }
+    for index: cast(s32)0..JsonCount(document, array) - 1 {
+        if !NativeAssert(test, JsonIs(document, JsonElement(document, array, index), ifx target == "" then targets[index] else target), "inventory target order changed") { return false }
+    }
+    return true
+}
+
+InventoryNumeric :: (test: *NativeTest, document: *JsonDocument, numeric: s32, target: string = "") -> bool {
+    manifest: JsonDocument
+    if !NativeAssert(test, JsonRead(*manifest, NativeRead(test, CheckPath(test.repo, "tests/numeric_conformance.json"))), "invalid numeric manifest") ||
+        !NativeAssert(test, CheckInteger(document, numeric, "schema_version") == 1 && CheckField(document, numeric, "stability") == "stable-id", "numeric capability schema changed") ||
+        !InventoryTargets(test, document, JsonMember(document, numeric, "targets"), target) { return false }
+    cases := JsonMember(*manifest, manifest.root, "cases"); ids := JsonMember(document, numeric, "ids")
+    if !NativeAssert(test, JsonCount(document, ids) == JsonCount(*manifest, cases), "numeric capability case count differs") { return false }
+    sorted: Vec(string)
+    for index: cast(s32)0..JsonCount(*manifest, cases) - 1 {
+        id := TextDetach(JsonString(document, JsonElement(document, ids, index)))
+        if !NativeAssert(test, id == CheckField(*manifest, JsonElement(*manifest, cases, index), "id"), "numeric capability IDs or order differ") { return false }
+        VecPush(sorted, id)
+    }
+    SortText(sorted[:])
+    for index: cast(s64)1..sorted.count - 1 { if !NativeAssert(test, sorted[index - 1] != sorted[index], "duplicate numeric capability ID") { return false } }
+    return true
+}
+
+InventoryCapabilities :: (test: *NativeTest) -> bool {
+    all := string.[test.ziran, "capabilities", "--json"]; output := NativeRun(test, all[:]); document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, output.output) && CheckInteger(*document, document.root, "schema_version") == 1, "invalid capabilities schema") ||
+        !InventoryTargets(test, *document, JsonMember(*document, document.root, "targets")) { return false }
+    tiers := JsonMember(*document, document.root, "tier")
+    if !InventoryKeys(test, *document, tiers, "c|go|zx") || !NativeAssert(test, CheckField(*document, tiers, "c") == "primary" && CheckField(*document, tiers, "go") == "secondary" && CheckField(*document, tiers, "zx") == "primary" &&
+        CheckField(*document, JsonMember(*document, document.root, "parallel_execution"), "c") == "threads" &&
+        CheckField(*document, JsonMember(*document, document.root, "text_view_mutable_bytes"), "c") == "borrowed" && CheckField(*document, document.root, "gpu_execution") == "cpu_fallback" &&
+        CheckField(*document, document.root, "diagnostics_json") == "partial", "capability execution or support contract changed") { return false }
+    booleans := string.["source_and_saved_ir", "target_preflight", "text_view_opaque_pointer_check", "automatic_vec_drop", "heap_allocation", "aggregate_vec_transfer", "text_view_local_mutation_check"]
+    for field: booleans { if !NativeAssert(test, JsonKindOf(*document, JsonMember(*document, document.root, field)) == .True, CheckConcat("missing capability: ", field)) { return false } }
+    if !InventoryNumeric(test, *document, JsonMember(*document, document.root, "numeric_conformance")) { return false }
+    targets := string.["c", "go", "zx"]
+    for target: targets {
+        arguments := string.[test.ziran, "capabilities", CheckConcat("--target=", target), "--json"]; result := NativeRun(test, arguments[:]); selected: JsonDocument
+        if !NativeAssert(test, JsonRead(*selected, result.output) && CheckField(*selected, selected.root, "target") == target &&
+            CheckField(*selected, selected.root, "parallel_execution") == (ifx target == "c" then "threads" else "serial") && JsonMember(*selected, selected.root, "target_contract") < 0 &&
+            CheckField(*selected, selected.root, "tier") == (ifx target == "go" then "secondary" else "primary") &&
+            CheckField(*selected, selected.root, "text_view_mutable_bytes") == (ifx target == "c" then "borrowed" else "snapshot"), "target capability projection differs") { return false }
+        for index: cast(s64)0..4 { if !NativeAssert(test, JsonKindOf(*selected, JsonMember(*selected, selected.root, booleans[index])) == .True, "target capability flag missing") { return false } }
+        if !InventoryNumeric(test, *selected, JsonMember(*selected, selected.root, "numeric_conformance"), target) { return false }
+    }
+    invalid := string.["unknown", "cpp", "rust", "plan9-c"]
+    for target: invalid {
+        arguments := string.[test.ziran, "capabilities", CheckConcat("--target=", target)]; result := NativeInvoke(test, arguments[:])
+        if !NativeAssert(test, result.code > 0 && result.code < 124, "capabilities accepted an unknown target") { return false }
+    }
+    conflict := string.[test.ziran, "capabilities", "--target=c", "--target=go"]; rejected := NativeInvoke(test, conflict[:])
+    return NativeAssert(test, rejected.code > 0 && rejected.code < 124, "capabilities accepted conflicting targets") && !test.failed
+}
+
+InventoryFeatures :: (test: *NativeTest) -> bool {
+    arguments := string.[test.ziran, "features", "--json"]; result := NativeRun(test, arguments[:]); manifest: JsonDocument
+    if !NativeAssert(test, result.output == NativeRead(test, CheckPath(test.repo, "docs/FEATURES.json")) && JsonRead(*manifest, result.output) &&
+        CheckInteger(*manifest, manifest.root, "schema_version") == 1 && CheckField(*manifest, manifest.root, "stability") == "stable-id", "features output disagrees with documented inventory") { return false }
+    features := JsonMember(*manifest, manifest.root, "features")
+    if !NativeAssert(test, JsonCount(*manifest, features) > 0, "empty feature inventory") { return false }
+    ids: Vec(string); targets := string.["c", "go", "zx"]
+    numeric: JsonDocument
+    if !NativeAssert(test, JsonRead(*numeric, NativeRead(test, CheckPath(test.repo, "tests/numeric_conformance.json"))), "invalid numeric feature evidence") { return false }
+    for index: cast(s32)0..JsonCount(*manifest, features) - 1 {
+        feature := JsonElement(*manifest, features, index); id := CheckField(*manifest, feature, "id"); VecPush(ids, id)
+        if !InventoryKeys(test, *manifest, feature, "id|status|syntax|target_support|limits|accepted_example|rejected_example|rejection|evidence") ||
+            !NativeAssert(test, CheckField(*manifest, feature, "status") == "implemented", "feature status differs") { return false }
+        fields := string.["id", "syntax", "limits", "accepted_example", "rejected_example", "rejection", "evidence"]
+        for field: fields {
+            node := JsonMember(*manifest, feature, field); nonempty := ifx JsonKindOf(*manifest, node) == .String then JsonString(*manifest, node).count > 0 else JsonCount(*manifest, node) > 0
+            if !NativeAssert(test, nonempty, CheckConcat("empty feature field: ", field)) { return false }
+        }
+        support := JsonMember(*manifest, feature, "target_support")
+        if !NativeAssert(test, JsonCount(*manifest, support) == 3, "feature target count changed") { return false }
+        for target_index: cast(s32)0..2 {
+            target := JsonElement(*manifest, support, target_index); status := CheckField(*manifest, target, "status")
+            if !InventoryKeys(test, *manifest, target, "target|status|limit") || !NativeAssert(test, CheckField(*manifest, target, "target") == targets[target_index] &&
+                (status == "supported" || status == "experimental" || status == "unsupported"), "feature target order or support status changed") { return false }
+        }
+        evidence := JsonMember(*manifest, feature, "evidence")
+        for at: cast(s32)0..JsonCount(*manifest, evidence) - 1 {
+            name := TextDetach(JsonString(*manifest, JsonElement(*manifest, evidence, at)))
+            if TextContains(name, "/") {
+                if !NativeAssert(test, IsFile(CheckPath(test.repo, name)), CheckConcat("missing feature evidence: ", name)) { return false }
+            } else if id == "numeric.integer-width-conformance" {
+                cases := JsonMember(*numeric, numeric.root, "cases"); found := false
+                for row: cast(s32)0..JsonCount(*numeric, cases) - 1 { found = found || CheckField(*numeric, JsonElement(*numeric, cases, row), "id") == name }
+                if !NativeAssert(test, found, "numeric feature cites an unknown conformance ID") { return false }
+            }
+        }
+        source := CheckPath(test.work, CheckConcat(CheckNumber(index), "-accepted.zi")); rejected_source := CheckPath(test.work, CheckConcat(CheckNumber(index), "-rejected.zi")); saved := CheckPath(test.work, CheckConcat("ir-", CheckNumber(index)))
+        if !NativeWrite(test, source, CheckField(*manifest, feature, "accepted_example")) || !NativeWrite(test, rejected_source, CheckField(*manifest, feature, "rejected_example")) { return false }
+        emit := string.[test.ziran, "ir", "--diagnostics=json", "--root", test.work, "--module-path", CheckPath(test.repo, "std"), "-o", saved, source]
+        unused NativeRun(test, emit[:]); modules := NativeFiles(saved, ".zir")
+        if !NativeAssert(test, modules.count > 0, CheckConcat("feature emitted no saved IR: ", id)) { return false }
+        VecPush(modules, source)
+        for target_index: cast(s32)0..2 {
+            target := JsonElement(*manifest, support, target_index)
+            if CheckField(*manifest, target, "status") == "unsupported" { continue }
+            for module: modules {
+                check := string.[test.ziran, "check", CheckConcat("--target=", CheckField(*manifest, target, "target")), "--diagnostics=json", "--root", test.work, "--module-path", CheckPath(test.repo, "std"), module]
+                unused NativeRun(test, check[:])
+                if test.failed { return false }
+            }
+        }
+        negative := string.[test.ziran, "check", "--diagnostics=json", "--root", test.work, "--module-path", CheckPath(test.repo, "std"), rejected_source]
+        failure := NativeInvoke(test, negative[:])
+        if !NativeAssert(test, failure.code > 0 && failure.code < 124 && failure.error != "", CheckConcat("feature rejection example was accepted: ", id)) { return false }
+    }
+    sorted: Vec(string); for id: ids { VecPush(sorted, id) }; SortText(sorted[:])
+    for index: cast(s64)0..ids.count - 1 {
+        if !NativeAssert(test, ids[index] == sorted[index] && (index == 0 || sorted[index - 1] != sorted[index]), "feature IDs are not sorted and unique") { return false }
+    }
+    select := string.[test.ziran, "features", "--id", ids[0], "--json"]; selected := NativeRun(test, select[:]); projection: JsonDocument
+    if !NativeAssert(test, JsonRead(*projection, selected.output) && CheckInteger(*projection, projection.root, "schema_version") == 1 && CheckField(*projection, projection.root, "stability") == "stable-id" &&
+        CheckField(*projection, JsonMember(*projection, projection.root, "feature"), "id") == ids[0], "feature ID projection differs") { return false }
+    capabilities := string.[test.ziran, "capabilities", "--json"]; caps := NativeRun(test, capabilities[:]); cap_document: JsonDocument
+    if !NativeAssert(test, JsonRead(*cap_document, caps.output), "invalid capability inventory") || !InventoryTargets(test, *cap_document, JsonMember(*cap_document, cap_document.root, "targets")) { return false }
+    guide := string.[test.ziran, "guide"]; guide_result := NativeRun(test, guide[:]); help := string.[test.ziran, "--help"]; help_result := NativeRun(test, help[:])
+    if !NativeAssert(test, TextContains(guide_result.output, "ziran features --id compile.assertions --json") && TextContains(help_result.output, "features"), "guide or help omitted feature discovery") { return false }
+    for mode: 0..2 {
+        command: Vec(string); VecPush(command, test.ziran); VecPush(command, "features")
+        if mode <= 1 { VecPush(command, "--id"); if mode == 0 { VecPush(command, "missing.feature") } }
+        else { VecPush(command, "first"); VecPush(command, "extra") }
+        failure := NativeInvoke(test, command[:])
+        if !NativeAssert(test, failure.code > 0 && failure.code < 124, "features accepted an unknown ID, missing value or extra arguments") { return false }
+    }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(ifx argc >= 2 then 2 else argc, argv, "compiler-inventory-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    mode := ifx argc > 2 then TextFromCString(argv[2]) else ""
+    valid := ifx mode == "features" then InventoryFeatures(*test) else ifx mode == "capabilities" then InventoryCapabilities(*test) else false
+    if !valid { return 1 }
+    print("Compiler % inventory: schema, evidence, source/saved targets and CLI rejection local tests passed\n", mode)
+    return 0
+}

@@ -1,0 +1,19 @@
+#import "go_types"
+io :: #import "io_go";
+sql :: #import "sql_go";
+fmt :: #system_library "go:fmt";
+database :: #system_library "go:database/sql";
+PrintResult :: struct { count: isize; error: Error; }
+@GROUPS@
+Print :: (writer: io.Writer, @PARAMETERS@) -> PrintResult #go_results #foreign fmt "Fprint";
+PrintAll :: (writer: io.Writer) -> PrintResult { return Print(writer, @VALUES@) }
+Cleanup :: (writer: io.Writer, @PARAMETERS@) #go_defer #foreign fmt "Fprint";
+Deferred :: (writer: io.Writer) { Cleanup(writer, @VALUES@) }
+Scan :: (row: *sql.Row, @POINTERS@) -> Error #foreign database "(*Row).Scan";
+Read :: (row: *sql.Row) -> s64 {
+    values: [63]s64
+    if Scan(row, @ADDRESSES@) != null { return -1 }
+    result: s64 = 0
+    for value: values { result += value }
+    return result
+}

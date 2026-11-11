@@ -1,0 +1,54 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GraphNumber :: (value: s64, width: s64) -> string {
+    text := CheckNumber(value)
+    while text.count < width { text = CheckConcat("0", text) }
+    return text
+}
+
+HeaderGraphFixture :: (test: *NativeTest, source: string, groups: s64, width: s64, consumers: s64) -> bool {
+    for number: cast(s64)0..groups * width - 1 {
+        name := GraphNumber(number, 4)
+        if !NativeWrite(test, CheckPath(source, CheckConcat("leaf", CheckConcat(name, ".zi"))), CheckConcat("#scope_export\nLeaf", CheckConcat(name, " :: struct { value: u32 }\n"))) { return false }
+    }
+    for group: cast(s64)0..groups - 1 {
+        imports: Vec(u8); fields: Vec(u8)
+        BuilderAppend(imports, "#scope_export\n")
+        for index: cast(s64)0..width - 1 {
+            id := CheckNumber(index); leaf := GraphNumber(group * width + index, 4)
+            BuilderAppend(imports, CheckConcat("L", CheckConcat(id, CheckConcat(" :: #import \"leaf", CheckConcat(leaf, "\";\n")))))
+            BuilderAppend(fields, CheckConcat("l", CheckConcat(id, CheckConcat(": L", CheckConcat(id, CheckConcat(".Leaf", CheckConcat(leaf, ";\n")))))))
+        }
+        name := GraphNumber(group, 2)
+        BuilderAppend(imports, CheckConcat("Group", CheckConcat(name, " :: struct {\n")))
+        BuilderAppend(imports, BuilderFinish(fields)); BuilderAppend(imports, "}\n")
+        if !NativeWrite(test, CheckPath(source, CheckConcat("group", CheckConcat(name, ".zi"))), BuilderFinish(imports)) { return false }
+    }
+    imports: Vec(u8); fields: Vec(u8)
+    BuilderAppend(imports, "#scope_export\n")
+    for group: cast(s64)0..groups - 1 {
+        id := CheckNumber(group); name := GraphNumber(group, 2)
+        BuilderAppend(imports, CheckConcat("G", CheckConcat(id, CheckConcat(" :: #import \"group", CheckConcat(name, "\";\n")))))
+        BuilderAppend(fields, CheckConcat("g", CheckConcat(id, CheckConcat(": G", CheckConcat(id, CheckConcat(".Group", CheckConcat(name, ";\n")))))))
+    }
+    BuilderAppend(imports, "Bundle :: struct {\n"); BuilderAppend(imports, BuilderFinish(fields)); BuilderAppend(imports, "}\n")
+    if !NativeWrite(test, CheckPath(source, "common.zi"), BuilderFinish(imports)) { return false }
+    for number: cast(s64)0..consumers - 1 {
+        text := CheckConcat("#scope_export\nCommon :: #import \"common\";\nRead :: (value: *Common.Bundle) -> s64 {\nif value == null { return 0 }\nreturn cast(s64)(value.g0.l0.value) * ", CheckConcat(CheckNumber(number + 1), "\n}\n"))
+        if !NativeWrite(test, CheckPath(source, CheckConcat("consumer", CheckConcat(GraphNumber(number, 2), ".zi"))), text) { return false }
+    }
+    return true
+}
+
+HeaderGraphHost :: (groups: s64, width: s64) -> string {
+    last := CheckConcat("g", CheckConcat(CheckNumber(groups - 1), CheckConcat(".l", CheckConcat(CheckNumber(width - 1), ".value"))))
+    parts := string.["#include <stddef.h>\n#include \"common.h\"\n_Static_assert(sizeof(Bundle) == ", CheckNumber(groups * width * 4),
+        ", \"full foreign ABI\");\n_Static_assert(offsetof(Bundle, ", last, ") == ", CheckNumber(groups * width * 4 - 4),
+        ", \"last ABI field\");\nuint32_t prepare(Bundle *value, uint32_t seed) { value->", last,
+        " = seed + 3; return value->", last, "; }\n"]
+    return TextDetach(TextJoin(parts[:], ""))
+}

@@ -1,0 +1,103 @@
+#import "native_test"
+#import "native_build_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ReuseModule :: (amount: s64) -> string {
+    value := CheckNumber(amount)
+    return CheckConcat("#scope_file\nStep :: (x: s32) -> s32 { if x > ", CheckConcat(value, CheckConcat(" { return x - ", CheckConcat(value, CheckConcat(" } return x + ", CheckConcat(value, " }\n#scope_export\nRead :: (x: s32) -> s32 { return Step(x) }\n"))))))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-object-reuse-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    VecPush(test.environment, CheckConcat("CC=", NativeCompiler()))
+    VecPush(test.environment, "CFLAGS=-O2")
+    src := CheckPath(test.work, "src")
+    output := CheckPath(test.work, "out")
+    modules := string.["alpha", "beta", "gamma", "delta"]
+    aliases := string.["Alpha", "Beta", "Gamma", "Delta"]
+    app: Vec(u8)
+    calls: Vec(string)
+    for index: cast(s64)0..modules.count - 1 {
+        if !NativeWrite(*test, CheckPath(src, CheckConcat(modules[index], ".zi")), ReuseModule(index + 1)) { return 1 }
+        BuilderAppend(app, CheckConcat(aliases[index], CheckConcat(" :: #import \"", CheckConcat(modules[index], "\";\n"))))
+        VecPush(calls, CheckConcat(aliases[index], ".Read(0)"))
+    }
+    BuilderAppend(app, "#program_export\nAnswer :: () -> s32 { return "); BuilderAppend(app, TextJoin(calls[:], " + ")); BuilderAppend(app, " }\n")
+    if !NativeWrite(*test, CheckPath(src, "app.zi"), BuilderFinish(app)) { return 1 }
+    command := string.[test.ziran, "build", "--target=c", "--exe", "--entry", "app:Answer", "--diagnostics=json", "--root", src, "-o", output, CheckPath(src, "app.zi")]
+    profile := CheckPath(test.work, "profile.jsonl")
+    VecPush(test.environment, CheckConcat("ZIRAN_PROFILE=", profile))
+    all := string.["alpha.c.o", "beta.c.o", "gamma.c.o", "delta.c.o", "app.c.o", "ziran_exe_main.c.o"]
+    none: [0]string
+    beta := string.["beta.c.o"]
+    changed := NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], all[:]) { return 1 }
+    ticket := CheckPath(test.work, "ticket")
+    if !NativeAssert(*test, CreateDirectories(ticket), "create private ticket directory") { return 1 }
+    base := test.environment.count
+    VecPush(test.environment, "ZIRAN_REUSE_TEST_TICKET=1234:5678"); VecPush(test.environment, CheckConcat("TMPDIR=", ticket)); VecPush(test.environment, "OLDPWD=/")
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    unused VecResize(test.environment, base)
+    body := TextDetach(TextReplace(ReuseModule(2), "return x + 2", "return x + 5"))
+    if !NativeWrite(*test, CheckPath(src, "beta.zi"), body) { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 13, profile)
+    if !NativeRequireNames(*test, changed[:], beta[:]) { return 1 }
+    if !NativeWrite(*test, CheckPath(src, "beta.zi"), ReuseModule(2)) { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], beta[:]) { return 1 }
+    extra := CheckPath(output, "extra_unit.c")
+    if !NativeWrite(*test, extra, "int extra_unit(void) { return 1; }\n") { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    extra_object := string.["extra_unit.c.o"]
+    if !NativeRequireNames(*test, changed[:], extra_object[:]) { return 1 }
+    unused RemoveFile(extra)
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    header := CheckPath(output, "extra_unit.h")
+    if !NativeWrite(*test, header, "#define EXTRA_UNIT 1\n") { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    unused RemoveFile(header)
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    header = CheckPath(output, "stdint.h")
+    if !NativeWrite(*test, header, "#include_next <stdint.h>\n") { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    found := false; for name: changed { if name == "beta.c.o" { found = true } }
+    if !NativeAssert(*test, found, "new earlier header did not rebuild its includer") { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    unused RemoveFile(header)
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    found = false; for name: changed { if name == "beta.c.o" { found = true } }
+    if !NativeAssert(*test, found, "removed earlier header did not rebuild its includer") { return 1 }
+    VecPush(test.environment, "SOURCE_DATE_EPOCH=1")
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], all[:]) { return 1 }
+    VecFree(changed)
+    changed = NativeObjectBuild(*test, command[:], output, 10, profile)
+    if !NativeRequireNames(*test, changed[:], none[:]) { return 1 }
+    if test.failed { return 1 }
+    print("Local native object reuse tests: isolated edits, tickets, new files, include precedence and compiler environment passed\n")
+    return 0
+}

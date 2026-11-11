@@ -1,0 +1,3 @@
+using D :: #import "Application/PublicLocal";
+using Short :: #import "local";
+main :: () -> s32 { value: D.Value; value.number = Short.LocalNumber; return value.number - 3 }

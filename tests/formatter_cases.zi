@@ -1,0 +1,147 @@
+// The independent byte lexer below checks that formatting preserves lexemes.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+libc :: #system_library "libc";
+FormatterUserRaw :: () -> u32 #foreign libc "geteuid";
+
+FormatterSpace :: (byte: u8) -> bool { return byte == 32 || byte >= 9 && byte <= 13 }
+FormatterLetter :: (byte: u8) -> bool { return byte == 95 || byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 }
+FormatterDigit :: (byte: u8) -> bool { return byte >= 48 && byte <= 57 }
+
+FormatterLexemes :: (source: string) -> Vec(string) {
+    result: Vec(string); at: s64
+    while at < source.count {
+        if FormatterSpace(source[at]) { at += 1; continue }
+        start := at; byte := source[at]; at += 1
+        if byte == 34 {
+            while at < source.count {
+                next := source[at]; at += 1
+                if next == 92 && at < source.count { at += 1 } else if next == 34 { break }
+            }
+        } else if byte == 47 && at < source.count && source[at] == 47 {
+            while at < source.count && source[at] != 10 { at += 1 }
+        } else if FormatterLetter(byte) {
+            while at < source.count && (FormatterLetter(source[at]) || FormatterDigit(source[at])) { at += 1 }
+        } else if FormatterDigit(byte) {
+            while at < source.count && FormatterDigit(source[at]) { at += 1 }
+        }
+        VecPush(result, TextDetach(TextCopy(source[start:at])))
+    }
+    return result
+}
+
+FormatterCollapse :: (text: string) -> string {
+    result: Vec(u8); gap := false
+    for byte: text {
+        if FormatterSpace(byte) { gap = result.count > 0; continue }
+        if gap { VecPush(result, 32) }; VecPush(result, byte); gap = false
+    }
+    return TextDetach(BuilderFinish(result))
+}
+
+FormatterCommand :: (test: *NativeTest, arguments: []string, expected: s32 = 0) -> NativeCommand {
+    command: Vec(string); VecPush(command, CheckPath(PathParent(test.ziran), "zi-fmt")); for argument: arguments { VecPush(command, argument) }
+    result := NativeInvoke(test, command[:], "", 10000)
+    unused NativeAssert(test, result.code == expected, CheckConcat("formatter command failed: ", CheckConcat(TextDetach(TextJoin(command[:], " ")), CheckConcat("\n", result.error))))
+    return result
+}
+
+FormatterFile :: (test: *NativeTest, path: string, check: bool = false, expected: s32 = 0) -> NativeCommand {
+    arguments: Vec(string); if check { VecPush(arguments, "--check") }; VecPush(arguments, path)
+    return FormatterCommand(test, arguments[:], expected)
+}
+
+FormatterNoTemporary :: (test: *NativeTest, directory: string) -> bool {
+    names: Vec(string)
+    if !NativeAssert(test, ListDirectory(directory, *names), "list formatter temporary directory") { return false }
+    for name: names { if !NativeAssert(test, !TextContains(name, ".zi-fmt."), "formatter leaked a replacement temporary") { return false } }
+    return true
+}
+
+FormatterLaws :: (test: *NativeTest, path: string) -> JsonDocument {
+    result: JsonDocument; result.root = JsonNewArray(*result)
+    arguments := string.[test.ziran, "check", "--root", test.work, path]; actual := NativeInvoke(test, arguments[:], "", 30000); lines := TextLines(TextTrimEnd(actual.output))
+    if !NativeAssert(test, actual.code == 0 && lines.count == 2, CheckConcat("formatter law fixture did not prove both laws: ", actual.error)) { return .{} }
+    for line: lines {
+        row: JsonDocument
+        if !NativeAssert(test, JsonRead(*row, line) && CheckField(*row, row.root, "status") == "proved", "formatter changed law acceptance") { return .{} }
+        unused JsonRemove(*row, row.root, "span"); evidence := JsonMember(*row, row.root, "evidence")
+        CheckPut(*row, evidence, "domain", FormatterCollapse(CheckField(*row, evidence, "domain")))
+        JsonAppend(*result, result.root, JsonCopy(*result, *row, row.root))
+    }
+    return result
+}
+
+FormatterReadonly :: (test: *NativeTest) -> bool {
+    if FormatterUserRaw() == 0 { return true }
+    directory := CheckPath(test.work, "readonly"); path := CheckPath(directory, "app.zi"); original := "Answer::()->s32 { return 42 }\n"
+    if !NativeWrite(test, path, original) || !NativeAssert(test, SetPathMode(directory, 365), "make formatter replacement directory read-only") { return false }
+    defer { unused SetPathMode(directory, 493) }
+    unused FormatterFile(test, path, false, 1)
+    return !test.failed && NativeAssert(test, NativeRead(test, path) == original, "failed formatter replacement changed original bytes") && FormatterNoTemporary(test, directory)
+}
+
+FormatterTests :: (test: *NativeTest) -> bool {
+    source := CheckPath(test.work, "source.zi"); original := NativeRead(test, CheckPath(test.repo, "tests/fixtures/formatter/source.zi.in"))
+    if !NativeWrite(test, source, original) { return false }
+    check := FormatterFile(test, source, true, 1)
+    if !NativeAssert(test, !test.failed && TextHasPrefix(check.error, "zi-fmt: would reformat ") && NativeRead(test, source) == original && SetPathMode(source, 489), "formatter check wrote source or lost its reformat diagnostic") { return false }
+    unused FormatterFile(test, source); formatted := NativeRead(test, source)
+    needles := string.["    value: string = ", "    return 42 // { ( = ::\n}", "   trailing comment bytes = ::   \n", "FIRST), Echo(#string SECOND\n  { } ( ) :: = \" \\   \nSECOND))"]
+    for needle: needles { if !NativeAssert(test, TextContains(formatted, needle), "formatter changed quoted/raw/comment bytes or indentation") { return false } }
+    if !NativeAssert(test, PathStatus(source).mode == 489, "formatter changed source permissions") { return false }
+    unused FormatterFile(test, source, true); before := PathStatus(source); unused FormatterFile(test, source); after := PathStatus(source)
+    if !NativeAssert(test, !test.failed && NativeRead(test, source) == formatted && before.inode == after.inode && before.modified == after.modified && before.modified_nanoseconds == after.modified_nanoseconds, "unchanged formatting replaced source bytes, inode or mtime") { return false }
+    names := string.["original", "formatted"]; contents := string.[original, formatted]
+    for index: 0..1 {
+        path := CheckPath(test.work, CheckConcat(names[index], ".zi")); bundle := CheckPath(test.work, CheckConcat(names[index], ".zx"))
+        if !NativeWrite(test, path, contents[index]) { return false }
+        build := string.[test.ziran, "bundle", "--root", test.work, "--entry", CheckConcat(names[index], ":Answer"), "-o", bundle, path]; unused NativeRun(test, build[:])
+        run := string.[test.ziran, "run", bundle]; result := NativeRun(test, run[:]); if !NativeAssert(test, !test.failed && TextTrim(result.output) == "42", "formatting changed program execution") { return false }
+    }
+    laws := CheckPath(test.work, "law_lines.zi"); law_original := NativeRead(test, CheckPath(test.repo, "tests/fixtures/formatter/laws.zi.in")); snapshot := CheckPath(test.work, "law_snapshot.zi")
+    if !NativeWrite(test, laws, law_original) || !NativeWrite(test, snapshot, law_original) { return false }
+    before_laws := FormatterLaws(test, laws); unused FormatterFile(test, laws); law_formatted := NativeRead(test, laws)
+    law_needles := string.["\n    right: 0..1,", "\n    mode: Mode,", "\n    bits: [2]0..1 =>\n    // A comment", "\n    (Add(left, 0)", "\n    true;\nAfter ::"]
+    for needle: law_needles { if !NativeAssert(test, TextContains(law_formatted, needle), "formatter changed law continuation indentation") { return false } }
+    old_tokens := FormatterLexemes(law_original); new_tokens := FormatterLexemes(law_formatted)
+    if !NativeAssert(test, old_tokens.count == new_tokens.count, "formatter changed law token count") { return false }
+    for index: cast(s64)0..old_tokens.count - 1 { if !NativeAssert(test, old_tokens[index] == new_tokens[index], "formatter changed a law lexeme or literal") { return false } }
+    after_laws := FormatterLaws(test, laws)
+    if !NativeAssert(test, !test.failed && JsonWrite(*before_laws, before_laws.root, JsonCompactStyle(false, true)) == JsonWrite(*after_laws, after_laws.root, JsonCompactStyle(false, true)), "formatter changed law evidence or proof domains") { return false }
+    parsed := string.[CheckPath(test.work, "law-format-test"), snapshot, laws, test.work]; unused NativeRun(test, parsed[:])
+    first_law := JsonElement(*before_laws, before_laws.root, 0)
+    if !NativeAssert(test, !test.failed && CheckInteger(*before_laws, JsonMember(*before_laws, first_law, "evidence"), "cases_checked") == 48, "law formatter fixture lost domain cases") { return false }
+    unused FormatterFile(test, laws, true); unused FormatterFile(test, laws)
+    if !NativeAssert(test, NativeRead(test, laws) == law_formatted, "law formatting is not idempotent") { return false }
+    target := CheckPath(test.work, "target.zi"); link := CheckPath(test.work, "linked.zi")
+    if !NativeWrite(test, target, "Answer::()->s32 {\nreturn 42\n}\n") { return false }
+    symlink := string.["ln", "-s", "target.zi", link]; unused NativeRun(test, symlink[:]); unused FormatterFile(test, link)
+    if !NativeAssert(test, !test.failed && PathStatus(link, false).kind == .Link && TextContains(NativeRead(test, target), "    return 42"), "formatter replaced the symlink or failed to format its target") { return false }
+    unused FormatterFile(test, link, true)
+    basename: Vec(u8); for index: 0..251 { VecPush(basename, 120) }; BuilderAppend(basename, ".zi"); long_name := CheckPath(test.work, TextDetach(BuilderFinish(basename)))
+    if !NativeWrite(test, long_name, "Answer::()->s32 { return 42 }\n") { return false }; unused FormatterFile(test, long_name); unused FormatterFile(test, long_name, true)
+    empty := CheckPath(test.work, "empty.zi"); if !NativeWrite(test, empty, "") { return false }; inode := PathStatus(empty).inode; unused FormatterFile(test, empty)
+    if !NativeAssert(test, !test.failed && NativeRead(test, empty) == "" && PathStatus(empty).inode == inode, "formatter replaced an empty file") { return false }
+    newline := CheckPath(test.work, "newline.zi"); if !NativeWrite(test, newline, "Answer :: () -> s32 { return 42 }") { return false }; unused FormatterFile(test, newline)
+    if !NativeAssert(test, TextHasSuffix(NativeRead(test, newline), "\n"), "formatter omitted final newline") || !NativeWrite(test, newline, "Answer::()->s32 { return 42 }") { return false }
+    missing := string.[CheckPath(test.work, "missing.zi"), newline]; unused FormatterCommand(test, missing[:], 1); unused FormatterFile(test, newline, true); unused FormatterFile(test, test.work, false, 1)
+    fifo := CheckPath(test.work, "pipe.zi"); fifo_args := string.["mkfifo", fifo]; unused NativeRun(test, fifo_args[:]); unused FormatterFile(test, fifo, false, 1)
+    no_arguments: [0]string; unused FormatterCommand(test, no_arguments[:], 2)
+    if test.failed || !FormatterNoTemporary(test, test.work) || !FormatterReadonly(test) { return false }
+    print("Formatter files, independent lexemes, law domains, execution, permissions and replacement failures passed local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "formatter-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx FormatterTests(*test) && !test.failed then 0 else 1
+}

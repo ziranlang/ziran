@@ -1,0 +1,2 @@
+#include "go_assembly_test.h"
+int main(void){return go_assembly_test_InputAlias(5)==18?0:1;}

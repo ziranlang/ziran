@@ -1,0 +1,1 @@
+return WriteRaw(writer.destination, bytes)

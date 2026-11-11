@@ -1,4 +1,4 @@
 #!/bin/sh
 set -eu
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-python3 "$repo/tests/run_check_test.py"
+exec "$(dirname -- "${1:-$repo/build/bin/ziran}")/check-runner" --self-test

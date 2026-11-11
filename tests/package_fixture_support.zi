@@ -1,0 +1,129 @@
+#import "native_test"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/json_document"
+#import "check_support"
+using Vectors :: #import "std/vec"
+
+FixtureIsolation :: (test: *NativeTest, root: string) -> bool {
+    names := string.["MAKEFLAGS", "MFLAGS", "MAKELEVEL", "GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES"]
+    for name: names { NativeUnset(test, name) }
+    NativeSet(test, "XDG_CACHE_HOME", CheckPath(root, "cache"))
+    NativeSet(test, "GIT_CONFIG_NOSYSTEM", "1")
+    NativeSet(test, "GIT_CONFIG_GLOBAL", "/dev/null")
+    NativeSet(test, "ZIRAN_TEST_ALLOW_LOCAL_GIT", "1")
+    NativeSet(test, "HOME", CheckPath(root, "home"))
+    NativeSet(test, "GIT_AUTHOR_NAME", "Waozi"); NativeSet(test, "GIT_COMMITTER_NAME", "Waozi")
+    NativeSet(test, "GIT_AUTHOR_EMAIL", "waozi@proton.me"); NativeSet(test, "GIT_COMMITTER_EMAIL", "waozi@proton.me")
+    NativeSet(test, "GIT_CONFIG_COUNT", "1"); NativeSet(test, "GIT_CONFIG_KEY_0", "protocol.file.allow"); NativeSet(test, "GIT_CONFIG_VALUE_0", "always")
+    return NativeAssert(test, CreateDirectories(CheckPath(root, "home")), "create isolated fixture home")
+}
+
+FixtureGit :: (test: *NativeTest, root: string, arguments: []string) -> string {
+    command: Vec(string); VecPush(command, "git")
+    for argument: arguments { VecPush(command, argument) }
+    result := NativeRun(test, command[:], root)
+    return TextDetach(TextCopy(TextTrim(result.output)))
+}
+
+FixtureInit :: (test: *NativeTest, root: string) -> bool {
+    if !NativeAssert(test, CreateDirectories(root), "create fixture repository") { return false }
+    arguments := string.["init", "-q", "-b", "master"]
+    unused FixtureGit(test, root, arguments[:])
+    return !test.failed
+}
+
+FixtureCommit :: (test: *NativeTest, root: string, message: string) -> string {
+    add := string.["add", "."]; unused FixtureGit(test, root, add[:])
+    commit := string.["-c", "user.name=Waozi", "-c", "user.email=waozi@proton.me", "commit", "-q", "-m", message]
+    unused FixtureGit(test, root, commit[:])
+    revision := string.["rev-parse", "HEAD"]
+    return FixtureGit(test, root, revision[:])
+}
+
+FixtureUri :: (path: string) -> string {
+    alphabet := "0123456789ABCDEF"
+    bytes: Vec(u8); BuilderAppend(bytes, "file://")
+    for index: cast(s64)0..path.count - 1 {
+        byte := path[index]
+        if byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 47 || byte == 45 || byte == 46 || byte == 95 || byte == 126 { VecPush(bytes, byte) }
+        else { VecPush(bytes, cast(u8)37); VecPush(bytes, alphabet[cast(s64)(byte >> cast(u8)4)]); VecPush(bytes, alphabet[cast(s64)(byte & cast(u8)15)]) }
+    }
+    return TextDetach(BuilderFinish(bytes))
+}
+
+FixtureQuote :: (value: string) -> string { return TextDetach(JsonQuote(value)) }
+
+FixtureOverrides :: (test: *NativeTest, app: string, aliases: []string, paths: []string, ascii: bool = true) -> bool {
+    if !NativeAssert(test, aliases.count == paths.count, "mismatched override fixture") { return false }
+    text: Vec(u8); BuilderAppend(text, "[overrides]\n")
+    for index: cast(s64)0..aliases.count - 1 {
+        BuilderAppend(text, aliases[index]); BuilderAppend(text, " = "); BuilderAppend(text, JsonQuote(paths[index], ascii)); BuilderAppend(text, "\n")
+    }
+    return NativeWrite(test, CheckPath(app, "ziran.local.toml"), BuilderFinish(text))
+}
+
+FixtureDigest :: (test: *NativeTest, value: string) -> string {
+    test.counter += 1
+    path := CheckPath(test.work, CheckConcat("digest-input-", CheckNumber(test.counter)))
+    if !NativeWrite(test, path, value) { return "" }
+    return CheckHash(path)
+}
+
+PackageCommand :: (test: *NativeTest, directory: string, arguments: []string, success: bool = true) -> string {
+    command: Vec(string); VecPush(command, test.ziran)
+    for argument: arguments { VecPush(command, argument) }
+    result := NativeInvoke(test, command[:], directory, 180000, true)
+    unused NativeAssert(test, ifx success then result.code == 0 else result.code > 0 && result.code < 124,
+        CheckConcat("unexpected package command result: ", CheckConcat(TextDetach(TextJoin(command[:], " ")), CheckConcat("\n", result.output))))
+    return result.output
+}
+
+FixtureJsonSame :: (left: *JsonDocument, a: s32, right: *JsonDocument, b: s32) -> bool {
+    return JsonWrite(left, a, JsonCompactStyle(true, true)) == JsonWrite(right, b, JsonCompactStyle(true, true))
+}
+
+FixturePackage :: (document: *JsonDocument, value: string, field: string = "name") -> s32 {
+    packages := JsonMember(document, document.root, "packages")
+    for index: cast(s32)0..JsonCount(document, packages) - 1 {
+        item := JsonElement(document, packages, index)
+        if CheckField(document, item, field) == value { return item }
+    }
+    return -1
+}
+
+FixtureLock :: (test: *NativeTest, app: string, document: *JsonDocument) -> bool {
+    return NativeAssert(test, JsonRead(document, NativeRead(test, CheckPath(app, "ziran.lock"))), "read package fixture lock")
+}
+
+FixtureRedirects :: (test: *NativeTest, prefixes: []string, targets: []string) -> bool {
+    if !NativeAssert(test, prefixes.count == targets.count, "mismatched Git URL redirects") { return false }
+    NativeSet(test, "GIT_CONFIG_COUNT", CheckNumber(prefixes.count + 1))
+    NativeSet(test, "GIT_CONFIG_KEY_0", "protocol.file.allow"); NativeSet(test, "GIT_CONFIG_VALUE_0", "always")
+    for index: cast(s64)0..prefixes.count - 1 {
+        suffix := CheckNumber(index + 1)
+        NativeSet(test, CheckConcat("GIT_CONFIG_KEY_", suffix), CheckConcat("url.", CheckConcat(targets[index], ".insteadOf")))
+        NativeSet(test, CheckConcat("GIT_CONFIG_VALUE_", suffix), prefixes[index])
+    }
+    return true
+}
+
+FixtureCompile :: (test: *NativeTest, app: string, output: string, source: string, project: bool, entry: string = "app:main") -> bool {
+    arguments: Vec(string)
+    initial := string.["build", "--target=c", "--entry", entry, "-o", output]
+    for argument: initial { VecPush(arguments, argument) }
+    if project { VecPush(arguments, "--project") }
+    else { VecPush(arguments, "--root"); VecPush(arguments, TextDetach(TextCopy(PathParent(source)))) }
+    VecPush(arguments, source)
+    unused PackageCommand(test, app, arguments[:])
+    compile: Vec(string)
+    flags := string.[NativeCompiler(), "-std=c99", "-pedantic-errors", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(output, ".c")
+    if !NativeAssert(test, files.count > 0, "package generated no C sources") { return false }
+    for file: files { VecPush(compile, file) }
+    VecPush(compile, "-lm"); VecPush(compile, "-o"); VecPush(compile, CheckPath(output, "app"))
+    unused NativeRun(test, compile[:], app)
+    run := string.[CheckPath(output, "app")]; unused NativeRun(test, run[:], app)
+    return !test.failed
+}

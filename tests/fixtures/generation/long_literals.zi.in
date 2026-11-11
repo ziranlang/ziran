@@ -1,0 +1,26 @@
+Entry :: struct { code: s32; name: string; note: string; }
+
+Ordered :: struct { first: s32; second: s32; third: s32; }
+sequence: s32;
+Next :: () -> s32 { sequence += 1; return sequence }
+
+#program_export
+Answer :: () -> s32 {
+    table: [80]Entry = .[
+@TABLE@
+    ]
+    bytes := u8.[
+@BYTES@
+    ]
+    for index: 0..2047 { if bytes[index] != cast(u8)(index % 256) { return 2 } }
+    sequence = 0
+    ordered := s32.[sequence, Next(), sequence, Next(), sequence]
+    if ordered[0] != 0 || ordered[1] != 1 || ordered[2] != 1 || ordered[3] != 2 || ordered[4] != 2 { return 3 }
+    sequence = 0
+    record := Ordered.{first = sequence, second = Next(), third = sequence}
+    if record.first != 0 || record.second != 1 || record.third != 1 { return 4 }
+    total: s32 = 0
+    for table { total += it.code }
+    if total != 3160 || table[79].name != "entry79" { return 1 }
+    return 42
+}

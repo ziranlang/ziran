@@ -1,0 +1,2 @@
+#import "app"
+DemoValue :: () -> s32 { return DemoFrame() + 1 }

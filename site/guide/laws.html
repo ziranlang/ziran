@@ -43,6 +43,14 @@ method and domain tell you how far that result extends. A finite test of
 <code>n: 0..4</code> says nothing about other values. An <code>abi</code> result checks a signature;
 it does not prove what a foreign procedure does.</p>
 <h2 id="write-an-obligation-and-certificate">Write an obligation and certificate</h2>
+<p>Long quantified laws can continue after each domain's comma and after <code>=&gt;</code>.
+Put each predicate on its own line, continuing after <code>&amp;&amp;</code> or <code>||</code>. The
+formatter keeps these continuations indented until the terminating <code>;</code>:</p>
+<pre><code class="language-zi">#law AddCommutes forall left: 0..4,
+    right: 0..4 =&gt;
+    Add(left, right) == Add(right, left) &amp;&amp;
+    Add(left, 0) == left;
+</code></pre>
 <p>In <code>scalar.zi</code>:</p>
 <pre><code class="language-zi">Add :: (a: s32, b: s32) -&gt; s32 { return a + b }
 Larger :: (a: s32, b: s32) -&gt; s32 {

@@ -1,0 +1,96 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+ProviderFixture :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 4 { return 2 }
+    name := TextFromCString(argv[2]); check := TextFromCString(argv[3]) == "--check"; bundle := TextFromCString(argv[argc - 1])
+    if check && (argc != 5 || !TextHasPrefix(bundle, "/")) || !check && !IsFile(bundle) { return 3 }
+    document: JsonDocument; root := JsonNewArray(*document); JsonAppend(*document, root, JsonNewString(*document, name))
+    for index: cast(s32)3..argc - 1 { JsonAppend(*document, root, JsonNewString(*document, TextFromCString(argv[index]))) }
+    log := EnvironmentText("PROVIDER_LOG"); previous := ""
+    if PathExists(log) { contents, valid := ReadEntireFile(log); if !valid { return 4 }; previous = TextDetach(TextCopy(contents)) }
+    if !WriteEntireFile(log, CheckConcat(previous, CheckConcat(TextDetach(JsonWrite(*document, root, JsonCompactStyle())), "\n"))) { return 4 }
+    if check { return ifx TextHasPrefix(name, "reject") then 1 else 0 }
+    print("provider ran\n"); status := EnvironmentText("PROVIDER_STATUS")
+    if status == "" { return 0 }; code, valid := TextInteger(status)
+    return ifx valid && code >= 0 && code <= 125 then cast(s32)code else 2
+}
+
+ProviderBundle :: (test: *NativeTest, name: string, body: string) -> string {
+    source := CheckPath(test.work, CheckConcat(name, ".zi")); bundle := CheckPath(test.work, CheckConcat(name, " with spaces.zx"))
+    if !NativeWrite(test, source, body) { return "" }
+    args := string.[test.ziran, "bundle", "--root", test.work, "--entry", CheckConcat(name, ":main"), "-o", bundle, source]; unused NativeRun(test, args[:], test.work)
+    return bundle
+}
+
+ProviderCall :: (test: *NativeTest, line: string, expected: []string) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, line) && JsonKindOf(*document, document.root) == .Array && JsonCount(*document, document.root) == expected.count, "wrong provider invocation size") { return false }
+    for index: cast(s64)0..expected.count - 1 { if !NativeAssert(test, JsonIs(*document, JsonElement(*document, document.root, cast(s32)index), expected[index]), "provider admission/execution changed argv or ordering") { return false } }
+    return true
+}
+
+ProviderCalls :: (test: *NativeTest, hosted: string, vm: bool, only_last: bool = false) -> bool {
+    rows := TextLines(TextTrimEnd(NativeRead(test, CheckPath(test.work, "calls.jsonl"))))
+    if !NativeAssert(test, !test.failed && rows.count == 3, "runtime must probe the first two providers and execute only the admitted one") { return false }
+    reject := string.["reject provider", "--check", hosted]; accept := string.["accepted provider", "--check", hosted]
+    if !only_last && (!ProviderCall(test, rows[0], reject[:]) || !ProviderCall(test, rows[1], accept[:])) { return false }
+    final: Vec(string); VecPush(final, "accepted provider"); if vm { VecPush(final, "--vm") }; VecPush(final, hosted)
+    return ProviderCall(test, rows[2], final[:])
+}
+
+ProviderTests :: (test: *NativeTest, self: string) -> bool {
+    registry := CheckPath(test.work, "hosts with spaces"); log := CheckPath(test.work, "calls.jsonl")
+    if !NativeAssert(test, CreateDirectories(registry), "create private provider registry") { return false }
+    NativeSet(test, "ZIRAN_HOST_PATH", registry); NativeSet(test, "PROVIDER_LOG", log)
+    plain := ProviderBundle(test, "plain", "main :: () -> s32 { return 42 }\n")
+    hosted := ProviderBundle(test, "hosted", "host_api :: #system_library \"host_api\";\nCallHost :: () -> s32 #foreign host_api;\nInitialize :: () -> s32 { print(\"initializer executed\\n\"); return 1 }\ninitialized: s32 = Initialize();\nmain :: () -> s32 { print(\"entry executed\\n\"); return CallHost() + initialized }\n")
+    if test.failed { return false }
+    plain_args := string.[test.ziran, "run", plain]; first := NativeRun(test, plain_args[:], test.work)
+    if !NativeAssert(test, !test.failed && first.output == "42\n" && !PathExists(log), "plain bundle consulted providers or changed result") { return false }
+    hosted_args := string.[test.ziran, "run", hosted]; missing := NativeRun(test, hosted_args[:], test.work, 2)
+    if !NativeAssert(test, !test.failed && missing.output == "" && TextContains(missing.error, "no installed runtime provider"), "provider admission executed an initializer or lost missing-provider diagnostic") { return false }
+    if !NativeWrite(test, CheckPath(registry, "00-relative.host"), "./untrusted-program\n") { return false }
+    unused NativeRun(test, hosted_args[:], test.work, 2)
+    if !NativeAssert(test, !test.failed && !PathExists(log), "relative provider registry entry was executed") { return false }
+    names := string.["reject provider", "accepted provider", "later provider"]; records := string.["10-reject.host", "20-accept.host", "30-later.host"]
+    for index: cast(s64)0..names.count - 1 {
+        path := CheckPath(test.work, names[index]); parts := string.["#!/bin/sh\nexec ", CheckQuote(self), " --provider ", CheckQuote(names[index]), " \"$@\"\n"]
+        if !NativeWrite(test, path, TextJoin(parts[:], "")) || !NativeAssert(test, SetPathMode(path, 493), "make native provider fixture executable") || !NativeWrite(test, CheckPath(registry, records[index]), CheckConcat(path, "\n")) { return false }
+    }
+    accepted := NativeRun(test, hosted_args[:], test.work)
+    if !NativeAssert(test, !test.failed && accepted.output == "provider ran\n", "accepted provider did not run exclusively") || !ProviderCalls(test, hosted, false) || !NativeAssert(test, RemoveFile(log), "reset provider log") { return false }
+    vm_args := string.[test.ziran, "run", "--vm", hosted]; vm := NativeRun(test, vm_args[:], test.work)
+    if !NativeAssert(test, !test.failed && vm.output == "provider ran\n", "VM provider changed output") || !ProviderCalls(test, hosted, true, true) || !NativeAssert(test, RemoveFile(log), "reset provider log") { return false }
+    NativeSet(test, "PROVIDER_STATUS", "23"); unused NativeRun(test, hosted_args[:], test.work, 23); NativeUnset(test, "PROVIDER_STATUS")
+    if test.failed || !ProviderCalls(test, hosted, false, true) || !NativeAssert(test, RemoveFile(log), "reset provider log") { return false }
+    bad := CheckPath(test.work, "bad.zx")
+    if !NativeWrite(test, bad, "ZX broken") { return false }
+    bad_args := string.[test.ziran, "run", bad]; unused NativeRun(test, bad_args[:], test.work, 1)
+    if !NativeAssert(test, !test.failed && !PathExists(log), "malformed bundle reached providers") { return false }
+    plain_vm_args := string.[test.ziran, "run", "--vm", plain]; plain_vm := NativeRun(test, plain_vm_args[:], test.work)
+    if !NativeAssert(test, !test.failed && plain_vm.output == "42\n" && !PathExists(log), "plain VM bundle consulted providers") { return false }
+    data := CheckPath(test.work, "user:data with spaces"); installed := CheckPath(data, "ziran/hosts")
+    if !NativeWrite(test, CheckPath(installed, "sample.host"), CheckConcat(CheckPath(test.work, "accepted provider"), "\n")) { return false }
+    NativeSet(test, "ZIRAN_HOST_PATH", ""); NativeSet(test, "XDG_DATA_HOME", data); NativeSet(test, "XDG_DATA_DIRS", CheckPath(test.work, "empty-system"))
+    xdg := NativeRun(test, hosted_args[:], test.work); rows := TextLines(TextTrimEnd(NativeRead(test, log))); last := string.["accepted provider", hosted]
+    if !NativeAssert(test, !test.failed && xdg.output == "provider ran\n" && rows.count > 0, "XDG provider registry with spaces/colon was not discovered") || !ProviderCall(test, rows[rows.count - 1], last[:]) { return false }
+    print("bundle runtime provider local tests passed\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--provider" { return ProviderFixture(argc, argv) }
+    test := NativeStart(argc, argv, "bundle-provider-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx ProviderTests(*test, TextFromCString(argv[0])) && !test.failed then 0 else 1
+}

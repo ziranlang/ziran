@@ -155,6 +155,29 @@ CollectionZero :: (seed: s64, limit: s32, choose: bool) -> s64 {
     return total + cast(s64)limit + cast(s64)choose
 }
 
+PlanPair :: struct { low: s32; high: s32; }
+PlanWide :: struct { count: s64; value: s64; tag: s64; text: string; }
+
+RecordSum :: (pair: PlanPair) -> s64 {
+    return cast(s64)pair.low + cast(s64)pair.high
+}
+
+RecordFields :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    pair: PlanPair = .{low = cast(s32)seed, high = limit}
+    if choose { pair.low += pair.high }
+    return RecordSum(pair) + cast(s64)pair.high
+}
+
+RecordCountField :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    wide: PlanWide = .{count = seed, value = cast(s64)limit,
+        tag = cast(s64)choose, text = "café"}
+    return wide.count + wide.value + wide.tag + wide.text.count
+}
+
+ShortRead :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    return seed
+}
+
 CallSet :: (target: *s64, value: s64) -> s64 { <<target = value; return 5 }
 CallVoid :: (target: *s64, value: s64) { <<target = value }
 CallPair :: (left: s64, right: s64) -> s64 { return left * 10 + right }
@@ -246,6 +269,9 @@ Fallback :: () -> s32 {
 
 #program_export
 Answer :: () -> s64 {
+    if RecordFields(7, 2, true) != 13 { return 23 }
+    if RecordCountField(7, 2, true) != 15 { return 24 }
+    if ShortRead(37, 2, false) != 37 { return 25 }
     if CollectionCopies(1, 0, false) != 12 { return 20 }
     if CollectionStrings(0, 0, false) != 436 { return 21 }
     if CollectionZero(7, 2, true) != 10 { return 22 }

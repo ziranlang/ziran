@@ -1,0 +1,123 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "package_resolution_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+libc :: #system_library "libc";
+ToolMemfdRaw :: (name: *u8, flags: u32) -> s32 #foreign libc "memfd_create";
+
+ToolProbe :: (argc: s32, argv: **u8) -> s32 {
+    contents, valid := ReadEntireFile(EnvironmentText("ZIRAN_TOOL_OPTIONS"))
+    if !valid { return 1 }
+    arguments: Vec(string)
+    for index: cast(s32)2..argc - 1 { VecPush(arguments, TextDetach(TextCopy(TextFromCString(argv[index])))) }
+    print("%", contents)
+    print("project=% entry=% args=% links=%\n", EnvironmentText("ZIRAN_PROJECT_NAME"), EnvironmentText("ZIRAN_PROJECT_ENTRY"), TextJoin(arguments[:], " "), EnvironmentText("ZIRAN_PROJECT_LINKS"))
+    print("install=% %\n", EnvironmentText("ZIRAN_INSTALL_PREFIX"), EnvironmentText("ZIRAN_INSTALL_BIN"))
+    print("pinned=%\n", EnvironmentText("ZIRAN_PINNED_LAUNCHER"))
+    return 0
+}
+
+ToolLine :: (test: *NativeTest, output: string, line: string) -> bool {
+    lines := TextSplit(output, "\n")
+    for value: lines { if value == line { return true } }
+    return NativeAssert(test, false, CheckConcat("tool omitted line: ", CheckConcat(line, CheckConcat("\n", output))))
+}
+
+Tooling :: (test: *NativeTest) -> bool {
+    if !FixtureIsolation(test, test.work) { return false }
+    NativeUnset(test, "ZIRAN_PINNED_LAUNCHER")
+    NativeSet(test, "ZIRAN_PACKAGE_TOOL_PROBE", TextDetach(ResolvePath("/proc/self/exe")))
+    tooling := CheckPath(test.work, "tooling"); app := CheckPath(test.work, "tooled")
+    if !FixtureInit(test, tooling) || !NativeWrite(test, CheckPath(tooling, "ziran.toml"), "[package]\nname = \"Tooling\"\nmodule_roots = [\"src\"]\n[exports]\nTooling = \"src/Tooling.zi\"\n[tool]\nproject = \"build/tool\"\n[options]\nmode = \"string!\"\nfast = \"bool=false\"\n[options.targets.\"*\"]\nkind = \"string!\"\nlevel = \"string=1\"\n[options.install]\nlabel = \"string\"\n") ||
+        !NativeWrite(test, CheckPath(tooling, "src/Tooling.zi"), "ToolingValue :: 1;\n") ||
+        !NativeWrite(test, CheckPath(tooling, "tool.sh"), "#!/bin/sh\nexec \"$ZIRAN_PACKAGE_TOOL_PROBE\" --tool \"$@\"\n") ||
+        !NativeWrite(test, CheckPath(tooling, "Makefile"), "build/tool: tool.sh\n\tmkdir -p build\n\tcp tool.sh build/tool\n\tchmod 755 build/tool\n") { return false }
+    unused FixtureCommit(test, tooling, "native lifecycle tool probe")
+    template := NativeRead(test, CheckPath(test.repo, "tests/fixtures/package_tooling/tooled.toml.in"))
+    manifest := TextDetach(TextReplace(TextDetach(TextReplace(template, "@TOOLCHAIN@", FixtureUri(test.repo))), "@TOOLING@", FixtureUri(tooling)))
+    manifest_path := CheckPath(app, "ziran.toml")
+    if !NativeWrite(test, manifest_path, manifest) || !ResolutionOverrides(test, app) || !NativeWrite(test, CheckPath(app, "src/app.zi"), "Main :: () -> s32 { return 0 }\n") { return false }
+    lock := string.["lock"]; unused PackageCommand(test, app, lock[:])
+    tool := string.["tool", "Tooling", "build", "--fast"]
+    output := PackageCommand(test, app, tool[:])
+    expected := "mode=fast\nfast=false\ntargets=b a\ntargets.b.kind=x\ntargets.b.level=1\ntargets.a.kind=y\ntargets.a.level=3\nproject=Tooled entry=src/app.zi args=build --fast links=gio-2.0 gdk_pixbuf-2.0\ninstall= \npinned=\n"
+    if !NativeAssert(test, output == expected, CheckConcat("tool option order, defaults or context changed: ", output)) { return false }
+    // An anonymous executable lies outside the compiler checkout and survives
+    // exec through its owned inherited fd. This tests real pinned forwarding.
+    name: [32]u8; CopyCString("ziran-bootstrap", name[:])
+    fd := ToolMemfdRaw(*name[0], cast(u32)0)
+    external: FileHandle = .{.fd = fd, .valid = fd >= 0}
+    if !NativeAssert(test, external.valid, "create anonymous bootstrap executable") { return false }
+    defer CloseFile(external)
+    binary := NativeRead(test, test.ziran)
+    if !NativeAssert(test, WriteTextAt(external, binary, 0) == binary.count, "copy bootstrap executable to owned fd") { return false }
+    bootstrap := CheckConcat("/proc/self/fd/", CheckNumber(fd))
+    handed_arguments := string.[bootstrap, "tool", "Tooling", "build"]
+    handed := NativeRun(test, handed_arguments[:], app)
+    if !ToolLine(test, handed.output, "pinned=forwarded") { return false }
+    local_path := CheckPath(app, "ziran.local.toml"); local := NativeRead(test, local_path)
+    if !NativeWrite(test, local_path, CheckConcat(local, "[tool.Tooling]\nmode = \"slow\"\n")) { return false }
+    build := string.["tool", "Tooling", "build"]
+    if !ToolLine(test, PackageCommand(test, app, build[:]), "mode=slow") || !NativeWrite(test, local_path, local) { return false }
+    install := string.["install", "--prefix", "local", "--quick"]; installed := PackageCommand(test, app, install[:])
+    if !ToolLine(test, installed, CheckConcat("install=", CheckConcat(CheckPath(app, "local"), " tooled"))) ||
+        !ToolLine(test, installed, "project=Tooled entry=src/app.zi args=install --quick links=gio-2.0 gdk_pixbuf-2.0") { return false }
+    verbs := string.["run", "build", "check"]
+    for verb: verbs {
+        arguments := string.[verb, "desktop"]
+        if !ToolLine(test, PackageCommand(test, app, arguments[:]), CheckConcat("project=Tooled entry=src/app.zi args=", CheckConcat(verb, " desktop links=gio-2.0 gdk_pixbuf-2.0"))) { return false }
+    }
+    wide_args: Vec(string); VecPush(wide_args, "check"); VecPush(wide_args, "--project")
+    for index: 0..272 {
+        folder := CheckPath(app, CheckConcat("build/generated", CheckNumber(index)))
+        if !NativeAssert(test, CreateDirectories(folder), "create lifecycle generated root") { return false }
+        VecPush(wide_args, "--module-path"); VecPush(wide_args, folder)
+    }
+    wide_output := PackageCommand(test, app, wide_args[:])
+    expected_wide := CheckConcat("args=check ", CheckConcat(TextDetach(TextJoin(wide_args[2:], " ")), " links="))
+    if !NativeAssert(test, TextContains(wide_output, expected_wide), "lifecycle tool lost an ordinary generated root argument") { return false }
+    after_separator := string.["run", "--", "--locked"]
+    if !ToolLine(test, PackageCommand(test, app, after_separator[:]), "project=Tooled entry=src/app.zi args=run -- --locked links=gio-2.0 gdk_pixbuf-2.0") { return false }
+    file_check := string.["check", "--project", "src/app.zi"]
+    if !NativeAssert(test, !TextContains(PackageCommand(test, app, file_check[:]), "project=Tooled"), "named source file was handed to lifecycle tool") ||
+        !NativeWrite(test, CheckPath(app, "helper/helper.zi"), "#import \"helper_util\"\nmain :: () -> s32 { return Util() }\n") ||
+        !NativeWrite(test, CheckPath(app, "helper/helper_util.zi"), "Util :: () -> s32 { return 0 }\n") { return false }
+    helper_build := string.["build", "--target=c", "--root", "helper", "-o", CheckPath(test.work, "helper-c"), "helper/helper.zi"]
+    unused PackageCommand(test, app, helper_build[:])
+    helper_check := string.["check", "--root", "helper", "--module-path", CheckPath(test.repo, "std"), "helper/helper.zi"]
+    unused PackageCommand(test, app, helper_check[:])
+    code_build := string.["build", "--target=c", "--entry", "app:Main", "-o", CheckPath(test.work, "tooled-c")]
+    generated := PackageCommand(test, app, code_build[:])
+    if !NativeAssert(test, !TextContains(generated, "project=Tooled") && IsFile(CheckPath(test.work, "tooled-c/app.c")), "explicit target build was handed to lifecycle tool") { return false }
+    moved_manifest := TextDetach(TextReplace(TextDetach(TextReplace(manifest, "tool = \"Tooling\"\n", "")), "[install]\n", "[install]\ntool = \"Tooling\"\n"))
+    if !NativeWrite(test, manifest_path, moved_manifest) { return false }
+    install_plain := string.["install"]
+    if !NativeAssert(test, TextContains(PackageCommand(test, app, install_plain[:], false), "[install] tool moved: write tool = \"Tooling\" under [package]"), "old tool spelling was silently ignored") { return false }
+    broken := string.[TextDetach(TextReplace(manifest, "mode = \"fast\"", "mode = \"fast\"\nspeed = \"x\"")), TextDetach(TextReplace(manifest, "kind = \"x\"\n", "")),
+        TextDetach(TextReplace(manifest, "[tool.Tooling.targets.b]", "[tool.Tooling.targets]")), TextDetach(TextReplace(manifest, "mode = \"fast\"", "mode = \"fast\"\nfast = \"yes\""))]
+    messages := string.["ziran.toml:16: unknown Tooling option speed", "missing required Tooling option targets.b.kind", "name the table: [tool.Tooling.targets.NAME]", "fast must be a non-empty bool"]
+    for index: cast(s64)0..broken.count - 1 {
+        if !NativeWrite(test, manifest_path, broken[index]) { return false }
+        if !NativeAssert(test, TextContains(PackageCommand(test, app, build[:], false), messages[index]), "typed tool option validation changed") { return false }
+    }
+    return NativeWrite(test, manifest_path, manifest) && !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--tool" { return ToolProbe(argc, argv) }
+    test := NativeStart(argc, argv, "package-tooling-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !Tooling(*test) { return 1 }
+    print("Local package lifecycle tools: typed options, pinned forwarding, generated roots and command routing passed\n")
+    return 0
+}

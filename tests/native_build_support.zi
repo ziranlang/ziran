@@ -1,0 +1,74 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+NativeObject :: struct { name: string; inode: u64; modified: s64; nanoseconds: s64 }
+
+NativeObjects :: (output: string) -> Vec(NativeObject) {
+    result: Vec(NativeObject)
+    root := CheckPath(output, ".objects")
+    if !IsDirectory(root) { return .{} }
+    files := NativeFiles(root, ".o", true)
+    for file: files {
+        info := PathStatus(file)
+        VecPush(result, NativeObject.{TextDetach(TextCopy(file[root.count + 1:])), info.inode, info.modified, cast(s64)info.modified_nanoseconds})
+    }
+    return result
+}
+
+NativeObjectUpdates :: (before: []NativeObject, after: []NativeObject) -> Vec(string) {
+    changes: Vec(string)
+    for current: after {
+        unchanged := false
+        for previous: before {
+            if current.name == previous.name && current.inode == previous.inode && current.modified == previous.modified && current.nanoseconds == previous.nanoseconds { unchanged = true }
+        }
+        if !unchanged { VecPush(changes, current.name) }
+    }
+    return changes
+}
+
+NativeSameNames :: (left: []string, right: []string) -> bool {
+    if left.count != right.count { return false }
+    for name: left {
+        found := false
+        for other: right { if name == other { found = true } }
+        if !found { return false }
+    }
+    return true
+}
+
+NativeRequireNames :: (test: *NativeTest, actual: []string, expected: []string) -> bool {
+    return NativeAssert(test, NativeSameNames(actual, expected), CheckConcat("wrong changed objects: ", CheckConcat(TextDetach(TextJoin(actual, ", ")), CheckConcat("; expected ", TextDetach(TextJoin(expected, ", "))))))
+}
+
+NativeProfileCounters :: (test: *NativeTest, path: string, document: *JsonDocument) -> s32 {
+    contents := NativeRead(test, path)
+    lines := TextLines(TextTrimEnd(contents))
+    if !NativeAssert(test, lines.count > 0 && JsonRead(document, lines[lines.count - 1]), "missing or invalid build profile") { return -1 }
+    return JsonMember(document, document.root, "counters")
+}
+
+NativeCounter :: (document: *JsonDocument, counters: s32, name: string) -> s64 {
+    if JsonKindOf(document, JsonMember(document, counters, name)) == .Missing { return 0 }
+    return CheckInteger(document, counters, name)
+}
+
+NativeObjectBuild :: (test: *NativeTest, command: []string, output: string, answer: s32, profile: string) -> Vec(string) {
+    before := NativeObjects(output)
+    unused RemoveFile(profile)
+    unused NativeRun(test, command)
+    execute := string.[CheckPath(output, "app")]
+    unused NativeRun(test, execute[:], "", answer)
+    after := NativeObjects(output)
+    updates := NativeObjectUpdates(before[:], after[:])
+    document: JsonDocument
+    counters := NativeProfileCounters(test, profile, *document)
+    unused NativeAssert(test, NativeCounter(*document, counters, "native_object_compile") == updates.count, "profile compile counter disagrees with files actually replaced")
+    return updates
+}

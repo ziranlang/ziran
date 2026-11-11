@@ -1,0 +1,326 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/json_document"
+
+#scope_file
+native_execution: bool;
+
+#scope_export
+
+Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, listing), "native map must be JSON") { return false }
+    ranges := JsonMember(*document, document.root, "ranges")
+    functions := JsonMember(*document, document.root, "functions")
+    origins := JsonMember(*document, document.root, "origins")
+    if !NativeAssert(test, CheckField(*document, document.root, "coordinate") == "text-relative" &&
+        CheckInteger(*document, document.root, "version") == 1 && JsonCount(*document, ranges) > 2 &&
+        JsonCount(*document, functions) > 0 && JsonCount(*document, origins) > 0,
+        "invalid native map metadata") { return false }
+    previous: s64
+    mapped: s64
+    for index: 0..JsonCount(*document, ranges) - 1 {
+        range := JsonElement(*document, ranges, index)
+        begin := CheckInteger(*document, range, "begin")
+        end := CheckInteger(*document, range, "end")
+        if !NativeAssert(test, begin == previous && end >= begin, "native map must cover every text byte exactly") { return false }
+        if CheckInteger(*document, range, "origin") >= 0 {
+            origin_id := CheckInteger(*document, range, "origin")
+            if !NativeAssert(test, origin_id < JsonCount(*document, origins), "native range must reference a known origin") { return false }
+            origin := JsonElement(*document, origins, cast(s32)origin_id)
+            if !NativeAssert(test, CheckField(*document, range, "file") != "" &&
+                CheckField(*document, range, "file") == CheckField(*document, origin, "file") &&
+                CheckInteger(*document, range, "line") == CheckInteger(*document, origin, "line") &&
+                CheckInteger(*document, range, "column") == CheckInteger(*document, origin, "column"),
+                "native map must retain source origins") { return false }
+            mapped += 1
+        }
+        previous = end
+    }
+    for index: 0..JsonCount(*document, functions) - 1 {
+        function := JsonElement(*document, functions, index)
+        begin := CheckInteger(*document, function, "begin")
+        end := CheckInteger(*document, function, "end")
+        if !NativeAssert(test, CheckInteger(*document, function, "id") == index &&
+            CheckField(*document, function, "module") != "" && CheckField(*document, function, "name") != "" &&
+            begin >= 35 && end > begin && end <= previous,
+            "function extents must identify their actual native text bytes") { return false }
+    }
+    for index: 0..JsonCount(*document, origins) - 1 {
+        origin := JsonElement(*document, origins, index)
+        parent := CheckInteger(*document, origin, "parent")
+        if !NativeAssert(test, CheckInteger(*document, origin, "id") == index &&
+            CheckInteger(*document, origin, "begin") >= 0 &&
+            CheckInteger(*document, origin, "end") >= CheckInteger(*document, origin, "begin") &&
+            CheckInteger(*document, origin, "line") > 0 && CheckInteger(*document, origin, "column") > 0 &&
+            parent >= -1 && parent < JsonCount(*document, origins) && parent != index,
+            "native map must preserve complete source spans and parent origin identities") { return false }
+    }
+    if !NativeAssert(test, binary.count >= 120, "native ELF header is truncated") { return false }
+    file_size: u64
+    for offset: 0..7 { file_size |= cast(u64)binary[96 + offset] << cast(u64)(offset * 8) }
+    return NativeAssert(test, previous == cast(s64)file_size - 120 && mapped > 0 &&
+        CheckInteger(*document, document.root, "text_size") == previous, "native map must match encoded text size")
+}
+
+Compile :: (test: *NativeTest, compiler: string, source: string, entry: string, emit: string, output: string) -> bool {
+    arguments := string.[compiler, "--root", PathParent(source), "--entry", entry, "--emit", emit, "-o", output, source]
+    unused NativeRun(test, arguments[:])
+    return !test.failed
+}
+
+WireExercise :: (test: *NativeTest, compiler: string, input: string, entry: string, listing: string, expected: s32,
+    binary: string = "", mapping: string = "") -> bool {
+    wire := CheckConcat(input, ".lirb")
+    if !Compile(test, compiler, input, entry, "exec", wire) { return false }
+    first := NativeRead(test, wire)
+    source_run := string.[compiler, "--run", "--root", PathParent(input), "--entry", entry, input]
+    unused NativeRun(test, source_run[:], "", expected)
+    wire_run := string.[compiler, "--run", "--input", "exec", wire]
+    unused NativeRun(test, wire_run[:], "", expected)
+    if test.failed { return false }
+    decoded := CheckConcat(wire, ".lir")
+    decode := string.[compiler, "--input", "exec", "--emit", "lir", "-o", decoded, wire]
+    unused NativeRun(test, decode[:])
+    if !NativeAssert(test, NativeRead(test, decoded) == NativeRead(test, listing),
+        "decoded instruction listing must equal source lowering without checked IR") { return false }
+    rewritten := CheckConcat(wire, ".again")
+    encode := string.[compiler, "--input", "exec", "--emit", "exec", "-o", rewritten, wire]
+    unused NativeRun(test, encode[:])
+    if !NativeAssert(test, NativeRead(test, rewritten) == first, "instruction wire encoding must be canonical") { return false }
+    if binary != "" {
+        executable := CheckConcat(wire, ".elf")
+        native := string.[compiler, "--input", "exec", "--emit", "elf", "-o", executable, wire]
+        unused NativeRun(test, native[:])
+        if !NativeAssert(test, NativeRead(test, executable) == NativeRead(test, binary),
+            "native encoding must use the same decoded instructions") { return false }
+    }
+    if mapping != "" {
+        mapped := CheckConcat(wire, ".map.json")
+        inspect := string.[compiler, "--input", "exec", "--emit", "map", "-o", mapped, wire]
+        unused NativeRun(test, inspect[:])
+        if !NativeAssert(test, NativeRead(test, mapped) == NativeRead(test, mapping),
+            "decoded instructions must preserve exact source-to-native maps") { return false }
+    }
+    return !test.failed
+}
+
+WireReject :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
+    wire := NativeRead(test, wire_path)
+    if !NativeAssert(test, wire.count > 64, "instruction wire fixture must contain header and sections") { return false }
+    malformed := string.["", wire[:1], wire[:63], wire[:wire.count - 1], CheckConcat(wire, "trailing"), CheckConcat("bad!", wire[4:])]
+    input := CheckPath(test.work, "malformed.lirb")
+    output := CheckPath(test.work, "preserved.lir")
+    for bytes: malformed {
+        if !NativeWrite(test, input, bytes) || !NativeWrite(test, output, "preserve this output") { return false }
+        arguments := string.[compiler, "--diagnostics=json", "--input", "exec", "--emit", "lir", "-o", output, input]
+        if !NativeReject(test, arguments[:], "assembly.codec") ||
+            !NativeAssert(test, NativeRead(test, output) == "preserve this output", "rejected wire input must not replace outputs") { return false }
+    }
+    return !test.failed
+}
+
+WireInspect :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
+    wire := NativeRead(test, wire_path)
+    position: s64 = -1
+    for index: cast(s64)0..wire.count - 6 {
+        if wire[index:index + 6] == "Answer" { position = index; break }
+    }
+    if !NativeAssert(test, position >= 0, "inspection fixture must contain the encoded function name") { return false }
+    bytes := CheckConcat(wire[:position + 2], CheckConcat("\n", wire[position + 3:]))
+    input := CheckPath(test.work, "inspection-name.lirb")
+    output := CheckPath(test.work, "inspection-name.lir")
+    if !NativeWrite(test, input, bytes) { return false }
+    inspect := string.[compiler, "--input", "exec", "--emit", "lir", "-o", output, input]
+    unused NativeRun(test, inspect[:])
+    if test.failed || !NativeAssert(test, TextContains(NativeRead(test, output), "name=\"An\\x0awer\""),
+        "instruction listings must quote control bytes in function names") { return false }
+    execute := string.[compiler, "--run", "--input", "exec", input]
+    unused NativeRun(test, execute[:], "", 42)
+    mapped := CheckPath(test.work, "inspection-name.map.json")
+    mapping := string.[compiler, "--input", "exec", "--emit", "map", "-o", mapped, input]
+    unused NativeRun(test, mapping[:])
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, mapped)), "control names must retain valid JSON inspection") { return false }
+    functions := JsonMember(*document, document.root, "functions")
+    first := JsonElement(*document, functions, 0)
+    if !NativeAssert(test, CheckField(*document, first, "name") == "An\nwer", "native map function names must survive JSON escaping") { return false }
+    return !test.failed
+}
+
+Exercise :: (test: *NativeTest, compiler: string, name: string, source: string, expected: s32, reference_exit: s32 = -1) -> bool {
+    input := CheckPath(test.work, CheckConcat(name, ".zi"))
+    if !NativeWrite(test, input, source) { return false }
+    entry := CheckConcat(name, ":Answer")
+    if native_execution {
+        reference := string.[test.ziran, "run", "--target=c", "--root", test.work, "--entry", entry, input]
+        unused NativeRun(test, reference[:], "", ifx reference_exit < 0 then expected else reference_exit)
+        if test.failed { return false }
+    }
+    binary := CheckPath(test.work, name)
+    listing := CheckPath(test.work, CheckConcat(name, ".lir"))
+    if !Compile(test, compiler, input, entry, "lir", listing) ||
+        !Compile(test, compiler, input, entry, "elf", binary) { return false }
+    execution := string.[binary]
+    if native_execution { unused NativeRun(test, execution[:], "", expected) }
+    if test.failed { return false }
+    first := NativeRead(test, binary)
+    mapping := CheckPath(test.work, CheckConcat(name, ".map.json"))
+    if !Compile(test, compiler, input, entry, "map", mapping) ||
+        !Inspect(test, NativeRead(test, mapping), first) { return false }
+    permissions := string.["chmod", "600", binary]
+    unused NativeRun(test, permissions[:])
+    if !Compile(test, compiler, input, entry, "elf", binary) ||
+        !NativeAssert(test, NativeRead(test, binary) == first, "direct ELF must be deterministic") { return false }
+    if native_execution { unused NativeRun(test, execution[:], "", expected) }
+    saved := CheckPath(test.work, CheckConcat(name, "-ir"))
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", saved, input]
+    unused NativeRun(test, save[:])
+    if test.failed { return false }
+    saved_input := CheckPath(saved, CheckConcat(name, ".zir"))
+    second := CheckPath(test.work, CheckConcat(name, "-saved"))
+    saved_listing := CheckPath(test.work, CheckConcat(name, "-saved.lir"))
+    saved_mapping := CheckPath(test.work, CheckConcat(name, "-saved.map.json"))
+    if !Compile(test, compiler, saved_input, entry, "lir", saved_listing) ||
+        !Compile(test, compiler, saved_input, entry, "map", saved_mapping) ||
+        !Compile(test, compiler, saved_input, entry, "elf", second) { return false }
+    saved_execution := string.[second]
+    if native_execution { unused NativeRun(test, saved_execution[:], "", expected) }
+    if !WireExercise(test, compiler, input, entry, listing, expected, binary, mapping) ||
+        !WireExercise(test, compiler, saved_input, entry, saved_listing, expected, second, saved_mapping) ||
+        !NativeAssert(test, NativeRead(test, CheckConcat(input, ".lirb")) == NativeRead(test, CheckConcat(saved_input, ".lirb")),
+            "source and saved IR must encode the same instruction wire bytes") { return false }
+    return NativeAssert(test, NativeRead(test, second) == first &&
+        NativeRead(test, saved_listing) == NativeRead(test, listing) && NativeRead(test, saved_mapping) == NativeRead(test, mapping),
+        "source and saved IR must lower identically")
+}
+
+LowerExercise :: (test: *NativeTest, compiler: string, name: string, source: string, expected: s32, operation: string) -> bool {
+    input := CheckPath(test.work, CheckConcat(name, ".zi"))
+    if !NativeWrite(test, input, source) { return false }
+    entry := CheckConcat(name, ":Answer")
+    if native_execution {
+        reference := string.[test.ziran, "run", "--target=c", "--root", test.work, "--entry", entry, input]
+        unused NativeRun(test, reference[:], "", expected)
+        if test.failed { return false }
+    }
+    listing := CheckPath(test.work, CheckConcat(name, ".lir"))
+    if !Compile(test, compiler, input, entry, "lir", listing) { return false }
+    first := NativeRead(test, listing)
+    if !NativeAssert(test, TextContains(first, operation), "lowered instructions must preserve the requested operation") { return false }
+    saved := CheckPath(test.work, CheckConcat(name, "-ir"))
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", saved, input]
+    unused NativeRun(test, save[:])
+    if test.failed { return false }
+    saved_input := CheckPath(saved, CheckConcat(name, ".zir"))
+    second := CheckPath(test.work, CheckConcat(name, "-saved.lir"))
+    return Compile(test, compiler, saved_input, entry, "lir", second) &&
+        WireExercise(test, compiler, input, entry, listing, expected) && WireExercise(test, compiler, saved_input, entry, second, expected) &&
+        NativeAssert(test, NativeRead(test, second) == first, "source and saved IR aggregate/numeric lowering must agree")
+}
+
+RunLimits :: (test: *NativeTest, compiler: string, wire: string, flag: string, budget: string, problem: string) -> bool {
+    arguments := string.[compiler, "--diagnostics=json", "--run", "--input", "exec", flag, budget, wire]
+    result := NativeRun(test, arguments[:], "", 125)
+    return NativeAssert(test, TextContains(result.error, "assembly.execute") && TextContains(result.error, problem),
+        "execution resource failure must identify the exact budget and instruction")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "assembly-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    host_command := string.["uname", "-s", "-m"]
+    host := NativeRun(*test, host_command[:])
+    native_execution = TextContains(host.output, "Linux") && TextContains(host.output, "x86_64")
+    if !native_execution { print("direct ELF encoding/maps only: execution requires Linux x86-64\n") }
+    compiler := CheckPath(PathParent(test.ziran), "zi2asm")
+    scalar := NativeRead(*test, CheckPath(test.repo, "tests/spec/assembly_scalar.zi"))
+    if !Exercise(*test, compiler, "scalar", scalar, 42) { return 1 }
+    if !WireReject(*test, compiler, CheckPath(test.work, "scalar.zi.lirb")) { return 1 }
+    if !WireInspect(*test, compiler, CheckPath(test.work, "scalar.zi.lirb")) { return 1 }
+    scalar_wire := CheckPath(test.work, "scalar.zi.lirb")
+    if !RunLimits(*test, compiler, scalar_wire, "--fuel", "0", "fuel-limit") ||
+        !RunLimits(*test, compiler, scalar_wire, "--work", "0", "work-limit") ||
+        !RunLimits(*test, compiler, scalar_wire, "--frames", "1", "frame-limit") { return 1 }
+    branches := "Answer :: () -> s32 { value: s32 = 8; if value == 7 { return 1 } else if value == 8 { value = 40 } else { value = 2 }; return value + 2 }\n"
+    if !Exercise(*test, compiler, "branches", branches, 42) { return 1 }
+    swap := "Answer :: () -> s32 { left: s32 = 3; right: s32 = 7; count: s32 = 0; while count < 5 { saved := left; left = right; right = saved; count += 1 }; return left * right * 2 }\n"
+    if !Exercise(*test, compiler, "swap", swap, 42) { return 1 }
+    recursive := "Sum :: (value: s32) -> s32 { if value == 0 { return 0 }; return value + Sum(value - 1) }; Answer :: () -> s32 { return Sum(8) + 6 }\n"
+    if !Exercise(*test, compiler, "recursive", recursive, 42) { return 1 }
+    narrow := "Answer :: () -> s32 { value: u8 = 255; value += 1; signed: s8 = -8; if value != cast(u8)0 || signed >> 2 != -2 { return 1 }; return 42 }\n"
+    if !Exercise(*test, compiler, "narrow", narrow, 42) { return 1 }
+    boolean := "Answer :: () -> s32 { value: s32 = 2; truth := cast(bool)value; if truth { return cast(s32)truth + 41 }; return 1 }\n"
+    if !Exercise(*test, compiler, "boolean", boolean, 42) { return 1 }
+    returning := "Answer :: () -> s32 { while true { return 42 } }\n"
+    if !Exercise(*test, compiler, "returning", returning, 42) { return 1 }
+    constant_break := "Answer :: () -> s32 { total: s32 = 0; while outer := true { while true { total += 1; if total == 3 { break outer }; break } }; return total + 39 }\n"
+    if !Exercise(*test, compiler, "constant_break", constant_break, 42) { return 1 }
+    constant_false := "Answer :: () -> s32 { while false { return 1 }; return 42 }\n"
+    if !Exercise(*test, compiler, "constant_false", constant_false, 42) { return 1 }
+    shifted := "Answer :: () -> s32 { value: u8 = 8; amount: s64 = 2; value = cast(u8)(value >> amount); return cast(s32)value + 40 }\n"
+    if !Exercise(*test, compiler, "shifted", shifted, 42) { return 1 }
+    shift_bound := "Answer :: () -> s32 { value: u8 = 1; amount: s64 = 256; return cast(s32)(value << amount) }\n"
+    if !Exercise(*test, compiler, "shift_bound", shift_bound, 125, 134) { return 1 }
+    shift_negative := "Answer :: () -> s32 { value: u8 = 1; amount: s64 = -256; return cast(s32)(value << amount) }\n"
+    if !Exercise(*test, compiler, "shift_negative", shift_negative, 125, 134) { return 1 }
+    shift_assignment := "Answer :: () -> s32 { value: u8 = 1; amount: u8 = 8; value <<= amount; return cast(s32)value }\n"
+    if !Exercise(*test, compiler, "shift_assignment", shift_assignment, 125, 134) { return 1 }
+    counting := "Answer :: () -> s32 { total: s32 = 0; for value: 0..9 { if value == 3 { continue }; if value == 9 { break }; total += cast(s32)value }; return total + 9 }\n"
+    if !Exercise(*test, compiler, "counting", counting, 42) { return 1 }
+    floating := "Answer :: () -> s32 { left: float32 = 1.25; right: float32 = 2.5; total := left * right; return cast(s32)(total * 8.0) + 17 }\n"
+    if !Exercise(*test, compiler, "floating", floating, 42) { return 1 }
+    float_calls := "Mix :: (first: float64, second: s32, third: float32, fourth: u64) -> float64 { return first + cast(float64)second + cast(float64)third + cast(float64)fourth }; Answer :: () -> s32 { return cast(s32)Mix(10.0, 20, cast(float32)8.0, cast(u64)4) }\n"
+    if !Exercise(*test, compiler, "float_calls", float_calls, 42) { return 1 }
+    float_registers := "Mix :: (integer_first: s32, float_first: float64, integer_second: s32, float_second: float32, integer_third: s32, float_third: float64, integer_fourth: s32, float_fourth: float32, integer_fifth: s32, float_fifth: float64, integer_sixth: s32, float_sixth: float32, float_seventh: float64, float_eighth: float32) -> s32 { return integer_first + integer_second + integer_third + integer_fourth + integer_fifth + integer_sixth + cast(s32)(float_first + cast(float64)float_second + float_third + cast(float64)float_fourth + float_fifth + cast(float64)float_sixth + float_seventh + cast(float64)float_eighth) }; Answer :: () -> s32 { return Mix(1, 2.0, 3, cast(float32)4.0, 5, 6.0, 7, cast(float32)8.0, 9, 10.0, 11, cast(float32)12.0, 13.0, cast(float32)14.0) - 63 }\n"
+    if !Exercise(*test, compiler, "float_registers", float_registers, 42) { return 1 }
+    float_rounding := "Answer :: () -> s32 { unit: float32 = 16777216.0; next := unit + cast(float32)1.0; difference := next - unit; if difference != cast(float32)0.0 { return 1 }; return 42 }\n"
+    if !Exercise(*test, compiler, "float_rounding", float_rounding, 42) { return 1 }
+    float_zero := "Answer :: () -> s32 { positive: float64 = 0.0; negative := -positive; if positive != negative || 1.0 / negative >= positive { return 1 }; return 42 }\n"
+    if !Exercise(*test, compiler, "float_zero", float_zero, 42) { return 1 }
+    float_limits := "Answer :: () -> s32 { low: float64 = -128.0; high: float64 = 127.75; positive: float64 = 255.75; if cast(s8)low != cast(s8)-128 || cast(s8)high != cast(s8)127 || cast(u8)positive != cast(u8)255 { return 1 }; minimum: s64 = -9223372036854775808; if cast(s64)cast(float64)minimum != minimum { return 2 }; return 42 }\n"
+    if !Exercise(*test, compiler, "float_limits", float_limits, 42) { return 1 }
+    float_recursion := "Count :: (remaining: s32, total: float64) -> float64 { if remaining == 0 { return total }; return Count(remaining - 1, total + 2.0) }; Answer :: () -> s32 { return cast(s32)Count(20, 2.0) }\n"
+    if !Exercise(*test, compiler, "float_recursion", float_recursion, 42) { return 1 }
+    float_unsigned := "Answer :: () -> s32 { high: u64 = 18446744073709549568; converted := cast(float64)high; restored := cast(u64)converted; if high != restored { return 1 }; single := cast(float32)high; if single <= cast(float32)0 { return 2 }; return 42 }\n"
+    if !Exercise(*test, compiler, "float_unsigned", float_unsigned, 42) { return 1 }
+    float_nan := "Answer :: () -> s32 { zero: float64 = 0.0; nan := zero / zero; inf := 1.0 / zero; if nan == nan || nan < zero || nan <= zero || nan > zero || nan >= zero || !(nan != nan) || inf <= zero { return 1 }; return 42 }\n"
+    if !Exercise(*test, compiler, "float_nan", float_nan, 42) { return 1 }
+    float_invalid := "Answer :: () -> s32 { zero: float64 = 0.0; return cast(s32)(1.0 / zero) }\n"
+    if !Exercise(*test, compiler, "float_invalid", float_invalid, 125, 134) { return 1 }
+    float_overflow := "Answer :: () -> s32 { value: float64 = 9223372036854775808.0; return cast(s32)cast(s64)value }\n"
+    if !Exercise(*test, compiler, "float_overflow", float_overflow, 125, 134) { return 1 }
+    records := "Pair :: struct { left: s32; right: s32 }; Make :: () -> Pair { return .{left = 20, right = 21} }; Answer :: () -> s32 { pair := Make(); pair.right += 1; return pair.left + pair.right }\n"
+    if !LowerExercise(*test, compiler, "records", records, 42, "insert") { return 1 }
+    arrays := "Answer :: () -> s32 { values: [3]s32 = .[20, 20, 1]; values[1] += 1; return values[0] + values[1] + values[2] }\n"
+    if !LowerExercise(*test, compiler, "arrays", arrays, 42, "extract") { return 1 }
+    nested := "Pair :: struct { left: s32; right: s32 }; Box :: struct { pair: Pair; values: [2]s32 }; Answer :: () -> s32 { item: Box = .{pair = Pair.{left = 10, right = 20}, values = s32.[5, 7]}; item.pair.left += item.values[0]; return item.pair.left + item.pair.right + item.values[1] }\n"
+    if !LowerExercise(*test, compiler, "nested", nested, 42, "insert") { return 1 }
+    aggregate_edges := "Pair :: struct { left: s32; right: s32 }; Select :: (flag: bool) -> Pair { pair: Pair = .{left = 1, right = 2}; if flag { pair = .{left = 20, right = 22} } else { pair.right = 3 }; return pair }; Answer :: () -> s32 { pair := Select(true); return pair.left + pair.right }\n"
+    if !LowerExercise(*test, compiler, "aggregate_edges", aggregate_edges, 42, "jump") { return 1 }
+    procedure_arguments := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Apply :: (operation: Operation, value: s32) -> s32 { return operation(value) }; Answer :: () -> s32 { operation: Operation = Twice; return Apply(operation, 21) }\n"
+    if !LowerExercise(*test, compiler, "procedure_arguments", procedure_arguments, 42, "call.indirect") { return 1 }
+    procedure_results := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Triple :: (value: s32) -> s32 { return value * 3 }; Choose :: (flag: bool) -> Operation { return ifx flag then Twice else Triple }; Answer :: () -> s32 { operation := Choose(true); return operation(value = 21) }\n"
+    if !LowerExercise(*test, compiler, "procedure_results", procedure_results, 42, "function.address") { return 1 }
+    procedure_fields := "Operation :: #type (value: s32) -> s32; Holder :: struct { operation: Operation }; Box :: struct { holder: Holder }; Twice :: (value: s32) -> s32 { return value * 2 }; Answer :: () -> s32 { box: Box = .{holder = Holder.{operation = Twice}}; return box.holder.operation(21) }\n"
+    if !LowerExercise(*test, compiler, "procedure_fields", procedure_fields, 42, "call.indirect") { return 1 }
+    procedure_arrays := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Triple :: (value: s32) -> s32 { return value * 3 }; Answer :: () -> s32 { operations: [2]Operation = .[Triple, Twice]; return operations[1](21) }\n"
+    if !LowerExercise(*test, compiler, "procedure_arrays", procedure_arrays, 42, "extract") { return 1 }
+    procedure_recursion := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Sum :: (operation: Operation, value: s32) -> s32 { if value == 0 { return 0 }; return operation(value) + Sum(operation, value - 1) }; Answer :: () -> s32 { return Sum(Twice, 6) }\n"
+    if !LowerExercise(*test, compiler, "procedure_recursion", procedure_recursion, 42, "call.indirect") { return 1 }
+    procedure_void := "Action :: #type () -> void; Noop :: () { }; Apply :: (action: Action) { action() }; Answer :: () -> s32 { Apply(Noop); return 42 }\n"
+    if !LowerExercise(*test, compiler, "procedure_void", procedure_void, 42, "call.indirect") { return 1 }
+    broken := CheckPath(test.work, "unsupported.zi")
+    output := CheckPath(test.work, "untouched")
+    if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"unsupported\\n\"); return 0 }\n") ||
+        !NativeWrite(*test, output, "keep this output unchanged") { return 1 }
+    rejected := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", "unsupported:Answer", "-o", output, broken]
+    if !NativeReject(*test, rejected[:], "assembly.lower") ||
+        !NativeAssert(*test, NativeRead(*test, output) == "keep this output unchanged", "failed lowering must not overwrite outputs") { return 1 }
+    return ifx test.failed then 1 else 0
+}

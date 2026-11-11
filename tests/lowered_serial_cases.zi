@@ -1,0 +1,314 @@
+using Lir :: #import "compiler_lowered_ir"
+using Serial :: #import "compiler_exec_serial"
+using Vectors :: #import "std/vec"
+
+#if #defined(LOWERED_SERIAL_NATIVE_TEST) {
+    using Test :: #import "native_test"
+    using Check :: #import "check_support"
+}
+
+Instruction :: (op: Lir.LirOp, result: s32, origin: s32 = -1) -> Lir.LirInstruction {
+    return .{op = op, result = result, symbol = -1, origin = origin}
+}
+
+CopyBytes :: (source: []u8) -> Vec(u8) {
+    result: Vec(u8)
+    if !VecResizeBounded(result, source.count, source.count) { return .{} }
+    for index: 0..source.count - 1 { result[index] = source[index] }
+    return result
+}
+
+SameBytes :: (left: []u8, right: []u8) -> bool {
+    if left.count != right.count { return false }
+    for index: 0..left.count - 1 { if left[index] != right[index] { return false } }
+    return true
+}
+
+PutU64 :: (bytes: *Vec(u8), at: s64, value: u64) {
+    for index: 0..7 { (<<bytes)[at + index] = cast(u8)(value >> cast(u64)(index * 8)) }
+}
+
+Fail :: (code: s32, detail: s32 = 0) -> s32 {
+    print("lowered serial failure %:%\n", code, detail)
+    return code
+}
+
+CodecCases :: () -> s32 {
+    record_fields: [2]s32 = .{2, 1}
+    function_type_parameters: [1]s32 = .{2}
+    types: [8]Lir.LirType = .{
+        .{kind = .Void},
+        .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Float, bits = 64},
+        .{kind = .Pointer, element = 2},
+        .{kind = .Record, fields = record_fields[:]},
+        .{kind = .Array, element = 2, count = 2},
+        .{kind = .Function, parameters = function_type_parameters[:], result = 2}}
+    modules: [2]string = .{"codec", "nested"}
+    sources: [2]string = .{"fixture.zi", "generated cleanup"}
+    origins: [2]Lir.LirOrigin = .{
+        .{file = 0, line = 1, column = 1, begin = 0, end = 8, parent = -1},
+        .{file = 1, line = 7, column = 3, begin = 12, end = 19, parent = 0}}
+    constants: [3]Lir.LirConstant = .{
+        .{type = 2, bits = 42}, .{type = 1, bits = 1}, .{type = 3, bits = 0x3ff0000000000000}}
+    globals: [1]Lir.LirGlobal = .{
+        .{module = 0, name = "counter", type = 2, constant = 0, writable = true}}
+
+    first_values: [4]s32 = .{1, 2, 2, 2}
+    condition: [1]s32 = .{0}
+    first_argument: [1]s32 = .{1}
+    left_return: [1]s32 = .{2}
+    right_return: [1]s32 = .{3}
+    left_edge: [1]s32 = .{1}
+    right_edge: [1]s32 = .{1}
+    branch_edges: [2]Lir.LirEdge = .{
+        .{block = 1, arguments = left_edge[:]}, .{block = 2, arguments = right_edge[:]}}
+    entry_instructions: [4]Lir.LirInstruction
+    entry_instructions[0] = Instruction(.Constant, 0, 1)
+    entry_instructions[0].symbol = 1
+    entry_instructions[1] = Instruction(.Constant, 1, 1)
+    entry_instructions[1].symbol = 0
+    entry_instructions[2] = Instruction(.Fuel, -1, 1)
+    entry_instructions[2].immediate = 5
+    entry_instructions[2].effect = 1
+    entry_instructions[3] = Instruction(.Branch, -1, 1)
+    entry_instructions[3].operands = condition[:]
+    entry_instructions[3].edges = branch_edges[:]
+    left_instructions: [1]Lir.LirInstruction
+    left_instructions[0] = Instruction(.Return, -1, 1)
+    left_instructions[0].operands = left_return[:]
+    right_instructions: [1]Lir.LirInstruction
+    right_instructions[0] = Instruction(.Return, -1, 1)
+    right_instructions[0].operands = right_return[:]
+    blocks: [3]Lir.LirBlock = .{
+        .{instructions = entry_instructions[:]},
+        .{parameters = left_return[:], instructions = left_instructions[:]},
+        .{parameters = right_return[:], instructions = right_instructions[:]}}
+
+    identity_parameters: [1]s32 = .{2}
+    identity_values: [1]s32 = .{2}
+    identity_block_parameters: [1]s32 = .{0}
+    identity_return: [1]s32 = .{0}
+    identity_instructions: [1]Lir.LirInstruction
+    identity_instructions[0] = Instruction(.Return, -1, 0)
+    identity_instructions[0].operands = identity_return[:]
+    identity_blocks: [1]Lir.LirBlock = .{
+        .{parameters = identity_block_parameters[:], instructions = identity_instructions[:]}}
+    functions: [2]Lir.LirFunction = .{
+        .{module = 0, name = "answer", result = 2, values = first_values[:],
+            blocks = blocks[:], entry = 0, origin = 0},
+        .{module = 1, name = "identity", parameters = identity_parameters[:], result = 2,
+            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = 1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], globals = globals[:],
+        functions = functions[:], origins = origins[:], entry = 0}
+
+    empty: []u8
+    measured := Serial.LirWrite(program, empty)
+    if measured.problem != .None || measured.size < 160 { return Fail(1, cast(s32)measured.problem) }
+
+    short: [32]u8
+    for index: 0..short.count - 1 { short[index] = 165 }
+    short_result := Serial.LirWrite(program, short[:])
+    if short_result.problem != .Output || short_result.size != measured.size { return Fail(2, cast(s32)short_result.problem) }
+    for byte: short { if byte != 165 { return Fail(3) } }
+
+    encoded: Vec(u8)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { return Fail(4) }
+    written := Serial.LirWrite(program, encoded[:])
+    if written.problem != .None || written.size != measured.size { return Fail(5, cast(s32)written.problem) }
+    canonical := CopyBytes(encoded[:])
+    if canonical.count != encoded.count { return Fail(6) }
+
+    owner: Serial.LirReadOwner
+    limits := Lir.LirDefaultLimits()
+    read := Serial.LirRead(*owner, TextView(encoded[:]), limits)
+    if read.problem != .None || !owner.valid { return Fail(7, cast(s32)read.problem) }
+    decoded := Serial.LirReadProgram(*owner)
+    if decoded.modules.count != 2 || decoded.modules[0] != "codec" || decoded.modules[1] != "nested" ||
+        decoded.sources.count != 2 || decoded.sources[1] != "generated cleanup" ||
+        decoded.types.count != 8 || decoded.types[5].fields.count != 2 || decoded.types[5].fields[1] != 1 ||
+        decoded.types[7].parameters.count != 1 || decoded.constants.count != 3 ||
+        decoded.globals.count != 1 || decoded.globals[0].name != "counter" ||
+        decoded.functions.count != 2 || decoded.functions[0].blocks.count != 3 ||
+        decoded.functions[0].blocks[0].instructions.count != 4 ||
+        decoded.functions[0].blocks[0].instructions[3].edges.count != 2 ||
+        decoded.functions[0].blocks[0].instructions[3].edges[1].arguments[0] != 1 ||
+        decoded.origins.count != 2 || decoded.origins[1].parent != 0 { return Fail(8) }
+
+    // The reader owns its copy; changing the encoded module bytes cannot change
+    // a successfully decoded program. The first module begins at byte 132.
+    encoded[132] = #char "X"
+    if decoded.modules[0] != "codec" { return Fail(9) }
+    remeasure := Serial.LirWrite(decoded, empty)
+    reencoded: Vec(u8)
+    if remeasure.problem != .None || !VecResizeBounded(reencoded, remeasure.size, remeasure.size) { return Fail(10) }
+    rewritten := Serial.LirWrite(decoded, reencoded[:])
+    if rewritten.problem != .None || !SameBytes(reencoded[:], canonical[:]) { return Fail(11, cast(s32)rewritten.problem) }
+
+    // Every strict prefix is rejected, and repeated failures leave OWNER empty.
+    for cut: 0..canonical.count - 1 {
+        failed := Serial.LirRead(*owner, TextView(VecSlice(canonical, 0, cut)), limits)
+        if failed.problem == .None || owner.valid { return Fail(12, cast(s32)cut) }
+    }
+    read = Serial.LirRead(*owner, TextView(canonical[:]), limits)
+    if read.problem != .None { return Fail(13, cast(s32)read.problem) }
+
+    limited := limits
+    limited.bytes = 1
+    read = Serial.LirRead(*owner, TextView(canonical[:]), limited)
+    if read.problem != .Limit || owner.valid { return Fail(14, cast(s32)read.problem) }
+    limited = limits
+    limited.work = 0
+    read = Serial.LirRead(*owner, TextView(canonical[:]), limited)
+    if read.problem != .Limit || owner.valid { return Fail(15, cast(s32)read.problem) }
+
+    trailing := CopyBytes(canonical[:])
+    if !VecResizeBounded(trailing, trailing.count + 1, trailing.count + 1) { return Fail(16) }
+    trailing[trailing.count - 1] = 0
+    read = Serial.LirRead(*owner, TextView(trailing[:]), limits)
+    if read.problem != .Trailing { return Fail(17, cast(s32)read.problem) }
+
+    mutation := CopyBytes(canonical[:])
+    mutation[17] = 1
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Feature { return Fail(18, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[24] = 1
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Flags { return Fail(19, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[68] = 2
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Flags { return Fail(20, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    PutU64(*mutation, 72, 111)
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Overlap { return Fail(21, cast(s32)read.problem) }
+
+    // Core byte 116 is the entry ID. Framing remains valid, but verification
+    // must reject the reconstructed program.
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[116] = 127
+    mutation[117] = 0; mutation[118] = 0; mutation[119] = 0
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Verify || read.diagnostic.problem != .Function { return Fail(22, cast(s32)read.problem) }
+
+    // Binary strings are length-delimited: NUL reaches the verifier as data
+    // rather than truncating the decoder. The current verifier intentionally
+    // rejects NUL in declaration/source names.
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[132] = 0
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Verify { return Fail(23, cast(s32)read.problem) }
+
+    // A hostile top-level count is bounded before allocation.
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
+    mutation[120] = 255; mutation[121] = 255; mutation[122] = 255; mutation[123] = 127
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Limit && read.problem != .Truncated { return Fail(24, cast(s32)read.problem) }
+
+    read = Serial.LirRead(*owner, TextView(canonical[:]), limits)
+    if read.problem != .None { return Fail(25, cast(s32)read.problem) }
+    Serial.LirReadFree(*owner)
+    Serial.LirReadFree(*owner)
+    if owner.valid || Serial.LirReadProgram(*owner).modules.count != 0 { return Fail(26) }
+
+    // A program without sources/origins has one core section and no empty
+    // debug section.
+    plain_types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
+    plain_modules: [1]string = .{"plain"}
+    plain_constants: [1]Lir.LirConstant = .{.{type = 1, bits = 7}}
+    plain_values: [1]s32 = .{1}
+    plain_result: [1]s32 = .{0}
+    plain_instructions: [2]Lir.LirInstruction
+    plain_instructions[0] = Instruction(.Constant, 0)
+    plain_instructions[0].symbol = 0
+    plain_instructions[1] = Instruction(.Return, -1)
+    plain_instructions[1].operands = plain_result[:]
+    plain_blocks: [1]Lir.LirBlock = .{.{instructions = plain_instructions[:]}}
+    plain_functions: [1]Lir.LirFunction = .{
+        .{module = 0, name = "plain", result = 1, values = plain_values[:],
+            blocks = plain_blocks[:], entry = 0, origin = -1}}
+    plain := Lir.LirProgram.{version = Lir.LirVersion, modules = plain_modules[:],
+        types = plain_types[:], constants = plain_constants[:], functions = plain_functions[:], entry = 0}
+    plain_measure := Serial.LirWrite(plain, empty)
+    plain_bytes: Vec(u8)
+    if plain_measure.problem != .None ||
+        !VecResizeBounded(plain_bytes, plain_measure.size, plain_measure.size) { return Fail(27) }
+    plain_write := Serial.LirWrite(plain, plain_bytes[:])
+    if plain_write.problem != .None || plain_bytes[32] != 1 { return Fail(28, cast(s32)plain_write.problem) }
+    read = Serial.LirRead(*owner, TextView(plain_bytes[:]), limits)
+    if read.problem != .None || Serial.LirReadProgram(*owner).sources.count != 0 ||
+        Serial.LirReadProgram(*owner).origins.count != 0 { return Fail(29, cast(s32)read.problem) }
+    Serial.LirReadFree(*owner)
+
+    return 0
+}
+
+#program_export
+Run :: () -> s32 {
+    result := CodecCases()
+    if result == 0 { print("lowered serial: deterministic owned roundtrip and hostile-input local tests passed\n") }
+    return result
+}
+
+#if #defined(LOWERED_SERIAL_NATIVE_TEST) {
+    main :: (argc: s32, argv: **u8) -> s32 {
+        test := NativeStart(argc, argv, "lowered-serial-")
+        if test.failed { return 1 }
+        defer NativeCleanup(*test)
+        if !NativeAssert(*test, CodecCases() == 0, "native lowered serial cases") { return 1 }
+        NativeSet(*test, "GO111MODULE", "off")
+        NativeSet(*test, "GOTOOLCHAIN", "local")
+        NativeSet(*test, "GOPROXY", "off")
+        NativeSet(*test, "GOSUMDB", "off")
+        NativeSet(*test, "GOWORK", "off")
+        source := CheckPath(test.repo, "tests/lowered_serial_cases.zi")
+        module_path := CheckPath(test.repo, "cmd")
+        saved := CheckPath(test.work, "ir")
+        save := string.[test.ziran, "ir", "--root", CheckPath(test.repo, "tests"),
+            "--module-path", module_path, "-o", saved, source]
+        unused NativeRun(*test, save[:])
+        expected := "lowered serial: deterministic owned roundtrip and hostile-input local tests passed\n"
+        vm_expected := CheckConcat(expected, "0\n")
+        forms: [2]string = .["source", "saved"]
+        for form: forms {
+            input := ifx form == "source" then source else CheckPath(saved, "lowered_serial_cases.zir")
+            root := ifx form == "source" then CheckPath(test.repo, "tests") else saved
+            bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+            bundle_command := string.[test.ziran, "bundle", "--root", root, "--module-path",
+                module_path, "--entry", "lowered_serial_cases:Run", "-o", bundle, input]
+            unused NativeRun(*test, bundle_command[:])
+            vm := string.[test.ziran, "run", "--vm", bundle]
+            if !NativeExpect(*test, vm[:], vm_expected) { return 1 }
+            c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+            c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+                "lowered_serial_cases:Run", "--root", root, "--module-path", module_path,
+                "-o", c_output, input]
+            unused NativeRun(*test, c_build[:])
+            c_run := string.[CheckPath(c_output, "lowered_serial_cases")]
+            if !NativeExpect(*test, c_run[:], expected) { return 1 }
+            go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+            go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+                "--entry", "lowered_serial_cases:Run", "--root", root, "--module-path",
+                module_path, "-o", go_output, input]
+            unused NativeRun(*test, go_build[:])
+            go_run: Vec(string)
+            VecPush(go_run, "go"); VecPush(go_run, "run")
+            go_files := NativeFiles(go_output, ".go")
+            for file: go_files { VecPush(go_run, file) }
+            if !NativeExpect(*test, go_run[:], expected) { return 1 }
+        }
+        if test.failed { return 1 }
+        print("lowered serial: source/saved IR C, Go and VM local tests passed\n")
+        return 0
+    }
+}

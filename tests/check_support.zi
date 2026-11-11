@@ -1,0 +1,77 @@
+// Shared native support for Ziran's test programs. Child arguments are passed
+// directly, and all disposable files stay inside the owning build directory.
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+CheckConcat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+CheckPath :: (directory: string, name: string) -> string { return TextDetach(JoinPath(directory, name)) }
+CheckNumber :: (value: s64) -> string {
+    bytes: [64]u8
+    return TextDetach(TextCopy(FormatInteger(value, bytes[:])))
+}
+CheckSeconds :: (nanoseconds: s64) -> string {
+    tenths := (nanoseconds + 50000000) / 100000000
+    return CheckConcat(CheckNumber(tenths / 10), CheckConcat(".", CheckNumber(tenths % 10)))
+}
+CheckQuote :: (value: string) -> string {
+    return CheckConcat("'", CheckConcat(TextDetach(TextReplace(value, "'", "'\\''")), "'"))
+}
+check_empty_environment: [0]string;
+CheckCapture :: (arguments: []string, directory: string = "", environment: []string = check_empty_environment[:]) -> (output: string, code: s32) {
+    options: ProcessOptions = .{.arguments = arguments, .directory = directory,
+        .environment = environment, .capture_output = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return "", 127 }
+    return TextDetach(BuilderFinish(run.output)), run.code
+}
+CheckHash :: (path: string) -> string {
+    command: [3]string = .["sha256sum", "--", path]
+    output, code := CheckCapture(command[:])
+    if code != 0 || output.count < 64 { return "" }
+    return TextDetach(TextCopy(output[:64]))
+}
+CheckTextOrder :: (left: string, right: string) -> s32 {
+    count := ifx left.count < right.count then left.count else right.count
+    for index: cast(s64)0..count - 1 {
+        if left[index] < right[index] { return -1 }
+        if left[index] > right[index] { return 1 }
+    }
+    return ifx left.count < right.count then -1 else ifx left.count > right.count then 1 else 0
+}
+CheckPut :: (document: *JsonDocument, object: s32, name: string, value: string) {
+    JsonSet(document, object, name, JsonNewStringCopy(document, value))
+}
+CheckField :: (document: *JsonDocument, object: s32, name: string) -> string {
+    return TextDetach(JsonString(document, JsonMember(document, object, name)))
+}
+CheckInteger :: (document: *JsonDocument, object: s32, name: string) -> s64 {
+    value, valid := JsonInteger(document, JsonMember(document, object, name))
+    return ifx valid then value else -1
+}
+CheckTail :: (path: string) -> string {
+    file := OpenRead(path)
+    if !file.valid { return "" }
+    size := FileSize(file)
+    start := ifx size > 16384 then size - 16384 else cast(s64)0
+    bytes: [16384]u8
+    count := ReadAt(file, bytes[:], start)
+    CloseFile(file)
+    if count <= 0 { return "" }
+    text := TextFromBytes(bytes[:count])
+    lines := TextLines(text)
+    first := ifx lines.count > 60 then lines.count - 60 else cast(s64)0
+    if start > 0 && first == 0 { first = 1 }
+    return TextDetach(TextJoin(lines[first:], "\n"))
+}

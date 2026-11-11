@@ -149,3 +149,47 @@ def request(selection, platform, *, project, ziran='ziran', env=None, options=()
         [tool, 'pkg', 'artifact', selection, '--platform', platform, *overrides, *locked],
         cwd=project, text=True, env=env).strip()
     return Artifact(descriptor, artifact=parts[1], platform=platform)
+
+
+def main():
+    """Expose the same descriptor API to build tools written in other languages."""
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest='command', required=True)
+    for name in ('inspect', 'path', 'output', 'metadata', 'link-flags'):
+        command = commands.add_parser(name)
+        command.add_argument('descriptor')
+        command.add_argument('--artifact')
+        command.add_argument('--platform')
+        if name in ('path', 'output', 'metadata'):
+            command.add_argument('name')
+        if name == 'link-flags':
+            command.add_argument('--omit-archives', action='store_true')
+    command = commands.add_parser('request')
+    command.add_argument('selection')
+    command.add_argument('platform')
+    command.add_argument('--project', required=True)
+    command.add_argument('--ziran', default='ziran')
+    command.add_argument('--option', action='append', default=[])
+    args = parser.parse_args()
+    try:
+        if args.command == 'request':
+            result = str(request(args.selection, args.platform, project=args.project,
+                                 ziran=args.ziran, options=args.option).descriptor)
+        else:
+            artifact = Artifact(args.descriptor, artifact=args.artifact, platform=args.platform)
+            if args.command == 'inspect':
+                result = artifact.rows
+            elif args.command in ('path', 'output'):
+                result = str(getattr(artifact, args.command)(args.name))
+            elif args.command == 'metadata':
+                result = artifact.metadata(args.name)
+            else:
+                result = artifact.link_flags(include_archives=not args.omit_archives)
+        print(json.dumps(result))
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f'{error}\n')
+
+
+if __name__ == '__main__':
+    main()

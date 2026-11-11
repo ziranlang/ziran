@@ -1,0 +1,84 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+libc :: #system_library "libc";
+DynamicOpen :: (name: *u8, mode: s32) -> *void #foreign libc "dlopen";
+DynamicSymbol :: (library: *void, name: *u8) -> *void #foreign libc "dlsym";
+DynamicClose :: (library: *void) -> s32 #foreign libc "dlclose";
+ZstdBound :: #type (count: usize) -> usize #c_call;
+ZstdCompress :: #type (output: *u8, capacity: usize, input: *u8, count: usize, level: s32) -> usize #c_call;
+ZstdDecompress :: #type (output: *u8, capacity: usize, input: *u8, count: usize) -> usize #c_call;
+ZstdError :: #type (code: usize) -> u32 #c_call;
+
+ZstdSymbol :: (library: *void, name: string) -> *void {
+    buffer: [64]u8
+    if !CopyCString(name, buffer[:]) { return null }
+    return DynamicSymbol(library, *buffer[0])
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zstd-go-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if EnvironmentText("GOMAXPROCS") == "" { VecPush(test.environment, "GOMAXPROCS=1") }
+    if EnvironmentText("GOFLAGS") == "" { VecPush(test.environment, "GOFLAGS=-p=1") }
+    library_name: [64]u8
+    if !CopyCString("libzstd.so.1", library_name[:]) { return 1 }
+    library := DynamicOpen(*library_name[0], 2)
+    if !NativeAssert(*test, library != null, "native libzstd is required for independent interoperation") { return 1 }
+    defer { unused DynamicClose(library) }
+    bound := cast(ZstdBound)ZstdSymbol(library, "ZSTD_compressBound")
+    compress := cast(ZstdCompress)ZstdSymbol(library, "ZSTD_compress")
+    decompress := cast(ZstdDecompress)ZstdSymbol(library, "ZSTD_decompress")
+    is_error := cast(ZstdError)ZstdSymbol(library, "ZSTD_isError")
+    if !NativeAssert(*test, bound != null && compress != null && decompress != null && is_error != null, "libzstd symbols unavailable") { return 1 }
+    plain: Vec(u8)
+    if !NativeAssert(*test, VecResize(plain, 262144), "allocate plain fixture") { return 1 }
+    // Deterministic high-entropy data, independent of both codec implementations.
+    state: u64 = 71023
+    for index: cast(s64)0..plain.count - 1 {
+        state ^= state << cast(u64)13; state ^= state >> cast(u64)7; state ^= state << cast(u64)17
+        plain[index] = cast(u8)(state >> cast(u64)56)
+    }
+    capacity := bound(cast(usize)plain.count)
+    native: Vec(u8)
+    if !NativeAssert(*test, capacity > 0 && capacity < cast(usize)1048576 && VecResize(native, cast(s64)capacity), "native compression bound") { return 1 }
+    size := compress(*native[0], capacity, *plain[0], cast(usize)plain.count, 1)
+    if !NativeAssert(*test, is_error(size) == 0 && size <= capacity, "native compression failed") { return 1 }
+    if !NativeWrite(*test, CheckPath(test.work, "native.zst"), TextFromBytes(native[:cast(s64)size])) ||
+        !NativeWrite(*test, CheckPath(test.work, "plain.bin"), TextFromBytes(plain[:])) { return 1 }
+    source := CheckPath(test.repo, "tests/zstd_go_fixture.zi")
+    ir := CheckPath(test.work, "ir")
+    standard := CheckConcat("std=", CheckPath(test.repo, "std"))
+    save := string.[test.ziran, "ir", "--root", CheckPath(test.repo, "tests"), "--module-path", standard, "-o", ir, source]
+    unused NativeRun(*test, save[:])
+    host := NativeRead(*test, CheckPath(test.repo, "tests/fixtures/zstd_go/stream_test.go.in"))
+    forms := string.["source", "saved"]
+    for form: forms {
+        root := ifx form == "source" then CheckPath(test.repo, "tests") else ir
+        input := ifx form == "source" then source else CheckPath(ir, "zstd_go_fixture.zir")
+        output := CheckPath(test.work, form)
+        build := string.[test.ziran, "build", "--target=go", "--no-main", "--pkg", "main", "-o", output, "--root", root, "--module-path", standard, input]
+        unused NativeRun(*test, build[:])
+        if !NativeWrite(*test, CheckPath(output, "go.mod"), "module zstd-test\n\ngo 1.25\n\nrequire github.com/klauspost/compress v1.20.3\n") ||
+            !NativeWrite(*test, CheckPath(output, "stream_test.go"), host) { return 1 }
+        run := string.["go", "test", "-mod=mod", "-race", "."]
+        unused NativeRun(*test, run[:], output)
+        encoded: Vec(u8)
+        if !NativeAssert(*test, ReadFileInto(CheckPath(output, "go.zst"), *encoded) && encoded.count > 0, "read Go frame") { return 1 }
+        decoded: Vec(u8)
+        if !NativeAssert(*test, VecResize(decoded, plain.count), "allocate native decode output") { return 1 }
+        count := decompress(*decoded[0], cast(usize)decoded.count, *encoded[0], cast(usize)encoded.count)
+        if !NativeAssert(*test, count == cast(usize)plain.count && TextFromBytes(decoded[:]) == TextFromBytes(plain[:]), "native decoding disagrees with Go encoder") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("Zstandard source/saved IR: native interop, literal entropy, reset, limits and malformed rejection passed\n")
+    return 0
+}

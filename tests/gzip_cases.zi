@@ -1,0 +1,81 @@
+// GNU gzip supplies an independent codec oracle; test control and byte checks
+// are Ziran, including exact output limits and malformed-stream rejection.
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/environment_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GzipClient :: (test: *NativeTest, executable: string, mode: string, source: string,
+    destination: string, count: s64, expected: s32 = 0) -> bool {
+    command: [5]string = .[executable, mode, source, destination, CheckNumber(count)]
+    unused NativeRun(test, command[:], "", expected)
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "gzip-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    defer { unused RemoveTree(test.work) }
+    reference := CheckExecutable("gzip")
+    if !NativeAssert(*test, reference != "", "GNU gzip is required for the independent codec oracle") { return 1 }
+    generated := CheckPath(test.work, "generated")
+    standard := CheckPath(test.repo, "std")
+    emit: [9]string = .[test.ziran, "--no-main", "--root", standard, "--module-path", standard,
+        "-o", generated, CheckPath(standard, "gzip_linux.zi")]
+    unused NativeRun(*test, emit[:])
+    executable := CheckPath(test.work, "gzip-test")
+    compile: Vec(string)
+    cc := EnvironmentText("CC"); if cc == "" { cc = "cc" }
+    flags: [8]string = .[cc, "-std=c11", "-O1", "-ffunction-sections", "-fdata-sections", "-Wl,--gc-sections",
+        CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    VecPush(compile, CheckPath(test.repo, "tests/gzip_linux_client.c"))
+    files := NativeFiles(generated, ".c")
+    for file: files { VecPush(compile, file) }
+    VecPush(compile, "-lz"); VecPush(compile, "-o"); VecPush(compile, executable)
+    unused NativeRun(*test, compile[:])
+    plain := CheckPath(test.work, "plain")
+    encoded := CheckPath(test.work, "encoded")
+    decoded := CheckPath(test.work, "decoded")
+    for kind: cast(s64)0..4 {
+        bytes: Vec(u8)
+        if kind == 1 { BuilderAppend(bytes, "{}") }
+        if kind == 2 { for index: cast(s64)0..11999 { unused index; BuilderAppend(bytes, "hello ") } }
+        if kind == 3 { for index: cast(s64)0..65535 { VecPush(bytes, cast(u8)index) } }
+        if kind == 4 {
+            random: [4]string = .["head", "-c", "65536", "/dev/urandom"]
+            result := NativeRun(*test, random[:])
+            if !NativeAssert(*test, result.output.count == 65536, "random input has the wrong length") { return 1 }
+            BuilderAppend(bytes, result.output)
+        }
+        value := TextDetach(BuilderFinish(bytes))
+        if !NativeWrite(*test, plain, value) || !GzipClient(*test, executable, "compress", plain, encoded, 0) { return 1 }
+        decompress: [4]string = .[reference, "-dc", "--", encoded]
+        if !NativeExpect(*test, decompress[:], value) { return 1 }
+        compress: [6]string = .[reference, "-n", "-1", "-c", "--", plain]
+        independent := NativeRun(*test, compress[:])
+        if !NativeWrite(*test, encoded, independent.output) ||
+            !GzipClient(*test, executable, "decompress", encoded, decoded, value.count) { return 1 }
+        actual, valid := ReadEntireFile(decoded)
+        if !NativeAssert(*test, valid && actual == value, "native gzip disagrees with the independent codec") { return 1 }
+        if value.count > 0 && !GzipClient(*test, executable, "decompress", encoded, decoded, value.count - 1, 2) { return 1 }
+        original := independent.output
+        zeroes: [8]u8
+        invalid: [4]string = .[original[:original.count - 1], CheckConcat(original, "x"), CheckConcat(original, original),
+            CheckConcat(original[:original.count - 8], TextFromBytes(zeroes[:]))]
+        for damaged: invalid {
+            if damaged == original { continue }
+            if !NativeWrite(*test, encoded, damaged) || !GzipClient(*test, executable, "decompress", encoded, decoded, value.count, 2) { return 1 }
+        }
+    }
+    if test.failed { return 1 }
+    print("Native gzip: independent round trips, exact bounds, CRC, truncation and trailing-data rejection passed\n")
+    return 0
+}

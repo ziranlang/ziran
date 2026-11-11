@@ -1,0 +1,320 @@
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/sort"
+#import "std/stdio_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+InlineArguments :: (test: *NativeTest) -> bool {
+    counts := s64.[257, 600]; special := string.["", "two words", "--help", "--root", "x.zi", "'\"\\", "unicode-λ"]
+    for count: counts {
+        arguments: Vec(string)
+        for index: cast(s64)0..count - 1 { VecPush(arguments, CheckConcat("argument ", CheckNumber(index))) }
+        for index: cast(s64)0..special.count - 1 { arguments[index] = special[index] }
+        for mode: 0..3 {
+            command: Vec(string); VecPush(command, test.ziran)
+            if mode != 2 { VecPush(command, "run"); VecPush(command, "--target=c") }
+            VecPush(command, "script.zi")
+            if mode == 1 || mode == 3 { VecPush(command, "--") }
+            if mode == 3 { arguments[0] = "fail" }
+            for argument: arguments { VecPush(command, argument) }
+            actual := NativeInvoke(test, command[:], test.work)
+            expected := CheckConcat("41:", CheckConcat(TextDetach(TextJoin(arguments[:], ":")), "\n"))
+            if !NativeAssert(test, actual.code == (ifx mode == 3 then 3 else 0) && actual.output == expected && actual.error == "", "native script changed argument contents, order, separator handling or exit status") { return false }
+        }
+        if count == 600 {
+            command: Vec(string); prefix := string.[test.ziran, "run", "--target=c", "--unknown-script-option", "script.zi"]
+            for argument: prefix { VecPush(command, argument) }; for argument: arguments { VecPush(command, argument) }
+            actual := NativeInvoke(test, command[:], test.work)
+            if !NativeAssert(test, actual.code != 0 && TextContains(actual.error, "unknown script run argument: --unknown-script-option") &&
+                !TextContains(actual.error, "too many script arguments"), "runner lost invalid-option diagnostic beyond old argument cap") { return false }
+        }
+    }
+    print("native argument forwarding: 257 and 600 arguments, contents/order, status and diagnostics\n")
+    return true
+}
+
+InlineBounds :: (test: *NativeTest, program: string) -> bool {
+    functions := string.["read", "write", "text", "unsigned"]; valid_indices := string.["1", "0", "1", "1"]; expected := string.["42", "17", "90", "42"]
+    for index: cast(s64)0..functions.count - 1 {
+        command := string.[program, functions[index], valid_indices[index]]; result := NativeRun(test, command[:])
+        if !NativeAssert(test, TextTrim(result.output) == expected[index], "valid release bounds access changed its value") { return false }
+    }
+    bad := string.["-1", "2", "4294967296", "9223372036854775807"]
+    for function: functions {
+        for index: bad {
+            command := string.[program, function, index]; result := NativeInvoke(test, command[:])
+            if !NativeAssert(test, result.code == 134 && TextContains(result.error, "out of bounds"), "release array/text access did not terminate with SIGABRT and a bounds diagnostic") { return false }
+        }
+    }
+    return !test.failed
+}
+
+InlineInference :: (test: *NativeTest) -> bool {
+    fixtures: JsonDocument
+    if !NativeAssert(test, JsonRead(*fixtures, NativeRead(test, CheckPath(test.repo, "tests/fixtures/safe_inference_negative.json"))), "invalid inference fixtures") { return false }
+    root := CheckPath(test.work, "negative"); item := JsonFirst(*fixtures, fixtures.root)
+    while item >= 0 {
+        name := TextDetach(JsonKey(*fixtures, item)); path := CheckPath(root, CheckConcat(name, ".zi"))
+        if !NativeWrite(test, path, CheckConcat(TextDetach(JsonString(*fixtures, item)), "\n")) { return false }
+        arguments := string.[test.ziran, "check", "--root", root, "--diagnostics=json", path]
+        result := NativeInvoke(test, arguments[:], "", 30000)
+        if !NativeAssert(test, result.code > 0 && result.code < 124 && result.output == "", CheckConcat("invalid inference accepted or emitted source: ", name)) { return false }
+        lines := TextLines(result.error)
+        if !NativeAssert(test, lines.count > 0, "missing inference diagnostics") { return false }
+        for line: lines {
+            diagnostic: JsonDocument
+            if !NativeAssert(test, line.count + 1 <= 32768 && JsonRead(*diagnostic, line) && CheckInteger(*diagnostic, diagnostic.root, "schema_version") == 2,
+                "inference diagnostic violated schema or byte limit") { return false }
+            if name == "missing_import" && !NativeAssert(test, JsonCount(*diagnostic, JsonMember(*diagnostic, diagnostic.root, "alternatives")) == 0, "missing import exposed unsafe inference alternatives") { return false }
+        }
+        item = JsonNext(*fixtures, item)
+    }
+    print("safe inference: ambiguity, fields, owned/foreign/enum, recursion and globals/imports rejected in local tests\n")
+    return !test.failed
+}
+
+InlineTimestamp :: (test: *NativeTest, path: string, seconds: s64, nanoseconds: u32) -> bool {
+    fraction := CheckNumber(cast(s64)nanoseconds); padded: Vec(u8)
+    for index: cast(s64)fraction.count..8 { BuilderAppend(padded, "0") }; BuilderAppend(padded, fraction)
+    stamp := CheckConcat("@", CheckConcat(CheckNumber(seconds), CheckConcat(".", TextDetach(BuilderFinish(padded)))))
+    command := string.["touch", "-d", stamp, path]; unused NativeRun(test, command[:])
+    snapshot := PathStatus(path)
+    return NativeAssert(test, snapshot.modified == seconds && snapshot.modified_nanoseconds == nanoseconds, "fixture timestamp was not preserved by the filesystem")
+}
+
+InlineHeaderRefresh :: (test: *NativeTest) -> bool {
+    headers := NativeFiles(CheckPath(test.repo, "include"), ".h"); VecPush(headers, CheckPath(test.repo, "scripts/embed_headers.sh"))
+    seconds: s64; nanoseconds: u32
+    for path: headers {
+        snapshot := PathStatus(path)
+        if snapshot.modified > seconds || snapshot.modified == seconds && snapshot.modified_nanoseconds > nanoseconds { seconds = snapshot.modified; nanoseconds = snapshot.modified_nanoseconds }
+    }
+    for bootstrap: 0..1 {
+        refresh := CheckPath(test.work, CheckConcat("refresh-", CheckNumber(bootstrap))); output := CheckPath(refresh, "runtime_headers.c")
+        if !NativeWrite(test, output, "/* stale embedded runtime */\n") || !InlineTimestamp(test, output, seconds + 1, nanoseconds) { return false }
+        command := string.["make", "-s", "-C", test.repo, CheckConcat("BOOTSTRAP=", CheckNumber(bootstrap)), "NATIVE_ZX=0", CheckConcat("BUILD_DIR=", refresh), output]
+        unused NativeRun(test, command[:])
+        if !NativeAssert(test, TextContains(NativeRead(test, output), "SliceRangeAt("), "stale embedded runtime was not refreshed") || !InlineTimestamp(test, output, 1, cast(u32)0) { return false }
+        unused NativeRun(test, command[:])
+        snapshot := PathStatus(output)
+        if !NativeAssert(test, snapshot.modified == 1 && snapshot.modified_nanoseconds == 0, "unchanged embedded runtime was rewritten") { return false }
+    }
+    return !test.failed
+}
+
+InlineHeaderCopies :: (test: *NativeTest) -> bool {
+    root := CheckPath(test.work, "copied"); headers := NativeFiles(root, ".h")
+    if !NativeAssert(test, headers.count == 2 && PathName(headers[0]) == "zir_string.h" && PathName(headers[1]) == "zir_string_types.h", "copied runtime headers omitted or added dependencies") { return false }
+    for path: headers { if !InlineTimestamp(test, path, 1, cast(u32)0) { return false } }
+    command := string.[CheckPath(test.work, "copy"), root, CheckPath(root, "use.c")]; unused NativeRun(test, command[:])
+    for path: headers {
+        snapshot := PathStatus(path)
+        if !NativeAssert(test, snapshot.modified == 1 && snapshot.modified_nanoseconds == 0, "copying unchanged runtime headers changed timestamps") { return false }
+    }
+    return !test.failed
+}
+
+InlinePortableFormat :: (test: *NativeTest) -> bool {
+    names := string.["source.zx", "saved.zx"]
+    for name: names {
+        data := NativeRead(test, CheckPath(test.work, name))
+        if !NativeAssert(test, data.count >= 4 && data[:4] == "ZX\x00\x00", "portable output lost its current ZX signature") { return false }
+    }
+    capabilities: JsonDocument
+    if !NativeAssert(test, JsonRead(*capabilities, NativeRead(test, CheckPath(test.work, "capabilities.json"))) && CheckField(*capabilities, capabilities.root, "target") == "zx", "portable target discovery differs") { return false }
+    data := NativeRead(test, CheckPath(test.work, "source.zx")); obsolete := CheckPath(test.work, "obsolete.zx")
+    if !NativeWrite(test, obsolete, CheckConcat("ZIB\x00", TextDetach(TextCopy(data[4:])))) { return false }
+    run := string.[test.ziran, "run", obsolete]
+    if !NativeReject(test, run[:], "invalid or truncated bundle") { return false }
+    capabilities_args := string.[test.ziran, "capabilities", "--target=zib", "--json"]
+    check := string.[test.ziran, "check", "--target=zib", "--root", test.work, CheckPath(test.work, "program.zi")]
+    first := NativeInvoke(test, capabilities_args[:]); second := NativeInvoke(test, check[:])
+    if !NativeAssert(test, first.code > 0 && first.code < 124 && second.code > 0 && second.code < 124, "obsolete portable target was accepted") { return false }
+    print("Portable .zx format, source/saved IR, target discovery and legacy rejection local tests passed\n")
+    return !test.failed
+}
+
+InlineReadNumber :: (test: *NativeTest, data: string, start: s64) -> (value: u64, after: s64) {
+    value: u64; at := start; shift: u64
+    while at >= 0 && at < data.count && shift < 64 {
+        byte := data[at]; at += 1
+        if shift == 63 && byte > 1 { break }
+        value |= cast(u64)(byte & cast(u8)127) << shift
+        if byte < 128 { return value, at }
+        shift += 7
+    }
+    unused NativeAssert(test, false, "invalid saved IR variable-length number")
+    return cast(u64)0, -1
+}
+
+InlineSkipString :: (test: *NativeTest, data: string, start: s64) -> s64 {
+    tag, after := InlineReadNumber(test, data, start)
+    if test.failed { return -1 }
+    if (tag & cast(u64)1) != 0 { return after }
+    length := tag >> cast(u64)1
+    if !NativeAssert(test, length <= cast(u64)(data.count - after), "saved IR string leaves its input") { return -1 }
+    return after + cast(s64)length
+}
+
+InlineEncodedString :: (text: string) -> string {
+    bytes: Vec(u8); value := cast(u64)text.count * cast(u64)2
+    while value >= 128 { VecPush(bytes, cast(u8)(value & cast(u64)127) | cast(u8)128); value >>= cast(u64)7 }
+    VecPush(bytes, cast(u8)value); BuilderAppend(bytes, text)
+    return TextDetach(BuilderFinish(bytes))
+}
+
+InlineMethodMetadata :: (test: *NativeTest) -> bool {
+    data := NativeRead(test, CheckPath(test.work, "ir/methods.zir"))
+    prefix := CheckConcat(InlineEncodedString("Write"), InlineEncodedString("writer:*CapturedWriter, bytes:[]u8"))
+    at := TextFind(data, prefix)
+    if !NativeAssert(test, at >= 0, "checked Write method signature is missing") { return false }
+    at += prefix.count
+    at = InlineSkipString(test, data, at)
+    unused_value, after := InlineReadNumber(test, data, at); unused unused_value
+    at = InlineSkipString(test, data, after)
+    if !NativeAssert(test, !test.failed && at >= 0 && at + 2 <= data.count && data[at] == 0 && data[at + 1] == 0, "checked method metadata layout differs") { return false }
+    at = InlineSkipString(test, data, at + 2)
+    if !NativeAssert(test, !test.failed && at >= 0 && at < data.count && data[at] == 2, "checked method result count differs") { return false }
+    if !NativeWrite(test, CheckPath(test.work, "bad-results.zir"), CheckConcat(TextDetach(TextCopy(data[:at])), CheckConcat("\x04", TextDetach(TextCopy(data[at + 1:]))))) { return false }
+    name := InlineEncodedString("String"); name_at := TextFind(data, name)
+    if !NativeAssert(test, name_at >= 0 && TextFind(data, name, name_at + name.count) < 0, "method name must occur exactly once") { return false }
+    return NativeWrite(test, CheckPath(test.work, "bad-name.zir"), TextReplace(data, name, InlineEncodedString("return")))
+}
+
+InlineNumericIds :: (test: *NativeTest) -> bool {
+    source := NativeRead(test, CheckPath(test.work, "numeric.zi")); ids: Vec(string); at: s64
+    marker := "// conformance: "
+    while at < source.count {
+        found := TextFind(source, marker, at)
+        if found < 0 { break }; start := found + marker.count; end := start
+        while end < source.count {
+            byte := source[end]
+            if !(byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95 || byte == 46 || byte == 45) { break }
+            end += 1
+        }
+        id := TextDetach(TextCopy(source[start:end])); seen := false
+        for value: ids { seen = seen || value == id }
+        if id != "" && !seen { VecPush(ids, id) }; at = ifx end > start then end else start + 1
+    }
+    manifest: JsonDocument; capabilities: JsonDocument
+    if !NativeAssert(test, JsonRead(*manifest, NativeRead(test, CheckPath(test.repo, "tests/numeric_conformance.json"))) &&
+        JsonRead(*capabilities, NativeRead(test, CheckPath(test.work, "capabilities.json"))), "invalid numeric conformance inventory") { return false }
+    cases := JsonMember(*manifest, manifest.root, "cases"); capability := JsonMember(*capabilities, capabilities.root, "numeric_conformance"); capability_ids := JsonMember(*capabilities, capability, "ids")
+    if !NativeAssert(test, ids.count == JsonCount(*manifest, cases) && ids.count == JsonCount(*capabilities, capability_ids), "numeric source, manifest or capability ID counts differ") { return false }
+    for index: cast(s64)0..ids.count - 1 {
+        if !NativeAssert(test, ids[index] == CheckField(*manifest, JsonElement(*manifest, cases, cast(s32)index), "id") && JsonIs(*capabilities, JsonElement(*capabilities, capability_ids, cast(s32)index), ids[index]),
+            "numeric source, manifest or capability ID order differs") { return false }
+    }
+    SortText(ids[:])
+    for index: cast(s64)1..ids.count - 1 { if !NativeAssert(test, ids[index - 1] != ids[index], "duplicate numeric conformance ID") { return false } }
+    targets := JsonMember(*manifest, manifest.root, "targets"); expected := string.["c", "go", "zx"]
+    if !NativeAssert(test, JsonCount(*manifest, targets) == 3, "numeric manifest target count differs") { return false }
+    for index: cast(s32)0..2 { if !NativeAssert(test, JsonIs(*manifest, JsonElement(*manifest, targets, index), expected[index]), "numeric manifest target order differs") { return false } }
+    return !test.failed
+}
+
+InlinePrimitiveTypes :: (test: *NativeTest) -> bool {
+    serialization := NativeRead(test, CheckPath(test.repo, "cmd/zir/zir_serial.c")); lines := TextLines(serialization); version: s64 = -1
+    prefix := "#define ZIR_FORMAT_VERSION "
+    for line: lines {
+        if TextHasPrefix(line, prefix) && TextHasSuffix(line, "u") {
+            number: JsonDocument
+            if !NativeAssert(test, JsonRead(*number, line[prefix.count:line.count - 1]), "invalid IR format version declaration") { return false }
+            value, valid := JsonInteger(*number, number.root)
+            if !NativeAssert(test, valid && value >= 0 && value <= 4294967295 && version < 0, "missing or duplicate IR format version") { return false }; version = value
+        }
+    }
+    if !NativeAssert(test, version >= 0, "IR format version declaration is missing") { return false }
+    data := NativeRead(test, CheckPath(test.work, "ir/types.zir"))
+    if !NativeAssert(test, data.count >= 8 && data[:4] == "ZIR\x00", "invalid saved primitive type header") { return false }
+    for index: cast(s64)0..3 { if !NativeAssert(test, data[index + 4] == cast(u8)((cast(u64)version >> cast(u64)(index * 8)) & cast(u64)255), "saved primitive type format version differs") { return false } }
+    required := string.["s32", "s64", "float32", "float64"]; forbidden := string.["i32", "i64", "f32", "f64", "double"]
+    for spelling: required { if !NativeAssert(test, TextContains(data, spelling), CheckConcat("saved IR omitted primitive spelling: ", spelling)) { return false } }
+    for spelling: forbidden { if !NativeAssert(test, !TextContains(data, spelling), CheckConcat("saved IR retained obsolete primitive spelling: ", spelling)) { return false } }
+    return !test.failed
+}
+
+InlineIdentifierByte :: (byte: u8) -> bool { return byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95 }
+
+InlineOperandOrder :: (test: *NativeTest, path: string) -> bool {
+    text := NativeRead(test, path); names := string.["PlainWide", "PlainView", "PlainShort"]
+    for name: names {
+        cursor: s64; found := false
+        while cursor < text.count {
+            at := TextFind(text, CheckConcat(name, "("), cursor)
+            if at < 0 { break }; cursor = at + name.count + 1
+            if at > 0 && InlineIdentifierByte(text[at - 1]) { continue }
+            after := cursor; depth: s64 = 1; valid := true
+            while after < text.count && depth > 0 {
+                byte := text[after]
+                if byte == 59 || byte == 123 || byte == 125 { valid = false; break }
+                if byte == 40 { depth += 1 } else if byte == 41 { depth -= 1 }; after += 1
+            }
+            if !valid || depth != 0 { continue }
+            while after < text.count && (text[after] == 32 || text[after] >= 9 && text[after] <= 13) { after += 1 }
+            if after >= text.count || text[after] != 123 { continue }
+            after += 1; end := TextFind(text, "\n}", after)
+            if !NativeAssert(test, end >= after, CheckConcat("missing native function body: ", name)) { return false }
+            body := text[after:end]; position: s64
+            while position < body.count {
+                next := TextFind(body, "value_", position)
+                if next < 0 { break }; position = next + 6
+                if next > 0 && InlineIdentifierByte(body[next - 1]) { continue }
+                number_end := position
+                while number_end < body.count && body[number_end] >= 48 && body[number_end] <= 57 { number_end += 1 }
+                temporary := number_end > position && (number_end == body.count || !InlineIdentifierByte(body[number_end]))
+                if !NativeAssert(test, !temporary, CheckConcat("plain native operands acquired a generated temporary in ", name)) { return false }
+            }
+            found = true; break
+        }
+        if !NativeAssert(test, found, CheckConcat("native operand function is missing: ", name)) { return false }
+    }
+    return !test.failed
+}
+
+InlineBundleVersions :: (test: *NativeTest) -> bool {
+    names := string.["base-source", "standalone-source", "included-source", "plain-thin", "thin-source"]
+    versions := u32.[26, 26, 26, 26, 27]
+    for index: cast(s64)0..names.count - 1 {
+        data := NativeRead(test, CheckPath(test.work, CheckConcat(names[index], ".zx")))
+        if !NativeAssert(test, data.count >= 8 && data[:4] == "ZX\x00\x00", "composed bundle has invalid signature") { return false }
+        for byte: cast(s64)0..3 { if !NativeAssert(test, data[byte + 4] == cast(u8)((versions[index] >> cast(u32)(byte * 8)) & cast(u32)255), CheckConcat("bundle selected the wrong composition version: ", names[index])) { return false } }
+    }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-inline-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, argc >= 4, "pass a native inline test mode") { return 1 }
+    mode := TextFromCString(argv[3]); valid := false
+    if mode == "arguments" { valid = InlineArguments(*test) }
+    else if mode == "bounds" && argc == 5 { valid = InlineBounds(*test, TextFromCString(argv[4])) }
+    else if mode == "inference" { valid = InlineInference(*test) }
+    else if mode == "headers-refresh" { valid = InlineHeaderRefresh(*test) }
+    else if mode == "headers-copy" { valid = InlineHeaderCopies(*test) }
+    else if mode == "portable-format" { valid = InlinePortableFormat(*test) }
+    else if mode == "method-metadata" { valid = InlineMethodMetadata(*test) }
+    else if mode == "numeric-ids" { valid = InlineNumericIds(*test) }
+    else if mode == "primitive-types" { valid = InlinePrimitiveTypes(*test) }
+    else if mode == "operand-order" && argc == 5 { valid = InlineOperandOrder(*test, TextFromCString(argv[4])) }
+    else if mode == "bundle-versions" { valid = InlineBundleVersions(*test) }
+    else if mode == "recovery-probe" && argc == 6 {
+        arguments := string.[TextFromCString(argv[4]), TextFromCString(argv[5]), test.work]
+        result := NativeInvoke(*test, arguments[:], "", 30000)
+        valid = NativeAssert(*test, result.code == 0 && TextContains(result.output, "recover"), CheckConcat("parser recovery probe failed or omitted its recovery result\n", CheckConcat(result.output, result.error)))
+        if valid { print("%", result.output) }
+    }
+    else if mode == "probe" && argc == 5 {
+        arguments := string.[TextFromCString(argv[4])]; result := NativeInvoke(*test, arguments[:], "", 10000)
+        if result.output != "" { print("%", result.output) }; if result.error != "" { unused PrintError(result.error) }
+        valid = NativeAssert(*test, result.code == 0, "native body-eligibility probe failed or timed out")
+    }
+    return ifx valid && !test.failed then 0 else 1
+}

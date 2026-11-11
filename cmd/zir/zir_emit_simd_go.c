@@ -762,7 +762,7 @@ remember(const char *start, size_t length)
 typedef struct GoHelper {
     const SimdOp *op;
     ZirVector first, second;
-    int types, pointer;
+    int types, pointer, string;
 } GoHelper;
 
 static int
@@ -804,10 +804,15 @@ parse_helper(const char *name, GoHelper *helper)
         helper->pointer = 1;
         snake[length - 4] = '\0';
     }
+    if(length > 7 && !strcmp(snake + length - 7, "_string")) {
+        helper->string = 1;
+        snake[length - 7] = '\0';
+    }
     char checked[80];
     format(checked, sizeof(checked), "zi_simd_%s", snake);
     helper->op = SimdOpChecked(checked);
     if(helper->op == NULL) return 0;
+    if(helper->string && (helper->op->shape != SIMD_LOAD || strcmp(helper->first.lane, "u8"))) return 0;
     int two = helper->op->shape == SIMD_NARROW || helper->op->shape == SIMD_REINTERPRET ||
               helper->op->shape == SIMD_CONVERT || helper->op->shape == SIMD_GATHER;
     int memory = helper->op->shape == SIMD_LOAD || helper->op->shape == SIMD_STORE ||
@@ -929,7 +934,8 @@ write_memory(FILE *out, const char *name, const GoHelper *helper)
         fprintf(out, "\tcopy(%s, v[:%d])\n}\n", view, lanes);
         return;
     }
-    fprintf(out, "\nfunc %s(%s%s, i int64) (v %s) {\n", name, memory, lt, vt);
+    fprintf(out, "\nfunc %s(%s%s, i int64) (v %s) {\n", name,
+            helper->string ? "m " : memory, helper->string ? "string" : lt, vt);
     if(!helper->pointer) fprintf(out, "\tzi_simd_check(int64(len(m)), i, %d)\n", lanes);
     fprintf(out, "\tcopy(v[:%d], %s)\n\treturn v\n}\n", lanes, view);
 }

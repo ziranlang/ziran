@@ -435,6 +435,7 @@ make_vector(Vm *vm, const ZirModule *module, const SimdLanes *vector,
 typedef struct SimdMemorySpan {
     Array *array;
     Value *single; /* a pointer at one value outside any array */
+    const unsigned char *text; /* immutable string bytes, only for loads */
     size_t offset, length;
 } SimdMemorySpan;
 
@@ -442,6 +443,11 @@ static int
 memory_span(Vm *vm, Value base, SimdMemorySpan *span)
 {
     memset(span, 0, sizeof(*span));
+    if(base.kind == VALUE_STRING) {
+        span->text = base.data;
+        span->length = base.length;
+        return 1;
+    }
     if(base.kind == VALUE_ARRAY && base.array != NULL) {
         span->array = base.array;
         span->length = (size_t)base.array->length;
@@ -475,6 +481,7 @@ memory_span(Vm *vm, Value base, SimdMemorySpan *span)
 static Value
 span_get(const SimdMemorySpan *span, size_t index)
 {
+    if(span->text != NULL) return int_value(span->text[index]);
     return span->single != NULL ? *span->single :
         array_get(span->array, span->offset + index);
 }
@@ -544,6 +551,10 @@ memory_operation(Frame *frame, const VmSimdSite *site, const Value *values)
         return make_vector(vm, frame->module, vector, lanes);
     }
     int store = site->op->shape == SIMD_STORE;
+    if(store && values[0].kind == VALUE_STRING) {
+        vm->failed = 1;
+        return (Value){0};
+    }
     if(values[1].kind != VALUE_INT) {
         vm->failed = 1;
         return (Value){0};

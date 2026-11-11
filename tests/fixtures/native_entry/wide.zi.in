@@ -1,0 +1,5 @@
+Callback :: #type () -> u64;
+#program_export "main"
+Launch :: () -> u64 { return 4294967338 }
+#program_export
+Probe :: () -> s64 { value: Callback = Launch; return cast(s64)(value()) }

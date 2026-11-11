@@ -1,0 +1,111 @@
+// Native executable fixtures preserve actual argv and environment boundaries.
+#import "native_test"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+libc :: #system_library "libc";
+PlaygroundEnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+PlaygroundHasEnvironment :: (name: string) -> bool {
+    bytes: [128]u8
+    return CopyCString(name, bytes[:]) && PlaygroundEnvironmentRaw(*bytes[0]) != null
+}
+
+PlaygroundTool :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 3 { return 2 }
+    stage := TextFromCString(argv[2]); document: JsonDocument; root := JsonNewObject(*document); arguments := JsonNewArray(*document)
+    for index: cast(s32)3..argc - 1 { JsonAppend(*document, arguments, JsonNewString(*document, TextFromCString(argv[index]))) }
+    CheckPut(*document, root, "stage", stage); JsonSet(*document, root, "args", arguments)
+    CheckPut(*document, root, "cwd", TextDetach(ResolvePath("."))); CheckPut(*document, root, "cache", EnvironmentText("EM_CACHE"))
+    JsonSet(*document, root, "frozen", JsonNewBool(*document, PlaygroundHasEnvironment("EM_FROZEN_CACHE")))
+    JsonSet(*document, root, "display", JsonNewBool(*document, PlaygroundHasEnvironment("DISPLAY") || PlaygroundHasEnvironment("WAYLAND_DISPLAY")))
+    path := EnvironmentText("ZIRAN_PLAYGROUND_TEST_LOG"); previous := ""
+    if PathExists(path) { contents, valid := ReadEntireFile(path); if !valid { return 3 }; previous = TextDetach(TextCopy(contents)) }
+    if !WriteEntireFile(path, CheckConcat(previous, CheckConcat(TextDetach(JsonWrite(*document, root, JsonCompactStyle())), "\n"))) { return 3 }
+    print("mock %\n", stage)
+    if stage == "make" {
+        value := EnvironmentText("ZIRAN_PLAYGROUND_MAKE_EXIT")
+        if value == "" { return 0 }; code, valid := TextInteger(value)
+        return ifx valid && code >= 0 && code <= 125 then cast(s32)code else 2
+    }
+    return 0
+}
+
+PlaygroundArguments :: (test: *NativeTest, document: *JsonDocument, expected: []string, tail: bool = false) -> bool {
+    arguments := JsonMember(document, document.root, "args"); count := cast(s64)JsonCount(document, arguments); start := ifx tail then count - expected.count else cast(s64)0
+    if !NativeAssert(test, start >= 0 && (tail || count == expected.count), "playground tool received the wrong argument count") { return false }
+    for index: cast(s64)0..expected.count - 1 {
+        if !NativeAssert(test, JsonIs(document, JsonElement(document, arguments, cast(s32)(start + index)), expected[index]), CheckConcat("playground argv changed: ", expected[index])) { return false }
+    }
+    return true
+}
+
+PlaygroundTests :: (test: *NativeTest, self: string) -> bool {
+    find_make := string.["sh", "-c", "command -v make"]; make_result := NativeRun(test, find_make[:]); real_make := TextDetach(TextCopy(TextTrim(make_result.output)))
+    if !NativeAssert(test, !test.failed && TextHasPrefix(real_make, "/"), "resolve real make before installing the fixture") { return false }
+    emcc := CheckPath(test.work, "tools with spaces/emcc"); make := CheckPath(test.work, "bin/make")
+    tools := string.[make, emcc]; stages := string.["make", "emcc"]
+    for index: cast(s64)0..tools.count - 1 {
+        parts := string.["#!/bin/sh\nexec ", CheckQuote(self), " --tool ", stages[index], " \"$@\"\n"]
+        if !NativeWrite(test, tools[index], TextJoin(parts[:], "")) || !NativeAssert(test, SetPathMode(tools[index], 448), "make playground fixture executable") { return false }
+    }
+    log := CheckPath(test.work, "commands.jsonl"); cache := CheckPath(test.work, "em-cache"); assets := CheckPath(test.work, "assets with spaces")
+    NativeSet(test, "PATH", CheckConcat(CheckPath(test.work, "bin"), CheckConcat(":", EnvironmentText("PATH"))))
+    NativeSet(test, "XDG_CACHE_HOME", CheckPath(test.work, "cache")); NativeSet(test, "ZIRAN_PLAYGROUND_TEST_LOG", log)
+    NativeSet(test, "EM_CACHE", cache); NativeSet(test, "EM_FROZEN_CACHE", "1")
+    script := CheckPath(test.repo, "scripts/build_playground.zi")
+    command := string.[test.ziran, "run", "--target=c", script, "--emcc", emcc, "--output-dir", assets, "--embed-file", "local file.zi@/file.zi", "--embed-file", "modules@/modules"]
+    result := NativeRun(test, command[:])
+    if !NativeAssert(test, !test.failed && result.output == "mock make\nmock emcc\n", "playground orchestration changed tool order or output") { return false }
+    lines := TextLines(TextTrimEnd(NativeRead(test, log)))
+    if !NativeAssert(test, !test.failed && lines.count == 2, "playground did not invoke exactly make and emcc") { return false }
+    for index: cast(s64)0..lines.count - 1 {
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, lines[index]) && CheckField(*document, document.root, "stage") == stages[index] && CheckField(*document, document.root, "cwd") == test.repo &&
+            CheckField(*document, document.root, "cache") == cache && JsonKindOf(*document, JsonMember(*document, document.root, "frozen")) == .False &&
+            JsonKindOf(*document, JsonMember(*document, document.root, "display")) == .False, "playground tool inherited frozen cache/display settings or lost cwd/cache") { return false }
+        if index == 0 {
+            expected := string.["BUILD_DIR=build/playground64", CheckConcat("CC=", CheckConcat(CheckQuote(emcc), " -sMEMORY64=2")), CheckConcat("AR=", CheckQuote(CheckPath(test.work, "tools with spaces/emar"))),
+                "OBJCOPY=true", "CFLAGS=-O2", "FRAMEFLAGS=-Wframe-larger-than=16384", "build/playground64/libziran.a"]
+            if !PlaygroundArguments(test, *document, expected[:]) { return false }
+        } else {
+            expected := string.["--embed-file", "std@/std", "--embed-file", "local file.zi@/file.zi", "--embed-file", "modules@/modules", "-o", CheckPath(assets, "playground-runtime.js")]
+            if !PlaygroundArguments(test, *document, expected[:], true) { return false }
+            arguments := JsonMember(*document, document.root, "args"); memory := false; stack := false
+            for at: cast(s32)0..JsonCount(*document, arguments) - 1 {
+                argument := JsonElement(*document, arguments, at); memory = memory || JsonIs(*document, argument, "-sMEMORY64=2"); stack = stack || JsonIs(*document, argument, "-sSTACK_SIZE=8388608")
+            }
+            if !NativeAssert(test, memory && stack, "playground linker lost memory64 or stack size") { return false }
+        }
+    }
+    compiler := CheckPath(test.work, "wasm-cc"); headers := CheckPath(test.work, "headers")
+    if !NativeWrite(test, compiler, "#!/bin/sh\nprintf 'wasm64-unknown-emscripten\\n'\n") || !NativeAssert(test, SetPathMode(compiler, 448), "make memory64 compiler fixture executable") { return false }
+    NativeUnset(test, "MAKEFLAGS")
+    header_args := string.[real_make, "-C", test.repo, CheckConcat("CC=", compiler), CheckConcat("BUILD_DIR=", headers), CheckPath(headers, "wasm-private/check.h"), CheckPath(headers, "wasm-private/vm.h")]
+    unused NativeRun(test, header_args[:]); text := NativeRead(test, CheckPath(headers, "wasm-private/check.h")); header_lines := TextLines(text); private_name := false
+    keywords := string.["char", "void", "int", "const"]
+    for line: header_lines {
+        private_name = private_name || line == "#define check_function private_check_check_function"
+        for keyword: keywords { if !NativeAssert(test, !TextHasPrefix(line, CheckConcat("#define ", CheckConcat(keyword, " "))), "private header remapped a C keyword") { return false } }
+    }
+    if !NativeAssert(test, !test.failed && private_name, "memory64 build omitted a private C name") || !NativeAssert(test, RemoveFile(log), "reset playground fixture log") { return false }
+    NativeSet(test, "ZIRAN_PLAYGROUND_MAKE_EXIT", "17")
+    failed := string.[test.ziran, "run", "--target=c", script, "--emcc", emcc, "--output-dir", assets]; failure := NativeInvoke(test, failed[:])
+    failure_rows := TextLines(TextTrimEnd(NativeRead(test, log)))
+    return NativeAssert(test, !test.failed && failure.code == 1 && TextContains(failure.output, "failed:") && failure_rows.count == 1, "failed make did not stop before emcc with the documented failure")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--tool" { return PlaygroundTool(argc, argv) }
+    test := NativeStart(argc, argv, "build-playground-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx PlaygroundTests(*test, TextFromCString(argv[0])) && !test.failed then 0 else 1
+}

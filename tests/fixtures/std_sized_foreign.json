@@ -1,0 +1,15 @@
+{
+  "read": {"2": "usize", "r": "isize"}, "write": {"2": "usize", "r": "isize"},
+  "pread": {"2": "usize", "r": "isize"}, "pwrite": {"2": "usize", "r": "isize"},
+  "pread64": {"2": "usize", "r": "isize"}, "pwrite64": {"2": "usize", "r": "isize"},
+  "send": {"2": "usize", "r": "isize"}, "recv": {"2": "usize", "r": "isize"},
+  "getcwd": {"1": "usize"}, "readlink": {"2": "usize", "r": "isize"},
+  "getrandom": {"1": "usize", "r": "isize"},
+  "bcopy": {"2": "usize"}, "mempcpy": {"2": "usize"}, "memcpy": {"2": "usize"},
+  "memmove": {"2": "usize"}, "memset": {"2": "usize"}, "memcmp": {"2": "usize"},
+  "strlen": {"r": "usize"}, "strnlen": {"1": "usize", "r": "usize"},
+  "malloc": {"0": "usize"}, "calloc": {"0": "usize", "1": "usize"},
+  "realloc": {"1": "usize"}, "mmap": {"1": "usize"}, "mmap64": {"1": "usize"},
+  "munmap": {"1": "usize"}, "poll": {"1": "usize"},
+  "curl_ws_recv": {"2": "usize", "3": "*usize"}
+}

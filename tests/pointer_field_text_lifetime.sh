@@ -2,6 +2,7 @@
 # Views stored in a pointer parameter's pointee belong to the caller, so they
 # may be returned; views of the pointee's own arrays and of locals may not.
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 ziran=$1
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
@@ -73,11 +74,7 @@ for fixture in return_array_field return_names_slice \
         echo "unsafe $fixture was accepted" >&2
         exit 1
     fi
-    python3 - "$work/diagnostics.jsonl" <<'PY'
-import json, pathlib, sys
-items = [json.loads(line) for line in pathlib.Path(sys.argv[1]).read_text().splitlines()]
-assert items and all(item['code'] == 'check.slice_lifetime' for item in items), items
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- code "$work/diagnostics.jsonl" check.slice_lifetime
 done
 
 "$ziran" ir --root "$work/safe" -o "$work/ir" "$work/safe/safe.zi"

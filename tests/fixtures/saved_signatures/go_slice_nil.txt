@@ -1,0 +1,1 @@
+BytesNil :: (value: []u8) -> bool #foreign builtin "is_nil";

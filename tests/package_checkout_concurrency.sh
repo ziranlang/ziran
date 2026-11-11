@@ -3,7 +3,8 @@ set -eu
 ziran=${1:?pass the native Ziran launcher}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$repo"
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/package-checkout-probe.XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 entry=package_checkout_concurrency_probe
@@ -14,4 +15,4 @@ output=$work/c
     --module-path cmd --module-path std --target=c --no-main --entry "$entry:main" \
     -o "$output" "tests/$entry.zi"
 "${CC:-cc}" -O2 -std=c11 -I"$repo/include" "$output"/*.c -o "$output/probe" -lcrypto -lm
-python3 tests/package_checkout_concurrency.py "$output/probe"
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/package_checkout_concurrency_cases.zi" -- "$output/probe"

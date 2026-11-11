@@ -1,0 +1,1 @@
+Split :: (address: string) -> HostPort #go_results #foreign net "SplitHostPort";

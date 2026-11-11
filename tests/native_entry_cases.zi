@@ -1,0 +1,174 @@
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "native-entry-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    hello := CheckPath(test.work, "hello.zi")
+    if !NativeWrite(*test, hello, "main :: () { print(\"Hello, World!\\n\") }\n") { return 1 }
+    runner := CheckPath(PathParent(test.ziran), "zi2zx")
+    source_run := string.[test.ziran, "run", "hello.zi"]
+    unused NativeExpect(*test, source_run[:], "Hello, World!\n", test.work)
+    direct_run := string.[runner, "hello.zi"]
+    unused NativeExpect(*test, direct_run[:], "Hello, World!\n", test.work)
+    hello_ir := CheckPath(test.work, "hello-ir")
+    save_hello := string.[test.ziran, "ir", "--root", test.work, "-o", hello_ir, hello]
+    unused NativeRun(*test, save_hello[:])
+    saved_run := string.[runner, CheckPath(hello_ir, "hello.zir")]
+    unused NativeExpect(*test, saved_run[:], "Hello, World!\n")
+    bundle_hello := string.[test.ziran, "bundle", "--root", test.work, "--entry", "hello:main", "-o", CheckPath(test.work, "hello.zx"), hello]
+    unused NativeRun(*test, bundle_hello[:])
+    bundle_run := string.[runner, "hello.zx"]
+    unused NativeExpect(*test, bundle_run[:], "Hello, World!\n", test.work)
+    missing := string.[runner, "missing.zi"]
+    if !NativeReject(*test, missing[:], "cannot open", test.work) { return 1 }
+    cc := NativeCompiler()
+    cxx := EnvironmentText("CXX"); if cxx == "" { cxx = "c++" }
+    emcc := EnvironmentText("EMCC")
+    if emcc == "" { emcc = CheckPath(EnvironmentText("HOME"), "emsdk/upstream/emscripten/emcc") }
+    emcc = CheckExecutable(emcc)
+    if emcc == "" { emcc = CheckExecutable("emcc") }
+    node := CheckExecutable("node")
+    names := string.["unsigned", "signed", "early", "fallthrough", "wide", "renamed", "renamedvoid", "implicit", "collision", "keywords", "recursive", "voidslot", "assembly", "longentry"]
+    forms := string.["source", "saved"]
+    compiled: s64; cross_linked: s64; web_executed: s64
+    for name: names {
+        folder := CheckPath(test.work, name)
+        module := ifx name == "implicit" then "main" else name
+        path := CheckPath(folder, CheckConcat(module, ".zi"))
+        text := ""
+        if name == "longentry" {
+            spelling: Vec(u8)
+            for unused_index: 0..179 { unused unused_index; BuilderAppend(spelling, "a") }
+            text = CheckConcat("#program_export \"main\"\nLaunch_", CheckConcat(TextDetach(BuilderFinish(spelling)), " :: () -> s32 { return 42 }\n"))
+        } else { text = NativeRead(*test, CheckPath(test.repo, CheckConcat("tests/fixtures/native_entry/", CheckConcat(name, ".zi.in")))) }
+        if !NativeWrite(*test, path, text) { return 1 }
+        ir := CheckPath(folder, "ir")
+        save := string.[test.ziran, "ir", "--root", folder, "-o", ir, path]
+        unused NativeRun(*test, save[:])
+        answer: s32 = ifx name == "early" || name == "fallthrough" || name == "voidslot" || name == "assembly" then 0 else 42
+        expected := ifx name == "early" then "void\n" else ifx name == "fallthrough" then "fallthrough\n" else ""
+        for form: forms {
+            root := ifx form == "source" then folder else ir
+            input := ifx form == "source" then path else CheckPath(ir, CheckConcat(module, ".zir"))
+            if name == "wide" || name == "voidslot" {
+                bundle := CheckPath(folder, CheckConcat(form, ".zx"))
+                portable := string.[test.ziran, "bundle", "--root", root, "--entry", CheckConcat(module, ":Probe"), "-o", bundle, input]
+                unused NativeRun(*test, portable[:])
+                run := string.[test.ziran, "run", bundle]
+                unused NativeExpect(*test, run[:], ifx name == "wide" then "4294967338\n" else "42\n")
+            }
+            output := CheckPath(folder, CheckConcat("c-", form))
+            generate := string.[test.ziran, "build", "--target=c", "--root", root, "-o", output, input]
+            unused NativeRun(*test, generate[:])
+            generated := CheckPath(output, CheckConcat(module, ".c"))
+            header := CheckPath(output, CheckConcat(module, ".h"))
+            flags := string.["-std=c11", "-O2", "-Werror=main", "-Werror=incompatible-pointer-types", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output)]
+            sources: Vec(string); VecPush(sources, generated)
+            host := CheckPath(folder, "host.c")
+            if name == "renamed" || name == "renamedvoid" {
+                call := ifx name == "renamedvoid" then "void (*value)(void) = Other; value(); " else ""
+                host_text := CheckConcat("#include \"", CheckConcat(module, CheckConcat(".h\"\nint main(int argc, char **argv) { ", CheckConcat(call, "(void)argc; (void)argv; return (int)Probe(); }\n"))))
+                if !NativeWrite(*test, host, host_text) { return 1 }
+                VecPush(sources, host)
+                contents := NativeRead(*test, generated)
+                if !NativeAssert(*test, !TextHasPrefix(contents, "main(") && !TextContains(contents, "\nmain("), "renamed entry emitted a process main") { return 1 }
+            } else {
+                if !NativeAssert(*test, TextContains(NativeRead(*test, generated), "main(int argc, char **argv)") &&
+                    TextContains(NativeRead(*test, header), "main(int argc, char **argv)"), "missing C process entry declaration") { return 1 }
+            }
+            compile: Vec(string); VecPush(compile, cc)
+            for flag: flags { VecPush(compile, flag) }
+            for file: sources { VecPush(compile, file) }
+            executable := CheckPath(output, "run")
+            VecPush(compile, "-o"); VecPush(compile, executable)
+            unused NativeRun(*test, compile[:])
+            run := string.[executable, "alpha", "π"]
+            result := NativeRun(*test, run[:], "", answer)
+            if !NativeAssert(*test, result.output == expected, "native entry output changed") { return 1 }
+            compiled += 1
+            ndk := EnvironmentText("ANDROID_NDK_HOME")
+            if form == "source" && name == "unsigned" && ndk != "" {
+                triples := string.["aarch64-linux-android24", "armv7a-linux-androideabi24", "x86_64-linux-android24", "i686-linux-android24"]
+                for triple: triples {
+                    cross: Vec(string); VecPush(cross, CheckPath(CheckPath(ndk, "toolchains/llvm/prebuilt/linux-x86_64/bin"), CheckConcat(triple, "-clang")))
+                    for flag: flags { VecPush(cross, flag) }
+                    VecPush(cross, generated); VecPush(cross, "-o"); VecPush(cross, CheckPath(output, CheckConcat(triple, ".elf")))
+                    unused NativeRun(*test, cross[:]); cross_linked += 1
+                }
+            }
+            if form == "source" && (name == "unsigned" || name == "assembly") && emcc != "" && node != "" {
+                web: Vec(string); VecPush(web, emcc)
+                for flag: flags { VecPush(web, flag) }
+                options := string.["-sENVIRONMENT=node", "-sWASM_ASYNC_COMPILATION=0", "-sEXIT_RUNTIME=1", generated, "-o", CheckPath(output, "web.js")]
+                for option: options { VecPush(web, option) }
+                unused NativeRun(*test, web[:])
+                execute := string.[node, CheckPath(output, "web.js"), "alpha", "π"]
+                result_web := NativeRun(*test, execute[:], "", answer)
+                if !NativeAssert(*test, result_web.output == expected, "Wasm entry output changed") { return 1 }
+                web_executed += 1
+            }
+            if name == "assembly" {
+                fallback: Vec(string); VecPush(fallback, cc)
+                for flag: flags { VecPush(fallback, flag) }
+                extra := string.["-DZIRAN_NO_ASM", generated, "-o", CheckPath(output, "fallback")]
+                for item: extra { VecPush(fallback, item) }
+                unused NativeRun(*test, fallback[:])
+                execute := string.[CheckPath(output, "fallback")]; unused NativeRun(*test, execute[:])
+            }
+            if name == "wide" || name == "voidslot" {
+                object := CheckPath(output, "body.o")
+                body: Vec(string); VecPush(body, cc)
+                for flag: flags { VecPush(body, flag) }
+                extra := string.["-Dmain=process_main", "-c", generated, "-o", object]
+                for item: extra { VecPush(body, item) }
+                unused NativeRun(*test, body[:])
+                value := ifx name == "wide" then "UINT64_C(4294967338)" else "42"
+                text_host := CheckConcat("#include \"", CheckConcat(module, CheckConcat(".h\"\nint main(int argc, char **argv) { (void)argc; (void)argv; return Probe() == ", CheckConcat(value, " ? 0 : 1; }\n"))))
+                if !NativeWrite(*test, host, text_host) { return 1 }
+                probe: Vec(string); VecPush(probe, cc)
+                for flag: flags { VecPush(probe, flag) }
+                additions := string.[object, host, "-o", CheckPath(output, "probe")]
+                for item: additions { VecPush(probe, item) }
+                unused NativeRun(*test, probe[:])
+                execute := string.[CheckPath(output, "probe")]; unused NativeRun(*test, execute[:])
+                cpp := CheckPath(folder, "host.cpp")
+                if !NativeWrite(*test, cpp, text_host) { return 1 }
+                cpp_compile := string.[cxx, "-std=c++17", "-O2", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", output), object, cpp, "-o", CheckPath(output, "cpp-probe")]
+                unused NativeRun(*test, cpp_compile[:])
+                cpp_run := string.[CheckPath(output, "cpp-probe")]; unused NativeRun(*test, cpp_run[:])
+            }
+        }
+        if !NativeAssert(*test, NativeSameFile(CheckPath(folder, CheckConcat("c-source/", CheckConcat(module, ".c"))), CheckPath(folder, CheckConcat("c-saved/", CheckConcat(module, ".c")))), "native entry C differs between source/saved IR") { return 1 }
+    }
+    bad := string.["main :: () -> string { return \"text\" }", "main :: (argc: string, argv: **u8) -> s32 { return 0 }", "main :: (argc: s32, argv: **s32) -> s32 { return 0 }", "main :: (argc: s32) -> s32 { return 0 }"]
+    for index: cast(s64)0..bad.count - 1 {
+        path := CheckPath(test.work, CheckConcat("bad", CheckConcat(CheckNumber(index), ".zi")))
+        if !NativeWrite(*test, path, CheckConcat("#program_export\n", CheckConcat(bad[index], "\n"))) { return 1 }
+        check := string.[test.ziran, "check", "--root", test.work, path]; unused NativeRun(*test, check[:])
+        reject := string.[test.ziran, "build", "--target=c", "--diagnostics=json", "--root", test.work, "-o", CheckPath(test.work, "bad-output"), path]
+        result := NativeInvoke(*test, reject[:])
+        if !NativeAssert(*test, result.code > 0 && result.code < 124, "invalid native signature accepted") { return 1 }
+        lines := TextLines(result.error)
+        found := false
+        for line: lines {
+            document: JsonDocument
+            if !NativeAssert(*test, JsonRead(*document, line), "malformed native entry diagnostics") { return 1 }
+            if CheckField(*document, document.root, "capability") == "entry.signature" { found = true }
+        }
+        if !NativeAssert(*test, found, "missing entry.signature capability") { return 1 }
+    }
+    if test.failed { return 1 }
+    print("Native C entries preserve typed bodies, argument bytes, status, exports, assembly fallback and saved IR (% executables, % Android cross-links, % Wasm executions)\n", compiled, cross_linked, web_executed)
+    return 0
+}

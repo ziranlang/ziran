@@ -2,7 +2,8 @@
 set -eu
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/string-storage-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/empty_builder.zi" <<'ZI'
@@ -21,43 +22,7 @@ Answer :: () -> s32 {
     return 42
 }
 ZI
-python3 - "$work/string_storage.zi" <<'PY'
-import pathlib, sys
-pathlib.Path(sys.argv[1]).write_text('''#import "vec"
-host_api :: #system_library "host_api";
-Tail :: (text: string) -> string #foreign host_api;
-Measure :: () -> s64 #foreign host_api;
-saved: [2]string;
-current: string;
-Box :: struct { text: string }
-Make :: (label: string) -> string {
-    builder: Vec(u8)
-    BuilderAppend(builder, label)
-    BuilderAppend(builder, "''' + 'x' * 1024 + '''")
-    return BuilderFinish(builder)
-}
-#program_export
-Answer :: () -> s32 {
-    index: s32 = 0
-    while index < 10000 {
-        label := "later"
-        if index == 0 { label = "first" }
-        text := Make(label)
-        copy := text
-        box: Box = .{text = copy}
-        if index == 0 {
-            saved[0] = box.text[0:5]
-            saved[1] = Tail(box.text)
-        }
-        current = Tail(text)
-        if index % 100 == 0 { Measure() }
-        index += 1
-    }
-    if saved[0] != "first" || saved[1] != "irst" || current != "ater" { return 1 }
-    return 42
-}
-''')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" string-storage
 "$ziran" ir --root "$work" --module-path "$repo/std" -o "$work/ir" \
     "$work/empty_builder.zi" "$work/string_storage.zi"
 ${CC:-cc} ${VM_CFLAGS:-} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$repo/cmd/zir" -I"$repo/bootstrap/compiler_ir" \

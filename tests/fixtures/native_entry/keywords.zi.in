@@ -1,0 +1,5 @@
+#program_export
+main :: (class: isize, switch: **u8) -> usize {
+    if class != 3 || switch[1][0] != 97 { return 71 }
+    return 42
+}

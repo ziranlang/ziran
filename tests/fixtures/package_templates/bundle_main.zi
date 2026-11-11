@@ -1,0 +1,2 @@
+#program_export
+main :: () -> s32 { print("Hello, bundle!\n"); return 0 }

@@ -3,19 +3,14 @@ set -eu
 unset DISPLAY WAYLAND_DISPLAY
 ziran=${1:?pass ziran}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/proofs-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" fmt --check "$repo/tests/proof/PROOF.zi" "$repo/tests/proof/LAWS.zi" "$repo/tests/proof/scalar.zi"
 
 "$ziran" check --root "$repo/tests/proof" "$repo/tests/proof/PROOF.zi" > "$work/source.json"
-python3 - "$work/source.json" <<'PY'
-import json, sys
-laws = [json.loads(line) for line in open(sys.argv[1])]
-assert len(laws) == 8
-assert all(l['status'] == 'proved' and l['evidence']['method'] == 'kernel' for l in laws)
-assert all(l['evidence']['cases_checked'] == 0 for l in laws)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/law_assertions.zi" -- "$ziran" "$work" proofs
 "$ziran" ir --root "$repo/tests/proof" -o "$work/ir" "$repo/tests/proof/PROOF.zi"
 "$ziran" check --root "$work/ir" "$work/ir/PROOF.zir" > "$work/saved.json"
 cmp "$work/source.json" "$work/saved.json"
@@ -67,41 +62,13 @@ for kind in goal step cycle index evidence; do
         echo "tampered $kind certificate was accepted" >&2; exit 1
     fi
 done
-python3 - "$work/source.zx" "$work/forged.zx" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert b'kernel' in data
-Path(sys.argv[2]).write_bytes(data.replace(b'kernel', b'forged', 1))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_ir_mutations.zi" -- --replace-first "$work/source.zx" "$work/forged.zx" kernel forged
 if "$ziran" run "$work/forged.zx" > /dev/null 2> "$work/forged.err"; then
     echo 'forged bundle law evidence was accepted' >&2; exit 1
 fi
 rg -q 'law table differs' "$work/forged.err"
 
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-root = Path(sys.argv[1])
-cases = {
- 'false': '#law Bad theorem x: s32 => x + 1 == x;\n#proof Bad { ring; }',
- 'wrap_order': '#law Bad theorem x: u8 => x + 1 > x;\n#proof Bad { cases; order; }',
- 'wrong_type': '#law Bad theorem x: s32 => x == cast(u32)0;\n#proof Bad { ring; }',
- 'missing': '#law Bad theorem x: s32 => x == x;',
- 'incomplete': '#law Bad theorem x: s32 => x == x;\n#proof Bad { cases; }',
- 'circular': '#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#proof A { use B(x); }\n#proof B { use A(x); }',
- 'waived_cycle': '#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#proof A { use B(x); }\n#proof B { use A(x); }\n#law_waive A "invalid";\n#law_waive B "invalid";',
- 'unproved_lemma': '#law A theorem x: s32 => x == x;\n#law B theorem x: s32 => x == x;\n#law_waive B "pending";\n#proof A { use B(x); }',
- 'bad_rewrite': '#law A theorem x: s32 => x + 1 == x;\n#law B theorem x: s32 => x + 1 == x;\n#proof A { ring; }\n#proof B { rewrite A(x); refl; }',
- 'duplicate': '#law A theorem x: s32 => x == x;\n#proof A { refl; }\n#proof A { refl; }',
- 'foreign': 'Host :: #system_library "host";\nRead :: () -> s32 #foreign Host;\n#law Bad theorem x: s32 => Read() == x;\n#proof Bad { unfold Read; ring; }',
- 'loop': 'Loop :: (x: s32) -> s32 { value: s32 = x; while value > 0 { value -= 1 }; return value }\n#law Bad theorem x: s32 => Loop(x) == 0;\n#proof Bad { unfold Loop; ring; }',
- 'recursion': 'Rec :: (x: s32) -> s32 { return Rec(x) }\n#law Bad theorem x: s32 => Rec(x) == x;\n#proof Bad { unfold Rec; ring; }',
- 'waive_invalid': '#law Bad theorem x: s32 => x + 1 == x;\n#proof Bad { ring; }\n#law_waive Bad "cannot authorize an invalid proof";',
-}
-for name, source in cases.items():
-    (root / f'bad_{name}.zi').write_text(source + '\n#program_export\nAnswer :: () -> s32 { return 0 }\n')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" proof-negatives
 for source in "$work"/bad_*.zi; do
     if "$ziran" check --root "$work" "$source" > "$work/rejected.json" 2> "$work/rejected.err"; then
         echo "$source passed a proof gate" >&2; exit 1
@@ -137,16 +104,7 @@ Claims :: #import "claims";
 Answer :: () -> s32 { return 42 }
 ZI
 "$ziran" check --root "$work" "$work/reuse.zi" > "$work/imported.json"
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-root = Path(sys.argv[1])
-args = ', '.join(f'x{i}: s32' for i in range(16))
-factors = [f'(x{i} + x{i+1})' for i in range(0,16,2)]
-lhs = ' * '.join(factors)
-rhs = ' * '.join(reversed(factors))
-(root / 'budget.zi').write_text(f'#law Budget theorem {args} => {lhs} == {rhs};\n#proof Budget {{ ring; }}\n#law_waive Budget "normalization budget";\n#program_export\nAnswer :: () -> s32 {{ return 42 }}\n')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" proof-budget
 "$ziran" check --root "$work" "$work/budget.zi" > "$work/budget.json"
 rg -q '"status":"unknown".*deterministic budget' "$work/budget.json"
 "$ziran" check --root "$work" "$work/budget.zi" > "$work/budget-again.json"

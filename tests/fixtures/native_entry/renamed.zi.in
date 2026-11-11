@@ -1,0 +1,4 @@
+#program_export "Other"
+main :: () -> s64 { return 7 }
+#program_export
+Probe :: () -> s64 { return main() + 35 }

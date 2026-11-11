@@ -1,0 +1,286 @@
+// Native regression-test support. Assertions, fixture generation and process
+// control live in Ziran; generated C/Go remain target-language fixtures.
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+#import "std/sort"
+using Vectors :: #import "std/vec"
+
+NativeTest :: struct {
+    repo: string
+    ziran: string
+    work: string
+    environment: Vec(string)
+    failed: bool
+    temporary: bool
+    counter: s64
+}
+
+NativeCommand :: struct { code: s32; output: string; error: string; timed_out: bool; interrupted: bool }
+NativeChild :: struct { run: ProcessRun; output: string; error: string; started: s64 }
+
+NativeUnsigned :: (value: u64) -> string {
+    bytes: [20]u8
+    at: s64 = 20
+    remaining := value
+    while true {
+        at -= 1
+        bytes[at] = cast(u8)(cast(u64)48 + remaining % cast(u64)10)
+        remaining /= cast(u64)10
+        if remaining == cast(u64)0 { break }
+    }
+    return TextDetach(TextCopy(TextFromBytes(bytes[at:])))
+}
+
+NativeSigned :: (value: s64) -> string {
+    bits := cast(u64)value
+    if value < 0 { return CheckConcat("-", NativeUnsigned(cast(u64)0 - bits)) }
+    return NativeUnsigned(bits)
+}
+
+NativeRepository :: (directory: string) -> string {
+    candidate := TextDetach(ResolvePath(directory))
+    while candidate != "" {
+        if PathExists(CheckPath(candidate, "Makefile")) &&
+            DirectoryExists(CheckPath(candidate, "tests")) &&
+            DirectoryExists(CheckPath(candidate, "std")) { return candidate }
+        parent := TextDetach(TextCopy(PathParent(candidate)))
+        if parent == candidate { break }
+        candidate = parent
+    }
+    return ""
+}
+
+NativeStart :: (argc: s32, argv: **u8, prefix: string) -> NativeTest {
+    result: NativeTest
+    CatchTermination()
+    script := EnvironmentText("ZIRAN_SCRIPT_FILE")
+    result.repo = NativeRepository(ifx script != "" then PathParent(script) else ".")
+    if result.repo == "" { result.failed = true; print("cannot find the owning test repository\n"); return result }
+    if argc < 2 { result.failed = true; print("pass the compiler executable\n"); return result }
+    result.ziran = TextDetach(ResolvePath(TextFromCString(argv[1])))
+    if argc >= 3 { result.work = TextDetach(TextCopy(TextFromCString(argv[2]))) }
+    if result.work == "" {
+        result.temporary = true
+        parent := CheckPath(result.repo, "build/tests")
+        if !CreateDirectories(parent) { result.failed = true; return result }
+        result.work = TextDetach(CreateTemporaryDirectory(parent, prefix))
+    } else if !CreateDirectories(result.work) { result.failed = true; return result }
+    result.work = TextDetach(ResolvePath(result.work))
+    if result.ziran == "" || result.work == "" || !TextHasPrefix(result.work, CheckPath(result.repo, "build/")) {
+        print("test outputs must stay inside this repository's build directory\n")
+        result.failed = true
+        return result
+    }
+    removals: [5]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "GDK_DISPLAY"]
+    for name: removals { VecPush(result.environment, name) }
+    VecPush(result.environment, "HARMONY_DESKTOP_RECOVERY=0")
+    VecPush(result.environment, "YUE_DESKTOP_RECOVERY=0")
+    return result
+}
+
+NativeCleanup :: (test: *NativeTest) {
+    if test.temporary && !test.failed { unused RemoveTree(test.work) }
+}
+
+NativeStop :: (run: *ProcessRun, grace: s64 = 1000) {
+    // Signal while the unreaped child still proves ownership of its group,
+    // including descendants whose direct parent has already exited.
+    if !run.finished { unused SignalProcess(run, 15, true) }
+    deadline := MonotonicMilliseconds() + grace
+    while !PollProcess(run) && MonotonicMilliseconds() < deadline { unused SleepMilliseconds(5) }
+    if !PollProcess(run) { unused SignalProcess(run, 9, true) }
+    unused WaitProcess(run)
+}
+
+NativeSpawn :: (test: *NativeTest, arguments: []string, label: string, directory: string = "") -> NativeChild {
+    child: NativeChild
+    if test.failed { return .{} }
+    test.counter += 1
+    prefix := CheckPath(test.work, CheckConcat(label, CheckConcat("-", CheckNumber(test.counter))))
+    child.output = CheckConcat(prefix, ".stdout"); child.error = CheckConcat(prefix, ".stderr")
+    child.started = MonotonicMilliseconds()
+    options: ProcessOptions = .{.arguments = arguments, .directory = ifx directory == "" then test.repo else directory,
+        .environment = test.environment[:], .output_path = child.output, .error_path = child.error, .new_session = true}
+    unused NativeAssert(test, StartProcess(options, *child.run), "start native test child")
+    return child
+}
+
+NativeChildrenStop :: (children: *Vec(NativeChild)) {
+    for index: cast(s64)0..children.count - 1 { NativeStop(*((<<children)[index].run)) }
+}
+
+NativeAssert :: (test: *NativeTest, condition: bool, message: string) -> bool {
+    if condition { return true }
+    test.failed = true
+    print("FAIL: %\n", message)
+    return false
+}
+
+NativeWrite :: (test: *NativeTest, path: string, contents: string) -> bool {
+    if test.failed { return false }
+    if !CreateDirectories(PathParent(path)) || !WriteEntireFile(path, contents) {
+        return NativeAssert(test, false, CheckConcat("cannot write ", path))
+    }
+    return true
+}
+
+NativeInvoke :: (test: *NativeTest, arguments: []string, directory: string = "", timeout: s64 = 180000, merge_error: bool = false) -> NativeCommand {
+    result: NativeCommand
+    result.code = 127
+    if test.failed { return result }
+    test.counter += 1
+    prefix := CheckPath(test.work, CheckConcat("command-", CheckNumber(test.counter)))
+    output := CheckConcat(prefix, ".stdout")
+    error := CheckConcat(prefix, ".stderr")
+    options: ProcessOptions = .{.arguments = arguments,
+        .directory = ifx directory != "" then directory else test.repo,
+        .environment = test.environment[:], .output_path = output, .error_path = ifx merge_error then "" else error, .merge_error = merge_error, .new_session = true}
+    run: ProcessRun
+    started := MonotonicMilliseconds()
+    if !StartProcess(options, *run) { return result }
+    while !PollProcess(*run) {
+        if TerminationRequested() || MonotonicMilliseconds() - started > timeout {
+            unused SignalProcess(*run, 15, true)
+            unused SleepMilliseconds(100)
+            if !PollProcess(*run) { unused SignalProcess(*run, 9, true) }
+            unused WaitProcess(*run)
+            result.interrupted = TerminationRequested()
+            result.timed_out = !result.interrupted
+            break
+        }
+        unused SleepMilliseconds(2)
+    }
+    result.code = ifx result.interrupted then 130 else ifx result.timed_out then 124 else run.code
+    text, valid := ReadEntireFile(output)
+    if valid { result.output = text }
+    if !merge_error {
+        diagnostic, diagnostic_valid := ReadEntireFile(error)
+        if diagnostic_valid { result.error = diagnostic }
+    }
+    return result
+}
+
+NativeRun :: (test: *NativeTest, arguments: []string, directory: string = "", expected: s32 = 0) -> NativeCommand {
+    result := NativeInvoke(test, arguments, directory)
+    if test.failed { return result }
+    if result.code != expected {
+        test.failed = true
+        print("Command failed (exit %, expected %): %\n", result.code, expected, TextJoin(arguments, " "))
+        if result.output != "" { print("%\n", result.output[ifx result.output.count > 2000 then result.output.count - 2000 else 0:]) }
+        if result.error != "" { print("%\n", result.error[ifx result.error.count > 6000 then result.error.count - 6000 else 0:]) }
+    }
+    return result
+}
+
+NativeExpect :: (test: *NativeTest, arguments: []string, expected: string, directory: string = "") -> bool {
+    result := NativeRun(test, arguments, directory)
+    if test.failed { return false }
+    return NativeAssert(test, result.output == expected, CheckConcat("unexpected command output: ", result.output))
+}
+
+NativeFilesInto :: (directory: string, suffix: string, recursive: bool, paths: *Vec(string)) -> bool {
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return false }
+    for name: names {
+        path := CheckPath(directory, name)
+        if IsDirectory(path) {
+            if recursive && !NativeFilesInto(path, suffix, true, paths) { return false }
+        } else if TextHasSuffix(name, suffix) { VecPush(<<paths, path) }
+    }
+    return true
+}
+
+NativeFiles :: (directory: string, suffix: string, recursive: bool = false) -> Vec(string) {
+    paths: Vec(string)
+    if !NativeFilesInto(directory, suffix, recursive, *paths) { return .{} }
+    SortText(paths[:])
+    return paths
+}
+
+NativeSameFile :: (left: string, right: string) -> bool {
+    one := CheckHash(left)
+    return one != "" && one == CheckHash(right)
+}
+
+NativeReject :: (test: *NativeTest, arguments: []string, diagnostic: string, directory: string = "") -> bool {
+    result := NativeInvoke(test, arguments, directory)
+    return NativeAssert(test, result.code > 0 && result.code < 124 &&
+        (TextContains(result.error, diagnostic) || TextContains(result.output, diagnostic)),
+        CheckConcat("missing rejection: ", CheckConcat(diagnostic, CheckConcat("\n", result.error))))
+}
+
+NativeRead :: (test: *NativeTest, path: string) -> string {
+    contents, valid := ReadEntireFile(path)
+    unused NativeAssert(test, valid, CheckConcat("cannot read ", path))
+    return contents
+}
+
+NativeIdentifierAfter :: (text: string, prefix: string) -> string {
+    at := TextFind(text, prefix)
+    if at < 0 { return "" }
+    start := at + prefix.count
+    end := start
+    while end < text.count {
+        byte := text[end]
+        if !(byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122 || byte >= 48 && byte <= 57 || byte == 95) { break }
+        end += 1
+    }
+    return TextDetach(TextCopy(text[start:end]))
+}
+
+// Split a command prefix into argv without evaluating variables, substitutions,
+// redirections or any other shell syntax.
+NativeWords :: (text: string, arguments: *Vec(string)) -> bool {
+    bytes: Vec(u8)
+    quote: u8
+    started := false
+    index: s64
+    while index < text.count {
+        byte := text[index]
+        if quote == cast(u8)0 && (byte == 32 || byte == 9 || byte == 10 || byte == 13) {
+            if started { VecPush(<<arguments, TextDetach(TextCopy(TextFromBytes(bytes[:])))); VecClear(bytes); started = false }
+        } else if byte == 92 && quote != cast(u8)39 {
+            index += 1
+            if index >= text.count { return false }
+            next := text[index]
+            if quote == cast(u8)34 && next != 34 && next != 92 { VecPush(bytes, cast(u8)92) }
+            VecPush(bytes, next); started = true
+        } else if byte == quote && quote != cast(u8)0 { quote = 0; started = true }
+        else if quote == cast(u8)0 && (byte == 34 || byte == 39) { quote = byte; started = true }
+        else { VecPush(bytes, byte); started = true }
+        index += 1
+    }
+    if quote != cast(u8)0 { return false }
+    if started { VecPush(<<arguments, TextDetach(TextCopy(TextFromBytes(bytes[:])))) }
+    return true
+}
+
+NativeSet :: (test: *NativeTest, name: string, value: string) {
+    VecPush(test.environment, CheckConcat(name, CheckConcat("=", value)))
+}
+
+NativeUnset :: (test: *NativeTest, name: string) { VecPush(test.environment, name) }
+
+NativeCompiler :: () -> string {
+    selected := EnvironmentText("CC")
+    if selected != "" {
+        path := CheckExecutable(selected)
+        if path != "" && PathName(path) != "ccache" { return path }
+    }
+    directories: [2]string = .["/bin", "/usr/bin"]
+    name := ifx selected != "" then PathName(selected) else "cc"
+    for directory: directories {
+        candidate := CheckPath(directory, name)
+        path := TextDetach(ResolvePath(candidate))
+        if IsFile(path) && PathName(path) != "ccache" { return path }
+    }
+    return ""
+}

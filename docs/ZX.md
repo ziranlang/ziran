@@ -43,6 +43,10 @@ UI code and embedded assets; the installed provider bridges the local OS.
 
 ## Experimental versions 26 and 27
 
+Run source in one command: `ziran run hello.zi` or `zi2zx hello.zi`.
+Both check the file and execute its `main`; its folder is the default module
+root. The direct runner also accepts saved `.zir` and portable `.zx` files.
+
 `zi2zx bundle --root DIR [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--bind caller:capability=provider:function] [--bind-host MODULE] --entry module:function -o FILE file.zi|file.zir ...`
 loads explicit inputs and their extensionless imports, then links reachable
 modules. `zi2zx run [--vm] FILE` validates and executes a bundle file, or

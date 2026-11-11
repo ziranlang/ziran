@@ -1,0 +1,262 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+GraphManifest :: (name: string, file: string = "Value.zi") -> string {
+    pieces := string.["[package]\nname = ", FixtureQuote(name), "\nmodule_roots = [\"src\"]\n[exports]\nValue = ", FixtureQuote(CheckConcat("src/", file)), "\n"]
+    return TextDetach(TextJoin(pieces[:], ""))
+}
+
+GraphFixture :: (test: *NativeTest, name: string) -> string {
+    return NativeRead(test, CheckPath(test.repo, CheckConcat("tests/fixtures/package_graph/", name)))
+}
+
+GraphBuild :: (test: *NativeTest, app: string, leaf: string) -> (output: string, identity: string, map: string) {
+    arguments := string.["build", "--project", "--target=c", "--entry", "main:main", "-o", CheckPath(app, "build/c"), CheckPath(app, "src/main.zi")]
+    output := PackageCommand(test, app, arguments[:])
+    map := NativeRead(test, CheckPath(app, "build/.ziran/module-map.tsv"))
+    identity := ""; count: s64
+    lines := TextSplit(map, "\n")
+    for line: lines {
+        if TextHasPrefix(line, "P\t") && TextHasSuffix(line, CheckConcat("\t", leaf)) { identity = TextDetach(TextCopy(line)); count += 1 }
+    }
+    unused NativeAssert(test, count == 1, CheckConcat("override must have one module identity: ", map))
+    return output, identity, map
+}
+
+GraphReverse :: (document: *JsonDocument) {
+    old := JsonMember(document, document.root, "packages")
+    reversed := JsonNewArray(document)
+    index := JsonCount(document, old) - 1
+    while index >= 0 {
+        unused JsonAppend(document, reversed, JsonCopy(document, document, JsonElement(document, old, index)))
+        index -= 1
+    }
+    unused JsonSet(document, document.root, "packages", reversed)
+}
+
+OverrideGraph :: (test: *NativeTest) -> bool {
+    root := test.work
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    leaf := CheckPath(root, "library"); provider := CheckPath(root, "provider"); tool := CheckPath(root, "tool"); app := CheckPath(root, "app")
+    leaf_manifest := GraphManifest("Library")
+    if !FixtureInit(test, leaf) || !NativeWrite(test, CheckPath(leaf, "ziran.toml"), leaf_manifest) { return false }
+    pins: Vec(string)
+    for value: 1..3 {
+        if !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), CheckConcat("Revision :: ", CheckConcat(CheckNumber(value), ";\nValue :: struct { number: s32 }\n"))) { return false }
+        VecPush(pins, FixtureCommit(test, leaf, "leaf revision"))
+    }
+    provider_manifest := CheckConcat(GraphManifest("Provider", "Provider.zi"), CheckConcat("[dependencies.Library]\ngit = ",
+        CheckConcat(FixtureQuote(FixtureUri(leaf)), CheckConcat("\nref = ", CheckConcat(FixtureQuote(pins[0]), "\n")))))
+    if !FixtureInit(test, provider) || !NativeWrite(test, CheckPath(provider, "ziran.toml"), provider_manifest) ||
+        !NativeWrite(test, CheckPath(provider, "src/Provider.zi"), GraphFixture(test, "provider.zi")) { return false }
+    unused FixtureCommit(test, provider, "provider fixture")
+    if !FixtureInit(test, tool) || !NativeWrite(test, CheckPath(tool, "VERSION"), "1\n") { return false }
+    unused FixtureCommit(test, tool, "metadata-only tool fixture")
+    parts := string.["[package]\nname = \"OverrideGraph\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\n[dependencies.direct]\ngit = ",
+        FixtureQuote(FixtureUri(leaf)), "\nref = ", FixtureQuote(pins[1]), "\n[dependencies.Provider]\ngit = ", FixtureQuote(FixtureUri(provider)), "\n"]
+    manifest := TextDetach(TextJoin(parts[:], ""))
+    aliases := string.["ziran", "direct", "Provider", "Library"]; paths := string.[tool, leaf, provider, leaf]
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) || !FixtureOverrides(test, app, aliases[:], paths[:]) { return false }
+    local_path := CheckPath(app, "ziran.local.toml"); lock_path := CheckPath(app, "ziran.lock")
+    local := NativeRead(test, local_path)
+    lock_arguments := string.["lock"]; unused PackageCommand(test, app, lock_arguments[:])
+    baseline: JsonDocument
+    if !FixtureLock(test, app, *baseline) { return false }
+    libraries: s64
+    packages := JsonMember(*baseline, baseline.root, "packages")
+    for index: cast(s32)0..JsonCount(*baseline, packages) - 1 {
+        item := JsonElement(*baseline, packages, index)
+        if CheckField(*baseline, item, "name") == "Library" {
+            libraries += 1
+            if !NativeAssert(test, CheckField(*baseline, item, "commit") == pins[2], "override did not select working checkout HEAD") { return false }
+        }
+    }
+    parent := FixturePackage(*baseline, "Provider")
+    if !NativeAssert(test, libraries == 1 && CheckField(*baseline, JsonMember(*baseline, parent, "dependencies"), "Library") ==
+        CheckField(*baseline, JsonMember(*baseline, JsonMember(*baseline, baseline.root, "root"), "dependencies"), "direct"), "override graph failed to unify incoming edges") { return false }
+    selectors := string.["direct", "Library"]
+    for selector: selectors {
+        path := string.["pkg", "path", selector]
+        if !NativeAssert(test, TextTrim(PackageCommand(test, app, path[:])) == leaf, "override path did not select working source") { return false }
+    }
+    list := string.["pkg", "list"]; unused PackageCommand(test, app, list[:])
+    propagated := TextDetach(TextReplace(local, CheckConcat("Library = ", CheckConcat(FixtureQuote(leaf), "\n")), ""))
+    if !NativeWrite(test, local_path, propagated) { return false }
+    unused PackageCommand(test, app, lock_arguments[:])
+    propagated_lock: JsonDocument
+    transitive_path := string.["pkg", "path", "Library"]
+    if !FixtureLock(test, app, *propagated_lock) || !NativeAssert(test, FixtureJsonSame(*baseline, baseline.root, *propagated_lock, propagated_lock.root) &&
+        TextTrim(PackageCommand(test, app, transitive_path[:])) == leaf, "one source override did not propagate across aliases") { return false }
+    if !NativeWrite(test, CheckPath(app, "src/main.zi"), GraphFixture(test, "main.zi")) { return false }
+    build_local := TextDetach(TextReplace(propagated, FixtureQuote(tool), FixtureQuote(test.repo)))
+    if !NativeWrite(test, local_path, build_local) { return false }
+    saved_lock := NativeRead(test, lock_path); previous_identity := ""
+    for changed: 0..1 {
+        if changed == 1 {
+            if !NativeWrite(test, CheckPath(leaf, "VERSION"), "new source-only HEAD\n") { return false }
+            unused FixtureCommit(test, leaf, "source-only revision")
+        }
+        output, identity, map := GraphBuild(test, app, leaf); unused output; unused map
+        if !NativeAssert(test, (changed == 0 || identity != previous_identity) && NativeRead(test, lock_path) == saved_lock,
+            "working source identity did not update independently of lock bytes") { return false }
+        previous_identity = identity
+    }
+    if !NativeWrite(test, local_path, propagated) { return false }
+    drift := string.[TextDetach(TextReplace(manifest, pins[1], pins[0])), TextDetach(TextReplace(manifest, "name = \"OverrideGraph\"", "name = \"Renamed\"")),
+        TextDetach(TextReplace(manifest, FixtureUri(leaf), FixtureUri(tool))), TextDetach(TextReplace(manifest, "[dependencies.direct]", "[dependencies.renamed]")),
+        TextDetach(TextReplace(manifest, CheckConcat("ref = ", FixtureQuote(pins[1])), CheckConcat("ref = ", CheckConcat(FixtureQuote(pins[1]), "\nsource = true"))))]
+    direct_path := string.["pkg", "path", "direct"]
+    for changed: drift {
+        if !NativeWrite(test, CheckPath(app, "ziran.toml"), changed) { return false }
+        unused PackageCommand(test, app, direct_path[:], false)
+    }
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) { return false }
+    provider_path := CheckPath(provider, "ziran.toml")
+    provider_drift := string.[TextDetach(TextReplace(provider_manifest, pins[0], pins[1])), TextDetach(TextReplace(provider_manifest, "[dependencies.Library]", "[dependencies.Renamed]"))]
+    offline_path := string.["pkg", "path", "direct", "--offline"]
+    for changed: provider_drift {
+        if !NativeWrite(test, provider_path, changed) { return false }
+        output := PackageCommand(test, app, offline_path[:])
+        if !NativeAssert(test, TextContains(output, "declares dependencies ziran.lock does not record") && TextHasSuffix(TextTrim(output), leaf) &&
+            NativeRead(test, lock_path) == saved_lock, "working provider drift did not warn without rewriting the lock") { return false }
+    }
+    unreadable := string.[TextDetach(TextReplace(provider_manifest, FixtureUri(leaf), FixtureUri(tool))), CheckConcat(provider_manifest,
+        CheckConcat("[dependencies.Extra]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(tool)), "\n")))]
+    for changed: unreadable {
+        if !NativeWrite(test, provider_path, changed) { return false }
+        unused PackageCommand(test, app, direct_path[:], false)
+        if !NativeAssert(test, NativeRead(test, lock_path) == saved_lock, "failed graph resolution rewrote the lock") { return false }
+    }
+    leaf_path := CheckPath(leaf, "ziran.toml")
+    if !NativeWrite(test, provider_path, provider_manifest) || !NativeWrite(test, leaf_path, TextReplace(leaf_manifest, "name = \"Library\"", "name = \"Other\"")) { return false }
+    unused PackageCommand(test, app, direct_path[:], false)
+    if !NativeWrite(test, leaf_path, leaf_manifest) || !NativeAssert(test, RemoveFile(local_path), "remove development overrides") { return false }
+    locked_path := string.["pkg", "path", "direct", "--locked"]; unused PackageCommand(test, app, locked_path[:], false)
+    unused PackageCommand(test, app, lock_arguments[:])
+    exact: JsonDocument
+    if !FixtureLock(test, app, *exact) { return false }
+    libraries = 0; seen_first := false; seen_second := false
+    exact_packages := JsonMember(*exact, exact.root, "packages")
+    for index: cast(s32)0..JsonCount(*exact, exact_packages) - 1 {
+        item := JsonElement(*exact, exact_packages, index)
+        if CheckField(*exact, item, "name") == "Library" {
+            libraries += 1; pin := CheckField(*exact, item, "commit")
+            seen_first = seen_first || pin == pins[0]; seen_second = seen_second || pin == pins[1]
+            if !NativeAssert(test, CheckField(*exact, item, "ref") == pin, "exact declaration lost its original revision") { return false }
+        }
+    }
+    if !NativeAssert(test, libraries == 2 && seen_first && seen_second, "production graph merged divergent immutable pins") { return false }
+    unused PackageCommand(test, app, locked_path[:])
+    exact_bytes := NativeRead(test, lock_path)
+    if !NativeWrite(test, local_path, build_local) { return false }
+    build_output, build_identity, build_map := GraphBuild(test, app, leaf); unused build_output; unused build_identity; unused build_map
+    if !NativeAssert(test, NativeRead(test, lock_path) == exact_bytes, "read-time override rewrote exact graph") ||
+        !NativeWrite(test, local_path, CheckConcat(build_local, CheckConcat("Library = ", CheckConcat(FixtureQuote(provider), "\n")))) { return false }
+    unused PackageCommand(test, app, direct_path[:], false)
+    if !NativeWrite(test, local_path, build_local) { return false }
+    CheckPut(*exact, JsonElement(*exact, exact_packages, 0), "id", "incorrect-source-identity")
+    if !NativeWrite(test, lock_path, JsonWrite(*exact, exact.root, JsonCompactStyle())) { return false }
+    unused PackageCommand(test, app, direct_path[:], false)
+    if !NativeWrite(test, lock_path, exact_bytes) { return false }
+    extra := CheckPath(root, "extra")
+    if !FixtureInit(test, extra) || !NativeWrite(test, CheckPath(extra, "ziran.toml"), GraphManifest("Extra")) ||
+        !NativeWrite(test, CheckPath(extra, "src/Value.zi"), "ExtraNumber :: 3;\n") { return false }
+    unused FixtureCommit(test, extra, "extra fixture")
+    dependency_manifest := CheckConcat(leaf_manifest, CheckConcat("[dependencies.Extra]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(extra)), "\nref = \"master\"\n")))
+    if !NativeWrite(test, leaf_path, dependency_manifest) || !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), GraphFixture(test, "extra.zi")) { return false }
+    selected := FixtureCommit(test, leaf, "new dependency inventory")
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextReplace(manifest, pins[1], selected)) || !NativeAssert(test, RemoveFile(local_path), "remove overrides before production lock") { return false }
+    unused PackageCommand(test, app, lock_arguments[:])
+    production: JsonDocument
+    if !FixtureLock(test, app, *production) { return false }
+    inventory_zero: s64; inventory_one: s64
+    production_packages := JsonMember(*production, production.root, "packages")
+    for index: cast(s32)0..JsonCount(*production, production_packages) - 1 {
+        item := JsonElement(*production, production_packages, index)
+        if CheckField(*production, item, "name") == "Library" {
+            count := JsonCount(*production, JsonMember(*production, item, "dependencies"))
+            if count == 0 { inventory_zero += 1 } else if count == 1 { inventory_one += 1 }
+        }
+    }
+    extra_id := CheckField(*production, FixturePackage(*production, "Extra"), "id")
+    if !NativeAssert(test, inventory_zero == 1 && inventory_one == 1 && extra_id != "", "divergent inventories were not represented in production lock") ||
+        !NativeWrite(test, local_path, build_local) { return false }
+    fetch := string.["fetch", "--offline"]
+    for phase: 0..1 {
+        if phase == 1 {
+            if !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), GraphFixture(test, "newer.zi")) { return false }
+            unused FixtureCommit(test, leaf, "unlocked newer source commit")
+        }
+        for order: 0..1 {
+            if order == 1 { GraphReverse(*production) }
+            if !NativeWrite(test, lock_path, JsonWrite(*production, production.root, JsonCompactStyle())) { return false }
+            untouched := NativeRead(test, lock_path)
+            unused PackageCommand(test, app, fetch[:])
+            output, identity, map := GraphBuild(test, app, leaf); unused output; unused identity
+            if !NativeAssert(test, TextContains(map, CheckConcat("P\t", CheckConcat(extra_id, "\t"))) && NativeRead(test, lock_path) == untouched,
+                "override graph depended on package order or lost its locked dependency") { return false }
+        }
+    }
+    if !NativeWrite(test, leaf_path, TextReplace(dependency_manifest, "ref = \"master\"", CheckConcat("ref = ", FixtureQuote(pins[0])))) { return false }
+    unused PackageCommand(test, app, fetch[:], false)
+    if !NativeWrite(test, leaf_path, dependency_manifest) { return false }
+    added := CheckPath(root, "added")
+    if !FixtureInit(test, added) || !NativeWrite(test, CheckPath(added, "ziran.toml"), GraphManifest("Added")) ||
+        !NativeWrite(test, CheckPath(added, "src/Value.zi"), "AddedNumber :: 4;\n") { return false }
+    unused FixtureCommit(test, added, "added fixture")
+    gained := CheckConcat(dependency_manifest, CheckConcat("[dependencies.Added]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(added)), "\nref = \"master\"\n")))
+    if !NativeWrite(test, leaf_path, gained) || !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), GraphFixture(test, "added.zi")) { return false }
+    unused FixtureCommit(test, leaf, "new unlocked dependency")
+    if !NativeWrite(test, lock_path, JsonWrite(*production, production.root, JsonCompactStyle())) { return false }
+    untouched := NativeRead(test, lock_path)
+    refused := PackageCommand(test, app, fetch[:], false)
+    if !NativeAssert(test, TextContains(refused, "offline"), "offline mode resolved an unpinned new branch") { return false }
+    gained_output, gained_identity, gained_map := GraphBuild(test, app, leaf); unused gained_identity
+    if !NativeAssert(test, TextContains(gained_output, "declares dependencies ziran.lock does not record") && TextContains(gained_map, "\tAdded/Value\t") &&
+        NativeRead(test, lock_path) == untouched, "working dependency discovery lost warnings, modules or lock immutability") { return false }
+    if !NativeWrite(test, leaf_path, leaf_manifest) || !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), "Revision :: 5;\nValue :: struct { number: s32 }\n") { return false }
+    unused FixtureCommit(test, leaf, "remove working dependencies")
+    unused PackageCommand(test, app, fetch[:])
+    removed_output, removed_identity, removed_map := GraphBuild(test, app, leaf); unused removed_output; unused removed_identity; unused removed_map
+    if !NativeAssert(test, NativeRead(test, lock_path) == untouched, "removing working dependencies rewrote lock") ||
+        !NativeWrite(test, leaf_path, dependency_manifest) || !NativeWrite(test, CheckPath(leaf, "src/Value.zi"), GraphFixture(test, "extra.zi")) { return false }
+    unused FixtureCommit(test, leaf, "restore working dependencies")
+    if !NativeAssert(test, RemoveFile(local_path), "remove overrides for inventory corruption") { return false }
+    tampered: JsonDocument
+    if !NativeAssert(test, JsonRead(*tampered, untouched), "parse inventory corruption fixture") { return false }
+    tampered_packages := JsonMember(*tampered, tampered.root, "packages")
+    for index: cast(s32)0..JsonCount(*tampered, tampered_packages) - 1 {
+        item := JsonElement(*tampered, tampered_packages, index)
+        deps := JsonMember(*tampered, item, "dependencies")
+        if CheckField(*tampered, item, "name") == "Library" && JsonCount(*tampered, deps) > 0 {
+            JsonRemove(*tampered, deps, "Extra"); JsonRemove(*tampered, JsonMember(*tampered, item, "dependency_refs"), "Extra")
+        }
+    }
+    if !NativeWrite(test, lock_path, JsonWrite(*tampered, tampered.root, JsonCompactStyle())) { return false }
+    locked_fetch := string.["fetch", "--locked", "--offline"]
+    for index: 0..1 {
+        message := PackageCommand(test, app, ifx index == 0 then fetch[:] else locked_fetch[:], false)
+        if !NativeAssert(test, TextContains(message, "different number of dependencies"), "exact inventory corruption was not rejected") { return false }
+    }
+    if !NativeWrite(test, local_path, build_local) { return false }
+    unused PackageCommand(test, app, fetch[:])
+    return NativeWrite(test, lock_path, JsonWrite(*production, production.root, JsonCompactStyle())) && !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-override-graph-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !OverrideGraph(*test) { return 1 }
+    print("Local override graphs: divergent pins, source/type identities, manifest drift and dependency inventories passed\n")
+    return 0
+}

@@ -1,0 +1,12 @@
+// Quote ASCII: serialize 64 KiB and check the full output size and ends;
+// input generation is excluded after the first warmup call.
+using V :: #import "vec"
+using J :: #import "json_quote"
+input: Vec(u8);
+
+Answer :: () -> s64 {
+    if input.count==0 { if !VecResize(input,65536) { return -1 }; for index: 0..65535 { input[index]=120 } }
+    output: Vec(u8)
+    if !JsonQuoteInto(*output,TextView(input[:]),true)||output.count!=65538||output[1]!=120||output[65536]!=120 { return -2 }
+    return output.count+cast(s64)output[0]+cast(s64)output[output.count-1]
+}

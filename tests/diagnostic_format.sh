@@ -1,5 +1,6 @@
 #!/bin/sh
 set -eu
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 
 ziran=${1:?pass the ziran command}
 work=$(mktemp -d)
@@ -31,21 +32,7 @@ for name in outside_loop orphan_else deferred_return; do
         echo "$name unexpectedly passed" >&2
         exit 1
     fi
-    python3 - "$work/$name.jsonl" "$work/$name.zi" <<'PY'
-import json
-from pathlib import Path
-import sys
-
-lines = Path(sys.argv[1]).read_text().splitlines()
-assert lines, 'missing diagnostics'
-for line in lines:
-    item = json.loads(line)
-    assert item['severity'] == 'error', item
-    assert item['code'].startswith('check.'), item
-    assert Path(item['path']).name == Path(sys.argv[2]).name, item
-    assert item['line'] > 0 and item['column'] > 0, item
-    assert item['end_line'] >= item['line'], item
-PY
+    "$ziran" run --target=c --root "$repo/tests" "$repo/tests/json_assertions.zi" -- diagnostic-format "$work/$name.jsonl" "$work/$name.zi"
 done
 
-sh "$(dirname "$0")/diagnostic_android.sh"
+sh "$(dirname "$0")/diagnostic_android.sh" "$ziran"

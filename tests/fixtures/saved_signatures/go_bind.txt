@@ -1,0 +1,1 @@
+Binder :: (callback: slots.Full, state: *slots.State, prefix: string) -> slots.Bound #foreign builtin "bind";

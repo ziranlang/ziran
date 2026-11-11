@@ -4,7 +4,8 @@ set -eu
 
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/standalone-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 cat > "$work/hello.zi" <<'EOF'
 #program_export
@@ -35,15 +36,7 @@ EOF
 "$ziran" ir --root "$work" -o "$work/ir-again" "$work/hello.zi"
 cmp "$work/ir/hello.zir" "$work/ir-again/hello.zir"
 test -s "$work/ir/hello.zir"
-python3 - "$work/ir/hello.zir" "$repo/cmd/zir/zir_serial.c" <<'PY'
-from pathlib import Path
-import re
-import sys
-data = Path(sys.argv[1]).read_bytes()
-version = int(re.search(r'^#define ZIR_FORMAT_VERSION (\d+)u$',
-                        Path(sys.argv[2]).read_text(), re.M).group(1))
-assert data[:8] == b'ZIR\0' + version.to_bytes(4, 'little'), data[:8]
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" header
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/hello.zi"
 test -s "$work/c/hello.c"
 grep -Fqx "#ifndef ZIRAN_HELLO_H" "$work/c/hello.h"
@@ -436,14 +429,7 @@ test "$("$ziran" run "$work/reachable.zx")" = 42
     "$work/reachable-ir/reachable_app.zir"
 cmp "$work/reachable.zx" "$work/reachable-from-ir.zx"
 test "$("$ziran" run "$work/reachable-from-ir.zx")" = 42
-python3 - "$work/reachable.zx" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert b'UnusedRecord' not in data
-assert b'dead_library' not in data
-assert b'UnusedDead' not in data
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" reachable
 cat > "$work/record_shapes.zi" <<'EOF'
 Point :: struct {
     x: s32
@@ -653,16 +639,7 @@ GO
     GO111MODULE=off go run "$work/u64-go-$input/u64_boundary.go" \
         "$work/u64-go-$input/main.go"
 done
-python3 - "$work/flow-ir/flow.zir" "$work/changed-text.zir" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert data.count(b'return 42') == 1
-assert data.count(b'else if value == 12') == 1
-data = data.replace(b'return 42', b'return xx', 1)
-Path(sys.argv[2]).write_bytes(data.replace(b'else if value == 12',
-                                             b'xxxx if value == 12', 1))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-text flow-ir/flow.zir changed-text.zir
 for target in c go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work" \
@@ -683,27 +660,9 @@ GO111MODULE=off go run "$work/changed-text-go/flow.go" \
 "$ziran" bundle --root "$work" --entry flow:Answer \
     -o "$work/changed-text.zx" "$work/changed-text.zir"
 test "$("$ziran" run "$work/changed-text.zx")" = 42
-python3 - "$work/flow.zx" "$work/changed-embedded-text.zx" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert data.count(b'return 42') == 1
-assert data.count(b'else if value == 12') == 1
-data = data.replace(b'return 42', b'return xx', 1)
-Path(sys.argv[2]).write_bytes(data.replace(b'else if value == 12',
-                                             b'xxxx if value == 12', 1))
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-text flow.zx changed-embedded-text.zx
 test "$("$ziran" run "$work/changed-embedded-text.zx")" = 42
-python3 - "$work/flow-ir/flow.zir" "$work/inconsistent-flow.zir" <<'PY'
-from pathlib import Path
-import sys
-data = bytearray(Path(sys.argv[1]).read_bytes())
-assert data.count(b'42') == 2
-position = data.rfind(b'42')
-assert position > data.index(b'return 42') + len(b'return 42')
-data[position:position + 2] = b'43'
-Path(sys.argv[2]).write_bytes(data)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-typed flow-ir/flow.zir inconsistent-flow.zir
 for target in c go; do
     if test "$target" = go; then
         "$ziran" build --target=go --pkg main --root "$work" \
@@ -724,25 +683,9 @@ GO111MODULE=off go run "$work/inconsistent-go/flow.go" \
 "$ziran" bundle --root "$work" --entry flow:Answer \
     -o "$work/inconsistent-flow.zx" "$work/inconsistent-flow.zir"
 test "$("$ziran" run "$work/inconsistent-flow.zx")" = 43
-python3 - "$work/flow.zx" "$work/inconsistent-embedded.zx" <<'PY'
-from pathlib import Path
-import sys
-data = bytearray(Path(sys.argv[1]).read_bytes())
-assert data.count(b'42') == 2
-data[data.rfind(b'42'):data.rfind(b'42') + 2] = b'43'
-Path(sys.argv[2]).write_bytes(data)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" flow-typed flow.zx inconsistent-embedded.zx
 test "$("$ziran" run "$work/inconsistent-embedded.zx")" = 43
-python3 - "$work/app.zx" "$work/bad-bundle.zx" "$work/old-bundle.zx" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-assert data[:8] == b'ZX\0\0\x1a\0\0\0', data[:8]
-Path(sys.argv[2]).write_bytes(data[:17])
-old = bytearray(data)
-old[4] = 19
-Path(sys.argv[3]).write_bytes(old)
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" bundle-errors
 expect_rejection 'truncated bundle unexpectedly ran' "$work/bad-bundle.err" \
     "$ziran" run "$work/bad-bundle.zx"
 grep -Fq 'invalid or truncated bundle' "$work/bad-bundle.err"
@@ -845,23 +788,11 @@ cp "$work/blocks-go/main.go" "$work/blocks-go-ir/main.go"
 GO111MODULE=off go run "$work/blocks-go-ir/blocklib.go" \
     "$work/blocks-go-ir/blockapp.go" "$work/blocks-go-ir/main.go"
 
-python3 - "$work/blocks-ir/blockapp.zir" "$work/corrupt.zir" <<'PY'
-from pathlib import Path
-import sys
-data = Path(sys.argv[1]).read_bytes()
-Path(sys.argv[2]).write_bytes(data[:17])
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" ir-errors
 expect_rejection 'truncated IR unexpectedly passed' "$work/corrupt.err" \
     "$ziran" build --target=c --root "$work" -o "$work/corrupt-out" \
     "$work/corrupt.zir"
 grep -Eq 'truncated|invalid' "$work/corrupt.err"
-python3 - "$work/blocks-ir/blockapp.zir" "$work/version.zir" <<'PY'
-from pathlib import Path
-import sys
-data = bytearray(Path(sys.argv[1]).read_bytes())
-data[4] = 31
-Path(sys.argv[2]).write_bytes(data)
-PY
 expect_rejection 'unsupported IR version unexpectedly passed' "$work/version.err" \
     "$ziran" build --target=c --root "$work" -o "$work/version-out" \
     "$work/version.zir"
@@ -872,7 +803,7 @@ cat > "$work/bad.zi" <<'EOF'
 EOF
 expect_rejection 'invalid source unexpectedly passed' "$work/diagnostic.json" \
     "$ziran" check --diagnostics=json --root "$work" "$work/bad.zi"
-python3 -m json.tool "$work/diagnostic.json" > /dev/null
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" diagnostic-json
 
 cat > "$work/ui_mode.zi" <<'EOF'
 Screen :: () #ui {

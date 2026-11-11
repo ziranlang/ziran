@@ -2,7 +2,9 @@
 set -eu
 
 ziran=$1
-work=$(mktemp -d)
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/print-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 cat > "$work/greet.zi" <<'EOF'
@@ -60,15 +62,7 @@ escapes: 25 "quoted"	tab
 [twice 1][twice 2]order: 2 4
 %%!
 EOF
-python3 - "$work/expected" "$work/expected-binary" <<'PY'
-import sys
-data=bytearray(65 + index % 26 for index in range(9000))
-with open(sys.argv[1], 'ab') as output:
-    output.write(b'large:<' + data + b'>:-9223372036854775808:18446744073709551615\n')
-for index in (4095, 4096, 8191): data[index]=0
-with open(sys.argv[2], 'wb') as output:
-    output.write(b'large:<' + data + b'>:-9223372036854775808:18446744073709551615\n')
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/fixture_generation.zi" -- "$ziran" "$work" print
 
 "$ziran" check --root "$work" "$work/greet.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/greet.zi"

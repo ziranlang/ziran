@@ -1,0 +1,65 @@
+#import "std/byte_text_linux"
+#import "std/c_string"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+libc :: #system_library "libc";
+ProcessEnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
+
+ProcessWriteAll :: (fd: s32, bytes: []u8) -> bool {
+    file: FileHandle = .{.fd = fd, .valid = true}; at: s64
+    while at < bytes.count {
+        count := Write(file, bytes[at:])
+        if count <= 0 { return false }; at += count
+    }
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 2 { return 2 }
+    mode := TextFromCString(argv[1])
+    if mode == "text" && argc == 3 { print("%", TextFromCString(argv[2])); return 0 }
+    if mode == "environment" && argc == 3 {
+        value := ProcessEnvironmentRaw(argv[2])
+        print("%\n", ifx value == null then "unset" else TextFromCString(value)); return 0
+    }
+    if mode == "drain" && argc == 3 {
+        chunk: [8192]u8; for index: 0..8191 { chunk[index] = 120 }; remaining: s64 = 1000000
+        while remaining > 0 {
+            count := ifx remaining < chunk.count then remaining else chunk.count
+            if !ProcessWriteAll(1, chunk[:count]) { return 3 }; remaining -= count
+        }
+        return ifx WriteEntireFile(TextDetach(JoinPath(TextFromCString(argv[2]), "drained")), "done") then 0 else 4
+    }
+    if mode == "diagnostic-noise" {
+        header: Vec(u8); BuilderAppend(header, "文🙂\n")
+        invalid := u8.[255, 237, 160, 128, 0]
+        for byte: invalid { VecPush(header, byte) }
+        if !ProcessWriteAll(2, header[:]) { return 4 }
+        chunk: [8192]u8; for index: 0..8191 { chunk[index] = 120 }
+        for index: 0..63 { if !ProcessWriteAll(2, chunk[:]) { return 4 } }
+        return 3
+    }
+    if mode == "echo-bytes" || mode == "echo-eof" {
+        input: FileHandle = .{.fd = 0, .valid = true}; bytes: Vec(u8); chunk: [4096]u8
+        while true {
+            count := Read(input, chunk[:])
+            if count < 0 || count > 4194304 - bytes.count { return 5 }
+            if count == 0 { break }
+            for index: cast(s64)0..count - 1 { VecPush(bytes, chunk[index]) }
+            if mode == "echo-bytes" { break }
+        }
+        if !ProcessWriteAll(1, bytes[:]) { return 6 }
+        if mode == "echo-bytes" {
+            error: [3]u8 = .[101, 114, 114]
+            if !ProcessWriteAll(2, error[:]) { return 8 }; return 7
+        }
+        ending: [3]u8 = .[69, 79, 70]
+        if !ProcessWriteAll(1, ending[:]) || !SleepMilliseconds(50) { return 9 }
+        return 0
+    }
+    return 2
+}

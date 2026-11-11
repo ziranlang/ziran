@@ -1,0 +1,251 @@
+// Disposable loopback fixtures for native HTTP/WebSocket clients and browser
+// tests. Every connection runs in a child owned by the server's process group.
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/socket_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+server_libc :: #system_library "libc";
+ServerSocketRaw :: (domain: s32, kind: s32, protocol: s32) -> s32 #foreign server_libc "socket";
+ServerCloseRaw :: (fd: s32) -> s32 #foreign server_libc "close";
+ServerBind :: (fd: s32, address: *LinuxSocketAddress, length: u32) -> s32 #foreign server_libc "bind";
+ServerListen :: (fd: s32, count: s32) -> s32 #foreign server_libc "listen";
+ServerName :: (fd: s32, address: *LinuxSocketAddress, length: *u32) -> s32 #foreign server_libc "getsockname";
+ServerAccept :: (fd: s32, address: *LinuxSocketAddress, length: *u32, flags: s32) -> s32 #foreign server_libc "accept4";
+ServerFork :: () -> s32 #foreign server_libc "fork";
+ServerExit :: (code: s32) -> void #foreign server_libc "_exit";
+ServerWait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign server_libc "waitpid";
+ServerKill :: (pid: s32, number: s32) -> s32 #foreign server_libc "kill";
+
+ServerLower :: (value: string) -> string {
+    bytes: Vec(u8)
+    for index: cast(s64)0..value.count - 1 {
+        byte := value[index]
+        VecPush(bytes, ifx byte >= 65 && byte <= 90 then byte + cast(u8)32 else byte)
+    }
+    return TextDetach(TextCopy(TextFromBytes(bytes[:])))
+}
+
+ServerRotate :: (value: u32, count: u32) -> u32 { return (value << count) | (value >> (cast(u32)32 - count)) }
+
+ServerWebSocketAccept :: (key: string) -> string {
+    data := CheckConcat(key, "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+    bytes: Vec(u8); BuilderAppend(bytes, data); VecPush(bytes, cast(u8)128)
+    while bytes.count % 64 != 56 { VecPush(bytes, cast(u8)0) }
+    bits := cast(u64)data.count * cast(u64)8
+    for index: 0..7 { VecPush(bytes, cast(u8)(bits >> cast(u64)((7 - index) * 8))) }
+    hash: [5]u32 = .[1732584193, 4023233417, 2562383102, 271733878, 3285377520]
+    for block: cast(s64)0..bytes.count / 64 - 1 {
+        words: [80]u32
+        for index: 0..15 {
+            offset := block * 64 + index * 4
+            words[index] = (cast(u32)bytes[offset] << cast(u32)24) | (cast(u32)bytes[offset + 1] << cast(u32)16) | (cast(u32)bytes[offset + 2] << cast(u32)8) | cast(u32)bytes[offset + 3]
+        }
+        for index: 16..79 { words[index] = ServerRotate(words[index - 3] ^ words[index - 8] ^ words[index - 14] ^ words[index - 16], 1) }
+        a := hash[0]; b := hash[1]; c := hash[2]; d := hash[3]; e := hash[4]
+        for index: 0..79 {
+            f: u32; constant: u32
+            if index < 20 { f = (b & c) | ((~b) & d); constant = 1518500249 }
+            else if index < 40 { f = b ^ c ^ d; constant = 1859775393 }
+            else if index < 60 { f = (b & c) | (b & d) | (c & d); constant = 2400959708 }
+            else { f = b ^ c ^ d; constant = 3395469782 }
+            next := ServerRotate(a, 5) + f + e + constant + words[index]
+            e = d; d = c; c = ServerRotate(b, 30); b = a; a = next
+        }
+        hash[0] += a; hash[1] += b; hash[2] += c; hash[3] += d; hash[4] += e
+    }
+    digest: [20]u8
+    for index: 0..19 { digest[index] = cast(u8)(hash[index / 4] >> cast(u32)((3 - index % 4) * 8)) }
+    alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    output: Vec(u8)
+    index: s64
+    while index < 20 {
+        word := cast(u32)digest[index] << cast(u32)16
+        if index + 1 < 20 { word |= cast(u32)digest[index + 1] << cast(u32)8 }
+        if index + 2 < 20 { word |= cast(u32)digest[index + 2] }
+        VecPush(output, alphabet[(word >> cast(u32)18) & cast(u32)63])
+        VecPush(output, alphabet[(word >> cast(u32)12) & cast(u32)63])
+        VecPush(output, ifx index + 1 < 20 then alphabet[(word >> cast(u32)6) & cast(u32)63] else cast(u8)61)
+        VecPush(output, ifx index + 2 < 20 then alphabet[word & cast(u32)63] else cast(u8)61)
+        index += 3
+    }
+    return TextDetach(TextCopy(TextFromBytes(output[:])))
+}
+
+ServerHeader :: (lines: []string, name: string) -> string {
+    for line: lines {
+        colon := TextFind(line, ":")
+        if colon >= 0 && ServerLower(line[:colon]) == name { return TextDetach(TextCopy(TextTrim(line[colon + 1:]))) }
+    }
+    return ""
+}
+
+ServerSend :: (socket: LinuxSocket, value: string) -> bool {
+    bytes: Vec(u8); BuilderAppend(bytes, value)
+    return SocketSendAll(socket, bytes[:], 5000) == bytes.count
+}
+
+ServerResponse :: (socket: LinuxSocket, status: s64, body: string, extra: string = "", head: bool = false) -> bool {
+    parts := string.["HTTP/1.1 ", CheckNumber(status), " Fixture\r\nContent-Length: ", CheckNumber(body.count), "\r\n", extra, "\r\n", ifx head then "" else body]
+    return ServerSend(socket, TextDetach(TextJoin(parts[:], "")))
+}
+
+ServerRepeated :: (value: string, byte: u8) -> bool {
+    for index: cast(s64)0..value.count - 1 { if value[index] != byte { return false } }
+    return true
+}
+
+ServerConnection :: (socket: LinuxSocket, peer: LinuxSocketAddress, mode: string, root: string) -> s32 {
+    pending: Vec(u8)
+    for request_index: 0..255 {
+        unused request_index
+        header_end: s64 = -1
+        while header_end < 0 {
+            if pending.count >= 65536 { return 1 }
+            chunk: [16384]u8
+            count := SocketReceive(socket, chunk[:], 5000)
+            if count <= 0 { return 0 }
+            for index: cast(s64)0..count - 1 { VecPush(pending, chunk[index]) }
+            header_end = TextFind(TextFromBytes(pending[:]), "\r\n\r\n")
+        }
+        header := TextDetach(TextCopy(TextFromBytes(pending[:header_end])))
+        lines := TextLines(header)
+        if lines.count == 0 { return 1 }
+        words := TextSplit(lines[0], " ")
+        if words.count != 3 { return 1 }
+        method := words[0]; target := words[1]
+        length: s64
+        length_text := ServerHeader(lines[:], "content-length")
+        if length_text != "" {
+            number, valid := TextInteger(length_text)
+            if !valid || number < 0 || number > 16777216 { return 1 }
+            length = number
+        }
+        while pending.count < header_end + 4 + length {
+            chunk: [16384]u8
+            count := SocketReceive(socket, chunk[:], 5000)
+            if count <= 0 { return 1 }
+            for index: cast(s64)0..count - 1 { VecPush(pending, chunk[index]) }
+        }
+        body := TextDetach(TextCopy(TextFromBytes(pending[header_end + 4:header_end + 4 + length])))
+        consumed := header_end + 4 + length
+        remaining := pending.count - consumed
+        for index: cast(s64)0..remaining - 1 { pending[index] = pending[index + consumed] }
+        unused VecResize(pending, remaining)
+        if mode == "websocket" {
+            if ServerHeader(lines[:], "authorization") != "Bearer test-token" { return ifx ServerResponse(socket, 401, "") then 0 else 1 }
+            key := ServerHeader(lines[:], "sec-websocket-key")
+            if key == "" { return 1 }
+            response := CheckConcat("HTTP/1.1 101 Switching Protocols\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Accept: ", CheckConcat(ServerWebSocketAccept(key), "\r\n\r\n"))
+            if !ServerSend(socket, response) { return 1 }
+            frames: [17]u8 = .[1, 5, 123, 34, 104, 101, 108, 137, 0, 128, 6, 108, 111, 34, 58, 49, 125]
+            return ifx SocketSendAll(socket, frames[:], 5000) == frames.count then 0 else 1
+        }
+        if mode == "static" {
+            question := TextFind(target, "?")
+            path := ifx question >= 0 then target[:question] else target
+            if path == "/" { path = "/index.html" }
+            if !TextHasPrefix(path, "/") || TextContains(path, "..") || TextContains(path, "%") { return 1 }
+            canonical := TextDetach(ResolvePath(CheckPath(root, path[1:])))
+            if canonical == "" || !TextHasPrefix(canonical, CheckConcat(root, "/")) || !IsFile(canonical) {
+                if !ServerResponse(socket, 404, "missing") { return 1 }
+                continue
+            }
+            content, valid := ReadEntireFile(canonical)
+            if !valid { return 1 }
+            mime := ifx TextHasSuffix(path, ".wasm") then "application/wasm" else ifx TextHasSuffix(path, ".js") then "application/javascript" else ifx TextHasSuffix(path, ".html") then "text/html; charset=utf-8" else "application/octet-stream"
+            if !ServerResponse(socket, 200, content, CheckConcat("Content-Type: ", CheckConcat(mime, "\r\n")), method == "HEAD") { return 1 }
+            continue
+        }
+        ok := false
+        if method == "HEAD" { ok = ServerResponse(socket, 200, "ready", "", true) }
+        else if method == "PUT" { ok = ServerResponse(socket, 200, body) }
+        else if method == "POST" {
+            signature := ServerHeader(lines[:], "x-daochi-signature")
+            valid := target == "/echo" && ServerHeader(lines[:], "authorization") == "Bearer secret" && ServerHeader(lines[:], "accept") == "application/json" &&
+                ServerHeader(lines[:], "content-type") == "application/json" && ServerHeader(lines[:], "x-daochi-user") == "account" && signature.count == 4840 && ServerRepeated(signature, 98) && body == "{\"value\":42}"
+            ok = ServerResponse(socket, ifx valid then 201 else 400, ifx valid then "accepted" else "invalid")
+        } else if target == "/connection" {
+            port := cast(s64)((peer.port >> cast(u16)8) | ((peer.port & cast(u16)255) << cast(u16)8))
+            ok = ServerResponse(socket, 200, CheckNumber(port))
+        } else if target == "/header" {
+            value := ServerHeader(lines[:], "x-daochi-admin")
+            valid := (value.count == 4096 || value.count == 8191) && ServerRepeated(value, 118)
+            ok = ServerResponse(socket, ifx valid then 200 else 400, CheckNumber(value.count))
+        } else if target == "/thread" { unused SleepMilliseconds(50); ok = ServerResponse(socket, 200, ServerHeader(lines[:], "authorization")) }
+        else if target == "/ok" { ok = ServerResponse(socket, 200, "ready") }
+        else if target == "/slow" { unused SleepMilliseconds(1500); ok = ServerResponse(socket, 200, "ready") }
+        else if target == "/auth" { ok = ServerResponse(socket, ifx ServerHeader(lines[:], "authorization") == "" then 401 else 500, "denied") }
+        else if target == "/large" {
+            bytes: Vec(u8); for index: 0..255 { unused index; VecPush(bytes, cast(u8)120) }
+            ok = ServerResponse(socket, 200, TextFromBytes(bytes[:]))
+        } else if target == "/gzip" || target == "/gzip-large" {
+            if !TextContains(ServerHeader(lines[:], "accept-encoding"), "gzip") { return 1 }
+            compressed, valid := ReadEntireFile(CheckPath(root, ifx target == "/gzip" then "ready.gz" else "large.gz"))
+            if !valid { return 1 }
+            ok = ServerResponse(socket, 200, compressed, "Content-Encoding: gzip\r\n")
+        } else if target == "/redirect" { ok = ServerResponse(socket, 302, "", "Location: /ok\r\n") }
+        else { ok = ServerResponse(socket, 404, "missing") }
+        if !ok || ServerLower(ServerHeader(lines[:], "connection")) == "close" { return 0 }
+    }
+    return 0
+}
+
+ServerStop :: (children: *Vec(s32)) {
+    for index: cast(s64)0..children.count - 1 {
+        pid := (<<children)[index]
+        status: s32
+        if ServerWait(pid, *status, 1) == 0 {
+            unused ServerKill(pid, 15)
+            deadline := MonotonicMilliseconds() + 1000
+            while ServerWait(pid, *status, 1) == 0 {
+                if MonotonicMilliseconds() > deadline { unused ServerKill(pid, 9); unused ServerWait(pid, *status, 0); break }
+                unused SleepMilliseconds(5)
+            }
+        }
+    }
+}
+
+LoopbackServer :: (mode: string, root: string, port_file: string) -> s32 {
+    CatchTermination()
+    listener: LinuxSocket
+    listener.fd = ServerSocketRaw(2, 524289, 0)
+    if listener.fd < 0 { return 1 }
+    listener.valid = true
+    defer { unused SocketClose(*listener) }
+    address: LinuxSocketAddress
+    address.family = 2; address.address = 16777343
+    if ServerBind(listener.fd, *address, 16) != 0 || ServerListen(listener.fd, 128) != 0 { return 1 }
+    size: u32 = 16
+    if ServerName(listener.fd, *address, *size) != 0 { return 1 }
+    port := cast(s64)((address.port >> cast(u16)8) | ((address.port & cast(u16)255) << cast(u16)8))
+    if !ReplaceFile(port_file, CheckNumber(port)) { return 1 }
+    children: Vec(s32)
+    defer ServerStop(*children)
+    while !TerminationRequested() {
+        event := SocketWaitForEvents(listener, 1, 100)
+        if event.error == 110 { continue }
+        if event.error != 0 { return ifx TerminationRequested() then 0 else 1 }
+        peer: LinuxSocketAddress
+        size = 16
+        fd := ServerAccept(listener.fd, *peer, *size, 524288)
+        if fd < 0 { return ifx TerminationRequested() then 0 else 1 }
+        child := ServerFork()
+        if child == 0 {
+            unused SocketClose(*listener)
+            socket: LinuxSocket = .{fd = fd, valid = true}
+            code := ServerConnection(socket, peer, mode, root)
+            unused SocketClose(*socket)
+            ServerExit(code)
+        }
+        unused ServerCloseRaw(fd)
+        if child < 0 { return 1 }
+        VecPush(children, child)
+    }
+    return 0
+}

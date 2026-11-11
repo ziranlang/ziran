@@ -2,7 +2,8 @@
 set -eu
 ziran=${1:?pass the ziran command}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-work=$(mktemp -d)
+mkdir -p "$repo/build/tests"
+work=$(mktemp -d "$repo/build/tests/bundle-partial-modules-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS
 
@@ -69,16 +70,7 @@ for name in base standalone thin included; do cmp "$work/$name-source.zx" "$work
 
 # Only an add-on composed into a library module needs version 27; every other
 # bundle keeps version 26, so hosts built before 27 still open it.
-python3 - "$work" <<'PY'
-from pathlib import Path
-import sys
-work = Path(sys.argv[1])
-expected = {'base-source': 26, 'standalone-source': 26, 'included-source': 26,
-            'plain-thin': 26, 'thin-source': 27}
-for name, version in expected.items():
-    data = (work / f'{name}.zx').read_bytes()
-    assert data[:8] == b'ZX\0\0' + bytes([version, 0, 0, 0]), (name, data[:8])
-PY
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/native_inline_cases.zi" -- "$ziran" "$work" bundle-versions
 compat_args="$work/base-source.zx $work/standalone-source.zx $work/plain-thin.zx $work/thin-source.zx"
 "${CC:-cc}" ${VM_CFLAGS:-} -std=c11 -I"$repo/include" "$repo/tests/bundle_version_compat_test.c" \
     "${ZIRAN_LIB:-$repo/build/libziran.a}" -lm -pthread -o "$work/compat"

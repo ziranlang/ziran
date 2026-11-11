@@ -1,0 +1,273 @@
+// Native Ziran check controller: bounded child processes, private scratch,
+// complete failure logs, deterministic ordering and conservative local reuse.
+#import "check_support"
+#import "check_plan"
+#import "check_go"
+#import "check_cache"
+#import "check_runner_test"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/json_document"
+#import "std/float_text"
+#import "std/process_run_linux"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+CheckOptions :: struct {
+    repo: string
+    bin: string
+    logs: string
+    filter: string
+    jobs: s64
+    incremental: bool
+    no_cache: bool
+    list: bool
+}
+
+CheckUsage :: () {
+    print("check-runner [--bin-dir DIR] [--jobs N] [--filter TEXT]\n")
+    print("             [--incremental] [--no-cache|--full] [--log-dir DIR] [--list]\n")
+}
+
+ReadCheckOptions :: (arguments: []string, options: *CheckOptions) -> bool {
+    options.repo = TextDetach(ResolvePath("."))
+    options.bin = "build/bin"
+    options.jobs = EnvironmentNumber("BUILD_QUEUE_JOBS", 0)
+    if options.jobs <= 0 {
+        command: [1]string = .["nproc"]
+        output, code := CheckCapture(command[:])
+        value, valid := TextInteger(TextTrim(output))
+        options.jobs = ifx code == 0 && valid && value > 0 then value else cast(s64)1
+    }
+    index: s64 = 0
+    while index < arguments.count {
+        option := arguments[index]
+        if option == "--incremental" { options.incremental = true; index += 1; continue }
+        if option == "--no-cache" || option == "--full" { options.no_cache = true; index += 1; continue }
+        if option == "--list" { options.list = true; index += 1; continue }
+        if index + 1 >= arguments.count { print("% needs a value\n", option); return false }
+        value := arguments[index + 1]
+        if option == "--bin-dir" { options.bin = value }
+        else if option == "--log-dir" { options.logs = value }
+        else if option == "--filter" { options.filter = value }
+        else if option == "--repo" { options.repo = TextDetach(ResolvePath(value)) }
+        else if option == "--jobs" {
+            count, valid := TextInteger(value)
+            if !valid || count < 1 { print("jobs must be a positive integer\n"); return false }
+            options.jobs = count
+        } else { print("unknown option: %\n", option); return false }
+        index += 2
+    }
+    options.bin = TextDetach(ResolvePath(options.bin))
+    if options.repo == "" || options.bin == "" { print("repository and tool directory must exist\n"); return false }
+    if options.logs == "" { options.logs = CheckPath(PathParent(options.bin), "check-logs") }
+    if !CreateDirectories(options.logs) { print("cannot create check log directory\n"); return false }
+    options.logs = TextDetach(ResolvePath(options.logs))
+    return true
+}
+
+CheckEnvironment :: (options: CheckOptions, self: string) -> Vec(string) {
+    environment: Vec(string)
+    removals: [4]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS"]
+    for value: removals { VecPush(environment, value) }
+    VecPush(environment, "HARMONY_DESKTOP_RECOVERY=0")
+    VecPush(environment, "YUE_DESKTOP_RECOVERY=0")
+    VecPush(environment, CheckConcat("ZIRAN_LIB=", CheckPath(PathParent(options.bin), "libziran.a")))
+    VecPush(environment, CheckConcat("ZIRAN_VM_LIB=", CheckPath(PathParent(options.bin), "libziran-vm.a")))
+    go := EnvironmentText("ZIRAN_TEST_GO_REAL")
+    if go == "" { go = CheckExecutable("go") }
+    if go != "" {
+        helpers := CheckPath(options.logs, "tools")
+        if !CreateDirectories(helpers) { return .{} }
+        wrapper := CheckPath(helpers, "go")
+        script := CheckConcat("#!/bin/sh\nexec ", CheckConcat(CheckQuote(self),
+            CheckConcat(" --go ", CheckConcat(CheckQuote(go), " \"$@\"\n"))))
+        if !WriteEntireFile(wrapper, script) || !SetPathMode(wrapper, 493) { return .{} }
+        VecPush(environment, CheckConcat("ZIRAN_TEST_GO_REAL=", go))
+        VecPush(environment, CheckConcat("PATH=", CheckConcat(helpers, CheckConcat(":", EnvironmentText("PATH")))))
+        if EnvironmentText("GOCACHE") == "" {
+            command: [3]string = .[go, "env", "GOCACHE"]
+            output, code := CheckCapture(command[:], "", environment[:])
+            cache := TextTrim(output)
+            if code == 0 && cache != "" && cache != "off" { VecPush(environment, CheckConcat("GOCACHE=", cache)) }
+        }
+    }
+    return environment
+}
+
+CheckReadCache :: (path: string, cache: *JsonDocument) {
+    text, valid := ReadEntireFile(path)
+    if !valid || !JsonRead(cache, text) || JsonKindOf(cache, cache.root) != .Object {
+        cache.root = JsonNewObject(cache)
+    }
+}
+
+CheckWriteCache :: (path: string, cache: *JsonDocument) -> bool {
+    return ReplaceFile(path, JsonWrite(cache, cache.root, JsonCompactStyle()))
+}
+
+CheckReport :: (checks: []CheckCase, selection: []s64, elapsed: s64, reused: s64, path: string) -> bool {
+    document: JsonDocument
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "total", JsonNewInteger(*document, selection.count))
+    failed: s64 = 0
+    for index: selection { if checks[index].code != 0 { failed += 1 } }
+    JsonSet(*document, root, "failed", JsonNewInteger(*document, failed))
+    JsonSet(*document, root, "seconds", JsonNewNumber(*document, Float64Repr(cast(float64)elapsed / 1000000000.0)))
+    JsonSet(*document, root, "executed", JsonNewInteger(*document, selection.count - reused))
+    JsonSet(*document, root, "reused", JsonNewInteger(*document, reused))
+    results := JsonNewArray(*document)
+    // Discovery order is deterministic and matches the original result format.
+    for index: cast(s64)0..checks.count - 1 {
+        chosen := false
+        for entry: selection { if entry == index { chosen = true } }
+        if !chosen { continue }
+        node := JsonNewObject(*document)
+        CheckPut(*document, node, "name", checks[index].name)
+        JsonSet(*document, node, "exit_code", JsonNewInteger(*document, cast(s64)checks[index].code))
+        JsonSet(*document, node, "seconds", JsonNewNumber(*document, Float64Repr(cast(float64)checks[index].nanoseconds / 1000000000.0)))
+        JsonSet(*document, node, "reused", JsonNewBool(*document, checks[index].reused))
+        if !checks[index].reused { CheckPut(*document, node, "log", checks[index].log) }
+        JsonAppend(*document, results, node)
+    }
+    JsonSet(*document, root, "checks", results)
+    return WriteEntireFile(path, JsonWrite(*document, root, JsonPythonStyle(2)))
+}
+
+ExecuteChecks :: (options: CheckOptions, self: string) -> s32 {
+    checks := DiscoverChecks(options.repo, options.bin, options.filter)
+    selection := PlanChecks(checks[:])
+    if selection.count == 0 { print("no checks match %\n", options.filter); return 2 }
+    if options.list {
+        for index: selection { print("%\n", checks[index].name) }
+        return 0
+    }
+    lock := LockPath(CheckPath(options.logs, "incremental.lock"))
+    if lock < 0 { print("cannot lock check logs\n"); return 1 }
+    defer { UnlockPath(lock) }
+    environment := CheckEnvironment(options, self)
+    if environment.count == 0 { print("cannot prepare the test environment\n"); return 1 }
+    cache_path := CheckPath(options.logs, "incremental.json")
+    incremental := options.incremental && !options.no_cache
+    cache: JsonDocument
+    cache.root = JsonNewObject(*cache)
+    if incremental { CheckReadCache(cache_path, *cache) }
+    fingerprint := ifx incremental then CheckInputFingerprint(options.repo, options.bin, options.logs, environment[:]) else ""
+    keys: Vec(string)
+    if !VecResize(keys, checks.count) { return 1 }
+    reused: s64 = 0
+    for index: selection {
+        if incremental {
+            command := CheckArguments(checks[index].name, options.bin, CheckPath(options.repo, "tests"))
+            keys[index] = CheckCacheKey(checks[index].name, command[:], options.repo, options.logs, fingerprint)
+        }
+        if keys[index] != "" && keys[index] == CheckField(*cache, cache.root, checks[index].name) {
+            checks[index].reused = true; checks[index].finished = true
+            reused += 1
+            print("REUSE %\n", checks[index].name)
+        }
+        JsonRemove(*cache, cache.root, checks[index].name)
+    }
+    if incremental || PathExists(cache_path) {
+        if !CheckWriteCache(cache_path, *cache) { return 1 }
+    }
+    scratch := TextDetach(CreateTemporaryDirectory(options.logs, "ziran-check."))
+    if scratch == "" { return 1 }
+    defer { unused RemoveTree(scratch) }
+    CatchTermination()
+    print("Running % checks with % jobs (% reused)\n", selection.count - reused,
+        ifx options.jobs < selection.count - reused then options.jobs else selection.count - reused, reused)
+    started := MonotonicNanoseconds()
+    pending: s64 = 0
+    running: s64 = 0
+    remaining := selection.count - reused
+    while remaining > 0 {
+        if TerminationRequested() {
+            for index: selection {
+                if !checks[index].finished && checks[index].started > 0 {
+                    unused SignalProcess(*checks[index].run, 15, true)
+                }
+            }
+            unused SleepMilliseconds(100)
+            for index: selection {
+                if !checks[index].finished && checks[index].started > 0 {
+                    if !PollProcess(*checks[index].run) { unused SignalProcess(*checks[index].run, 9, true) }
+                    unused WaitProcess(*checks[index].run)
+                }
+            }
+            return 130
+        }
+        while pending < selection.count && running < options.jobs {
+            index := selection[pending]
+            pending += 1
+            if checks[index].finished { continue }
+            checks[index].log = CheckPath(options.logs, CheckConcat(checks[index].name, ".log"))
+            checks[index].scratch = TextDetach(CreateTemporaryDirectory(scratch, CheckConcat(checks[index].name, ".")))
+            child_environment: Vec(string)
+            for value: environment { VecPush(child_environment, value) }
+            VecPush(child_environment, CheckConcat("TMPDIR=", checks[index].scratch))
+            arguments := CheckArguments(checks[index].name, options.bin, CheckPath(options.repo, "tests"))
+            command: ProcessOptions = .{.arguments = arguments[:], .directory = options.repo,
+                .environment = child_environment[:], .output_path = checks[index].log, .merge_error = true, .new_session = true}
+            checks[index].started = MonotonicNanoseconds()
+            if checks[index].scratch == "" || !StartProcess(command, *checks[index].run) {
+                checks[index].run.code = 127; checks[index].run.finished = true
+            }
+            running += 1
+        }
+        for index: selection {
+            if checks[index].finished || checks[index].started == 0 { continue }
+            if !PollProcess(*checks[index].run) { continue }
+            checks[index].code = checks[index].run.code
+            checks[index].nanoseconds = MonotonicNanoseconds() - checks[index].started
+            checks[index].finished = true
+            running -= 1; remaining -= 1
+            if checks[index].scratch != "" { unused RemoveTree(checks[index].scratch) }
+            print("% % (%s%\n", ifx checks[index].code == 0 then "PASS" else "FAIL", checks[index].name,
+                CheckSeconds(checks[index].nanoseconds), ifx checks[index].code == 0 then ")" else
+                CheckConcat(", exit ", CheckConcat(CheckNumber(cast(s64)checks[index].code), ")")))
+        }
+        if remaining > 0 { unused SleepMilliseconds(5) }
+    }
+    elapsed := MonotonicNanoseconds() - started
+    failed: s64 = 0
+    for index: selection {
+        if checks[index].code == 0 { continue }
+        failed += 1
+        print("\n=== FAIL % (exit %)\n%\nFull log: %\n", checks[index].name,
+            checks[index].code, CheckTail(checks[index].log), checks[index].log)
+    }
+    if incremental && fingerprint != "" &&
+        CheckInputFingerprint(options.repo, options.bin, options.logs, environment[:]) == fingerprint {
+        for index: selection {
+            if checks[index].code == 0 && keys[index] != "" {
+                CheckPut(*cache, cache.root, checks[index].name, keys[index])
+            }
+        }
+        if !CheckWriteCache(cache_path, *cache) { return 1 }
+    }
+    if !CheckReport(checks[:], selection[:], elapsed, reused, CheckPath(options.logs, "results.json")) { return 1 }
+    print("%/% passed in %s (% executed, % reused)\n", selection.count - failed, selection.count,
+        CheckSeconds(elapsed), selection.count - reused, reused)
+    return ifx failed > 0 then 1 else 0
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    arguments: Vec(string)
+    for index: cast(s32)1..argc - 1 { VecPush(arguments, TextFromCString(argv[index])) }
+    if arguments.count > 0 && arguments[0] == "--go" {
+        if arguments.count < 2 { return 2 }
+        return CheckGo(arguments[1], arguments[2:])
+    }
+    if arguments.count > 0 && (arguments[0] == "--help" || arguments[0] == "-h") { CheckUsage(); return 0 }
+    if arguments.count > 0 && arguments[0] == "--self-test" {
+        return CheckRunnerTests(TextDetach(ResolvePath(TextFromCString(argv[0]))), TextDetach(ResolvePath(".")))
+    }
+    options: CheckOptions
+    if !ReadCheckOptions(arguments[:], *options) { return 2 }
+    return ExecuteChecks(options, TextDetach(ResolvePath(TextFromCString(argv[0]))))
+}

@@ -1,0 +1,44 @@
+#import "native_test"
+#import "check_support"
+#import "binary_fixture_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+PortableWriterRun :: (test: *NativeTest) -> bool {
+    writer := CheckPath(test.work, "write"); input := CheckPath(test.work, "ir/program.zir"); file := CheckPath(test.work, "file.zx")
+    first := string.[writer, input, "file", file]; unused NativeRun(test, first[:])
+    if test.failed { return false }
+    prefix := "unchanged prefix\x00"; append := CheckPath(test.work, "append.zx")
+    if !NativeWrite(test, append, prefix) { return false }
+    append_args := string.[writer, input, "append", append]; unused NativeRun(test, append_args[:])
+    data := NativeRead(test, file)
+    if !NativeAssert(test, !test.failed && NativeRead(test, append) == CheckConcat(prefix, data), "append writer changed its prefix or portable bytes") { return false }
+    // The producer's stdout must be an actual unseekable pipe. pipefail also
+    // preserves writer failures instead of accepting cat's successful status.
+    pipe := CheckPath(test.work, "pipe.zx")
+    pipe_args := string.["bash", "-o", "pipefail", "-c", "\"$1\" \"$2\" pipe unused | cat > \"$3\"", "portable-writer", writer, input, pipe]
+    unused NativeRun(test, pipe_args[:])
+    if !NativeAssert(test, !test.failed && NativeRead(test, pipe) == data, "unseekable pipe writer changed its portable bytes") { return false }
+    modes := string.["readonly", "invalid", "oversized"]
+    for mode: modes { args := string.[writer, input, mode, CheckPath(test.work, CheckConcat(mode, ".zx"))]; unused NativeRun(test, args[:]); if test.failed { return false } }
+    if !NativeAssert(test, PathStatus(CheckPath(test.work, "invalid.zx")).size == 0 && PathStatus(CheckPath(test.work, "oversized.zx")).size == 0, "rejected bundle write partially wrote its output") { return false }
+    if PathStatus("/dev/full").kind != .Missing { args := string.[writer, input, "full", "/dev/full"]; unused NativeRun(test, args[:]); if test.failed { return false } }
+    names := string.["file", "pipe"]
+    for name: names {
+        path := CheckPath(test.work, CheckConcat(name, ".zx")); args := string.[test.ziran, "run", path]; result := NativeRun(test, args[:]); contents := NativeRead(test, path)
+        if !NativeAssert(test, !test.failed && TextTrim(result.output) == "42" && BinaryOccurrences(contents, "NATIVE_FN_CANARY") == 1 && BinaryOccurrences(contents, "NATIVE_BLOCK_CANARY") == 1,
+            "portable output changed execution, native procedure metadata or identical asset bytes") { return false }
+    }
+    print("Portable bundle writing passed files, append streams, pipes, write errors and immutable-IR local tests\n")
+    return true
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "portable-writer-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    return ifx PortableWriterRun(*test) && !test.failed then 0 else 1
+}

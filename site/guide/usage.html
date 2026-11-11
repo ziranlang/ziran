@@ -125,7 +125,7 @@ on copies of the same inputs, compares results and the memory its slice and
 pointer parameters reach, and aborts with <code>#asm check failed: AddSaturate
 variant "x86_64" differs from its portable body in dst</code> on a difference.
 Callers receive the portable results. Run it over random and edge-case
-inputs; <code>tests/asm_routines.sh</code> shows the pattern. Local <code>#asm</code> blocks are not
+inputs. Local <code>#asm</code> blocks are not
 checked this way. <code>tests/spec/asm_dct8.zi</code> is a complete kernel: AV1's 8x8
 inverse DCT with SSSE3, AArch64 and ARMv7 NEON variants, about ten times
 faster than its portable body.</p>
@@ -209,10 +209,7 @@ rejection checks, and <code>tests/assembly_features.sh</code> for CPU selection,
 concurrent calls, unavailable features and isolated helpers. It runs ARMv7
 NEON and its masked fallback under <code>qemu-arm</code> with GCC and Clang
 (<code>ZIRAN_ARM_CC</code>, <code>ZIRAN_ARM_CLANG</code>, <code>ZIRAN_QEMU_ARM</code>; <code>ARM_REQUIRED=1</code> fails
-instead of skipping). <code>tests/asm_dct8.sh</code> compares source and saved-IR C
-output and runs the DCT on ARM, Thumb and AArch64 with the available GNU/Linux
-and NDK cross compilers and QEMU emulators, including masked-NEON fallbacks
-with GCC and Clang. <code>ARM_REQUIRED=1</code> requires every ARM execution case.
+instead of skipping).
 <code>tests/zx_wasm.sh</code> builds SIMD128 and baseline modules
 with <code>ZIRAN_WASM_CC</code> (default <code>clang</code>, <code>WASM_REQUIRED=1</code> to require it).
 <code>tests/go_assembly.sh</code> checks native and default Go builds, forced fallback,
@@ -265,10 +262,13 @@ loop bindings. Assembly outputs must remain iteration-local, and GPU regions
 reject pointer operands. Native parallel regions currently support up to 16
 captured bindings.</p>
 <h2 id="build-and-test">Build and test</h2>
-<p>Run <code>make</code> to build the current toolchain and <code>make check</code> for its language,
-backend, and portable bundle tests. <code>make check</code> runs independent test scripts
-with four workers by default; set <code>CHECK_JOBS=1</code> to run them serially or choose
-another positive worker count.</p>
+<p>Run <code>make</code> to build the current toolchain and <code>make check</code> for the complete
+lean language, backend, and portable bundle suite. Pruning removed 263
+redundant check scripts and their unused helpers. Local and CI runs
+execute every retained check. Explicit <code>CHECK_FILTER</code> runs include every
+matching check. Workers follow the build queue's allocation; set <code>CHECK_JOBS=1</code>
+to run serially or choose another positive worker count. <code>make sanitize</code> runs
+the retained suite under AddressSanitizer and UBSan.</p>
 <p>A project's GitHub Actions job sets up the Ziran its <code>ziran.lock</code> pins with
 <code>uses: ziranlang/ziran/.github/actions/setup@COMMIT</code>. It checks out that
 commit with its compiler built and puts <code>build/bin</code> on <code>PATH</code>; <code>fetch: true</code>
@@ -286,6 +286,9 @@ for validation, alias mapping and the programmatic entry points.</p>
 <h2 id="compiler-commands">Compiler commands</h2>
 <p>The compiler commands are <code>zi2zir</code> (including
 <code>--check-only</code>), <code>zi2c</code>, <code>zi2go</code>, and <code>zi2zx</code>.
+Run a program with <code>ziran run hello.zi</code> or <code>zi2zx hello.zi</code>; Ziran checks
+the file and executes <code>main</code> in one step. <code>make install-user</code> installs both
+commands in <code>~/.local/bin</code>.
 <code>zi-fmt</code> formats source. <code>ziran guide</code> prints a short reference from the
 installed compiler, including current safety and target limits.
 <code>ziran capabilities --target=go --json</code> reports a versioned machine-readable
@@ -328,8 +331,7 @@ defines a module's procedures itself, such as a test mock, puts
 including that module's header, so the header leaves out its copies.
 <code>-DZIRAN_NO_HEADER_INLINE</code> leaves out every module's copies, so all calls
 reach the external definitions; a test that interposes procedures at link
-time, as with <code>ld --wrap</code>, builds with it. Run
-<code>sh tests/cross_module_inline.sh build/bin/ziran</code>.</p>
+time, as with <code>ld --wrap</code>, builds with it.</p>
 <p><code>#inline</code> after a procedure's result asks generated C to always inline it:
 <code>Mix :: (value: s64) -&gt; s64 #inline { ... }</code>. GCC and Clang get
 <code>always_inline</code>, a public procedure's header copy is kept whatever its
@@ -337,8 +339,7 @@ size, and a procedure that calls itself is rejected. <code>#cold</code> does the
 opposite for slow paths such as a refill: the procedure is never inlined,
 is laid out as rarely run, and other modules call its one definition
 rather than a header copy. Neither changes what a call does, and Go marks
-a <code>#cold</code> procedure <code>//go:noinline</code>. Run
-<code>sh tests/procedure_inlining.sh build/bin/ziran</code>.</p>
+a <code>#cold</code> procedure <code>//go:noinline</code>.</p>
 <p>A call that returns an array writes its result straight into the array a
 declaration creates or a plain assignment names, such as <code>grid := Make(4)</code>,
 <code>row = Next(row)</code> or <code>holder.values = Make(10)</code>, with no temporary and copy in
@@ -348,8 +349,7 @@ Returning an array works the same way: <code>return Make(n)</code> hands the cal
 destination on, and <code>return out</code>, <code>return holder.values</code> or a parameter is
 copied out once. A local array passed by value to a Ziran procedure, as in
 <code>Sum(values)</code>, is copied once, by the procedure as it starts; the caller
-copies it first only when a later argument could change it. Run
-<code>sh tests/array_result_in_place.sh build/bin/ziran</code>.</p>
+copies it first only when a later argument could change it.</p>
 <p>Indexing stays checked in every build, but generated C leaves out a check
 it can prove always passes: a loop counter its condition bounds, such as <code>i</code> in
 <code>for i: 0..7</code> over a <code>[8]T</code> array or in <code>for i: 0..view.count-1</code> over a
@@ -395,8 +395,7 @@ offset such as <code>(iy + 2 - radius) * stride + 2 - radius + k * stride + j</c
 is proven too after <code>if radius &lt; 1 || radius &gt; 2 { return }</code>. An <code>else</code>
 runs where each branch before it was false: after <code>if i == 0 { ... }</code> and
 <code>else if j == 0 { ... }</code>, the <code>else</code> reads <code>view[(i - 1) * width + j - 1]</code>
-without a check, and <code>if i != 8</code> inside <code>for i: 0..8</code> leaves <code>i &lt;= 7</code>. Run
-<code>sh tests/loop_guard_ranges.sh build/bin/ziran</code>.</p>
+without a check, and <code>if i != 8</code> inside <code>for i: 0..8</code> leaves <code>i &lt;= 7</code>.</p>
 <p>Fields count as well. For <code>frame: *Frame</code>, after
 <code>if source.count != frame.count || destination.count != frame.count { return }</code>
 the copy <code>for i: 0..frame.count - 1 { destination[i] = source[i] }</code> needs no
@@ -424,8 +423,7 @@ outside 0 to width-1 aborts, and the minimum signed value divided by -1 wraps
 to itself. Arithmetic compiles to C operators, a constant divisor or shift
 count needs no check, and other divisions and shifts call a small checked
 helper of their width. Generated Go shifts by a variable count in the
-operand's own type after checking the count. Run
-<code>sh tests/checked_integer_ops.sh build/bin/ziran</code>.</p>
+operand's own type after checking the count.</p>
 <p><code>#parallel_gpu for</code> runs a loop on the fastest GPU in native C builds on Linux
 and Android, and on CPU threads otherwise. Programs need no graphics libraries
 to build or start. A region qualifies when it uses only <code>s32</code>, <code>u32</code>, <code>float32</code>,
@@ -869,8 +867,7 @@ Expr :: struct {
 </code></pre>
 <p>A <code>using</code> field spelled <code>#c "union"</code> (or <code>"struct"</code>) also lays its record's
 fields out as an anonymous C member over the same storage, so C reads
-<code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>. Run
-<code>sh tests/c_spelling.sh build/bin/ziran</code>.</p>
+<code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>.</p>
 <h3 id="native-scripts">Native scripts</h3>
 <p><code>ziran tool.zi ARGS</code> runs ordinary Ziran source as a native script. Use <code>.zi</code>
 for scripts and compiled programs alike. On Unix, start executable scripts
@@ -926,15 +923,13 @@ Label :: (owner: *Owner) -&gt; string { return owner.label }  // view stored in 
 <p>A declaration in an inner block or a <code>for</code> body may reuse an outer name. Its
 initializer still reads the outer binding, so <code>x := x + 5</code> adds to the outer
 <code>x</code>, and <code>for i: 0..7 { i := i * 10 }</code> keeps counting with the loop's own
-<code>i</code>. Two bindings of one name in the same block are rejected. Run
-<code>sh tests/shadowed_binding_reads_outer.sh build/bin/ziran</code>.</p>
+<code>i</code>. Two bindings of one name in the same block are rejected.</p>
 <h2 id="integer-literals">Integer literals</h2>
 <p>Integer literals are decimal, <code>0x</code> hex or <code>0b</code> binary, with <code>_</code> between
 digits: <code>1_000_000</code>, <code>0xDEAD_BEEF</code>, <code>0b1010_0101</code>. A <code>u64</code> literal may use the
 whole unsigned range, as in <code>0xFFFF_FFFF_FFFF_FFFF</code>. Locals, globals, <code>::</code>
 constants, constant tables, array sizes and range bounds accept the same
-spellings on every target, and generated C headers spell them in decimal. Run
-<code>sh tests/integer_literal_spellings.sh build/bin/ziran</code>.</p>
+spellings on every target, and generated C headers spell them in decimal.</p>
 <h2 id="standard-library">Standard library</h2>
 <p>Import a standard module as <code>#import "std/text"</code>. In a project the pinned
 toolchain supplies it. A standalone command takes it from
@@ -973,8 +968,7 @@ Go catches recoverable allocation range panics, but physical out-of-memory
 failure can terminate the Go runtime. Capacities and allocation limits depend
 on the target; a successful capacity request never guarantees future growth.
 <code>VecGet</code> and <code>VecClone</code> cannot copy owned elements; mutate them in place or
-move an element with <code>VecPop</code>. <code>sh tests/vec_capacity.sh build/bin/ziran</code>
-runs the focused source, saved-IR, C, Go and portable local tests.</p>
+move an element with <code>VecPop</code>.</p>
 <p>A Vec can hold records that own Vecs. <code>VecPush</code> moves such an element in from
 a local binding, a call result or a <code>.{...}</code> literal, so the source cannot be
 used afterwards. Read and change elements in place: <code>groups[i].parts[j]</code>,
@@ -988,8 +982,7 @@ to, freeing or moving that Vec, or a record holding it, is rejected. A record
 field that holds Vecs moves out like a Vec field, as in
 <code>last := popped.value</code>. <code>Vec(Vec(T))</code> works the
 same way. C, Go and portable <code>.zx</code> support this; wasm has no Vec storage.
-<code>tests/nested_vec_elements.sh</code> checks it, including a leak check, and
-<code>tests/vec_field_loops.sh</code> checks field loops, slices and moves.</p>
+<code>tests/nested_vec_elements.sh</code> checks it, including a leak check.</p>
 <pre><code class="language-zi">Group :: struct { name: string; parts: Vec(string); }
 groups: Vec(Group)
 group: Group
@@ -1087,9 +1080,7 @@ too; one that writes through it stays in place. Each local is its own
 binding, so a same-named local in another block does not keep it. An <code>else if</code>
 condition, the second operand of <code>&amp;&amp;</code> or <code>||</code>, and an <code>ifx</code> arm that gives
 a number or <code>bool</code> run on their own just before the statement, still only
-when reached, so a result read there is freed too.
-<code>tests/text_scoped_arguments.sh</code>, <code>tests/text_condition_arms.sh</code> and
-<code>tests/text_scoped_producers.sh</code> check these.</p>
+when reached, so a result read there is freed too.</p>
 <p>A foreign procedure that only reads its string and byte arguments during
 the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
 <pre><code>MeasureWidth :: (value: string, font: s32) -&gt; s32 #reads #foreign host_api;
@@ -1098,7 +1089,6 @@ the call says so with <code>#reads</code> before <code>#foreign</code>:</p>
 only reads it. Leave the marker off when the host may keep the pointer,
 such as a binding that stores it; <code>#reads</code> on a procedure with a Ziran body
 is an error, because that body already shows what it reads.
-<code>tests/foreign_reads.sh</code> checks both.
 <code>TextDetach(text)</code> detaches explicitly, and <code>TextFromBuilder(bytes)</code> takes a
 builder's bytes as a <code>Text</code>.</p>
 <p>A procedure type makes the same promise for each procedure stored in it
@@ -1115,9 +1105,7 @@ later uses, and <code>=</code> into the field path, or a record on it, later in 
 same block replaces the string, so storing the record afterwards keeps
 nothing. A pointer to the record, or a store before the replacement or
 past it in a loop, keeps the string. Text passed through a value of the
-type is then freed like Text passed straight to such a procedure.
-<code>tests/text_procedure_type_reads.sh</code> and <code>tests/text_reads_field_paths.sh</code>
-check it.</p>
+type is then freed like Text passed straight to such a procedure.</p>
 <p>The standard text producers return <code>Text</code>: <code>TextReplace</code>, <code>TextJoin</code>, <code>TextLower</code>, <code>TextHex</code>, <code>Float64Repr</code>, <code>JsonWrite</code>, <code>JsonString</code>, <code>JsonKey</code>, <code>JsonQuote</code>, <code>JsonNumberText</code>, <code>JoinPath</code>, <code>ResolvePath</code>, <code>WorkingDirectory</code>, <code>CreateTemporaryDirectory</code>, <code>CopyText</code>, <code>ReadStandardInput</code>, <code>DecodeReplace</code>, <code>Lower</code>, <code>CaseFold</code>, <code>Capitalize</code> and <code>Transform</code>. Existing callers keep
 getting a <code>string</code>; <code>json: Text = JsonWrite(...)</code> frees the text with <code>json</code>.</p>
 <p><code>std/float_text.zi</code> supplies portable binary64 decimal conversion:
@@ -1284,8 +1272,7 @@ bytes, so a long escaped value can fit. Consume the returned <code>value</code> 
 with <code>BuilderFinish</code>, or let normal vector cleanup release it. Ordinary UTF-8
 runs append directly, and escaped code points use a five-byte temporary buffer
 instead of a maximum-size string buffer. Invalid input or an exceeded limit
-returns no decoded bytes. Run <code>sh tests/json_string_value.sh build/bin/ziran</code>
-for source/saved-IR VM and cross-target Unicode, ownership and boundary checks.</p>
+returns no decoded bytes.</p>
 <p><code>std/json_document.zi</code> reads a whole document into a tree of numbered nodes
 that a program queries (<code>JsonMember</code>, <code>JsonElement</code>, <code>JsonFirst</code>/<code>JsonNext</code>,
 <code>JsonString</code>, <code>JsonInteger</code>), changes (<code>JsonSet</code> keeps a replaced member in
@@ -1344,7 +1331,7 @@ are meaningful to the application.
 caller-owned, disjoint byte buffers. <code>GzipDecompress</code> requires the expected
 uncompressed length and rejects expansion beyond that length, bad checksums,
 truncation and trailing streams. Native C builds link zlib (<code>-lz</code>); Emscripten
-builds use <code>-sUSE_ZLIB=1</code>. Run <code>make gzip-test</code> for independent Python gzip
+builds use <code>-sUSE_ZLIB=1</code>. Run <code>make gzip-test</code> for independent GNU gzip
 interoperability and malformed-input tests.
 <code>std/image.zi</code> holds RGBA pictures (<code>Image</code>: width, height and straight-alpha
 pixels, rows top to bottom) and does what build tools did with Pillow:
@@ -1431,7 +1418,7 @@ Its README documents ownership, frame/byte limits, supported formats and
 tested targets. Existing Vorbis modules remain independent.</p>
 <p><code>std/zip_file_linux.zi</code> writes stored ZIP entries directly to a caller-owned
 file from borrowed byte slices, including mapped files. The caller controls
-file creation and publication. Its test checks the output with Python's ZIP
+file creation and publication. Its Ziran test checks the output with Info-ZIP's
 reader as well as Ziran's reader.</p>
 <p><code>std/zstd_go.zi</code> provides single-owner reusable Zstandard encoders and bounded
 stream decoding for the Go target. The consuming Go module supplies
@@ -1467,19 +1454,16 @@ portable VM) instead of copying the array; copying it into a variable, as in
 straight from the shared <code>var</code>, as it does when passing the table by
 value. Indexes are
 bounds-checked as for any array. A function may read a table, and its
-<code>.count</code>, in as many loops as it needs. Run
-<code>sh tests/constant_tables.sh build/bin/ziran</code>.</p>
+<code>.count</code>, in as many loops as it needs.</p>
 <p>A table of rows is a constant table too. Each row names its type, as in
 <code>GRID :: [3]s32.[s32.[1, 2, 3], s32.[4, 5, 6]]</code>, and <code>#run</code> can build one
 in a procedure that sets <code>g[a][b][c]</code> and returns it. <code>GRID[i][j]</code> reads the
 shared table in place without copying the row, and <code>grid: [2][3]s32 = GRID</code>
-starts a variable from it. Run
-<code>sh tests/nested_constant_tables.sh build/bin/ziran</code>.</p>
+starts a variable from it.</p>
 <p>A file-scope variable may start from a table of any length, named as in
 <code>table: [4096]u8 = Lib.BIG</code> or written out. Each target defines the variable
 with its values, so nothing fills it when the program starts, and writing it
-leaves the table unchanged. Run <code>sh tests/large_constant_globals.sh
-build/bin/ziran</code>.</p>
+leaves the table unchanged.</p>
 <h3 id="bit-counts-and-byte-swaps">Bit counts and byte swaps</h3>
 <p><code>clz(x)</code>, <code>ctz(x)</code> and <code>popcount(x)</code> count leading zero bits, trailing zero
 bits and set bits; <code>bswap(x)</code> reverses the bytes. Each takes one <code>u8</code>, <code>u16</code>,
@@ -1499,6 +1483,10 @@ operation gives the same bits on every target. Native C uses SSE2 on x86-64,
 or SSSE3, SSE4.1 and AVX2 when the build enables them, NEON on AArch64 and
 ARMv7, and WebAssembly SIMD128 when a wasm32 build passes <code>-msimd128</code>. Go,
 bundles, the portable VM and TinyCC compute lane by lane.</p>
+<p><code>Simd.Load(u8x16, text, at)</code> and <code>Simd.LoadLow(u8x16, text, at)</code> also
+read immutable strings directly, including embedded NUL bytes. They check the
+entire access against the string length without allocating a byte slice. Other
+lane types and stores require their existing slice, array or pointer inputs.</p>
 <p>Mark a procedure <code>#target</code> to let native x86-64 C pick its SIMD instructions
 when the program runs:</p>
 <pre><code class="language-jai">Blend :: (row: []u8, out: []u8) #target {
@@ -1799,9 +1787,7 @@ APIs instead of POSIX calls. Windows civil clocks use
 FILETIME and the system's timezone rules, with valid dates from 1601 through
 9999. Its named-zone query recognizes UTC/GMT; other IANA names return an
 invalid offset because these Windows APIs do not expose an IANA database.
-Monotonic timestamps use QueryPerformanceCounter. Run
-<code>sh tests/std_time_windows.sh build/bin/ziran</code> for source and saved-IR checks,
-including compilation and linking with MinGW when available.</p>
+Monotonic timestamps use QueryPerformanceCounter.</p>
 <p>Import <code>calendar</code> for Gregorian <code>LeapYear</code>, <code>DaysInMonth</code>, <code>DayOfWeek</code>,
 <code>DayOfYear</code>, <code>DateTimeValid</code>, and <code>FormatDateTime</code>. <code>DayOfWeek</code> returns zero for
 Sunday and minus one for an invalid date. Calendar dates range from year 1 to
@@ -1830,6 +1816,9 @@ Ambiguous constructors and mismatched fields remain errors. The checked source
 and saved IR retain the resolved record type; both arms keep their ordinary
 lazy runtime evaluation.</p>
 <p>For checked, hash-bound source changes see <a href="semantic-edit.html">source edits</a>.
+For the opt-in scalar direct native compiler, lowered-IR dumps and final-byte
+source maps, see <a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/README.md">the ASSEMBLY prototype</a>. It is not yet a
+replacement for the supported ZX or native runtime paths.
 An optional byte-exact transport with source maps is described in
 <a href="transport-view.html">compact transport</a>; <code>.zi</code> remains canonical source.</p></section>
 </div></div></main>

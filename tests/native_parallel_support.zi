@@ -1,0 +1,203 @@
+#import "native_test"
+#import "native_build_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/process_run_linux"
+#import "std/socket_linux"
+#import "std/stdio_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+parallel_libc :: #system_library "libc";
+ParallelPid :: () -> s32 #foreign parallel_libc "getpid";
+ParallelParent :: () -> s32 #foreign parallel_libc "getppid";
+ParallelGetAffinity :: (pid: s32, size: usize, mask: *u8) -> s32 #foreign parallel_libc "sched_getaffinity";
+ParallelSetAffinity :: (pid: s32, size: usize, mask: *u8) -> s32 #foreign parallel_libc "sched_setaffinity";
+ParallelKill :: (pid: s32, number: s32) -> s32 #foreign parallel_libc "kill";
+ParallelContext :: struct { test: *NativeTest; command: []string; output: string; workers: s64 }
+
+ParallelReadAffinity :: (mask: []u8) -> bool {
+    return mask.count > 0 && ParallelGetAffinity(0, cast(usize)mask.count, *mask[0]) == 0
+}
+ParallelKillBuilder :: (pid: s32) -> bool { return ParallelKill(pid, 9) == 0 }
+
+ParallelReadState :: (test: *NativeTest, document: *JsonDocument) -> bool {
+    lock := LockPath(CheckPath(test.work, "state.lock"))
+    if !NativeAssert(test, lock >= 0, "lock compiler observation state") { return false }
+    defer UnlockPath(lock)
+    return NativeAssert(test, JsonRead(document, NativeRead(test, CheckPath(test.work, "state.json"))), "invalid compiler observation state")
+}
+
+ParallelStateChange :: (root: string, delta: s64, source: string = "", starting: bool = false) -> bool {
+    lock := LockPath(CheckPath(root, "state.lock"))
+    if lock < 0 { return false }
+    defer UnlockPath(lock)
+    text, valid := ReadEntireFile(CheckPath(root, "state.json"))
+    document: JsonDocument
+    if !valid || !JsonRead(*document, text) { return false }
+    active := CheckInteger(*document, document.root, "active") + delta
+    JsonSet(*document, document.root, "active", JsonNewInteger(*document, active))
+    if starting {
+        peak := CheckInteger(*document, document.root, "peak")
+        if active > peak { JsonSet(*document, document.root, "peak", JsonNewInteger(*document, active)) }
+        JsonSet(*document, document.root, "started", JsonNewInteger(*document, CheckInteger(*document, document.root, "started") + 1))
+        JsonAppend(*document, JsonMember(*document, document.root, "sources"), JsonNewStringCopy(*document, source))
+        JsonAppend(*document, JsonMember(*document, document.root, "parents"), JsonNewInteger(*document, ParallelParent()))
+        if !WriteEntireFile(CheckPath(root, CheckConcat("started-", PathName(source))), CheckNumber(ParallelPid())) { return false }
+    }
+    return WriteEntireFile(CheckPath(root, "state.json"), JsonWrite(*document, document.root, JsonCompactStyle()))
+}
+
+ParallelProxyWait :: (root: string, name: string, deadline: s64) -> bool {
+    while !PathExists(CheckPath(root, name)) {
+        if MonotonicMilliseconds() > deadline { return false }
+        unused SleepMilliseconds(10)
+    }
+    return true
+}
+
+// Native replacement for the old Python compiler wrapper. Its shell entry
+// retains the original non-cacheable compiler boundary; all gates and state
+// updates execute in Ziran.
+ParallelCompiler :: (argc: s32, argv: **u8) -> s32 {
+    root := EnvironmentText("BUILD_TEST_DIR")
+    compiling := false; source := ""
+    arguments: Vec(string); VecPush(arguments, EnvironmentText("REAL_CC"))
+    for index: cast(s32)2..argc - 1 {
+        argument := TextFromCString(argv[index]); VecPush(arguments, argument)
+        if argument == "-c" { compiling = true }
+        if source == "" && TextHasSuffix(argument, ".c") { source = TextDetach(TextCopy(argument)) }
+    }
+    deadline := MonotonicMilliseconds() + 30000
+    if compiling {
+        if !ParallelStateChange(root, 1, source, true) { return 90 }
+        if !ParallelProxyWait(root, "compile.release", deadline) { return 91 }
+        if PathName(source) == EnvironmentText("BUILD_FAIL_SOURCE") {
+            if !ParallelStateChange(root, -1) || !ReplaceFile(CheckPath(root, "failed"), CheckNumber(ParallelPid())) { return 90 }
+            unused PrintError("forced compiler failure\n")
+            return 3
+        }
+        if EnvironmentText("BUILD_MESSAGES") == "1" { unused PrintError(CheckConcat("scheduled ", CheckConcat(PathName(source), "\n"))) }
+        if PathName(source) == EnvironmentText("BUILD_HOLD_SOURCE") || EnvironmentText("BUILD_HOLD_OTHERS") == "1" {
+            if EnvironmentText("BUILD_NOISE") == "1" {
+                noise: Vec(u8)
+                for index: 0..1023 { unused index; BuilderAppend(noise, "compiler diagnostic bytes ") }
+                text := TextDetach(BuilderFinish(noise))
+                for index: 0..31 { unused index; if !PrintError(text) { return 90 } }
+            }
+            if !WriteEntireFile(CheckPath(root, "hold.waiting"), "") || !ParallelProxyWait(root, "hold.release", deadline) { return 93 }
+        }
+    } else {
+        if !WriteEntireFile(CheckPath(root, "link.ready"), "") || !ParallelProxyWait(root, "link.release", deadline) { return 92 }
+        if EnvironmentText("BUILD_FAIL_LINK") == "1" {
+            for index: cast(s64)1..arguments.count - 2 {
+                if arguments[index] == "-o" { if !WriteEntireFile(arguments[index + 1], "incomplete executable") { return 90 }; return 3 }
+            }
+            return 90
+        }
+    }
+    child: ProcessRun
+    options: ProcessOptions = .{.arguments = arguments[:]}
+    if !StartProcess(options, *child) || !WaitProcess(*child) { return 127 }
+    if compiling && !ParallelStateChange(root, -1) { return 90 }
+    return child.code
+}
+
+ParallelReset :: (test: *NativeTest) -> bool {
+    if !NativeWrite(test, CheckPath(test.work, "state.json"), "{\"active\":0,\"peak\":0,\"started\":0,\"sources\":[],\"parents\":[]}") { return false }
+    markers := string.["compile.release", "link.release", "link.ready", "hold.release", "hold.waiting", "failed"]
+    for name: markers { unused RemoveFile(CheckPath(test.work, name)) }
+    files := NativeFiles(test.work, "")
+    for file: files { if TextHasPrefix(PathName(file), "started-") { unused RemoveFile(file) } }
+    return true
+}
+
+ParallelWaitFile :: (test: *NativeTest, name: string) -> bool {
+    deadline := MonotonicMilliseconds() + 30000
+    while !PathExists(CheckPath(test.work, name)) {
+        if !NativeAssert(test, !TerminationRequested() && MonotonicMilliseconds() < deadline, CheckConcat("native build gate timed out: ", name)) { return false }
+        unused SleepMilliseconds(2)
+    }
+    return true
+}
+
+ParallelWaitActive :: (context: ParallelContext, minimum: s64, idle: bool = false) -> bool {
+    deadline := MonotonicMilliseconds() + 30000
+    while true {
+        document: JsonDocument
+        if !ParallelReadState(context.test, *document) { return false }
+        active := CheckInteger(*document, document.root, "active")
+        if idle && active == 0 || !idle && active >= minimum { return true }
+        if !NativeAssert(context.test, !TerminationRequested() && MonotonicMilliseconds() < deadline, "native build active-worker gate timed out") { return false }
+        unused SleepMilliseconds(2)
+    }
+    return false
+}
+
+parallel_no_extra: [0]string;
+parallel_no_affinity: [0]u8;
+ParallelStart :: (context: ParallelContext, mode: string = "json", fail: bool = false, extra: []string = parallel_no_extra[:], affinity: []u8 = parallel_no_affinity[:], cpu: s64 = -1) -> NativeChild {
+    test := context.test
+    arguments: Vec(string)
+    for argument: context.command { VecPush(arguments, ifx argument == "--diagnostics=json" then CheckConcat("--diagnostics=", mode) else argument) }
+    base := test.environment.count
+    NativeSet(test, "BUILD_FAIL_LINK", ifx fail then "1" else "0")
+    for entry: extra { VecPush(test.environment, entry) }
+    if cpu >= 0 {
+        selected: Vec(u8)
+        if !NativeAssert(test, affinity.count > 0 && VecResize(selected, affinity.count), "allocate CPU affinity fixture") { return .{} }
+        selected[cpu / 8] = cast(u8)1 << cast(u8)(cpu % 8)
+        if !NativeAssert(test, ParallelSetAffinity(0, cast(usize)selected.count, *selected[0]) == 0, "restrict this fixture child's affinity") { return .{} }
+    }
+    child := NativeSpawn(test, arguments[:], "parallel-build")
+    if cpu >= 0 { unused NativeAssert(test, ParallelSetAffinity(0, cast(usize)affinity.count, *affinity[0]) == 0, "restore test-controller affinity") }
+    unused VecResize(test.environment, base)
+    return child
+}
+
+ParallelJoin :: (test: *NativeTest, child: *NativeChild, success: bool = true) -> bool {
+    deadline := MonotonicMilliseconds() + 30000
+    while !PollProcess(*child.run) {
+        if !NativeAssert(test, !TerminationRequested() && MonotonicMilliseconds() < deadline, "native builder did not finish") { return false }
+        unused SleepMilliseconds(2)
+    }
+    return NativeAssert(test, ifx success then child.run.code == 0 else child.run.code != 0, CheckConcat("unexpected native build exit: ", CheckTail(child.error)))
+}
+
+ParallelProgram :: (test: *NativeTest, source: string, extra: s64) -> bool {
+    text: Vec(u8); calls: Vec(string)
+    for index: cast(s64)0..15 {
+        number := CheckNumber(index); padded := ifx index < 10 then CheckConcat("0", number) else number
+        BuilderAppend(text, CheckConcat("M", CheckConcat(number, CheckConcat(" :: #import \"group/m", CheckConcat(padded, "\";\n")))))
+        VecPush(calls, CheckConcat("M", CheckConcat(number, ".Read()")))
+    }
+    BuilderAppend(text, "host :: #system_library \"host\";\nHelper :: () -> s32 #foreign host \"helper\";\n#program_export\nAnswer :: () -> s32 {\nreturn Helper() + ")
+    BuilderAppend(text, TextJoin(calls[:], " + ")); BuilderAppend(text, CheckConcat(" + ", CheckConcat(CheckNumber(extra), "\n}\n")))
+    return NativeWrite(test, source, BuilderFinish(text))
+}
+
+ParallelLocked :: (test: *NativeTest, output: string) -> bool {
+    path := CheckPath(output, ".build.lock")
+    if !NativeAssert(test, IsFile(path), "builder lost its output lock file") { return false }
+    lock := LockPath(path, true, false)
+    if lock >= 0 { UnlockPath(lock); return NativeAssert(test, false, "output lock was not retained") }
+    return NativeAssert(test, LinuxErrno() == 11, "output-lock probe failed for a reason other than contention")
+}
+
+ParallelNoTemporary :: (test: *NativeTest, output: string) -> bool {
+    names: Vec(string)
+    if !NativeAssert(test, ListDirectory(output, *names), "read executable outputs") { return false }
+    for name: names { if !NativeAssert(test, !TextHasPrefix(name, ".app."), "builder left an incomplete executable") { return false } }
+    return true
+}
+
+ParallelAnswer :: (test: *NativeTest, output: string, value: s32) -> bool {
+    command := string.[CheckPath(output, "app")]
+    unused NativeRun(test, command[:], "", value)
+    return !test.failed
+}

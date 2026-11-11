@@ -1,0 +1,6 @@
+using Both :: #import "Public";
+#program_export
+main :: () -> s32 {
+    if FromA() + FromB() == 3 { return 0 }
+    return 1
+}

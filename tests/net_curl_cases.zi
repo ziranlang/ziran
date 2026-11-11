@@ -1,0 +1,76 @@
+#import "native_test"
+#import "loopback_server"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+NetCurlCases :: (argc: s32, argv: **u8, mode: string) -> s32 {
+    if argc == 5 && TextFromCString(argv[1]) == "--server" {
+        return LoopbackServer(TextFromCString(argv[2]), TextFromCString(argv[3]), TextFromCString(argv[4]))
+    }
+    test := NativeStart(argc, argv, CheckConcat("net-curl-", CheckConcat(mode, "-")))
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    // RFC 6455's independent handshake vector validates the fixture server.
+    if !NativeAssert(*test, ServerWebSocketAccept("dGhlIHNhbXBsZSBub25jZQ==") == "s3pPLMBiTxaQ9kYGzzhZRbK+xOo=", "WebSocket fixture handshake hash") { return 1 }
+    compiler := ifx PathName(test.ziran) == "zi2c" then test.ziran else CheckPath(PathParent(test.ziran), "zi2c")
+    generated := CheckPath(test.work, "generated")
+    standard := CheckPath(test.repo, "std")
+    module := ifx mode == "http" then "net_http_curl_linux" else "net_ws_curl_linux"
+    generate := string.[compiler, "--no-main", "--root", standard, "--module-path", standard, "-o", generated, CheckPath(standard, CheckConcat(module, ".zi"))]
+    unused NativeRun(*test, generate[:])
+    compile: Vec(string)
+    flags := string.[NativeCompiler(), "-std=c11", "-O0", "-Wall", "-Wextra", "-Werror", "-Wno-unused-function", "-Wno-unused-variable", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    VecPush(compile, CheckPath(test.repo, ifx mode == "http" then "tests/net_http_curl_linux_client.c" else "tests/fixtures/net_curl/websocket_client.c"))
+    files := NativeFiles(generated, ".c")
+    for file: files { if PathName(file) != "net_http.c" { VecPush(compile, file) } }
+    executable := CheckPath(test.work, "client")
+    options := string.["-l:libcurl.so.4", "-pthread", "-o", executable]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(*test, compile[:])
+    if mode == "http" {
+        plain := CheckPath(test.work, "plain")
+        if !NativeWrite(*test, plain, "ready") { return 1 }
+        gzip := string.["gzip", "-nc", "--", plain]
+        small := NativeRun(*test, gzip[:])
+        if !NativeWrite(*test, CheckPath(test.work, "ready.gz"), small.output) { return 1 }
+        large: Vec(u8); for index: 0..255 { unused index; VecPush(large, cast(u8)120) }
+        if !NativeWrite(*test, plain, TextFromBytes(large[:])) { return 1 }
+        compressed := NativeRun(*test, gzip[:])
+        if !NativeWrite(*test, CheckPath(test.work, "large.gz"), compressed.output) { return 1 }
+    }
+    if test.failed { return 1 }
+    server: ProcessRun
+    port_file := CheckPath(test.work, "port")
+    serve := string.[TextFromCString(argv[0]), "--server", ifx mode == "http" then "http" else "websocket", test.work, port_file]
+    server_options: ProcessOptions = .{.arguments = serve[:], .environment = test.environment[:], .new_session = true,
+        .output_path = CheckPath(test.work, "server.stdout"), .error_path = CheckPath(test.work, "server.stderr")}
+    if !NativeAssert(*test, StartProcess(server_options, *server), "start private loopback server") { return 1 }
+    defer NativeStop(*server, 3000)
+    deadline := MonotonicMilliseconds() + 5000
+    while !PathExists(port_file) {
+        if !NativeAssert(*test, !PollProcess(*server) && MonotonicMilliseconds() < deadline, "loopback server did not bind") { return 1 }
+        unused SleepMilliseconds(5)
+    }
+    port := TextTrim(NativeRead(*test, port_file))
+    value, valid := TextInteger(port)
+    if !NativeAssert(*test, valid && value > 0 && value < 65536, "invalid ephemeral server port") { return 1 }
+    url := CheckConcat(ifx mode == "http" then "http://127.0.0.1:" else "ws://127.0.0.1:", CheckConcat(port, ifx mode == "http" then "" else "/events"))
+    run := string.[executable, url]; unused NativeRun(*test, run[:])
+    if mode == "http" {
+        NativeSet(*test, "ZIRAN_CURL_DIRECT_ONLY", "1")
+        names := string.["http_proxy", "HTTP_PROXY", "all_proxy", "ALL_PROXY"]
+        for name: names { NativeSet(*test, name, "http://127.0.0.1:1") }
+        NativeSet(*test, "no_proxy", ""); NativeSet(*test, "NO_PROXY", "")
+        unused NativeRun(*test, run[:])
+    }
+    if test.failed { return 1 }
+    print("Local % transport tests passed against the private native loopback server\n", mode)
+    return 0
+}

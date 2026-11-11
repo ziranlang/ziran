@@ -26,7 +26,8 @@ static void
 usage(void)
 {
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
-            "usage: zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
+            "usage: zi2zx file.zi|file.zir|file.zx\n"
+            "       zi2zx bundle [--module-path DIR] [--define NAME] [--asset-dir NAME=DIR] [--library FILE.zx|--include-library FILE.zx] [--retain module:function] [--bind module:function=module:function] [--bind-host module] --root DIR --entry module:function -o FILE file.zi|file.zir ...\n"
             "       zi2zx run [--vm] file.zx\n"
             "       zi2zx run [--vm] [bundle options] [--root DIR] [--entry module:function] file.zi ...\n"
 #ifdef ZIRAN_NATIVE_ZX
@@ -524,6 +525,9 @@ int
 main(int argc, char **argv)
 {
     SetDiagnosticFormatFromArguments(argc, argv);
+    if(argc > 1 && (is_source(argv[1]) ||
+       (strlen(argv[1]) > 3 && strcmp(argv[1] + strlen(argv[1]) - 3, ".zx") == 0)))
+        return run_command(argc - 1, argv + 1);
     if(argc > 1 && strcmp(argv[1], "bundle") == 0) {
         CommandLowerPriority();
         return bundle_to(argc - 2, argv + 2, NULL, NULL);

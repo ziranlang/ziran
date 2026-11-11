@@ -1,0 +1,145 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/json_document"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+LockedPins :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    source := CheckPath(root, "source"); tool := CheckPath(root, "tool"); app := CheckPath(root, "app")
+    repos := string.[source, tool]
+    urls := string.[FixtureUri(source), FixtureUri(tool)]
+    pins: Vec(string)
+    for index: cast(s64)0..repos.count - 1 {
+        if !FixtureInit(test, repos[index]) || !NativeWrite(test, CheckPath(repos[index], "VERSION"), "1\n") { return false }
+        VecPush(pins, FixtureCommit(test, repos[index], CheckConcat("fixture ", PathName(repos[index]))))
+        remote := string.["remote", "add", "origin", urls[index]]; unused FixtureGit(test, repos[index], remote[:])
+    }
+    parts := string.["[package]\nname = \"Pinned\"\n[toolchain]\ngit = ", FixtureQuote(urls[1]), "\nref = ", FixtureQuote(pins[1]),
+        "\n[dependencies.raw]\ngit = ", FixtureQuote(urls[0]), "\nref = ", FixtureQuote(pins[0]), "\nsource = true\n"]
+    manifest := TextDetach(TextJoin(parts[:], ""))
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) { return false }
+    aliases := string.["ziran", "raw"]; targets := string.[tool, source]
+    if !FixtureOverrides(test, app, aliases[:], targets[:]) { return false }
+    lock := string.["lock", "--offline"]; unused PackageCommand(test, app, lock[:])
+    lock_path := CheckPath(app, "ziran.lock"); locked := NativeRead(test, lock_path)
+    cached: Vec(string)
+    for index: cast(s64)0..repos.count - 1 {
+        digest := FixtureDigest(test, CheckConcat(urls[index], CheckConcat("\n", pins[index])))
+        if !NativeAssert(test, digest.count == 64, "compute independent checkout identity") { return false }
+        destination := CheckPath(root, CheckConcat("cache/ziran/sources/p", TextDetach(TextCopy(digest[:16]))))
+        if !NativeAssert(test, CreateDirectories(PathParent(destination)) && RenameNoReplace(repos[index], destination), "move generated fixture into its own immutable cache") { return false }
+        VecPush(cached, destination)
+    }
+    unused RemoveFile(CheckPath(app, "ziran.local.toml"))
+    path := string.["pkg", "path", "raw", "--locked", "--offline"]
+    if !NativeAssert(test, TextTrim(PackageCommand(test, app, path[:])) == cached[0], "ordinary locked pin selected the wrong cache") { return false }
+    batch := string.[test.ziran, "pkg", "paths", "raw", "ziran", "raw", "--locked", "--offline"]
+    result := NativeRun(test, batch[:], app)
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, result.output) && JsonCount(*document, document.root) == 3, "invalid locked batch") { return false }
+    selectors := string.["raw", "ziran", "raw"]; paths := string.[cached[0], cached[1], cached[0]]
+    for index: cast(s64)0..2 {
+        item := JsonElement(*document, document.root, cast(s32)index)
+        if !NativeAssert(test, JsonCount(*document, item) == 2 && CheckField(*document, item, "selector") == selectors[index] && CheckField(*document, item, "path") == paths[index], "locked batch changed selection or order") { return false }
+    }
+    value := CheckPath(cached[0], "VERSION")
+    if !NativeWrite(test, value, "owner modification\n") { return false }
+    rejected := PackageCommand(test, app, path[:], false)
+    bad_batch := string.[test.ziran, "pkg", "paths", "ziran", "raw", "--locked", "--offline"]
+    failure := NativeInvoke(test, bad_batch[:], app)
+    if !NativeAssert(test, rejected != "" && failure.code != 0 && failure.output == "" && NativeRead(test, value) == "owner modification\n", "invalid immutable payload emitted a partial batch or lost owner data") || !NativeWrite(test, value, "1\n") { return false }
+    missing := string.["0000000000000000000000000000000000000000", "ffffffffffffffffffffffffffffffffffffffff"]
+    fetch := string.["fetch", "--locked", "--offline"]
+    for pin: missing {
+        if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextReplace(manifest, pins[0], pin)) { return false }
+        output := PackageCommand(test, app, fetch[:], false)
+        if !NativeAssert(test, TextContains(output, "dependencies differ"), "changed exact declaration was accepted") { return false }
+    }
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), manifest) { return false }
+    broken: JsonDocument
+    if !NativeAssert(test, JsonRead(*broken, locked), "read lock corruption fixture") { return false }
+    item := JsonElement(*broken, JsonMember(*broken, broken.root, "packages"), 0)
+    CheckPut(*broken, item, "commit", "ffffffffffffffffffffffffffffffffffffffff")
+    if !NativeWrite(test, lock_path, JsonWrite(*broken, broken.root, JsonCompactStyle())) { return false }
+    unused PackageCommand(test, app, fetch[:], false)
+    CheckPut(*broken, item, "commit", "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz")
+    if !NativeWrite(test, lock_path, JsonWrite(*broken, broken.root, JsonCompactStyle())) { return false }
+    invalid := PackageCommand(test, app, fetch[:], false)
+    if !NativeAssert(test, TextContains(invalid, "cannot read ziran.lock"), "nonhex commit was accepted") || !NativeWrite(test, lock_path, locked) ||
+        !NativeWrite(test, CheckPath(cached[0], ".git/refs/heads/master"), "ffffffffffffffffffffffffffffffffffffffff\n") { return false }
+    unused PackageCommand(test, app, fetch[:], false)
+    return !test.failed
+}
+
+SharedCommit :: (test: *NativeTest, root: string) -> bool {
+    if !FixtureIsolation(test, root) { return false }
+    NativeSet(test, "ZIRAN_PINNED_LAUNCHER", "1")
+    leaf := CheckPath(root, "library"); provider := CheckPath(root, "provider"); tool := CheckPath(root, "tool")
+    repos := string.[leaf, provider, tool]
+    for index: cast(s64)0..repos.count - 1 {
+        repo := repos[index]
+        if !FixtureInit(test, repo) || !NativeWrite(test, CheckPath(repo, "VERSION"), "1\n") { return false }
+        if index < 2 {
+            text := CheckConcat("[package]\nname = ", CheckConcat(FixtureQuote(ifx index == 0 then "Library" else "Provider"), "\nmodule_roots = [\"src\"]\n"))
+            if index == 1 { text = CheckConcat(text, CheckConcat("[dependencies.Library]\ngit = ", CheckConcat(FixtureQuote(FixtureUri(leaf)), "\nref = \"master\"\n"))) }
+            text = CheckConcat(text, "[exports]\nValue = \"src/Value.zi\"\n")
+            if !NativeWrite(test, CheckPath(repo, "ziran.toml"), text) || !NativeWrite(test, CheckPath(repo, "src/Value.zi"), "Value :: 1;\n") { return false }
+        }
+        unused FixtureCommit(test, repo, "fixture")
+    }
+    head := string.["rev-parse", "HEAD"]; pinned := FixtureGit(test, leaf, head[:])
+    app := CheckPath(root, "app")
+    manifest := string.["[package]\nname = \"Shared\"\n[toolchain]\ngit = ", FixtureQuote(FixtureUri(tool)), "\nref = \"master\"\n[dependencies.Provider]\ngit = ", FixtureQuote(FixtureUri(provider)),
+        "\nref = \"master\"\n[dependencies.Library]\ngit = ", FixtureQuote(FixtureUri(leaf)), "\nref = ", FixtureQuote(pinned), "\n"]
+    if !NativeWrite(test, CheckPath(app, "ziran.toml"), TextJoin(manifest[:], "")) { return false }
+    aliases := string.["ziran"]; targets := string.[tool]
+    if !FixtureOverrides(test, app, aliases[:], targets[:]) { return false }
+    for iteration: 0..1 {
+        arguments: Vec(string)
+        VecPush(arguments, ifx iteration == 0 then "lock" else "update")
+        if iteration == 1 { VecPush(arguments, "Provider") }
+        unused PackageCommand(test, app, arguments[:])
+        document: JsonDocument
+        if !NativeAssert(test, JsonRead(*document, NativeRead(test, CheckPath(app, "ziran.lock"))), "read shared-ref lock") { return false }
+        packages := JsonMember(*document, document.root, "packages")
+        count: s64
+        for index: cast(s32)0..JsonCount(*document, packages) - 1 {
+            item := JsonElement(*document, packages, index)
+            if CheckField(*document, item, "name") == "Library" {
+                count += 1
+                if !NativeAssert(test, CheckField(*document, item, "commit") == pinned && CheckField(*document, item, "ref") == "master", "branch and exact pin did not share one node") { return false }
+            }
+        }
+        if !NativeAssert(test, count == 1, "one commit created duplicate package nodes") { return false }
+    }
+    unused RemoveFile(CheckPath(app, "ziran.local.toml"))
+    path := string.["pkg", "path", "Library", "--locked"]
+    if !NativeAssert(test, TextTrim(PackageCommand(test, app, path[:])) != "", "locked branch/pin declarations did not validate") { return false }
+    lock_path := CheckPath(app, "ziran.lock")
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, NativeRead(test, lock_path)), "read metadata-free lock fixture") { return false }
+    JsonRemove(*document, JsonMember(*document, document.root, "root"), "dependency_refs")
+    packages := JsonMember(*document, document.root, "packages")
+    for index: cast(s32)0..JsonCount(*document, packages) - 1 { JsonRemove(*document, JsonElement(*document, packages, index), "dependency_refs") }
+    if !NativeWrite(test, lock_path, JsonWrite(*document, document.root, JsonCompactStyle())) { return false }
+    update := string.["update", "ziran"]; unused PackageCommand(test, app, update[:])
+    if !NativeAssert(test, TextTrim(PackageCommand(test, app, path[:])) != "", "toolchain-only rewrite changed shared edge refs") { return false }
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-pins-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    local_only := argc > 3 && TextFromCString(argv[3]) == "--local-overrides-only"
+    if !LockedPins(*test, CheckPath(test.work, "locked")) || (!local_only && !SharedCommit(*test, CheckPath(test.work, "shared"))) { return 1 }
+    print("Local package pins: offline immutable validation, atomic batches, false commits and shared branch/pin identities passed\n")
+    return 0
+}

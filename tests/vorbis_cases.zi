@@ -1,0 +1,181 @@
+#import "native_test"
+#import "check_support"
+#import "check_cache"
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+math_library :: #system_library "m";
+ToneSin :: (radians: float64) -> float64 #foreign math_library "sin";
+VorbisDecoded :: struct { channels: s64; rate: s64; frames: s64; samples: Vec(s64) }
+
+VorbisSamples :: (test: *NativeTest, bytes: string) -> Vec(s64) {
+    samples: Vec(s64)
+    if !NativeAssert(test, bytes.count % 2 == 0, "PCM has an incomplete 16-bit sample") { return .{} }
+    for index: cast(s64)0..bytes.count / 2 - 1 {
+        bits := cast(s64)bytes[index * 2] | (cast(s64)bytes[index * 2 + 1] << 8)
+        VecPush(samples, ifx bits >= 32768 then bits - 65536 else bits)
+    }
+    return samples
+}
+
+VorbisInfo :: (test: *NativeTest, path: string) -> VorbisDecoded {
+    text := NativeRead(test, path)
+    lines := TextLines(text)
+    result: VorbisDecoded
+    if !NativeAssert(test, lines.count == 3, "invalid audio metadata") { return .{} }
+    one, ok1 := TextInteger(lines[0]); two, ok2 := TextInteger(lines[1]); three, ok3 := TextInteger(lines[2])
+    if !NativeAssert(test, ok1 && ok2 && ok3 && one > 0 && two > 0 && three >= 0, "invalid audio metadata values") { return .{} }
+    result.channels = one; result.rate = two; result.frames = three
+    return result
+}
+
+VorbisDecodeCase :: (test: *NativeTest, client: string, path: string, limit: s64, valid: bool = true) -> VorbisDecoded {
+    pcm := CheckPath(test.work, "out.pcm"); info := CheckPath(test.work, "out.info")
+    unused RemoveFile(pcm); unused RemoveFile(info)
+    command := string.[client, path, pcm, CheckNumber(limit), info]
+    unused NativeRun(test, command[:], "", ifx valid then 0 else 2)
+    if !valid || test.failed { return .{} }
+    result := VorbisInfo(test, info)
+    bytes := NativeRead(test, pcm)
+    result.samples = VorbisSamples(test, bytes)
+    if !NativeAssert(test, result.samples.count == result.frames * result.channels, "decoded sample count differs from frame metadata") { return .{} }
+    return result
+}
+
+VorbisProbeCase :: (test: *NativeTest, client: string, path: string, valid: bool = true) -> VorbisDecoded {
+    info := CheckPath(test.work, "probe.info")
+    command := string.[client, "probe", path, info]
+    unused NativeRun(test, command[:], "", ifx valid then 0 else 2)
+    if !valid || test.failed { return .{} }
+    result := VorbisInfo(test, info)
+    return result
+}
+
+VorbisTone :: (test: *NativeTest, path: string, seconds: float64, rate: s64, channels: s64) -> Vec(s64) {
+    samples: Vec(s64); bytes: Vec(u8)
+    frames := cast(s64)(seconds * cast(float64)rate)
+    for index: cast(s64)0..frames - 1 {
+        value := cast(s64)(12000.0 * ToneSin(2.0 * 3.141592653589793 * 440.0 * cast(float64)index / cast(float64)rate))
+        for channel: cast(s64)0..channels - 1 {
+            sample := value
+            if channel == 1 { sample = -value / 2; if value > 0 && value % 2 != 0 { sample -= 1 } }
+            VecPush(samples, sample)
+            bits := cast(u16)sample
+            VecPush(bytes, cast(u8)(bits & cast(u16)255)); VecPush(bytes, cast(u8)(bits >> cast(u16)8))
+        }
+    }
+    raw := CheckConcat(path, ".raw")
+    if !NativeWrite(test, raw, TextFromBytes(bytes[:])) { return .{} }
+    command := string.["ffmpeg", "-v", "error", "-y", "-f", "s16le", "-ar", CheckNumber(rate), "-ac", CheckNumber(channels), "-i", raw, "-c:a", "libvorbis", "-q:a", "4", "-fflags", "+bitexact", "-flags:a", "+bitexact", "-map_metadata", "-1", path]
+    unused NativeRun(test, command[:])
+    return samples
+}
+
+VorbisMaximumDifference :: (actual: []s64, expected: []s64, offset: s64) -> s64 {
+    maximum: s64
+    for index: cast(s64)0..expected.count - 1 {
+        delta := actual[offset + index] - expected[index]
+        if delta < 0 { delta = -delta }; if delta > maximum { maximum = delta }
+    }
+    return maximum
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "vorbis-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !NativeAssert(*test, CheckExecutable("ffmpeg") != "", "Vorbis tests need ffmpeg with libvorbis") { return 1 }
+    source := CheckPath(test.work, "client.zi")
+    if !NativeWrite(*test, source, NativeRead(*test, CheckPath(test.repo, "tests/fixtures/vorbis/client.zi.in"))) { return 1 }
+    generated := CheckPath(test.work, "c")
+    generate := string.[test.ziran, "build", "--target=c", "--entry", "client:main", "--root", test.work, "--module-path", CheckPath(test.repo, "std"), "-o", generated, source]
+    unused NativeRun(*test, generate[:])
+    client := CheckPath(test.work, "client")
+    compile: Vec(string)
+    flags := string.[NativeCompiler(), "-std=c11", "-O1", CheckConcat("-I", CheckPath(test.repo, "include")), CheckConcat("-I", generated)]
+    for flag: flags { VecPush(compile, flag) }
+    files := NativeFiles(generated, ".c")
+    for file: files { VecPush(compile, file) }
+    options := string.["-l:libvorbisfile.so.3", "-lm", "-o", client]
+    for option: options { VecPush(compile, option) }
+    unused NativeRun(*test, compile[:])
+    sizes_path := CheckPath(test.work, "sizes")
+    sizes := string.[client, "sizes", sizes_path]; unused NativeRun(*test, sizes[:])
+    probe_source := CheckPath(test.work, "layout.c")
+    if !NativeWrite(*test, probe_source, NativeRead(*test, CheckPath(test.repo, "tests/fixtures/vorbis/layout.c.in"))) { return 1 }
+    layout: Vec(string); VecPush(layout, NativeCompiler())
+    include := EnvironmentText("VORBIS_INCLUDE")
+    if include != "" { VecPush(layout, CheckConcat("-I", include)) }
+    executable := CheckPath(test.work, "layout")
+    VecPush(layout, probe_source); VecPush(layout, "-o"); VecPush(layout, executable)
+    built := NativeInvoke(*test, layout[:])
+    if built.code == 0 {
+        run := string.[executable]
+        expected := NativeRun(*test, run[:])
+        if !NativeAssert(*test, NativeRead(*test, sizes_path) == expected.output, "mirrored Vorbis records differ from official Xiph headers") { return 1 }
+        print("Vorbis record sizes match the official Xiph headers\n")
+    } else { print("Xiph headers unavailable; mirrored record sizes are guarded by actual decoding\n") }
+    names := string.["speech", "short", "stereo"]
+    durations := float64.[1.5, 0.05, 0.7]
+    rates := s64.[22050, 22050, 44100]
+    channels := s64.[1, 1, 2]
+    for index: cast(s64)0..names.count - 1 {
+        path := CheckPath(test.work, CheckConcat(names[index], ".ogg"))
+        original := VorbisTone(*test, path, durations[index], rates[index], channels[index])
+        decoded := VorbisDecodeCase(*test, client, path, rates[index] * 60)
+        probed := VorbisProbeCase(*test, client, path)
+        if !NativeAssert(*test, !test.failed && decoded.channels == channels[index] && decoded.rate == rates[index] && decoded.frames == original.count / channels[index] &&
+            probed.channels == decoded.channels && probed.rate == decoded.rate && probed.frames == decoded.frames, "Vorbis rate, channels, frame count or probe mismatch") { return 1 }
+        reference := string.["ffmpeg", "-v", "error", "-c:a", "libvorbis", "-i", path, "-f", "s16le", "-acodec", "pcm_s16le", "-"]
+        expected := NativeRun(*test, reference[:])
+        samples := VorbisSamples(*test, expected.output)
+        difference := decoded.samples.count - samples.count
+        if !NativeAssert(*test, samples.count > 0 && difference >= 0 && difference <= 2048 * channels[index], "ffmpeg reference frame length differs") { return 1 }
+        low := VorbisMaximumDifference(decoded.samples[:], samples[:], 0)
+        high := VorbisMaximumDifference(decoded.samples[:], samples[:], difference)
+        if !NativeAssert(*test, low <= 1 || high <= 1, "native decode differs from ffmpeg/libvorbis samples") { return 1 }
+        error: s64; power: s64
+        for at: original.count / 4..3 * original.count / 4 - 1 {
+            delta := decoded.samples[at] - original[at]
+            error += delta * delta; power += original[at] * original[at]
+        }
+        if !NativeAssert(*test, error * 100 < power, "lossy tone error exceeds one percent of signal power") { return 1 }
+        exact := VorbisDecodeCase(*test, client, path, decoded.frames)
+        rejected := VorbisDecodeCase(*test, client, path, decoded.frames - 1, false)
+        unused exact; unused rejected
+    }
+    original := NativeRead(*test, CheckPath(test.work, "speech.ogg"))
+    short := NativeRead(*test, CheckPath(test.work, "short.ogg"))
+    middle := original.count / 2
+    flipped: Vec(u8); BuilderAppend(flipped, original); flipped[middle] ^= cast(u8)255
+    text: Vec(u8); for index: 0..39 { unused index; BuilderAppend(text, "not an ogg stream") }
+    zeros: [4000]u8
+    extra: [16]u8
+    cases := string.["", TextDetach(BuilderFinish(text)), TextDetach(TextCopy(original[:200])), TextDetach(TextCopy(original[:middle])),
+        TextDetach(TextCopy(TextFromBytes(flipped[:]))), CheckConcat(original, short), CheckConcat(original, TextDetach(TextCopy(TextFromBytes(extra[:])))), CheckConcat("RIFF", TextDetach(TextCopy(TextFromBytes(zeros[:]))))]
+    bad := CheckPath(test.work, "bad.ogg")
+    for index: cast(s64)0..cases.count - 1 {
+        if !NativeWrite(*test, bad, cases[index]) { return 1 }
+        rejected := VorbisDecodeCase(*test, client, bad, 22050 * 60, false); unused rejected
+        if index != 4 { probed := VorbisProbeCase(*test, client, bad, false); unused probed }
+    }
+    offsets := s64.[28, 57, 35]
+    values := u8.[86, 0, 1]
+    for index: cast(s64)0..offsets.count - 1 {
+        damaged: Vec(u8); BuilderAppend(damaged, original); damaged[offsets[index]] = values[index]
+        if !NativeWrite(*test, bad, TextFromBytes(damaged[:])) { return 1 }
+        probed := VorbisProbeCase(*test, client, bad, false); rejected := VorbisDecodeCase(*test, client, bad, 22050 * 60, false)
+        unused probed; unused rejected
+    }
+    zero := VorbisDecodeCase(*test, client, CheckPath(test.work, "speech.ogg"), 0, false)
+    negative := VorbisDecodeCase(*test, client, CheckPath(test.work, "speech.ogg"), -5, false)
+    unused zero; unused negative
+    if test.failed { return 1 }
+    print("Local native Vorbis tests: probe, ffmpeg-matching decode, channels/rates, exact bounds and malformed inputs passed\n")
+    return 0
+}

@@ -20,7 +20,8 @@ def memory_workers():
     return 16
 
 # Builds use at most half of the CPUs, and no more than free memory holds.
-workers = min(16, max(1, available_cpus // 2), memory_workers())
+# Pin a small ceiling: available RAM may increase between two child builds.
+workers = min(2, max(1, available_cpus // 2), memory_workers())
 out = work/'out with spaces'
 out.mkdir()
 (work/'group').mkdir()
@@ -39,7 +40,7 @@ def program(extra):
 subprocess.run([real_cc, '-c', str(work/'base.c'), '-o', str(work/'base.o')], check=True)
 subprocess.run(['ar', 'rcs', str(work/'libbase.a'), str(work/'base.o')], check=True)
 (out/'host.c').write_text('extern int base(void); int helper(void) { return base() + BUMP; }\n')
-env = dict(os.environ, CC=real_cc, CFLAGS='-O2 -DBUMP=0', LDFLAGS='-L'+str(work), LDLIBS='-lbase')
+env = dict(os.environ, ZIRAN_JOBS=str(workers), CC=real_cc, CFLAGS='-O2 -DBUMP=0', LDFLAGS='-L'+str(work), LDLIBS='-lbase')
 command = [str(ziran), 'build', '--target=c', '--exe', '--entry', 'app:Answer', '--diagnostics=json',
            '--root', str(work), '--module-path', 'group='+str(work/'group'), '-o', str(out), str(source)]
 program(0)
@@ -167,7 +168,7 @@ try:
     assert subprocess.run([str(out/'app')]).returncode == 42
     (work/'link.release').touch()
     assert first.wait(timeout=30) == second.wait(timeout=30) == 0
-    assert 1 <= state()['peak'] <= workers
+    assert 1 <= state()['peak'] <= workers, (state(), workers)
     if workers > 1: assert state()['peak'] > 1
     assert subprocess.run([str(out/'app')]).returncode == 43
     assert not list(out.glob('.app.*'))
@@ -186,7 +187,7 @@ try:
         until(lambda: (work/'hold.waiting').exists())
         until(lambda: (work/('started-'+last_source)).exists())
         assert not (work/'hold.release').exists() and not (work/'link.ready').exists()
-        assert 1 <= state()['peak'] <= workers
+        assert 1 <= state()['peak'] <= workers, (state(), workers)
         assert subprocess.run([str(out/'app')]).returncode == 41 + number
         (work/'hold.release').touch()
         until(lambda: (work/'link.ready').exists())

@@ -60,6 +60,10 @@ Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
 programs use [`.zx`](docs/ZX.md). Native targets and the portable runner have
 different limits.
 
+Run source as a native script with `ziran task.zi arguments`. Executable Unix
+scripts can start with `#!/usr/bin/env ziran`; after `chmod +x task.zi`, run
+them as `./task.zi arguments`. See [native scripts](docs/USAGE.md#native-scripts).
+
 ## Standard library
 
 The library includes text and UTF-8 helpers, generic values, sorting, queues,

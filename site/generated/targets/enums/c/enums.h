@@ -3,88 +3,40 @@
 #define ZIRAN_ENUMS_H
 
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-typedef int64_t Direction;
+typedef int64_t Shape;
 
 enum {
-    Direction_North = 0,
-    Direction_East = 1,
-    Direction_South = 2,
-    Direction_West = 3,
+    Shape_CIRCLE = 0,
+    Shape_SQUARE = 1,
+    Shape_TRIANGLE = 2,
 };
-int32_t enums_Steps(Direction direction);
-int32_t enums_Answer(void);
+int32_t enums_Corners(Shape shape);
+void enums_main(void);
 
 /* Small procedures other modules inline; enums.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_ENUMS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#if !defined(ZIRAN_ENUMS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
-static inline int32_t enums_Steps_ziran_inline(Direction direction);
-#define enums_Steps(...) enums_Steps_ziran_inline(__VA_ARGS__)
-static inline int32_t enums_Answer_ziran_inline(void);
-#define enums_Answer(...) enums_Answer_ziran_inline(__VA_ARGS__)
+static inline int32_t enums_Corners_ziran_inline(Shape shape);
+#define enums_Corners(...) enums_Corners_ziran_inline(__VA_ARGS__)
 
 static inline int32_t
-enums_Steps_ziran_inline(Direction direction)
+enums_Corners_ziran_inline(Shape shape)
 {
-    if (direction == Direction_North) {
-        return 10;
+    switch (shape) {
+    case Shape_CIRCLE:
+        {
+            return 0;
+        }
+    case Shape_SQUARE:
+        {
+            return 4;
+        }
+    case Shape_TRIANGLE:
+        {
+            return 3;
+        }
     }
-    if (direction == Direction_East) {
-        return 20;
-    }
-    if (direction == Direction_South) {
-        return 30;
-    }
-    return 40;
-}
-
-static inline int32_t
-enums_Answer_ziran_inline(void)
-{
-    int32_t value_0 = 0;
-    {
-        Direction direction = (Direction)(Direction_East);
-        if (direction == Direction_North) {
-            value_0 = 10;
-            goto value_1;
-        }
-        if (direction == Direction_East) {
-            value_0 = 20;
-            goto value_1;
-        }
-        if (direction == Direction_South) {
-            value_0 = 30;
-            goto value_1;
-        }
-        value_0 = 40;
-    value_1: ;
-    }
-    int32_t value_2 = 0;
-    {
-        Direction direction = (Direction)(Direction_West);
-        if (direction == Direction_North) {
-            value_2 = 10;
-            goto value_3;
-        }
-        if (direction == Direction_East) {
-            value_2 = 20;
-            goto value_3;
-        }
-        if (direction == Direction_South) {
-            value_2 = 30;
-            goto value_3;
-        }
-        value_2 = 40;
-    value_3: ;
-    }
-    return (int32_t)((uint32_t)value_0 + (uint32_t)value_2);
-}
-#endif
-
-#ifdef __cplusplus
+    return -1;
 }
 #endif
 

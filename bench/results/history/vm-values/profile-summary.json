@@ -1,0 +1,49 @@
+{
+  "workload": "unchanged Kryon pixmap_frame_test saved bundle",
+  "method": "gprof sampling and call counters; only VM translation units instrumented",
+  "instrumented": true,
+  "use_for_uninstrumented_speedup_claims": false,
+  "functions": [
+    {
+      "function": "int_value",
+      "sample_percent": 42.26,
+      "calls": 2268384760
+    },
+    {
+      "function": "eval_expression",
+      "sample_percent": 14.15,
+      "calls": 164905288
+    },
+    {
+      "function": "coerce",
+      "sample_percent": 7.29,
+      "calls": 771716728
+    },
+    {
+      "function": "coerce_expression",
+      "sample_percent": 4.23,
+      "calls": 691763312
+    },
+    {
+      "function": "binary_value",
+      "sample_percent": 3.18,
+      "calls": 196393745
+    },
+    {
+      "function": "run_function",
+      "sample_percent": 2.89,
+      "calls": 8679134
+    },
+    {
+      "function": "value_kind",
+      "sample_percent": 2.45,
+      "calls": 781395317
+    },
+    {
+      "function": "release_retired",
+      "sample_percent": 0.82,
+      "calls": 8796430
+    }
+  ],
+  "next_experiment": "Inline small scalar constructors and compare the unchanged bundle with uninstrumented binaries. Scalar arrays still occupy 174 MB and need typed storage."
+}

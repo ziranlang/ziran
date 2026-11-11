@@ -1,8 +1,0 @@
-// Integer recurrence: a changing accumulator over 2,000 iterations.
-Answer :: () -> s64 {
-    value: s64 = 7;
-    for i: 0..1999 {
-        value = (value * 17 + cast(s64)i) % 1000003;
-    }
-    return value;
-}

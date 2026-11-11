@@ -1,0 +1,10 @@
+{
+  "control_seconds": 6.868950064,
+  "candidate_seconds": 4.702420012,
+  "same_tracked_build_inputs": true,
+  "all_12_final_outputs_byte_identical": true,
+  "different_outputs": [],
+  "bootstrap_control_cflags": "-O2",
+  "bootstrap_candidate_cflags": "-O0",
+  "final_cflags": "-O2"
+}

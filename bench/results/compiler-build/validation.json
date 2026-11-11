@@ -1,0 +1,20 @@
+{
+  "command": "make -j16 check CHECK_JOBS=16 check-bootstrap",
+  "local_tests_passed": 519,
+  "local_tests_total": 522,
+  "suite_seconds": 217.9,
+  "failed_tests": [
+    "native_entry.sh",
+    "portable_entry.sh",
+    "program_export.sh"
+  ],
+  "bootstrap": "all 16 generated compiler modules match",
+  "scope": "Local unrestricted test run; no GitHub command used.",
+  "same_failures_with_old_bootstrap_cflags": [
+    "native_entry.sh",
+    "portable_entry.sh",
+    "program_export.sh"
+  ],
+  "control_bootstrap_cflags": "-O2",
+  "classification": "All three failures reproduce using the former bootstrap settings on the same tracked build inputs."
+}

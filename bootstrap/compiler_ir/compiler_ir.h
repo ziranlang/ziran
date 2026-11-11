@@ -2,11 +2,10 @@
 #ifndef ZIRAN_COMPILER_IR_H
 #define ZIRAN_COMPILER_IR_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
+#include "zir_bounds.h"
+#include "zir_slice.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -439,6 +438,8 @@ bool compiler_ir_CopyText(Slice output, String text);
 
 /* Small procedures other modules inline; compiler_ir.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_IR_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdbool.h>
+#include "zir_string_types.h"
 #include "zir_bounds.h"
 static inline bool compiler_ir_CopyText_ziran_inline(Slice output, String text);
 #define compiler_ir_CopyText(...) compiler_ir_CopyText_ziran_inline(__VA_ARGS__)

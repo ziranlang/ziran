@@ -126,3 +126,90 @@ if "$ziran" check --root "$work" "$work/templates.zi" 2> "$work/templates.err"; 
     exit 1
 fi
 grep -Fq 'argument type mismatch' "$work/templates.err"
+
+# Reexported generic fields agree with locally instantiated applications.
+cat > "$work/boxes.zi" <<'ZI'
+#import "std/vec"
+Box :: struct { bytes: Vec(u8); }
+ZI
+cat > "$work/box_api.zi" <<'ZI'
+using Boxes :: #import "boxes"
+ZI
+cat > "$work/box_app.zi" <<'ZI'
+#import "box_api"
+#import "std/vec"
+#program_export
+Answer :: () -> s32 {
+    bytes: Vec(u8)
+    unused VecResizeBounded(bytes, 2, 2)
+    box := Box.{bytes = bytes}
+    return cast(s32)box.bytes.count + 40
+}
+ZI
+"$ziran" ir --root "$work" -o "$work/box-ir" "$work/box_app.zi"
+for input in source saved; do
+    root=$work; file=$work/box_app.zi
+    if test "$input" = saved; then root=$work/box-ir; file=$root/box_app.zir; fi
+    "$ziran" bundle --root "$root" --entry box_app:Answer -o "$work/box-$input.zx" "$file"
+    test "$("$ziran" run "$work/box-$input.zx")" = 42
+    "$ziran" build --target=c --exe --root "$root" --entry box_app:Answer -o "$work/box-c-$input" "$file"
+    status=0; "$work/box-c-$input/box_app" || status=$?
+    test "$status" = 42
+    "$ziran" build --target=go --pkg main --root "$root" -o "$work/box-go-$input" "$file"
+    cat > "$work/box-go-$input/main.go" <<'GO'
+package main
+func main() { if BoxApp_Answer() != 42 { panic("reexported generic field") } }
+GO
+    GO111MODULE=off go run "$work/box-go-$input"/*.go
+done
+
+# Equal generated names cannot erase distinct template identities.
+cat > "$work/cells.zi" <<'ZI'
+Cell :: struct($T: Type) { value: T }
+Holder :: struct { item: Cell(s32) }
+ZI
+cat > "$work/cell_api.zi" <<'ZI'
+using Cells :: #import "cells"
+ZI
+cat > "$work/cell_app.zi" <<'ZI'
+#import "cell_api"
+Cell :: struct($T: Type) { value: T }
+Answer :: () -> s32 {
+    own: Cell(s32)
+    holder: Holder
+    return holder.item.value + own.value
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/cell-ir" "$work/cell_app.zi" 2> "$work/cell.err"; then
+    echo 'accepted shadowed generic field with a distinct template' >&2
+    exit 1
+fi
+grep -Fq 'imported record field type is shadowed: item' "$work/cell.err"
+
+# A shared template applied to distinct nominal leaves stays distinct too.
+cat > "$work/shared_cell.zi" <<'ZI'
+Cell :: struct($T: Type) { value: T }
+ZI
+cat > "$work/leaf_holder.zi" <<'ZI'
+#import "shared_cell"
+Leaf :: struct { value: s32 }
+Holder :: struct { item: Cell(Leaf) }
+ZI
+cat > "$work/leaf_api.zi" <<'ZI'
+using Leaves :: #import "leaf_holder"
+ZI
+cat > "$work/leaf_app.zi" <<'ZI'
+#import "leaf_api"
+#import "shared_cell"
+Leaf :: struct { value: s32 }
+Answer :: () -> s32 {
+    own: Cell(Leaf)
+    holder: Holder
+    return holder.item.value.value + own.value.value
+}
+ZI
+if "$ziran" ir --root "$work" -o "$work/leaf-ir" "$work/leaf_app.zi" 2> "$work/leaf.err"; then
+    echo 'accepted shadowed generic field with a distinct nominal argument' >&2
+    exit 1
+fi
+grep -Fq 'imported record field type is shadowed: item' "$work/leaf.err"

@@ -4,14 +4,6 @@
 
 #include <stdint.h>
 #include "text.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 int32_t text_demo_Answer(void);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ZIRAN_TEXT_DEMO_H */

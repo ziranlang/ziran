@@ -1,0 +1,5 @@
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/program_export.sh.onmy05o9/tmp.S8X2dAAbB9/keyword_main.c: In function ‘main’:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/program_export.sh.onmy05o9/tmp.S8X2dAAbB9/keyword_main.c:4:45: error: implicit declaration of function ‘ziran_keyword_class_0’; did you mean ‘ziran_keyword_switch_0’? [-Wimplicit-function-declaration]
+    4 |            ziran_keyword_switch_0() == 1 && ziran_keyword_class_0() == 2
+      |                                             ^~~~~~~~~~~~~~~~~~~~~
+      |                                             ziran_keyword_switch_0

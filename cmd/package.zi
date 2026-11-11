@@ -223,14 +223,15 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
         index: s32 = 0
         while index < cast(s32)arguments.count {
             if arguments[index] == "--target=c" ||
-               arguments[index] == "--target=go" {
+               arguments[index] == "--target=go" || arguments[index] == "--target=wasm" {
                 target = arguments[index]
             }
             index += 1
         }
         if target == "--target=c" { executable = "zi2c" }
         else if target == "--target=go" { executable = "zi2go" }
-        else { return PkgFail("build needs --target=c|go") }
+        else if target == "--target=wasm" { executable = "zi2wasm" }
+        else { return PkgFail("build needs --target=c|go|wasm") }
     }
     if executable.count == 0 { return PkgFail("unknown Ziran command") }
     tool_directory: string = PkgLauncherDirectory(launcher)
@@ -293,7 +294,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     if check { child[count] = "--check-only"; count += 1 }
     // `ziran build -o DIR` owns DIR: generated files from an earlier build
     // that this one does not write are removed so they cannot be linked.
-    if build {
+    if build && executable != "zi2wasm" {
         child[count] = "--prune-stale"
         count += 1
     }
@@ -310,7 +311,7 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     index: s32 = 0
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if !(build && (part == "--target=c" || part == "--target=go")) {
+        if !(build && (part == "--target=c" || part == "--target=go" || part == "--target=wasm")) {
             child[count] = part
             count += 1
             if PkgEndsWith(part, ".zi") || PkgEndsWith(part, ".zir") {
@@ -663,7 +664,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran ir [--root DIR] [--entry module:function] [--module-path DIR] [-o FILE.zir] [file.zi ...]\n"
     }
     if command == "build" {
-        return "usage: ziran build --target=c|go [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o DIR] [file.zi ...]; in a project: ziran build\n"
+        return "usage: ziran build --target=c|go|wasm [--exe --entry module:function] [--root DIR] [--module-path DIR] [-o DIR] [file.zi ...]; in a project: ziran build\n"
     }
     if command == "bundle" {
         return "usage: ziran bundle --entry module:function [--root DIR] [--module-path DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [-o FILE] [file.zi ...]\n"
@@ -672,7 +673,7 @@ PkgUsage :: (command: string) -> string {
         return "usage: ziran run [--vm] FILE.zx | ziran run [--target=c [--no-cache]] [--root DIR] [--entry module:function] [FILE.zi [-- ARGS]]; in a project: ziran run [-- ARGS]\n"
     }
     if command == "fmt" { return "usage: ziran fmt [--check] FILE.zi ...\n" }
-    if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir\n" }
+    if command == "inspect" { return "usage: ziran inspect [--hex] FILE.zir|FILE.zx\n" }
     if command == "compile-commands" {
         return "usage: ziran compile-commands [--compiler CC] [--include DIR] [-o FILE] GENERATED_DIR\n"
     }
@@ -700,13 +701,24 @@ PkgFlagsEnd :: (command: string, arguments: []string) -> s32 {
 
 #program_export
 PackageMain :: (launcher: string, arguments: []string) -> s32 {
+    // Source execution also supports #!/usr/bin/env ziran. Normalize before
+    // parsing so every word after the filename belongs to the script.
+    if arguments.count > 0 && PkgEndsWith(arguments[0], ".zi") {
+        script: Vec(string)
+        defer VecFree(script)
+        if !VecPush(script, "run") || !VecPush(script, "--target=c") { return 2 }
+        for argument: arguments {
+            if !VecPush(script, argument) { return 2 }
+        }
+        return PackageMain(launcher, VecSlice(script, 0, script.count))
+    }
     PkgSetDiagnosticFormat(arguments)
     if arguments.count == 0 || arguments[0] == "help" ||
        arguments[0] == "--help" || arguments[0] == "-h" {
         PkgPrint("usage: ziran version|guide|features|capabilities|explain|api|new|init|lock|update|fetch|add|pkg|tool|install|check|ir|build|bundle|run|fmt|inspect|compile-commands ...\n", false)
         PkgPrint("project commands: --project [--locked] [--offline]\n", false)
         PkgPrint("in a project, run, build, check, and install without a file work on its program\n", false)
-        PkgPrint("scripts: ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
+        PkgPrint("scripts: ziran FILE.zi [ARGS] | ziran run --target=c [--no-cache] FILE.zi -- ARGS\n", false)
         PkgPrint("new to Ziran? run ziran guide\n", false)
         return 0
     }

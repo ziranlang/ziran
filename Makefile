@@ -47,6 +47,9 @@ BIN_DIR := $(BUILD_DIR)/bin
 # modules. Normal tools always link freshly compiled .zi implementations.
 HOST_CC ?= cc
 HOST_OBJCOPY ?= $(if $(findstring darwin,$(shell $(HOST_CC) -dumpmachine 2>/dev/null)),true,objcopy)
+# The seed only emits the compiler modules' C once. Optimize the final tools
+# with CFLAGS; spending optimizer time on this short-lived seed delays them.
+BOOTSTRAP_CFLAGS ?= -O0
 BOOTSTRAP ?= 0
 SCANNER_OBJECT := $(BUILD_DIR)/obj/compiler-scan.o
 TEXT_OBJECT := $(BUILD_DIR)/obj/compiler-text.o
@@ -404,7 +407,7 @@ package-link: $(PACKAGE_OBJECTS) | $(BIN_DIR)
 	trap 'rm -f "$$linked_bin"' EXIT; \
 	trap 'exit 1' HUP INT TERM; \
 	$(CC) $(CFLAGS) -o "$$linked_bin" $(PACKAGE_OBJECTS) $(PACKAGE_LIBS); \
-	chmod u+x "$$linked_bin"; \
+	chmod 755 "$$linked_bin"; \
 	mv -f "$$linked_bin" "$(BIN_DIR)/ziran"
 
 $(BIN_DIR)/ziran: $(PACKAGE_C)/.generated $(HEADERS) | $(BIN_DIR)
@@ -425,11 +428,12 @@ $(BIN_DIR)/zi-edit: cmd/edit.zi cmd/transport.zi cmd/format_source.zi cmd/diagno
 
 $(BIN_DIR)/zi2zir: $(call obj,cmd/zir-ir/main.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
+	chmod 755 $@
 
 $(BIN_DIR)/zi-api: $(call obj,cmd/zir-api/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
-$(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) | $(BIN_DIR)
+$(BIN_DIR)/zi-inspect: $(call obj,cmd/zir-inspect/main.c) $(FRONTEND_OBJECTS) $(BUNDLE_OBJECT) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 RUNTIME_HEADERS := include/zir_bounds.h include/zir_string_types.h include/zir_string.h include/zir_slice.h \
@@ -448,12 +452,14 @@ $(BUILD_DIR)/runtime_headers.c: scripts/embed_headers.sh $(RUNTIME_HEADERS) forc
 $(BIN_DIR)/zi2c: $(call obj,cmd/zir-c/main.c cmd/zir-c/zir_c_build.c cmd/zir-c/zir_c_cache.c cmd/zir-c/zir_c_lower.c) \
     $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) $(RUNTIME_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
+	chmod 755 $@
 
 $(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir-go/zir_go_asm.c cmd/zir-go/zir_go_amd64.c) $(BUNDLE_OBJECT) $(FRONTEND_OBJECTS) | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 $(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
+	chmod 755 $@
 
 $(BIN_DIR)/zi2wasm: $(call obj,cmd/zir-wasm/main.c cmd/zir-wasm/zir_wasm_lower.c) $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
@@ -484,7 +490,7 @@ $(BOOTSTRAP_BIN): $(FRONTEND) $(PARSE_PARTS) $(CHECK_PARTS) $(EMIT_PARTS) \
     bootstrap/compiler_link/compiler_link.c bootstrap/compiler_link/compiler_link.h \
     bootstrap/compiler_link/vec.h Makefile
 	+$(MAKE) --no-print-directory BOOTSTRAP=1 BUILD_DIR=$(BUILD_DIR)/bootstrap \
-	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=-O2 \
+	    CC=$(call quote,$(HOST_CC)) AR=ar OBJCOPY=$(call quote,$(HOST_OBJCOPY)) CFLAGS=$(call quote,$(BOOTSTRAP_CFLAGS)) \
 	    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= $(BOOTSTRAP_BIN)
 
 $(SCANNER_C)/.generated: cmd/compiler_scan.zi $(BOOTSTRAP_BIN)

@@ -2,32 +2,6 @@
 #ifndef ZIRAN_LOOPS_H
 #define ZIRAN_LOOPS_H
 
-#include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-int64_t loops_Answer(void);
-
-/* Small procedures other modules inline; loops.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_LOOPS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
-#include <stdint.h>
-static inline int64_t loops_Answer_ziran_inline(void);
-#define loops_Answer(...) loops_Answer_ziran_inline(__VA_ARGS__)
-
-static inline int64_t
-loops_Answer_ziran_inline(void)
-{
-    int64_t value = 7LL;
-    for (int64_t i = 0LL; i <= 1999LL; i++) {
-        value = ((int64_t)(((uint64_t)value * UINT64_C(17)) + (uint64_t)i)) % 1000003LL;
-    }
-    return value;
-}
-#endif
-
-#ifdef __cplusplus
-}
-#endif
+void loops_main(void);
 
 #endif /* ZIRAN_LOOPS_H */

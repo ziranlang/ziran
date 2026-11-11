@@ -4,15 +4,7 @@
 
 #include <stdbool.h>
 #include "zir_string_types.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 uint8_t LowerASCII(uint8_t value);
 bool StartsWithFoldASCII(String value, String prefix);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ZIRAN_TEXT_H */

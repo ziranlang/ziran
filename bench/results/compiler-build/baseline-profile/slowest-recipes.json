@@ -1,0 +1,162 @@
+[
+  {
+    "pid": 3278687,
+    "started_ns": 3537244398658,
+    "finished_ns": 3542076316803,
+    "wall_ns": 4831918145,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -Iinclude -Icmd/zir -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -w -DONE_SOURCE=1 \\\n    -Icmd/zir/tinycc -Ithird_party/tinycc -c -o build/obj/tinycc.o third_party/tinycc/libtcc.c"
+  },
+  {
+    "pid": 3279199,
+    "started_ns": 3537363157751,
+    "finished_ns": 3540058769830,
+    "wall_ns": 2695612079,
+    "exit_code": 0,
+    "command": "-c /usr/bin/make --no-print-directory BOOTSTRAP=1 BUILD_DIR=build/bootstrap \\\n    CC='cc' AR=ar OBJCOPY='objcopy' CFLAGS=-O2 \\\n    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= build/bootstrap/bin/zi2c"
+  },
+  {
+    "pid": 3282658,
+    "started_ns": 3540902896721,
+    "finished_ns": 3542535114356,
+    "wall_ns": 1632217635,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_vm_eval.o cmd/zir/zir_vm_eval.c"
+  },
+  {
+    "pid": 3282035,
+    "started_ns": 3540127398652,
+    "finished_ns": 3541652517020,
+    "wall_ns": 1525118368,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_parse_source.o cmd/zir/zir_parse_source.c"
+  },
+  {
+    "pid": 3282306,
+    "started_ns": 3540465316056,
+    "finished_ns": 3541875350538,
+    "wall_ns": 1410034482,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_emit_range.o cmd/zir/zir_emit_range.c"
+  },
+  {
+    "pid": 3281950,
+    "started_ns": 3540081296050,
+    "finished_ns": 3541427485496,
+    "wall_ns": 1346189446,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_check_expr.o cmd/zir/zir_check_expr.c"
+  },
+  {
+    "pid": 3280344,
+    "started_ns": 3538159810110,
+    "finished_ns": 3539468799010,
+    "wall_ns": 1308988900,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir/zir_check_expr.o cmd/zir/zir_check_expr.c"
+  },
+  {
+    "pid": 3280865,
+    "started_ns": 3538750991461,
+    "finished_ns": 3540019280107,
+    "wall_ns": 1268288646,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir/zir_emit_range.o cmd/zir/zir_emit_range.c"
+  },
+  {
+    "pid": 3282942,
+    "started_ns": 3541350740560,
+    "finished_ns": 3542615518008,
+    "wall_ns": 1264777448,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_bundle.o cmd/zir/zir_bundle.c"
+  },
+  {
+    "pid": 3279317,
+    "started_ns": 3537403136841,
+    "finished_ns": 3538637730038,
+    "wall_ns": 1234593197,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir/zir_bundle.o cmd/zir/zir_bundle.c"
+  },
+  {
+    "pid": 3284165,
+    "started_ns": 3542952887417,
+    "finished_ns": 3544130827875,
+    "wall_ns": 1177940458,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Ibuild/edit-c -o build/bin/zi-edit build/edit-c/*.c cmd/zir/zir_edit.c build/obj/cmd/zir/zir_overlay.o build/obj/cmd/zir/zir_semantic.o build/obj/cmd/zir/zir_document.o build/obj/cmd/zir/zir_sha256.o build/obj/cmd/zir/zir_context.o build/obj/cmd/zir/zir_memory.o build/obj/cmd/zir/zir_storage.o build/obj/cmd/zir/zir.o build/obj/cmd/zir/zir_asm.o build/obj/cmd/zir/zir_enum.o build/obj/cmd/zir/zir_type.o build/obj/cmd/zir/zir_text.o build/obj/cmd/zir/zir_native.o build/obj/cmd/zir/zir_simd.o build/obj/cmd/zir/zir_body.o build/obj/cmd/zir/zir_token.o build/obj/cmd/zir/zir_cleanup.o build/obj/cmd/zir/zir_expr.o build/obj/cmd/zir/zir_borrow.o build/obj/cmd/zir/zir_law.o build/obj/cmd/zir/zir_serial.o build/obj/cmd/zir/zir_load.o build/obj/cmd/zir/zir_packages.o build/obj/cmd/zir/zir_diagnostic.o build/obj/cmd/zir/zir_profile.o build/obj/cmd/zir/zir_files.o build/obj/cmd/zir/zir_services.o build/obj/compiler-scan.o build/obj/compiler-text.o build/obj/compiler-source.o build/obj/compiler-declaration.o build/obj/compiler-enum.o build/obj/compiler-type.o build/obj/compiler-expression.o build/obj/compiler-statement.o build/obj/compiler-proof-kernel.o build/obj/compiler-proof.o build/obj/compiler-ir.o build/obj/compiler-law.o build/obj/compiler-services.o build/obj/compiler-link.o build/obj/check.o build/obj/parse.o build/obj/emit.o build/obj/compiler-parse.o -lm"
+  },
+  {
+    "pid": 3282741,
+    "started_ns": 3540996862410,
+    "finished_ns": 3542155503593,
+    "wall_ns": 1158641183,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir/zir_vm_simd.o cmd/zir/zir_vm_simd.c"
+  },
+  {
+    "pid": 3279307,
+    "started_ns": 3537402593818,
+    "finished_ns": 3538549843955,
+    "wall_ns": 1147250137,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir-c/zir_c_lower.o cmd/zir-c/zir_c_lower.c"
+  },
+  {
+    "pid": 3282519,
+    "started_ns": 3540740626497,
+    "finished_ns": 3541862235423,
+    "wall_ns": 1121608926,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir-go/zir_go_lower.o cmd/zir-go/zir_go_lower.c"
+  },
+  {
+    "pid": 3282785,
+    "started_ns": 3541041847923,
+    "finished_ns": 3542136893418,
+    "wall_ns": 1095045495,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir-wasm/zir_wasm_lower.o cmd/zir-wasm/zir_wasm_lower.c"
+  },
+  {
+    "pid": 3280774,
+    "started_ns": 3538582571742,
+    "finished_ns": 3539674399594,
+    "wall_ns": 1091827852,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir/zir_parse_source.o cmd/zir/zir_parse_source.c"
+  },
+  {
+    "pid": 3282917,
+    "started_ns": 3541321057058,
+    "finished_ns": 3542383704995,
+    "wall_ns": 1062647937,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/cmd/zir-c/zir_c_lower.o cmd/zir-c/zir_c_lower.c"
+  },
+  {
+    "pid": 3284295,
+    "started_ns": 3543084548131,
+    "finished_ns": 3543954360980,
+    "wall_ns": 869812849,
+    "exit_code": 0,
+    "command": "-c /usr/bin/make --no-print-directory package-link"
+  },
+  {
+    "pid": 3279825,
+    "started_ns": 3537639155973,
+    "finished_ns": 3538436394710,
+    "wall_ns": 797238737,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/bootstrap/obj/cmd/zir/zir_law.o cmd/zir/zir_law.c"
+  },
+  {
+    "pid": 3284415,
+    "started_ns": 3543136301870,
+    "finished_ns": 3543924469373,
+    "wall_ns": 788167503,
+    "exit_code": 0,
+    "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Ibuild/package-c -MMD -MP -c -o build/obj/package-c/package.o build/package-c/package.c"
+  }
+]

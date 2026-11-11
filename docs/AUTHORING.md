@@ -18,7 +18,7 @@ corpus (`tests/llm_authoring/tasks.json`, corpus 1.0.0):
 
 ```sh
 build-queue -- sh tests/authoring_workflows.sh build/bin/ziran
-build-queue -- sh tests/authoring_workflows.sh build/bin/ziran --report backup/report.json
+build-queue -- sh tests/authoring_workflows.sh build/bin/ziran --report build/check-logs/authoring-report.json
 python3 tests/authoring_workflows.py --validate-only
 ```
 

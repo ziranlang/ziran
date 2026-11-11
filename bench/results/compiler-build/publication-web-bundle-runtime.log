@@ -1,0 +1,2 @@
+Web BuildBundle: 273 roots and inputs, last-root/last-input resolution, first-root ordering, empty separators, diagnostics, stale-output removal, repeated error recovery passed
+Browser bundle compiler: named imports, deterministic output, diagnostics, 64-bit values, UTF-8, stale-output removal, and recovery passed

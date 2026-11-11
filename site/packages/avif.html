@@ -109,7 +109,6 @@ See <a href="https://github.com/ziranlang/avif/blob/HEAD/docs/VERIFICATION.md">i
 <div><code>ValidateEncodeAPI :: (api: AvifEncodeAPI) -&gt; DecodeError</code></div>
 <div><code>EncodeNativeError :: (code: s32) -&gt; DecodeError</code></div>
 <div><code>EncodeRGBA8WithAPI :: (api: AvifEncodeAPI, source: RgbaView, metadata: EncodeMetadata, options: EncodeOptions) -&gt; EncodeResult</code><p>No resize or orientation bake: AVIF transforms carry the stored-pixel orientation.</p></div>
-<div><code>EncodeNativeImage :: (api: AvifEncodeAPI, image: *RawImage, options: EncodeOptions) -&gt; EncodeResult</code><p>Shared write boundary for RGBA input and AVIF transcodes.</p></div>
 <div><code>ReencodeWithAPI :: (decode_api: AvifAPI, api: AvifEncodeAPI, input: BorrowedBytes, options: EncodeOptions) -&gt; EncodeResult</code><p>Re-encode a still 8-bit AVIF retaining metadata and transforms.</p></div>
 </div><p><a class="text-link" href="https://github.com/ziranlang/avif/blob/HEAD/src/encode.zi">Source ↗</a></p></section>
 <section id="module-preview"><p class="eyebrow">avif/src/preview.zi</p><h2>preview</h2><p>Headless, explicit Lanczos-3 resize of straight RGBA8. Encoding never calls this implicitly.</p><p>Import with <code>#import "avif/preview"</code>.</p><div class="api-list">

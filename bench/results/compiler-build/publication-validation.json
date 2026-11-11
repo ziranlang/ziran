@@ -1,0 +1,43 @@
+{
+  "recorded_at": "2026-11-11T02:48:48.947142+00:00",
+  "revision_base": "61b1e5402a4873dc8e84d727bcbe10d7b3077ad6",
+  "compiler_source_diff_sha256": "af1717a305b381549a371b0f8073a3354ddddda795325202a69574a5da10c425",
+  "full_suite": {
+    "total": 522,
+    "failed": 1,
+    "seconds": 282.819012813,
+    "executed": 522,
+    "reused": 0
+  },
+  "full_suite_failure": "cross_module_inline.sh still contained a new assertion rejecting the existing C++ header interface; restored its original C++ host syntax test without changing compiler sources after this full run.",
+  "corrected_test_rerun": {
+    "total": 1,
+    "failed": 0,
+    "seconds": 1.0933984350003811,
+    "executed": 1,
+    "reused": 0
+  },
+  "current_test_results": {
+    "total": 522,
+    "passed": 522,
+    "failed": 0,
+    "note": "521 passes from the full run and the corrected cross_module_inline.sh rerun."
+  },
+  "bootstrap_modules_matched": 16,
+  "browser_local_tests": "25 matrix cells, 5 WebAssembly executions, 3 platforms, 6 widths, 11 routes, themes and no-JavaScript fallbacks passed",
+  "runtime_local_tests": "playground_runtime.cjs and web_bundle_runtime.cjs passed",
+  "site_links": {
+    "pages": 137,
+    "local_links": 4323,
+    "broken": 0
+  },
+  "matrix": {
+    "platforms": 3,
+    "examples_per_platform": 5,
+    "targets_per_example": 4,
+    "measurements": 60,
+    "samples_per_measurement": 5,
+    "stdout_verified": 60
+  },
+  "historical_build_benchmark": "The earlier 4.702420012 second median and output-equivalence comparison retain their original source fingerprint; this later interoperability repair is separately validated here."
+}

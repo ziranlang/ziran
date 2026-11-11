@@ -1,0 +1,77 @@
+{
+  "workload": "unchanged Kryon pixmap_frame_test saved bundle",
+  "method": "B/A/A/B, two runs per variant, uninstrumented frozen binaries",
+  "baseline_commit": "e5a9e15881ab214d51881b6e7a190dc134cce1ec",
+  "retained_variant": "inline scalar constructors only",
+  "pixel_checks": "passed in all four runs",
+  "cpu_speedup": 1.407594267203199,
+  "cpu_reduction_percent": 28.95680074152781,
+  "wall_speedup": 1.4072087461956586,
+  "rss_change_percent": -0.15242991212863766,
+  "ram_saving_established": false,
+  "full_harmony_interaction_speedup_established": false,
+  "variants": {
+    "baseline": {
+      "cpu_seconds": 55.3473505,
+      "wall_seconds": 55.38918552050018,
+      "max_rss_kib": 200748.0,
+      "runs": [
+        {
+          "verified_at_utc": "2026-10-07T11:00:25.219368+00:00",
+          "command": [
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-after",
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame.zib"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 55.389711963012815,
+          "user_cpu_seconds": 55.289259,
+          "system_cpu_seconds": 0.048227,
+          "max_rss_kib": 200664
+        },
+        {
+          "verified_at_utc": "2026-10-07T11:02:39.379334+00:00",
+          "command": [
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-after",
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame.zib"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 55.38865907798754,
+          "user_cpu_seconds": 55.32116,
+          "system_cpu_seconds": 0.036055,
+          "max_rss_kib": 200832
+        }
+      ]
+    },
+    "constructors": {
+      "cpu_seconds": 39.3205285,
+      "wall_seconds": 39.36102989001665,
+      "max_rss_kib": 200442.0,
+      "runs": [
+        {
+          "verified_at_utc": "2026-10-07T11:01:04.787927+00:00",
+          "command": [
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-constructors",
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame.zib"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 39.55250240600435,
+          "user_cpu_seconds": 39.464229,
+          "system_cpu_seconds": 0.028142,
+          "max_rss_kib": 200576
+        },
+        {
+          "verified_at_utc": "2026-10-07T11:01:43.973986+00:00",
+          "command": [
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-constructors",
+            "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame.zib"
+          ],
+          "exit_status": 0,
+          "wall_seconds": 39.169557374028955,
+          "user_cpu_seconds": 39.088538,
+          "system_cpu_seconds": 0.060148,
+          "max_rss_kib": 200308
+        }
+      ]
+    }
+  }
+}

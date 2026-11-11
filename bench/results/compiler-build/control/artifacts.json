@@ -1,0 +1,14 @@
+{
+  "build/bin/ziran": "9446f0a149c896cd9ce9cccade3cb15f35fd8855c4487c89acdfdeca0b4ad107",
+  "build/bin/zi2c": "a2c0dd0e50fc51eaaac6d390c2b4ea7b7dff83cc454e89c2c34603f1336214d6",
+  "build/bin/zi2go": "0acc1dbf86df5f7f4844eafcadd9decc146e3f8c6c6cc52ff47d1b5af575a5ea",
+  "build/bin/zi2zx": "67ce2a5b675dca0858a8c485d7767c45525457d26852f6e8e8497a9df4964c0e",
+  "build/bin/zi2wasm": "93d64dbcd4f1257c58a08a8f00cddeea5df40446213e2c3a6756ea4d9e6efe3f",
+  "build/bin/zi2zir": "5ff769fa06f310bc367bff216f10c091c19a9ed5cc4a6e40678ad99b82bc5462",
+  "build/bin/zi-api": "52456ef68080bd8915c1197de2048e5d676ac0b508bb239e43d571a572da3de9",
+  "build/bin/zi-inspect": "21d09c16c0a51fcbb59f88505f451418c6dbb09a548f0f473f244c24f90e381f",
+  "build/bin/zi-edit": "876754530f9e2183e5b547bb417d8aadd9400ccac23c126076dab8c73e3b0f8c",
+  "build/bin/zi-fmt": "94921959fb9d6ac95721277f550943537efc9d8fb8e9e1d372193643082ce21d",
+  "build/libziran.a": "d01d824f89821e97e9181aa4f75d9a310edb1d5d316557fe11b98a8a0d1a5f3a",
+  "build/libziran-vm.a": "92fd9ba487ee25aea6d0448d1659078d4573e9fb300d14b56b1c6fff45c4cf92"
+}

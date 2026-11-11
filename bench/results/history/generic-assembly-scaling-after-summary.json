@@ -1,0 +1,626 @@
+[
+  {
+    "case": "modules/8",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 4.129241,
+    "min_ms": 3.753749,
+    "max_ms": 4.256442
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 3.97743,
+    "min_ms": 3.656878,
+    "max_ms": 4.146991
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 5.542148,
+    "min_ms": 5.056846,
+    "max_ms": 6.154431
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 106.537823,
+    "min_ms": 106.17477,
+    "max_ms": 108.416202
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.304351,
+    "min_ms": 0.288052,
+    "max_ms": 0.311242
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 5.83587,
+    "min_ms": 5.572239,
+    "max_ms": 5.994401
+  },
+  {
+    "case": "modules/8/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 2.992295,
+    "min_ms": 2.699833,
+    "max_ms": 3.254987
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 2.08495,
+    "min_ms": 1.97866,
+    "max_ms": 2.168201
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 4.02192,
+    "min_ms": 3.802369,
+    "max_ms": 4.384093
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 113.919,
+    "min_ms": 112.767704,
+    "max_ms": 124.267352
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.273201,
+    "min_ms": 0.246641,
+    "max_ms": 0.350452
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 4.079381,
+    "min_ms": 3.97495,
+    "max_ms": 4.718404
+  },
+  {
+    "case": "modules/8/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 3.155716,
+    "min_ms": 2.922205,
+    "max_ms": 3.432797
+  },
+  {
+    "case": "generics/8",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 1.097206,
+    "min_ms": 1.088506,
+    "max_ms": 1.507388
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 0.979485,
+    "min_ms": 0.914715,
+    "max_ms": 1.047145
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 1.594869,
+    "min_ms": 1.580948,
+    "max_ms": 2.178401
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 36.100914,
+    "min_ms": 35.1898,
+    "max_ms": 41.482262
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.436132,
+    "min_ms": 0.288321,
+    "max_ms": 0.521723
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 1.541028,
+    "min_ms": 1.278557,
+    "max_ms": 1.647268
+  },
+  {
+    "case": "generics/8/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 1.093476,
+    "min_ms": 1.070255,
+    "max_ms": 1.602738
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 0.971985,
+    "min_ms": 0.841294,
+    "max_ms": 1.010175
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 1.110985,
+    "min_ms": 1.001715,
+    "max_ms": 1.256656
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 45.633673,
+    "min_ms": 42.804448,
+    "max_ms": 58.064706
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.374342,
+    "min_ms": 0.273351,
+    "max_ms": 0.381822
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 1.122566,
+    "min_ms": 1.062046,
+    "max_ms": 1.412707
+  },
+  {
+    "case": "generics/8/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 1.350057,
+    "min_ms": 1.227517,
+    "max_ms": 1.402297
+  },
+  {
+    "case": "imported-generics/8",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 1.278117,
+    "min_ms": 1.220366,
+    "max_ms": 1.413227
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 1.130766,
+    "min_ms": 1.034416,
+    "max_ms": 1.185426
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 1.548078,
+    "min_ms": 1.545858,
+    "max_ms": 1.673789
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 46.761638,
+    "min_ms": 45.605902,
+    "max_ms": 47.024559
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.306702,
+    "min_ms": 0.299612,
+    "max_ms": 0.334652
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 1.796419,
+    "min_ms": 1.586368,
+    "max_ms": 1.95229
+  },
+  {
+    "case": "imported-generics/8/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 0.896214,
+    "min_ms": 0.891015,
+    "max_ms": 0.933125
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 1.085845,
+    "min_ms": 0.781054,
+    "max_ms": 1.502487
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 1.385827,
+    "min_ms": 1.132666,
+    "max_ms": 1.447897
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 50.387046,
+    "min_ms": 45.022969,
+    "max_ms": 52.152745
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.355052,
+    "min_ms": 0.344232,
+    "max_ms": 0.499432
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 1.575588,
+    "min_ms": 1.369357,
+    "max_ms": 7.104156
+  },
+  {
+    "case": "imported-generics/8/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 1.014365,
+    "min_ms": 0.988905,
+    "max_ms": 1.077555
+  },
+  {
+    "case": "modules/128",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 56.128646,
+    "min_ms": 54.289786,
+    "max_ms": 59.598983
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 56.656759,
+    "min_ms": 54.638828,
+    "max_ms": 57.966645
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 88.707202,
+    "min_ms": 87.723117,
+    "max_ms": 90.118779
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 1398.620599,
+    "min_ms": 1348.086462,
+    "max_ms": 1449.743149
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.362332,
+    "min_ms": 0.345042,
+    "max_ms": 0.427632
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 90.161389,
+    "min_ms": 87.046653,
+    "max_ms": 91.267734
+  },
+  {
+    "case": "modules/128/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 33.181019,
+    "min_ms": 32.361295,
+    "max_ms": 33.644221
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 30.633056,
+    "min_ms": 29.027097,
+    "max_ms": 32.135654
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 68.408729,
+    "min_ms": 57.03943,
+    "max_ms": 71.461514
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 1350.111962,
+    "min_ms": 1314.026509,
+    "max_ms": 1374.997109
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.399992,
+    "min_ms": 0.373912,
+    "max_ms": 0.481612
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 64.998951,
+    "min_ms": 60.382868,
+    "max_ms": 65.268932
+  },
+  {
+    "case": "modules/128/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 31.945613,
+    "min_ms": 29.913042,
+    "max_ms": 33.512001
+  },
+  {
+    "case": "generics/128",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 7.86163,
+    "min_ms": 7.659629,
+    "max_ms": 9.068606
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 8.114192,
+    "min_ms": 7.79941,
+    "max_ms": 8.204421
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 11.71542,
+    "min_ms": 11.083836,
+    "max_ms": 12.481593
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 71.685325,
+    "min_ms": 69.857336,
+    "max_ms": 72.065267
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.453492,
+    "min_ms": 0.448212,
+    "max_ms": 0.568902
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 12.832756,
+    "min_ms": 12.824106,
+    "max_ms": 13.285637
+  },
+  {
+    "case": "generics/128/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 6.475733,
+    "min_ms": 6.391712,
+    "max_ms": 6.479793
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 5.071675,
+    "min_ms": 4.645474,
+    "max_ms": 5.77894
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 8.780845,
+    "min_ms": 7.972511,
+    "max_ms": 9.066897
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 68.205618,
+    "min_ms": 68.020577,
+    "max_ms": 69.503684
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.369522,
+    "min_ms": 0.303301,
+    "max_ms": 0.536563
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 9.86157,
+    "min_ms": 9.201237,
+    "max_ms": 10.547903
+  },
+  {
+    "case": "generics/128/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 5.7824,
+    "min_ms": 5.251437,
+    "max_ms": 7.199337
+  },
+  {
+    "case": "imported-generics/128",
+    "phase": "save-ir",
+    "samples": 3,
+    "median_ms": 9.062747,
+    "min_ms": 8.331442,
+    "max_ms": 9.230817
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 8.206421,
+    "min_ms": 8.193032,
+    "max_ms": 9.211147
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 11.672679,
+    "min_ms": 11.012196,
+    "max_ms": 11.82388
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 72.361089,
+    "min_ms": 70.961511,
+    "max_ms": 73.596934
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.289111,
+    "min_ms": 0.238811,
+    "max_ms": 1.567638
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 13.604799,
+    "min_ms": 12.544894,
+    "max_ms": 14.109902
+  },
+  {
+    "case": "imported-generics/128/source",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 6.336992,
+    "min_ms": 5.785139,
+    "max_ms": 7.166636
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "check",
+    "samples": 3,
+    "median_ms": 5.413078,
+    "min_ms": 5.316127,
+    "max_ms": 6.541984
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "emit:c",
+    "samples": 3,
+    "median_ms": 8.374242,
+    "min_ms": 7.980661,
+    "max_ms": 9.80909
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "native-compile:c",
+    "samples": 3,
+    "median_ms": 76.62012,
+    "min_ms": 74.482489,
+    "max_ms": 76.78338
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "run:c",
+    "samples": 3,
+    "median_ms": 0.311552,
+    "min_ms": 0.273411,
+    "max_ms": 0.417943
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "bundle",
+    "samples": 3,
+    "median_ms": 10.518764,
+    "min_ms": 9.576779,
+    "max_ms": 10.974836
+  },
+  {
+    "case": "imported-generics/128/saved",
+    "phase": "run:vm",
+    "samples": 3,
+    "median_ms": 6.154112,
+    "min_ms": 5.89067,
+    "max_ms": 7.317047
+  }
+]

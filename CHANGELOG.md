@@ -2,7 +2,19 @@
 
 ## [Unreleased]
 
+- The target matrix compares warm execution on desktop, USB Android and web,
+  with a platform selector, raw samples, timing ranges and named runtimes.
+- WebAssembly handles omitted slice bounds and empty slices at the end of arrays.
+
 - The website uses a text-free capybara mascot in its header, footer and browser tab.
+- Fresh native builds avoid optimizing the temporary bootstrap compiler while
+  keeping the final compiler tools fully optimized.
+- Generated C includes only the headers it uses and omits empty source files
+  for modules that only declare types.
+- Inspect portable `.zx` bundles with `ziran inspect`, including their checked
+  modules and hexadecimal bytes.
+- Build WebAssembly with `ziran build --target=wasm`, including Hello World
+  programs that print a string.
 
 ## [0.4.0] - 2026-11-10
 

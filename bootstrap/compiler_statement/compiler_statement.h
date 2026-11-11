@@ -2,8 +2,6 @@
 #ifndef ZIRAN_COMPILER_STATEMENT_H
 #define ZIRAN_COMPILER_STATEMENT_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
 #include "zir_string_types.h"
 #include "compiler_scan.h"

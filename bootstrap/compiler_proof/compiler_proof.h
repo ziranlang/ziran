@@ -2,11 +2,9 @@
 #ifndef ZIRAN_COMPILER_PROOF_H
 #define ZIRAN_COMPILER_PROOF_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "compiler_ir.h"
 #include "compiler_proof_kernel.h"
 #include "compiler_services.h"

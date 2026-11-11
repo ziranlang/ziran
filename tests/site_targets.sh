@@ -25,8 +25,8 @@ for example in data['examples']:
                 subprocess.run([bin_dir / 'zi-inspect', site / file['path']], check=True, capture_output=True)
             continue
         artifact = site / cell['files'][0]['path']
-        command = [bin_dir / 'zi2zx', 'run', '--vm', artifact] if target == 'zx' else ['node', repo / 'scripts/site_target_wasm.cjs', artifact]
+        command = [bin_dir / 'zi2zx', 'run', '--vm', artifact] if target == 'zx' else ['node', repo / 'scripts/site_target_wasm.cjs', artifact, *(['--output'] if example['stdout'] else [])]
         result = subprocess.run(command, check=True, capture_output=True, text=True, timeout=30)
-        assert result.stdout.strip() == example['expected'], (example['id'], target, result.stdout)
+        assert result.stdout.strip() == (example['stdout'].strip() if example['stdout'] else example['expected']), (example['id'], target, result.stdout)
 print('Published ZX and WebAssembly artifacts agree with the independent oracles; checked IR decodes')
 PY

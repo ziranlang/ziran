@@ -1226,11 +1226,16 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
     if(program == NULL || entry_module == NULL || entry_function == NULL)
         return 0;
     entry = find_entry(program, entry_module, entry_function, &entry_owner);
+    const char *result_type = entry != NULL ? entry->return_type : "";
+    const ZirType *enumeration = entry != NULL ?
+        FindType(entry_owner, result_type, NULL) : NULL;
+    if(enumeration != NULL && enumeration->is_enum)
+        result_type = enumeration->enum_backing[0] ? enumeration->enum_backing : "s64";
     if(entry == NULL || entry->is_extern ||
        parse_parameters(entry_owner, entry, buffers->bindings) != 0 ||
-       (ScalarWidth(entry->return_type) == 0 &&
-        strcmp(entry->return_type, "bool") != 0 &&
-        strcmp(entry->return_type, "void") != 0)) {
+       (ScalarWidth(result_type) == 0 &&
+        strcmp(result_type, "bool") != 0 &&
+        strcmp(result_type, "void") != 0)) {
         Diagnostic(Span("<bundle>", 1, 1), "zx.entry",
                       "entry must be one unique zero-argument integer, bool, or void Ziran function");
         return 0;
@@ -1336,7 +1341,7 @@ VmVerify_with_buffers(const ZirProgram *program, const char *entry_module,
                 if(!literal_ok) {
                     const ZirType *record = FindType(module, global->type,
                                                      NULL);
-                    if(record != NULL && !record->is_enum &&
+                    if(record != NULL &&
                        !record->is_union &&
                        !SliceElementType(global->type, NULL, 0) &&
                        !ArrayElementType(global->type, NULL, 0, NULL))

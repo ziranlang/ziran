@@ -1,7 +1,1663 @@
 {
-  "schema_version": 1,
-  "generated_at": "2026-11-10T22:48:21.083344+00:00",
-  "revision": "ca392c90851473ccc621859237010f6c84727938",
+  "schema_version": 2,
+  "platforms": {
+    "desktop": {
+      "label": "Desktop",
+      "host": "Linux x86_64 \u00b7 AMD Ryzen 9 9950X 16-Core Processor",
+      "measured_at": "2026-11-11T01:45:49.913153+00:00",
+      "samples": 5,
+      "runtimes": {
+        "c": "C \u00b7 cc -O2",
+        "go": "Go \u00b7 native",
+        "zx": "ZX \u00b7 portable VM",
+        "wasm": "WebAssembly \u00b7 Node / V8"
+      },
+      "examples": {
+        "loops": {
+          "wasm": {
+            "result": "0",
+            "batches": 2048,
+            "warmup_ms": 150.80221999999998,
+            "warmup_count": 26838,
+            "batch_samples_ms": [
+              10.50939200000002,
+              10.158781000000005,
+              12.179007000000013,
+              9.858936,
+              9.958367999999979
+            ],
+            "load_ms": 0.9599019999999996,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00513153906250001,
+              0.004960342285156252,
+              0.005946780761718756,
+              0.00481393359375,
+              0.00486248437499999
+            ],
+            "execution_ms": 0.004960342285156252,
+            "checksum": "0",
+            "command": "node scripts/site_target_node.cjs site/generated/targets/loops/wasm/loops.wasm 0 5",
+            "artifact_sha256": "d5b68e863c805ee179a034df96e8693878eaa589c1638f2297216351c178ad0f"
+          },
+          "zx": {
+            "result": "0",
+            "batches": 512,
+            "load_ms": 0.459923,
+            "warmup_ms": 150.000076,
+            "warmup_count": 5064,
+            "batch_samples_ms": [
+              14.063626,
+              14.636112,
+              14.761566,
+              15.877276001,
+              15.631368
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.02746801953125,
+              0.02858615625,
+              0.02883118359375,
+              0.031010304689453125,
+              0.030530015625
+            ],
+            "execution_ms": 0.02883118359375,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/loops/zx/loops.zx 0 5",
+            "artifact_sha256": "6f4afd448ec47bbec66d0443d4fb1be0fd46bf7f400beaff106aed68eb42d297"
+          },
+          "go": {
+            "batch_samples_ms": [
+              19.042225,
+              20.313193,
+              21.483069,
+              18.538196,
+              16.688701
+            ],
+            "batches": 8192,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 70624,
+            "warmup_ms": 150.003537,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0023244903564453123,
+              0.0024796378173828123,
+              0.0026224449462890626,
+              0.00226296337890625,
+              0.0020371949462890623
+            ],
+            "execution_ms": 0.0023244903564453123,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/loops/go-program - 0 5",
+            "artifact_sha256": "dde8ecc5c17612541a9e52004a8cc8c7fbd5013289c9a413cec552011b3ad601"
+          },
+          "c": {
+            "result": "0",
+            "batches": 32768,
+            "load_ms": 0.000469999,
+            "warmup_ms": 150.000416,
+            "warmup_count": 325922,
+            "batch_samples_ms": [
+              13.207826,
+              10.364926,
+              10.828209,
+              10.816248,
+              11.17691
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00040307086181640627,
+              0.00031631243896484377,
+              0.0003304507141113281,
+              0.000330085693359375,
+              0.00034109222412109373
+            ],
+            "execution_ms": 0.0003304507141113281,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/loops/c-program - 0 5",
+            "artifact_sha256": "dad97e183aeb6586151bda06e386668bb177763e4a6bf1bd6814abd2e5d830fd"
+          }
+        },
+        "text_demo": {
+          "go": {
+            "batch_samples_ms": [
+              0.147337,
+              0.135606,
+              0.118444,
+              0.118584,
+              0.118733
+            ],
+            "batches": 65536,
+            "load_ms": 0,
+            "result": "1",
+            "warmup_count": 1817928,
+            "warmup_ms": 150.000047,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              2.2481842041015624e-06,
+              2.069183349609375e-06,
+              1.80731201171875e-06,
+              1.8094482421875e-06,
+              1.8117218017578126e-06
+            ],
+            "execution_ms": 1.8117218017578126e-06,
+            "checksum": "65536",
+            "command": "build/site-target-platforms/desktop/text_demo/go-program - 1 5",
+            "artifact_sha256": "6a55a76d39469e3606ae4c5950e5ca979f6d7a1e5a870a49f0792859cc930612"
+          },
+          "c": {
+            "result": "1",
+            "batches": 65536,
+            "load_ms": 0.000299999,
+            "warmup_ms": 150.000057,
+            "warmup_count": 1984237,
+            "batch_samples_ms": [
+              0.148557,
+              0.146527,
+              0.146477,
+              0.146477,
+              0.155627999
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              2.2667999267578124e-06,
+              2.2358245849609374e-06,
+              2.2350616455078124e-06,
+              2.2350616455078124e-06,
+              2.3746948089599608e-06
+            ],
+            "execution_ms": 2.2358245849609374e-06,
+            "checksum": "65536",
+            "command": "build/site-target-platforms/desktop/text_demo/c-program - 1 5",
+            "artifact_sha256": "649e52e5cf0dabb65775786f5f95736f2a069c1947ea9c22954dc166bedc97fe"
+          },
+          "zx": {
+            "result": "1",
+            "batches": 1024,
+            "load_ms": 0.363012,
+            "warmup_ms": 150.007068,
+            "warmup_count": 12843,
+            "batch_samples_ms": [
+              10.703565001,
+              11.155978001,
+              10.644548,
+              11.381383,
+              11.78621
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.010452700196289062,
+              0.010894509766601562,
+              0.01039506640625,
+              0.0111146318359375,
+              0.011509970703125
+            ],
+            "execution_ms": 0.010894509766601562,
+            "checksum": "1024",
+            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/text_demo/zx/text_demo.zx 1 5",
+            "artifact_sha256": "6f4afd448ec47bbec66d0443d4fb1be0fd46bf7f400beaff106aed68eb42d297"
+          },
+          "wasm": {
+            "result": "1",
+            "batches": 65536,
+            "warmup_ms": 150.075456,
+            "warmup_count": 955361,
+            "batch_samples_ms": [
+              3.222914000000003,
+              3.326796999999999,
+              3.1740190000000155,
+              3.073927999999995,
+              3.2774610000000166
+            ],
+            "load_ms": 0.8320469999999993,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              4.917776489257817e-05,
+              5.07628936767578e-05,
+              4.8431686401367424e-05,
+              4.6904418945312425e-05,
+              5.0010086059570566e-05
+            ],
+            "execution_ms": 4.917776489257817e-05,
+            "checksum": "65536",
+            "command": "node scripts/site_target_node.cjs site/generated/targets/text_demo/wasm/text_demo.wasm 1 5",
+            "artifact_sha256": "ec400343ce80f33efef9f6a127a88da1381bfcd2dc5aa8770971cf274efa826b"
+          }
+        },
+        "enums": {
+          "zx": {
+            "result": "0",
+            "batches": 1024,
+            "load_ms": 0.68414,
+            "warmup_ms": 150.004657,
+            "warmup_count": 9009,
+            "batch_samples_ms": [
+              33.570564999,
+              15.488471,
+              16.131277,
+              15.742451,
+              17.348647
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.032783754881835936,
+              0.0151254599609375,
+              0.0157532001953125,
+              0.0153734873046875,
+              0.0169420380859375
+            ],
+            "execution_ms": 0.0157532001953125,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/enums/zx/enums.zx 0 5",
+            "artifact_sha256": "6f4afd448ec47bbec66d0443d4fb1be0fd46bf7f400beaff106aed68eb42d297"
+          },
+          "go": {
+            "batch_samples_ms": [
+              15.339714,
+              15.460338,
+              16.095042,
+              14.88073,
+              15.869826
+            ],
+            "batches": 32768,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 277837,
+            "warmup_ms": 150.000217,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00046813092041015627,
+              0.00047181207275390625,
+              0.0004911817016601562,
+              0.00045412384033203124,
+              0.00048430865478515624
+            ],
+            "execution_ms": 0.00047181207275390625,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/enums/go-program - 0 5",
+            "artifact_sha256": "0cb45c67d2a11a27d404c7bcd920fb49f4fdf4167027ac40ee06728dfac356a3"
+          },
+          "wasm": {
+            "result": "0",
+            "batches": 8192,
+            "warmup_ms": 150.044232,
+            "warmup_count": 98702,
+            "batch_samples_ms": [
+              9.81917199999998,
+              10.27652500000002,
+              9.894660000000016,
+              14.307053999999994,
+              13.866762999999992
+            ],
+            "load_ms": 0.8120350000000016,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0011986293945312476,
+              0.001254458618164065,
+              0.001207844238281252,
+              0.0017464665527343742,
+              0.0016927200927734365
+            ],
+            "execution_ms": 0.001254458618164065,
+            "checksum": "0",
+            "command": "node scripts/site_target_node.cjs site/generated/targets/enums/wasm/enums.wasm 0 5",
+            "artifact_sha256": "2c69bbaa36ef6b4e4d7ac944aab53f47eb9f7e4cc61cc67fc899b0240d216084"
+          },
+          "c": {
+            "result": "0",
+            "batches": 65536,
+            "load_ms": 0.0004,
+            "warmup_ms": 150.000066999,
+            "warmup_count": 732167,
+            "batch_samples_ms": [
+              4.845163001,
+              4.560680999,
+              4.73206,
+              4.914492,
+              4.791917
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              7.393132020568848e-05,
+              6.959046934509277e-05,
+              7.220550537109375e-05,
+              7.498919677734375e-05,
+              7.311885070800781e-05
+            ],
+            "execution_ms": 7.311885070800781e-05,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/enums/c-program - 0 5",
+            "artifact_sha256": "dc96df864ede74e410ddf51f7048642c3ae085f4c456a881c43a766cff947135"
+          }
+        },
+        "arrays": {
+          "go": {
+            "batch_samples_ms": [
+              14.912964,
+              15.411993,
+              14.418267,
+              12.696067,
+              13.786623
+            ],
+            "batches": 16384,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 153555,
+            "warmup_ms": 150.000207,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.000910215087890625,
+              0.0009406734008789063,
+              0.0008800211791992188,
+              0.0007749064331054687,
+              0.0008414686889648438
+            ],
+            "execution_ms": 0.0008800211791992188,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/arrays/go-program - 0 5",
+            "artifact_sha256": "4e6ee812c79f4515b714007a0274bade9c919b5e51dcfe2665a6fc161b02a5cd"
+          },
+          "zx": {
+            "result": "0",
+            "batches": 512,
+            "load_ms": 0.746307001,
+            "warmup_ms": 150.02274,
+            "warmup_count": 6846,
+            "batch_samples_ms": [
+              11.583578,
+              10.820998,
+              13.771172,
+              10.997079,
+              10.614155
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.02262417578125,
+              0.02113476171875,
+              0.0268968203125,
+              0.021478669921875,
+              0.020730771484375
+            ],
+            "execution_ms": 0.021478669921875,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/arrays/zx/arrays.zx 0 5",
+            "artifact_sha256": "6f4afd448ec47bbec66d0443d4fb1be0fd46bf7f400beaff106aed68eb42d297"
+          },
+          "wasm": {
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150.03011,
+            "warmup_count": 36105,
+            "batch_samples_ms": [
+              15.56943099999998,
+              15.43958600000002,
+              15.765513999999996,
+              15.658971000000008,
+              15.64405899999997
+            ],
+            "load_ms": 0.7581180000000014,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00380113061523437,
+              0.003769430175781255,
+              0.003849002441406249,
+              0.003822990966796877,
+              0.0038193503417968677
+            ],
+            "execution_ms": 0.0038193503417968677,
+            "checksum": "0",
+            "command": "node scripts/site_target_node.cjs site/generated/targets/arrays/wasm/arrays.wasm 0 5",
+            "artifact_sha256": "3a3c67c354d1c94f61c7c13ccde8deadbbf65619c8847eb47054369a6461ee70"
+          },
+          "c": {
+            "result": "0",
+            "batches": 65536,
+            "load_ms": 0.00033,
+            "warmup_ms": 150.000206999,
+            "warmup_count": 474438,
+            "batch_samples_ms": [
+              12.38431,
+              11.984503999,
+              12.845584,
+              12.422475,
+              12.171416
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00018896957397460936,
+              0.0001828690185394287,
+              0.000196008056640625,
+              0.0001895519256591797,
+              0.0001857210693359375
+            ],
+            "execution_ms": 0.00018896957397460936,
+            "checksum": "0",
+            "command": "build/site-target-platforms/desktop/arrays/c-program - 0 5",
+            "artifact_sha256": "cb22cdc1d96685ff4cdf18b8022acfb4f0d9a9bb27c329a38e81f7724cf9dbb7"
+          }
+        },
+        "score": {
+          "go": {
+            "batch_samples_ms": [
+              0.062197,
+              0.062217,
+              0.077129,
+              0.062207,
+              0.062167
+            ],
+            "batches": 65536,
+            "load_ms": 0,
+            "result": "42",
+            "warmup_count": 1945752,
+            "warmup_ms": 150.000107,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              9.490509033203125e-07,
+              9.493560791015625e-07,
+              1.1768951416015625e-06,
+              9.492034912109375e-07,
+              9.485931396484375e-07
+            ],
+            "execution_ms": 9.492034912109375e-07,
+            "checksum": "2752512",
+            "command": "build/site-target-platforms/desktop/score/go-program - 42 5",
+            "artifact_sha256": "016ef04b64b2a594f484523571afd49a509d6da229713821ba04d6441f2922c6"
+          },
+          "zx": {
+            "result": "42",
+            "batches": 2048,
+            "load_ms": 0.377824,
+            "warmup_ms": 150.004617,
+            "warmup_count": 16546,
+            "batch_samples_ms": [
+              18.335483,
+              19.182451,
+              18.930292,
+              18.698305001,
+              19.014261
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00895287255859375,
+              0.00936643115234375,
+              0.009243306640625,
+              0.009130031738769532,
+              0.00928430712890625
+            ],
+            "execution_ms": 0.009243306640625,
+            "checksum": "86016",
+            "command": "build/site-target-platforms/desktop/zx-runner site/generated/targets/score/zx/score.zx 42 5",
+            "artifact_sha256": "6f4afd448ec47bbec66d0443d4fb1be0fd46bf7f400beaff106aed68eb42d297"
+          },
+          "c": {
+            "result": "42",
+            "batches": 65536,
+            "load_ms": 0.0004,
+            "warmup_ms": 150.000097,
+            "warmup_count": 2240866,
+            "batch_samples_ms": [
+              0.061297,
+              0.061257,
+              0.060257,
+              0.049285999,
+              0.049036
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              9.353179931640625e-07,
+              9.347076416015625e-07,
+              9.194488525390625e-07,
+              7.520446624755859e-07,
+              7.4822998046875e-07
+            ],
+            "execution_ms": 9.194488525390625e-07,
+            "checksum": "2752512",
+            "command": "build/site-target-platforms/desktop/score/c-program - 42 5",
+            "artifact_sha256": "0182c9fbc8b6c5ec0ea94062615e67cf3ecf6afc87ca902079939d6f2bb8a9ce"
+          },
+          "wasm": {
+            "result": "42",
+            "batches": 65536,
+            "warmup_ms": 150.02488,
+            "warmup_count": 1071031,
+            "batch_samples_ms": [
+              2.2444810000000075,
+              2.2466009999999983,
+              2.316079000000002,
+              2.425502999999992,
+              2.3452520000000163
+            ],
+            "load_ms": 0.6771189999999994,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              3.424806213378918e-05,
+              3.4280410766601536e-05,
+              3.534056091308597e-05,
+              3.7010238647460815e-05,
+              3.57857055664065e-05
+            ],
+            "execution_ms": 3.534056091308597e-05,
+            "checksum": "2752512",
+            "command": "node scripts/site_target_node.cjs site/generated/targets/score/wasm/score.wasm 42 5",
+            "artifact_sha256": "d90f0ff2fd64e9de316458c0b757a0fadcc674991cc30637afb267d257305eb8"
+          }
+        }
+      },
+      "methodology": "Median warm time per entry. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Shared machines and uncontrolled clocks; no universal target ranking."
+    },
+    "mobile": {
+      "label": "Mobile",
+      "host": "moto e6 play \u00b7 Android 9 \u00b7 ARMv7",
+      "measured_at": "2026-11-11T01:45:55.305918+00:00",
+      "samples": 5,
+      "runtimes": {
+        "c": "C \u00b7 Android Clang -O2",
+        "go": "Go \u00b7 Android / ARMv7",
+        "zx": "ZX \u00b7 portable VM",
+        "wasm": "WebAssembly \u00b7 WAMR AOT"
+      },
+      "examples": {
+        "loops": {
+          "wasm": {
+            "result": "0",
+            "batches": 256,
+            "load_ms": 2.24453783,
+            "warmup_ms": 150.008692026,
+            "warmup_count": 2109,
+            "batch_samples_ms": [
+              14.75307703,
+              14.93838501,
+              14.858230114,
+              14.810846806,
+              14.78538394
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0576292071484375,
+              0.0583530664453125,
+              0.0580399613828125,
+              0.0578548703359375,
+              0.057755406015625
+            ],
+            "execution_ms": 0.0578548703359375,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/wasm-runner /data/local/tmp/ziran-target-matrix/loops-wasm 0 5",
+            "artifact_sha256": "7240075c250485a8350cc093959879df9a73947526c1d8b191f725a084d8af3f"
+          },
+          "zx": {
+            "result": "0",
+            "batches": 16,
+            "load_ms": 4.725384951,
+            "warmup_ms": 150.62253809,
+            "warmup_count": 107,
+            "batch_samples_ms": [
+              15.239614964,
+              14.459770203,
+              13.839231014,
+              13.948845863,
+              13.709537983
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.95247593525,
+              0.9037356376875,
+              0.864951938375,
+              0.8718028664375,
+              0.8568461239375
+            ],
+            "execution_ms": 0.8718028664375,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/zx-runner /data/local/tmp/ziran-target-matrix/loops-zx 0 5",
+            "artifact_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac"
+          },
+          "go": {
+            "batch_samples_ms": [
+              19.486538,
+              17.727077,
+              15.624846,
+              15.468692,
+              14.132693
+            ],
+            "batches": 128,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 976,
+            "warmup_ms": 150.14923,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.152238578125,
+              0.1384927890625,
+              0.122069109375,
+              0.12084915625,
+              0.1104116640625
+            ],
+            "execution_ms": 0.122069109375,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/loops-go - 0 5",
+            "artifact_sha256": "cb9906d9a4b4a9e05495349a2ae5e02919436806b8fa2bd738a756cfd398ca6a"
+          },
+          "c": {
+            "result": "0",
+            "batches": 1024,
+            "load_ms": 0.001923084,
+            "warmup_ms": 150.017461061,
+            "warmup_count": 4663,
+            "batch_samples_ms": [
+              15.92969203,
+              14.977922916,
+              13.949462175,
+              13.194077015,
+              12.434385061
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.015556339873046875,
+              0.01462687784765625,
+              0.013622521655273438,
+              0.012884840834960937,
+              0.012142954161132813
+            ],
+            "execution_ms": 0.013622521655273438,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/loops-c - 0 5",
+            "artifact_sha256": "114212d2c66b41813661f3a58b6d7f6f5a3280125fa08f4766851cbaad641871"
+          }
+        },
+        "text_demo": {
+          "go": {
+            "batch_samples_ms": [
+              7.008692,
+              7.025539,
+              6.348769,
+              6.381077,
+              6.432077
+            ],
+            "batches": 65536,
+            "load_ms": 0,
+            "result": "1",
+            "warmup_count": 31539,
+            "warmup_ms": 150.001308,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.00010694415283203125,
+              0.00010720121765136719,
+              9.687452697753906e-05,
+              9.736750793457032e-05,
+              9.81457061767578e-05
+            ],
+            "execution_ms": 9.81457061767578e-05,
+            "checksum": "65536",
+            "command": "/data/local/tmp/ziran-target-matrix/text_demo-go - 1 5",
+            "artifact_sha256": "78b7574424a317d59e9513059131ed6f0594a6a89d2a44551ac4e8f7a2392bc6"
+          },
+          "c": {
+            "result": "1",
+            "batches": 65536,
+            "load_ms": 0.002460957,
+            "warmup_ms": 150.000615835,
+            "warmup_count": 72409,
+            "batch_samples_ms": [
+              2.185153961,
+              2.185153961,
+              2.235538006,
+              2.027230978,
+              2.095769882
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              3.3342803359985354e-05,
+              3.3342803359985354e-05,
+              3.411160287475586e-05,
+              3.093308987426758e-05,
+              3.1978910552978514e-05
+            ],
+            "execution_ms": 3.3342803359985354e-05,
+            "checksum": "65536",
+            "command": "/data/local/tmp/ziran-target-matrix/text_demo-c - 1 5",
+            "artifact_sha256": "e858ec45e742c537bdac80cdd39dc1475b6bc6198bd9b09077dcd807328b6242"
+          },
+          "zx": {
+            "result": "1",
+            "batches": 16,
+            "load_ms": 4.642076969,
+            "warmup_ms": 150.461924076,
+            "warmup_count": 171,
+            "batch_samples_ms": [
+              8.862154007,
+              8.758923054,
+              8.479231119,
+              8.265154123,
+              8.025000095
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.5538846254375,
+              0.547432690875,
+              0.5299519449375,
+              0.5165721326875,
+              0.5015625059375
+            ],
+            "execution_ms": 0.5299519449375,
+            "checksum": "16",
+            "command": "/data/local/tmp/ziran-target-matrix/zx-runner /data/local/tmp/ziran-target-matrix/text_demo-zx 1 5",
+            "artifact_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d"
+          },
+          "wasm": {
+            "result": "1",
+            "batches": 16384,
+            "load_ms": 1.937385082,
+            "warmup_ms": 150.003538132,
+            "warmup_count": 29330,
+            "batch_samples_ms": [
+              12.696306944,
+              12.696923018,
+              15.566231012,
+              14.921461821,
+              15.051846027
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.000774921078125,
+              0.0007749586802978515,
+              0.0009500873420410156,
+              0.0009107337537231445,
+              0.0009186917741088867
+            ],
+            "execution_ms": 0.0009107337537231445,
+            "checksum": "16384",
+            "command": "/data/local/tmp/ziran-target-matrix/wasm-runner /data/local/tmp/ziran-target-matrix/text_demo-wasm 1 5",
+            "artifact_sha256": "5d2ca9cb5bb0398a45ae77a5d90d767ddfc5362f9be20ba34b4f4c18a2d41591"
+          }
+        },
+        "enums": {
+          "zx": {
+            "result": "0",
+            "batches": 16,
+            "load_ms": 9.298000097,
+            "warmup_ms": 150.849769115,
+            "warmup_count": 133,
+            "batch_samples_ms": [
+              17.083692074,
+              18.100077152,
+              14.910308123,
+              10.315307856,
+              9.10492301
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              1.067730754625,
+              1.131254822,
+              0.9318942576875,
+              0.644706741,
+              0.569057688125
+            ],
+            "execution_ms": 0.9318942576875,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/zx-runner /data/local/tmp/ziran-target-matrix/enums-zx 0 5",
+            "artifact_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4"
+          },
+          "go": {
+            "batch_samples_ms": [
+              16.237154,
+              14.921,
+              13.983385,
+              13.090539,
+              12.584924
+            ],
+            "batches": 1024,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 7591,
+            "warmup_ms": 150.007307,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.015856595703125,
+              0.0145712890625,
+              0.0136556494140625,
+              0.0127837294921875,
+              0.01228996484375
+            ],
+            "execution_ms": 0.0136556494140625,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/enums-go - 0 5",
+            "artifact_sha256": "82957aac2ac85e95c83108d46e136fe1c7ef8b0d617b4ab5ba2c2a9c670f0743"
+          },
+          "wasm": {
+            "result": "0",
+            "batches": 2048,
+            "load_ms": 1.026385069,
+            "warmup_ms": 150.009384871,
+            "warmup_count": 8658,
+            "batch_samples_ms": [
+              15.984308004,
+              15.089384079,
+              14.103000164,
+              13.996616125,
+              14.062462091
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.007804837892578125,
+              0.007367863319824219,
+              0.006886230548828125,
+              0.006834285217285156,
+              0.006866436567871094
+            ],
+            "execution_ms": 0.006886230548828125,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/wasm-runner /data/local/tmp/ziran-target-matrix/enums-wasm 0 5",
+            "artifact_sha256": "4f9c954fa34699f12ff24f4f72afd1684f87b8130d88fb98a89eb4cfea289763"
+          },
+          "c": {
+            "result": "0",
+            "batches": 4096,
+            "load_ms": 0.002615929,
+            "warmup_ms": 150.005461216,
+            "warmup_count": 19183,
+            "batch_samples_ms": [
+              10.654462099,
+              10.42353797,
+              10.226614952,
+              9.648615122,
+              9.369153976
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.002601187035888672,
+              0.0025448090747070312,
+              0.002496732166015625,
+              0.0023556189262695314,
+              0.002287391107421875
+            ],
+            "execution_ms": 0.002496732166015625,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/enums-c - 0 5",
+            "artifact_sha256": "b766a108890e545e210b33ce0da5e19e5fed4fce0b4825878c0627ebf3f27643"
+          }
+        },
+        "arrays": {
+          "go": {
+            "batch_samples_ms": [
+              15.964077,
+              15.959,
+              16.001385,
+              15.871231,
+              15.876461
+            ],
+            "batches": 512,
+            "load_ms": 0,
+            "result": "0",
+            "warmup_count": 4290,
+            "warmup_ms": 150.033077,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.031179837890625,
+              0.031169921875,
+              0.031252705078125,
+              0.030998498046875,
+              0.031008712890625
+            ],
+            "execution_ms": 0.031169921875,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/arrays-go - 0 5",
+            "artifact_sha256": "b80457e372f8413d1debdc80ce9385e1cbae14b4fd17728c8aa3e198412f9275"
+          },
+          "zx": {
+            "result": "0",
+            "batches": 16,
+            "load_ms": 12.090230942,
+            "warmup_ms": 151.157692194,
+            "warmup_count": 84,
+            "batch_samples_ms": [
+              16.41369319,
+              15.361691952,
+              13.885999918,
+              13.740692139,
+              11.683769941
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              1.025855824375,
+              0.960105747,
+              0.867874994875,
+              0.8587932586875,
+              0.7302356213125
+            ],
+            "execution_ms": 0.867874994875,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/zx-runner /data/local/tmp/ziran-target-matrix/arrays-zx 0 5",
+            "artifact_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df"
+          },
+          "wasm": {
+            "result": "0",
+            "batches": 512,
+            "load_ms": 2.036537886,
+            "warmup_ms": 150.023691893,
+            "warmup_count": 2390,
+            "batch_samples_ms": [
+              16.592692137,
+              15.455461025,
+              13.905461073,
+              12.825230122,
+              11.844614983
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.032407601830078125,
+              0.030186447314453125,
+              0.027159103658203124,
+              0.02504927758203125,
+              0.023134013638671874
+            ],
+            "execution_ms": 0.027159103658203124,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/wasm-runner /data/local/tmp/ziran-target-matrix/arrays-wasm 0 5",
+            "artifact_sha256": "226a333f80e1e2ba89739c5265b6aafa7b93a299ffedcaea81784583a710b69a"
+          },
+          "c": {
+            "result": "0",
+            "batches": 2048,
+            "load_ms": 0.002077103,
+            "warmup_ms": 150.00638485,
+            "warmup_count": 11247,
+            "batch_samples_ms": [
+              18.88192296,
+              18.867077112,
+              18.994846106,
+              18.831307888,
+              18.787307978
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.0092196889453125,
+              0.00921243999609375,
+              0.009274827200195313,
+              0.0091949745546875,
+              0.009173490223632813
+            ],
+            "execution_ms": 0.00921243999609375,
+            "checksum": "0",
+            "command": "/data/local/tmp/ziran-target-matrix/arrays-c - 0 5",
+            "artifact_sha256": "a46ca8a72cc6668428fdb04f84274b7ac575e7d33914296ecb00ddd9aab0d1c0"
+          }
+        },
+        "score": {
+          "go": {
+            "batch_samples_ms": [
+              4.634385,
+              4.625693,
+              4.764308,
+              4.676769,
+              4.582846
+            ],
+            "batches": 65536,
+            "load_ms": 0,
+            "result": "42",
+            "warmup_count": 22267,
+            "warmup_ms": 150.006231,
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              7.071510314941406e-05,
+              7.058247375488281e-05,
+              7.269757080078125e-05,
+              7.136183166503907e-05,
+              6.992868041992187e-05
+            ],
+            "execution_ms": 7.071510314941406e-05,
+            "checksum": "2752512",
+            "command": "/data/local/tmp/ziran-target-matrix/score-go - 42 5",
+            "artifact_sha256": "d1415537c65282315c7c21e4ec46212d2d096ab3e41139fa4144510c8920f8e8"
+          },
+          "zx": {
+            "result": "42",
+            "batches": 16,
+            "load_ms": 6.294847012,
+            "warmup_ms": 150.44284606,
+            "warmup_count": 121,
+            "batch_samples_ms": [
+              11.829077005,
+              11.583768845,
+              10.817768812,
+              10.38138485,
+              9.927231073
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.7393173128125,
+              0.7239855528125,
+              0.67611055075,
+              0.648836553125,
+              0.6204519420625
+            ],
+            "execution_ms": 0.67611055075,
+            "checksum": "672",
+            "command": "/data/local/tmp/ziran-target-matrix/zx-runner /data/local/tmp/ziran-target-matrix/score-zx 42 5",
+            "artifact_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0"
+          },
+          "c": {
+            "result": "42",
+            "batches": 65536,
+            "load_ms": 0.003923178,
+            "warmup_ms": 150.000845909,
+            "warmup_count": 58991,
+            "batch_samples_ms": [
+              0.454692125,
+              0.454769135,
+              0.454769135,
+              0.454693079,
+              0.454768896
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              6.938051223754883e-06,
+              6.939226303100586e-06,
+              6.939226303100586e-06,
+              6.9380657806396484e-06,
+              6.93922265625e-06
+            ],
+            "execution_ms": 6.93922265625e-06,
+            "checksum": "2752512",
+            "command": "/data/local/tmp/ziran-target-matrix/score-c - 42 5",
+            "artifact_sha256": "8fa3facee0dca9bc425ebcdbab483742f666454a97cf64fe17821271794a2d41"
+          },
+          "wasm": {
+            "result": "42",
+            "batches": 16384,
+            "load_ms": 1.420153856,
+            "warmup_ms": 150.001230955,
+            "warmup_count": 41364,
+            "batch_samples_ms": [
+              10.597692013,
+              10.184616089,
+              10.282846212,
+              10.229846001,
+              10.656000137
+            ],
+            "stdout_verified": true,
+            "execution_samples_ms": [
+              0.000646831787902832,
+              0.0006216196343383789,
+              0.0006276151252441407,
+              0.0006243802490844727,
+              0.0006503906333618164
+            ],
+            "execution_ms": 0.0006276151252441407,
+            "checksum": "688128",
+            "command": "/data/local/tmp/ziran-target-matrix/wasm-runner /data/local/tmp/ziran-target-matrix/score-wasm 42 5",
+            "artifact_sha256": "2c94d6cb5fd14d72a376b57904b2cdc4960202af4df6abc45b6d79213f3fbd17"
+          }
+        }
+      },
+      "methodology": "Median warm time per entry. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Shared machines and uncontrolled clocks; no universal target ranking.",
+      "serial_sha256": "4068c54c15a53a3c4c7ca7cc9812c2e5fe11ef3039a123cc414c1ccf57ce63db",
+      "battery_before": {
+        "status": "2",
+        "level": "100",
+        "temperature": "280"
+      },
+      "runtime_hashes": {
+        "ziran": "1c206b1eb4169bfd269a83128600bbf254240d8b99521e35527a3bd71799a6fc",
+        "wamr": "7e1e25117066084c04fb9786bbe16b48b2115a8fc28dedf19d443e248c1372b8"
+      },
+      "toolchains": {
+        "ndk": "Android (13624864, +pgo, +bolt, +lto, +mlgo, based on r530567e) clang version 19.0.1 (https://android.googlesource.com/toolchain/llvm-project 97a699bf4812a18fb657c2779f5296a4ab2694d2)",
+        "go": "go version go1.24.4 linux/amd64"
+      },
+      "battery_after": {
+        "status": "2",
+        "level": "100",
+        "temperature": "280"
+      }
+    },
+    "web": {
+      "label": "Web",
+      "host": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+      "measured_at": "2026-11-11T01:46:20.977220+00:00",
+      "samples": 5,
+      "runtimes": {
+        "c": "C \u00b7 Emscripten / Wasm",
+        "go": "Go \u00b7 js/wasm",
+        "zx": "ZX \u00b7 browser VM",
+        "wasm": "WebAssembly \u00b7 browser / V8"
+      },
+      "examples": {
+        "score": {
+          "c": {
+            "ok": true,
+            "result": "42",
+            "batches": 65536,
+            "warmup_ms": 150,
+            "warmup_count": 455883,
+            "batch_samples_ms": [
+              0.2999999998137355,
+              0.30000000074505806,
+              0.2999999998137355,
+              0.2999999998137355,
+              0.2999999998137355
+            ],
+            "stdout_verified": true,
+            "load_ms": 9.700000000186265,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              4.577636715907829e-06,
+              4.577636730118684e-06,
+              4.577636715907829e-06,
+              4.577636715907829e-06,
+              4.577636715907829e-06
+            ],
+            "execution_ms": 4.577636715907829e-06,
+            "checksum": "2752512"
+          },
+          "go": {
+            "ok": true,
+            "result": "42",
+            "batches": 4096,
+            "warmup_ms": 150,
+            "warmup_count": 22244,
+            "batch_samples_ms": [
+              28,
+              26.09999999962747,
+              28.700000000186265,
+              27.299999999813735,
+              30.5
+            ],
+            "stdout_verified": true,
+            "load_ms": 15.299999999813735,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0068359375,
+              0.0063720703124090505,
+              0.007006835937545475,
+              0.006665039062454525,
+              0.0074462890625
+            ],
+            "execution_ms": 0.0068359375,
+            "checksum": "172032"
+          },
+          "zx": {
+            "ok": true,
+            "result": "42",
+            "batches": 65536,
+            "warmup_ms": 150,
+            "warmup_count": 210943,
+            "batch_samples_ms": [
+              15.900000000372529,
+              16,
+              16,
+              17,
+              16.40000000037253
+            ],
+            "stdout_verified": true,
+            "load_ms": 31.199999999254942,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.00024261474609943434,
+              0.000244140625,
+              0.000244140625,
+              0.0002593994140625,
+              0.00025024414063068434
+            ],
+            "execution_ms": 0.000244140625,
+            "checksum": "2752512"
+          },
+          "wasm": {
+            "ok": true,
+            "result": "42",
+            "batches": 65536,
+            "warmup_ms": 150,
+            "warmup_count": 430194,
+            "batch_samples_ms": [
+              2.1000000005587935,
+              1.8999999994412065,
+              1.900000000372529,
+              1.8999999994412065,
+              1.800000000745058
+            ],
+            "stdout_verified": true,
+            "load_ms": 1.7999999998137355,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              3.204345703977651e-05,
+              2.8991699210223487e-05,
+              2.8991699224434342e-05,
+              2.8991699210223487e-05,
+              2.7465820323868684e-05
+            ],
+            "execution_ms": 2.8991699210223487e-05,
+            "checksum": "2752512"
+          }
+        },
+        "text_demo": {
+          "c": {
+            "ok": true,
+            "result": "1",
+            "batches": 65536,
+            "warmup_ms": 150,
+            "warmup_count": 479214,
+            "batch_samples_ms": [
+              0.6000000005587935,
+              0.7000000001862645,
+              0.5,
+              0.5,
+              0.40000000037252903
+            ],
+            "stdout_verified": true,
+            "load_ms": 4.8999999994412065,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              9.155273446026513e-06,
+              1.0681152346592171e-05,
+              7.62939453125e-06,
+              7.62939453125e-06,
+              6.103515630684342e-06
+            ],
+            "execution_ms": 7.62939453125e-06,
+            "checksum": "65536"
+          },
+          "go": {
+            "ok": true,
+            "result": "1",
+            "batches": 2048,
+            "warmup_ms": 150,
+            "warmup_count": 17908,
+            "batch_samples_ms": [
+              13.600000000558794,
+              12.799999999813735,
+              13.200000000186265,
+              16.5,
+              13.799999999813735
+            ],
+            "stdout_verified": true,
+            "load_ms": 35.200000000186265,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.006640625000272848,
+              0.0062499999999090505,
+              0.0064453125000909495,
+              0.008056640625,
+              0.0067382812499090505
+            ],
+            "execution_ms": 0.006640625000272848,
+            "checksum": "2048"
+          },
+          "zx": {
+            "ok": true,
+            "result": "1",
+            "batches": 8192,
+            "warmup_ms": 150,
+            "warmup_count": 52001,
+            "batch_samples_ms": [
+              14.799999999813735,
+              14.599999999627471,
+              15.299999999813735,
+              14.899999999441206,
+              15.100000000558794
+            ],
+            "stdout_verified": true,
+            "load_ms": 38.299999999813735,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0018066406249772626,
+              0.0017822265624545253,
+              0.0018676757812272626,
+              0.001818847656181788,
+              0.001843261718818212
+            ],
+            "execution_ms": 0.001818847656181788,
+            "checksum": "8192"
+          },
+          "wasm": {
+            "ok": true,
+            "result": "1",
+            "batches": 65536,
+            "warmup_ms": 150,
+            "warmup_count": 230354,
+            "batch_samples_ms": [
+              4.5,
+              4.400000000372529,
+              3.7000000001862645,
+              3.5,
+              3.7000000001862645
+            ],
+            "stdout_verified": true,
+            "load_ms": 4.7000000001862645,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              6.866455078125e-05,
+              6.713867188068434e-05,
+              5.645751953409217e-05,
+              5.340576171875e-05,
+              5.645751953409217e-05
+            ],
+            "execution_ms": 5.645751953409217e-05,
+            "checksum": "65536"
+          }
+        },
+        "arrays": {
+          "c": {
+            "ok": true,
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150,
+            "warmup_count": 33679,
+            "batch_samples_ms": [
+              14.300000000745058,
+              13.599999999627471,
+              12.5,
+              14.700000000186265,
+              12.599999999627471
+            ],
+            "stdout_verified": true,
+            "load_ms": 21.899999999441206,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.003491210937681899,
+              0.0033203124999090505,
+              0.0030517578125,
+              0.0035888671875454747,
+              0.0030761718749090505
+            ],
+            "execution_ms": 0.0033203124999090505,
+            "checksum": "0"
+          },
+          "go": {
+            "ok": true,
+            "result": "0",
+            "batches": 128,
+            "warmup_ms": 150.1000000005588,
+            "warmup_count": 1299,
+            "batch_samples_ms": [
+              43.299999999813735,
+              11.799999999813735,
+              10.899999999441206,
+              12.700000000186265,
+              11
+            ],
+            "stdout_verified": true,
+            "load_ms": 64.19999999925494,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.3382812499985448,
+              0.09218749999854481,
+              0.08515624999563443,
+              0.09921875000145519,
+              0.0859375
+            ],
+            "execution_ms": 0.09218749999854481,
+            "checksum": "0"
+          },
+          "zx": {
+            "ok": true,
+            "result": "0",
+            "batches": 256,
+            "warmup_ms": 150,
+            "warmup_count": 2615,
+            "batch_samples_ms": [
+              12,
+              10.900000000372529,
+              11.599999999627471,
+              11.600000000558794,
+              12.200000000186265
+            ],
+            "stdout_verified": true,
+            "load_ms": 44.59999999962747,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.046875,
+              0.04257812500145519,
+              0.04531249999854481,
+              0.04531250000218279,
+              0.047656250000727596
+            ],
+            "execution_ms": 0.04531250000218279,
+            "checksum": "0"
+          },
+          "wasm": {
+            "ok": true,
+            "result": "0",
+            "batches": 1024,
+            "warmup_ms": 152.29999999981374,
+            "warmup_count": 6363,
+            "batch_samples_ms": [
+              36.90000000037253,
+              47,
+              21,
+              14.900000000372529,
+              48.799999999813735
+            ],
+            "stdout_verified": true,
+            "load_ms": 3.7000000001862645,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0360351562503638,
+              0.0458984375,
+              0.0205078125,
+              0.014550781250363798,
+              0.0476562499998181
+            ],
+            "execution_ms": 0.0360351562503638,
+            "checksum": "0"
+          }
+        },
+        "enums": {
+          "c": {
+            "ok": true,
+            "result": "0",
+            "batches": 8192,
+            "warmup_ms": 150,
+            "warmup_count": 57729,
+            "batch_samples_ms": [
+              15.700000000186265,
+              15.5,
+              15.200000000186265,
+              14.700000000186265,
+              15.400000000372529
+            ],
+            "stdout_verified": true,
+            "load_ms": 9.899999999441206,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0019165039062727374,
+              0.00189208984375,
+              0.0018554687500227374,
+              0.0017944335937727374,
+              0.0018798828125454747
+            ],
+            "execution_ms": 0.0018798828125454747,
+            "checksum": "0"
+          },
+          "go": {
+            "ok": true,
+            "result": "0",
+            "batches": 256,
+            "warmup_ms": 150,
+            "warmup_count": 2262,
+            "batch_samples_ms": [
+              14.199999999254942,
+              15,
+              16.299999999813735,
+              14,
+              15.200000000186265
+            ],
+            "stdout_verified": true,
+            "load_ms": 37.10000000055879,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.05546874999708962,
+              0.05859375,
+              0.0636718749992724,
+              0.0546875,
+              0.059375000000727596
+            ],
+            "execution_ms": 0.05859375,
+            "checksum": "0"
+          },
+          "zx": {
+            "ok": true,
+            "result": "0",
+            "batches": 512,
+            "warmup_ms": 150,
+            "warmup_count": 6212,
+            "batch_samples_ms": [
+              10.700000000186265,
+              10.800000000745058,
+              10.799999999813735,
+              10.100000000558794,
+              10.699999999254942
+            ],
+            "stdout_verified": true,
+            "load_ms": 40.200000000186265,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.020898437500363798,
+              0.02109375000145519,
+              0.021093749999636202,
+              0.019726562501091394,
+              0.02089843749854481
+            ],
+            "execution_ms": 0.020898437500363798,
+            "checksum": "0"
+          },
+          "wasm": {
+            "ok": true,
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150,
+            "warmup_count": 20227,
+            "batch_samples_ms": [
+              30.90000000037253,
+              20.200000000186265,
+              16.59999999962747,
+              38,
+              19.200000000186265
+            ],
+            "stdout_verified": true,
+            "load_ms": 3.3999999994412065,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0075439453125909495,
+              0.004931640625045475,
+              0.0040527343749090505,
+              0.00927734375,
+              0.004687500000045475
+            ],
+            "execution_ms": 0.004931640625045475,
+            "checksum": "0"
+          }
+        },
+        "loops": {
+          "c": {
+            "ok": true,
+            "result": "0",
+            "batches": 4096,
+            "warmup_ms": 150,
+            "warmup_count": 24017,
+            "batch_samples_ms": [
+              20.09999999962747,
+              19.300000000745058,
+              20.299999999813735,
+              20,
+              19.5
+            ],
+            "stdout_verified": true,
+            "load_ms": 14.100000000558794,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.0049072265624090505,
+              0.004711914062681899,
+              0.004956054687454525,
+              0.0048828125,
+              0.0047607421875
+            ],
+            "execution_ms": 0.0048828125,
+            "checksum": "0"
+          },
+          "go": {
+            "ok": true,
+            "result": "0",
+            "batches": 64,
+            "warmup_ms": 150.29999999981374,
+            "warmup_count": 339,
+            "batch_samples_ms": [
+              18.299999999813735,
+              15.799999999813735,
+              53.799999999813735,
+              17.5,
+              12.599999999627471
+            ],
+            "stdout_verified": true,
+            "load_ms": 66.70000000018626,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.2859374999970896,
+              0.24687499999708962,
+              0.8406249999970896,
+              0.2734375,
+              0.19687499999417923
+            ],
+            "execution_ms": 0.2734375,
+            "checksum": "0"
+          },
+          "zx": {
+            "ok": true,
+            "result": "0",
+            "batches": 256,
+            "warmup_ms": 150,
+            "warmup_count": 1946,
+            "batch_samples_ms": [
+              19.40000000037253,
+              20.299999999813735,
+              19.299999999813735,
+              19.700000000186265,
+              19.600000000558794
+            ],
+            "stdout_verified": true,
+            "load_ms": 23.200000000186265,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.07578125000145519,
+              0.0792968749992724,
+              0.0753906249992724,
+              0.0769531250007276,
+              0.07656250000218279
+            ],
+            "execution_ms": 0.07656250000218279,
+            "checksum": "0"
+          },
+          "wasm": {
+            "ok": true,
+            "result": "0",
+            "batches": 64,
+            "warmup_ms": 150,
+            "warmup_count": 6324,
+            "batch_samples_ms": [
+              0.7000000001862645,
+              0.599999999627471,
+              0.7000000001862645,
+              0.7999999998137355,
+              0.7999999998137355
+            ],
+            "stdout_verified": true,
+            "load_ms": 5.5,
+            "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+            "execution_samples_ms": [
+              0.010937500002910383,
+              0.009374999994179234,
+              0.010937500002910383,
+              0.012499999997089617,
+              0.012499999997089617
+            ],
+            "execution_ms": 0.010937500002910383,
+            "checksum": "0"
+          }
+        }
+      },
+      "methodology": "Median warm time per entry. Each runtime warms for at least 150 ms, calibrates a batch, then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. Includes the host call boundary and budget reset where required; excludes loading, process startup, downloads and offline compilation. Tiny examples emphasize call overhead. Shared machines and uncontrolled clocks; no universal target ranking."
+    }
+  },
+  "generated_at": "2026-11-11T01:45:49.837855+00:00",
+  "revision": "61b1e5402a4873dc8e84d727bcbe10d7b3077ad6",
   "compiler_dirty": true,
   "platform": "Linux x86_64",
   "cpu": "AMD Ryzen 9 9950X 16-Core Processor",
@@ -9,22 +1665,22 @@
   "warmups": 1,
   "tools": {
     "zi2c": {
-      "sha256": "1ea04b040cf70f227d25cd47a04f4c462195a1fdae950325e43f0aa4a727a216"
+      "sha256": "a2c0dd0e50fc51eaaac6d390c2b4ea7b7dff83cc454e89c2c34603f1336214d6"
     },
     "zi2go": {
-      "sha256": "424f04e7b70c4821a8c1df2f7b62bea602121d9bfa7d6bc99e31136dce87a65b"
+      "sha256": "0acc1dbf86df5f7f4844eafcadd9decc146e3f8c6c6cc52ff47d1b5af575a5ea"
     },
     "zi2zx": {
-      "sha256": "7e52d8dd5574544834f154deac3ea392dc806da678f33d27c8b1e3bc98e8d987"
+      "sha256": "67ce2a5b675dca0858a8c485d7767c45525457d26852f6e8e8497a9df4964c0e"
     },
     "zi2wasm": {
-      "sha256": "604ee1c7f84db5b6f93e83d6aecc2382636f38e49f19398a2b01560228c25617"
+      "sha256": "93d64dbcd4f1257c58a08a8f00cddeea5df40446213e2c3a6756ea4d9e6efe3f"
     },
     "zi2zir": {
-      "sha256": "b24bdcac820f9a4137a2d020dbba5a56c0f178df19b58ceea01ae7781511ca15"
+      "sha256": "5ff769fa06f310bc367bff216f10c091c19a9ed5cc4a6e40678ad99b82bc5462"
     },
     "zi-inspect": {
-      "sha256": "d1243b44a5a04780863db6fcfd58a8e221bf48189ad467208468f9f8265697d7"
+      "sha256": "21d09c16c0a51fcbb59f88505f451418c6dbb09a548f0f473f244c24f90e381f"
     }
   },
   "versions": {
@@ -35,14 +1691,15 @@
   "source_inputs": {
     "site/examples/score.zi": "b6deea5e1ff47d2e912bcc94c709a9b83df7552abd8d6b294c3c4385c44412b3",
     "site/examples/text_demo.zi": "f39db8ea1a28adbe522e10e2ef9e1a9bbc2b0753c12294ccd20f026e6c15f99e",
-    "site/examples/targets/loops.zi": "b223d60c223dc10cd81356d8bc2806577d4e1de3633d61bc1eeb47898fb14fee",
-    "site/examples/targets/records.zi": "ceada1963d660334eb996ba1d9e4c9b968836ba9edeb5a8e5c9e63102bf0f82c",
-    "site/examples/targets/enums.zi": "50557c6a0d330714de9fcca401c0635ab80be341e7cc6eece7db0a41441469ea",
+    "site/examples/arrays.zi": "19435b49ec2c822574fff9a12a37b312f8c3866f9ee2ce78318e4c533388b996",
+    "site/examples/enums.zi": "b0651bce448d2296b9631a2756a9ce3d5ca0345a2398e1178acc6167de6acac4",
+    "site/examples/loops.zi": "c7114bde10a7b2bcfd6e777a40b1ec13323412f143ec9325c601887ee3ca7cb0",
     "std/text.zi": "bbad3d09e2745f497d9493c77a1180d901a56432bebc368a3497c035856cb3ae"
   },
   "harnesses": {
-    "scripts/site_targets.py": "9f1c3c71e2f5fb04e88bf0ed3daccbfb0a7b925f11792ffaf4d74491eab395fa",
-    "scripts/site_target_wasm.cjs": "fa65aeac11048b5738f2b3f853d5f3e2b557d0ef1496eb61c3520c3172eb3548"
+    "scripts/site_targets.py": "fc4df0d50668272eb4bdc624199ceb7af72b3bfb0246ffa2b4ce0750e3076518",
+    "scripts/site_target_wasm.cjs": "ebeec68e6be0fa9081510ebf50692d991e58abb71d98aaa2d60680a2a64c511f",
+    "site/target-abi.js": "944d8d7f6e760e110d3a072c6374a6a81d02c79af3092e2c54f5852c0f8c02eb"
   },
   "methodology": "Median whole-process wall time after one discarded warmup; shuffled execution order. C: cc -O2; Go: go build; ZX: portable VM (--vm); WebAssembly: Node, including engine startup, compilation and instantiation. Emission includes loading, checking, linking and writing output; it excludes downstream C/Go builds. Output size is emitted files, including C headers, rather than linked executables. Shared host, warm filesystem caches, no CPU isolation. Small examples emphasize startup; these are not language rankings.",
   "examples": [
@@ -52,6 +1709,8 @@
       "source": "examples/score.zi",
       "source_sha256": "b6deea5e1ff47d2e912bcc94c709a9b83df7552abd8d6b294c3c4385c44412b3",
       "expected": "42",
+      "entry": "Answer",
+      "stdout": "",
       "targets": {
         "c": {
           "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/c site/examples/score.zi",
@@ -63,31 +1722,46 @@
             },
             {
               "path": "generated/targets/score/c/score.h",
-              "bytes": 801,
-              "sha256": "f443b137a90c0682b97f127fa0184769dc5b71a6c2a483da6630699d3a714fb2"
+              "bytes": 707,
+              "sha256": "1b7c04d7a5e252d30bc0292f797b4180c43f0c13a45390c262f80b997ac1d419"
             }
           ],
           "emission_samples_ms": [
-            1.21252,
-            1.25038,
-            1.32726,
-            1.12201,
-            1.0149
+            1.598096,
+            2.514842,
+            2.674621,
+            2.06231,
+            1.816001
           ],
           "status": "ok",
-          "bytes": 1293,
-          "emission_ms": 1.21252,
+          "bytes": 1199,
+          "emission_ms": 2.06231,
           "run_command": "build/site-targets/score/c/program",
-          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/score/c build/site-targets/score/c/matrix_host.c build/site-targets/score/c/score.c -lm -o build/site-targets/score/c/program",
+          "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/score/c build/site-targets/score/c/matrix_host.c build/site-targets/score/c/score.c -lm -o build/site-targets/score/c/program",
           "run_samples_ms": [
-            0.49329,
-            0.3647,
-            0.41917,
-            0.39856,
-            0.29942
+            1.501705,
+            1.54304,
+            0.544533,
+            0.42949,
+            1.850135
           ],
           "result": "42",
-          "run_ms": 0.39856
+          "run_ms": 1.501705,
+          "web": {
+            "script": "generated/targets/web/score-c.js",
+            "files": [
+              {
+                "path": "generated/targets/web/score-c.js",
+                "bytes": 54816,
+                "sha256": "4d4ca5b5706b2f984eac8ecd62c2dff296bfb0daf7f729e9d1a31e09027cd026"
+              },
+              {
+                "path": "generated/targets/web/score-c.wasm",
+                "bytes": 1143,
+                "sha256": "f54b726b64d7a388cae410075aab2be909b227b77f5eef5e670c8a379ae0e886"
+              }
+            ]
+          }
         },
         "go": {
           "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/go site/examples/score.zi",
@@ -99,26 +1773,47 @@
             }
           ],
           "emission_samples_ms": [
-            1.69004,
-            0.86508,
-            0.81315,
-            1.03326,
-            0.88082
+            1.320994,
+            2.564578,
+            1.647821,
+            1.619298,
+            1.614668
           ],
           "status": "ok",
           "bytes": 287,
-          "emission_ms": 0.88082,
+          "emission_ms": 1.619298,
           "run_command": "build/site-targets/score/go/program",
           "build_command": "go build -p=2 -o build/site-targets/score/go/program build/site-targets/score/go/matrix_host.go build/site-targets/score/go/score.go",
           "run_samples_ms": [
-            0.59289,
-            0.82067,
-            0.71159,
-            0.67616,
-            0.66427
+            1.258896,
+            1.247505,
+            1.538169,
+            1.368259,
+            1.250515
           ],
           "result": "42",
-          "run_ms": 0.67616
+          "run_ms": 1.258896,
+          "web": {
+            "path": "generated/targets/web/score-go.wasm",
+            "runtime": "generated/targets/web/wasm_exec.js",
+            "files": [
+              {
+                "path": "generated/targets/web/score-go.wasm",
+                "bytes": 1722493,
+                "sha256": "ab5a79efe91bb260e023071d1d298985902370f1a52ed72e30eec0c2ceff8c38"
+              },
+              {
+                "path": "generated/targets/web/wasm_exec.js",
+                "bytes": 16992,
+                "sha256": "0c949f4996f9a89698e4b5c586de32249c3b69b7baadb64d220073cc04acba14"
+              },
+              {
+                "path": "generated/targets/web/go-LICENSE.txt",
+                "bytes": 16932,
+                "sha256": "a739b83e49889464462830f3c992b275f5acba9380d859f64bb75d71b18c1e03"
+              }
+            ]
+          }
         },
         "zx": {
           "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/zx/score.zx site/examples/score.zi",
@@ -135,15 +1830,15 @@
             }
           ],
           "emission_samples_ms": [
-            1.02396,
-            1.00277,
-            0.99171,
-            0.87294,
-            0.93134
+            4.046301,
+            1.217992,
+            1.647992,
+            1.340656,
+            1.239954
           ],
           "status": "ok",
           "bytes": 755,
-          "emission_ms": 0.99171,
+          "emission_ms": 1.340656,
           "inspection": {
             "path": "generated/targets/score/zx/score.zx.txt",
             "bytes": 1223,
@@ -151,44 +1846,59 @@
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/score/zx/score.zx",
           "run_samples_ms": [
-            0.85658,
-            0.977099,
-            0.99636,
-            0.91929,
-            0.76783
+            1.494674,
+            1.225653,
+            1.320273,
+            1.877219,
+            0.983665
           ],
           "result": "42",
-          "run_ms": 0.91929
+          "run_ms": 1.320273,
+          "web": {
+            "script": "generated/targets/web/zx-runtime.js",
+            "files": [
+              {
+                "path": "generated/targets/web/zx-runtime.js",
+                "bytes": 69396,
+                "sha256": "4987ce7b983e09aac0b6806d3f9e6f7720ef74ed23b950cbfcad7d7510e933bb"
+              },
+              {
+                "path": "generated/targets/web/zx-runtime.wasm",
+                "bytes": 893970,
+                "sha256": "532f10f3a610791548fd786b3c6c450e5e9c79dc757d1a1e5e98c8dbfa68d1ed"
+              }
+            ]
+          }
         },
         "wasm": {
           "command": "build/bin/zi2wasm --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/wasm/score.wasm site/examples/score.zi",
           "files": [
             {
               "path": "generated/targets/score/wasm/score.wasm",
-              "bytes": 286,
-              "sha256": "3288564775d7cc20d59a3097ad4412ef04d01b5e58c6d8085eb4d8342d241224"
+              "bytes": 295,
+              "sha256": "d90f0ff2fd64e9de316458c0b757a0fadcc674991cc30637afb267d257305eb8"
             }
           ],
           "emission_samples_ms": [
-            1.05993,
-            0.97587,
-            0.99603,
-            0.8892,
-            1.00375
+            1.824932,
+            2.416381,
+            1.989372,
+            1.453129,
+            1.047082
           ],
           "status": "ok",
-          "bytes": 286,
-          "emission_ms": 0.99603,
+          "bytes": 295,
+          "emission_ms": 1.824932,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/score/wasm/score.wasm",
           "run_samples_ms": [
-            13.03724,
-            13.945759,
-            13.846029,
-            12.99249,
-            13.58316
+            20.28762,
+            23.897319,
+            20.833593,
+            20.239614,
+            20.481502
           ],
           "result": "42",
-          "run_ms": 13.58316
+          "run_ms": 20.481502
         },
         "zir": {
           "command": "build/bin/zi2zir --root site/examples --module-path std --entry score:Answer -o build/site-targets/score/zir site/examples/score.zi",
@@ -205,15 +1915,15 @@
             }
           ],
           "emission_samples_ms": [
-            0.9243,
-            0.90635,
-            0.96204,
-            0.90325,
-            0.76594
+            1.092647,
+            1.177306,
+            1.03808,
+            1.423025,
+            1.359388
           ],
           "status": "ok",
           "bytes": 708,
-          "emission_ms": 0.90635,
+          "emission_ms": 1.177306,
           "inspection": {
             "path": "generated/targets/score/zir/score.zir.txt",
             "bytes": 1171,
@@ -228,6 +1938,8 @@
       "source": "examples/text_demo.zi",
       "source_sha256": "f39db8ea1a28adbe522e10e2ef9e1a9bbc2b0753c12294ccd20f026e6c15f99e",
       "expected": "1",
+      "entry": "Answer",
+      "stdout": "",
       "targets": {
         "c": {
           "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/c site/examples/text_demo.zi",
@@ -239,8 +1951,8 @@
             },
             {
               "path": "generated/targets/text_demo/c/text_demo.h",
-              "bytes": 267,
-              "sha256": "00d97a11dc5bda35a3bdca7c52602cd011b5a333f6bef6635f73c5822c81ff43"
+              "bytes": 198,
+              "sha256": "71c475cb20c9e93416a356dbfa50f99e1b1990a8d5ed4b09ec0aa1ebc8fef97a"
             },
             {
               "path": "generated/targets/text_demo/c/text.c",
@@ -249,13 +1961,13 @@
             },
             {
               "path": "generated/targets/text_demo/c/text.h",
-              "bytes": 318,
-              "sha256": "f2e47f08fc05673925873582db73a8ddd958249fadd4ad1d96edc2dab93a8cdc"
+              "bytes": 249,
+              "sha256": "db65ce25c23d2f8459c5c771ffe63b4ddc959c773b84ba2bf7b48dd21e40a594"
             },
             {
               "path": "generated/targets/text_demo/c/zir_bounds.h",
-              "bytes": 1756,
-              "sha256": "3343dc0e065d411f671f19640c6baaf3ae3a951238ce341b6eaf85690842a16f"
+              "bytes": 1687,
+              "sha256": "e315979cab4615e28c514b4a0b11b2ffe1edad8d8446901cfd467222ba9c48e4"
             },
             {
               "path": "generated/targets/text_demo/c/zir_string_types.h",
@@ -264,26 +1976,41 @@
             }
           ],
           "emission_samples_ms": [
-            1.62465,
-            1.58122,
-            1.99272,
-            1.327,
-            1.57678
+            3.146206,
+            2.554837,
+            2.272915,
+            1.89169,
+            2.537466
           ],
           "status": "ok",
-          "bytes": 4098,
-          "emission_ms": 1.58122,
+          "bytes": 3891,
+          "emission_ms": 2.537466,
           "run_command": "build/site-targets/text_demo/c/program",
-          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/text_demo/c build/site-targets/text_demo/c/matrix_host.c build/site-targets/text_demo/c/text.c build/site-targets/text_demo/c/text_demo.c -lm -o build/site-targets/text_demo/c/program",
+          "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/text_demo/c build/site-targets/text_demo/c/matrix_host.c build/site-targets/text_demo/c/text.c build/site-targets/text_demo/c/text_demo.c -lm -o build/site-targets/text_demo/c/program",
           "run_samples_ms": [
-            0.41499,
-            0.53639,
-            0.42138,
-            0.3893,
-            0.34012
+            0.802443,
+            1.703238,
+            0.527802,
+            0.86059,
+            1.734882
           ],
           "result": "1",
-          "run_ms": 0.41499
+          "run_ms": 0.86059,
+          "web": {
+            "script": "generated/targets/web/text_demo-c.js",
+            "files": [
+              {
+                "path": "generated/targets/web/text_demo-c.js",
+                "bytes": 55507,
+                "sha256": "32a1e44d527ea74a1d9a85a4153f238e51126e0d88341176bc9aa25ede3d6d70"
+              },
+              {
+                "path": "generated/targets/web/text_demo-c.wasm",
+                "bytes": 7908,
+                "sha256": "ccfa04662750ae01c36f36743dfffbb9dd019bd8ffa88eacf66ccc6b65a41aa5"
+              }
+            ]
+          }
         },
         "go": {
           "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/go site/examples/text_demo.zi",
@@ -300,26 +2027,47 @@
             }
           ],
           "emission_samples_ms": [
-            1.475059,
-            1.62487,
-            1.41616,
-            1.47273,
-            1.53013
+            2.173333,
+            1.992972,
+            2.222899,
+            1.877539,
+            2.237821
           ],
           "status": "ok",
           "bytes": 1283,
-          "emission_ms": 1.475059,
+          "emission_ms": 2.173333,
           "run_command": "build/site-targets/text_demo/go/program",
           "build_command": "go build -p=2 -o build/site-targets/text_demo/go/program build/site-targets/text_demo/go/matrix_host.go build/site-targets/text_demo/go/text.go build/site-targets/text_demo/go/text_demo.go",
           "run_samples_ms": [
-            0.60866,
-            0.68775,
-            0.59042,
-            0.5957,
-            0.49738
+            1.393932,
+            1.855846,
+            0.825306,
+            0.837838,
+            0.867391
           ],
           "result": "1",
-          "run_ms": 0.5957
+          "run_ms": 0.867391,
+          "web": {
+            "path": "generated/targets/web/text_demo-go.wasm",
+            "runtime": "generated/targets/web/wasm_exec.js",
+            "files": [
+              {
+                "path": "generated/targets/web/text_demo-go.wasm",
+                "bytes": 1723123,
+                "sha256": "b7e778d586e87818bf93b992ae107ee7facbd01b7de299d3693d474cac2dbd59"
+              },
+              {
+                "path": "generated/targets/web/wasm_exec.js",
+                "bytes": 16992,
+                "sha256": "0c949f4996f9a89698e4b5c586de32249c3b69b7baadb64d220073cc04acba14"
+              },
+              {
+                "path": "generated/targets/web/go-LICENSE.txt",
+                "bytes": 16932,
+                "sha256": "a739b83e49889464462830f3c992b275f5acba9380d859f64bb75d71b18c1e03"
+              }
+            ]
+          }
         },
         "zx": {
           "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/zx/text_demo.zx site/examples/text_demo.zi",
@@ -336,15 +2084,15 @@
             }
           ],
           "emission_samples_ms": [
-            1.26178,
-            1.26175,
-            1.22895,
-            1.165289,
-            1.2743
+            2.767662,
+            1.988922,
+            1.902621,
+            2.227379,
+            1.793388
           ],
           "status": "ok",
           "bytes": 2529,
-          "emission_ms": 1.26175,
+          "emission_ms": 1.988922,
           "inspection": {
             "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
             "bytes": 4258,
@@ -352,44 +2100,59 @@
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/text_demo/zx/text_demo.zx",
           "run_samples_ms": [
-            1.08712,
-            1.06573,
-            0.93886,
-            1.14104,
-            0.98342
+            2.843191,
+            1.20103,
+            1.28997,
+            1.563662,
+            1.017699
           ],
           "result": "1",
-          "run_ms": 1.06573
+          "run_ms": 1.28997,
+          "web": {
+            "script": "generated/targets/web/zx-runtime.js",
+            "files": [
+              {
+                "path": "generated/targets/web/zx-runtime.js",
+                "bytes": 69396,
+                "sha256": "4987ce7b983e09aac0b6806d3f9e6f7720ef74ed23b950cbfcad7d7510e933bb"
+              },
+              {
+                "path": "generated/targets/web/zx-runtime.wasm",
+                "bytes": 893970,
+                "sha256": "532f10f3a610791548fd786b3c6c450e5e9c79dc757d1a1e5e98c8dbfa68d1ed"
+              }
+            ]
+          }
         },
         "wasm": {
           "command": "build/bin/zi2wasm --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/wasm/text_demo.wasm site/examples/text_demo.zi",
           "files": [
             {
               "path": "generated/targets/text_demo/wasm/text_demo.wasm",
-              "bytes": 505,
-              "sha256": "9d2d02877a5857c1558bdc0a955578b95c5ef82b53c1a04a3f34fff938abc1e0"
+              "bytes": 545,
+              "sha256": "ec400343ce80f33efef9f6a127a88da1381bfcd2dc5aa8770971cf274efa826b"
             }
           ],
           "emission_samples_ms": [
-            1.43054,
-            1.50146,
-            1.40351,
-            1.64309,
-            1.41383
+            1.864466,
+            1.63602,
+            1.824822,
+            1.693717,
+            1.640061
           ],
           "status": "ok",
-          "bytes": 505,
-          "emission_ms": 1.43054,
+          "bytes": 545,
+          "emission_ms": 1.693717,
           "run_command": "node scripts/site_target_wasm.cjs build/site-targets/text_demo/wasm/text_demo.wasm",
           "run_samples_ms": [
-            13.411359,
-            13.90123,
-            13.39829,
-            14.01782,
-            14.773149
+            18.547067,
+            23.953616,
+            18.795586,
+            21.06753,
+            22.791481
           ],
           "result": "1",
-          "run_ms": 13.90123
+          "run_ms": 21.06753
         },
         "zir": {
           "command": "build/bin/zi2zir --root site/examples --module-path std --entry text_demo:Answer -o build/site-targets/text_demo/zir site/examples/text_demo.zi",
@@ -416,15 +2179,15 @@
             }
           ],
           "emission_samples_ms": [
-            1.31827,
-            1.34189,
-            1.17386,
-            1.25899,
-            1.26951
+            1.794019,
+            1.549451,
+            1.478252,
+            2.453966,
+            1.747973
           ],
           "status": "ok",
           "bytes": 2536,
-          "emission_ms": 1.26951,
+          "emission_ms": 1.747973,
           "inspection": {
             "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
             "bytes": 684,
@@ -434,514 +2197,710 @@
       }
     },
     {
-      "id": "loops",
-      "title": "Integer recurrence",
-      "source": "examples/targets/loops.zi",
-      "source_sha256": "b223d60c223dc10cd81356d8bc2806577d4e1de3633d61bc1eeb47898fb14fee",
-      "expected": "254980",
+      "id": "arrays",
+      "title": "Arrays & slices",
+      "source": "examples/arrays.zi",
+      "source_sha256": "19435b49ec2c822574fff9a12a37b312f8c3866f9ee2ce78318e4c533388b996",
+      "expected": "0",
+      "entry": "main",
+      "stdout": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9\n",
       "targets": {
         "c": {
-          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/c site/examples/targets/loops.zi",
+          "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry arrays:main -o build/site-targets/arrays/c site/examples/arrays.zi",
           "files": [
             {
-              "path": "generated/targets/loops/c/loops.c",
-              "bytes": 325,
-              "sha256": "b787cd7340db5ace239510f965e7ff3cac44bbbed2d086457c4d7bda8683f1de"
+              "path": "generated/targets/arrays/c/arrays.c",
+              "bytes": 1240,
+              "sha256": "cd844b06bf6df81999d79b436948343a878639011ae6c585e2e680ec2aa85b17"
             },
             {
-              "path": "generated/targets/loops/c/loops.h",
-              "bytes": 783,
-              "sha256": "6359438eb6c16696ae80b444abff7b670a124131861976475509b07dc3c3d0e9"
+              "path": "generated/targets/arrays/c/arrays.h",
+              "bytes": 824,
+              "sha256": "ac190a5b29c885d1f1a22561c2ac5f13a8818458d9e3c1f7b96a7af2be5cbce7"
+            },
+            {
+              "path": "generated/targets/arrays/c/zir_slice.h",
+              "bytes": 2469,
+              "sha256": "5f97aa92eb5dcfdee96d90c87f2ad3bef1c84b11ab320eb219a9acf532f1ea7b"
             }
           ],
           "emission_samples_ms": [
-            0.88669,
-            1.17159,
-            0.93165,
-            0.81377,
-            0.97655
+            2.15152,
+            2.502111,
+            2.336632,
+            2.045508,
+            2.001833
           ],
           "status": "ok",
-          "bytes": 1108,
-          "emission_ms": 0.93165,
-          "run_command": "build/site-targets/loops/c/program",
-          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/loops/c build/site-targets/loops/c/loops.c build/site-targets/loops/c/matrix_host.c -lm -o build/site-targets/loops/c/program",
+          "bytes": 4533,
+          "emission_ms": 2.15152,
+          "run_command": "build/site-targets/arrays/c/program",
+          "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/arrays/c build/site-targets/arrays/c/arrays.c build/site-targets/arrays/c/matrix_host.c -lm -o build/site-targets/arrays/c/program",
           "run_samples_ms": [
-            0.43887,
-            0.34471,
-            0.39024,
-            0.38326,
-            0.36909
+            1.6307,
+            0.846309,
+            0.449222,
+            0.729315,
+            0.653646
           ],
-          "result": "254980",
-          "run_ms": 0.38326
-        },
-        "go": {
-          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/go site/examples/targets/loops.zi",
-          "files": [
-            {
-              "path": "generated/targets/loops/go/loops.go",
-              "bytes": 213,
-              "sha256": "4bc4a049be977a1449be78fa09fa4765e42b2d34b4f00b5121264c9af5df63ac"
-            }
-          ],
-          "emission_samples_ms": [
-            1.42705,
-            0.89535,
-            0.7877,
-            0.89736,
-            0.9137
-          ],
-          "status": "ok",
-          "bytes": 213,
-          "emission_ms": 0.89736,
-          "run_command": "build/site-targets/loops/go/program",
-          "build_command": "go build -p=2 -o build/site-targets/loops/go/program build/site-targets/loops/go/loops.go build/site-targets/loops/go/matrix_host.go",
-          "run_samples_ms": [
-            0.58286,
-            0.59391,
-            0.53006,
-            0.7007,
-            0.78146
-          ],
-          "result": "254980",
-          "run_ms": 0.59391
-        },
-        "zx": {
-          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/zx/loops.zx site/examples/targets/loops.zi",
-          "files": [
-            {
-              "path": "generated/targets/loops/zx/loops.zx",
-              "bytes": 862,
-              "sha256": "36076c698e21eb1eed65bf09118ec32eff43ca9a1d276ee7610b8922ff6e7ff4",
-              "inspection": {
-                "path": "generated/targets/loops/zx/loops.zx.txt",
-                "bytes": 1443,
-                "sha256": "d0f61be0e23c31bbbbb4ad720ba7319edf55611c6a1b1308dccddf7f9680028c"
+          "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
+          "run_ms": 0.729315,
+          "web": {
+            "script": "generated/targets/web/arrays-c.js",
+            "files": [
+              {
+                "path": "generated/targets/web/arrays-c.js",
+                "bytes": 54817,
+                "sha256": "fe395022f9f0d3c61ec4c9c945e6fedd942222a3b38a594926b6117d4339971e"
+              },
+              {
+                "path": "generated/targets/web/arrays-c.wasm",
+                "bytes": 7518,
+                "sha256": "60e5a6c33a6af68eff18397838b90ef7c55616eb1ca00c07305aa8bddb18f170"
               }
-            }
-          ],
-          "emission_samples_ms": [
-            0.99588,
-            0.9569,
-            0.9084,
-            0.85411,
-            0.76171
-          ],
-          "status": "ok",
-          "bytes": 862,
-          "emission_ms": 0.9084,
-          "inspection": {
-            "path": "generated/targets/loops/zx/loops.zx.txt",
-            "bytes": 1443,
-            "sha256": "d0f61be0e23c31bbbbb4ad720ba7319edf55611c6a1b1308dccddf7f9680028c"
-          },
-          "run_command": "build/bin/zi2zx run --vm build/site-targets/loops/zx/loops.zx",
-          "run_samples_ms": [
-            0.92635,
-            1.02241,
-            0.75241,
-            0.96763,
-            0.95646
-          ],
-          "result": "254980",
-          "run_ms": 0.95646
-        },
-        "wasm": {
-          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/wasm/loops.wasm site/examples/targets/loops.zi",
-          "files": [
-            {
-              "path": "generated/targets/loops/wasm/loops.wasm",
-              "bytes": 258,
-              "sha256": "e74c80d50f4ec7ae143285eaa5e4e7de9fa7954a65fe83e5eb11e20a995fd8b2"
-            }
-          ],
-          "emission_samples_ms": [
-            1.12867,
-            0.70285,
-            0.72705,
-            0.62729,
-            0.70039
-          ],
-          "status": "ok",
-          "bytes": 258,
-          "emission_ms": 0.70285,
-          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/loops/wasm/loops.wasm",
-          "run_samples_ms": [
-            14.75544,
-            14.142559,
-            12.54128,
-            14.855809,
-            12.763679
-          ],
-          "result": "254980",
-          "run_ms": 14.142559
-        },
-        "zir": {
-          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry loops:Answer -o build/site-targets/loops/zir site/examples/targets/loops.zi",
-          "files": [
-            {
-              "path": "generated/targets/loops/zir/loops.zir",
-              "bytes": 815,
-              "sha256": "2405c0e9beaa5548b901c1d9d529a303ddeee34d6bfd63943c62c84b688ea1a2",
-              "inspection": {
-                "path": "generated/targets/loops/zir/loops.zir.txt",
-                "bytes": 1391,
-                "sha256": "14b813410f677426982d6047f44e26bb5afecaaad8a985d385a0bfeda779001c"
-              }
-            }
-          ],
-          "emission_samples_ms": [
-            0.96222,
-            0.88117,
-            0.81747,
-            0.91364,
-            0.85474
-          ],
-          "status": "ok",
-          "bytes": 815,
-          "emission_ms": 0.88117,
-          "inspection": {
-            "path": "generated/targets/loops/zir/loops.zir.txt",
-            "bytes": 1391,
-            "sha256": "14b813410f677426982d6047f44e26bb5afecaaad8a985d385a0bfeda779001c"
+            ]
           }
-        }
-      }
-    },
-    {
-      "id": "records",
-      "title": "Record arrays",
-      "source": "examples/targets/records.zi",
-      "source_sha256": "ceada1963d660334eb996ba1d9e4c9b968836ba9edeb5a8e5c9e63102bf0f82c",
-      "expected": "14820",
-      "targets": {
-        "c": {
-          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/c site/examples/targets/records.zi",
-          "files": [
-            {
-              "path": "generated/targets/records/c/records.c",
-              "bytes": 815,
-              "sha256": "ccf4bc8566eb1129679ba23100a59c87f36480d9a68bee7c459d8ffcc3b45f32"
-            },
-            {
-              "path": "generated/targets/records/c/records.h",
-              "bytes": 316,
-              "sha256": "d673e2773b0752a3f7353cb21605511a1c4a6e5f009bfc7afe306ff2f9a39d51"
-            }
-          ],
-          "emission_samples_ms": [
-            1.30103,
-            1.28259,
-            1.09117,
-            1.19507,
-            1.0315
-          ],
-          "status": "ok",
-          "bytes": 1131,
-          "emission_ms": 1.19507,
-          "run_command": "build/site-targets/records/c/program",
-          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/records/c build/site-targets/records/c/matrix_host.c build/site-targets/records/c/records.c -lm -o build/site-targets/records/c/program",
-          "run_samples_ms": [
-            0.467859,
-            0.78392,
-            0.37833,
-            0.36659,
-            0.47889
-          ],
-          "result": "14820",
-          "run_ms": 0.467859
         },
         "go": {
-          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/go site/examples/targets/records.zi",
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry arrays:main -o build/site-targets/arrays/go site/examples/arrays.zi",
           "files": [
             {
-              "path": "generated/targets/records/go/records.go",
-              "bytes": 568,
-              "sha256": "e15d0c63b72652a15109f497c9d31e8705d492190dce017cd994d9fedd05f10c"
+              "path": "generated/targets/arrays/go/arrays.go",
+              "bytes": 720,
+              "sha256": "4b30830b161be5a06c92faa73a62dbaa8131074e65e9cf191cf6fe91b7f34318"
             }
           ],
           "emission_samples_ms": [
-            1.37521,
-            1.81928,
-            1.37266,
-            1.3192,
-            1.30036
+            1.963849,
+            1.932415,
+            1.646902,
+            1.848135,
+            2.163562
           ],
           "status": "ok",
-          "bytes": 568,
-          "emission_ms": 1.37266,
-          "run_command": "build/site-targets/records/go/program",
-          "build_command": "go build -p=2 -o build/site-targets/records/go/program build/site-targets/records/go/matrix_host.go build/site-targets/records/go/records.go",
+          "bytes": 720,
+          "emission_ms": 1.932415,
+          "run_command": "build/site-targets/arrays/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/arrays/go/program build/site-targets/arrays/go/arrays.go build/site-targets/arrays/go/matrix_host.go",
           "run_samples_ms": [
-            0.73855,
-            0.56153,
-            0.65574,
-            1.14591,
-            0.84725
+            1.327284,
+            1.538829,
+            0.817075,
+            0.900134,
+            1.20297
           ],
-          "result": "14820",
-          "run_ms": 0.73855
+          "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
+          "run_ms": 1.20297,
+          "web": {
+            "path": "generated/targets/web/arrays-go.wasm",
+            "runtime": "generated/targets/web/wasm_exec.js",
+            "files": [
+              {
+                "path": "generated/targets/web/arrays-go.wasm",
+                "bytes": 2469241,
+                "sha256": "8c59dc862a70234112daef7f263a80ce0f0857b24b2d40e6f856b6f01f804a15"
+              },
+              {
+                "path": "generated/targets/web/wasm_exec.js",
+                "bytes": 16992,
+                "sha256": "0c949f4996f9a89698e4b5c586de32249c3b69b7baadb64d220073cc04acba14"
+              },
+              {
+                "path": "generated/targets/web/go-LICENSE.txt",
+                "bytes": 16932,
+                "sha256": "a739b83e49889464462830f3c992b275f5acba9380d859f64bb75d71b18c1e03"
+              }
+            ]
+          }
         },
         "zx": {
-          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/zx/records.zx site/examples/targets/records.zi",
+          "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry arrays:main -o build/site-targets/arrays/zx/arrays.zx site/examples/arrays.zi",
           "files": [
             {
-              "path": "generated/targets/records/zx/records.zx",
-              "bytes": 3017,
-              "sha256": "3bb0f4ce34648837016d9e9d515411fc7151ac3522b1ba95a4d7581dcd10122b",
+              "path": "generated/targets/arrays/zx/arrays.zx",
+              "bytes": 3129,
+              "sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
               "inspection": {
-                "path": "generated/targets/records/zx/records.zx.txt",
-                "bytes": 5984,
-                "sha256": "e61956ef84706a438057df7a37aef10b09c9c906ca340c4810b53e2c962c98a0"
+                "path": "generated/targets/arrays/zx/arrays.zx.txt",
+                "bytes": 5620,
+                "sha256": "3154aad5e1b853e0814c327fecbcfd19e42795a7eb09567e0a0fac49783f09ab"
               }
             }
           ],
           "emission_samples_ms": [
-            1.25657,
-            1.11627,
-            1.10328,
-            1.20896,
-            1.15643
+            1.46358,
+            1.521037,
+            1.760315,
+            1.734742,
+            1.377571
           ],
           "status": "ok",
-          "bytes": 3017,
-          "emission_ms": 1.15643,
+          "bytes": 3129,
+          "emission_ms": 1.521037,
           "inspection": {
-            "path": "generated/targets/records/zx/records.zx.txt",
-            "bytes": 5984,
-            "sha256": "e61956ef84706a438057df7a37aef10b09c9c906ca340c4810b53e2c962c98a0"
+            "path": "generated/targets/arrays/zx/arrays.zx.txt",
+            "bytes": 5620,
+            "sha256": "3154aad5e1b853e0814c327fecbcfd19e42795a7eb09567e0a0fac49783f09ab"
           },
-          "run_command": "build/bin/zi2zx run --vm build/site-targets/records/zx/records.zx",
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/arrays/zx/arrays.zx",
           "run_samples_ms": [
-            1.6968,
-            1.65834,
-            1.82873,
-            1.57167,
-            1.6699
+            6.228945,
+            2.772722,
+            1.411395,
+            1.939725,
+            2.23472
           ],
-          "result": "14820",
-          "run_ms": 1.6699
+          "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
+          "run_ms": 2.23472,
+          "web": {
+            "script": "generated/targets/web/zx-runtime.js",
+            "files": [
+              {
+                "path": "generated/targets/web/zx-runtime.js",
+                "bytes": 69396,
+                "sha256": "4987ce7b983e09aac0b6806d3f9e6f7720ef74ed23b950cbfcad7d7510e933bb"
+              },
+              {
+                "path": "generated/targets/web/zx-runtime.wasm",
+                "bytes": 893970,
+                "sha256": "532f10f3a610791548fd786b3c6c450e5e9c79dc757d1a1e5e98c8dbfa68d1ed"
+              }
+            ]
+          }
         },
         "wasm": {
-          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/wasm/records.wasm site/examples/targets/records.zi",
+          "command": "build/bin/zi2wasm --root site/examples --module-path std --entry arrays:main -o build/site-targets/arrays/wasm/arrays.wasm site/examples/arrays.zi",
           "files": [
             {
-              "path": "generated/targets/records/wasm/records.wasm",
-              "bytes": 748,
-              "sha256": "69eadc07972dd5da867ac03336a18834ae73b4f93db30556f6fb62fb132a1479"
+              "path": "generated/targets/arrays/wasm/arrays.wasm",
+              "bytes": 1149,
+              "sha256": "3a3c67c354d1c94f61c7c13ccde8deadbbf65619c8847eb47054369a6461ee70"
             }
           ],
           "emission_samples_ms": [
-            1.07026,
-            1.09833,
-            1.24774,
-            1.09355,
-            1.14216
+            1.985131,
+            1.550711,
+            1.494224,
+            2.501161,
+            1.533858
           ],
           "status": "ok",
-          "bytes": 748,
-          "emission_ms": 1.09833,
-          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/records/wasm/records.wasm",
+          "bytes": 1149,
+          "emission_ms": 1.550711,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/arrays/wasm/arrays.wasm --output",
           "run_samples_ms": [
-            14.6841,
-            13.96611,
-            15.033389,
-            13.182269,
-            13.616519
+            21.918499,
+            22.828535,
+            21.728988,
+            19.573177,
+            17.756495
           ],
-          "result": "14820",
-          "run_ms": 13.96611
+          "result": "empty: 0 0 0 0 0\nset: 100, count: 5\nmiddle has 3 items starting with 2\nsum of all: 110\nsum of middle: 9",
+          "run_ms": 21.728988
         },
         "zir": {
-          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry records:Answer -o build/site-targets/records/zir site/examples/targets/records.zi",
+          "command": "build/bin/zi2zir --root site/examples --module-path std --entry arrays:main -o build/site-targets/arrays/zir site/examples/arrays.zi",
           "files": [
             {
-              "path": "generated/targets/records/zir/records.zir",
-              "bytes": 2968,
-              "sha256": "2a455e19cbb7141cae7ac20309f41bbc8df7c7ba9a73618092174221df73a45f",
+              "path": "generated/targets/arrays/zir/arrays.zir",
+              "bytes": 3083,
+              "sha256": "810d17c4579c81fe245bfe4898d5bbd116c06fbc5f2e8f9407dd9e4e982025d4",
               "inspection": {
-                "path": "generated/targets/records/zir/records.zir.txt",
-                "bytes": 5930,
-                "sha256": "ebd62991bfac1d517843b6d5a797f5e82e21cc0f4193d20e32e65097a19f13b0"
+                "path": "generated/targets/arrays/zir/arrays.zir.txt",
+                "bytes": 5569,
+                "sha256": "03867668f3b4905d85da1cac935e8e29bc8d2eaa09fdfd944c4088ffd45ee29d"
               }
             }
           ],
           "emission_samples_ms": [
-            1.0827,
-            1.03249,
-            1.03572,
-            1.032849,
-            1.05275
+            1.499504,
+            2.121967,
+            1.569573,
+            2.40674,
+            1.341636
           ],
           "status": "ok",
-          "bytes": 2968,
-          "emission_ms": 1.03572,
+          "bytes": 3083,
+          "emission_ms": 1.569573,
           "inspection": {
-            "path": "generated/targets/records/zir/records.zir.txt",
-            "bytes": 5930,
-            "sha256": "ebd62991bfac1d517843b6d5a797f5e82e21cc0f4193d20e32e65097a19f13b0"
+            "path": "generated/targets/arrays/zir/arrays.zir.txt",
+            "bytes": 5569,
+            "sha256": "03867668f3b4905d85da1cac935e8e29bc8d2eaa09fdfd944c4088ffd45ee29d"
           }
         }
       }
     },
     {
       "id": "enums",
-      "title": "Enum branches",
-      "source": "examples/targets/enums.zi",
-      "source_sha256": "50557c6a0d330714de9fcca401c0635ab80be341e7cc6eece7db0a41441469ea",
-      "expected": "60",
+      "title": "Enums & branches",
+      "source": "examples/enums.zi",
+      "source_sha256": "b0651bce448d2296b9631a2756a9ce3d5ca0345a2398e1178acc6167de6acac4",
+      "expected": "0",
+      "entry": "main",
+      "stdout": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners\n",
       "targets": {
         "c": {
-          "command": "build/bin/zi2c --no-main --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/c site/examples/targets/enums.zi",
+          "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry enums:main -o build/site-targets/enums/c site/examples/enums.zi",
           "files": [
             {
               "path": "generated/targets/enums/c/enums.c",
-              "bytes": 1357,
-              "sha256": "4602019937e11d9afd9cf39f13ccb58a26475e195d509c4d84fd9e5afcacc1d3"
+              "bytes": 2121,
+              "sha256": "88416e8723c3f3b1364c04f68c0834317c35185067bb9016a0e7aa21e5ce5581"
             },
             {
               "path": "generated/targets/enums/c/enums.h",
-              "bytes": 2152,
-              "sha256": "b6490d953ce8d482e3b52c13ca4f41bb29342acc6149c266eed27b5b7d6c20e7"
+              "bytes": 895,
+              "sha256": "c452e6970ef241632dc4e6c847cec72851b1b4032ed77fb6b3ee589d38eb3726"
             }
           ],
           "emission_samples_ms": [
-            1.2267,
-            1.66058,
-            1.32326,
-            1.30433,
-            1.32907
+            1.429116,
+            2.108615,
+            3.795421,
+            2.866183,
+            2.960274
           ],
           "status": "ok",
-          "bytes": 3509,
-          "emission_ms": 1.32326,
+          "bytes": 3016,
+          "emission_ms": 2.866183,
           "run_command": "build/site-targets/enums/c/program",
-          "build_command": "/usr/bin/cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/enums/c build/site-targets/enums/c/enums.c build/site-targets/enums/c/matrix_host.c -lm -o build/site-targets/enums/c/program",
+          "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/enums/c build/site-targets/enums/c/enums.c build/site-targets/enums/c/matrix_host.c -lm -o build/site-targets/enums/c/program",
           "run_samples_ms": [
-            0.48127,
-            0.43355,
-            0.41253,
-            0.42305,
-            0.51089
+            1.943426,
+            0.593609,
+            0.509309,
+            0.747797,
+            0.683399
           ],
-          "result": "60",
-          "run_ms": 0.43355
+          "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
+          "run_ms": 0.683399,
+          "web": {
+            "script": "generated/targets/web/enums-c.js",
+            "files": [
+              {
+                "path": "generated/targets/web/enums-c.js",
+                "bytes": 54816,
+                "sha256": "9d74c91d06e9c353532febe92b36dd57f32b13a657a7e49a66f2a5a67cb1a9cc"
+              },
+              {
+                "path": "generated/targets/web/enums-c.wasm",
+                "bytes": 7373,
+                "sha256": "2a85cae48d2b332037c9ceb6ec2a2b0f58b1024c800683b6e3931ff1a3461ee2"
+              }
+            ]
+          }
         },
         "go": {
-          "command": "build/bin/zi2go --no-main --pkg main --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/go site/examples/targets/enums.zi",
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry enums:main -o build/site-targets/enums/go site/examples/enums.zi",
           "files": [
             {
               "path": "generated/targets/enums/go/enums.go",
-              "bytes": 480,
-              "sha256": "3e150d73025b9665c6e1f9cf86c12cde259983fcfcb1879367f24a570a8ce9ad"
+              "bytes": 563,
+              "sha256": "2536b82a1b40879ab251b75890e379658e00892dc4d2242b05a8593563389872"
             }
           ],
           "emission_samples_ms": [
-            1.09458,
-            1.28398,
-            1.06946,
-            1.08621,
-            1.09292
+            1.514986,
+            1.746793,
+            3.294853,
+            1.671535,
+            1.757374
           ],
           "status": "ok",
-          "bytes": 480,
-          "emission_ms": 1.09292,
+          "bytes": 563,
+          "emission_ms": 1.746793,
           "run_command": "build/site-targets/enums/go/program",
           "build_command": "go build -p=2 -o build/site-targets/enums/go/program build/site-targets/enums/go/enums.go build/site-targets/enums/go/matrix_host.go",
           "run_samples_ms": [
-            0.66358,
-            0.72093,
-            0.63982,
-            0.68566,
-            0.6525
+            1.215721,
+            2.40292,
+            0.815784,
+            1.149583,
+            0.85395
           ],
-          "result": "60",
-          "run_ms": 0.66358
+          "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
+          "run_ms": 1.149583,
+          "web": {
+            "path": "generated/targets/web/enums-go.wasm",
+            "runtime": "generated/targets/web/wasm_exec.js",
+            "files": [
+              {
+                "path": "generated/targets/web/enums-go.wasm",
+                "bytes": 2467711,
+                "sha256": "d29be71ef4ca0b5c579cfd9c0a05ef76c4690b8d738bf9d6af13edb6a7a5d8a1"
+              },
+              {
+                "path": "generated/targets/web/wasm_exec.js",
+                "bytes": 16992,
+                "sha256": "0c949f4996f9a89698e4b5c586de32249c3b69b7baadb64d220073cc04acba14"
+              },
+              {
+                "path": "generated/targets/web/go-LICENSE.txt",
+                "bytes": 16932,
+                "sha256": "a739b83e49889464462830f3c992b275f5acba9380d859f64bb75d71b18c1e03"
+              }
+            ]
+          }
         },
         "zx": {
-          "command": "build/bin/zi2zx bundle --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/zx/enums.zx site/examples/targets/enums.zi",
+          "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry enums:main -o build/site-targets/enums/zx/enums.zx site/examples/enums.zi",
           "files": [
             {
               "path": "generated/targets/enums/zx/enums.zx",
-              "bytes": 1221,
-              "sha256": "a86aaa52221d80045eac5cf2aec210b1754822f798b89e734a5934d22ca0ff58",
+              "bytes": 2054,
+              "sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
               "inspection": {
                 "path": "generated/targets/enums/zx/enums.zx.txt",
-                "bytes": 1841,
-                "sha256": "8060b3ff2dd37a6f6246230bddccd552d53a8371050903d480d17783c27bea50"
+                "bytes": 3094,
+                "sha256": "8a60d398eb54cc330954d0e99085afb919a06ab71d7db198e4ff6f374f4dd451"
               }
             }
           ],
           "emission_samples_ms": [
-            1.18076,
-            1.23615,
-            1.32057,
-            1.25609,
-            1.26981
+            1.792029,
+            1.28644,
+            1.20442,
+            1.834234,
+            1.263637
           ],
           "status": "ok",
-          "bytes": 1221,
-          "emission_ms": 1.25609,
+          "bytes": 2054,
+          "emission_ms": 1.28644,
           "inspection": {
             "path": "generated/targets/enums/zx/enums.zx.txt",
-            "bytes": 1841,
-            "sha256": "8060b3ff2dd37a6f6246230bddccd552d53a8371050903d480d17783c27bea50"
+            "bytes": 3094,
+            "sha256": "8a60d398eb54cc330954d0e99085afb919a06ab71d7db198e4ff6f374f4dd451"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/enums/zx/enums.zx",
           "run_samples_ms": [
-            0.74949,
-            0.96596,
-            0.77476,
-            0.90469,
-            0.83267
+            1.989332,
+            1.932535,
+            1.433227,
+            1.793689,
+            1.727351
           ],
-          "result": "60",
-          "run_ms": 0.83267
-        },
-        "wasm": {
-          "command": "build/bin/zi2wasm --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/wasm/enums.wasm site/examples/targets/enums.zi",
-          "files": [],
-          "emission_samples_ms": [],
-          "status": "unsupported",
-          "diagnostic": "enums.zi:4:1: parameter type Direction of enums:Steps is outside the wasm execution subset",
-          "diagnostic_file": {
-            "path": "generated/targets/enums/wasm/diagnostic.txt",
-            "bytes": 91,
-            "sha256": "2f3ec0218c138bf330246244ed7e74a69ee1944f9d3b19dcbafd2f90efefde27"
+          "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
+          "run_ms": 1.793689,
+          "web": {
+            "script": "generated/targets/web/zx-runtime.js",
+            "files": [
+              {
+                "path": "generated/targets/web/zx-runtime.js",
+                "bytes": 69396,
+                "sha256": "4987ce7b983e09aac0b6806d3f9e6f7720ef74ed23b950cbfcad7d7510e933bb"
+              },
+              {
+                "path": "generated/targets/web/zx-runtime.wasm",
+                "bytes": 893970,
+                "sha256": "532f10f3a610791548fd786b3c6c450e5e9c79dc757d1a1e5e98c8dbfa68d1ed"
+              }
+            ]
           }
         },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples --module-path std --entry enums:main -o build/site-targets/enums/wasm/enums.wasm site/examples/enums.zi",
+          "files": [
+            {
+              "path": "generated/targets/enums/wasm/enums.wasm",
+              "bytes": 483,
+              "sha256": "2c69bbaa36ef6b4e4d7ac944aab53f47eb9f7e4cc61cc67fc899b0240d216084"
+            }
+          ],
+          "emission_samples_ms": [
+            1.5454,
+            1.147524,
+            1.251935,
+            1.264577,
+            1.303001
+          ],
+          "status": "ok",
+          "bytes": 483,
+          "emission_ms": 1.264577,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/enums/wasm/enums.wasm --output",
+          "run_samples_ms": [
+            27.644405,
+            23.143792,
+            20.37896,
+            18.690904,
+            20.919283
+          ],
+          "result": "a circle has 0 corners\na square has 4 corners\na triangle has 3 corners",
+          "run_ms": 20.919283
+        },
         "zir": {
-          "command": "build/bin/zi2zir --root site/examples/targets --module-path std --entry enums:Answer -o build/site-targets/enums/zir site/examples/targets/enums.zi",
+          "command": "build/bin/zi2zir --root site/examples --module-path std --entry enums:main -o build/site-targets/enums/zir site/examples/enums.zi",
           "files": [
             {
               "path": "generated/targets/enums/zir/enums.zir",
-              "bytes": 1174,
-              "sha256": "10477ecc90473643a50740183788c4ef394b5c2cb40717be7428a71a0d281ae7",
+              "bytes": 2009,
+              "sha256": "6ba781d70d5ebdcf251c5496fb0ed348918ee216dd163cb3420fc0ff2daac816",
               "inspection": {
                 "path": "generated/targets/enums/zir/enums.zir.txt",
-                "bytes": 1789,
-                "sha256": "f9ef9272923c40ceb7a72d199b66fc9787e6291e53d8cb82183361d6fcd3b698"
+                "bytes": 3044,
+                "sha256": "bc398c3b2fb9009aa7d6c5b8acaaadd56102a631b16af3d28732a4fff34fcf29"
               }
             }
           ],
           "emission_samples_ms": [
-            1.04563,
-            6.137489,
-            1.61954,
-            1.35165,
-            0.84027
+            1.361929,
+            1.224022,
+            1.106638,
+            1.03359,
+            1.218862
           ],
           "status": "ok",
-          "bytes": 1174,
-          "emission_ms": 1.35165,
+          "bytes": 2009,
+          "emission_ms": 1.218862,
           "inspection": {
             "path": "generated/targets/enums/zir/enums.zir.txt",
-            "bytes": 1789,
-            "sha256": "f9ef9272923c40ceb7a72d199b66fc9787e6291e53d8cb82183361d6fcd3b698"
+            "bytes": 3044,
+            "sha256": "bc398c3b2fb9009aa7d6c5b8acaaadd56102a631b16af3d28732a4fff34fcf29"
+          }
+        }
+      }
+    },
+    {
+      "id": "loops",
+      "title": "Loops & collections",
+      "source": "examples/loops.zi",
+      "source_sha256": "c7114bde10a7b2bcfd6e777a40b1ec13323412f143ec9325c601887ee3ca7cb0",
+      "expected": "0",
+      "entry": "main",
+      "stdout": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7\n",
+      "targets": {
+        "c": {
+          "command": "build/bin/zi2c --no-main --root site/examples --module-path std --entry loops:main -o build/site-targets/loops/c site/examples/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/c/loops.c",
+              "bytes": 964,
+              "sha256": "bd8a6b80ddf7c06ebf2cc70a73db2dcf60507a68fb629d04707b531d3dfc478d"
+            },
+            {
+              "path": "generated/targets/loops/c/loops.h",
+              "bytes": 135,
+              "sha256": "f6d0905da9d59d540e34bf264f655a34f62f1a685996874130ebe0f12169e0f4"
+            },
+            {
+              "path": "generated/targets/loops/c/zir_string_types.h",
+              "bytes": 665,
+              "sha256": "47c09e74e99267994c67f326959f160b952f87671daaaaeeda3d6e14f60e2443"
+            }
+          ],
+          "emission_samples_ms": [
+            1.618868,
+            2.059039,
+            1.969339,
+            1.959258,
+            2.100465
+          ],
+          "status": "ok",
+          "bytes": 1764,
+          "emission_ms": 1.969339,
+          "run_command": "build/site-targets/loops/c/program",
+          "build_command": "cc -std=c11 -O2 -I/mnt/storage/Projects/ziranlang/ziran/build/site-targets/loops/c build/site-targets/loops/c/loops.c build/site-targets/loops/c/matrix_host.c -lm -o build/site-targets/loops/c/program",
+          "run_samples_ms": [
+            0.503418,
+            0.52273,
+            0.492838,
+            0.991875,
+            0.51451
+          ],
+          "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
+          "run_ms": 0.51451,
+          "web": {
+            "script": "generated/targets/web/loops-c.js",
+            "files": [
+              {
+                "path": "generated/targets/web/loops-c.js",
+                "bytes": 54816,
+                "sha256": "daa9ed359ef9bb19939906f2f475c64eb5a029002037b635555cdf658c014ce5"
+              },
+              {
+                "path": "generated/targets/web/loops-c.wasm",
+                "bytes": 7608,
+                "sha256": "d76717832cedf1b62bbfd5f5bde51fd02586a13b21da5782a3eebe7a9effe6fb"
+              }
+            ]
+          }
+        },
+        "go": {
+          "command": "build/bin/zi2go --no-main --pkg main --root site/examples --module-path std --entry loops:main -o build/site-targets/loops/go site/examples/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/go/loops.go",
+              "bytes": 667,
+              "sha256": "35da932c139eae789f6c76caff664c659fa5b59500267178c8e666df9b2255ea"
+            }
+          ],
+          "emission_samples_ms": [
+            1.679435,
+            1.473762,
+            1.983981,
+            1.46346,
+            1.905282
+          ],
+          "status": "ok",
+          "bytes": 667,
+          "emission_ms": 1.679435,
+          "run_command": "build/site-targets/loops/go/program",
+          "build_command": "go build -p=2 -o build/site-targets/loops/go/program build/site-targets/loops/go/loops.go build/site-targets/loops/go/matrix_host.go",
+          "run_samples_ms": [
+            0.998206,
+            1.292701,
+            0.961362,
+            2.139039,
+            0.94936
+          ],
+          "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
+          "run_ms": 0.998206,
+          "web": {
+            "path": "generated/targets/web/loops-go.wasm",
+            "runtime": "generated/targets/web/wasm_exec.js",
+            "files": [
+              {
+                "path": "generated/targets/web/loops-go.wasm",
+                "bytes": 2468617,
+                "sha256": "a6c0e0b13df28d4310f963791157f3f7b3b948e2994ec0cd3b503a07516f8a9f"
+              },
+              {
+                "path": "generated/targets/web/wasm_exec.js",
+                "bytes": 16992,
+                "sha256": "0c949f4996f9a89698e4b5c586de32249c3b69b7baadb64d220073cc04acba14"
+              },
+              {
+                "path": "generated/targets/web/go-LICENSE.txt",
+                "bytes": 16932,
+                "sha256": "a739b83e49889464462830f3c992b275f5acba9380d859f64bb75d71b18c1e03"
+              }
+            ]
+          }
+        },
+        "zx": {
+          "command": "build/bin/zi2zx bundle --root site/examples --module-path std --entry loops:main -o build/site-targets/loops/zx/loops.zx site/examples/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/zx/loops.zx",
+              "bytes": 2749,
+              "sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+              "inspection": {
+                "path": "generated/targets/loops/zx/loops.zx.txt",
+                "bytes": 5059,
+                "sha256": "82032dc862b0c7af20677465d283e1bffe26d519c70a81590db81e19cfe4d678"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            2.790294,
+            1.431787,
+            1.256966,
+            1.20398,
+            1.124941
+          ],
+          "status": "ok",
+          "bytes": 2749,
+          "emission_ms": 1.256966,
+          "inspection": {
+            "path": "generated/targets/loops/zx/loops.zx.txt",
+            "bytes": 5059,
+            "sha256": "82032dc862b0c7af20677465d283e1bffe26d519c70a81590db81e19cfe4d678"
+          },
+          "run_command": "build/bin/zi2zx run --vm build/site-targets/loops/zx/loops.zx",
+          "run_samples_ms": [
+            1.990211,
+            1.650892,
+            1.283039,
+            2.163352,
+            1.697368
+          ],
+          "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
+          "run_ms": 1.697368,
+          "web": {
+            "script": "generated/targets/web/zx-runtime.js",
+            "files": [
+              {
+                "path": "generated/targets/web/zx-runtime.js",
+                "bytes": 69396,
+                "sha256": "4987ce7b983e09aac0b6806d3f9e6f7720ef74ed23b950cbfcad7d7510e933bb"
+              },
+              {
+                "path": "generated/targets/web/zx-runtime.wasm",
+                "bytes": 893970,
+                "sha256": "532f10f3a610791548fd786b3c6c450e5e9c79dc757d1a1e5e98c8dbfa68d1ed"
+              }
+            ]
+          }
+        },
+        "wasm": {
+          "command": "build/bin/zi2wasm --root site/examples --module-path std --entry loops:main -o build/site-targets/loops/wasm/loops.wasm site/examples/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/wasm/loops.wasm",
+              "bytes": 795,
+              "sha256": "d5b68e863c805ee179a034df96e8693878eaa589c1638f2297216351c178ad0f"
+            }
+          ],
+          "emission_samples_ms": [
+            1.325184,
+            1.329075,
+            1.126771,
+            2.275475,
+            1.411554
+          ],
+          "status": "ok",
+          "bytes": 795,
+          "emission_ms": 1.329075,
+          "run_command": "node scripts/site_target_wasm.cjs build/site-targets/loops/wasm/loops.wasm --output",
+          "run_samples_ms": [
+            21.684562,
+            21.766361,
+            21.705895,
+            19.879572,
+            22.230355
+          ],
+          "result": "while 1\nwhile 2\nwhile 3\nrange 0\nrange 1\nrange 2\napple is at 0\nbanana is at 1\ncherry is at 2\nodd 1\nodd 3\nodd 5\nodd 7",
+          "run_ms": 21.705895
+        },
+        "zir": {
+          "command": "build/bin/zi2zir --root site/examples --module-path std --entry loops:main -o build/site-targets/loops/zir site/examples/loops.zi",
+          "files": [
+            {
+              "path": "generated/targets/loops/zir/loops.zir",
+              "bytes": 2704,
+              "sha256": "2aca6010b7b0e3c2cafd105d75bb11ffd2c03194045a30b5b2e9b60d99847c77",
+              "inspection": {
+                "path": "generated/targets/loops/zir/loops.zir.txt",
+                "bytes": 5009,
+                "sha256": "a49af09ede0df9203d3cf339e8362a05517912ba658022ac487f8e645912fc2d"
+              }
+            }
+          ],
+          "emission_samples_ms": [
+            2.171132,
+            3.091139,
+            1.55088,
+            1.700918,
+            2.753141
+          ],
+          "status": "ok",
+          "bytes": 2704,
+          "emission_ms": 2.171132,
+          "inspection": {
+            "path": "generated/targets/loops/zir/loops.zir.txt",
+            "bytes": 5009,
+            "sha256": "a49af09ede0df9203d3cf339e8362a05517912ba658022ac487f8e645912fc2d"
           }
         }
       }
     }
-  ]
+  ],
+  "platform_harnesses": {
+    "scripts/site_target_platforms.py": "fcde9e70c498d7d5ffe9a18a8c48ad3a81e03d820b3c259914573c78cee216d7",
+    "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
+    "scripts/site_target_browser.mjs": "be54600e38855a41df85d807e305e57a80270d2fd51d340c454ff7f1c3e5358c",
+    "bench/site_target_host.c": "f9655f005582f8ffb6c95561884f8aaa96ca47fefd5426d7c3293f9146457c8e",
+    "bench/site_target_host.go": "ed69c22b3ed61c70a1ff134c7aadf2578083ccc363b4604cefb0aa5334063c8c",
+    "site/target-measure.js": "fcb9dc8c446a07910600de1b65434b2c00b9a246952a7d8c57022c81248f47e0",
+    "site/target-benchmark-worker.js": "7e1f895b37ad66390ef867774f356b85021975f97634e69bd18a03fe55c99476"
+  }
 }

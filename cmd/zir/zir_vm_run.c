@@ -1709,6 +1709,15 @@ fold_global_element_in_scope(Vm *vm, const ZirModule *module,
         *target = global_literal_string(vm, expr->text);
         return !vm->failed;
     }
+    const ZirType *enumeration = FindType(scope, type, NULL);
+    if(enumeration != NULL && enumeration->is_enum &&
+       (expr->kind == ZIR_EXPR_MEMBER || expr->kind == ZIR_EXPR_IDENT)) {
+        int64_t member;
+        if(EnumMemberValue(enumeration, expr->name, &member)) {
+            *target = coerce(vm, scope, int_value(member), type);
+            return !vm->failed;
+        }
+    }
     {
         int64_t folded = 0;
         unsigned long long bits;
@@ -1810,7 +1819,10 @@ initialize_globals_with_buffers(Vm *vm, const ZirProgram *program, InitializeGlo
                                         slot->declaration->type, 0);
             if(!vm->failed && slot->declaration->init[0]) {
                 const char *init = skip_ws(slot->declaration->init);
-                if(slot->value.kind == VALUE_ARRAY ||
+                const ZirType *enumeration = FindType(module,
+                                                      slot->declaration->type, NULL);
+                if((enumeration != NULL && enumeration->is_enum) ||
+                   slot->value.kind == VALUE_ARRAY ||
                    slot->value.kind == VALUE_RECORD ||
                    slot->value.kind == VALUE_INLINE_RECORD ||
                    slot->value.kind == VALUE_SLOT) {

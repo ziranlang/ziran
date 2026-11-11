@@ -111,6 +111,39 @@ test "$result" = "$expected" || {
     exit 1
 }
 
+# Builtin output preserves percent escapes, NUL bytes and void procedure calls.
+cat >"$work/print.zi" <<'ZI'
+Touch :: () {}
+main :: () {
+    Touch()
+    print("Hello, %% Wasm!\n")
+    print("")
+    print("a\0b\n")
+}
+ZI
+"$zi2wasm" --root "$work" --entry print:main -o "$work/print.wasm" "$work/print.zi"
+"$ziran" bundle --root "$work" --entry print:main -o "$work/print.zx" "$work/print.zi"
+"$ziran" run --vm "$work/print.zx" > "$work/print-vm.txt"
+"$nodebin" - "$work/print.wasm" > "$work/print-wasm.txt" <<'JS'
+const fs = require('fs');
+let memory;
+const imports = { zx: {
+    budget: new WebAssembly.Global({value: 'i64', mutable: true}, 1000000n),
+    overrun() { throw Error('budget spent'); },
+    host_i64(index, value) {
+        if ((index >>> 0) !== 0xffffffff) throw Error('unexpected host capability');
+        const address = Number(value & 0xffffffffn), size = Number(value >> 32n);
+        process.stdout.write(Buffer.from(memory.buffer, address, size));
+        return 0n;
+    },
+}};
+WebAssembly.instantiate(fs.readFileSync(process.argv[2]), imports).then(({instance}) => {
+    memory = instance.exports.memory;
+    instance.exports.zx_entry();
+}).catch(error => { console.error(error); process.exitCode = 1; });
+JS
+cmp "$work/print-vm.txt" "$work/print-wasm.txt"
+
 # The budget guard must stop a run that exceeds its step count.
 cat >"$work/spend_budget.js" <<'EOF'
 const fs = require('fs');
@@ -133,8 +166,7 @@ if test "$python_available" = 1 && test "$python_engine" != 1; then
     test "$("$wasmpython" "$work/run_wasm.py" scalar "$work/zx_wasm_test.wasm" 10000000)" = "$expected"
 fi
 
-# Enums are outside the tier while strings lower: the tool reports the
-# type and exits nonzero rather than emitting a wrong module.
+# Enum values use their checked backing integers in direct WebAssembly.
 cat >"$work/enums.zi" <<'EOF'
 Direction :: enum {
     Up
@@ -146,11 +178,9 @@ Answer :: () -> s64 {
     return ifx way == Direction.Up then 1 else 2
 }
 EOF
-if "$zi2wasm" --root "$work" --entry enums:Answer \
-        -o "$work/enums.wasm" "$work/enums.zi" >/dev/null 2>&1; then
-    echo "zx-wasm-test: enums lowered without a diagnostic"
-    exit 1
-fi
+"$zi2wasm" --root "$work" --entry enums:Answer \
+    -o "$work/enums.wasm" "$work/enums.zi"
+test "$(run_engine scalar "$work/enums.wasm" 1000000)" = 2
 
 # Strings and slices lower and must agree with the other tiers.
 cat >"$work/text.zi" <<'EOF'

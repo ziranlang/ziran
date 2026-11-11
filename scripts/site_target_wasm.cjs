@@ -1,7 +1,10 @@
-// The direct zi2wasm ABI; no Emscripten runtime is involved.
+// Execute the zi2wasm artifact using its shared budget/output ABI.
 const fs = require('node:fs');
-const budget = new WebAssembly.Global({value: 'i64', mutable: true}, 10000000n);
-WebAssembly.instantiate(fs.readFileSync(process.argv[2]), {
-  zx: {budget, overrun() { throw new Error('Execution budget exceeded'); }},
-}).then(({instance}) => console.log(instance.exports.zx_entry().toString()))
+const abi = require('../site/target-abi.js')(bytes => process.stdout.write(bytes));
+WebAssembly.instantiate(fs.readFileSync(process.argv[2]), abi.imports)
+  .then(({instance}) => {
+    abi.attach(instance);
+    const result = instance.exports.zx_entry();
+    if (!process.argv.includes('--output')) console.log(result.toString());
+  })
   .catch(error => { console.error(error); process.exitCode = 1; });

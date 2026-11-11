@@ -95,6 +95,7 @@ for form in source saved; do
             -o "$output" "$root/$name.$suffix"
         case "$name" in
             plain)
+                test ! -e "$output/zir_string_types.h"
                 test ! -e "$output/zir_string.h"
                 test ! -e "$output/zir_bounds.h"
                 "$compiler" -std="$standard" -M "$output/plain.$extension" > "$work/deps"

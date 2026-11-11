@@ -140,6 +140,15 @@ identity = work / 'identity.zi'
 identity.write_text('''
     Identity :: struct { name: string; context: *void }
     Owner :: struct { identity: Identity }
+    current: Identity;
+    Keep :: (identity: Identity) -> Identity { return identity }
+    ReplaceDescriptor :: () -> s32 {
+        current.name = "a"
+        snapshot := Keep(current)
+        current = Identity.{.name = "b"}
+        current = snapshot
+        return cast(s32)snapshot.name[0]
+    }
     Signer :: #type (context: *void, text: string, output: []u8) -> bool;
     Sign :: (context: *void, text: string, output: []u8) -> bool {
         unused context
@@ -156,6 +165,7 @@ identity.write_text('''
     }
     #program_export
     CheckIdentity :: () -> s32 {
+        if ReplaceDescriptor() != 97 { return 2 }
         owner: Owner
         owner.identity.name = "a"
         if FromRecord(*owner, Sign) != 97 { return 1 }

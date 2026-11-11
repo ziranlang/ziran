@@ -33,6 +33,16 @@ output=${ready%/.ready}/script
 before=$(stat -c %y "$output")
 test "$("$ziran" run --target=c script.zi -- a b)" = '41:a:b'
 test "$(stat -c %y "$output")" = "$before"
+# Direct execution and a single-word shebang share the native runner.
+test "$("$ziran" script.zi 'two words' --help --root x.zi)" = '41:two words:--help:--root:x.zi'
+{ printf '#!/usr/bin/env ziran\n'; cat script.zi; } > 'executable script.zi'
+chmod +x 'executable script.zi'
+test "$(./'executable script.zi' '' 'unicode-λ' '$(literal);*')" = '41::unicode-λ:$(literal);*'
+if ./'executable script.zi' fail > /dev/null; then
+    echo 'shebang execution hid a failing status' >&2; exit 1
+else
+    test "$?" -eq 3
+fi
 # The program's status is the run's status.
 if "$ziran" run --target=c script.zi fail > /dev/null; then
     echo 'native run hid a failing status' >&2; exit 1
@@ -53,6 +63,12 @@ for count in (257, 600):
         )
         assert result.stdout == "41:" + ":".join(arguments) + "\n", result
         assert result.stderr == "", result
+    result = subprocess.run(
+        [ziran, "script.zi", *arguments], capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result
+    assert result.stdout == "41:" + ":".join(arguments) + "\n", result
+    assert result.stderr == "", result
     arguments[0] = "fail"
     result = subprocess.run(
         [ziran, "run", "--target=c", "script.zi", "--", *arguments],

@@ -11,7 +11,7 @@
     }
   </script>
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="One Ziran source, four outputs: C, Go, portable ZX and direct WebAssembly. Explore the target matrix, inspect checked IR and compare measured timings.">
+  <meta name="description" content="One Ziran source, four outputs: C, Go, portable ZX and WebAssembly. Explore the target matrix, inspect checked IR and compare measured timings.">
   <title>Ziran — Build useful software</title>
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="assets/logo-capybara.png" type="image/png">
@@ -20,7 +20,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ziran-lang.org/">
   <meta property="og:title" content="Ziran — Build useful software">
-  <meta property="og:description" content="One source. Four outputs. Explore C, Go, portable ZX, direct WebAssembly and checked IR in the target matrix.">
+  <meta property="og:description" content="One source. Four outputs. Explore C, Go, portable ZX, WebAssembly and checked IR in the target matrix.">
   <meta name="twitter:card" content="summary">
   <script defer src="site.js"></script>
   <script defer src="playground.js"></script>
@@ -39,7 +39,7 @@
       <div class="hero-copy">
         <div class="hero-kicker"><p class="eyebrow">Open source programming language</p><a class="release-badge" href="status.html"><span aria-hidden="true"></span>Experimental</a></div>
         <h1>The Ziran programming language</h1>
-        <p class="hero-lead">One readable language, four outputs: C, Go, portable <code>.zx</code> bundles, and direct WebAssembly. Inspect the checked IR and follow your source all the way through.</p>
+        <p class="hero-lead">One readable language, four outputs: C, Go, portable <code>.zx</code> bundles, and WebAssembly. Inspect the checked IR and follow your source all the way through.</p>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="targets.html">Explore the target matrix <span aria-hidden="true">↗</span></a></div>
         <ul class="hero-points"><li>Readable source</li><li>Build-time laws</li><li><a href="modules.html">Standard library</a></li></ul>
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.4.0">v0.4.0</a>. Build from source today. <a href="status.html">See current support</a>.</p>
@@ -100,7 +100,7 @@
 
     <section class="target-strip" aria-label="Supported output choices">
       <p>One source.<br><strong>Your choice of output.</strong></p>
-      <ul><li>C</li><li>Go</li><li class="portable-target">.zx <span>portable</span></li><li class="portable-target">.wasm <span>direct</span></li></ul>
+      <ul><li>C</li><li>Go</li><li class="portable-target">.zx <span>portable</span></li><li class="portable-target">.wasm </li></ul>
       <a href="targets.html">Outputs, IR &amp; benchmarks <span aria-hidden="true">↗</span></a>
     </section>
 
@@ -109,7 +109,7 @@
       <div class="feature-grid">
         <article><div class="feature-top"><span class="feature-number">01 / Write</span><span class="feature-icon" aria-hidden="true">{ }</span></div><h3>Write readable code</h3><p>Give data a shape with records and enums. Connect procedures, generics, arrays, and borrowed slices with explicit imports.</p><div class="feature-preview" aria-hidden="true"><code><span>main</span> :: () {<br>&nbsp; print(<b>"Hello, World!"</b>);<br>}</code></div><a href="language.html">Explore the language <span aria-hidden="true">↗</span></a></article>
         <article><div class="feature-top"><span class="feature-number">02 / Check</span><span class="feature-icon" aria-hidden="true">✓</span></div><h3>Check before building</h3><p>Catch unsupported forms and prove <code>#law</code> obligations at build time. Get a counterexample when a law fails.</p><div class="feature-preview law-preview" aria-hidden="true"><span class="law-symbol">✓</span><div><code>#law</code><span>Proved at build time</span></div></div><a href="api.html#toolchain">Explore the tools <span aria-hidden="true">↗</span></a></article>
-        <article><div class="feature-top"><span class="feature-number">03 / Build</span><span class="feature-icon" aria-hidden="true">↗</span></div><h3>Choose an output</h3><p>Generate C or Go, link a portable ZX bundle, or emit WebAssembly directly. Compare real outputs and measurements in the target matrix.</p><div class="feature-preview build-preview" aria-hidden="true"><code>.zi</code><span>→</span><div><code>C · Go</code><code>.zx · .wasm</code></div></div><a href="targets.html">Inspect all four outputs <span aria-hidden="true">↗</span></a></article>
+        <article><div class="feature-top"><span class="feature-number">03 / Build</span><span class="feature-icon" aria-hidden="true">↗</span></div><h3>Choose an output</h3><p>Generate C or Go, link a portable ZX bundle, or emit WebAssembly. Compare real outputs and measurements in the target matrix.</p><div class="feature-preview build-preview" aria-hidden="true"><code>.zi</code><span>→</span><div><code>C · Go</code><code>.zx · .wasm</code></div></div><a href="targets.html">Inspect all four outputs <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 

@@ -1,0 +1,11 @@
+Traceback (most recent call last):
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/portable_entry_test.py", line 38, in <module>
+    actual = run(ziran, 'run', bundle).stdout
+             ~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/portable_entry_test.py", line 30, in run
+    return subprocess.run(list(map(str, args)), check=True, capture_output=True, text=True, **kwargs)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran', 'run', '/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/portable_entry.sh.earuot3y/tmp.qlAt6rh4Nf/true-source.zx']' returned non-zero exit status 1.

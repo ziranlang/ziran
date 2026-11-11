@@ -4,9 +4,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <stdbool.h>
 #include "zir_slice.h"
-#include "zir_string_types.h"
 #include "compiler_ir.h"
 #include "compiler_services.h"
 #include "compiler_text.h"

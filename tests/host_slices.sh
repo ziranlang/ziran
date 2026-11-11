@@ -53,6 +53,7 @@ for input in source saved; do
         if test "$target" = c; then
             cat > "$output/main.c" <<'C'
 #include "host_buffer.h"
+#include "zir_string_types.h"
 int32_t Fill(Slice values) {
     if(values.length == 0) return 0;
     ((uint8_t *)values.data)[0] = 40;

@@ -1,0 +1,196 @@
+{
+  "verified_at_utc": "2026-10-07T10:36:18.074883+00:00",
+  "commit": "e5a9e15881ab214d51881b6e7a190dc134cce1ec",
+  "baseline": {
+    "head": "a90c08f2a28345ca0c4b79e54810e65c48fa474a",
+    "library_sha256": "020998538f528b294cfe544b97a39b2092d4b29926cc8d06b586022189f19324"
+  },
+  "workload": {
+    "fixture": "Kryon pixmap_frame_test",
+    "sha256": "f8419e157bb9ebc9d1ee2f7eea7b94941950044a9231d1cf5a549b287ef15b85",
+    "original_path": "/mnt/storage/Projects/kryonlabs/kryon/build/scratch/pixmap-frame/run.qN7Zs4/saved.zib",
+    "stable_output_path": "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame.zib",
+    "source_checkout_copied": false
+  },
+  "order": [
+    "before",
+    "after",
+    "after",
+    "before"
+  ],
+  "runs_per_variant": 2,
+  "only_vm_object_changed": true,
+  "metrics": {
+    "before": {
+      "median_wall_seconds": 99.4305395745032,
+      "median_cpu_seconds": 99.32346150000001,
+      "median_peak_rss_kib": 583676.0,
+      "startup_live_value_bytes": 569896584,
+      "value_bytes": 128,
+      "scalar_array_slots": 4350911
+    },
+    "after": {
+      "median_wall_seconds": 55.66154333751183,
+      "median_cpu_seconds": 55.628460000000004,
+      "median_peak_rss_kib": 201274.0,
+      "startup_live_value_bytes": 179565984,
+      "value_bytes": 40,
+      "scalar_array_slots": 4350911
+    }
+  },
+  "improvement": {
+    "peak_rss_reduction_percent": 65.51614251742406,
+    "cpu_reduction_percent": 43.992628569434224,
+    "cpu_speedup": 1.7854792582789456,
+    "startup_vm_storage_reduction_percent": 68.49147914878534
+  },
+  "verification": {
+    "identical_saved_bundle": true,
+    "all_four_runs_completed": true,
+    "pixel_checks_passed": true,
+    "ziran_checks": "322/322",
+    "kryon_full_gate_exit": 0,
+    "kryon_behavior_checks": "122/122",
+    "sanitizer_checks": 13,
+    "sanitizer_logs": [
+      "sanitize-regression.log",
+      "sanitize-related.log",
+      "sanitize-imported-slices.log"
+    ],
+    "supplemental_sanitizer_driver_note": "The initial driver referenced a nonexistent importer filename. The correct portable_imported_record_slices.sh was then run and passed.",
+    "android_cross_builds": [
+      "arm64-v8a",
+      "armeabi-v7a"
+    ],
+    "android_device_execution": false
+  },
+  "scope": "Portable Kryon frame workload. These measurements do not establish 10x full Harmony+t9 interaction or all-platform readiness.",
+  "deployed_to_running_harmony": false,
+  "pushed": false,
+  "next_bottlenecks": [
+    "Scalar arrays still store 40-byte values: 174036440 bytes at startup.",
+    "Instrumented profiler recorded 2268384760 int_value calls. Test inline scalar constructors using an uninstrumented comparison."
+  ],
+  "runs": [
+    {
+      "variant": "before",
+      "index": 2,
+      "usage": {
+        "verified_at_utc": "2026-10-07T10:31:24.568234+00:00",
+        "command": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-before",
+          "/mnt/storage/Projects/kryonlabs/kryon/build/scratch/pixmap-frame/run.qN7Zs4/saved.zib"
+        ],
+        "exit_status": 0,
+        "wall_seconds": 98.82339283498004,
+        "user_cpu_seconds": 98.643703,
+        "system_cpu_seconds": 0.092115,
+        "max_rss_kib": 584092
+      },
+      "startup": {
+        "phase": "startup",
+        "value_bytes": 128,
+        "live_value_bytes": 569896584,
+        "scalar_array_slots": 4350911,
+        "scalar_array_bytes": 556916608
+      },
+      "complete": {
+        "phase": "complete",
+        "ok": true,
+        "has_result": 1,
+        "answer": 0,
+        "live_value_bytes": 571219687
+      }
+    },
+    {
+      "variant": "after",
+      "index": 2,
+      "usage": {
+        "verified_at_utc": "2026-10-07T10:32:20.405919+00:00",
+        "command": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-after",
+          "/mnt/storage/Projects/kryonlabs/kryon/build/scratch/pixmap-frame/run.qN7Zs4/saved.zib"
+        ],
+        "exit_status": 0,
+        "wall_seconds": 55.82061400602106,
+        "user_cpu_seconds": 55.736305,
+        "system_cpu_seconds": 0.056160999999999996,
+        "max_rss_kib": 200976
+      },
+      "startup": {
+        "phase": "startup",
+        "value_bytes": 40,
+        "live_value_bytes": 179565984,
+        "scalar_array_slots": 4350911,
+        "scalar_array_bytes": 174036440
+      },
+      "complete": {
+        "phase": "complete",
+        "ok": true,
+        "has_result": 1,
+        "answer": 0,
+        "live_value_bytes": 180889087
+      }
+    },
+    {
+      "variant": "after",
+      "index": 3,
+      "usage": {
+        "verified_at_utc": "2026-10-07T10:33:15.925367+00:00",
+        "command": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-after",
+          "/mnt/storage/Projects/kryonlabs/kryon/build/scratch/pixmap-frame/run.qN7Zs4/saved.zib"
+        ],
+        "exit_status": 0,
+        "wall_seconds": 55.5024726690026,
+        "user_cpu_seconds": 55.424312,
+        "system_cpu_seconds": 0.040142,
+        "max_rss_kib": 201572
+      },
+      "startup": {
+        "phase": "startup",
+        "value_bytes": 40,
+        "live_value_bytes": 179565984,
+        "scalar_array_slots": 4350911,
+        "scalar_array_bytes": 174036440
+      },
+      "complete": {
+        "phase": "complete",
+        "ok": true,
+        "has_result": 1,
+        "answer": 0,
+        "live_value_bytes": 180889087
+      }
+    },
+    {
+      "variant": "before",
+      "index": 3,
+      "usage": {
+        "verified_at_utc": "2026-10-07T10:34:55.979381+00:00",
+        "command": [
+          "/mnt/storage/Projects/ziranlang/ziran/build/tests/vm-values/frame-before",
+          "/mnt/storage/Projects/kryonlabs/kryon/build/scratch/pixmap-frame/run.qN7Zs4/saved.zib"
+        ],
+        "exit_status": 0,
+        "wall_seconds": 100.03768631402636,
+        "user_cpu_seconds": 99.795,
+        "system_cpu_seconds": 0.116105,
+        "max_rss_kib": 583260
+      },
+      "startup": {
+        "phase": "startup",
+        "value_bytes": 128,
+        "live_value_bytes": 569896584,
+        "scalar_array_slots": 4350911,
+        "scalar_array_bytes": 556916608
+      },
+      "complete": {
+        "phase": "complete",
+        "ok": true,
+        "has_result": 1,
+        "answer": 0,
+        "live_value_bytes": 571219687
+      }
+    }
+  ]
+}

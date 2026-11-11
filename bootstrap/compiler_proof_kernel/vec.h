@@ -2,9 +2,6 @@
 #ifndef ZIRAN_VEC_H
 #define ZIRAN_VEC_H
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include "zir_string_types.h"
 
 #ifdef __cplusplus

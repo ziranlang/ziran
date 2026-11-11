@@ -2,11 +2,9 @@
 #ifndef ZIRAN_COMPILER_DECLARATION_H
 #define ZIRAN_COMPILER_DECLARATION_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "compiler_text.h"
 #include "compiler_source.h"
 #include "compiler_scan.h"

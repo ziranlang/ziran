@@ -1,7 +1,7 @@
 /* The wasm execution tier's seam: with no provider installed every bundle
  * runs on the portable VM; with a provider, a scalar bundle's lowered
  * module reaches the provider and its result comes back through
- * BundleInstanceRun, while an out-of-subset bundle falls back to the VM.
+ * BundleInstanceRun, while a rejected module falls back to the VM.
  * The provider here is a recording mock, so the test runs anywhere
  * libziran builds; real providers execute the module under WebAssembly. */
 #include "ziran_host.h"
@@ -25,6 +25,7 @@ static int release_calls;
 static long long set_budget_value = -1;
 static int set_budget_calls;
 static int call_calls;
+static int reject_module;
 static unsigned char mock_memory[65536];
 static size_t mock_arena = 1024;
 
@@ -38,6 +39,8 @@ mock_instantiate(void *context, const unsigned char *bytes, size_t size)
         fprintf(stderr, "provider received %zu bytes without wasm magic\n", size);
         exit(1);
     }
+    if(reject_module)
+        return 0;
     mock_handle = 0x1000 + (unsigned long)size;
     memset(mock_memory, 0, sizeof(mock_memory));
     mock_arena = 1024;
@@ -193,19 +196,6 @@ static const char scalar_source[] =
     "#program_export\n"
     "Answer :: () -> s64 { return 21 * 2 }\n";
 
-/* Strings lower to the tier now; enums stay outside it, so this one
- * exercises the VM fallback. */
-static const char enum_source[] =
-    "Direction :: enum {\n"
-    "    Up\n"
-    "    Down\n"
-    "}\n"
-    "#program_export\n"
-    "Answer :: () -> s64 {\n"
-    "    way: Direction = Direction.Down\n"
-    "    return ifx way == Direction.Up then 1 else 2\n"
-    "}\n";
-
 int
 main(void)
 {
@@ -255,20 +245,23 @@ main(void)
         return 1;
     }
     BundleInstanceClose(instance);
-    if(release_calls != 1)
+    if(release_calls != 1) {
+        fprintf(stderr, "provider released %d times, expected once\n", release_calls);
         return 1;
+    }
 
-    /* An enum bundle is outside the tier: it falls back to the VM and
-     * still answers, with the provider left untouched for it. */
-    Bundle *enums = bundle_of("enums.zi", enum_source);
-    if(enums == NULL)
-        return 2;
-    instance = BundleInstantiate(enums, NULL, 0);
-    if(instance == NULL || instantiate_calls != 1)
+    /* A provider may reject a valid module. Exercise that fallback directly
+     * so expanding the wasm subset cannot invalidate this seam test. */
+    reject_module = 1;
+    instance = BundleInstantiate(scalar, NULL, 0);
+    if(instance == NULL || instantiate_calls != 2) {
+        fprintf(stderr, "provider fallback: instance=%p provider calls=%d\n",
+                (void *)instance, instantiate_calls);
         return 1;
+    }
     if(!BundleInstanceRun(instance, &result, &has_result) || !has_result ||
-       result != 2 || call_calls != 1) {
-        fprintf(stderr, "enum fallback gave %lld\n", result);
+       result != 42 || call_calls != 1 || release_calls != 1) {
+        fprintf(stderr, "provider fallback gave %lld\n", result);
         return 1;
     }
     BundleInstanceClose(instance);
@@ -277,10 +270,11 @@ main(void)
     ZxWasmSetPlatform(NULL);
     instance = BundleInstantiate(scalar, NULL, 0);
     if(instance == NULL || !BundleInstanceRun(instance, &result, &has_result) ||
-       !has_result || result != 42 || instantiate_calls != 1)
+       !has_result || result != 42 || instantiate_calls != 2) {
+        fprintf(stderr, "VM after provider removal: result=%lld has_result=%d provider calls=%d\n", result, has_result, instantiate_calls);
         return 1;
+    }
     BundleInstanceClose(instance);
-    BundleClose(enums);
     BundleClose(scalar);
     fprintf(stdout, "zx-wasm-engine-test: seam, provider handoff and fallback verified\n");
     return 0;

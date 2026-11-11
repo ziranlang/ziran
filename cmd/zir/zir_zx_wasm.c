@@ -5,10 +5,12 @@
  */
 #include "zir_zx_wasm.h"
 #include "zir_diagnostic.h"
+#include "zir_text.h"
 #include "compiler_bundle.h"
 #include "../zir-wasm/zir_wasm_lower.h"
 #include "zir_zx_wasm_platform.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #ifdef __EMSCRIPTEN__
@@ -16,6 +18,7 @@
 #endif
 
 typedef struct ZxWasmHostBridge {
+    ZxWasm *wasm;
     VmHostCall call;
     void *context;
     const char **modules;
@@ -275,6 +278,44 @@ ZxWasmHostCallI64(void *context, size_t index, int64_t argument,
                   int64_t *result)
 {
     ZxWasmHostBridge *bridge = context;
+    if(bridge != NULL && result != NULL && (uint32_t)index == ZX_WASM_PRINT_STRING && bridge->wasm != NULL) {
+        size_t address = (uint32_t)argument;
+        size_t length = (size_t)((uint64_t)argument >> 32);
+        unsigned char bytes[4096];
+        while(length != 0) {
+            size_t count = length < sizeof(bytes) ? length : sizeof(bytes);
+            if(!ZxWasmReadState(bridge->wasm, address, bytes, count) ||
+               fwrite(bytes, 1, count, stdout) != count) return 0;
+            address += count;
+            length -= count;
+        }
+        *result = 0;
+        return 1;
+    }
+    if(bridge != NULL && result != NULL && (uint32_t)index >= ZX_WASM_PRINT_BOOL) {
+        char text[64];
+        switch((uint32_t)index) {
+        case ZX_WASM_PRINT_SIGNED: snprintf(text, sizeof(text), "%lld", (long long)argument); break;
+        case ZX_WASM_PRINT_UNSIGNED: snprintf(text, sizeof(text), "%llu", (unsigned long long)argument); break;
+        case ZX_WASM_PRINT_BOOL: snprintf(text, sizeof(text), "%s", argument ? "true" : "false"); break;
+        case ZX_WASM_PRINT_FLOAT32: {
+            uint32_t bits = (uint32_t)argument;
+            float value;
+            memcpy(&value, &bits, sizeof(value));
+            FormatPrintFloat(value, 1, text, sizeof(text));
+            break;
+        }
+        case ZX_WASM_PRINT_FLOAT64: {
+            double value;
+            memcpy(&value, &argument, sizeof(value));
+            FormatPrintFloat(value, 0, text, sizeof(text));
+            break;
+        }
+        default: return 0;
+        }
+        *result = 0;
+        return fputs(text, stdout) >= 0;
+    }
     if(bridge == NULL || index >= bridge->count || result == NULL ||
        bridge->call == NULL)
         return 0;
@@ -346,6 +387,7 @@ ZxWasmOpen(const ZirProgram *program, const ZirModule *entry_owner,
         free(wasm);
         return NULL;
     }
+    wasm->bridge->wasm = wasm;
     wasm->platform = active_platform;
     wasm->platform.context = wasm->bridge;
     wasm->budget = 0x7fffffffffffffffLL;

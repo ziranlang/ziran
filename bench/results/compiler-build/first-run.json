@@ -1,0 +1,20 @@
+{
+  "command": [
+    "make",
+    "-B",
+    "-j16",
+    "all"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 8.67677770399996,
+  "user_cpu_seconds": 92.345567,
+  "system_cpu_seconds": 6.281085,
+  "parallel_jobs": 16,
+  "revision": "61b1e5402a4873dc8e84d727bcbe10d7b3077ad6",
+  "working_tree_dirty": true,
+  "includes": "all native compiler tools and libziran.a; every target forced to rebuild",
+  "excludes": "build queue waiting, test suite, installation and website build",
+  "log": "first-run.log",
+  "c_compile_commands": 205,
+  "cache_state": "warm filesystem caches; make -B forces every target to rebuild"
+}

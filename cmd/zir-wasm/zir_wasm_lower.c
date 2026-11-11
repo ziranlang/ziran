@@ -12,7 +12,9 @@
 #include "zir_check.h"
 #include "zir_diagnostic.h"
 #include "zir_expr.h"
+#include "zir_emit.h"
 #include "zir_text.h"
+#include "zir_zx_wasm.h"
 
 #include <errno.h>
 #include <math.h>
@@ -146,12 +148,25 @@ type_is_heap(const ZirModule *module, const char *type)
            !record->is_type_instance && !record->is_union;
 }
 
+/* Enums retain their declared identity in checked IR. Only the emitted
+ * scalar representation uses the backing integer, resolved in its scope. */
+static const char *
+scalar_type_in(const ZirModule *module, const char *type)
+{
+    if(type == NULL)
+        return "";
+    const ZirType *enumeration = module != NULL ? FindType(module, type, NULL) : NULL;
+    if(enumeration != NULL && enumeration->is_enum)
+        return enumeration->enum_backing[0] ? enumeration->enum_backing : "s64";
+    return ScalarType(concrete_type(type));
+}
+
 /* Scalar mapping only: callers that must never treat heap pointers as
  * plain i32 use this and reject heap types beforehand. */
 static WasmValtype
-wasm_scalar_type_of(const char *type)
+wasm_scalar_type_of(const ZirModule *module, const char *type)
 {
-    const char *scalar = ScalarType(concrete_type(type));
+    const char *scalar = scalar_type_in(module, type);
     if(!strcmp(scalar, "bool") || !strcmp(scalar, "s8") || !strcmp(scalar, "u8") ||
        !strcmp(scalar, "s16") || !strcmp(scalar, "u16") ||
        !strcmp(scalar, "s32") || !strcmp(scalar, "u32"))
@@ -195,29 +210,29 @@ wasm_type_of_in(const ZirModule *module, const char *type)
         return WASM_I64;
     if(type_is_heap(module, type))
         return WASM_I32;
-    return wasm_scalar_type_of(type);
+    return wasm_scalar_type_of(module, type);
 }
 
 static int
-type_is_signed(const char *type)
+type_is_signed(const ZirModule *module, const char *type)
 {
-    type = concrete_type(type);
+    type = scalar_type_in(module, type);
     return type[0] == 's' || type[0] == 'f' || !strcmp(type, "bool");
 }
 
 static int
-type_is_integer(const char *type)
+type_is_integer(const ZirModule *module, const char *type)
 {
-    const char *scalar = ScalarType(concrete_type(type));
+    const char *scalar = scalar_type_in(module, type);
     return strcmp(scalar, "float32") && strcmp(scalar, "float64") &&
            strcmp(scalar, "string") && strcmp(scalar, "bool") &&
            strcmp(scalar, "void") && scalar[0] != 0;
 }
 
 static int
-type_bit_width(const char *type)
+type_bit_width(const ZirModule *module, const char *type)
 {
-    const char *scalar = ScalarType(concrete_type(type));
+    const char *scalar = scalar_type_in(module, type);
     if(!strcmp(scalar, "s8") || !strcmp(scalar, "u8"))
         return 8;
     if(!strcmp(scalar, "s16") || !strcmp(scalar, "u16"))
@@ -231,9 +246,9 @@ type_bit_width(const char *type)
 }
 
 static int
-wasm_width(const char *type)
+wasm_width(const ZirModule *module, const char *type)
 {
-    return type_bit_width(type) > 32 ? 64 : 32;
+    return type_bit_width(module, type) > 32 ? 64 : 32;
 }
 
 /* ---------------------------------------------------------------- plans */
@@ -311,6 +326,7 @@ typedef struct WasmEmitter {
     int global_capacity;
     WasmHostCapability *hosts;
     int host_count;
+    int builtin_print;
     int host_capacity;
 } WasmEmitter;
 
@@ -341,6 +357,76 @@ find_global(const WasmEmitter *emitter, const ZirModule *scope,
         found = slot;
     }
     return matches == 1 ? found : NULL;
+}
+
+/* Checked enum initializers may still spell a member, flags expression or
+ * cast. Fold the same integer operations as the native emitter; a call or
+ * other nonconstant expression never becomes an initializer here. */
+static int
+constant_integer_in(const ZirModule *module, const ZirFunction *function,
+                    int index, const char *expected_type, uint64_t *value, int depth)
+{
+    if(index < 0 || index >= function->expr_count || depth > 32)
+        return 0;
+    const ZirExpr *expression = &function->exprs[index];
+    uint64_t left = 0, right = 0;
+    const char *checked_type = expression->type[0] ? expression->type : expected_type;
+    if(expression->kind == ZIR_EXPR_CAST)
+        checked_type = expression->name;
+    const char *type = scalar_type_in(module, checked_type);
+    if(!type_is_integer(module, checked_type))
+        return 0;
+    switch(expression->kind) {
+    case ZIR_EXPR_IDENT:
+    case ZIR_EXPR_MEMBER: {
+        const ZirType *enumeration = FindType(module, checked_type, NULL);
+        if(expression->kind == ZIR_EXPR_MEMBER && expression->left >= 0)
+            enumeration = FindType(module, function->exprs[expression->left].text, NULL);
+        int64_t member;
+        if(enumeration == NULL || !EnumMemberValue(enumeration, expression->name, &member))
+            return 0;
+        *value = (uint64_t)member;
+        break;
+    }
+    case ZIR_EXPR_INT: {
+        unsigned long long bits;
+        int negative;
+        if(!ZirSignedIntegerLiteral(expression->text, &bits, &negative))
+            return 0;
+        *value = bits;
+        break;
+    }
+    case ZIR_EXPR_CAST:
+        if(!constant_integer_in(module, function, expression->right, checked_type, value, depth + 1))
+            return 0;
+        break;
+    case ZIR_EXPR_UNARY:
+        if(!constant_integer_in(module, function, expression->right, checked_type, &right, depth + 1))
+            return 0;
+        if(!strcmp(expression->op, "+")) *value = right;
+        else if(!strcmp(expression->op, "-")) *value = UINT64_C(0) - right;
+        else if(!strcmp(expression->op, "~")) *value = ~right;
+        else return 0;
+        break;
+    case ZIR_EXPR_BINARY:
+        if(!constant_integer_in(module, function, expression->left, checked_type, &left, depth + 1) ||
+           !constant_integer_in(module, function, expression->right, checked_type, &right, depth + 1) ||
+           !FoldIntegerOperation(expression->op, type, left, right, value))
+            return 0;
+        break;
+    default:
+        return 0;
+    }
+    int width = type_bit_width(module, checked_type);
+    if(width <= 0)
+        return 0;
+    if(width < 64) {
+        uint64_t mask = (UINT64_C(1) << width) - 1;
+        *value &= mask;
+        if(type_is_signed(module, checked_type) && (*value >> (width - 1)))
+            *value |= ~mask;
+    }
+    return 1;
 }
 
 static int
@@ -459,6 +545,13 @@ encode_global_element(WasmEmitter *emitter, const ZirModule *owner,
         }
         return 1;
     }
+    if(type_is_integer(owner, type) && size <= sizeof(uint64_t)) {
+        uint64_t value;
+        if(!constant_integer_in(owner, probe, index, type, &value, 0))
+            return 0;
+        memcpy(emitter->strings->bytes + offset, &value, size);
+        return 1;
+    }
     return write_global_scalar(emitter, expression, type, offset, size);
 }
 
@@ -474,7 +567,7 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
         return 0;
     const char *scalar = ScalarType(global->type);
     if(strcmp(scalar, "string") &&
-       !wasm_scalar_type_of(global->type) &&
+       !wasm_scalar_type_of(owner, global->type) &&
        !type_is_heap(owner, global->type))
         return 0;
     /* String literals intern first so the slot cannot overlap their
@@ -499,7 +592,17 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
     unsigned char bytes[16] = {0};
     size_t value_size = size > 16 ? 16 : size;
     if(global->init[0] != 0 && !aggregate) {
-        if(!strcmp(scalar, "string")) {
+        if(type_is_integer(owner, global->type)) {
+            ZirFunction probe = {0};
+            int root = ParseExprTyped(&probe, owner, global->init, global->span, global->type);
+            uint64_t value;
+            int valid = constant_integer_in(owner, &probe, root, global->type, &value, 0);
+            free(probe.exprs);
+            if(!valid || size > sizeof(value))
+                return 0;
+            memcpy(bytes, &value, size);
+            value_size = size;
+        } else if(!strcmp(scalar, "string")) {
             uint64_t handle = ((uint64_t)preset_length << 32) |
                               (uint32_t)(ZX_WASM_DATA_BASE + preset_data);
             memcpy(bytes, &handle, sizeof(handle));
@@ -517,14 +620,14 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
                 memcpy(bytes, &number, sizeof(number));
                 value_size = 8;
             }
-        } else if(wasm_scalar_type_of(global->type) == WASM_I64) {
+        } else if(wasm_scalar_type_of(owner, global->type) == WASM_I64) {
             char *end = NULL;
             unsigned long long value = strtoull(global->init, &end, 0);
             if(end == global->init || (end && *end != 0))
                 return 0;
             memcpy(bytes, &value, sizeof(value));
             value_size = 8;
-        } else if(wasm_scalar_type_of(global->type) == WASM_I32) {
+        } else if(wasm_scalar_type_of(owner, global->type) == WASM_I32) {
             char *end = NULL;
             long long value = strtoll(global->init, &end, 0);
             if(end == global->init || (end && *end != 0))
@@ -577,7 +680,10 @@ place_global(WasmEmitter *emitter, const ZirModule *owner,
     }
     WasmGlobalSlot *slot = &emitter->globals[emitter->global_count];
     snprintf(slot->name, sizeof(slot->name), "%s", global->name);
-    snprintf(slot->type, sizeof(slot->type), "%s", global->type);
+    const ZirType *enumeration = FindType(owner, global->type, NULL);
+    snprintf(slot->type, sizeof(slot->type), "%s",
+             enumeration != NULL && enumeration->is_enum ?
+             scalar_type_in(owner, global->type) : global->type);
     slot->size = size;
     slot->offset = offset;
     emitter->global_modules[emitter->global_count] = owner;
@@ -727,7 +833,10 @@ field_place(const ZirModule *module, const char *record_type,
             at += field_alignment - pad;
         if(strcmp(field.name, field_name) == 0) {
             *offset = at;
-            snprintf(field_type, ZIR_NAME_MAX, "%s", field.type);
+            const ZirType *field_enum = FindType(owner, field.type, NULL);
+            snprintf(field_type, ZIR_NAME_MAX, "%s",
+                     field_enum != NULL && field_enum->is_enum ?
+                     scalar_type_in(owner, field.type) : field.type);
             return 1;
         }
         at += field_size;
@@ -791,9 +900,9 @@ op_local(WasmBytes *code, unsigned char value, int index)
 
 /* Scalar load of one field: natural alignment, static offset. */
 static int
-op_load_scalar(WasmBytes *code, const char *type, int offset)
+op_load_scalar(WasmBytes *code, const ZirModule *module, const char *type, int offset)
 {
-    const char *scalar = ScalarType(concrete_type(type));
+    const char *scalar = scalar_type_in(module, type);
     unsigned char opcode;
     int align = 2;
     if(!strcmp(scalar, "s8")) { opcode = 0x2c; align = 0; }        /* i32.load8_s */
@@ -812,9 +921,9 @@ op_load_scalar(WasmBytes *code, const char *type, int offset)
 
 /* Scalar store of one field. */
 static int
-op_store_scalar(WasmBytes *code, const char *type, int offset)
+op_store_scalar(WasmBytes *code, const ZirModule *module, const char *type, int offset)
 {
-    const char *scalar = ScalarType(concrete_type(type));
+    const char *scalar = scalar_type_in(module, type);
     unsigned char opcode;
     int align = 2;
     if(!strcmp(scalar, "s8") || !strcmp(scalar, "u8") ||
@@ -903,15 +1012,15 @@ op_zero(WasmBytes *code, WasmValtype wasm)
 
 /* Clamp the container's top of stack to the declared integer width. */
 static int
-op_normalize(WasmBytes *code, const char *type)
+op_normalize(WasmBytes *code, const ZirModule *module, const char *type)
 {
-    if(!type_is_integer(type))
+    if(!type_is_integer(module, type))
         return 1;
-    int width = type_bit_width(type);
+    int width = type_bit_width(module, type);
     if(width >= 32 || width == 0)
         return 1;
     int shift = 32 - width;
-    if(type_is_signed(type))
+    if(type_is_signed(module, type))
         return op_const_i32(code, shift) && op(code, 0x74) /* shl */ &&
                op_const_i32(code, shift) && op(code, 0x75); /* shr_s */
     uint32_t mask = (uint32_t)((1ULL << width) - 1);
@@ -920,39 +1029,39 @@ op_normalize(WasmBytes *code, const char *type)
 
 /* Convert the stack top from one scalar type to another. */
 static int
-op_convert(WasmBytes *code, const char *from, const char *to)
+op_convert(WasmBytes *code, const ZirModule *module, const char *from, const char *to)
 {
-    WasmValtype source = wasm_scalar_type_of(from);
-    WasmValtype target = wasm_scalar_type_of(to);
+    WasmValtype source = wasm_scalar_type_of(module, from);
+    WasmValtype target = wasm_scalar_type_of(module, to);
     if(!source || !target)
         return 0;
     if(source == target)
-        return 1;
+        return op_normalize(code, module, to);
     /* Integer container changes: widen with the operand's signedness, or
      * wrap and clamp to the destination width. */
     if(source == WASM_I64 && target == WASM_I32)
-        return op(code, 0xa7) && op_normalize(code, to); /* i32.wrap_i64 */
+        return op(code, 0xa7) && op_normalize(code, module, to); /* i32.wrap_i64 */
     if(source == WASM_I32 && target == WASM_I64)
-        return op(code, type_is_signed(from) ? 0xac : 0xad) &&
-               op_normalize(code, to); /* extend_i32_s/u */
+        return op(code, type_is_signed(module, from) ? 0xac : 0xad) &&
+               op_normalize(code, module, to); /* extend_i32_s/u */
     if(source == WASM_F32 && target == WASM_F64)
         return op(code, 0xbb); /* promote */
     if(source == WASM_F64 && target == WASM_F32)
         return op(code, 0xb6); /* demote */
     if((source == WASM_F32 || source == WASM_F64) &&
        (target == WASM_I32 || target == WASM_I64)) {
-        int signed_to = type_is_signed(to);
+        int signed_to = type_is_signed(module, to);
         if(source == WASM_F32 && target == WASM_I32)
-            return op(code, signed_to ? 0xa8 : 0xa9) && op_normalize(code, to);
+            return op(code, signed_to ? 0xa8 : 0xa9) && op_normalize(code, module, to);
         if(source == WASM_F64 && target == WASM_I32)
-            return op(code, signed_to ? 0xaa : 0xab) && op_normalize(code, to);
+            return op(code, signed_to ? 0xaa : 0xab) && op_normalize(code, module, to);
         if(source == WASM_F32)
-            return op(code, signed_to ? 0xae : 0xaf) && op_normalize(code, to);
-        return op(code, signed_to ? 0xb0 : 0xb1) && op_normalize(code, to);
+            return op(code, signed_to ? 0xae : 0xaf) && op_normalize(code, module, to);
+        return op(code, signed_to ? 0xb0 : 0xb1) && op_normalize(code, module, to);
     }
     if((source == WASM_I32 || source == WASM_I64) &&
        (target == WASM_F32 || target == WASM_F64)) {
-        int signed_from = type_is_signed(from);
+        int signed_from = type_is_signed(module, from);
         if(source == WASM_I32 && target == WASM_F32)
             return op(code, signed_from ? 0xb2 : 0xb3);
         if(source == WASM_I32)
@@ -1129,7 +1238,7 @@ emit_convert(WasmEmitter *emitter, WasmPlan *plan, int index, const char *to)
         return 0;
     if(emitter->failed)
         return 0;
-    if(!op_convert(&plan->body, expression->type, to)) {
+    if(!op_convert(&plan->body, plan->module, expression->type, to)) {
         Diagnostic(expression->span, "zx.wasm",
                    "conversion from %s to %s is outside the wasm execution subset",
                    expression->type, to);
@@ -1215,7 +1324,8 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(emitter->failed)
             return 0;
         /* The helper's index is fixed after the bundle's functions. */
-        if(!op_index(&plan->body, 0x10, 1 + emitter->plan_count))
+        if(!op_index(&plan->body, 0x10, 1 + (emitter->host_count != 0 ||
+                         emitter->builtin_print) + emitter->plan_count))
             return 0;
         if(!strcmp(operation, "!="))
             return op(&plan->body, 0x45); /* i32.eqz */
@@ -1225,12 +1335,12 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
      * comparisons and of the checked result for arithmetic. */
     const char *operand_type = comparison ?
         plan->function->exprs[expression->left].type : result_type;
-    WasmValtype container = wasm_scalar_type_of(operand_type);
+    WasmValtype container = wasm_scalar_type_of(plan->module, operand_type);
     if(!container) {
         fail(emitter, expression->span, "operand type");
         return 0;
     }
-    int signed_operand = type_is_signed(operand_type);
+    int signed_operand = type_is_signed(plan->module, operand_type);
     if(!emit_convert(emitter, plan, expression->left, operand_type))
         return 0;
     if(!emit_convert(emitter, plan, expression->right, operand_type))
@@ -1270,7 +1380,7 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
         }
         if(!op(&plan->body, table[which]))
             return 0;
-        return op_normalize(&plan->body, result_type);
+        return op_normalize(&plan->body, plan->module, result_type);
     }
     if(!strcmp(operation, "&") || !strcmp(operation, "|") ||
        !strcmp(operation, "^")) {
@@ -1279,7 +1389,7 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
             (operation[0] == '&' ? 0x71 : operation[0] == '|' ? 0x72 : 0x73);
         if(!op(&plan->body, opcode))
             return 0;
-        return op_normalize(&plan->body, result_type);
+        return op_normalize(&plan->body, plan->module, result_type);
     }
     if(!strcmp(operation, "<<") || !strcmp(operation, ">>")) {
         int left_shift = operation[0] == '<';
@@ -1290,7 +1400,7 @@ emit_binary(WasmEmitter *emitter, WasmPlan *plan, int index)
             opcode = left_shift ? 0x74 : (signed_operand ? 0x75 : 0x76);
         if(!op(&plan->body, opcode))
             return 0;
-        return op_normalize(&plan->body, result_type);
+        return op_normalize(&plan->body, plan->module, result_type);
     }
     fail(emitter, expression->span, "operator");
     return 0;
@@ -1306,10 +1416,18 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         return 0;
     const ZirExpr *expression = &function->exprs[index];
     switch(expression->kind) {
+    case ZIR_EXPR_SIZE_OF: {
+        size_t size, alignment;
+        if(!TypeLayout(plan->module, expression->name, &size, &alignment)) {
+            fail(emitter, expression->span, "size_of type");
+            return 0;
+        }
+        return op_const_i64(&plan->body, (int64_t)size);
+    }
     case ZIR_EXPR_INT: {
         char *end;
         errno = 0;
-        if(wasm_width(expression->type) == 64) {
+        if(wasm_width(plan->module, expression->type) == 64) {
             uint64_t value;
             if(expression->text[0] == '-')
                 value = (uint64_t)strtoll(expression->text, &end, 0);
@@ -1330,7 +1448,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             if(!op_const_i32(&plan->body, (int32_t)value))
                 return 0;
         }
-        return op_normalize(&plan->body, expression->type);
+        return op_normalize(&plan->body, plan->module, expression->type);
     }
     case ZIR_EXPR_FLOAT: {
         char *end;
@@ -1382,7 +1500,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
                 return 0;
             if(type_is_heap(plan->module, slot->type))
                 return 1;
-            return op_load_scalar(&plan->body, slot->type, 0);
+            return op_load_scalar(&plan->body, plan->module, slot->type, 0);
         }
         return op_local(&plan->body, 0x20, local);
     }
@@ -1391,22 +1509,22 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(!strcmp(operation, "+"))
             return emit_expression(emitter, plan, expression->right);
         if(!strcmp(operation, "-")) {
-            if(wasm_scalar_type_of(expression->type) == WASM_F32 ||
-               wasm_scalar_type_of(expression->type) == WASM_F64) {
+            if(wasm_scalar_type_of(plan->module, expression->type) == WASM_F32 ||
+               wasm_scalar_type_of(plan->module, expression->type) == WASM_F64) {
                 if(!emit_expression(emitter, plan, expression->right))
                     return 0;
                 return op(&plan->body,
-                          wasm_scalar_type_of(expression->type) == WASM_F32 ? 0x8c : 0x9a);
+                          wasm_scalar_type_of(plan->module, expression->type) == WASM_F32 ? 0x8c : 0x9a);
             }
             /* Integer negation is 0 - x, so the zero goes under first. */
-            if(!op_zero(&plan->body, wasm_width(expression->type) == 64 ?
+            if(!op_zero(&plan->body, wasm_width(plan->module, expression->type) == 64 ?
                         WASM_I64 : WASM_I32))
                 return 0;
             if(!emit_expression(emitter, plan, expression->right))
                 return 0;
-            if(!op(&plan->body, wasm_width(expression->type) == 64 ? 0x7d : 0x6b))
+            if(!op(&plan->body, wasm_width(plan->module, expression->type) == 64 ? 0x7d : 0x6b))
                 return 0;
-            return op_normalize(&plan->body, expression->type);
+            return op_normalize(&plan->body, plan->module, expression->type);
         }
         if(!strcmp(operation, "!")) {
             if(!emit_expression(emitter, plan, expression->right))
@@ -1416,14 +1534,14 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(!strcmp(operation, "~")) {
             if(!emit_expression(emitter, plan, expression->right))
                 return 0;
-            if(wasm_width(expression->type) == 64) {
+            if(wasm_width(plan->module, expression->type) == 64) {
                 if(!op_const_i64(&plan->body, -1) || !op(&plan->body, 0x85))
                     return 0;
             } else {
                 if(!op_const_i32(&plan->body, -1) || !op(&plan->body, 0x73))
                     return 0;
             }
-            return op_normalize(&plan->body, expression->type);
+            return op_normalize(&plan->body, plan->module, expression->type);
         }
         fail(emitter, expression->span, "unary operator");
         return 0;
@@ -1435,7 +1553,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             return 0;
         if(emitter->failed)
             return 0;
-        if(!op_convert(&plan->body, function->exprs[expression->right].type,
+        if(!op_convert(&plan->body, plan->module, function->exprs[expression->right].type,
                        expression->name)) {
             fail(emitter, expression->span, "cast");
             return 0;
@@ -1444,7 +1562,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
     case ZIR_EXPR_CONDITIONAL: {
         if(!emit_expression(emitter, plan, expression->left))
             return 0;
-        WasmValtype result = wasm_scalar_type_of(expression->type);
+        WasmValtype result = wasm_scalar_type_of(plan->module, expression->type);
         if(!result) {
             fail(emitter, expression->span, "conditional result type");
             return 0;
@@ -1460,6 +1578,12 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         return op(&plan->body, 0x0b);
     }
     case ZIR_EXPR_MEMBER: {
+        if(!strcmp(expression->name, "count") &&
+           type_is_heap(plan->module, function->exprs[expression->left].type) &&
+           concrete_type(function->exprs[expression->left].type)[0] == '[') {
+            return emit_base_length(emitter, plan, expression->left) &&
+                   op_convert(&plan->body, plan->module, "u32", expression->type);
+        }
         /* text.count reads the length half of a string or slice handle. */
         if((!strcmp(ScalarType(function->exprs[expression->left].type),
                     "string") ||
@@ -1472,7 +1596,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             if(!op_const_i64(&plan->body, 32) || !op(&plan->body, 0x88))
                 return 0; /* i64.shr_u */
             if(strcmp(concrete_type(expression->type), "s64") != 0 &&
-               !op_convert(&plan->body, "u64", expression->type)) {
+               !op_convert(&plan->body, plan->module, "u64", expression->type)) {
                 fail(emitter, expression->span, "string length type");
                 return 0;
             }
@@ -1485,7 +1609,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             return 0;
         if(type_is_heap(plan->module, expression->type))
             return 1;
-        return op_load_scalar(&plan->body, expression->type, 0);
+        return op_load_scalar(&plan->body, plan->module, expression->type, 0);
     }
     case ZIR_EXPR_INDEX: {
         /* slice[at] addresses one bounds-checked element; the handle
@@ -1526,7 +1650,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
                 return 0;
             if(type_is_heap(plan->module, expression->type))
                 return 1;
-            return op_load_scalar(&plan->body, expression->type, 0);
+            return op_load_scalar(&plan->body, plan->module, expression->type, 0);
         }
         /* text[at] loads one bounds-checked byte. The handle expression
          * is pure (literal, local or global), so it is emitted twice:
@@ -1559,7 +1683,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             plan->scratch_depth--;
             if(!sequence_ok || emitter->failed)
                 return 0;
-            return op_load_scalar(&plan->body, "u8", 0);
+            return op_load_scalar(&plan->body, plan->module, "u8", 0);
         }
         /* Fixed-array elements address through their place. */
         if(!emit_address(emitter, plan, index))
@@ -1568,12 +1692,14 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             return 0;
         if(type_is_heap(plan->module, expression->type))
             return 1;
-        return op_load_scalar(&plan->body, expression->type, 0);
+        return op_load_scalar(&plan->body, plan->module, expression->type, 0);
     }
     case ZIR_EXPR_COMPOUND: {
         /* Synthesized literals carry their type without a record name. */
-        const char *record_name = expression->name[0] ? expression->name :
-                                                         expression->type;
+        char element_type[ZIR_NAME_MAX];
+        int capacity = 0, position = 0;
+        int array = ArrayElementType(expression->type, element_type, sizeof(element_type), &capacity);
+        const char *record_name = !array && expression->name[0] ? expression->name : expression->type;
         size_t size, alignment;
         if(!heap_layout(plan->module, record_name, &size, &alignment)) {
             fail(emitter, expression->span, "record layout");
@@ -1587,7 +1713,9 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(!op_arena_alloc(plan, size, alignment) ||
            !op_local(&plan->body, 0x21, slot))
             return 0;
-        /* Each initializer writes its field into the fresh slot. */
+        if(!op_local(&plan->body, 0x20, slot) || !op_memory_zero(&plan->body, size))
+            return 0;
+        /* Each initializer writes its field or element into the fresh slot. */
         for(int child = expression->first_child; child >= 0;
             child = function->exprs[child].next_sibling) {
             const ZirExpr *initializer = &function->exprs[child];
@@ -1597,8 +1725,16 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
             }
             size_t offset = 0;
             char field_type[ZIR_NAME_MAX];
-            if(!field_place(plan->module, record_name,
-                            initializer->name, &offset, field_type)) {
+            if(array) {
+                size_t element_size, element_alignment;
+                if(position >= capacity || !TypeLayout(plan->module, element_type, &element_size, &element_alignment)) {
+                    fail(emitter, initializer->span, "array initializer");
+                    return 0;
+                }
+                offset = (size_t)position++ * element_size;
+                snprintf(field_type, sizeof(field_type), "%s", element_type);
+            } else if(!field_place(plan->module, record_name,
+                                   initializer->name, &offset, field_type)) {
                 fail(emitter, initializer->span, "record field");
                 return 0;
             }
@@ -1628,13 +1764,13 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
                     return 0;
                 if(strcmp(function->exprs[initializer->right].type,
                           field_type) != 0 &&
-                   !op_convert(&plan->body,
+                   !op_convert(&plan->body, plan->module,
                                function->exprs[initializer->right].type,
                                field_type)) {
                     fail(emitter, initializer->span, "record initializer conversion");
                     return 0;
                 }
-                if(!op_store_scalar(&plan->body, field_type, (int)offset))
+                if(!op_store_scalar(&plan->body, plan->module, field_type, (int)offset))
                     return 0;
             }
         }
@@ -1651,10 +1787,12 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         int base_slot = plan->scratch_slots[plan->scratch_depth + 2];
         plan->scratch_depth += 3;
         /* lower and upper bounds as i32 in scratch slots. */
-        int ok = emit_expression(emitter, plan, expression->right);
+        int ok = expression->right >= 0 ?
+            emit_expression(emitter, plan, expression->right) :
+            op_const_i32(&plan->body, 0);
         if(ok && emitter->failed)
             ok = 0;
-        if(ok && strcmp(concrete_type(
+        if(ok && expression->right >= 0 && strcmp(concrete_type(
                 function->exprs[expression->right].type), "s64") == 0)
             ok = op(&plan->body, 0xa7);
         ok = ok && op_local(&plan->body, 0x21, low_slot);
@@ -1674,7 +1812,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         /* if (low >u high) unreachable */
         ok = ok && op_local(&plan->body, 0x20, low_slot) &&
              op_local(&plan->body, 0x20, high_slot) &&
-             op(&plan->body, 0x4f) && /* i32.gt_u */
+             op(&plan->body, 0x4b) && /* i32.gt_u */
              op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
              op(&plan->body, 0x00) && op(&plan->body, 0x0b);
         /* if (high >u base length) unreachable */
@@ -1682,7 +1820,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
              op_local(&plan->body, 0x21, base_slot);
         ok = ok && op_local(&plan->body, 0x20, high_slot) &&
              op_local(&plan->body, 0x20, base_slot) &&
-             op(&plan->body, 0x4f) &&
+             op(&plan->body, 0x4b) &&
              op(&plan->body, 0x04) && byte(&plan->body, 0x40) &&
              op(&plan->body, 0x00) && op(&plan->body, 0x0b);
         /* Address: base address + low * element size. */
@@ -1717,6 +1855,65 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
         if(ResolveFunction(plan->module, expression->name, &owner, &callee) != 1) {
             owner = plan->module;
             callee = NULL;
+        }
+        if(callee == NULL && strcmp(expression->name, "print") == 0) {
+            int format = expression->first_child;
+            if(format < 0) return 0;
+            PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
+            if(pieces == NULL) { DiagnosticOutOfMemory(); return 0; }
+            int count = PrintFormatPieces(function->exprs[format].text,
+                                           pieces, PRINT_PIECES_MAX);
+            int slots[PRINT_PIECES_MAX], arguments[PRINT_PIECES_MAX];
+            int argument_count = 0, ok = count >= 0;
+            /* Match the other targets: evaluate all values left to right
+             * before writing any part of this print operation. */
+            for(int arg = function->exprs[format].next_sibling;
+                ok && arg >= 0; arg = function->exprs[arg].next_sibling) {
+                if(argument_count == PRINT_PIECES_MAX) { ok = 0; break; }
+                WasmValtype wasm = wasm_scalar_type_of(plan->module, function->exprs[arg].type);
+                int slot = add_local(plan, "$print", function->exprs[arg].type, wasm);
+                ok = wasm && slot >= 0 && emit_expression(emitter, plan, arg) &&
+                     op_local(&plan->body, 0x21, slot);
+                slots[argument_count] = slot;
+                arguments[argument_count++] = arg;
+            }
+            int at = 0;
+            for(int i = 0; ok && i < count; i++) {
+                uint32_t dispatch = ZX_WASM_PRINT_STRING;
+                if(pieces[i].is_argument) {
+                    if(at == argument_count) { ok = 0; break; }
+                    const char *type = scalar_type_in(plan->module, function->exprs[arguments[at]].type);
+                    if(!strcmp(type, "bool")) dispatch = ZX_WASM_PRINT_BOOL;
+                    else if(!strcmp(type, "float32")) dispatch = ZX_WASM_PRINT_FLOAT32;
+                    else if(!strcmp(type, "float64")) dispatch = ZX_WASM_PRINT_FLOAT64;
+                    else if(strcmp(type, "string"))
+                        dispatch = type_is_signed(plan->module, type) ? ZX_WASM_PRINT_SIGNED : ZX_WASM_PRINT_UNSIGNED;
+                    ok = op_const_i32(&plan->body, (int32_t)dispatch) &&
+                         op_local(&plan->body, 0x20, slots[at++]);
+                    if(dispatch == ZX_WASM_PRINT_FLOAT32)
+                        ok = ok && op(&plan->body, 0xbc) && op(&plan->body, 0xad);
+                    else if(dispatch == ZX_WASM_PRINT_FLOAT64)
+                        ok = ok && op(&plan->body, 0xbd);
+                    else if(strcmp(type, "string") && wasm_scalar_type_of(plan->module, type) == WASM_I32)
+                        ok = ok && op(&plan->body, type_is_signed(plan->module, type) ? 0xac : 0xad);
+                } else {
+                    unsigned char decoded[ZIR_TEXT_MAX];
+                    size_t length = 0;
+                    ok = DecodeStringLiteral(pieces[i].literal, decoded, sizeof(decoded), &length);
+                    if(!ok) break;
+                    int offset = intern_string(emitter, decoded, length);
+                    uint64_t handle = ((uint64_t)length << 32) | (uint32_t)(ZX_WASM_DATA_BASE + offset);
+                    ok = offset >= 0 && op_const_i32(&plan->body, (int32_t)dispatch) &&
+                         op_const_i64(&plan->body, (int64_t)handle);
+                }
+                ok = ok && op_index(&plan->body, 0x10, 1) && op(&plan->body, 0x1a);
+            }
+            free(pieces);
+            if(!ok || at != argument_count) {
+                fail(emitter, expression->span, "print format");
+                return 0;
+            }
+            return 1;
         }
         const ZirImport *external = NULL;
         for(int i = 0; owner != NULL && i < owner->import_count; i++) {
@@ -1804,7 +2001,7 @@ emit_expression(WasmEmitter *emitter, WasmPlan *plan, int index)
                 continue;
             }
             if(!emit_convert(emitter, plan, ordered[p],
-                             parameters->items[p].value_type))
+                             scalar_type_in(owner, parameters->items[p].value_type)))
                 return 0;
         }
         return op_index(&plan->body, 0x10, target->function_index);
@@ -2046,7 +2243,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 return;
             if(strcmp(plan->function->exprs[statement->expr_root].type,
                       statement->type) != 0 &&
-               !op_convert(&plan->body,
+               !op_convert(&plan->body, plan->module,
                            plan->function->exprs[statement->expr_root].type,
                            statement->type)) {
                 fail(emitter, statement->span, "initializer conversion");
@@ -2086,8 +2283,8 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 fail(emitter, statement->span, "assignment operator"); \
                 return; \
             } \
-            WasmValtype container = wasm_scalar_type_of(TARGET_TYPE); \
-            int signed_type = type_is_signed(TARGET_TYPE); \
+            WasmValtype container = wasm_scalar_type_of(plan->module, TARGET_TYPE); \
+            int signed_type = type_is_signed(plan->module, TARGET_TYPE); \
             if(!strcmp(binary, "+") || !strcmp(binary, "-") || \
                !strcmp(binary, "*") || !strcmp(binary, "/") || \
                !strcmp(binary, "%")) { \
@@ -2130,7 +2327,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 fail(emitter, statement->span, "assignment operator"); \
                 return; \
             } \
-            if(!op_normalize(&plan->body, TARGET_TYPE)) \
+            if(!op_normalize(&plan->body, plan->module, TARGET_TYPE)) \
                 return; \
         } while(0)
 
@@ -2166,7 +2363,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                     /* The address stays on the stack under the loaded value. */
                     if(!op_const_i32(&plan->body, (int32_t)(ZX_WASM_DATA_BASE + slot->offset)))
                         return;
-                    if(!op_load_scalar(&plan->body, type, 0))
+                    if(!op_load_scalar(&plan->body, plan->module, type, 0))
                         return;
                 }
                 if(!emit_expression(emitter, plan, statement->expr_root))
@@ -2176,13 +2373,13 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                 const char *global_value_type =
                     plan->function->exprs[statement->expr_root].type;
                 if(strcmp(global_value_type, type) != 0 &&
-                   !op_convert(&plan->body, global_value_type, type)) {
+                   !op_convert(&plan->body, plan->module, global_value_type, type)) {
                     fail(emitter, statement->span, "assignment conversion");
                     return;
                 }
                 if(!simple)
                     ZX_WASM_COMPOUND_OPERATOR(type);
-                if(!op_store_scalar(&plan->body, type, 0))
+                if(!op_store_scalar(&plan->body, plan->module, type, 0))
                     emitter->failed = 1;
                 return;
             }
@@ -2215,7 +2412,7 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
             const char *value_type =
                 plan->function->exprs[statement->expr_root].type;
             if(strcmp(value_type, type) != 0 &&
-               !op_convert(&plan->body, value_type, type)) {
+               !op_convert(&plan->body, plan->module, value_type, type)) {
                 fail(emitter, statement->span, "assignment conversion");
                 return;
             }
@@ -2251,8 +2448,14 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                     emitter->failed = 1;
                 return;
             }
-            if(!simple && !op_load_scalar(&plan->body, place_type, 0))
-                return;
+            if(!simple) {
+                /* Keep the destination beneath its loaded value. Evaluate
+                 * indexed places once, including any index side effects. */
+                if(!op_local(&plan->body, 0x22, plan->arena_scratch) ||
+                   !op_local(&plan->body, 0x20, plan->arena_scratch) ||
+                   !op_load_scalar(&plan->body, plan->module, place_type, 0))
+                    return;
+            }
             if(!emit_expression(emitter, plan, statement->expr_root))
                 return;
             if(emitter->failed)
@@ -2260,13 +2463,13 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
             const char *value_type =
                 plan->function->exprs[statement->expr_root].type;
             if(strcmp(value_type, place_type) != 0 &&
-               !op_convert(&plan->body, value_type, place_type)) {
+               !op_convert(&plan->body, plan->module, value_type, place_type)) {
                 fail(emitter, statement->span, "assignment conversion");
                 return;
             }
             if(!simple)
                 ZX_WASM_COMPOUND_OPERATOR(place_type);
-            if(!op_store_scalar(&plan->body, place_type, 0))
+            if(!op_store_scalar(&plan->body, plan->module, place_type, 0))
                 emitter->failed = 1;
             return;
         }
@@ -2280,7 +2483,8 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
             return;
         if(emitter->failed)
             return;
-        if(!op(&plan->body, 0x1a)) /* drop */
+        if(strcmp(plan->function->exprs[statement->expr_root].type, "void") != 0 &&
+           !op(&plan->body, 0x1a)) /* value-producing expression */
             emitter->failed = 1;
         return;
     case ZIR_STMT_RETURN:
@@ -2304,13 +2508,13 @@ emit_statement(WasmEmitter *emitter, WasmPlan *plan, int index, int end)
                         emitter->failed = 1;
                     return;
                 }
-                if(!op_convert(&plan->body, actual, plan->result_type)) {
+                if(!op_convert(&plan->body, plan->module, actual, plan->result_type)) {
                     fail(emitter, statement->span, "return conversion");
                     return;
                 }
             }
         } else if(strcmp(plan->result_type, "void") != 0) {
-            if(!op_zero(&plan->body, wasm_scalar_type_of(plan->result_type))) {
+            if(!op_zero(&plan->body, wasm_scalar_type_of(plan->module, plan->result_type))) {
                 emitter->failed = 1;
                 return;
             }
@@ -2496,6 +2700,7 @@ supported_expression(const ZirExpr *expression)
     case ZIR_EXPR_FIELD_INIT:
     case ZIR_EXPR_STRING:
     case ZIR_EXPR_SLICE:
+    case ZIR_EXPR_SIZE_OF:
         return 1;
     default:
         return 0;
@@ -2525,7 +2730,8 @@ supported_function(WasmEmitter *emitter, const WasmPlan *plan)
             fail(emitter, expression->span, "expression");
             return 0;
         }
-        if(!wasm_type_of_in(plan->module, expression->type) &&
+        if(!(expression->kind == ZIR_EXPR_CALL && strcmp(expression->type, "void") == 0) &&
+           !wasm_type_of_in(plan->module, expression->type) &&
            !type_is_heap(plan->module, expression->type)) {
             Diagnostic(expression->span, "zx.wasm",
                        "type %s is outside the wasm execution subset",
@@ -2565,6 +2771,15 @@ collect_host_capabilities(WasmEmitter *emitter)
 {
     for(int m = 0; m < emitter->program->module_count; m++) {
         const ZirModule *module = &emitter->program->modules[m];
+        for(int f = 0; f < module->function_count; f++)
+            for(int e = 0; e < module->functions[f].expr_count; e++) {
+                const ZirExpr *expression = &module->functions[f].exprs[e];
+                const ZirModule *owner = NULL;
+                const ZirFunction *callee = NULL;
+                if(expression->kind == ZIR_EXPR_CALL && !strcmp(expression->name, "print") &&
+                   ResolveFunction(module, expression->name, &owner, &callee) != 1)
+                    emitter->builtin_print = 1;
+            }
         for(int i = 0; i < module->import_count; i++) {
             const ZirImport *import = &module->imports[i];
             if(import->kind != ZIR_IMPORT_EXTERN ||
@@ -2662,7 +2877,8 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
         DiagnosticOutOfMemory();
         return NULL;
     }
-    if(emitter.host_count != 0) {
+    int host_import = emitter.host_count != 0 || emitter.builtin_print;
+    if(host_import) {
         WasmSignature host = {0};
         host.parameter_count = 2;
         host.parameters[0] = WASM_I32;
@@ -2759,7 +2975,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
                                module->name, function->name);
                     goto done;
                 }
-                if(!type_is_integer(plan->result_type) &&
+                if(!type_is_integer(plan->module, plan->result_type) &&
                    strcmp(ScalarType(plan->result_type), "bool") != 0 &&
                    strcmp(ScalarType(plan->result_type), "void") != 0) {
                     Diagnostic(function->span, "zx.wasm",
@@ -2795,7 +3011,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
 
     /* Function index 0 is the step guard import and host calls, when
      * present, follow it; bodies and the wrapper come after them. */
-    int imported_functions = 1 + emitter.host_count;
+    int imported_functions = 1 + host_import;
     for(int i = 0; i < emitter.plan_count; i++)
         emitter.plans[i].function_index = imported_functions + i;
 
@@ -2851,7 +3067,7 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
              * code after a return is unreachable and validates anyway. */
             if(strcmp(plan->result_type, "void") != 0) {
                 WasmValtype tail = type_is_heap(plan->module, plan->result_type) ?
-                    WASM_I32 : wasm_scalar_type_of(plan->result_type);
+                    WASM_I32 : wasm_scalar_type_of(plan->module, plan->result_type);
                 if(!tail)
                     tail = WASM_I32;
                 if(!op_zero(&plan->body, tail) ||
@@ -2926,11 +3142,11 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
      * budget global remains global index 0. */
     section.count = 0;
     assemble_ok = assemble_ok &&
-                  uleb(&section, (uint64_t)(2 + emitter.host_count)) &&
+                  uleb(&section, (uint64_t)(2 + host_import)) &&
                   uleb(&section, 2) && raw(&section, "zx", 2) &&
                   uleb(&section, 7) && raw(&section, "overrun", 7) &&
                   byte(&section, 0x00) && uleb(&section, 0) &&
-                  (emitter.host_count == 0 ||
+                  (!host_import ||
                    (uleb(&section, 2) && raw(&section, "zx", 2) &&
                     uleb(&section, 8) && raw(&section, "host_i64", 8) &&
                     byte(&section, 0x00) &&
@@ -3099,13 +3315,13 @@ zir_wasm_lower(const ZirProgram *program, const char *entry_module,
             assemble_ok = assemble_ok &&
                           op_index(&wrapper_body, 0x10, entry->function_index) &&
                           op_const_i64(&wrapper_body, 0);
-        else if(wasm_width(entry->result_type) == 64)
+        else if(wasm_width(entry->module, entry->result_type) == 64)
             assemble_ok = assemble_ok &&
                           op_index(&wrapper_body, 0x10, entry->function_index);
         else
             assemble_ok = assemble_ok &&
                           op_index(&wrapper_body, 0x10, entry->function_index) &&
-                          op(&wrapper_body, type_is_signed(entry->result_type) ?
+                          op(&wrapper_body, type_is_signed(entry->module, entry->result_type) ?
                              0xac : 0xad);
         assemble_ok = assemble_ok && op(&wrapper_body, 0x0b) &&
                       uleb(&code_entries, (uint64_t)wrapper_body.count) &&

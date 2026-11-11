@@ -33,3 +33,8 @@ do not import a UI library.
   Pages. Never invoke Wrangler directly from a local agent or terminal,
   including authentication commands. The workflow's Cloudflare action owns
   uploads.
+
+- Do not create a `backup/` directory in this repository. Keep reusable
+  benchmark scripts in Ziran under `bench/`, and retained benchmark reports
+  and logs under tracked `bench/results/` paths. Temporary compiler and test
+  outputs belong in the existing `build/` layout.

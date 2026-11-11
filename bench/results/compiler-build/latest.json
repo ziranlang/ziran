@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "started_utc": "2026-11-11T01:19:48Z",
+  "command": [
+    "make",
+    "-B",
+    "-j16",
+    "all"
+  ],
+  "exit_code": 0,
+  "wall_seconds": 7.314620800000284,
+  "user_cpu_seconds": 78.59079,
+  "system_cpu_seconds": 4.373336,
+  "parallel_jobs": 16,
+  "available_cpus": 32,
+  "platform": "Linux-7.2.11+deb13-amd64-x86_64-with-glibc2.41",
+  "machine": "x86_64",
+  "revision": "61b1e5402a4873dc8e84d727bcbe10d7b3077ad6",
+  "working_tree_dirty": true,
+  "build_source_sha256": "567d2848d3844853218cab48fc0955f43c1dc43d8474f65614a81f43fd39976b",
+  "c_compile_commands": 205,
+  "includes": "all native compiler tools and libziran.a; every target forced to rebuild at its normal path",
+  "excludes": "build queue waiting, test suite, installation and website build",
+  "cache_state": "warm filesystem caches; existing build targets are forced to rebuild with make -B",
+  "log": "build.log"
+}

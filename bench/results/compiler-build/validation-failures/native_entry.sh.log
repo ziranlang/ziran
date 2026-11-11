@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/native_entry_test.py", line 160, in <module>
+    run([cxx, '-std=c++17', '-O2', '-I'+str(repo/'include'), '-I'+str(out), out/'body.o', cpp_host, '-o', out/'cpp-probe'])
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/native_entry_test.py", line 21, in run
+    assert result.returncode == answer, (command, result.returncode, result.stdout, result.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (['/home/wao/.local/bin/c++', '-std=c++17', '-O2', '-I/mnt/storage/Projects/ziranlang/ziran/include', '-I/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/native_entry.sh.wp6yo3du/tmp.cvQUT3kbIy/wide/c-source', PosixPath('/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/native_entry.sh.wp6yo3du/tmp.cvQUT3kbIy/wide/c-source/body.o'), PosixPath('/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/native_entry.sh.wp6yo3du/tmp.cvQUT3kbIy/wide/host.cpp'), '-o', PosixPath('/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/native_entry.sh.wp6yo3du/tmp.cvQUT3kbIy/wide/c-source/cpp-probe')], 1, '', "/usr/bin/ld: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.if0mdymi/native_entry.sh.wp6yo3du/cc4WMTdr.o: in function `main':\nhost.cpp:(.text.startup+0x5): undefined reference to `Probe()'\ncollect2: error: ld returned 1 exit status\n")

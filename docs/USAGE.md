@@ -579,8 +579,19 @@ Rebuild hosts, libraries and add-ons together for ZX version 27; see
 [partial module composition](ZX.md#shared-libraries-and-partial-modules).
 Saved `.zir` files are binary. `ziran inspect path/to/module.zir` shows their
 declarations, statements, and checked expression links as readable text;
-`ziran inspect --hex path/to/module.zir` shows bytes and offsets. Both views
-read the saved file and leave it unchanged.
+`ziran inspect --hex path/to/module.zir` shows bytes and offsets.
+`ziran inspect program.zx` shows a portable bundle’s entry, linked modules and
+assets without executing it; `--hex` shows its binary bytes.
+`ziran build --target=wasm --entry module:main --root DIR -o program.wasm FILE.zi`
+produces WebAssembly. Its `zx.host_i64` dispatch reserves index `UINT32_MAX`
+for builtin string output: the i64 argument packs byte length in its upper
+32 bits and memory offset in its lower 32 bits; the callback writes those bytes
+and returns zero. Other reserved indices format signed integers (`UINT32_MAX - 1`),
+unsigned integers (`- 2`), float64 bits (`- 3`), float32 bits (`- 4`), and booleans
+(`- 5`). Scalar formatted print arguments use these callbacks. Slices support
+omitted bounds (`values[:]`, `values[:end]`, `values[start:]`) and empty views
+at the end of their storage. Both inspection views read the saved file and
+leave it unchanged.
 
 ## Imports
 
@@ -1018,7 +1029,15 @@ fields out as an anonymous C member over the same storage, so C reads
 
 ### Native scripts
 
-`ziran run --target=c tool.zi -- ARGS` runs a native tool in one command: it
+`ziran tool.zi ARGS` runs ordinary Ziran source as a native script. Use `.zi`
+for scripts and compiled programs alike. On Unix, start executable scripts
+with `#!/usr/bin/env ziran`, give them an ordinary `main` procedure, and run
+`chmod +x tool.zi` once. Then `./tool.zi ARGS` works with `ziran` on `PATH`.
+Every argument after the filename belongs to the script, including `--help`.
+The caller's working directory and standard streams are preserved.
+
+The explicit form, `ziran run --target=c [--no-cache] tool.zi -- ARGS`,
+also accepts compiler options before the filename. The native runner
 builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
 entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside

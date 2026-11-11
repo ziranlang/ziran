@@ -65,6 +65,66 @@ EM_JS(int, zx_wasm_js_call, (unsigned long handle, long long *result), {
     }
 });
 
+EM_JS(int, zx_wasm_js_read, (unsigned long handle, size_t address,
+                             void *destination, size_t size), {
+    try {
+        const entry = globalThis.zxWasmInstances.get(handle);
+        const bytes = new Uint8Array(entry.instance.exports.memory.buffer,
+                                     Number(address), Number(size));
+        HEAPU8.set(bytes, Number(destination));
+        return 0;
+    } catch(error) { return 1; }
+});
+
+EM_JS(int, zx_wasm_js_write, (unsigned long handle, size_t address,
+                              const void *source, size_t size), {
+    try {
+        const entry = globalThis.zxWasmInstances.get(handle);
+        const bytes = new Uint8Array(entry.instance.exports.memory.buffer,
+                                     Number(address), Number(size));
+        bytes.set(new Uint8Array(HEAPU8.buffer, Number(source), Number(size)));
+        return 0;
+    } catch(error) { return 1; }
+});
+
+EM_JS(size_t, zx_wasm_js_allocate, (unsigned long handle, size_t size), {
+    try {
+        const entry = globalThis.zxWasmInstances.get(handle);
+        const memory = entry.instance.exports.memory;
+        const arena = entry.instance.exports.zx_state_arena;
+        const start = (Number(arena.value) + 7) & ~7;
+        const end = start + Number(size);
+        if(end > 0x7fffffff) return 0;
+        if(end > memory.buffer.byteLength)
+            memory.grow(Math.ceil((end - memory.buffer.byteLength) / 65536));
+        arena.value = end;
+        return start;
+    } catch(error) { return 0; }
+});
+
+static int
+provider_read(void *context, unsigned long handle, size_t address,
+              void *destination, size_t size)
+{
+    (void)context;
+    return zx_wasm_js_read(handle, address, destination, size);
+}
+
+static int
+provider_write(void *context, unsigned long handle, size_t address,
+               const void *source, size_t size)
+{
+    (void)context;
+    return zx_wasm_js_write(handle, address, source, size);
+}
+
+static size_t
+provider_allocate(void *context, unsigned long handle, size_t size)
+{
+    (void)context;
+    return zx_wasm_js_allocate(handle, size);
+}
+
 static unsigned long
 provider_instantiate(void *context, const unsigned char *bytes, size_t size)
 {
@@ -116,6 +176,9 @@ main(int argc, char **argv)
         platform.instantiate = provider_instantiate;
         platform.set_budget = provider_set_budget;
         platform.call = provider_call;
+        platform.read = provider_read;
+        platform.write = provider_write;
+        platform.allocate_state = provider_allocate;
         platform.release = provider_release;
         ZxWasmSetPlatform(&platform);
     } else if(ZxWasmPlatformActive() == NULL) {

@@ -1,0 +1,987 @@
+mkdir -p build/
+rm -f build/bin/zi2py build/bin/zi2zib build/bin/zi2cpp build/bin/zi2rust build/bin/zi2zx-vm
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/host-capability-test tests/host_capability_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/record-host-test tests/record_host_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/record-fields-by-name-test tests/record_fields_by_name_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/array-host-test tests/host_array_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/slice-host-test tests/host_slice_test.c build/libziran.a -lm -pthread -ldl
+nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Werror=frame-larger-than=16384 -MMD -MP -c -o build/obj/tests/bundle_link_test.o tests/bundle_link_test.c
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -o build/bin/process-host-test tests/process_host_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Ibuild/compiler-ir -o build/bin/startup-graph-test \
+	tests/startup_graph_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Ibuild/compiler-ir -o build/bin/vm-vec-scope-test \
+	tests/vm_vec_scope_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Ibuild/compiler-ir -o build/bin/vm-locale-test \
+	tests/vm_locale_test.c build/libziran.a -lm -pthread -ldl
+cc  -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Ibuild/compiler-ir -o build/bin/zx-wasm-engine-test \
+    tests/zx_wasm_engine_test.c build/libziran-vm.a -lm -pthread -ldl
+cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -o build/bin/bundle-link-test build/obj/tests/bundle_link_test.o build/obj/cmd/zir/zir_overlay.o build/obj/cmd/zir/zir_semantic.o build/obj/cmd/zir/zir_document.o build/obj/cmd/zir/zir_sha256.o build/obj/cmd/zir/zir_context.o build/obj/cmd/zir/zir_memory.o build/obj/cmd/zir/zir_storage.o build/obj/cmd/zir/zir.o build/obj/cmd/zir/zir_asm.o build/obj/cmd/zir/zir_enum.o build/obj/cmd/zir/zir_type.o build/obj/cmd/zir/zir_text.o build/obj/cmd/zir/zir_native.o build/obj/cmd/zir/zir_simd.o build/obj/cmd/zir/zir_body.o build/obj/cmd/zir/zir_token.o build/obj/cmd/zir/zir_cleanup.o build/obj/cmd/zir/zir_expr.o build/obj/cmd/zir/zir_borrow.o build/obj/cmd/zir/zir_law.o build/obj/cmd/zir/zir_serial.o build/obj/cmd/zir/zir_load.o build/obj/cmd/zir/zir_packages.o build/obj/cmd/zir/zir_diagnostic.o build/obj/cmd/zir/zir_profile.o build/obj/cmd/zir/zir_files.o build/obj/cmd/zir/zir_services.o build/obj/compiler-scan.o build/obj/compiler-text.o build/obj/compiler-source.o build/obj/compiler-declaration.o build/obj/compiler-enum.o build/obj/compiler-type.o build/obj/compiler-expression.o build/obj/compiler-statement.o build/obj/compiler-proof-kernel.o build/obj/compiler-proof.o build/obj/compiler-ir.o build/obj/compiler-law.o build/obj/compiler-services.o build/obj/compiler-link.o build/obj/check.o build/obj/parse.o build/obj/emit.o build/obj/compiler-parse.o build/obj/cmd/zir/zir_bundle.o build/obj/cmd/zir/zir_bundle_assets.o build/obj/compiler-bundle.o build/obj/vm.o -lm -pthread -ldl
+env -u DISPLAY -u WAYLAND_DISPLAY build/bin/startup-graph-test
+env -u DISPLAY -u WAYLAND_DISPLAY build/bin/zx-wasm-engine-test
+scalar.zi:2:1: the wasm provider rejected the lowered module
+zx-wasm-engine-test: seam, provider handoff and fallback verified
+python3 tests/run_check.py --bin-dir build/bin --jobs 16 \
+     
+Running 522 checks with 16 jobs (0 reused)
+PASS bundle-link-test (0.0s)
+PASS api_discovery.sh (0.1s)
+PASS zx_native_perf_regression.sh (0.2s)
+PASS aggregate_view_lifetime.sh (0.3s)
+PASS asm_tinycc_encoding.sh (0.2s)
+PASS artifact_consumer.sh (0.5s)
+bootstrap matches: scan text source declaration enum type expression statement proof_kernel proof bundle ir law services link parse
+PASS aggregate_vec_safety.sh (1.0s)
+PASS as_conversion.sh (1.1s)
+PASS atomic_cli_link.sh (0.2s)
+PASS array_result_in_place.sh (1.2s)
+PASS asm_routines.sh (1.1s)
+PASS body_eligibility.sh (0.1s)
+PASS borrow_import_graph.sh (0.1s)
+PASS benchmark_harness.sh (0.4s)
+PASS assembly.sh (1.6s)
+PASS builtin_type_names.sh (0.1s)
+PASS build_playground.sh (0.6s)
+PASS bundle_assets.sh (0.3s)
+PASS bit_builtins.sh (1.2s)
+PASS bundle_component.sh (0.2s)
+PASS bundle_global_reachability.sh (0.2s)
+PASS bundle_host_query.sh (0.2s)
+PASS bundle_libraries.sh (0.2s)
+PASS borrowed_view_return.sh (1.3s)
+PASS bundle_owned_field.sh (0.0s)
+FAIL bundle_host_review_abi.sh (0.4s, exit 1)
+PASS bundle_memory_host.sh (0.2s)
+PASS bundle_verification.sh (0.1s)
+PASS assembly_blocks.sh (2.6s)
+PASS bundle_step_limit.sh (0.2s)
+PASS c_exe_link.sh (0.1s)
+PASS bundle_runtime_provider.sh (0.4s)
+PASS asm_dct8.sh (3.1s)
+PASS c_call.sh (0.3s)
+PASS c_reexport_type_header.sh (0.3s)
+PASS bundle_partial_modules.sh (0.7s)
+PASS c_reexport_alias.sh (0.3s)
+PASS c99_target.sh (0.5s)
+PASS c_warning_free_logic.sh (0.1s)
+PASS assembly_features.sh (3.0s)
+PASS c_module_init.sh (0.4s)
+PASS c_spelling.sh (0.3s)
+PASS callback_record_layout.sh (0.1s)
+PASS callback_array_parameters.sh (0.1s)
+PASS call_site_inlining.sh (0.2s)
+PASS callback_table_layout.sh (0.1s)
+PASS callback_type_order.sh (0.2s)
+PASS capabilities.sh (0.2s)
+PASS call_order.sh (0.4s)
+PASS float_integer_casts.sh (4.1s)
+PASS c_warnings.sh (1.0s)
+PASS caller_location.sh (0.8s)
+PASS cli_defines.sh (0.8s)
+PASS compile_commands.sh (0.1s)
+PASS calendar.sh (1.7s)
+PASS char.sh (1.3s)
+PASS cli_help.sh (0.9s)
+PASS compact_branches.sh (0.9s)
+PASS checked_integer_ops.sh (1.6s)
+PASS compile_ifx.sh (0.5s)
+PASS compile_run_text.sh (0.4s)
+PASS check_runner.sh (1.9s)
+PASS compile_time.sh (0.7s)
+PASS compile_values.sh (0.8s)
+PASS call_ranges.sh (2.9s)
+PASS compiler_profile.sh (0.1s)
+FAIL compiler_profile_portable.sh (1.0s, exit 1)
+PASS compiler_enum.sh (1.8s)
+PASS compile_if_syntax.sh (2.9s)
+FAIL compiler_files_portable.sh (1.5s, exit 1)
+PASS compiler_bundle.sh (2.4s)
+PASS compiler_expression.sh (2.0s)
+PASS authoring_workflows.sh (7.1s)
+PASS compiler_scan.sh (1.6s)
+PASS compound_order.sh (0.6s)
+PASS compiler_proof_kernel.sh (2.6s)
+PASS compiler_type.sh (2.2s)
+PASS constant_time.sh (0.0s)
+PASS compiler_text.sh (2.2s)
+PASS compiler_statement.sh (2.7s)
+PASS cross_target_ui_shapes.sh (0.5s)
+PASS constant_names.sh (1.1s)
+PASS date_time.sh (0.1s)
+PASS compiler_source.sh (4.0s)
+PASS cross_module_inline.sh (1.4s)
+PASS compiler_declaration.sh (6.2s)
+PASS constant_tables.sh (2.0s)
+PASS default_bounds.sh (0.3s)
+PASS deep_nesting.sh (0.5s)
+PASS data_scope_using.sh (1.5s)
+FAIL date_time_linux.sh (1.5s, exit 1)
+PASS date_parse.sh (1.6s)
+PASS diagnostic_android.sh (0.3s)
+PASS diagnostic_details.sh (0.1s)
+PASS diagnostic_bounds.sh (0.1s)
+PASS diagnostic_metadata.sh (0.1s)
+PASS defined_predicate.sh (0.6s)
+PASS defer_block.sh (0.7s)
+PASS diagnostic_format.sh (0.4s)
+PASS default_arguments.sh (1.2s)
+PASS enum_cast.sh (0.3s)
+PASS empty_aggregate_lifetime.sh (0.8s)
+PASS division.sh (1.0s)
+PASS entry_dead_code.sh (0.7s)
+PASS environment_native.sh (0.3s)
+PASS enum_zero_arrays.sh (0.7s)
+PASS exe_build.sh (0.3s)
+PASS explain.sh (0.2s)
+PASS ffi_header_import.sh (0.0s)
+PASS directory_entry.sh (2.1s)
+PASS emit_changed_module.sh (2.0s)
+PASS enum_flags.sh (1.8s)
+PASS features.sh (1.1s)
+PASS definite_initialization.sh (3.2s)
+FAIL compiler_kernel_benchmarks.sh (15.5s, exit 1)
+PASS large_array_literals.sh (15.6s)
+PASS file_new.sh (0.4s)
+PASS file_copy_new.sh (0.9s)
+PASS file_portable.sh (0.4s)
+PASS foreign_keywords.sh (0.2s)
+PASS file_read_into.sh (0.7s)
+PASS file_link.sh (1.4s)
+PASS for_range.sh (0.9s)
+PASS field_guard_ranges.sh (2.1s)
+PASS foreign_value_names.sh (0.5s)
+PASS formatter_parallel.sh (0.1s)
+PASS foreign_reads.sh (0.9s)
+PASS for_collection.sh (1.5s)
+PASS fuzz_regressions.sh (0.1s)
+PASS format_builder.sh (1.2s)
+PASS file_scope.sh (1.8s)
+FAIL zx_web_lifecycle.sh (17.5s, exit 1)
+PASS forward_load_conditions.sh (1.2s)
+PASS forward_import_conditions.sh (1.2s)
+PASS forward_type_conditions.sh (1.4s)
+PASS generic_parameters.sh (0.7s)
+PASS compile_run.sh (13.1s)
+PASS generic_record.sh (0.7s)
+PASS formatter.sh (2.0s)
+PASS generic_procedure.sh (0.9s)
+PASS global_string_output.sh (0.0s)
+PASS generic_slice_parameter.sh (1.1s)
+PASS file_type_of.sh (3.8s)
+PASS global_owned_storage.sh (0.9s)
+PASS global_names.sh (1.3s)
+PASS go_anonymous_records.sh (0.9s)
+PASS generic_record_imports.sh (1.6s)
+PASS global_slots.sh (1.4s)
+PASS examples.sh (6.4s)
+PASS generic_array_parameter.sh (3.1s)
+PASS go_conditional_widening.sh (0.3s)
+PASS generic_multiple_results.sh (3.0s)
+PASS go_constant_strings.sh (0.3s)
+PASS go_export_roots.sh (0.3s)
+PASS go_field_tags.sh (0.6s)
+FAIL compiler_runtime_windows.sh (14.5s, exit 1)
+PASS go_callback_type_owners.sh (2.6s)
+PASS go_fields.sh (1.1s)
+PASS go_assert_spawn.sh (3.1s)
+PASS go_bind.sh (3.5s)
+PASS go_foreign_types.sh (0.7s)
+PASS go_error_values.sh (2.8s)
+PASS go_auth_primitives.sh (3.8s)
+PASS go_defer.sh (3.4s)
+PASS go_maps.sh (0.6s)
+PASS go_direct_assembly.sh (4.2s)
+PASS go_file_json.sh (2.7s)
+PASS go_c_headers.sh (5.2s)
+PASS go_output_stream.sh (0.5s)
+PASS go_package.sh (0.3s)
+PASS go_http_client.sh (3.3s)
+PASS go_http_io.sh (3.2s)
+PASS generic_assembly.sh (8.5s)
+PASS go_methods.sh (2.7s)
+PASS go_many_parameters.sh (2.9s)
+PASS go_results.sh (1.1s)
+PASS go_native_values.sh (2.6s)
+PASS go_string_pointers.sh (0.5s)
+PASS go_variadic.sh (0.6s)
+PASS guide.sh (0.0s)
+PASS gpu.sh (0.4s)
+PASS hash_comments.sh (0.1s)
+PASS gzip.sh (0.3s)
+PASS heap_new.sh (0.4s)
+PASS go_pointer_arrays.sh (2.5s)
+FAIL go_package_init.sh (2.8s, exit 1)
+PASS gpu_offload.sh (1.5s)
+PASS hmac_sha256_go.sh (0.4s)
+PASS host_export_link.sh (0.1s)
+PASS host_capability.sh (0.1s)
+PASS guarded_index_ranges.sh (1.5s)
+PASS host_arrays.sh (0.4s)
+PASS hash_map.sh (1.2s)
+PASS host_module_binding.sh (0.3s)
+PASS go_slice_nil.sh (2.5s)
+PASS go_select.sh (2.7s)
+PASS host_bindings.sh (0.7s)
+PASS host_ziran_binding.sh (0.5s)
+PASS imported_callback_cast.sh (0.1s)
+PASS go_sql_time.sh (2.7s)
+PASS go_method_exports.sh (5.5s)
+PASS if_then.sh (0.7s)
+PASS implicit_widening.sh (0.5s)
+PASS imported_global_type_owner.sh (0.1s)
+PASS import_string.sh (0.6s)
+PASS imported_constant_names.sh (0.6s)
+PASS imported_enum_names.sh (0.6s)
+PASS imported_global_names.sh (0.6s)
+PASS imported_field_type_alias.sh (0.7s)
+PASS imported_native_types.sh (0.2s)
+PASS imported_map_slices.sh (0.4s)
+PASS indexed_field_read.sh (0.1s)
+PASS host_slices.sh (1.8s)
+PASS imported_value_names.sh (0.5s)
+PASS go_named_exports.sh (6.3s)
+PASS imported_type_names.sh (0.7s)
+PASS input_in_module_path.sh (0.1s)
+PASS imported_typed_constants.sh (0.9s)
+PASS inferred_int.sh (0.5s)
+PASS inferred_record.sh (0.5s)
+PASS install_user.sh (0.5s)
+PASS integer_literal_spellings.sh (0.5s)
+PASS kept_text.sh (0.1s)
+PASS jai_syntax.sh (0.8s)
+PASS json_array_reuse.sh (1.1s)
+PASS json_string_value.sh (0.9s)
+PASS json_scan.sh (1.5s)
+PASS large_enums.sh (0.5s)
+PASS large_record.sh (0.1s)
+PASS language_contract.sh (1.0s)
+PASS law_cases.sh (0.0s)
+PASS law_floats.sh (0.0s)
+PASS law_records.sh (0.1s)
+PASS lint_casts.sh (0.0s)
+PASS lint_characters.sh (0.0s)
+PASS lint_flags.sh (0.0s)
+PASS law_integers.sh (0.3s)
+PASS laws.sh (0.5s)
+PASS imported_aggregate_constants.sh (4.0s)
+PASS local_shadows_import.sh (0.2s)
+PASS local_owned_fields.sh (0.5s)
+PASS local_procedures.sh (0.4s)
+PASS long_string_constants.sh (0.2s)
+PASS large_constant_globals.sh (1.7s)
+PASS macro_temporaries.sh (0.1s)
+PASS imported_globals.sh (4.4s)
+PASS mapped_file_linux.sh (0.2s)
+PASS long_literals.sh (0.7s)
+PASS go_assembly.sh (14.1s)
+PASS math_float64.sh (0.3s)
+PASS imported_host_slices.sh (5.0s)
+FAIL image_resize_fallible.sh (5.9s, exit 1)
+PASS module_symlink.sh (0.1s)
+PASS many_functions.sh (1.2s)
+PASS module_root_capacity.sh (0.8s)
+PASS indirect_record_types.sh (5.1s)
+PASS match.sh (1.6s)
+PASS module_paths.sh (1.5s)
+PASS multiline_param_targets.sh (0.6s)
+PASS must_use.sh (0.2s)
+PASS mutex_linux.sh (0.2s)
+PASS multiple_results.sh (0.6s)
+PASS loop_guard_ranges.sh (2.3s)
+PASS named_module_paths.sh (0.3s)
+PASS named_arguments.sh (0.6s)
+PASS named_imports.sh (0.6s)
+PASS module_symbol_names.sh (1.7s)
+PASS llm_authoring.sh (3.8s)
+FAIL native_entry.sh (0.3s, exit 1)
+PASS named_generic_dependencies.sh (1.1s)
+PASS native_function_value_names.sh (0.7s)
+PASS native_loops.sh (0.4s)
+PASS module_import_identity.sh (3.0s)
+PASS native_nil.sh (0.6s)
+PASS native_release.sh (0.4s)
+PASS native_object_reuse.sh (0.8s)
+PASS native_c_ffi.sh (1.6s)
+PASS native_switch.sh (0.4s)
+PASS native_operand_order.sh (0.8s)
+PASS negative_real_constants.sh (0.2s)
+PASS native_threads.sh (0.5s)
+PASS native_run.sh (1.0s)
+PASS nested_array_assign.sh (0.6s)
+FAIL native_workers_windows.sh (0.8s, exit 1)
+PASS native_type_value_names.sh (1.1s)
+PASS lanczos_isa_bitexact.sh (7.5s)
+PASS nested_constant_tables.sh (0.8s)
+PASS opaque_text_lifetime.sh (0.1s)
+PASS multiline_strings.sh (4.0s)
+PASS nested_comments.sh (1.0s)
+PASS std_unicode_normalization.sh (38.5s)
+PASS nested_lazy_call.sh (0.7s)
+PASS operators.sh (0.8s)
+PASS overloads.sh (0.8s)
+PASS numeric_semantics.sh (1.2s)
+PASS numeric_width_matrix.sh (1.1s)
+FAIL owned_text.sh (1.0s, exit 1)
+PASS package_relative_imports.sh (0.4s)
+PASS package_process.sh (0.5s)
+PASS parallel_captures.sh (0.1s)
+FAIL nested_vec_elements.sh (1.9s, exit 1)
+PASS parallel.sh (0.6s)
+PASS paren_record_literal.sh (0.0s)
+PASS parallel_linux.sh (0.3s)
+PASS parser_recovery.sh (0.2s)
+PASS owned_text_results.sh (1.6s)
+PASS pointer_cast_nested_array.sh (0.1s)
+PASS pointer_field_text_lifetime.sh (0.2s)
+PASS parallel_results.sh (0.7s)
+PASS parallel_slices.sh (0.7s)
+PASS pointer_to_array.sh (0.0s)
+PASS pointer_subscript.sh (0.1s)
+PASS pointer_slot_params.sh (0.1s)
+PASS portable_collection.sh (0.0s)
+PASS portable_format.sh (0.1s)
+PASS package_checkout_concurrency.sh (2.2s)
+PASS path.sh (0.8s)
+PASS portable_imported_record_slices.sh (0.0s)
+PASS native_commands.sh (5.4s)
+PASS portable_long_runs.sh (0.1s)
+PASS package_darwin.sh (2.1s)
+PASS portable_limits.sh (0.3s)
+PASS portable_s64.sh (0.0s)
+PASS portable_arrays.sh (0.8s)
+PASS primitive_types.sh (0.0s)
+PASS pointer_member_check.sh (1.2s)
+PASS portable_pointers.sh (0.7s)
+PASS portable_strings.sh (0.7s)
+PASS portable_globals.sh (1.2s)
+PASS portable_host_records.sh (1.2s)
+PASS private_field_type_header.sh (0.1s)
+PASS private_type_application.sh (0.1s)
+PASS private_type_application_load.sh (0.2s)
+FAIL portable_entry.sh (1.6s, exit 1)
+PASS package_map_concurrency.sh (3.0s)
+PASS print.sh (0.9s)
+PASS print_enums.sh (0.9s)
+PASS private_module_imports.sh (0.5s)
+PASS native_build_cache.sh (7.2s)
+PASS portable_slices.sh (1.3s)
+FAIL process_channel_linux.sh (0.3s, exit 2)
+PASS process.sh (0.3s)
+PASS native_runtime_headers.sh (5.9s)
+PASS queue.sh (0.1s)
+PASS random_linux.sh (0.1s)
+PASS qualified_slot_record_types.sh (0.2s)
+PASS proofs.sh (0.4s)
+PASS print_records.sh (1.0s)
+PASS record_fields_by_name.sh (0.0s)
+PASS record_slice_header.sh (0.0s)
+PASS record_abi_metadata.sh (0.1s)
+PASS range_loop_one_exit.sh (0.3s)
+PASS record_pointer_layout.sh (0.2s)
+PASS rejection_helper.sh (0.0s)
+FAIL program_export.sh (0.7s, exit 1)
+PASS procedure_inlining.sh (1.2s)
+PASS record_update_stack.sh (0.5s)
+PASS recursive_slice_records.sh (0.7s)
+PASS range_types.sh (0.8s)
+PASS resizable_arrays.sh (0.9s)
+PASS qualified_pointer_import.sh (1.3s)
+PASS return_paths.sh (0.8s)
+PASS saved_ir_call_argument_cast.sh (0.1s)
+PASS saved_ir_blocks.sh (0.4s)
+PASS procedure_result_reachability.sh (1.8s)
+PASS runtime_local_names.sh (0.9s)
+PASS safe_inference.sh (0.8s)
+PASS sequence_header.sh (0.5s)
+PASS signature_spacing.sh (0.0s)
+PASS semantic_edit.sh (0.6s)
+PASS native_build_parallel.sh (9.2s)
+PASS process_channel_wait_linux.sh (2.2s)
+PASS shared_foreign_bindings.sh (0.4s)
+PASS sha256.sh (0.6s)
+PASS proven_index_ranges.sh (2.2s)
+PASS shadowed_binding_reads_outer.sh (0.7s)
+PASS runtime_globals.sh (1.5s)
+FAIL site_targets.sh (0.1s, exit 1)
+PASS semicolon_statements.sh (1.1s)
+PASS shared_type_application.sh (0.7s)
+PASS reexport_import.sh (2.2s)
+PASS slot_field_values.sh (0.1s)
+PASS slot_type_collision.sh (0.1s)
+FAIL socket_linux.sh (0.1s, exit 1)
+PASS size_of.sh (0.5s)
+PASS slots.sh (0.6s)
+PASS sort.sh (0.6s)
+PASS stale_output.sh (0.2s)
+PASS slice_field_bound.sh (0.9s)
+PASS standalone_std.sh (0.1s)
+PASS std_binary.sh (0.5s)
+PASS source_line.sh (1.1s)
+PASS std_file_tree_wasm32.sh (0.0s)
+PASS std_file_darwin.sh (0.5s)
+PASS simd_run_ranges.sh (2.1s)
+PASS std_foreign_size_types.sh (0.1s)
+FAIL std_file_windows.sh (0.3s, exit 159)
+FAIL site_pages.sh (2.2s, exit 1)
+PASS std_image_composite_at.sh (0.4s)
+FAIL std_import_spelling_identity.sh (0.2s, exit 2)
+PASS std_image_transpose.sh (0.4s)
+PASS simd_go.sh (2.9s)
+PASS std_number_text.sh (0.0s)
+PASS std_file_tree_linux.sh (1.0s)
+PASS std_text.sh (0.0s)
+PASS std_native_linux.sh (0.2s)
+PASS std_image_linux.sh (0.9s)
+PASS std_tools_linux.sh (0.5s)
+PASS stored_slots.sh (0.5s)
+PASS stored_type_diagnostic.sh (0.0s)
+FAIL std_time_windows.sh (1.1s, exit 159)
+PASS string_ranges.sh (0.3s)
+PASS structure_first_error.sh (0.0s)
+PASS simd_std_imports.sh (4.4s)
+PASS std_utf8.sh (1.4s)
+PASS symbol_lookup.sh (0.5s)
+PASS text_call_mutation.sh (0.3s)
+PASS target_diagnostics.sh (0.7s)
+PASS string_storage.sh (1.3s)
+PASS text_condition_arms.sh (0.6s)
+PASS text_hex_decode.sh (0.4s)
+PASS standalone.sh (4.4s)
+PASS text_procedure_type_reads.sh (0.5s)
+PASS text_format_arguments.sh (1.1s)
+PASS std_grapheme.sh (4.1s)
+PASS text_reassigned_local.sh (0.6s)
+PASS text_reads_field_paths.sh (0.7s)
+PASS std_text_results.sh (3.3s)
+PASS text_stream.sh (0.2s)
+PASS text_view_mutation.sh (0.2s)
+PASS text_view.sh (0.5s)
+PASS thread_android.sh (0.0s)
+PASS text_string_arrays.sh (0.6s)
+PASS text_without_vec_import.sh (0.6s)
+PASS timer_linux.sh (0.1s)
+PASS this.sh (0.5s)
+PASS thread_linux.sh (0.3s)
+PASS tool_diagnostics.sh (0.2s)
+PASS transport_view.sh (0.2s)
+PASS text_scoped_producers.sh (1.3s)
+PASS text_scoped_arguments.sh (1.7s)
+PASS unchanged_outputs.sh (0.0s)
+FAIL std_json_document.sh (4.8s, exit 1)
+PASS unterminated_declarations.sh (0.0s)
+PASS unreachable.sh (0.6s)
+PASS unary_precedence.sh (0.6s)
+PASS union.sh (0.8s)
+PASS update.sh (0.4s)
+PASS unicode_data.sh (1.0s)
+PASS using.sh (0.7s)
+PASS using_import.sh (0.8s)
+PASS using_pointer.sh (0.6s)
+PASS variadic_foreigns.sh (0.1s)
+PASS using_modifiers.sh (0.7s)
+PASS unused_enum_call.sh (1.5s)
+PASS using_struct.sh (0.7s)
+FAIL thread_windows.sh (2.5s, exit 1)
+PASS utf8_copy_valid.sh (0.5s)
+PASS vec_move_expression.sh (0.1s)
+PASS vec_resize_stack.sh (0.1s)
+PASS version.sh (0.0s)
+PASS vec_auto_drop.sh (0.5s)
+PASS vec_slice_global.sh (0.2s)
+FAIL vec_field_loops.sh (0.5s, exit 1)
+PASS vec.sh (0.9s)
+PASS vm_call_metadata.sh (0.4s)
+PASS vm_builtin_dispatch.sh (0.5s)
+PASS text_std_module_path.sh (4.1s)
+PASS toml_document.sh (3.4s)
+PASS vm_binary_dispatch.sh (1.3s)
+PASS vm_deep_marking.sh (1.3s)
+PASS vm_locale.sh (0.1s)
+FAIL vec_capacity.sh (2.1s, exit 1)
+PASS host_strings.sh (27.8s)
+PASS vm_local_reads.sh (0.6s)
+PASS vm_profile.sh (0.1s)
+PASS vm_nested_collection.sh (0.3s)
+PASS vm_leaf_eval.sh (1.9s)
+PASS vm_concurrent_instances.sh (2.3s)
+PASS vm_return_storage.sh (0.3s)
+PASS vm_inline_records.sh (2.3s)
+PASS vm_literal_cache.sh (2.1s)
+PASS vm_packed_arrays.sh (1.3s)
+PASS vm_record_layout.sh (1.2s)
+PASS vm_vec_scope.sh (0.0s)
+PASS vm_retirement.sh (1.3s)
+PASS vm_function_plans.sh (2.9s)
+PASS wasm_cc.sh (0.0s)
+PASS vm_u64_enums.sh (0.5s)
+PASS vm_storage_reads.sh (0.6s)
+PASS wasm_slices.sh (0.1s)
+PASS vm_metadata_cache.sh (2.0s)
+PASS vm_scalar_coercion.sh (1.3s)
+PASS vm_scalar_plans.sh (1.3s)
+PASS vm_value_payloads.sh (1.2s)
+PASS wide_comparisons.sh (0.9s)
+PASS vm_vec_type_cache.sh (1.4s)
+PASS vorbis_linux.sh (1.3s)
+PASS wide_constants.sh (1.1s)
+PASS zip.sh (0.5s)
+PASS zip_file_linux.sh (0.4s)
+PASS zx_native_asm.sh (0.0s)
+PASS widening_cast.sh (1.1s)
+PASS zir_api.sh (0.4s)
+PASS zx_native_cache.sh (0.1s)
+PASS zx_native_parallel.sh (0.2s)
+PASS zx_native_invocation_regression.sh (0.3s)
+PASS zx_portable_write.sh (0.2s)
+PASS wasm_enums.sh (1.8s)
+PASS web_bridge.sh (1.8s)
+PASS zero_arrays.sh (1.6s)
+PASS zx_wasm.sh (1.1s)
+PASS simd_native.sh (16.3s)
+PASS simd.sh (17.8s)
+PASS zstd_go.sh (4.9s)
+PASS simd_target.sh (20.3s)
+PASS packages.sh (65.0s)
+FAIL zx_wasm_web.sh (9.4s, exit 1)
+FAIL zx_linked_web.sh (10.1s, exit 1)
+PASS std_unicode.sh (69.3s)
+PASS simd_tier_units.sh (28.2s)
+PASS std_float_text.sh (107.3s)
+
+=== FAIL bundle_host_review_abi.sh (exit 1)
+Bundle host ABI layout, calls and narrowing passed (64-bit size_t)
+Traceback (most recent call last):
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main
+    return link.run(linker_args)
+           ~~~~~~~~^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run
+    js_info = get_js_sym_info()
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info
+    file_content = emscripten.get_cached_file('symbol_lists', f'{content_hash}.json', generate_json, cache_limit=500)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file
+    with filelock.FileLock(cache_file + '.lock'):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__
+    self.acquire()
+    ~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire
+    self._acquire()
+    ~~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire
+    fd = os.open(self._lock_file, open_mode)
+OSError: [Errno 30] Read-only file system: '/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/a3d7372b73ace2ebeff271a101bbdcc27ce1661f.json.lock'
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/bundle_host_review_abi.sh.log
+
+=== FAIL compiler_files_portable.sh (exit 1)
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_files_portable.sh.log
+
+=== FAIL compiler_kernel_benchmarks.sh (exit 1)
+Traceback (most recent call last):
+  File "/mnt/storage/Projects/ziranlang/ziran/bench/codec_kernels.py", line 808, in <module>
+    main()
+    ~~~~^^
+  File "/mnt/storage/Projects/ziranlang/ziran/bench/codec_kernels.py", line 601, in main
+    raise AssertionError(f'{form} {target}32 native field access or size_of failed: {diagnostic}')
+AssertionError: source go32 native field access or size_of failed: 
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_kernel_benchmarks.sh.log
+
+=== FAIL compiler_profile_portable.sh (exit 1)
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_profile_portable.sh.log
+
+=== FAIL compiler_runtime_windows.sh (exit 1)
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_simd.o cmd/zir/zir_emit_simd.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_simd_go.o cmd/zir/zir_emit_simd_go.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm.o cmd/zir/zir_vm.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_verify.o cmd/zir/zir_vm_verify.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_eval.o cmd/zir/zir_vm_eval.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_run.o cmd/zir/zir_vm_run.c
+nice -n 10 x86_64-w64-mingw32-gcc -O2 -fPIC -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_simd.o cmd/zir/zir_vm_simd.c
+x86_64-w64-mingw32-gcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/check.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_value.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_expr.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_statement.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_function.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_link.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_program.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_simd.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_check_text.o && x86_64-w64-mingw32-objcopy --localize-hidden --localize-symbols=/mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/private-symbols/check.txt /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/check.o
+x86_64-w64-mingw32-gcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/parse.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_declaration.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_eval.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_typed.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_condition.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_discover.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_parse_source.o && x86_64-w64-mingw32-objcopy --localize-hidden --localize-symbols=/mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/private-symbols/parse.txt /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/parse.o
+x86_64-w64-mingw32-gcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/emit.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_value.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_call.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_expr.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_statement.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_gpu.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_range.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_simd.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_emit_simd_go.o && x86_64-w64-mingw32-objcopy --localize-hidden --localize-symbols=/mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/private-symbols/emit.txt /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/emit.o
+x86_64-w64-mingw32-gcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/vm.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_verify.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_eval.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_run.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_vm_simd.o && x86_64-w64-mingw32-objcopy --localize-hidden --localize-symbols=/mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/private-symbols/vm.txt /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/vm.o
+rm -f /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/libziran.a
+x86_64-w64-mingw32-ar rcs /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/libziran.a /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_overlay.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_semantic.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_document.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_sha256.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_context.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_memory.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_storage.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_asm.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_enum.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_type.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_text.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_native.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_simd.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_body.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_token.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_cleanup.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_expr.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_borrow.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_law.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_serial.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_load.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_packages.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_diagnostic.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_profile.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_files.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_services.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_bundle.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_bundle_assets.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_host.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-bundle.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-scan.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-text.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-source.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-declaration.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-enum.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-type.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-expression.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-statement.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-proof-kernel.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-proof.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-ir.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-law.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-services.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-link.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/check.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/parse.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/emit.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/vm.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_zx_wasm.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir/zir_zx_wasm_web.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/cmd/zir-wasm/zir_wasm_lower.o /mnt/storage/Projects/ziranlang/ziran/build/compiler-runtime-windows.JkAgxo/build/obj/compiler-parse.o
+make[1]: Leaving directory '/mnt/storage/Projects/ziranlang/ziran'
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/compiler_runtime_windows.sh.log
+
+=== FAIL date_time_linux.sh (exit 1)
+Traceback (most recent call last):
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main
+    return link.run(linker_args)
+           ~~~~~~~~^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run
+    js_info = get_js_sym_info()
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info
+    file_content = emscripten.get_cached_file('symbol_lists', f'{content_hash}.json', generate_json, cache_limit=500)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file
+    with filelock.FileLock(cache_file + '.lock'):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__
+    self.acquire()
+    ~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire
+    self._acquire()
+    ~~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire
+    fd = os.open(self._lock_file, open_mode)
+OSError: [Errno 30] Read-only file system: '/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/3d5f1458c4efbf54d49618ba415e02d7d3f6ef44.json.lock'
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/date_time_linux.sh.log
+
+=== FAIL go_package_init.sh (exit 1)
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/race
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/cgo
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/race
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/race
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+# runtime/race
+fatal: not a git repository (or any of the parent directories): .git
+fatal: not a git repository (or any of the parent directories): .git
+calls.go:4:8: open /home/wao/.cache/go-build/6e/6efed2f7f396ba5350a28be37cba22853f55ce9535714d85a77a5154f9ee916d-d: read-only file system
+main.go:2:8: open /home/wao/.cache/go-build/54/54bf3ba3f07a237b85dc69de475a1613c1eacf01080abd3e9c2c99c3f348c39e-a: read-only file system
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/go_package_init.sh.log
+
+=== FAIL image_resize_fallible.sh (exit 1)
+bicubic native: 1000 repeated resizes, 29 allocation faults + immediate recovery; live=0 bytes=0 peak=18464
+bicubic native: 1000 repeated resizes, 29 allocation faults + immediate recovery; live=0 bytes=0 peak=18464
+==112878==LeakSanitizer has encountered a fatal error.
+==112878==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==112878==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/image_resize_fallible.sh.log
+
+=== FAIL native_entry.sh (exit 1)
+Traceback (most recent call last):
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/native_entry_test.py", line 143, in <module>
+    run([web, *flags, '-sENVIRONMENT=node', '-sWASM_ASYNC_COMPILATION=0',
+    ~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+         '-sEXIT_RUNTIME=1', generated, '-o', out/'web.js'])
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/native_entry_test.py", line 21, in run
+    assert result.returncode == answer, (command, result.returncode, result.stdout, result.stderr)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: (['/home/wao/emsdk/upstream/emscripten/emcc', '-std=c11', '-O2', '-Werror=main', '-Werror=incompatible-pointer-types', '-I/mnt/storage/Projects/ziranlang/ziran/include', '-I/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/native_entry.sh.cf1e3_4q/tmp.076OCM1q3N/unsigned/c-source', '-sENVIRONMENT=node', '-sWASM_ASYNC_COMPILATION=0', '-sEXIT_RUNTIME=1', PosixPath('/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/native_entry.sh.cf1e3_4q/tmp.076OCM1q3N/unsigned/c-source/unsigned.c'), '-o', PosixPath('/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/native_entry.sh.cf1e3_4q/tmp.076OCM1q3N/unsigned/c-source/web.js')], 1, '', 'Traceback (most recent call last):\n  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>\n    sys.exit(main(sys.argv))\n             ~~~~^^^^^^^^^^\n  File "/usr/lib/python3.13/contextlib.py", line 85, in inner\n    return func(*args, **kwds)\n  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main\n    return link.run(linker_args)\n           ~~~~~~~~^^^^^^^^^^^^^\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run\n    js_info = get_js_sym_info()\n  File "/usr/lib/python3.13/contextlib.py", line 85, in inner\n    return func(*args, **kwds)\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info\n    file_content = emscripten.get_cached_file(\'symbol_lists\', f\'{content_hash}.json\', generate_json, cache_limit=500)\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file\n    with filelock.FileLock(cache_file + \'.lock\'):\n         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__\n    self.acquire()\n    ~~~~~~~~~~~~^^\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire\n    self._acquire()\n    ~~~~~~~~~~~~~^^\n  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire\n    fd = os.open(self._lock_file, open_mode)\nOSError: [Errno 30] Read-only file system: \'/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/6c772545e32335e730dc13333c49f3647aa03b33.json.lock\'\n')
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_entry.sh.log
+
+=== FAIL native_workers_windows.sh (exit 1)
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/native_workers_windows.sh.log
+
+=== FAIL nested_vec_elements.sh (exit 1)
+==129886==LeakSanitizer has encountered a fatal error.
+==129886==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==129886==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/nested_vec_elements.sh.log
+
+=== FAIL owned_text.sh (exit 1)
+==128755==LeakSanitizer has encountered a fatal error.
+==128755==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==128755==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/owned_text.sh.log
+
+=== FAIL portable_entry.sh (exit 1)
+Traceback (most recent call last):
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/portable_entry_test.py", line 38, in <module>
+    actual = run(ziran, 'run', bundle).stdout
+             ~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/Projects/ziranlang/ziran/tests/portable_entry_test.py", line 30, in run
+    return subprocess.run(list(map(str, args)), check=True, capture_output=True, text=True, **kwargs)
+           ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.13/subprocess.py", line 577, in run
+    raise CalledProcessError(retcode, process.args,
+                             output=stdout, stderr=stderr)
+subprocess.CalledProcessError: Command '['/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran', 'run', '/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/portable_entry.sh.kajtprm7/tmp.y6kVY0zHyX/true-source.zx']' returned non-zero exit status 1.
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/portable_entry.sh.log
+
+=== FAIL process_channel_linux.sh (exit 2)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/process_channel_linux.sh.log
+
+=== FAIL program_export.sh (exit 1)
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/program_export.sh.pw7im5eq/tmp.swxhKXVwoH/keyword_main.c: In function ‘main’:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/program_export.sh.pw7im5eq/tmp.swxhKXVwoH/keyword_main.c:4:45: error: implicit declaration of function ‘ziran_keyword_class_0’; did you mean ‘ziran_keyword_switch_0’? [-Wimplicit-function-declaration]
+    4 |            ziran_keyword_switch_0() == 1 && ziran_keyword_class_0() == 2
+      |                                             ^~~~~~~~~~~~~~~~~~~~~
+      |                                             ziran_keyword_switch_0
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/program_export.sh.log
+
+=== FAIL site_pages.sh (exit 1)
+cannot tell whether https://github.com/ziranlang/audio is public: <urlopen error [Errno -3] Temporary failure in name resolution>
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_pages.sh.log
+
+=== FAIL site_targets.sh (exit 1)
+Stale harness: scripts/site_targets.py
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/site_targets.sh.log
+
+=== FAIL socket_linux.sh (exit 1)
+loopback test server did not start
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/socket_linux.sh.log
+
+=== FAIL std_file_windows.sh (exit 159)
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_file_windows.sh.log
+
+=== FAIL std_import_spelling_identity.sh (exit 2)
+ziran: cannot create the script output directory
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_import_spelling_identity.sh.log
+
+=== FAIL std_json_document.sh (exit 1)
+==160774==LeakSanitizer has encountered a fatal error.
+==160774==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==160774==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_json_document.sh.log
+
+=== FAIL std_time_windows.sh (exit 159)
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/std_time_windows.sh.log
+
+=== FAIL thread_windows.sh (exit 1)
+In file included from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_linux_test.h:7,
+                 from /mnt/storage/Projects/ziranlang/ziran/tests/thread_windows_completion_test.c:7:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:61:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadClose’ defined but not used [-Wunused-function]
+   61 | zir_f_a88db981e69f240f_WindowsThreadClose(void* handle)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:48:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadWait’ defined but not used [-Wunused-function]
+   48 | zir_f_a88db981e69f240f_WindowsThreadWait(void* handle, uint32_t milliseconds)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:34:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadCreate’ defined but not used [-Wunused-function]
+   34 | zir_f_a88db981e69f240f_WindowsThreadCreate(void* security, uint32_t stack_size, WindowsThreadEntry entry, void* argument, uint32_t flags, uint32_t* id)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_linux_test.h:7,
+                 from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_linux_test.c:5:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:61:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadClose’ defined but not used [-Wunused-function]
+   61 | zir_f_a88db981e69f240f_WindowsThreadClose(void* handle)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:48:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadWait’ defined but not used [-Wunused-function]
+   48 | zir_f_a88db981e69f240f_WindowsThreadWait(void* handle, uint32_t milliseconds)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/source-c/thread_windows.h:34:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadCreate’ defined but not used [-Wunused-function]
+   34 | zir_f_a88db981e69f240f_WindowsThreadCreate(void* security, uint32_t stack_size, WindowsThreadEntry entry, void* argument, uint32_t flags, uint32_t* id)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_linux_test.h:7,
+                 from /mnt/storage/Projects/ziranlang/ziran/tests/thread_windows_completion_test.c:7:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:61:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadClose’ defined but not used [-Wunused-function]
+   61 | zir_f_a88db981e69f240f_WindowsThreadClose(void* handle)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:48:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadWait’ defined but not used [-Wunused-function]
+   48 | zir_f_a88db981e69f240f_WindowsThreadWait(void* handle, uint32_t milliseconds)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:34:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadCreate’ defined but not used [-Wunused-function]
+   34 | zir_f_a88db981e69f240f_WindowsThreadCreate(void* security, uint32_t stack_size, WindowsThreadEntry entry, void* argument, uint32_t flags, uint32_t* id)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_linux_test.h:7,
+                 from /mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_linux_test.c:5:
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:61:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadClose’ defined but not used [-Wunused-function]
+   61 | zir_f_a88db981e69f240f_WindowsThreadClose(void* handle)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:48:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadWait’ defined but not used [-Wunused-function]
+   48 | zir_f_a88db981e69f240f_WindowsThreadWait(void* handle, uint32_t milliseconds)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/check-logs/ziran-check.kdv27vee/thread_windows.sh.81hk5zi9/tmp.AGpM9RhG14/saved-c/thread_windows.h:34:1: warning: ‘zir_f_a88db981e69f240f_WindowsThreadCreate’ defined but not used [-Wunused-function]
+   34 | zir_f_a88db981e69f240f_WindowsThreadCreate(void* security, uint32_t stack_size, WindowsThreadEntry entry, void* argument, uint32_t flags, uint32_t* id)
+      | ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Bad system call
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/thread_windows.sh.log
+
+=== FAIL vec_capacity.sh (exit 1)
+C 32-bit unavailable: missing bits/libc-header-start.h: No such file or directory
+==167662==LeakSanitizer has encountered a fatal error.
+==167662==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==167662==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/vec_capacity.sh.log
+
+=== FAIL vec_field_loops.sh (exit 1)
+1000 rounds: 0 allocations left
+==166511==LeakSanitizer has encountered a fatal error.
+==166511==HINT: For debugging, try setting environment variable LSAN_OPTIONS=verbosity=1:log_threads=1
+==166511==HINT: LeakSanitizer does not work under ptrace (strace, gdb, etc)
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/vec_field_loops.sh.log
+
+=== FAIL zx_linked_web.sh (exit 1)
+Traceback (most recent call last):
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main
+    return link.run(linker_args)
+           ~~~~~~~~^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run
+    js_info = get_js_sym_info()
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info
+    file_content = emscripten.get_cached_file('symbol_lists', f'{content_hash}.json', generate_json, cache_limit=500)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file
+    with filelock.FileLock(cache_file + '.lock'):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__
+    self.acquire()
+    ~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire
+    self._acquire()
+    ~~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire
+    fd = os.open(self._lock_file, open_mode)
+OSError: [Errno 30] Read-only file system: '/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/7137318cfd36b814ff16b8252b77959d4b56ab1f.json.lock'
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/zx_linked_web.sh.log
+
+=== FAIL zx_wasm_web.sh (exit 1)
+      |                    ^~~~~~~~~~~~~~~~~~~~
+/mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/emit.h:40:16: note: expanded from macro 'format'
+   40 | #define format private_emit_format
+      |                ^
+1 warning generated.
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -include /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/vm.h -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm.o cmd/zir/zir_vm.c
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -include /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/vm.h -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_verify.o cmd/zir/zir_vm_verify.c
+4 warnings generated.
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -include /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/vm.h -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_eval.o cmd/zir/zir_vm_eval.c
+cmd/zir/zir_vm_verify.c:357:17: warning: result of comparison of constant 9223372036854775807 with expression of type 'size_t' (aka 'unsigned long') is always false [-Wtautological-constant-out-of-range-compare]
+  357 |            size > INT64_MAX) {
+      |            ~~~~ ^ ~~~~~~~~~
+cmd/zir/zir_vm_eval.c:1288:17: warning: result of comparison of constant 9223372036854775807 with expression of type 'size_t' (aka 'unsigned long') is always false [-Wtautological-constant-out-of-range-compare]
+ 1288 |            size > INT64_MAX) {
+      |            ~~~~ ^ ~~~~~~~~~
+1 warning generated.
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -include /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/vm.h -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_run.o cmd/zir/zir_vm_run.c
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -include /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/private/vm.h -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_simd.o cmd/zir/zir_vm_simd.c
+1 warning generated.
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_zx_wasm.o cmd/zir/zir_zx_wasm.c
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_zx_wasm_web.o cmd/zir/zir_zx_wasm_web.c
+cmd/zir/zir_zx_wasm_web.c:29:15: warning: empty character constant [-Winvalid-pp-token]
+   29 |     let key = '';
+      |               ^
+1 warning generated.
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir-wasm/zir_wasm_lower.o cmd/zir-wasm/zir_wasm_lower.c
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/compiler-parse.o bootstrap/compiler_parse/compiler_parse.c
+nice -n 10 /home/wao/emsdk/upstream/emscripten/emcc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=incompatible-pointer-types-discards-qualifiers  -Ibootstrap/compiler_scan -Ibootstrap/compiler_text -Ibootstrap/compiler_source -Ibootstrap/compiler_declaration -Ibootstrap/compiler_enum -Ibootstrap/compiler_type -Ibootstrap/compiler_expression -Ibootstrap/compiler_statement -Ibootstrap/compiler_proof_kernel -Ibootstrap/compiler_proof -Ibootstrap/compiler_bundle -Ibootstrap/compiler_ir -Ibootstrap/compiler_law -Ibootstrap/compiler_services -Ibootstrap/compiler_link -Ibootstrap/compiler_parse -Wframe-larger-than=16384 -MMD -MP -c -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/zir_host_vm.o cmd/zir/zir_host.c
+/home/wao/emsdk/upstream/emscripten/emcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/check.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_value.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_expr.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_statement.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_function.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_link.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_program.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_simd.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_check_text.o && true --localize-hidden  /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/check.o
+/home/wao/emsdk/upstream/emscripten/emcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/parse.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_declaration.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_eval.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_typed.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_condition.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_discover.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_parse_source.o && true --localize-hidden  /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/parse.o
+/home/wao/emsdk/upstream/emscripten/emcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/emit.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_value.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_call.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_expr.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_statement.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_gpu.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_range.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_simd.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_emit_simd_go.o && true --localize-hidden  /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/emit.o
+/home/wao/emsdk/upstream/emscripten/emcc -r -nostdlib -o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/vm.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_verify.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_eval.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_run.o /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/cmd/zir/zir_vm_simd.o && true --localize-hidden  /mnt/storage/Projects/ziranlang/ziran/build/tests/zx-wasm-web/lib/obj/vm.o
+make[1]: Leaving directory '/mnt/storage/Projects/ziranlang/ziran'
+Traceback (most recent call last):
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main
+    return link.run(linker_args)
+           ~~~~~~~~^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run
+    js_info = get_js_sym_info()
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info
+    file_content = emscripten.get_cached_file('symbol_lists', f'{content_hash}.json', generate_json, cache_limit=500)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file
+    with filelock.FileLock(cache_file + '.lock'):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__
+    self.acquire()
+    ~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire
+    self._acquire()
+    ~~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire
+    fd = os.open(self._lock_file, open_mode)
+OSError: [Errno 30] Read-only file system: '/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/948957a91d6ceb367b7c233346e002f8659119a6.json.lock'
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/zx_wasm_web.sh.log
+
+=== FAIL zx_web_lifecycle.sh (exit 1)
+Traceback (most recent call last):
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 630, in <module>
+    sys.exit(main(sys.argv))
+             ~~~~^^^^^^^^^^
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/home/wao/emsdk/upstream/emscripten/emcc.py", line 377, in main
+    return link.run(linker_args)
+           ~~~~~~~~^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 3209, in run
+    js_info = get_js_sym_info()
+  File "/usr/lib/python3.13/contextlib.py", line 85, in inner
+    return func(*args, **kwds)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/link.py", line 245, in get_js_sym_info
+    file_content = emscripten.get_cached_file('symbol_lists', f'{content_hash}.json', generate_json, cache_limit=500)
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/emscripten.py", line 317, in get_cached_file
+    with filelock.FileLock(cache_file + '.lock'):
+         ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 330, in __enter__
+    self.acquire()
+    ~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 278, in acquire
+    self._acquire()
+    ~~~~~~~~~~~~~^^
+  File "/mnt/storage/emsdk/upstream/emscripten/tools/filelock.py", line 391, in _acquire
+    fd = os.open(self._lock_file, open_mode)
+OSError: [Errno 30] Read-only file system: '/mnt/storage/emsdk/upstream/emscripten/cache/symbol_lists/dda21b7a7f71939bbf18fdc6cb2ed4dc3982ddd5.json.lock'
+Full log: /mnt/storage/Projects/ziranlang/ziran/build/check-logs/zx_web_lifecycle.sh.log
+494/522 passed in 107.3s (522 executed, 0 reused): failed bundle_host_review_abi.sh, compiler_files_portable.sh, compiler_kernel_benchmarks.sh, compiler_profile_portable.sh, compiler_runtime_windows.sh, date_time_linux.sh, go_package_init.sh, image_resize_fallible.sh, native_entry.sh, native_workers_windows.sh, nested_vec_elements.sh, owned_text.sh, portable_entry.sh, process_channel_linux.sh, program_export.sh, site_pages.sh, site_targets.sh, socket_linux.sh, std_file_windows.sh, std_import_spelling_identity.sh, std_json_document.sh, std_time_windows.sh, thread_windows.sh, vec_capacity.sh, vec_field_loops.sh, zx_linked_web.sh, zx_wasm_web.sh, zx_web_lifecycle.sh
+make: *** [Makefile:643: check] Error 1

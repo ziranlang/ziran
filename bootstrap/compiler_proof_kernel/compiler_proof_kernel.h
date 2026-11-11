@@ -3,9 +3,8 @@
 #define ZIRAN_COMPILER_PROOF_KERNEL_H
 
 #include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_string_types.h"
+#include "zir_bounds.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -140,6 +139,8 @@ int32_t compiler_proof_kernel_Rewrite(ProofKernel* k, int32_t goal, int32_t from
 /* Small procedures other modules inline; compiler_proof_kernel.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_PROOF_KERNEL_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include "zir_vec.h"
+#include <stdint.h>
+#include <stdbool.h>
 #include "zir_bounds.h"
 static inline int32_t compiler_proof_kernel_TypeAdd_ziran_inline(ProofKernel* k, ProofType type);
 #define compiler_proof_kernel_TypeAdd(...) compiler_proof_kernel_TypeAdd_ziran_inline(__VA_ARGS__)

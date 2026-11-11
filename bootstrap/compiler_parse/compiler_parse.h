@@ -2,11 +2,9 @@
 #ifndef ZIRAN_COMPILER_PARSE_H
 #define ZIRAN_COMPILER_PARSE_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
+#include "zir_slice.h"
 #include "compiler_expression.h"
 #include "compiler_ir.h"
 #include "compiler_scan.h"

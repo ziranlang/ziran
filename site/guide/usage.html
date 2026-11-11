@@ -517,8 +517,19 @@ Rebuild hosts, libraries and add-ons together for ZX version 27; see
 <a href="zx.html#shared-libraries-and-partial-modules">partial module composition</a>.
 Saved <code>.zir</code> files are binary. <code>ziran inspect path/to/module.zir</code> shows their
 declarations, statements, and checked expression links as readable text;
-<code>ziran inspect --hex path/to/module.zir</code> shows bytes and offsets. Both views
-read the saved file and leave it unchanged.</p>
+<code>ziran inspect --hex path/to/module.zir</code> shows bytes and offsets.
+<code>ziran inspect program.zx</code> shows a portable bundle’s entry, linked modules and
+assets without executing it; <code>--hex</code> shows its binary bytes.
+<code>ziran build --target=wasm --entry module:main --root DIR -o program.wasm FILE.zi</code>
+produces WebAssembly. Its <code>zx.host_i64</code> dispatch reserves index <code>UINT32_MAX</code>
+for builtin string output: the i64 argument packs byte length in its upper
+32 bits and memory offset in its lower 32 bits; the callback writes those bytes
+and returns zero. Other reserved indices format signed integers (<code>UINT32_MAX - 1</code>),
+unsigned integers (<code>- 2</code>), float64 bits (<code>- 3</code>), float32 bits (<code>- 4</code>), and booleans
+(<code>- 5</code>). Scalar formatted print arguments use these callbacks. Slices support
+omitted bounds (<code>values[:]</code>, <code>values[:end]</code>, <code>values[start:]</code>) and empty views
+at the end of their storage. Both inspection views read the saved file and
+leave it unchanged.</p>
 <h2 id="imports">Imports</h2>
 <p>For ordinary imports, pass the entry file and a library directory with
 <code>--module-path DIR</code> (repeat for multiple directories). There is no fixed
@@ -861,7 +872,14 @@ fields out as an anonymous C member over the same storage, so C reads
 <code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>. Run
 <code>sh tests/c_spelling.sh build/bin/ziran</code>.</p>
 <h3 id="native-scripts">Native scripts</h3>
-<p><code>ziran run --target=c tool.zi -- ARGS</code> runs a native tool in one command: it
+<p><code>ziran tool.zi ARGS</code> runs ordinary Ziran source as a native script. Use <code>.zi</code>
+for scripts and compiled programs alike. On Unix, start executable scripts
+with <code>#!/usr/bin/env ziran</code>, give them an ordinary <code>main</code> procedure, and run
+<code>chmod +x tool.zi</code> once. Then <code>./tool.zi ARGS</code> works with <code>ziran</code> on <code>PATH</code>.
+Every argument after the filename belongs to the script, including <code>--help</code>.
+The caller's working directory and standard streams are preserved.</p>
+<p>The explicit form, <code>ziran run --target=c [--no-cache] tool.zi -- ARGS</code>,
+also accepts compiler options before the filename. The native runner
 builds the program once into <code>$XDG_CACHE_HOME/ziran/native</code>, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
 entry takes nothing or <code>(argc: s32, argv: **u8)</code>. In a project, a tool beside

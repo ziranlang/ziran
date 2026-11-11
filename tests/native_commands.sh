@@ -21,7 +21,7 @@ for input in "$repo/cmd/package_entry.zi" "$work/ir/package_entry.zir"; do
     mkdir -p "$output/bin"
     ${CC:-cc} -std=c11 -D_GNU_SOURCE -I"$repo/include" -I"$output/c" \
         "$output/c/"*.c -o "$output/bin/ziran" -lcrypto -lm
-    for tool in zi2zir zi2c zi2go zi2zx zi-api zi-inspect zi-fmt; do
+    for tool in zi2zir zi2c zi2go zi2zx zi2wasm zi-api zi-inspect zi-fmt; do
         tool_path=$(CDPATH= cd -- "$(dirname -- "$ziran")" && pwd)/$tool
         ln -s "$tool_path" "$output/bin/$tool"
     done
@@ -39,3 +39,13 @@ for input in "$repo/cmd/package_entry.zi" "$work/ir/package_entry.zir"; do
     "$output/bin/ziran" fmt "$output/app.zi"
     "$output/bin/ziran" fmt --check "$output/app.zi"
 done
+
+
+# Portable output has its own inspected linked program and byte view.
+"$ziran" bundle --root "$repo/site/examples" --entry hello:main -o "$work/hello.zx" "$repo/site/examples/hello.zi"
+"$ziran" inspect "$work/hello.zx" > "$work/hello-zx.txt"
+grep -q 'bundle entry hello:main' "$work/hello-zx.txt"
+"$ziran" inspect --hex "$work/hello.zx" > "$work/hello-zx-hex.txt"
+grep -q '^00000000' "$work/hello-zx-hex.txt"
+"$ziran" build --target=wasm --root "$repo/site/examples" --entry hello:main -o "$work/hello.wasm" "$repo/site/examples/hello.zi"
+node -e 'const fs=require("fs"); if(!WebAssembly.validate(fs.readFileSync(process.argv[1])))process.exit(1)' "$work/hello.wasm"

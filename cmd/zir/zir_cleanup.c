@@ -22,6 +22,7 @@ typedef struct Cleanup {
 } Cleanup;
 
 static int append(ZirFunction *out, const ZirStmt *st);
+static LoopHeader for_header(const ZirStmt *statement);
 
 static int
 fail(const ZirStmt *st, const char *message)
@@ -420,7 +421,25 @@ LowerCleanup_with_buffers(ZirFunction *fn, LowerCleanupBuffers *buffers)
             }
         }
         if(st->kind == ZIR_STMT_FOR) {
+            LoopHeader header = for_header(st);
             for(int d = 0; d < count; d++) {
+                if(header.kind != LoopKind_Invalid) {
+                    /* Expressions borrow outer bindings; only the new loop
+                     * bindings can shadow a deferred action's variables. */
+                    if(!statement_copy(header.value_name, buffers->name.text,
+                                       sizeof(buffers->name.text))) goto done;
+                    int shadows = cleanup_mentions(&entries[d], buffers->name.text);
+                    if(header.kind == LoopKind_Collection) {
+                        if(!statement_copy(header.index_name, buffers->name.text,
+                                           sizeof(buffers->name.text))) goto done;
+                        shadows |= cleanup_mentions(&entries[d], buffers->name.text);
+                    }
+                    if(shadows) {
+                        fail(st, "a for header cannot reuse a name referenced by an active defer; use a while loop");
+                        goto done;
+                    }
+                    continue;
+                }
                 ZirLexer lexer;
                 LexerInit(&lexer, st->text, SpanPath(st->span));
                 do {

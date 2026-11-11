@@ -12,6 +12,7 @@
 #include "compiler_bundle.h"
 #include "zir_check.h"
 #include "zir_emit.h"
+#include "zir_runtime.h"
 #include "zir_native.h"
 #include "../zir-c/zir_c_lower.h"
 
@@ -553,6 +554,7 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
     FILE *out = fopen(path, "wb");
     if(out == NULL)
         goto done;
+    EmitStringType(out);
     ok = ZxWriteHostTrampolines(program, names, capability_count, pruned, out,
                                 build->error, sizeof(build->error)) &&
          write_entry_points(out, program, symbols, owner, entry,
@@ -560,6 +562,7 @@ lower_program(ZirProgram *program, const ZirModule *owner, const ZirFunction *en
          record_renames(build, program, names, capability_count);
     if(fclose(out) != 0)
         ok = 0;
+    if(ok && !EmitRuntimeHeaders(directory, path, NULL)) ok = 0;
     snprintf(include, sizeof(include), "%s/zx_include", directory);
     if(ok && mkdir(include, 0700) != 0)
         ok = 0;

@@ -1,5 +1,32 @@
 # Runtime and compiler benchmarks
 
+## Fresh compiler rebuild
+
+```sh
+build-queue -- build/bin/ziran run --target=c bench/compiler_build.zi
+```
+
+This times `make -B -jN all` at the normal `build/` paths: all native Ziran
+compiler tools and `libziran.a` rebuild, including generated compiler modules.
+`--jobs N` selects concurrency; the default uses the queue's allocation when
+available, otherwise the Makefile's usual half-CPU limit of 2–16 jobs.
+
+Results, raw build output and sample history are retained under the tracked
+`bench/results/compiler-build/` path. The wall time excludes queue waiting,
+tests, installation and website builds. The report records CPU time, source
+diff fingerprint, revision, dirty state and compilation count. Filesystem caches
+remain warm; `make -B` forces all build targets to rebuild without deleting
+other build outputs.
+
+Add `--profile` to record every make shell recipe's monotonic start, finish
+and elapsed time in `recipes.json`, with the 20 slowest in
+`slowest-recipes.json`. Profiling keeps compiler optimization flags
+unchanged, but adds process instrumentation; use ordinary runs for timing claims.
+
+The temporary bootstrap seed defaults to `-O0`: it only emits the compiler
+modules' C before the final tools are built with the normal `CFLAGS=-O2`.
+`BOOTSTRAP_CFLAGS=-O2` restores the former seed settings for a comparison.
+
 ## Complete native builds
 
 ```sh

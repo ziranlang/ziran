@@ -42,6 +42,16 @@ Loop :: () {
         break
     }
 }
+Collection :: () -> s32 {
+    values: [3]s32 = .[1, 2, 3]
+    defer Record(values[0])
+    sum: s32
+    for value, index: values { sum += value + cast(s32)index }
+    limit: s32 = 2
+    defer Record(limit)
+    for index: 0..limit - 1 { sum += cast(s32)index }
+    return sum
+}
 #program_export
 Answer :: () -> s32 {
     defer {}
@@ -53,6 +63,8 @@ Answer :: () -> s32 {
     if trace != 756 { return 0 }
     Loop()
     if trace != 12 { return 0 }
+    trace = 0
+    if Collection() != 10 || trace != 21 { return 0 }
     return 42
 }
 ZI
@@ -94,3 +106,16 @@ GO
     done
 done
 cmp "$work/source.zx" "$work/saved.zx"
+
+# The new bindings, including implicit collection indices, still cannot
+# shadow names captured by an active deferred action.
+for binding in 'value: values' 'item, value: values' 'values' 'value: 0..1'; do
+    printf 'Record :: (value: s32) {}\nmain :: () { value: s32 = 7; it_index: s64; values: [2]s32; defer Record(value); for %s {} }\n' "$binding" > "$work/shadow.zi"
+    if test "$binding" = values; then
+        sed -i 's/defer Record(value)/defer Record(cast(s32)it_index)/' "$work/shadow.zi"
+    fi
+    if "$ziran" check --root "$work" "$work/shadow.zi" > "$work/error" 2>&1; then
+        echo "defer accepted a shadowing loop binding: $binding" >&2; exit 1
+    fi
+    grep -q 'for header cannot reuse' "$work/error"
+done

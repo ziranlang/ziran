@@ -1,0 +1,17 @@
+{
+  "affinity": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "jobs": 8,
+  "lld_cflags": "-O2 -std=c11 -B/usr/lib/llvm-19/bin -fuse-ld=lld -Wl,--threads=1",
+  "started_utc": "2026-10-16T15:07:51Z",
+  "complete": true,
+  "returncode": 0
+}

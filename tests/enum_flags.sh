@@ -3,6 +3,7 @@ set -eu
 . "$(dirname -- "$0")/lib/expect_rejection.sh"
 
 ziran=$1
+repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 
@@ -129,7 +130,7 @@ for input in "$work/flags.zi" "$work/ir/flags.zir"; do
         *.zi) suffix=source ;;
         *) suffix=saved ;;
     esac
-    for target in c go; do
+    for target in c go wasm; do
         out="$work/$target-$suffix"
         if test "$target" = go; then
             "$ziran" build --target=go --pkg main --root "$work" \
@@ -146,6 +147,10 @@ func main() {
 }
 EOF
             GO111MODULE=off go run "$out/flags.go" "$out/main.go"
+        elif test "$target" = wasm; then
+            "$(dirname -- "$ziran")/zi2wasm" --root "$work" --entry flags:Answer \
+                -o "$out.wasm" "$input"
+            test "$(node "$repo/scripts/site_target_wasm.cjs" "$out.wasm")" = 42
         elif test "$target" = c; then
             "$ziran" build --target=c --root "$work" \
                 -o "$out" "$input"

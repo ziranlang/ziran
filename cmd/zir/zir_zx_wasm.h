@@ -34,6 +34,14 @@ size_t ZxWasmAllocateState(const ZxWasm *wasm, size_t size);
 void ZxWasmLimitSteps(ZxWasm *wasm, int max_steps);
 void ZxWasmMatchFieldsByName(ZxWasm *wasm, int enabled);
 void ZxWasmClose(ZxWasm *wasm);
+/* Builtin print dispatches carry a string handle or scalar bits. Ordinary
+ * capability indices retain the exact declared capability identity. */
+#define ZX_WASM_PRINT_STRING UINT32_MAX
+#define ZX_WASM_PRINT_SIGNED (UINT32_MAX - 1)
+#define ZX_WASM_PRINT_UNSIGNED (UINT32_MAX - 2)
+#define ZX_WASM_PRINT_FLOAT64 (UINT32_MAX - 3)
+#define ZX_WASM_PRINT_FLOAT32 (UINT32_MAX - 4)
+#define ZX_WASM_PRINT_BOOL (UINT32_MAX - 5)
 int ZxWasmHostCallI64(void *bridge, size_t index, int64_t argument,
                       int64_t *result);
 

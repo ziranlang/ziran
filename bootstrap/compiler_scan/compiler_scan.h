@@ -2,9 +2,6 @@
 #ifndef ZIRAN_COMPILER_SCAN_H
 #define ZIRAN_COMPILER_SCAN_H
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
 #include "zir_string_types.h"
 
 #ifdef __cplusplus

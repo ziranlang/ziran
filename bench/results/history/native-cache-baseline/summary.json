@@ -1,0 +1,452 @@
+[
+  {
+    "modules": 1,
+    "language": "c",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 23.73334,
+    "median_user_ms": 24.374999999999996,
+    "median_system_ms": 6.771999999999999,
+    "median_max_rss_kib": 25620
+  },
+  {
+    "modules": 1,
+    "language": "ziran",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 27.014067,
+    "median_user_ms": 27.569999999999997,
+    "median_system_ms": 10.154,
+    "median_max_rss_kib": 26340
+  },
+  {
+    "modules": 1,
+    "language": "go",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 81.797836,
+    "median_user_ms": 104.125,
+    "median_system_ms": 38.806,
+    "median_max_rss_kib": 63388
+  },
+  {
+    "modules": 1,
+    "language": "ziran",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 28.970217,
+    "median_user_ms": 32.755,
+    "median_system_ms": 6.0489999999999995,
+    "median_max_rss_kib": 24480
+  },
+  {
+    "modules": 1,
+    "language": "c",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 1.387787,
+    "median_user_ms": 1.301,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 2280
+  },
+  {
+    "modules": 1,
+    "language": "go",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 30.882877,
+    "median_user_ms": 33.495,
+    "median_system_ms": 30.778999999999996,
+    "median_max_rss_kib": 17576
+  },
+  {
+    "modules": 1,
+    "language": "ziran",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 30.929768,
+    "median_user_ms": 31.946999999999996,
+    "median_system_ms": 10.805,
+    "median_max_rss_kib": 24260
+  },
+  {
+    "modules": 1,
+    "language": "c",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 23.355399,
+    "median_user_ms": 18.231,
+    "median_system_ms": 4.822,
+    "median_max_rss_kib": 22020
+  },
+  {
+    "modules": 1,
+    "language": "go",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 95.473616,
+    "median_user_ms": 108.231,
+    "median_system_ms": 45.468999999999994,
+    "median_max_rss_kib": 61012
+  },
+  {
+    "modules": 1,
+    "language": "go",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 89.179494,
+    "median_user_ms": 121.45599999999999,
+    "median_system_ms": 34.456,
+    "median_max_rss_kib": 61000
+  },
+  {
+    "modules": 1,
+    "language": "c",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 18.853786,
+    "median_user_ms": 18.303,
+    "median_system_ms": 1.136,
+    "median_max_rss_kib": 22260
+  },
+  {
+    "modules": 1,
+    "language": "ziran",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 29.193809,
+    "median_user_ms": 31.014,
+    "median_system_ms": 10.491999999999999,
+    "median_max_rss_kib": 24324
+  },
+  {
+    "modules": 1,
+    "language": "ziran",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.479295,
+    "median_user_ms": 24.339,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1688
+  },
+  {
+    "modules": 1,
+    "language": "c",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 23.985122,
+    "median_user_ms": 23.877,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1656
+  },
+  {
+    "modules": 1,
+    "language": "go",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.415324,
+    "median_user_ms": 24.462999999999997,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1900
+  },
+  {
+    "modules": 16,
+    "language": "c",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 67.060402,
+    "median_user_ms": 149.21099999999998,
+    "median_system_ms": 51.37,
+    "median_max_rss_kib": 26048
+  },
+  {
+    "modules": 16,
+    "language": "ziran",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 85.025993,
+    "median_user_ms": 180.68699999999998,
+    "median_system_ms": 73.977,
+    "median_max_rss_kib": 25144
+  },
+  {
+    "modules": 16,
+    "language": "go",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 109.117406,
+    "median_user_ms": 154.774,
+    "median_system_ms": 94.222,
+    "median_max_rss_kib": 61500
+  },
+  {
+    "modules": 16,
+    "language": "c",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 2.342372,
+    "median_user_ms": 2.23,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 2420
+  },
+  {
+    "modules": 16,
+    "language": "ziran",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 83.609866,
+    "median_user_ms": 175.762,
+    "median_system_ms": 50.747,
+    "median_max_rss_kib": 25132
+  },
+  {
+    "modules": 16,
+    "language": "go",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 31.48525,
+    "median_user_ms": 53.102,
+    "median_system_ms": 17.963,
+    "median_max_rss_kib": 18536
+  },
+  {
+    "modules": 16,
+    "language": "ziran",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 84.52935,
+    "median_user_ms": 166.91899999999998,
+    "median_system_ms": 51.09499999999999,
+    "median_max_rss_kib": 24840
+  },
+  {
+    "modules": 16,
+    "language": "go",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 84.173868,
+    "median_user_ms": 101.78,
+    "median_system_ms": 38.176,
+    "median_max_rss_kib": 61532
+  },
+  {
+    "modules": 16,
+    "language": "c",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 21.898062,
+    "median_user_ms": 18.317,
+    "median_system_ms": 4.826,
+    "median_max_rss_kib": 22360
+  },
+  {
+    "modules": 16,
+    "language": "go",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 125.547959,
+    "median_user_ms": 160.64100000000002,
+    "median_system_ms": 98.03099999999999,
+    "median_max_rss_kib": 62348
+  },
+  {
+    "modules": 16,
+    "language": "ziran",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 88.880333,
+    "median_user_ms": 179.855,
+    "median_system_ms": 67.61699999999999,
+    "median_max_rss_kib": 24824
+  },
+  {
+    "modules": 16,
+    "language": "c",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 56.030255,
+    "median_user_ms": 129.152,
+    "median_system_ms": 44.51199999999999,
+    "median_max_rss_kib": 22288
+  },
+  {
+    "modules": 16,
+    "language": "ziran",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.584125,
+    "median_user_ms": 23.839,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1468
+  },
+  {
+    "modules": 16,
+    "language": "go",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.688186,
+    "median_user_ms": 24.316,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1900
+  },
+  {
+    "modules": 16,
+    "language": "c",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.814416,
+    "median_user_ms": 23.84,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1480
+  },
+  {
+    "modules": 64,
+    "language": "ziran",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 274.882859,
+    "median_user_ms": 636.506,
+    "median_system_ms": 232.63299999999998,
+    "median_max_rss_kib": 25728
+  },
+  {
+    "modules": 64,
+    "language": "c",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 225.374667,
+    "median_user_ms": 519.7669999999999,
+    "median_system_ms": 200.00099999999998,
+    "median_max_rss_kib": 26500
+  },
+  {
+    "modules": 64,
+    "language": "go",
+    "phase": "fresh",
+    "samples": 5,
+    "median_elapsed_ms": 234.852596,
+    "median_user_ms": 333.155,
+    "median_system_ms": 212.575,
+    "median_max_rss_kib": 61248
+  },
+  {
+    "modules": 64,
+    "language": "c",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 7.222577,
+    "median_user_ms": 7.036,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 2760
+  },
+  {
+    "modules": 64,
+    "language": "ziran",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 257.34711,
+    "median_user_ms": 620.795,
+    "median_system_ms": 196.75699999999998,
+    "median_max_rss_kib": 25356
+  },
+  {
+    "modules": 64,
+    "language": "go",
+    "phase": "unchanged",
+    "samples": 5,
+    "median_elapsed_ms": 34.111503,
+    "median_user_ms": 43.721999999999994,
+    "median_system_ms": 27.508,
+    "median_max_rss_kib": 19088
+  },
+  {
+    "modules": 64,
+    "language": "go",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 149.24562,
+    "median_user_ms": 146.041,
+    "median_system_ms": 41.06399999999999,
+    "median_max_rss_kib": 61212
+  },
+  {
+    "modules": 64,
+    "language": "ziran",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 282.098006,
+    "median_user_ms": 670.992,
+    "median_system_ms": 207.35999999999999,
+    "median_max_rss_kib": 25364
+  },
+  {
+    "modules": 64,
+    "language": "c",
+    "phase": "leaf-edit",
+    "samples": 5,
+    "median_elapsed_ms": 30.866948,
+    "median_user_ms": 26.508999999999997,
+    "median_system_ms": 4.258,
+    "median_max_rss_kib": 22052
+  },
+  {
+    "modules": 64,
+    "language": "c",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 179.628324,
+    "median_user_ms": 476.136,
+    "median_system_ms": 173.31099999999998,
+    "median_max_rss_kib": 22600
+  },
+  {
+    "modules": 64,
+    "language": "go",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 200.737612,
+    "median_user_ms": 280.472,
+    "median_system_ms": 225.161,
+    "median_max_rss_kib": 61604
+  },
+  {
+    "modules": 64,
+    "language": "ziran",
+    "phase": "shared-edit",
+    "samples": 5,
+    "median_elapsed_ms": 263.658262,
+    "median_user_ms": 614.7159999999999,
+    "median_system_ms": 224.132,
+    "median_max_rss_kib": 25256
+  },
+  {
+    "modules": 64,
+    "language": "go",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.698316,
+    "median_user_ms": 24.093,
+    "median_system_ms": 0.6259999999999999,
+    "median_max_rss_kib": 1700
+  },
+  {
+    "modules": 64,
+    "language": "c",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 24.014823,
+    "median_user_ms": 23.762999999999998,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1668
+  },
+  {
+    "modules": 64,
+    "language": "ziran",
+    "phase": "run",
+    "samples": 9,
+    "median_elapsed_ms": 23.956032,
+    "median_user_ms": 23.431,
+    "median_system_ms": 0.0,
+    "median_max_rss_kib": 1644
+  }
+]

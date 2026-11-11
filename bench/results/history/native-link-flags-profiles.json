@@ -1,0 +1,57 @@
+[
+  {
+    "variant": "ziran-before",
+    "samples": 7,
+    "phases_median_ms": {
+      "parse": 7.724107,
+      "load": 10.278392,
+      "check": 10.662714,
+      "emit.c": 7.630949,
+      "native.toolchain": 0.0036,
+      "native.objects": 190.202548,
+      "native.link": 16.851716
+    },
+    "counters": {
+      "kept_text_lookup": 18732,
+      "kept_text_pointer": 18385,
+      "kept_text_compare": 22816,
+      "function_lookup_miss": 1046,
+      "type_lookup_miss": 1301,
+      "type_lookup_hit": 6503,
+      "function_lookup_hit": 17943,
+      "body_expression_check": 7280,
+      "native_worker_slots": 8,
+      "native_object_compile": 129,
+      "native_process_spawn": 130,
+      "native_process_event": 130
+    }
+  },
+  {
+    "variant": "ziran",
+    "samples": 7,
+    "phases_median_ms": {
+      "parse": 6.843159,
+      "load": 9.444048,
+      "check": 9.030836,
+      "emit.c": 6.797954,
+      "native.toolchain": 4.956835,
+      "native.objects": 7.079476,
+      "native.link": 15.284157
+    },
+    "counters": {
+      "kept_text_lookup": 19013,
+      "kept_text_pointer": 18395,
+      "kept_text_compare": 22525,
+      "function_lookup_miss": 1046,
+      "type_lookup_miss": 1301,
+      "type_lookup_hit": 6503,
+      "function_lookup_hit": 17943,
+      "body_expression_check": 7280,
+      "native_worker_slots": 8,
+      "native_process_spawn": 2,
+      "native_probe_pipe": 1,
+      "native_object_reuse": 129,
+      "native_process_event": 1
+    }
+  }
+]

@@ -3,10 +3,6 @@
 #define ZIRAN_SCORE_H
 
 #include <stdint.h>
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 typedef struct Score Score;
 
 struct Score {
@@ -17,7 +13,7 @@ int32_t score_Total(Score score);
 int32_t score_Answer(void);
 
 /* Small procedures other modules inline; score.c defines them. */
-#if !defined(__cplusplus) && !defined(ZIRAN_SCORE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#if !defined(ZIRAN_SCORE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 static inline int32_t score_Total_ziran_inline(Score score);
 #define score_Total(...) score_Total_ziran_inline(__VA_ARGS__)
@@ -26,10 +22,6 @@ static inline int32_t
 score_Total_ziran_inline(Score score)
 {
     return (int32_t)((uint32_t)(score.value) + (uint32_t)(score.bonus));
-}
-#endif
-
-#ifdef __cplusplus
 }
 #endif
 

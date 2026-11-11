@@ -705,8 +705,12 @@ compound_type_at_use(const ZirModule *module,
         copy_text(target, size, source);
         return strlen(source) < size;
     }
-    const ZirType *visible = FindType(module, source, NULL);
-    if(visible == declared) {
+    const ZirModule *visible_owner = NULL;
+    const ZirType *visible = FindType(module, source, &visible_owner);
+    /* Reexported fields can name another module's instance of the same
+     * generic application. Preserve nominal template/argument identity. */
+    if(visible == declared ||
+       same_type_application(visible_owner, visible, declaring, declared)) {
         copy_text(target, size, source);
         return strlen(source) < size;
     }

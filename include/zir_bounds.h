@@ -6,10 +6,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* Fixed-array and string indexing is checked in every build. Keep the index
  * wide until it is validated: a 64-bit index must not wrap into a valid
  * offset on a 32-bit target. */
@@ -45,9 +41,5 @@ static inline size_t EmptyArrayIndex(uint64_t index, const char *what)
 }
 #define ZIRAN_EMPTY_INDEX(base, index) \
     ((base)[EmptyArrayIndex((uint64_t)(index), #base)])
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* ZIRAN_RUNTIME_BOUNDS_H */

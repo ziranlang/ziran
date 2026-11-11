@@ -2,11 +2,10 @@
 #ifndef ZIRAN_COMPILER_TEXT_H
 #define ZIRAN_COMPILER_TEXT_H
 
-#include <stdint.h>
-#include <stddef.h>
 #include <stdbool.h>
-#include "zir_slice.h"
 #include "zir_string_types.h"
+#include "zir_bounds.h"
+#include "zir_slice.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +64,8 @@ int32_t compiler_text_HexDigit(uint8_t byte);
 
 /* Small procedures other modules inline; compiler_text.c defines them. */
 #if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_TEXT_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdbool.h>
+#include "zir_string_types.h"
 #include "zir_bounds.h"
 static inline bool compiler_text_SpaceByte_ziran_inline(uint8_t byte);
 #define compiler_text_SpaceByte(...) compiler_text_SpaceByte_ziran_inline(__VA_ARGS__)

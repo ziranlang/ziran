@@ -1,0 +1,269 @@
+#!/usr/bin/env -S ziran run --target=c
+// Time a full native rebuild. --profile records each make shell recipe.
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+#scope_file
+libc_build :: #system_library "libc";
+ProcessId :: () -> s32 #foreign libc_build "getpid";
+TimeValue :: struct { seconds: isize; microseconds: isize }
+Usage :: struct { user: TimeValue; system: TimeValue; counters: [14]isize }
+GetUsage :: (kind: s32, usage: *Usage) -> s32 #foreign libc_build "getrusage";
+
+Concat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextJoin(parts[:], "")
+}
+
+Number :: (value: s64) -> string {
+    bytes: [64]u8
+    return TextDetach(TextCopy(FormatInteger(value, bytes[:])))
+}
+
+PutText :: (doc: *JsonDocument, object: s32, key: string, value: string) {
+    JsonSet(doc, object, key, JsonNewStringCopy(doc, value))
+}
+
+PutInteger :: (doc: *JsonDocument, object: s32, key: string, value: s64) {
+    JsonSet(doc, object, key, JsonNewInteger(doc, value))
+}
+
+PutFloat :: (doc: *JsonDocument, object: s32, key: string, value: float64) {
+    JsonSet(doc, object, key, JsonNewNumber(doc, Float64Repr(value)))
+}
+
+Capture :: (arguments: []string, directory: string) -> string {
+    options: ProcessOptions = .{arguments = arguments, directory = directory,
+        capture_output = true, merge_error = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) || run.code != 0 { return "" }
+    return TextTrim(BuilderFinish(run.output))
+}
+
+Fingerprint :: (repo: string) -> string {
+    source_diff: [13]string = .["git", "diff", "--binary", "HEAD", "--", "Makefile",
+        "native-zx.mk", "cmd", "include", "std", "bootstrap", "scripts", "VERSION"]
+    scratch := JoinPath(repo, "build/scratch")
+    if !CreateDirectories(scratch) { return "" }
+    difference := JoinPath(scratch, Concat("compiler-build-source-", Concat(Number(ProcessId()), ".diff")))
+    if !WriteEntireFile(difference, Capture(source_diff[:], repo)) { return "" }
+    hash_command: [2]string = .["sha256sum", difference]
+    hash_text := Capture(hash_command[:], repo)
+    RemoveFile(difference)
+    return ifx hash_text.count >= 64 then hash_text[0:64] else ""
+}
+
+ShellRecipe :: (argc: s32, argv: **u8) -> s32 {
+    if argc < 4 || EnvironmentText("ZIRAN_BUILD_PROFILE") == "" { return 2 }
+    command: Vec(string)
+    VecPush(command, "/bin/sh")
+    for index: 2..argc - 1 { VecPush(command, TextFromCString(argv[index])) }
+    options: ProcessOptions = .{arguments = VecSlice(command, 0, command.count)}
+    run: ProcessRun
+    started := MonotonicNanoseconds()
+    ok := RunProcess(options, *run)
+    finished := MonotonicNanoseconds()
+    doc: JsonDocument
+    object := JsonNewObject(*doc)
+    PutInteger(*doc, object, "pid", ProcessId())
+    PutInteger(*doc, object, "started_ns", started)
+    PutInteger(*doc, object, "finished_ns", finished)
+    PutInteger(*doc, object, "wall_ns", finished - started)
+    PutInteger(*doc, object, "exit_code", run.code)
+    PutText(*doc, object, "command", TextJoin(VecSlice(command, 2, command.count), " "))
+    name := Concat(Concat(Number(ProcessId()), "-"), Concat(Number(started), ".json"))
+    record := JoinPath(EnvironmentText("ZIRAN_BUILD_PROFILE"), name)
+    if !WriteEntireFile(record, JsonWrite(*doc, object, JsonPythonStyle(2))) {
+        print("cannot write recipe profile: %\n", record)
+        return 1
+    }
+    return ifx ok then run.code else 127
+}
+
+CollectProfile :: (directory: string) -> bool {
+    names: Vec(string)
+    if !ListDirectory(directory, *names) { return false }
+    defer { FreeDirectoryNames(*names) }
+    collected: JsonDocument
+    array := JsonNewArray(*collected)
+    top: Vec(s32)
+    for name: VecSlice(names, 0, names.count) {
+        if !TextHasSuffix(name, ".json") { continue }
+        text, found := ReadEntireFile(JoinPath(directory, name))
+        document: JsonDocument
+        if !found || !JsonRead(*document, text) { return false }
+        node := JsonCopy(*collected, *document, document.root)
+        if node < 0 || !JsonAppend(*collected, array, node) { return false }
+        VecPush(top, node)
+        index := top.count - 1
+        value, value_ok := JsonInteger(*collected, JsonMember(*collected, node, "wall_ns"))
+        if !value_ok { return false }
+        while index > 0 {
+            previous, previous_ok := JsonInteger(*collected, JsonMember(*collected, top[index - 1], "wall_ns"))
+            if !previous_ok { return false }
+            if previous >= value { break }
+            top[index] = top[index - 1]
+            top[index - 1] = node
+            index -= 1
+        }
+        if top.count > 20 && !VecResize(top, 20) { return false }
+    }
+    summary: JsonDocument
+    if JsonCount(*collected, array) == 0 { return false }
+    slowest := JsonNewArray(*summary)
+    for node: VecSlice(top, 0, top.count) {
+        if !JsonAppend(*summary, slowest, JsonCopy(*summary, *collected, node)) { return false }
+    }
+    parent := PathParent(directory)
+    if !WriteEntireFile(JoinPath(parent, "recipes.json"), JsonWrite(*collected, array, JsonCompactStyle())) ||
+        !WriteEntireFile(JoinPath(parent, "slowest-recipes.json"), JsonWrite(*summary, slowest, JsonPythonStyle(2))) {
+        return false
+    }
+    for name: VecSlice(names, 0, names.count) {
+        if TextHasSuffix(name, ".json") && !RemoveFile(JoinPath(directory, name)) { return false }
+    }
+    return true
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc > 1 && TextFromCString(argv[1]) == "--shell" { return ShellRecipe(argc, argv) }
+    if argc == 3 && TextFromCString(argv[1]) == "--collect-profile" {
+        return ifx CollectProfile(TextFromCString(argv[2])) then 0 else 1
+    }
+    repo := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    if repo == "" || !IsFile(JoinPath(repo, "Makefile")) { repo = ResolvePath(".") }
+    if !IsFile(JoinPath(repo, "Makefile")) { print("run from the Ziran repository\n"); return 2 }
+    nproc: [1]string = .["nproc"]
+    cpus, count := IntegerPrefix(Capture(nproc[:], repo))
+    if count == 0 { cpus = 2 }
+    jobs := EnvironmentNumber("BUILD_QUEUE_JOBS", 0)
+    if jobs < 1 {
+        jobs = cpus / 2
+        if jobs < 2 { jobs = 2 }
+        if jobs > 16 { jobs = 16 }
+    }
+    output := JoinPath(repo, "bench/results/compiler-build")
+    profile := false
+    index: s32 = 1
+    while index < argc {
+        option := TextFromCString(argv[index])
+        if option == "--help" {
+            print("compiler_build.zi [--jobs N] [--out DIR] [--profile]\n")
+            return 0
+        }
+        if option == "--profile" { profile = true; index += 1; continue }
+        if index + 1 >= argc { print("% needs a value\n", option); return 2 }
+        value := TextFromCString(argv[index + 1])
+        if option == "--jobs" {
+            parsed, valid := TextInteger(value)
+            if !valid || parsed < 1 { print("--jobs must be positive\n"); return 2 }
+            jobs = parsed
+        } else if option == "--out" { output = value }
+        else { print("unknown argument: %\n", option); return 2 }
+        index += 2
+    }
+    if !CreateDirectories(output) { print("cannot create %\n", output); return 1 }
+    output = ResolvePath(output)
+    environment: [8]string = .["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
+        "DBUS_SESSION_BUS_ADDRESS", "MAKEFLAGS", "MFLAGS", "HARMONY_DESKTOP_RECOVERY=0",
+        "ZIRAN_BUILD_PROFILE"]
+    settings: Vec(string)
+    for value: environment { VecPush(settings, value) }
+    command: Vec(string)
+    fixed: [4]string = .["make", "-B", Concat("-j", Number(jobs)), "all"]
+    for value: fixed { VecPush(command, value) }
+    if profile {
+        directory := JoinPath(output, "recipes")
+        if !CreateDirectories(directory) { return 1 }
+        VecPush(settings, Concat("ZIRAN_BUILD_PROFILE=", directory))
+        self := ResolvePath(TextFromCString(argv[0]))
+        VecPush(command, Concat("SHELL=", self))
+        VecPush(command, ".SHELLFLAGS=--shell -c")
+    }
+    git: [3]string = .["git", "rev-parse", "HEAD"]
+    revision := Capture(git[:], repo)
+    status: [3]string = .["git", "status", "--porcelain"]
+    dirty := Capture(status[:], repo) != ""
+    source_fingerprint := Fingerprint(repo)
+    if source_fingerprint == "" { print("cannot fingerprint build inputs\n"); return 1 }
+    compiler: [2]string = .["cc", "--version"]
+    compiler_version := Capture(compiler[:], repo)
+    log := JoinPath(output, "build.log")
+    options: ProcessOptions = .{arguments = VecSlice(command, 0, command.count),
+        directory = repo, environment = VecSlice(settings, 0, settings.count),
+        output_path = log, merge_error = true}
+    print("Fresh rebuild: %, % jobs\n", TextJoin(VecSlice(command, 0, command.count), " "), jobs)
+    before: Usage; after: Usage
+    GetUsage(-1, *before)
+    run: ProcessRun
+    started := MonotonicNanoseconds()
+    ok := RunProcess(options, *run)
+    elapsed := MonotonicNanoseconds() - started
+    GetUsage(-1, *after)
+    source_fingerprint_after := Fingerprint(repo)
+    sources_unchanged := source_fingerprint_after == source_fingerprint
+    text, found := ReadEntireFile(log)
+    compilations: s64 = 0
+    lines := TextLines(text)
+    for line: VecSlice(lines, 0, lines.count) {
+        if TextContains(line, " -c -o ") { compilations += 1 }
+    }
+    doc: JsonDocument
+    object := JsonNewObject(*doc)
+    PutInteger(*doc, object, "schema_version", 2)
+    PutText(*doc, object, "implementation", "Ziran")
+    PutText(*doc, object, "command", TextJoin(VecSlice(command, 0, command.count), " "))
+    PutText(*doc, object, "revision", revision)
+    PutText(*doc, object, "tracked_build_source_diff_sha256", source_fingerprint)
+    PutText(*doc, object, "tracked_build_source_diff_sha256_after", source_fingerprint_after)
+    JsonSet(*doc, object, "build_sources_unchanged", JsonNewBool(*doc, sources_unchanged))
+    PutText(*doc, object, "compiler_version", compiler_version)
+    PutText(*doc, object, "bootstrap_cflags", ifx EnvironmentText("BOOTSTRAP_CFLAGS") == ""
+        then "-O0" else EnvironmentText("BOOTSTRAP_CFLAGS"))
+    PutText(*doc, object, "final_cflags", ifx EnvironmentText("CFLAGS") == ""
+        then "-O2" else EnvironmentText("CFLAGS"))
+    PutInteger(*doc, object, "exit_code", run.code)
+    PutFloat(*doc, object, "wall_seconds", cast(float64)elapsed / 1000000000.0)
+    PutFloat(*doc, object, "user_cpu_seconds", cast(float64)(after.user.seconds - before.user.seconds) +
+        cast(float64)(after.user.microseconds - before.user.microseconds) / 1000000.0)
+    PutFloat(*doc, object, "system_cpu_seconds", cast(float64)(after.system.seconds - before.system.seconds) +
+        cast(float64)(after.system.microseconds - before.system.microseconds) / 1000000.0)
+    PutInteger(*doc, object, "parallel_jobs", jobs)
+    PutInteger(*doc, object, "available_cpus", cpus)
+    PutInteger(*doc, object, "c_compile_commands", compilations)
+    JsonSet(*doc, object, "working_tree_dirty", JsonNewBool(*doc, dirty))
+    JsonSet(*doc, object, "recipe_profile", JsonNewBool(*doc, profile))
+    JsonSet(*doc, object, "measurement_valid", JsonNewBool(*doc,
+        ok && run.code == 0 && found && elapsed >= 0 && sources_unchanged))
+    PutText(*doc, object, "cache_state", "warm filesystem caches; make -B forces every build target")
+    PutText(*doc, object, "includes", "all native compiler tools and libziran.a")
+    PutText(*doc, object, "excludes", "queue waiting, benchmark compilation, tests, installation and website build")
+    PutText(*doc, object, "log", "build.log")
+    report := JsonWrite(*doc, object, JsonPythonStyle(2))
+    history_path := JoinPath(output, "samples.jsonl")
+    history, history_ok := ReadEntireFile(history_path)
+    unused history_ok
+    compact := JsonWrite(*doc, object, JsonCompactStyle())
+    if !WriteEntireFile(JoinPath(output, "latest.json"), Concat(report, "\n")) ||
+        !WriteEntireFile(history_path, Concat(history, Concat(compact, "\n"))) {
+        print("cannot retain benchmark report\n"); return 1
+    }
+    if profile && !CollectProfile(JoinPath(output, "recipes")) {
+        print("cannot collate recipe profiles\n"); return 1
+    }
+    print("%\n", report)
+    if !ok || !found { return 127 }
+    if !sources_unchanged { print("build inputs changed during measurement\n"); return 3 }
+    return run.code
+}

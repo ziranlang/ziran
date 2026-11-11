@@ -1,0 +1,56 @@
+{
+  "reason": "Preserved newly created active temporary artifacts outside the removed backup directory. Private runtime directories were moved intact without reading their contents.",
+  "relocated": [
+    {
+      "from": "backup/alpha-git",
+      "to": "build/scratch/alpha-git",
+      "contents_inspected": false
+    }
+  ],
+  "scripting_temporary_artifacts": "build/scratch/scripting",
+  "scripting_file_hashes": {
+    "bootstrap-before-refresh/compiler_statement/compiler_statement.h": "7fcd4f4d2d86e9b09ff1c78b22c6d8426cb3d0366639f4e2e527868650f799b9",
+    "bootstrap-before-refresh/compiler_statement/compiler_statement.c": "66d21c0e6b6eff0beb32e607e08748811d4ac21ef4473d6cf0db6e5fcb77b16a",
+    "bootstrap-before-refresh/compiler_scan/compiler_scan.c": "4c3f6fb911684ce3b79b77c26a362494285819f46d2125023a011233c882df8a",
+    "bootstrap-before-refresh/compiler_scan/compiler_scan.h": "3c252507ec8e12da33f984f121172ec6d667fc0a51888215e34ea29a1faa32f1",
+    "bootstrap-before-refresh/compiler_expression/compiler_expression.c": "2af53fc6d56c325df381f30530122a2780ed17e52e2a5b7ffd9c5911e5936570",
+    "bootstrap-before-refresh/compiler_expression/compiler_expression.h": "95cd3c76dbba4e3e5033e7fd0ba9feea476d649fc6ddd8491faf041c2bb0b4a7",
+    "bootstrap-before-refresh/compiler_source/compiler_source.c": "d3685fd988071f1cf791397065d449ac0bf37d31542b89cce0d3ca030de52c72",
+    "bootstrap-before-refresh/compiler_source/compiler_source.h": "5cd22b2c0f37fe0da0766d0e0a215ce1c97680eab6dcfb8282783d2eebe5093c",
+    "bootstrap-before-refresh/compiler_ir/compiler_ir.c": "1222c743630e84cbbbd1a37a318cb278db196bc78a42d287c28b23336f03fe5c",
+    "bootstrap-before-refresh/compiler_ir/compiler_ir.h": "f634955c6d53b76f6b82f76b5ab3fb7a32d62cb364f57aa535543cddb384a4bd",
+    "bootstrap-before-refresh/compiler_declaration/compiler_declaration.c": "f25fa86e09785f2679f729501ae802a49795136649db02e42d037c33e1cdcf75",
+    "bootstrap-before-refresh/compiler_declaration/compiler_declaration.h": "0361afb973aa01fe5e52a1526f25768bdc317a502fa21695a711e2785244d4f7",
+    "bootstrap-before-refresh/compiler_law/compiler_law.c": "c6b3f312f6a480887e7bb40c1b16cc1fe91664bcbcad19f98ad01efff96b9c03",
+    "bootstrap-before-refresh/compiler_law/compiler_law.h": "1a1b2b0e7c9e4af9e589349001ab1c303a6f1e80f20d809f91cf7b7480b7f274",
+    "bootstrap-before-refresh/compiler_services/compiler_services.h": "6527928880cb339e526c51df96d22aa9c98a89f5ca9a60ad64a2f72960f38f76",
+    "bootstrap-before-refresh/compiler_services/compiler_services.c": "6d6a591edf58a854e6d8b46569e83a0a51d8674d9abf189c1efe8304ec113fe6",
+    "bootstrap-before-refresh/compiler_type/compiler_type.c": "88783d2c6453e45e257fbdad97910fb7cc71dcdd73dc3e81c37fb54d07d98edb",
+    "bootstrap-before-refresh/compiler_type/compiler_type.h": "792ba147db7729e737860f89e28ee7e7e26fb3639f054b42353ecb75f4ae80ec",
+    "bootstrap-before-refresh/compiler_bundle/compiler_bundle.c": "7baf895bc3edb777314a037afb75932465e8acd6dd08ab5c95c4f8cd1d3a8eb2",
+    "bootstrap-before-refresh/compiler_bundle/compiler_bundle.h": "b8093f9626995e803f09afb81466d005df013bb822ede201020a21d5387638e7",
+    "bootstrap-before-refresh/compiler_proof/compiler_proof.h": "4bfb44554d7fdcfa99e77e40bed83463a8f123864138966bd1ada2343c00654a",
+    "bootstrap-before-refresh/compiler_proof/vec.h": "94a527cb9230bd4818947151023f4e68f6a8c0bcce98c2551e83cf66f2029190",
+    "bootstrap-before-refresh/compiler_proof/compiler_proof.c": "973cbb1c91378e51c636fe56dd312e60a5e69f2e757b2fac62c34ed3bbc946d3",
+    "bootstrap-before-refresh/compiler_parse/compiler_parse.h": "ca04b40aecf4aa0f41afd76ab9e17a02a7f7e4597371dfe5ce7e6df6c7248798",
+    "bootstrap-before-refresh/compiler_parse/compiler_parse.c": "1b2f0d24f8ddd7fe3ff3f95c2848c6cc0f85e3f02e6bc3f789607eb9fbd41b6a",
+    "bootstrap-before-refresh/compiler_link/vec.h": "94a527cb9230bd4818947151023f4e68f6a8c0bcce98c2551e83cf66f2029190",
+    "bootstrap-before-refresh/compiler_link/compiler_link.c": "b12786be0e3b9571eeff459d66864c570eb01792994361b34890e5a8717a7910",
+    "bootstrap-before-refresh/compiler_link/compiler_link.h": "8daac1359770ec81225eeeb9f2d142a2622b1fa1b132850aee1c24cc6bac5442",
+    "bootstrap-before-refresh/compiler_enum/compiler_enum.c": "badf83c2812445ec12f56a6b7a04cb2a1e49dc5d0b8d96c08492af0a378ca3e0",
+    "bootstrap-before-refresh/compiler_enum/compiler_enum.h": "eb15791fc9d850ae372b2656b17cc9052113b983d9d8fd75e82d7832fe273fc0",
+    "bootstrap-before-refresh/compiler_proof_kernel/vec.h": "94a527cb9230bd4818947151023f4e68f6a8c0bcce98c2551e83cf66f2029190",
+    "bootstrap-before-refresh/compiler_proof_kernel/compiler_proof_kernel.c": "0291abe2628b8e63bb9bf0bae8bc3b9eebd0b739c6f6b2a89dfe7a782569ccc1",
+    "bootstrap-before-refresh/compiler_proof_kernel/compiler_proof_kernel.h": "0dc14d71f6f51d292cc28f4e439ff41ab1c26d58d3839287978197448e3169ea",
+    "bootstrap-before-refresh/compiler_text/compiler_text.c": "ae32f92436fa5840d0333fc26672bf1d4c5e539d2fa7a92f26bcf1efe750705c",
+    "bootstrap-before-refresh/compiler_text/compiler_text.h": "5cb4a7bb8eca00379827e5435fb2f5d60b96d8405c3898f1f38373c49209e4c6"
+  },
+  "later_relocations": [
+    {
+      "source": "backup/alpha-git",
+      "destination": "build/scratch/alpha-git/recovered",
+      "operation": "atomic directory rename; contents not opened and no remote connection performed",
+      "reason": "A separate session recreated the deleted backup folder."
+    }
+  ]
+}

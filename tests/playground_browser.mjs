@@ -16,6 +16,7 @@ delete environment.WAYLAND_DISPLAY;
 delete environment.XAUTHORITY;
 delete environment.DBUS_SESSION_BUS_ADDRESS;
 environment.YUE_DESKTOP_RECOVERY = '0';
+environment.HARMONY_DESKTOP_RECOVERY = '0';
 const server = http.createServer(async (request, response) => {
   const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
   const file = path.resolve(site, '.' + (pathname === '/' ? '/index.html' : pathname));
@@ -184,10 +185,10 @@ try {
   assert.deepEqual(layoutFailures, [], 'All documentation routes fit their viewport');
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1080, deviceScaleFactor: 1, mobile: false});
   await cdp('Page.navigate', {url: url + 'targets.html'});
-  await waitFor(() => evaluate(`!document.querySelector('.matrix-views').hidden && document.querySelector('#matrix-code').textContent.includes('Score ::')`), 'Target matrix did not initialize');
+  await waitFor(() => evaluate(`document.querySelector('.matrix-views')?.hidden === false && document.querySelector('#matrix-code')?.textContent.includes('Score ::')`), 'Target matrix did not initialize');
   assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell').length`), 25);
   assert.equal(await evaluate(`document.querySelectorAll('.target-matrix thead th').length`), 6);
-  assert.equal(await evaluate(`document.querySelectorAll('.matrix-state.is-limited').length`), 1);
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-state.is-limited').length`), 0);
   for (const [target, content] of [['c', 'score_Answer'], ['go', '_Answer'], ['zx', 'function Answer'], ['zir', 'function Answer'], ['wasm', 'zx_entry']]) {
     await evaluate(`document.querySelector('[data-example="score"][data-target="${target}"]').click()`);
     await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes(${JSON.stringify(content)})`), 'Missing actual output: ' + target);
@@ -197,15 +198,23 @@ try {
   }
   await evaluate(`document.querySelector('#matrix-run-wasm').click()`);
   await waitFor(() => evaluate(`document.querySelector('#matrix-live-result').textContent.includes('Verified in your browser: 42')`), 'Direct WebAssembly artifact did not run');
-  for (const example of ['text_demo', 'loops', 'records']) {
+  for (const example of ['text_demo', 'loops', 'arrays', 'enums']) {
     await evaluate(`document.querySelector('[data-example="${example}"][data-target="wasm"]').click()`);
     await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('zx_entry')`), 'Wasm view did not load');
     await evaluate(`document.querySelector('#matrix-run-wasm').click()`);
     await waitFor(() => evaluate(`document.querySelector('#matrix-live-result').textContent.includes('Verified in your browser:')`), 'Wasm result mismatch: ' + example);
   }
-  await evaluate(`document.querySelector('[data-example="enums"][data-target="wasm"]').click()`);
-  assert.match(await evaluate(`document.querySelector('#matrix-code').textContent`), /outside the wasm execution subset/);
-  assert.equal(await evaluate(`document.querySelector('#matrix-run-wasm').hidden && document.querySelector('#matrix-download').hidden`), true);
+  for (const platform of ['mobile', 'web', 'desktop']) {
+    await evaluate(`(() => { const choice = document.querySelector('#matrix-platform'); choice.value = '${platform}'; choice.dispatchEvent(new Event('change')); })()`);
+    assert.match(await evaluate(`document.querySelector('#matrix-provenance').textContent`), new RegExp(platform === 'mobile' ? 'moto e6 play' : platform === 'web' ? 'Chrome' : 'Linux'));
+    const expected = await evaluate(`fetch('generated/targets/matrix.json').then(response => response.json()).then(data => data.platforms.${platform}.examples.score.c.execution_ms)`);
+    const value = await evaluate(`document.querySelector('[data-example="score"][data-target="c"] .matrix-value').textContent`);
+    const formatted = expected < 0.001 ? (expected * 1000000).toFixed(1) + ' ns' : expected < 1 ? (expected * 1000).toFixed(2) + ' µs' : expected.toFixed(2) + ' ms';
+    assert.equal(value, formatted);
+    assert.equal(await evaluate(`document.querySelector('[data-example="score"][data-target="zir"] .matrix-value').textContent`), '—');
+  }
+  assert.match(await evaluate(`document.querySelector('#matrix-sample-range').textContent`), /5 measured batches/);
+  assert.equal(await evaluate(`document.querySelector('#matrix-provenance a').getAttribute('href')`), 'generated/targets/matrix.json');
   await evaluate(`document.querySelector('[data-example="text_demo"][data-target="c"]').click()`);
   await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent !== 'Loading output…'`), 'Imported C output did not load');
   assert.ok(await evaluate(`document.querySelector('#matrix-file').options.length > 1`));
@@ -223,16 +232,17 @@ try {
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39});
   assert.equal(await evaluate(`document.activeElement.id`), 'view-c');
   assert.equal(await evaluate(`document.querySelector('#view-c').getAttribute('aria-selected')`), 'true');
-  await evaluate(`document.querySelector('[data-example="score"][data-target="c"]').click(); document.querySelector('[data-example="records"][data-target="zir"]').click()`);
-  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module records')`), 'Late fetch replaced selected output');
+  await evaluate(`document.querySelector('[data-example="score"][data-target="c"]').click(); document.querySelector('[data-example="arrays"][data-target="zir"]').click()`);
+  await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module arrays')`), 'Late fetch replaced selected output');
   await evaluate(`document.documentElement.dataset.theme = 'light'; document.documentElement.style.scrollBehavior = 'auto'; document.activeElement.blur(); window.scrollTo(0, 0)`);
   await screenshot(path.join(artifacts, 'targets-desktop.png'), true);
   await cdp('Emulation.setDeviceMetricsOverride', {width: 390, height: 844, deviceScaleFactor: 1, mobile: false});
   await screenshot(path.join(artifacts, 'targets-mobile.png'), true);
   await evaluate(`document.documentElement.dataset.theme = 'dark'`);
   await screenshot(path.join(artifacts, 'targets-dark.png'), true);
-  await cdp('Page.navigate', {url: url + 'targets.html#loops/wasm'});
+  await cdp('Page.navigate', {url: url + 'targets.html?platform=mobile#loops/wasm'});
   await waitFor(() => evaluate(`document.querySelector('.matrix-cell[aria-current="true"]')?.dataset.example === 'loops' && document.querySelector('#matrix-code').textContent.includes('zx_entry')`), 'Shared matrix link did not restore its cell');
+  assert.equal(await evaluate(`document.querySelector('#matrix-platform').value`), 'mobile');
   await cdp('Emulation.setScriptExecutionDisabled', {value: true});
   await cdp('Page.navigate', {url: url + 'targets.html'});
   await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript matrix did not load');
@@ -244,7 +254,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('#example-text').hidden`), false);
   assert.equal(await evaluate(`document.querySelectorAll('.code-editor').length`), 0);
   assert.deepEqual(exceptions, []);
-  console.log('Website browser local tests: edited programs, diagnostics, cancellation, live diagrams, all target commands, 25 matrix cells, actual output and IR inspection, four direct WebAssembly runs, subset diagnostics, file and metric controls, keyboard navigation, shared links, six widths, eleven routes, both themes and no-JavaScript fallbacks passed');
+  console.log('Website browser local tests: edited programs, diagnostics, cancellation, live diagrams, all target commands, 25 matrix cells, actual output and IR inspection, five WebAssembly runs, three measured platforms, file and metric controls, keyboard navigation, shared links, six widths, eleven routes, both themes and no-JavaScript fallbacks passed');
 } finally {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try { await cdp('Browser.close'); } catch (_) {}

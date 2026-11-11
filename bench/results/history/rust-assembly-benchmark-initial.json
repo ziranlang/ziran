@@ -1,0 +1,2705 @@
+{
+  "metadata": {
+    "platform": "Linux-6.12.111+deb13-amd64-x86_64-with-glibc2.41",
+    "machine": "x86_64",
+    "expected": {
+      "1000": 31805,
+      "2000000": 64001836
+    },
+    "rustc": "rustc 1.85.1 (4eb161250 2025-03-15) (built from a source tarball)",
+    "c_flags": [
+      "-O3",
+      "-march=x86-64",
+      "-mno-popcnt",
+      "-mno-avx",
+      "-mno-bmi2"
+    ],
+    "rust_flags": [
+      "-Copt-level=3",
+      "-Ctarget-cpu=x86-64",
+      "-Ctarget-feature=-popcnt,-avx,-bmi2"
+    ],
+    "repetitions": 9,
+    "discarded_warmups_per_case_and_size": 1,
+    "timer": [
+      "/usr/bin/busybox",
+      "time"
+    ],
+    "caveats": [
+      "One xorshift/popcount workload on this host, without CPU isolation.",
+      "Whole-process wall time includes startup and the measurement launcher; peak RSS is not live allocated memory.",
+      "Builds are single observations with warmed toolchains; they are not a compiler-speed ranking.",
+      "The before compiler emits the portable body for Rust. Native asm can lose to optimized portable code, especially with per-call dispatch."
+    ],
+    "sources": {
+      "control.c": "8cb92068094d46a02f9a6b706b1f4240392efcf820a8b5b0c4eae6f60145210a",
+      "control.rs": "680906397be2873e5817f5ae05bb47864970f7b838f8918bcf4702e38c4fa0e4",
+      "calls/kernel.zi": "f15e23095b52e9a854375c03e217a5661490323a6e878f30b37aabdb0d0cbadd",
+      "loop/kernel.zi": "7ba7bd5aaa6829f4738e9bdb204eba2251a3da352b7f2704e8245e8e7f36c374",
+      "loop/before/build.rs": "9cd9b049636f6727c27669941f46e76c4be99fa9cbcec7c64bad0c71a5c7c443",
+      "loop/c/kernel.c": "e53c428bc8bafb84ff9a004901364d3ca1d578c94b9da554aa0a607d646d0ea1",
+      "loop/c/host.c": "f3645be2f2c49688179e4a10491a84c688d803e512312c2514cabf8fa8ccccec",
+      "loop/current/build.rs": "328bf1c0ce8b0dfcf45b01fa3a27350424fc7f60e8629b1fc8e5a8c4ced62a38",
+      "loop/current/src/lib.rs": "3f4c317cd1ff63cc87379d1af776411b4ee73155fe89ca89c345a94aa42401a9",
+      "loop/current/src/main.rs": "d0e4e8d17aeb10e5de67d79b6ef6cf6bffcd079c928f127ab670f81e876930c3",
+      "loop/before/src/lib.rs": "a37c972c0b1cdef57161937da6b717d685a4a852d13499654a78485720978ad3",
+      "loop/before/src/main.rs": "d0e4e8d17aeb10e5de67d79b6ef6cf6bffcd079c928f127ab670f81e876930c3",
+      "calls/before/build.rs": "9cd9b049636f6727c27669941f46e76c4be99fa9cbcec7c64bad0c71a5c7c443",
+      "calls/c/kernel.c": "cfc10c4e62f65afc0fa8fc79d2401e4cf36b7f8b30684c40822086319ca99784",
+      "calls/c/host.c": "f3645be2f2c49688179e4a10491a84c688d803e512312c2514cabf8fa8ccccec",
+      "calls/current/build.rs": "328bf1c0ce8b0dfcf45b01fa3a27350424fc7f60e8629b1fc8e5a8c4ced62a38",
+      "calls/current/src/lib.rs": "7c76bf1440b09ec2457a3a41bc5448790d065ef6613b85ea1b692e2c5ddc3020",
+      "calls/current/src/main.rs": "d0e4e8d17aeb10e5de67d79b6ef6cf6bffcd079c928f127ab670f81e876930c3",
+      "calls/before/src/lib.rs": "a37c972c0b1cdef57161937da6b717d685a4a852d13499654a78485720978ad3",
+      "calls/before/src/main.rs": "d0e4e8d17aeb10e5de67d79b6ef6cf6bffcd079c928f127ab670f81e876930c3"
+    }
+  },
+  "summary": [
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "median_ms": 1.011925,
+      "median_peak_rss_kib": 2056
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "median_ms": 3.424658,
+      "median_peak_rss_kib": 1992
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "median_ms": 1.001165,
+      "median_peak_rss_kib": 2020
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "median_ms": 3.326267,
+      "median_peak_rss_kib": 2012
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "median_ms": 0.943804,
+      "median_peak_rss_kib": 2032
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "median_ms": 3.398487,
+      "median_peak_rss_kib": 2008
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "median_ms": 0.659113,
+      "median_peak_rss_kib": 1660
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "median_ms": 3.161296,
+      "median_peak_rss_kib": 1672
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "median_ms": 0.964825,
+      "median_peak_rss_kib": 1644
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "median_ms": 3.496228,
+      "median_peak_rss_kib": 1660
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "median_ms": 0.837584,
+      "median_peak_rss_kib": 2020
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "median_ms": 3.095695,
+      "median_peak_rss_kib": 1940
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "median_ms": 0.874255,
+      "median_peak_rss_kib": 1988
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "median_ms": 3.427417,
+      "median_peak_rss_kib": 2032
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "median_ms": 0.969684,
+      "median_peak_rss_kib": 2080
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "median_ms": 3.365097,
+      "median_peak_rss_kib": 1932
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "median_ms": 0.884165,
+      "median_peak_rss_kib": 1472
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "median_ms": 3.072086,
+      "median_peak_rss_kib": 1660
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "median_ms": 0.903345,
+      "median_peak_rss_kib": 1660
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "median_ms": 3.249406,
+      "median_peak_rss_kib": 1672
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "median_ms": 1.113626,
+      "median_peak_rss_kib": 2024
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "median_ms": 3.383347,
+      "median_peak_rss_kib": 2012
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "median_ms": 0.833134,
+      "median_peak_rss_kib": 1668
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "median_ms": 3.492988,
+      "median_peak_rss_kib": 1632
+    }
+  ],
+  "samples": [
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.150666,
+      "peak_rss_kib": 2048
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.897105,
+      "peak_rss_kib": 1708
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.463988,
+      "peak_rss_kib": 1716
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.692943,
+      "peak_rss_kib": 1684
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.691554,
+      "peak_rss_kib": 2032
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.744269,
+      "peak_rss_kib": 1956
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.890805,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.739344,
+      "peak_rss_kib": 2080
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.216266,
+      "peak_rss_kib": 2052
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.127686,
+      "peak_rss_kib": 1700
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.370897,
+      "peak_rss_kib": 1668
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.647949,
+      "peak_rss_kib": 1432
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.479118,
+      "peak_rss_kib": 1660
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 4.029541,
+      "peak_rss_kib": 1476
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.149196,
+      "peak_rss_kib": 1724
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.485868,
+      "peak_rss_kib": 2040
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.577178,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.114065,
+      "peak_rss_kib": 2036
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.668174,
+      "peak_rss_kib": 1668
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.659833,
+      "peak_rss_kib": 1644
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.826565,
+      "peak_rss_kib": 2096
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.421077,
+      "peak_rss_kib": 2064
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.741093,
+      "peak_rss_kib": 1468
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.177697,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 0.817514,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.729324,
+      "peak_rss_kib": 2028
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.267987,
+      "peak_rss_kib": 2016
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.025075,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.694269,
+      "peak_rss_kib": 2092
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.469938,
+      "peak_rss_kib": 1624
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.354527,
+      "peak_rss_kib": 1696
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.360847,
+      "peak_rss_kib": 2088
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.103475,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.215257,
+      "peak_rss_kib": 2052
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.887004,
+      "peak_rss_kib": 2024
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.943715,
+      "peak_rss_kib": 1636
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.903345,
+      "peak_rss_kib": 1704
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.359477,
+      "peak_rss_kib": 2064
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.641828,
+      "peak_rss_kib": 1436
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.356218,
+      "peak_rss_kib": 1992
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.049005,
+      "peak_rss_kib": 2096
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.075126,
+      "peak_rss_kib": 1736
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.286536,
+      "peak_rss_kib": 1760
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.638548,
+      "peak_rss_kib": 1992
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.823384,
+      "peak_rss_kib": 1484
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.241536,
+      "peak_rss_kib": 1772
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.523538,
+      "peak_rss_kib": 1760
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.894935,
+      "peak_rss_kib": 2072
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.227796,
+      "peak_rss_kib": 2148
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.413528,
+      "peak_rss_kib": 2016
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.558818,
+      "peak_rss_kib": 1404
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.365317,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.292166,
+      "peak_rss_kib": 1444
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.031676,
+      "peak_rss_kib": 1428
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.405777,
+      "peak_rss_kib": 1704
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.253767,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.865864,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.220646,
+      "peak_rss_kib": 2036
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.642263,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.535898,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 4.277862,
+      "peak_rss_kib": 1728
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.634833,
+      "peak_rss_kib": 1680
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.973955,
+      "peak_rss_kib": 2084
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 0.651673,
+      "peak_rss_kib": 2024
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.874255,
+      "peak_rss_kib": 1848
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.833134,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.943804,
+      "peak_rss_kib": 2092
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.186056,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.292717,
+      "peak_rss_kib": 1804
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.653548,
+      "peak_rss_kib": 2048
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.095695,
+      "peak_rss_kib": 1732
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.568568,
+      "peak_rss_kib": 1624
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 1.395267,
+      "peak_rss_kib": 2040
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.562308,
+      "peak_rss_kib": 1648
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.711459,
+      "peak_rss_kib": 2012
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.237686,
+      "peak_rss_kib": 1668
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.844664,
+      "peak_rss_kib": 1688
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.238687,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.352567,
+      "peak_rss_kib": 2096
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.066546,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.500358,
+      "peak_rss_kib": 2088
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.996625,
+      "peak_rss_kib": 1644
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.072086,
+      "peak_rss_kib": 1456
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.884165,
+      "peak_rss_kib": 1472
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.898954,
+      "peak_rss_kib": 1516
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.956404,
+      "peak_rss_kib": 2016
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.969684,
+      "peak_rss_kib": 2108
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 4.102731,
+      "peak_rss_kib": 2016
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 1.361877,
+      "peak_rss_kib": 1688
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.847054,
+      "peak_rss_kib": 1936
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.285107,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.498408,
+      "peak_rss_kib": 2056
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.492988,
+      "peak_rss_kib": 1668
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.376917,
+      "peak_rss_kib": 1720
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.646208,
+      "peak_rss_kib": 2008
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.009985,
+      "peak_rss_kib": 2148
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.659113,
+      "peak_rss_kib": 1412
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.475883,
+      "peak_rss_kib": 1448
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 2.991765,
+      "peak_rss_kib": 1940
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.321307,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 4.211721,
+      "peak_rss_kib": 1668
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.928305,
+      "peak_rss_kib": 1436
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.814704,
+      "peak_rss_kib": 2004
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.079876,
+      "peak_rss_kib": 1628
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.881855,
+      "peak_rss_kib": 1424
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.326267,
+      "peak_rss_kib": 2016
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.617599,
+      "peak_rss_kib": 2032
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 0.926074,
+      "peak_rss_kib": 2008
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.496228,
+      "peak_rss_kib": 1428
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 4.166631,
+      "peak_rss_kib": 2048
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.420577,
+      "peak_rss_kib": 1444
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.776024,
+      "peak_rss_kib": 2104
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.704474,
+      "peak_rss_kib": 2048
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.498388,
+      "peak_rss_kib": 2024
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.362137,
+      "peak_rss_kib": 1644
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.911955,
+      "peak_rss_kib": 2076
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.964825,
+      "peak_rss_kib": 1656
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.358967,
+      "peak_rss_kib": 1948
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.252667,
+      "peak_rss_kib": 2096
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.661103,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.239807,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.616368,
+      "peak_rss_kib": 2028
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 1.706068,
+      "peak_rss_kib": 2040
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.301287,
+      "peak_rss_kib": 1864
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.965905,
+      "peak_rss_kib": 2068
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.081595,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.232626,
+      "peak_rss_kib": 1752
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.424658,
+      "peak_rss_kib": 1760
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.732499,
+      "peak_rss_kib": 1656
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 1.430597,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.161296,
+      "peak_rss_kib": 1684
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.964265,
+      "peak_rss_kib": 1456
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.186486,
+      "peak_rss_kib": 1844
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 2.993736,
+      "peak_rss_kib": 1660
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.661019,
+      "peak_rss_kib": 1484
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.204186,
+      "peak_rss_kib": 1772
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.995985,
+      "peak_rss_kib": 2104
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.660279,
+      "peak_rss_kib": 1724
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 4.566734,
+      "peak_rss_kib": 2056
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.013735,
+      "peak_rss_kib": 1940
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.837584,
+      "peak_rss_kib": 2008
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.408887,
+      "peak_rss_kib": 2072
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.806314,
+      "peak_rss_kib": 2056
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.725074,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.138546,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.093426,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.911665,
+      "peak_rss_kib": 2104
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.242206,
+      "peak_rss_kib": 2048
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.007725,
+      "peak_rss_kib": 1664
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.007785,
+      "peak_rss_kib": 1676
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.593373,
+      "peak_rss_kib": 1648
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.461748,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 4.026121,
+      "peak_rss_kib": 1812
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.398487,
+      "peak_rss_kib": 1788
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.878344,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.824594,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.599094,
+      "peak_rss_kib": 1704
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.355807,
+      "peak_rss_kib": 1756
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.599068,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.999206,
+      "peak_rss_kib": 1720
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.535088,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.273446,
+      "peak_rss_kib": 1732
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.427417,
+      "peak_rss_kib": 2032
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 3.074675,
+      "peak_rss_kib": 2076
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.023326,
+      "peak_rss_kib": 1488
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.359817,
+      "peak_rss_kib": 1968
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.159876,
+      "peak_rss_kib": 1688
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.255837,
+      "peak_rss_kib": 2040
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.007985,
+      "peak_rss_kib": 2028
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.679484,
+      "peak_rss_kib": 2060
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.383347,
+      "peak_rss_kib": 1824
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 1.073156,
+      "peak_rss_kib": 1652
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.622188,
+      "peak_rss_kib": 1480
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.94842,
+      "peak_rss_kib": 2096
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.115416,
+      "peak_rss_kib": 2024
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 1.113626,
+      "peak_rss_kib": 1920
+    },
+    {
+      "case": "loop-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.312397,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.834554,
+      "peak_rss_kib": 1692
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.201497,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 0.932595,
+      "peak_rss_kib": 2032
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.674943,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 3.088966,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 1.017625,
+      "peak_rss_kib": 1724
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.807084,
+      "peak_rss_kib": 1976
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.676243,
+      "peak_rss_kib": 1688
+    },
+    {
+      "case": "calls-rust-current-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-native",
+        "2000000"
+      ],
+      "wall_ms": 2.948045,
+      "peak_rss_kib": 1772
+    },
+    {
+      "case": "c-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "1000"
+      ],
+      "wall_ms": 0.752474,
+      "peak_rss_kib": 1684
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.249406,
+      "peak_rss_kib": 1696
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.031545,
+      "peak_rss_kib": 1648
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 1.613628,
+      "peak_rss_kib": 2032
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 4.474833,
+      "peak_rss_kib": 2008
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.395648,
+      "peak_rss_kib": 1992
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.428007,
+      "peak_rss_kib": 1448
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "2000000"
+      ],
+      "wall_ms": 2.982625,
+      "peak_rss_kib": 1464
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "1000"
+      ],
+      "wall_ms": 1.281546,
+      "peak_rss_kib": 2064
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.855794,
+      "peak_rss_kib": 1464
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.572213,
+      "peak_rss_kib": 1660
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.001165,
+      "peak_rss_kib": 1988
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 0.622143,
+      "peak_rss_kib": 2056
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.088136,
+      "peak_rss_kib": 1920
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.856104,
+      "peak_rss_kib": 1720
+    },
+    {
+      "case": "calls-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.599904,
+      "peak_rss_kib": 1664
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.058605,
+      "peak_rss_kib": 2020
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-rust-before-portable",
+        "2000000"
+      ],
+      "wall_ms": 3.365097,
+      "peak_rss_kib": 1932
+    },
+    {
+      "case": "c-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control",
+        "2000000"
+      ],
+      "wall_ms": 3.544428,
+      "peak_rss_kib": 1632
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.389497,
+      "peak_rss_kib": 1704
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "1000"
+      ],
+      "wall_ms": 1.363307,
+      "peak_rss_kib": 1984
+    },
+    {
+      "case": "rust-control",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "1000"
+      ],
+      "wall_ms": 0.934834,
+      "peak_rss_kib": 2076
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.234607,
+      "peak_rss_kib": 2108
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.785064,
+      "peak_rss_kib": 1492
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "1000"
+      ],
+      "wall_ms": 0.664214,
+      "peak_rss_kib": 1672
+    },
+    {
+      "case": "loop-c-native",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native",
+        "2000000"
+      ],
+      "wall_ms": 2.961045,
+      "peak_rss_kib": 1456
+    },
+    {
+      "case": "rust-control",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control",
+        "2000000"
+      ],
+      "wall_ms": 3.287157,
+      "peak_rss_kib": 2012
+    },
+    {
+      "case": "loop-rust-current-native",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-native",
+        "1000"
+      ],
+      "wall_ms": 1.011925,
+      "peak_rss_kib": 2076
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "rounds": 2000000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-rust-current-fallback",
+        "2000000"
+      ],
+      "wall_ms": 3.347937,
+      "peak_rss_kib": 2024
+    },
+    {
+      "case": "calls-c-fallback",
+      "rounds": 1000,
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback",
+        "1000"
+      ],
+      "wall_ms": 0.600283,
+      "peak_rss_kib": 1660
+    }
+  ],
+  "builds": [
+    {
+      "case": "loop-current-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+        "build",
+        "--target=rust",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/current",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/kernel.zi"
+      ],
+      "wall_ms": 5.79274,
+      "peak_rss_kib": 3616
+    },
+    {
+      "case": "loop-rust-current-native",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/current/Cargo.toml"
+      ],
+      "wall_ms": 614.331347,
+      "peak_rss_kib": 172916
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/current/Cargo.toml"
+      ],
+      "wall_ms": 463.341518,
+      "peak_rss_kib": 166656
+    },
+    {
+      "case": "loop-before-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/before/ziran",
+        "build",
+        "--target=rust",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/before",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/kernel.zi"
+      ],
+      "wall_ms": 27.54774,
+      "peak_rss_kib": 4588
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/before/Cargo.toml"
+      ],
+      "wall_ms": 483.23293,
+      "peak_rss_kib": 172736
+    },
+    {
+      "case": "loop-c-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+        "build",
+        "--target=c",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/kernel.zi"
+      ],
+      "wall_ms": 4.853845,
+      "peak_rss_kib": 3608
+    },
+    {
+      "case": "loop-c-native",
+      "argv": [
+        "cc",
+        "-O3",
+        "-march=x86-64",
+        "-mno-popcnt",
+        "-mno-avx",
+        "-mno-bmi2",
+        "-I/mnt/storage/Projects/ziranlang/ziran/include",
+        "-I/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c/kernel.c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c/host.c",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-native"
+      ],
+      "wall_ms": 58.597358,
+      "peak_rss_kib": 29508
+    },
+    {
+      "case": "loop-c-fallback",
+      "argv": [
+        "cc",
+        "-O3",
+        "-march=x86-64",
+        "-mno-popcnt",
+        "-mno-avx",
+        "-mno-bmi2",
+        "-DZIRAN_NO_ASM",
+        "-I/mnt/storage/Projects/ziranlang/ziran/include",
+        "-I/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c/kernel.c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/c/host.c",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/loop/loop-c-fallback"
+      ],
+      "wall_ms": 50.394056,
+      "peak_rss_kib": 27436
+    },
+    {
+      "case": "calls-current-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+        "build",
+        "--target=rust",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/current",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/kernel.zi"
+      ],
+      "wall_ms": 4.789114,
+      "peak_rss_kib": 3888
+    },
+    {
+      "case": "calls-rust-current-native",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/current/Cargo.toml"
+      ],
+      "wall_ms": 499.770774,
+      "peak_rss_kib": 172324
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/current/Cargo.toml"
+      ],
+      "wall_ms": 468.285164,
+      "peak_rss_kib": 166108
+    },
+    {
+      "case": "calls-before-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/before/ziran",
+        "build",
+        "--target=rust",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/before",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/kernel.zi"
+      ],
+      "wall_ms": 3.746789,
+      "peak_rss_kib": 3648
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "argv": [
+        "cargo",
+        "build",
+        "--quiet",
+        "--offline",
+        "--manifest-path",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/before/Cargo.toml"
+      ],
+      "wall_ms": 468.546565,
+      "peak_rss_kib": 172368
+    },
+    {
+      "case": "calls-c-emit",
+      "argv": [
+        "/mnt/storage/Projects/ziranlang/ziran/build/bin/ziran",
+        "build",
+        "--target=c",
+        "--root",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/kernel.zi"
+      ],
+      "wall_ms": 4.235562,
+      "peak_rss_kib": 3332
+    },
+    {
+      "case": "calls-c-native",
+      "argv": [
+        "cc",
+        "-O3",
+        "-march=x86-64",
+        "-mno-popcnt",
+        "-mno-avx",
+        "-mno-bmi2",
+        "-I/mnt/storage/Projects/ziranlang/ziran/include",
+        "-I/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c/kernel.c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c/host.c",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-native"
+      ],
+      "wall_ms": 63.130591,
+      "peak_rss_kib": 29620
+    },
+    {
+      "case": "calls-c-fallback",
+      "argv": [
+        "cc",
+        "-O3",
+        "-march=x86-64",
+        "-mno-popcnt",
+        "-mno-avx",
+        "-mno-bmi2",
+        "-DZIRAN_NO_ASM",
+        "-I/mnt/storage/Projects/ziranlang/ziran/include",
+        "-I/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c/kernel.c",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/c/host.c",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/calls/calls-c-fallback"
+      ],
+      "wall_ms": 51.657123,
+      "peak_rss_kib": 27784
+    },
+    {
+      "case": "rust-control",
+      "argv": [
+        "rustc",
+        "-Copt-level=3",
+        "-Ctarget-cpu=x86-64",
+        "-Ctarget-feature=-popcnt,-avx,-bmi2",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/control.rs",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/rust-control"
+      ],
+      "wall_ms": 200.142439,
+      "peak_rss_kib": 163380
+    },
+    {
+      "case": "c-control",
+      "argv": [
+        "cc",
+        "-O3",
+        "-march=x86-64",
+        "-mno-popcnt",
+        "-mno-avx",
+        "-mno-bmi2",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/control.c",
+        "-o",
+        "/mnt/storage/Projects/ziranlang/ziran/build/rust-assembly/benchmark/c-control"
+      ],
+      "wall_ms": 31.131469,
+      "peak_rss_kib": 27944
+    }
+  ],
+  "artifacts": [
+    {
+      "case": "loop-rust-current-native",
+      "bytes": 11454288,
+      "sha256": "cf7082b9d5946907d0122998faba40c33cdf4548ca6811eb7595cbd06ff875ac"
+    },
+    {
+      "case": "loop-rust-current-fallback",
+      "bytes": 11426200,
+      "sha256": "0f753b96f306204b9e04c140d62e2f1dc2dfa105b0dcee2110f79584463f6ecb"
+    },
+    {
+      "case": "loop-rust-before-portable",
+      "bytes": 11426184,
+      "sha256": "517b3fcdb6c74ec2fe1150ba3452302c60169739347bccf3d54322affb2d9867"
+    },
+    {
+      "case": "loop-c-native",
+      "bytes": 20440,
+      "sha256": "2c0705dade220787228f3bbd3f6d8047e10149fca33866d2c8705cd5c49c9890"
+    },
+    {
+      "case": "loop-c-fallback",
+      "bytes": 16136,
+      "sha256": "ba03a051749910a1961298d01cb7f27354b5f85826f741d70d6813c83414a6c4"
+    },
+    {
+      "case": "calls-rust-current-native",
+      "bytes": 11454320,
+      "sha256": "c52f294fc1e08dddc46b1392970bf4ef477e7267d09e09761039ada0cdbed7da"
+    },
+    {
+      "case": "calls-rust-current-fallback",
+      "bytes": 11426192,
+      "sha256": "00063546738c1db83bb500269193075c910f4b1327316555d1f1f19456425e96"
+    },
+    {
+      "case": "calls-rust-before-portable",
+      "bytes": 11426192,
+      "sha256": "920666c21b88b578837950f43d73363813dc940fce442ca5ec968eee6f59e395"
+    },
+    {
+      "case": "calls-c-native",
+      "bytes": 20440,
+      "sha256": "241a9a47051ef491449b58c5e25e4d5ea0c7824774ceb07a57953db456029595"
+    },
+    {
+      "case": "calls-c-fallback",
+      "bytes": 16136,
+      "sha256": "ba03a051749910a1961298d01cb7f27354b5f85826f741d70d6813c83414a6c4"
+    },
+    {
+      "case": "rust-control",
+      "bytes": 11394896,
+      "sha256": "7276d56ad506cef772e286e940f3101afbd73f1a913ecb13b72038f2e26fd5a0"
+    },
+    {
+      "case": "c-control",
+      "bytes": 16048,
+      "sha256": "2f74c891eb22ebedf78c9225a7169d8cb405b8cfaa1df03fc4a662de42c7be7f"
+    }
+  ]
+}

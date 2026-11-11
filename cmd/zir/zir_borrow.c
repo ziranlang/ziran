@@ -1247,11 +1247,13 @@ text_view_backings(BorrowCheck *check, int index)
         if(source->address_backing.root != NULL &&
            source->address_backing.root->local < 0)
             return add_source(check, NULL, source->address_backing);
-        /* Incoming byte slices expose mutable backing. A string copied from
-         * a string-containing slice retains its bytes independently of the
-         * caller's mutable element descriptors. */
-        if(source->parameter >= 0 &&
-           cached_contains_text(check, check->current->module, source->type)) return NULL;
+        /* Copying string descriptors retains their immutable bytes without
+         * borrowing the record or slice that held the descriptors. This also
+         * applies to globals. Known mutable backing was retained above; byte
+         * arrays and owned Text still borrow their actual storage below. */
+        if(cached_contains_text(check,
+            source->module != NULL ? source->module : check->current->module,
+            source->type)) return NULL;
         return source->local < 0 || source->parameter >= 0 ?
             add_source(check, NULL, root_place(source)) : NULL;
     }

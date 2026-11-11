@@ -14,26 +14,28 @@ local machine. Cloudflare deployment credentials belong in the workflow's
 
 ## Target matrix
 
-`targets.html` compares five real programs across C, Go, portable ZX and direct
-WebAssembly, alongside the checked ZIR intermediate stage. The homepage links
+`targets.html` compares five real programs across C, Go, portable ZX and WebAssembly, alongside the checked ZIR intermediate stage. The homepage links
 to the matrix and exposes all four output commands. Selecting a cell opens the
 generated source or binary inspection, downloadable artifacts, compiler command,
-verified result, output size and timings. Supported `.wasm` files can also run
-directly in a bounded, disposable browser worker without the playground runtime.
+verified result, output size, median execution, sample count and timing range. Supported `.wasm` files can also run
+in a bounded, disposable browser worker without the playground runtime.
 
 Generate the outputs and measured snapshot with the built toolchain, C, Go,
-Python and Node installed:
+Python, Node, the Android NDK, Emscripten, WAMR and a USB Android device available:
 
 ```sh
-python3 scripts/site_targets.py --samples 5
+build-queue -- python3 scripts/site_target_platforms.py --rebuild-outputs --serial USB_DEVICE_SERIAL --samples 5
 python3 scripts/site_targets.py --check
 ```
 
 The snapshot and artifacts are tracked in `site/generated/targets/`. Generation
 checks every supported execution against an independent oracle and records
 raw samples, tool hashes, compiler revision/dirty state, host and methodology.
-Execution includes process startup; Node also compiles and instantiates Wasm.
-ZX explicitly runs the portable VM. Emission excludes downstream native builds;
+The platform selector uses real desktop, USB Android and private Chromium measurements.
+Warm execution excludes startup, loading and offline compilation; every output is
+verified before timing. Formatted output remains timed, using a native null sink or
+browser byte callback. The C, Go, ZX and Wasm runtimes are named for each platform.
+ZX explicitly runs the portable VM; Android Wasm uses WAMR AOT. Emission excludes downstream native builds;
 size counts emitted files rather than executables. The site labels these limits.
 `--check` verifies source and artifact hashes without changing or remeasuring
 the snapshot. It intentionally preserves the measurement's original provenance.
@@ -93,7 +95,7 @@ compiled `.zx` output. A failed compilation removes that output. This path
 uses the ordinary module loader, checker, linker, verifier, and bundle writer;
 it does not execute the program or install host capabilities.
 
-`scripts/build_playground.py --output-dir DIR --embed-file local@/virtual`
+`build/bin/ziran run --target=c scripts/build_playground.zi -- --output-dir DIR --embed-file local@/virtual`
 builds the runtime for another site with additional library sources.
 `node tests/web_bundle_runtime.cjs` checks this compiler API. Native browser
 hosts can keep a bundle instance across frames and bound each call with

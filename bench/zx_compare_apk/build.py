@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run on Alpha Personal inside build-queue. Fetch pinned, unmodified release packages."""
-import argparse, hashlib, json, os, re, shutil, subprocess, sys, tarfile, time, urllib.request, zipfile
+import argparse, hashlib, json, os, re, subprocess, sys, tarfile, time, urllib.request, zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
 VERSION='2.4.5'
@@ -36,10 +36,6 @@ def main():
         runtime="build/android-host/armeabi-v7a"
         archive=ROOT/runtime/"libziran.a";stamp=out/"pic-runtime.json"
         force=not archive.exists() or not stamp.exists() or json.loads(stamp.read_text())["sha256"]!=sha(archive)
-        if force:
-            backup=ROOT/"backup/zx-compare-libziran-before-pic.a"
-            subprocess.run(["git","check-ignore","-q",str(backup)],cwd=ROOT,check=True)
-            if archive.exists() and not backup.exists():shutil.copy2(archive,backup)
         run(["make",*(["-B"] if force else []),"-j2","BOOTSTRAP=1","BUILD_DIR="+runtime,"CC="+str(tools/"armv7a-linux-androideabi28-clang"),"AR="+str(tools/"llvm-ar"),"OBJCOPY="+str(tools/"llvm-objcopy"),"CFLAGS=-O2 -fPIC -ffunction-sections -fdata-sections",runtime+"/libziran.a"])
         stamp.write_text(json.dumps({"sha256":sha(archive),"flags":"-O2 -fPIC -ffunction-sections -fdata-sections"}))
         flags=['-DCMAKE_TOOLCHAIN_FILE='+str(ndk/'build/cmake/android.toolchain.cmake'),'-DANDROID_ABI=armeabi-v7a','-DANDROID_PLATFORM=android-28']

@@ -1925,7 +1925,8 @@ static const struct {
 
 enum {
     NATIVE_BOUNDS = 1, NATIVE_STRING = 2, NATIVE_STDIO = 4,
-    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32, NATIVE_SIMD_TYPES = 64
+    NATIVE_STDLIB = 8, NATIVE_MEMORY = 16, NATIVE_SIMD = 32, NATIVE_SIMD_TYPES = 64,
+    NATIVE_STRING_TYPES = 128, NATIVE_STDINT = 256, NATIVE_STDDEF = 512, NATIVE_STDBOOL = 1024
 };
 
 /* SIMD names: NATIVE_SIMD_TYPES for a vector type alone (zi_s16x8, zi_u8xN),
@@ -1957,9 +1958,9 @@ word_byte(char c)
 
 enum { C_NUMBER_HELPER_COUNT = sizeof(c_number_helpers) / sizeof(c_number_helpers[0]) };
 
-/* Scan whole identifier tokens, including those in literals and comments.
- * False positives only add an include; emitted runtime calls cannot be missed
- * through line length or mistaken for a suffix in a user's mangled name.
+/* Scan C identifier tokens, skipping comments and literals. A word printed by
+ * the program does not create a runtime dependency. Calls cannot be mistaken
+ * for a suffix in a user's mangled name or lost through line length.
  * When calls is not NULL, the same pass marks each number helper called as a
  * whole word: ReadSignedBits( is no call of SignedBits. */
 static unsigned
@@ -1976,7 +1977,17 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirS
         RUNTIME_USE("printf", NATIVE_STDIO), RUNTIME_USE("fwrite", NATIVE_STDIO), RUNTIME_USE("stdout", NATIVE_STDIO),
         RUNTIME_USE("calloc", NATIVE_STDLIB), RUNTIME_USE("free", NATIVE_STDLIB), RUNTIME_USE("abort", NATIVE_STDLIB),
         RUNTIME_USE("memcpy", NATIVE_MEMORY), RUNTIME_USE("memmove", NATIVE_MEMORY),
-        RUNTIME_USE("ZI_NATIVE_BLOCKS", NATIVE_SIMD_TYPES)
+        RUNTIME_USE("ZI_NATIVE_BLOCKS", NATIVE_SIMD_TYPES),
+        RUNTIME_USE("String", NATIVE_STRING_TYPES), RUNTIME_USE("Source_Code_Location", NATIVE_STRING_TYPES),
+        RUNTIME_USE("StringView", NATIVE_STRING_TYPES), RUNTIME_USE("StringLiteral", NATIVE_STRING_TYPES),
+        RUNTIME_USE("int8_t", NATIVE_STDINT), RUNTIME_USE("uint8_t", NATIVE_STDINT),
+        RUNTIME_USE("int16_t", NATIVE_STDINT), RUNTIME_USE("uint16_t", NATIVE_STDINT),
+        RUNTIME_USE("int32_t", NATIVE_STDINT), RUNTIME_USE("uint32_t", NATIVE_STDINT),
+        RUNTIME_USE("int64_t", NATIVE_STDINT), RUNTIME_USE("uint64_t", NATIVE_STDINT),
+        RUNTIME_USE("intptr_t", NATIVE_STDINT), RUNTIME_USE("uintptr_t", NATIVE_STDINT),
+        RUNTIME_USE("size_t", NATIVE_STDDEF), RUNTIME_USE("ptrdiff_t", NATIVE_STDDEF),
+        RUNTIME_USE("NULL", NATIVE_STDDEF), RUNTIME_USE("bool", NATIVE_STDBOOL),
+        RUNTIME_USE("true", NATIVE_STDBOOL), RUNTIME_USE("false", NATIVE_STDBOOL)
     };
 #undef RUNTIME_USE
     size_t helper_lengths[C_NUMBER_HELPER_COUNT];
@@ -1984,6 +1995,25 @@ native_runtime_includes(const char *text, int calls[C_NUMBER_HELPER_COUNT], ZirS
         helper_lengths[i] = strlen(c_number_helpers[i].name);
     unsigned includes = 0;
     for(const char *p = text; *p;) {
+        if(p[0] == '/' && p[1] == '/') {
+            while(*p && *p != '\n') p++;
+            continue;
+        }
+        if(p[0] == '/' && p[1] == '*') {
+            p += 2;
+            while(*p && !(p[0] == '*' && p[1] == '/')) p++;
+            if(*p) p += 2;
+            continue;
+        }
+        if(*p == '"' || *p == '\'') {
+            char quote = *p++;
+            while(*p && *p != quote) {
+                if(*p == '\\' && p[1]) p++;
+                p++;
+            }
+            if(*p) p++;
+            continue;
+        }
         if(!word_byte(*p)) {
             p++;
             continue;
@@ -2031,8 +2061,17 @@ EmitNativeHelpers(FILE *file, const char *text, ZirSimdUses *simd)
     needed[7] |= needed[8];
     for(size_t i = 0; i < sizeof(needed) / sizeof(needed[0]); i++)
         any |= needed[i];
-    if(any) includes |= NATIVE_STDLIB;
+    if(any) includes |= NATIVE_STDLIB | NATIVE_STDINT;
     fwrite(text, 1, (size_t)(mark - text), file);
+    /* Inline bodies may include these later, inside a conditional. Public
+     * declarations need their types before that point, in every build mode. */
+    if((includes & NATIVE_STDINT) && !(includes & (NATIVE_STRING | NATIVE_STRING_TYPES)))
+        fputs("#include <stdint.h>\n", file);
+    if((includes & NATIVE_STDDEF) && !(includes & (NATIVE_STRING | NATIVE_STRING_TYPES)))
+        fputs("#include <stddef.h>\n", file);
+    if(includes & NATIVE_STDBOOL)
+        fputs("#include <stdbool.h>\n", file);
+    if((includes & NATIVE_STRING_TYPES) && !(includes & NATIVE_STRING)) EmitStringType(file);
     if(includes & NATIVE_BOUNDS) fputs("#include \"zir_bounds.h\"\n", file);
     /* Code that only names vectors needs their types, not every helper. */
     if(includes & NATIVE_SIMD) fputs("#include \"ziran_simd.h\"\n", file);

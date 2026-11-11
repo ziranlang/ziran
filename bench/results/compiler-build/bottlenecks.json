@@ -1,0 +1,41 @@
+{
+  "method": "Native Ziran make-shell recipe instrumentation. Recipe durations overlap and must not be added. Use uninstrumented samples for total rebuild claims.",
+  "profiles": [
+    {
+      "profile": "baseline-profile",
+      "stages": {
+        "bootstrap_seed": {
+          "seconds": 2.695612079,
+          "command": "-c /usr/bin/make --no-print-directory BOOTSTRAP=1 BUILD_DIR=build/bootstrap \\\n    CC='cc' AR=ar OBJCOPY='objcopy' CFLAGS=-O2 \\\n    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= build/bootstrap/bin/zi2c"
+        },
+        "tinycc": {
+          "seconds": 4.831918145,
+          "command": "-c nice -n 10 cc -O2 -Iinclude -Icmd/zir -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -w -DONE_SOURCE=1 \\\n    -Icmd/zir/tinycc -Ithird_party/tinycc -c -o build/obj/tinycc.o third_party/tinycc/libtcc.c"
+        },
+        "editor": {
+          "seconds": 1.177940458,
+          "command": "-c nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Ibuild/edit-c -o build/bin/zi-edit build/edit-c/*.c cmd/zir/zir_edit.c build/obj/cmd/zir/zir_overlay.o build/obj/cmd/zir/zir_semantic.o build/obj/cmd/zir/zir_document.o build/obj/cmd/zir/zir_sha256.o build/obj/cmd/zir/zir_context.o build/obj/cmd/zir/zir_memory.o build/obj/cmd/zir/zir_storage.o build/obj/cmd/zir/zir.o build/obj/cmd/zir/zir_asm.o build/obj/cmd/zir/zir_enum.o build/obj/cmd/zir/zir_type.o build/obj/cmd/zir/zir_text.o build/obj/cmd/zir/zir_native.o build/obj/cmd/zir/zir_simd.o build/obj/cmd/zir/zir_body.o build/obj/cmd/zir/zir_token.o build/obj/cmd/zir/zir_cleanup.o build/obj/cmd/zir/zir_expr.o build/obj/cmd/zir/zir_borrow.o build/obj/cmd/zir/zir_law.o build/obj/cmd/zir/zir_serial.o build/obj/cmd/zir/zir_load.o build/obj/cmd/zir/zir_packages.o build/obj/cmd/zir/zir_diagnostic.o build/obj/cmd/zir/zir_profile.o build/obj/cmd/zir/zir_files.o build/obj/cmd/zir/zir_services.o build/obj/compiler-scan.o build/obj/compiler-text.o build/obj/compiler-source.o build/obj/compiler-declaration.o build/obj/compiler-enum.o build/obj/compiler-type.o build/obj/compiler-expression.o build/obj/compiler-statement.o build/obj/compiler-proof-kernel.o build/obj/compiler-proof.o build/obj/compiler-ir.o build/obj/compiler-law.o build/obj/compiler-services.o build/obj/compiler-link.o build/obj/check.o build/obj/parse.o build/obj/emit.o build/obj/compiler-parse.o -lm"
+        }
+      }
+    },
+    {
+      "profile": "optimized-profile",
+      "stages": {
+        "bootstrap_seed": {
+          "seconds": 0.931633469,
+          "command": "/usr/bin/make --no-print-directory BOOTSTRAP=1 BUILD_DIR=build/bootstrap \\\n    CC='cc' AR=ar OBJCOPY='objcopy' CFLAGS='-O0' \\\n    SANITIZE_FLAGS= WASM_PRIVATE_HEADERS= build/bootstrap/bin/zi2c"
+        },
+        "tinycc": {
+          "seconds": 4.870119868,
+          "command": "nice -n 10 cc -O2 -Iinclude -Icmd/zir -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -w -DONE_SOURCE=1 \\\n    -Icmd/zir/tinycc -Ithird_party/tinycc -c -o build/obj/tinycc.o third_party/tinycc/libtcc.c"
+        },
+        "editor": {
+          "seconds": 1.182632723,
+          "command": "nice -n 10 cc -O2 -D_GNU_SOURCE -std=c11 -Iinclude -Icmd/zir -Werror=discarded-qualifiers  -Ibuild/compiler-scan -Ibuild/compiler-text -Ibuild/compiler-source -Ibuild/compiler-declaration -Ibuild/compiler-enum -Ibuild/compiler-type -Ibuild/compiler-expression -Ibuild/compiler-statement -Ibuild/compiler-proof-kernel -Ibuild/compiler-proof -Ibuild/compiler-bundle -Ibuild/compiler-ir -Ibuild/compiler-law -Ibuild/compiler-services -Ibuild/compiler-link -Ibuild/compiler-parse -Ibuild/edit-c -o build/bin/zi-edit build/edit-c/*.c cmd/zir/zir_edit.c build/obj/cmd/zir/zir_overlay.o build/obj/cmd/zir/zir_semantic.o build/obj/cmd/zir/zir_document.o build/obj/cmd/zir/zir_sha256.o build/obj/cmd/zir/zir_context.o build/obj/cmd/zir/zir_memory.o build/obj/cmd/zir/zir_storage.o build/obj/cmd/zir/zir.o build/obj/cmd/zir/zir_asm.o build/obj/cmd/zir/zir_enum.o build/obj/cmd/zir/zir_type.o build/obj/cmd/zir/zir_text.o build/obj/cmd/zir/zir_native.o build/obj/cmd/zir/zir_simd.o build/obj/cmd/zir/zir_body.o build/obj/cmd/zir/zir_token.o build/obj/cmd/zir/zir_cleanup.o build/obj/cmd/zir/zir_expr.o build/obj/cmd/zir/zir_borrow.o build/obj/cmd/zir/zir_law.o build/obj/cmd/zir/zir_serial.o build/obj/cmd/zir/zir_load.o build/obj/cmd/zir/zir_packages.o build/obj/cmd/zir/zir_diagnostic.o build/obj/cmd/zir/zir_profile.o build/obj/cmd/zir/zir_files.o build/obj/cmd/zir/zir_services.o build/obj/compiler-scan.o build/obj/compiler-text.o build/obj/compiler-source.o build/obj/compiler-declaration.o build/obj/compiler-enum.o build/obj/compiler-type.o build/obj/compiler-expression.o build/obj/compiler-statement.o build/obj/compiler-proof-kernel.o build/obj/compiler-proof.o build/obj/compiler-ir.o build/obj/compiler-law.o build/obj/compiler-services.o build/obj/compiler-link.o build/obj/check.o build/obj/parse.o build/obj/emit.o build/obj/compiler-parse.o -lm"
+        }
+      }
+    }
+  ],
+  "change": "Compile the temporary bootstrap seed at -O0; final tools retain normal -O2 flags.",
+  "remaining_costs": "TinyCC single-translation-unit compilation and serial generated editor C compilation remain the longest individual work items."
+}

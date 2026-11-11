@@ -1,0 +1,44 @@
+{
+  "goal_seconds": 5,
+  "achieved": true,
+  "parallel_jobs": 16,
+  "available_cpus": 32,
+  "fresh_command": "make -B -j16 all",
+  "candidate_seconds": [
+    4.702420012,
+    4.880748074,
+    4.684315207
+  ],
+  "candidate_median_seconds": 4.702420012,
+  "control_seconds": 6.868950064,
+  "same_build_inputs": true,
+  "all_12_final_outputs_byte_identical": true,
+  "bootstrap_seed_cflags": "-O0",
+  "final_cflags": "-O2",
+  "bootstrap_seed_profile_seconds_before": 2.695612079,
+  "bootstrap_seed_profile_seconds_after": 0.931633469,
+  "local_validation": {
+    "command": "make -j16 check CHECK_JOBS=16 check-bootstrap",
+    "local_tests_passed": 519,
+    "local_tests_total": 522,
+    "suite_seconds": 217.9,
+    "failed_tests": [
+      "native_entry.sh",
+      "portable_entry.sh",
+      "program_export.sh"
+    ],
+    "bootstrap": "all 16 generated compiler modules match",
+    "scope": "Local unrestricted test run; no GitHub command used.",
+    "same_failures_with_old_bootstrap_cflags": [
+      "native_entry.sh",
+      "portable_entry.sh",
+      "program_export.sh"
+    ],
+    "control_bootstrap_cflags": "-O2",
+    "classification": "All three failures reproduce using the former bootstrap settings on the same tracked build inputs."
+  },
+  "benchmark": "bench/compiler_build.zi",
+  "historical_records_preserved": 99,
+  "old_backup_directory_absent": true,
+  "limitations": "One shared local x86-64 host with warm filesystem caches; every build target forced to rebuild. Queue waiting, tests and benchmark compilation are excluded."
+}

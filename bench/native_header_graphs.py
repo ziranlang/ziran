@@ -49,7 +49,7 @@ def generate(source, groups=GROUPS, width=WIDTH, consumers=CONSUMERS, read_last=
 def host_source(groups=GROUPS, width=WIDTH):
     GROUPS, WIDTH = groups, width
     size = GROUPS * WIDTH * 4
-    return ('#include "common.h"\n'
+    return ('#include <stddef.h>\n#include "common.h"\n'
             f'_Static_assert(sizeof(Bundle) == {size}, "full foreign ABI");\n'
             f'_Static_assert(offsetof(Bundle, g{GROUPS - 1}.l{WIDTH - 1}.value) == {size - 4}, "last ABI field");\n'
             f'uint32_t prepare(Bundle *value, uint32_t seed) {{ value->g{GROUPS - 1}.l{WIDTH - 1}.value = seed + 3; '

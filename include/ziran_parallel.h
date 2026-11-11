@@ -15,10 +15,6 @@
 #include <unistd.h>
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /* One worker per processor; ZIRAN_PAR_THREADS chooses 1-64. */
 static inline int ziran_parallel_threads(void)
 {
@@ -102,9 +98,5 @@ static inline void ziran_parallel_run(
     for(int t = 0; t < launched; t++)
         pthread_join(handles[t], NULL);
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif

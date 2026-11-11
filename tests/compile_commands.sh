@@ -26,7 +26,9 @@ if test "$(uname -s)" = Darwin; then
         set -- "$@" --define __aarch64__
     fi
 fi
-"$ziran" run "$@" --target=c --root "$repo/tests" "$repo/tests/compile_commands_cases.zi" -- "$work"
+"$ziran" build "$@" --target=c --exe --entry compile_commands_cases:main \
+    --root "$repo/tests" -o "$work/assertions" "$repo/tests/compile_commands_cases.zi"
+"$work/assertions/compile_commands_cases" "$work"
 sh "$work/compile-commands.sh"
 
 if "$ziran" compile-commands --include "$work/missing" "$work/c" 2>/dev/null; then

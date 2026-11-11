@@ -108,13 +108,13 @@ def shell(path, title, description, current, body):
     nav = ''.join(f'<a href="{up}{href}"' + (' aria-current="page"' if href == current else '')
                   + f'>{label}</a>' for href, label in NAV)
     footer = ''.join(f'<a href="{up}{href}">{label}</a>' for href, label in NAV)
-    brand = (f'<a class="brand" href="{up}index.html"><img class="brand-icon" src="{up}assets/logo-growing-z.png" '
+    brand = (f'<a class="brand" href="{up}index.html"><img class="brand-icon" src="{up}assets/logo-capybara.png" '
              'alt="" width="36" height="36"><span>Ziran</span></a>')
     return ('<!doctype html>\n<html lang="en">\n'
             '<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">'
             f'<meta name="theme-color" content="#f7f3eb"><meta name="description" content="{attr(description)}">'
             f'<title>{code(title)}</title><link rel="canonical" href="{canonical}">'
-            f'<link rel="icon" href="{up}favicon.svg" type="image/svg+xml"><link rel="stylesheet" href="{up}styles.css">'
+            f'<link rel="icon" href="{up}assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="{up}styles.css">'
             f'<script defer src="{up}site.js"></script></head>\n'
             '<body><a class="skip-link" href="#main">Skip to content</a><header class="site-header">'
             f'<div class="site-header-inner">{brand}<button class="menu-button" type="button" aria-expanded="false" '

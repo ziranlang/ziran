@@ -27,3 +27,9 @@ do not import a UI library.
   CLI forwarding, editor paths and loader storage dynamically sized; do not add
   a folder-count cap or library-specific compiler handling. Preserve resolution
   ordering and use normal input-size, allocation and operating-system bounds.
+
+- Deploy the website only through `.github/workflows/site.yml` on GitHub
+  Actions, which builds and validates the site before publishing to Cloudflare
+  Pages. Never invoke Wrangler directly from a local agent or terminal,
+  including authentication commands. The workflow's Cloudflare action owns
+  uploads.

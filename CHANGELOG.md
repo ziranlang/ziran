@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- The website uses a text-free capybara mascot in its header, footer and browser tab.
+
 ## [0.4.0] - 2026-11-10
 
 - The website presents all four outputs in a target matrix: inspect C, Go,

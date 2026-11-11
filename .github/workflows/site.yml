@@ -4,7 +4,7 @@ name: Publish website
 # whenever a push to master changes it. The repository secrets
 # CLOUDFLARE_API_TOKEN (Cloudflare Pages: Edit) and CLOUDFLARE_ACCOUNT_ID
 # authorize it; without them the job finishes without deploying.
-# By hand: npx wrangler pages deploy site --project-name=ziran --branch=master
+# Deploy only through this GitHub Actions workflow; never invoke Wrangler locally.
 
 on:
   push:

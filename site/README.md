@@ -1,5 +1,17 @@
 # Ziran website
 
+## Deployment
+
+Production at https://ziran-lang.org/ is published only by the **Publish website**
+GitHub Actions workflow in `.github/workflows/site.yml`. Push completed, locally
+validated changes to `master`; CI builds the playground, verifies the target
+matrix and site links, and uploads the site to Cloudflare Pages.
+
+To redeploy the committed `master` revision, run
+`gh workflow run site.yml --ref master`. Never invoke Wrangler directly on the
+local machine. Cloudflare deployment credentials belong in the workflow's
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository secrets.
+
 ## Target matrix
 
 `targets.html` compares five real programs across C, Go, portable ZX and direct

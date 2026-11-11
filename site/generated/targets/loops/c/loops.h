@@ -2,6 +2,14 @@
 #ifndef ZIRAN_LOOPS_H
 #define ZIRAN_LOOPS_H
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 void loops_main(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ZIRAN_LOOPS_H */

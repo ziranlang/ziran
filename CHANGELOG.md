@@ -2,6 +2,21 @@
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-11-11
+
+- Portable ZX prepares print formats, statement boundaries and collection-aware
+  procedure plans, and caches native stack bounds safely per thread. Unchanged
+  desktop loop bundles run about 14 times faster in repeated verified samples;
+  records, text and arrays also improve without changing their output or budgets.
+- The target page includes real Kryon Button, Text and Input scenarios with
+  generated C, Go and portable ZX output, raw samples and complete checked IR.
+  These desktop scenarios measure widget behavior and recorded paint commands.
+- Targets remains available throughout the shared website navigation. Both
+  matrix selectors share the same style, and checked IR has its own inspector
+  instead of a timing column.
+- Benchmark medians exclude anomalies using symmetric 1.5×IQR fences across
+  targets and platforms, retaining all raw samples and exclusion indices.
+
 - The target matrix compares warm execution on desktop, USB Android and web,
   with a platform selector, raw samples, timing ranges and named runtimes.
 - WebAssembly handles omitted slice bounds and empty slices at the end of arrays.

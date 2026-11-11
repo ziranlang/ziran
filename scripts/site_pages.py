@@ -71,6 +71,7 @@ EXAMPLE_TITLES = {'hello': 'Hello, World!: the smallest complete program.',
 GENERATED = re.compile(r'(<!-- generated:(\w+) -->)(.*?)(<!-- /generated:\2 -->)', re.S)
 
 NAV = [('get-started.html', 'Get started'), ('examples.html', 'Examples'),
+       ('targets.html', 'Targets'),
        ('modules.html', 'Modules'), ('docs.html', 'Docs'), ('status.html', 'Status')]
 
 
@@ -626,6 +627,24 @@ def fill(page, parts):
     return GENERATED.sub(replace, text)
 
 
+def shared_navigation(path, text):
+    """Keep generated and hand-authored pages on the same navigation."""
+    up = '../' * path.count('/')
+    current = ('modules.html' if path.startswith(('std/', 'packages/')) else
+               'docs.html' if path.startswith('guide/') else path)
+    links = ''.join(f'<a href="{up}{href}"' +
+                    (' aria-current="page"' if href == current else '') +
+                    f'>{label}</a>' for href, label in NAV)
+    header = (links + f'<a href="{GITHUB}">GitHub ↗</a>' +
+              '<button class="theme-toggle" type="button" aria-label="Switch color theme"></button>')
+    footer = (''.join(f'<a href="{up}{href}">{label}</a>' for href, label in NAV) +
+              f'<a href="{up}index.html#support">Support</a><a href="{GITHUB}">GitHub ↗</a>')
+    text = re.sub(r'(<nav\b[^>]*\bid="primary-nav"[^>]*>).*?(</nav>)',
+                  lambda match: match[1] + header + match[2], text, flags=re.S)
+    return re.sub(r'(<nav\b[^>]*\baria-label="Footer"[^>]*>).*?(</nav>)',
+                  lambda match: match[1] + footer + match[2], text, flags=re.S)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--ziran', required=True)
@@ -669,6 +688,14 @@ def main():
         top = sorted(f for f in os.listdir(SITE) if f.endswith('.html') and f != 'index.html')
         outputs['sitemap.xml'] = sitemap(['index.html'] + sorted(set(top) | {'modules.html'})
                                          + sorted(p for p in outputs if '/' in p))
+
+    # Top-level pages keep their authored body but share the navigation used
+    # by generated guides and references.
+    for page in sorted(os.listdir(SITE)):
+        if page.endswith('.html') and page not in outputs:
+            outputs[page] = open(os.path.join(SITE, page)).read()
+    outputs = {page: shared_navigation(page, text) if page.endswith('.html') else text
+               for page, text in outputs.items()}
 
     stale = []
     for page, text in outputs.items():

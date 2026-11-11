@@ -1,0 +1,4 @@
+Target matrix source hashes, output hashes, sizes, sample counts and generated HTML verified
+Library output hashes, raw samples, checksums and generated table verified
+Published ZX and WebAssembly artifacts agree with the independent oracles; checked IR decodes
+Published library bundles execute their verified scenarios in the portable VM

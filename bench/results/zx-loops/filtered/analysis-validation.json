@@ -1,0 +1,36 @@
+{
+  "native_ziran_and_python_statistics_agree": true,
+  "cases": [
+    {
+      "example": "score",
+      "excluded_indices": [],
+      "verified": true
+    },
+    {
+      "example": "text_demo",
+      "excluded_indices": [
+        0
+      ],
+      "verified": true
+    },
+    {
+      "example": "arrays",
+      "excluded_indices": [
+        1
+      ],
+      "verified": true
+    },
+    {
+      "example": "enums",
+      "excluded_indices": [
+        8
+      ],
+      "verified": true
+    },
+    {
+      "example": "loops",
+      "excluded_indices": [],
+      "verified": true
+    }
+  ]
+}

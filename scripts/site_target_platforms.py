@@ -22,6 +22,7 @@ import sys
 import time
 
 import site_targets as base
+from benchmark_samples import summarize_samples
 
 ROOT = base.REPO
 SITE = base.SITE
@@ -63,7 +64,8 @@ def summarize(result, expected):
     raw = result['batch_samples_ms']
     assert len(raw) >= 3 and all(value > 0 for value in raw)
     values = [value / batches for value in raw]
-    return {**result, 'execution_samples_ms': values, 'execution_ms': statistics.median(values),
+    analysis = summarize_samples(values)
+    return {**result, 'execution_samples_ms': values, 'sample_statistics': analysis, 'execution_ms': analysis['median_ms'],
             'checksum': str(int(expected) * batches)}
 
 
@@ -81,7 +83,7 @@ def paths(example, target):
 
 
 def c_symbol(example):
-    header = next(path for path in paths(example, 'c') if path.name == example['id'] + '.h')
+    header = next(path for path in paths(example, 'c') if path.name == example.get('module', example['id']) + '.h')
     symbol = re.search(r'\b(\w*' + example['entry'] + r')\(void\)', header.read_text())
     assert symbol, header
     return header, symbol[1]
@@ -94,8 +96,9 @@ def go_source(example, directory, web=False):
         target = directory / path.name
         shutil.copyfile(path, target)
         files.append(target)
-    primary = next(path for path in files if path.name == example['id'] + '.go')
-    symbol = re.search(r'func (\w+_' + example['entry'].capitalize() + r')\(', primary.read_text())[1]
+    primary = next(path for path in files if path.name == example.get('module', example['id']) + '.go')
+    entry = example['entry'][0].upper() + example['entry'][1:]
+    symbol = re.search(r'func (\w+_' + entry + r')\(', primary.read_text())[1]
     bridge = directory / 'matrix_bridge.go'
     call = f'{symbol}(); return 0' if example['stdout'] else f'return float64({symbol}())'
     if web:
@@ -133,7 +136,7 @@ def runtime_build(cc, library, output, extra=()):
 def metadata(label, host, runtimes, samples):
     return {'label': label, 'host': host, 'measured_at': datetime.now(timezone.utc).isoformat(),
             'samples': samples, 'runtimes': runtimes, 'examples': {},
-            'methodology': 'Median warm time per entry. Each runtime warms for at least 150 ms, calibrates a batch, '
+            'methodology': 'Median warm time per entry after symmetric 1.5×IQR outlier filtering; raw samples and exclusions are retained. Each runtime warms for at least 150 ms, calibrates a batch, '
                            'then measures the recorded number of batches. Every timed return-value checksum is verified. Printed output is verified before timing; timed output uses a null sink (native) or byte callback (web). Formatting and runtime-specific I/O remain included. '
                            'Includes the host call boundary and budget reset where required; excludes loading, '
                            'process startup, downloads and offline compilation. Tiny examples emphasize call overhead. '

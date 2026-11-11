@@ -19,15 +19,24 @@ class Page(html.parser.HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.links, self.ids = [], set()
+        self.navigation, self.targets_navigation = None, set()
 
     def handle_starttag(self, tag, attrs):
         values = dict(attrs)
+        if tag == 'nav':
+            self.navigation = values.get('aria-label')
+        if tag == 'a' and self.navigation and values.get('href', '').endswith('targets.html'):
+            self.targets_navigation.add(self.navigation)
         for key in ('id', 'name') if tag == 'a' else ('id',):
             if values.get(key):
                 self.ids.add(values[key])
         for key in ('href', 'src'):
             if values.get(key) is not None and not (tag == 'link' and values.get('rel') == 'canonical'):
                 self.links.append((self.getpos()[0], values[key]))
+
+    def handle_endtag(self, tag):
+        if tag == 'nav':
+            self.navigation = None
 
 
 def page_file(site, path):
@@ -55,6 +64,8 @@ def main():
     errors, external, local = [], 0, 0
     for path, parser in sorted(pages.items()):
         name = os.path.relpath(path, site)
+        if not {'Primary', 'Footer'}.issubset(parser.targets_navigation):
+            errors.append(f'{name}: Targets must appear in primary and footer navigation')
         for line, link in parser.links:
             parts = urllib.parse.urlsplit(link)
             if parts.scheme or link.startswith('//'):

@@ -105,7 +105,8 @@
       document.getElementById('matrix-sample-range').textContent = measured ?
         data.platforms[platform].label + ' · ' + measured.batch_samples_ms.length + ' measured batches × ' +
         measured.batches.toLocaleString() + ' calls · per-call range ' +
-        ms(Math.min(...measured.execution_samples_ms)) + '–' + ms(Math.max(...measured.execution_samples_ms)) :
+        ms(Math.min(...measured.sample_statistics.included_samples_ms)) + '–' + ms(Math.max(...measured.sample_statistics.included_samples_ms)) +
+        ' · ' + measured.sample_statistics.excluded_indices.length + ' outliers excluded (1.5×IQR)' :
         'Checked IR is a shared compiler stage; it has no platform execution samples.';
       document.getElementById('matrix-size').textContent = bytes(cell.bytes);
       document.getElementById('matrix-verified').textContent = view === 'zir' ? 'Checked' : example.stdout ? 'Output matches' : cell.result;

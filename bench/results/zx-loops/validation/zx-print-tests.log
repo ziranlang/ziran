@@ -1,0 +1,13 @@
+mkdir -p build/
+rm -f build/bin/zi2py build/bin/zi2zib build/bin/zi2cpp build/bin/zi2rust build/bin/zi2zx-vm
+env -u DISPLAY -u WAYLAND_DISPLAY build/bin/startup-graph-test
+env -u DISPLAY -u WAYLAND_DISPLAY build/bin/zx-wasm-engine-test
+scalar.zi:2:1: the wasm provider rejected the lowered module
+zx-wasm-engine-test: seam, provider handoff and fallback verified
+python3 tests/run_check.py --bin-dir build/bin --jobs 16 \
+    --filter print 
+Running 3 checks with 3 jobs (0 reused)
+PASS print_enums.sh (0.5s)
+PASS print_records.sh (0.6s)
+PASS print.sh (0.7s)
+3/3 passed in 0.7s (3 executed, 0 reused)

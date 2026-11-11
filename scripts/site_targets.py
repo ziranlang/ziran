@@ -22,6 +22,7 @@ import statistics
 import subprocess
 import sys
 import time
+from benchmark_samples import summarize_samples
 
 REPO = Path(__file__).resolve().parents[1]
 SITE = REPO / 'site'
@@ -125,7 +126,8 @@ def build(bin_dir, samples, render_page=True):
             for _ in range(samples):
                 _, elapsed = execute(command, env=environment)
                 cell['emission_samples_ms'].append(elapsed)
-            cell['emission_ms'] = statistics.median(cell['emission_samples_ms'])
+            cell['emission_statistics'] = summarize_samples(cell['emission_samples_ms'])
+            cell['emission_ms'] = cell['emission_statistics']['median_ms']
             if target in ('zir', 'zx'):
                 for file in cell['files']:
                     relative = Path(file['path']).relative_to(Path('generated/targets') / name / target)
@@ -181,7 +183,8 @@ def build(bin_dir, samples, render_page=True):
                 raise RuntimeError(f'{name}/{target}: measured result differs from oracle')
             cell['run_samples_ms'].append(elapsed)
     for _, _, _, _, _, cell in runs:
-        cell['run_ms'] = statistics.median(cell['run_samples_ms'])
+        cell['run_statistics'] = summarize_samples(cell['run_samples_ms'])
+        cell['run_ms'] = cell['run_statistics']['median_ms']
     tools = {name: {'sha256': sha(bin_dir / name)}
              for name in ('zi2c', 'zi2go', 'zi2zx', 'zi2wasm', 'zi2zir', 'zi-inspect')}
     versions = {name: execute(command)[0].stdout.splitlines()[0]
@@ -191,8 +194,8 @@ def build(bin_dir, samples, render_page=True):
             'platform': platform.system() + ' ' + platform.machine(), 'cpu': cpu_name(),
             'samples': samples, 'warmups': 1, 'tools': tools, 'versions': versions,
             'source_inputs': {path: sha(REPO / path) for path in [*[item[2] for item in fixtures()], 'std/text.zi']},
-            'harnesses': {path: sha(REPO / path) for path in ['scripts/site_targets.py', 'scripts/site_target_wasm.cjs', 'site/target-abi.js']},
-            'methodology': 'Median whole-process wall time after one discarded warmup; shuffled execution order. '
+            'harnesses': {path: sha(REPO / path) for path in ['scripts/site_targets.py', 'scripts/benchmark_samples.py', 'scripts/site_target_wasm.cjs', 'site/target-abi.js']},
+            'methodology': 'Median whole-process wall time after one discarded warmup; shuffled execution order; symmetric 1.5×IQR outliers excluded, raw samples retained. '
                            'C: cc -O2; Go: go build; ZX: portable VM (--vm); WebAssembly: Node, including engine startup, compilation and instantiation. '
                            'Emission includes loading, checking, linking and writing output; it excludes downstream C/Go builds. '
                            'Output size is emitted files, including C headers, rather than linked executables. '
@@ -217,6 +220,8 @@ def render(data):
     for example in data['examples']:
         cells = []
         for target, cell in example['targets'].items():
+            if target == 'zir':
+                continue
             supported = cell['status'] == 'ok'
             href = (cell.get('inspection') or (cell['files'][0] if supported else cell['diagnostic_file']))['path']
             label = ('Shared stage' if target == 'zir' else 'Verified') if supported else 'Unavailable'
@@ -282,11 +287,13 @@ def check():
             if cell['status'] == 'ok' and 'run_samples_ms' in cell:
                 assert len(cell['run_samples_ms']) == data['samples'] and cell['result'] == (example['stdout'].strip() if example['stdout'] else example['expected'])
                 assert all(math.isfinite(value) and value > 0 for value in cell['run_samples_ms'])
-                assert statistics.median(cell['run_samples_ms']) == cell['run_ms']
+                assert summarize_samples(cell['run_samples_ms']) == cell['run_statistics']
+                assert cell['run_statistics']['median_ms'] == cell['run_ms']
             if cell['status'] == 'ok':
                 assert len(cell['emission_samples_ms']) == data['samples']
                 assert all(math.isfinite(value) and value > 0 for value in cell['emission_samples_ms'])
-                assert statistics.median(cell['emission_samples_ms']) == cell['emission_ms']
+                assert summarize_samples(cell['emission_samples_ms']) == cell['emission_statistics']
+                assert cell['emission_statistics']['median_ms'] == cell['emission_ms']
                 assert cell['bytes'] == sum(file['bytes'] for file in cell['files'])
             for file in cell.get('web', {}).get('files', []):
                 path = SITE / file['path']
@@ -299,7 +306,8 @@ def check():
                 assert measured['batches'] > 0 and len(measured['batch_samples_ms']) == platform['samples']
                 assert all(math.isfinite(value) and value > 0 for value in measured['batch_samples_ms'])
                 assert measured['execution_samples_ms'] == [value / measured['batches'] for value in measured['batch_samples_ms']]
-                assert measured['execution_ms'] == statistics.median(measured['execution_samples_ms'])
+                assert measured['sample_statistics'] == summarize_samples(measured['execution_samples_ms'])
+                assert measured['execution_ms'] == measured['sample_statistics']['median_ms']
                 assert measured['checksum'] == str(int(example['expected']) * measured['batches'])
     original = (SITE / 'targets.html').read_text()
     assert render(data) == original, 'Regenerate targets.html from its snapshot'

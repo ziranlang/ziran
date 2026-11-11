@@ -1,0 +1,6 @@
+empty: 0 0 0 0 0
+set: 100, count: 5
+middle has 3 items starting with 2
+sum of all: 110
+sum of middle: 9
+{"result":"0","batches":8192,"load_ms":2.293587001,"warmup_ms":150.000417002,"warmup_count":75773,"batch_samples_ms":[14.571004000,14.525880000,14.314654998,14.465472000,13.755440000,14.649534000,14.611319998,13.880514001,14.177789001]}

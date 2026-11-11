@@ -1,0 +1,79 @@
+{
+  "timestamp": "2026-11-11T03:02:03.834244+00:00",
+  "revision": "8d44256676b5e125dfff96e0d551b5e0c1e8a1b7",
+  "platform": "Linux-7.2.11+deb13-amd64-x86_64-with-glibc2.41",
+  "files": {
+    "build/libziran.a": "a0b7d1fec57c08893404d577862ddbb41d16892bab55ee54943421bccd97444a",
+    "build/site-target-platforms/desktop/zx-runner": "0d2f94df6690203d2300a4d74c5f2d06c162a607bf6ea67b9fd5306721318673",
+    "bench/site_target_host.c": "f9655f005582f8ffb6c95561884f8aaa96ca47fefd5426d7c3293f9146457c8e",
+    "site/examples/loops.zi": "c7114bde10a7b2bcfd6e777a40b1ec13323412f143ec9325c601887ee3ca7cb0",
+    "site/examples/arrays.zi": "19435b49ec2c822574fff9a12a37b312f8c3866f9ee2ce78318e4c533388b996",
+    "site/generated/targets/loops/zx/loops.zx": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+    "site/generated/targets/arrays/zx/arrays.zx": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df"
+  },
+  "methodology": "Same pre-emitted portable ZX bundle, BundleInstantiatePortable, warm entry execution, output verified before timing, timed formatting and null-sink I/O retained; startup and loading excluded. Nine measured batches after at least 150ms warmup; unchanged bench/site_target_host.c harness.",
+  "cases": {
+    "loops": {
+      "result": "0",
+      "batches": 512,
+      "load_ms": 0.511080001,
+      "warmup_ms": 150.014688,
+      "warmup_count": 5821,
+      "batch_samples_ms": [
+        12.250875,
+        12.476991,
+        12.775785999,
+        12.55242,
+        12.444238,
+        12.511845,
+        12.538007999,
+        12.29394,
+        12.188347999
+      ],
+      "stdout_verified": true,
+      "execution_samples_ms": [
+        0.023927490234375,
+        0.024369123046875,
+        0.024952707029296875,
+        0.0245164453125,
+        0.02430515234375,
+        0.024437197265625,
+        0.024488296873046874,
+        0.0240116015625,
+        0.023805367185546874
+      ],
+      "median_ms": 0.024369123046875
+    },
+    "arrays": {
+      "result": "0",
+      "batches": 1024,
+      "load_ms": 4.816509999,
+      "warmup_ms": 150.002967,
+      "warmup_count": 8666,
+      "batch_samples_ms": [
+        16.757329,
+        16.761949001,
+        16.970943,
+        16.716325,
+        17.421396,
+        16.942740999,
+        17.042002,
+        17.064355001,
+        16.882993
+      ],
+      "stdout_verified": true,
+      "execution_samples_ms": [
+        0.0163645791015625,
+        0.016369090821289064,
+        0.0165731865234375,
+        0.0163245361328125,
+        0.01701308203125,
+        0.01654564550683594,
+        0.016642580078125,
+        0.01666440918066406,
+        0.0164872978515625
+      ],
+      "median_ms": 0.01654564550683594
+    }
+  }
+}

@@ -4,11 +4,15 @@
 
 #include <stdint.h>
 #include "zir_slice.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 int32_t arrays_Sum(Slice numbers);
 void arrays_main(void);
 
 /* Small procedures other modules inline; arrays.c defines them. */
-#if !defined(ZIRAN_ARRAYS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#if !defined(__cplusplus) && !defined(ZIRAN_ARRAYS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 static inline int32_t arrays_Sum_ziran_inline(Slice numbers);
 #define arrays_Sum(...) arrays_Sum_ziran_inline(__VA_ARGS__)
@@ -22,6 +26,10 @@ arrays_Sum_ziran_inline(Slice numbers)
         total = (int32_t)((uint32_t)total + (uint32_t)it);
     }
     return total;
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

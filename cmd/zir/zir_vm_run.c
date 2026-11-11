@@ -165,6 +165,7 @@ profile_close(Vm *vm)
 
 #if defined(__linux__) && !defined(__EMSCRIPTEN__)
 #include <pthread.h>
+#include <sys/resource.h>
 #define VM_KNOWS_STACK 1
 #endif
 
@@ -173,6 +174,45 @@ profile_close(Vm *vm)
  * call checks again. */
 enum { VM_STACK_MARGIN = 1024 * 1024 };
 
+#ifdef VM_KNOWS_STACK
+/* Linux discovers the main thread's stack by reading /proc/self/maps.
+ * Its native bounds belong to this thread, not to a VM instance: instances
+ * can move between workers. Recheck the current address and stack limit on
+ * every entry so a changed limit or another stack cannot reuse old bounds. */
+static const char *
+native_stack_floor(void)
+{
+    static _Thread_local struct {
+        uintptr_t low, high;
+        rlim_t limit;
+        int valid;
+    } stack;
+    uintptr_t here = (uintptr_t)__builtin_frame_address(0);
+    struct rlimit limit;
+    int have_limit = getrlimit(RLIMIT_STACK, &limit) == 0;
+    if(!have_limit || !stack.valid || stack.limit != limit.rlim_cur ||
+       here < stack.low || here >= stack.high) {
+        stack.valid = 0;
+        pthread_attr_t attributes;
+        if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
+            void *low = NULL;
+            size_t size = 0;
+            if(pthread_attr_getstack(&attributes, &low, &size) == 0 &&
+               size <= UINTPTR_MAX - (uintptr_t)low && have_limit) {
+                stack.low = (uintptr_t)low;
+                stack.high = stack.low + size;
+                stack.limit = limit.rlim_cur;
+                stack.valid = 1;
+            }
+            pthread_attr_destroy(&attributes);
+        }
+    }
+    return stack.valid && here >= stack.low && here < stack.high &&
+           here - stack.low > 2 * VM_STACK_MARGIN ?
+        (const char *)(stack.low + VM_STACK_MARGIN) : NULL;
+}
+#endif
+
 /* An outermost call allocating at least this much reclaims its own
  * temporaries when it returns; smaller ones wait for the batch collection,
  * which runs once allocations since the last one reach its threshold. */
@@ -180,6 +220,15 @@ enum { VM_OUTERMOST_RELEASE_BYTES = 256 * 1024 };
 
 static Flow
 execute_sequence(Frame *frame, int begin, int end, int depth, Value *result);
+
+static int
+frame_statement_close(const Frame *frame, int begin, int end)
+{
+    if(frame->statement_closes == NULL)
+        return statement_close(frame->function, begin, end);
+    int close = frame->statement_closes[begin];
+    return close >= 0 && close < end ? close : -1;
+}
 
 static int return_storage_owned(Value value, int depth);
 
@@ -376,7 +425,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             int executed = 0;
             do {
                 const ZirStmt *head = &function->stmts[branch];
-                close = statement_close(function, branch, end);
+                close = frame_statement_close(frame, branch, end);
                 if(close < 0)
                     return FLOW_ERROR;
                 if(!executed && (head->expr_root < 0 ||
@@ -401,7 +450,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             break;
         }
         case ZIR_STMT_WHILE:
-            close = statement_close(function, s, end);
+            close = frame_statement_close(frame, s, end);
             if(close < 0)
                 return FLOW_ERROR;
             saved_locals = frame->local_count;
@@ -433,7 +482,7 @@ execute_sequence_body(Frame *frame, int begin, int end, int depth,
             s = close;
             break;
         case ZIR_STMT_BLOCK_OPEN:
-            close = statement_close(function, s, end);
+            close = frame_statement_close(frame, s, end);
             if(close < 0)
                 return FLOW_ERROR;
             saved_locals = frame->local_count;
@@ -464,6 +513,17 @@ execute_sequence(Frame *frame, int begin, int end, int depth, Value *result)
     Flow flow = execute_sequence_body(frame, begin, end, depth, result);
     frame->vm->evaluation_roots = previous;
     return flow;
+}
+
+int
+execute_simple_statement(Frame *frame, const ZirStmt *statement, int depth)
+{
+    if(statement->kind != ZIR_STMT_DECL && statement->kind != ZIR_STMT_ASSIGN)
+        return 0;
+    int index = (int)(statement - frame->function->stmts);
+    if(index < 0 || index >= frame->function->stmt_count) return 0;
+    Value unused = {0};
+    return execute_sequence(frame, index, index + 1, depth, &unused) == FLOW_NEXT;
 }
 
 static void
@@ -1231,6 +1291,33 @@ release_call_arrays(Vm *vm, uint64_t entry, uint64_t before_result)
 }
 /* Signatures and parameter storage are the executable ABI, prepared once
  * in declaration order. Their addresses stay fixed throughout execution. */
+static int
+prepare_statement_closes(VmExecutableFunction *code)
+{
+    const ZirFunction *function = code->function;
+    if(function->stmt_count == 0) return 1;
+    size_t count = (size_t)function->stmt_count;
+    if(function->stmt_count < 0 || count > SIZE_MAX / sizeof(int)) return 0;
+    int *closes = malloc(count * sizeof(*closes));
+    int *nesting = malloc(count * sizeof(*nesting));
+    if(closes == NULL || nesting == NULL) { free(closes); free(nesting); return 0; }
+    int depth = 0, valid = 1;
+    for(int s = 0; s < function->stmt_count; s++) {
+        closes[s] = -1;
+        ZirStmtKind kind = function->stmts[s].kind;
+        if(kind == ZIR_STMT_IF || kind == ZIR_STMT_WHILE || kind == ZIR_STMT_BLOCK_OPEN)
+            nesting[depth++] = s;
+        else if(kind == ZIR_STMT_BLOCK_CLOSE) {
+            if(depth == 0) { valid = 0; break; }
+            closes[nesting[--depth]] = s;
+        }
+    }
+    free(nesting);
+    if(!valid || depth != 0) { free(closes); return 0; }
+    code->signature.statement_closes = closes;
+    return 1;
+}
+
 int
 prepare_signatures(Vm *vm)
 {
@@ -1241,6 +1328,7 @@ prepare_signatures(Vm *vm)
         VmExecutableFunction *code = &vm->executable_functions[f];
         const ZirFunction *function = code->function;
         VmSignature *signature = &code->signature;
+        if(!prepare_statement_closes(code)) { free(parsed); return 0; }
         int count = parse_parameters(code->module, function, parsed);
         if(count < 0 || count > VM_MAX_PARAMS ||
            (size_t)count > SIZE_MAX / sizeof(*vm->parameters) - used) {
@@ -1453,6 +1541,7 @@ run_function_with_buffers(Vm *vm, VmExecutableFunction *code,
     buffers->frame.module = module;
     buffers->frame.function = function;
     buffers->frame.operands = code->operands;
+    buffers->frame.statement_closes = signature->statement_closes;
     if(signature->expression_plans == NULL && function->expr_count > 0)
         signature->expression_plans = calloc((size_t)function->expr_count,
                                              sizeof(*signature->expression_plans));
@@ -1971,16 +2060,7 @@ VmInstanceRun_in_context(VmInstance *instance, long long *result, int *has_resul
     vm->failed_function = NULL;
     memset(&vm->failed_span, 0, sizeof(vm->failed_span));
 #ifdef VM_KNOWS_STACK
-    pthread_attr_t attributes;
-    if(pthread_getattr_np(pthread_self(), &attributes) == 0) {
-        void *low = NULL;
-        size_t size = 0;
-        const char *here = __builtin_frame_address(0);
-        if(pthread_attr_getstack(&attributes, &low, &size) == 0 &&
-           here > (const char *)low + 2 * VM_STACK_MARGIN)
-            vm->stack_floor = (const char *)low + VM_STACK_MARGIN;
-        pthread_attr_destroy(&attributes);
-    }
+    vm->stack_floor = native_stack_floor();
 #endif
     Value value = run_function(vm, instance->module, instance->entry,
                                NULL, 0);

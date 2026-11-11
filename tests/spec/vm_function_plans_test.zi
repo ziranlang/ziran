@@ -115,6 +115,46 @@ TextCompare :: (text: string, limit: s32, choose: bool) -> s64 {
     return result
 }
 
+CollectionTouch :: (values: []s64) -> s64 {
+    values[0] += 5
+    return values[0]
+}
+
+CollectionCopies :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    values: [3]s64 = .[seed, seed + 1, seed + 2]
+    copy := values
+    total := CollectionTouch(values[:])
+    for round: 0..limit {
+        for value, index: copy {
+            if choose && index == 1 { continue }
+            total += value + round
+            if round > 5 { break }
+        }
+    }
+    return total
+}
+
+CollectionStrings :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    texts: [3]string = .["a", "café", "世界"]
+    total := seed
+    for outer: 0..limit {
+        for text, index: texts {
+            total += text.count + cast(s64)text[0]
+            if choose && index == 1 { continue outer }
+        }
+    }
+    return total
+}
+
+CollectionZero :: (seed: s64, limit: s32, choose: bool) -> s64 {
+    values: [4]s64
+    empty: [0]u8
+    total := seed
+    for value: values { total += value }
+    for byte: empty { total += cast(s64)byte }
+    return total + cast(s64)limit + cast(s64)choose
+}
+
 CallSet :: (target: *s64, value: s64) -> s64 { <<target = value; return 5 }
 CallVoid :: (target: *s64, value: s64) { <<target = value }
 CallPair :: (left: s64, right: s64) -> s64 { return left * 10 + right }
@@ -206,6 +246,9 @@ Fallback :: () -> s32 {
 
 #program_export
 Answer :: () -> s64 {
+    if CollectionCopies(1, 0, false) != 12 { return 20 }
+    if CollectionStrings(0, 0, false) != 436 { return 21 }
+    if CollectionZero(7, 2, true) != 10 { return 22 }
     if Fallback() != 6 { return 1 }
     if TextScan("ab", 0, false) != 195 || TextFailure("xy", 1, true) != 121 { return 3 }
     if TextCopy("ab", 0, true) != "ab" || TextCompare("ab", 1, true) != 99 { return 4 }

@@ -1,0 +1,21 @@
+Functions sorted by metric: Exclusive Total CPU Time
+
+Excl. Total   Incl. Total    Name
+CPU           CPU
+ sec.      %   sec.      %
+0.003 100.00  0.003 100.00   <Total>
+0.001  33.33  0.002  50.00   scalar_execute
+0.001  16.67  0.001  16.67   binary_numeric.isra.0
+0.001  16.67  0.001  16.67   coerce
+0.001  16.67  0.001  33.33   eval_expression
+0.001  16.67  0.001  16.67   statement_close
+0.      0.    0.003 100.00   <static>@0x29c21 (<libc.so.6>)
+0.      0.    0.003 100.00   VmInstanceRun
+0.      0.    0.003 100.00   VmInstanceRun_in_context
+0.      0.    0.003 100.00   batch
+0.      0.    0.001  16.67   coerce_expression
+0.      0.    0.003  83.33   eval
+0.      0.    0.003 100.00   execute_sequence_body
+0.      0.    0.003 100.00   main
+0.      0.    0.003 100.00   run_prepared_function
+

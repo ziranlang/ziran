@@ -1,0 +1,355 @@
+{
+  "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+  "examples": {
+    "score": {
+      "c": {
+        "ok": true,
+        "result": "42",
+        "batches": 65536,
+        "warmup_ms": 150,
+        "warmup_count": 449864,
+        "batch_samples_ms": [
+          0.30000000074505806,
+          0.40000000037252903,
+          0.2999999988824129,
+          0.30000000074505806,
+          0.30000000074505806
+        ],
+        "stdout_verified": true,
+        "load_ms": 10.5,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "wasm": {
+        "ok": true,
+        "result": "42",
+        "batches": 65536,
+        "warmup_ms": 150,
+        "warmup_count": 432693,
+        "batch_samples_ms": [
+          2,
+          1.900000000372529,
+          2,
+          1.699999999254942,
+          1.900000000372529
+        ],
+        "stdout_verified": true,
+        "load_ms": 1.199999999254942,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "zx": {
+        "ok": true,
+        "result": "42",
+        "batches": 65536,
+        "warmup_ms": 150,
+        "warmup_count": 215163,
+        "batch_samples_ms": [
+          17.09999999962747,
+          16.600000001490116,
+          16.59999999962747,
+          17.09999999962747,
+          17.199999999254942
+        ],
+        "stdout_verified": true,
+        "load_ms": 17.90000000037253,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "go": {
+        "ok": true,
+        "result": "42",
+        "batches": 4096,
+        "warmup_ms": 150,
+        "warmup_count": 31738,
+        "batch_samples_ms": [
+          15.599999999627471,
+          16.40000000037253,
+          18.200000001117587,
+          16.199999999254942,
+          16
+        ],
+        "stdout_verified": true,
+        "load_ms": 14.199999999254942,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      }
+    },
+    "loops": {
+      "zx": {
+        "ok": true,
+        "result": "0",
+        "batches": 128,
+        "warmup_ms": 150,
+        "warmup_count": 1917,
+        "batch_samples_ms": [
+          9.699999999254942,
+          9.700000001117587,
+          9.699999999254942,
+          9.800000000745058,
+          9.699999999254942
+        ],
+        "stdout_verified": true,
+        "load_ms": 22,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "c": {
+        "ok": true,
+        "result": "0",
+        "batches": 4096,
+        "warmup_ms": 150,
+        "warmup_count": 32897,
+        "batch_samples_ms": [
+          15.5,
+          17.09999999962747,
+          16,
+          17.100000001490116,
+          16
+        ],
+        "stdout_verified": true,
+        "load_ms": 4.899999998509884,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "wasm": {
+        "ok": true,
+        "result": "0",
+        "batches": 1024,
+        "warmup_ms": 150,
+        "warmup_count": 11637,
+        "batch_samples_ms": [
+          9.800000000745058,
+          10.5,
+          9.900000000372529,
+          9.699999999254942,
+          30.59999999962747
+        ],
+        "stdout_verified": true,
+        "load_ms": 1.800000000745058,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "go": {
+        "ok": true,
+        "result": "0",
+        "batches": 128,
+        "warmup_ms": 150,
+        "warmup_count": 1007,
+        "batch_samples_ms": [
+          21.200000001117587,
+          16,
+          16.40000000037253,
+          15.599999999627471,
+          17
+        ],
+        "stdout_verified": true,
+        "load_ms": 15,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      }
+    },
+    "text_demo": {
+      "c": {
+        "ok": true,
+        "result": "1",
+        "batches": 65536,
+        "warmup_ms": 150,
+        "warmup_count": 470497,
+        "batch_samples_ms": [
+          0.8000000007450581,
+          0.7999999988824129,
+          0.5,
+          0.5,
+          0.5
+        ],
+        "stdout_verified": true,
+        "load_ms": 5,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "zx": {
+        "ok": true,
+        "result": "1",
+        "batches": 16384,
+        "warmup_ms": 150,
+        "warmup_count": 101437,
+        "batch_samples_ms": [
+          16.09999999962747,
+          16.59999999962747,
+          16.09999999962747,
+          16,
+          16.59999999962747
+        ],
+        "stdout_verified": true,
+        "load_ms": 18.200000001117587,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "wasm": {
+        "ok": true,
+        "result": "1",
+        "batches": 65536,
+        "warmup_ms": 150,
+        "warmup_count": 410417,
+        "batch_samples_ms": [
+          2.600000001490116,
+          2.5,
+          2.299999998882413,
+          2.5,
+          2.300000000745058
+        ],
+        "stdout_verified": true,
+        "load_ms": 1.599999999627471,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "go": {
+        "ok": true,
+        "result": "1",
+        "batches": 4096,
+        "warmup_ms": 150,
+        "warmup_count": 32585,
+        "batch_samples_ms": [
+          16.5,
+          16.199999999254942,
+          16.90000000037253,
+          16.09999999962747,
+          16.800000000745058
+        ],
+        "stdout_verified": true,
+        "load_ms": 13.599999999627471,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      }
+    },
+    "arrays": {
+      "go": {
+        "ok": true,
+        "result": "0",
+        "batches": 256,
+        "warmup_ms": 150,
+        "warmup_count": 2416,
+        "batch_samples_ms": [
+          16,
+          20.899999998509884,
+          12.5,
+          13.300000000745058,
+          12.800000000745058
+        ],
+        "stdout_verified": true,
+        "load_ms": 17.40000000037253,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "wasm": {
+        "ok": true,
+        "result": "0",
+        "batches": 2048,
+        "warmup_ms": 150,
+        "warmup_count": 13941,
+        "batch_samples_ms": [
+          28.300000000745058,
+          21,
+          16.299999998882413,
+          15.400000000372529,
+          17.199999999254942
+        ],
+        "stdout_verified": true,
+        "load_ms": 1.599999999627471,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "c": {
+        "ok": true,
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150,
+        "warmup_count": 63643,
+        "batch_samples_ms": [
+          14.200000001117587,
+          13.5,
+          14.199999999254942,
+          13.5,
+          14.900000000372529
+        ],
+        "stdout_verified": true,
+        "load_ms": 5.400000000372529,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "zx": {
+        "ok": true,
+        "result": "0",
+        "batches": 512,
+        "warmup_ms": 150,
+        "warmup_count": 4427,
+        "batch_samples_ms": [
+          17.09999999962747,
+          17,
+          16.59999999962747,
+          16.5,
+          16.700000001117587
+        ],
+        "stdout_verified": true,
+        "load_ms": 19.799999998882413,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      }
+    },
+    "enums": {
+      "c": {
+        "ok": true,
+        "result": "0",
+        "batches": 16384,
+        "warmup_ms": 150,
+        "warmup_count": 102975,
+        "batch_samples_ms": [
+          15.400000000372529,
+          15.5,
+          14.800000000745058,
+          14.899999998509884,
+          15
+        ],
+        "stdout_verified": true,
+        "load_ms": 5.5,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "wasm": {
+        "ok": true,
+        "result": "0",
+        "batches": 8192,
+        "warmup_ms": 150,
+        "warmup_count": 49750,
+        "batch_samples_ms": [
+          16.799999998882413,
+          23.40000000037253,
+          17.90000000037253,
+          17,
+          28.199999999254942
+        ],
+        "stdout_verified": true,
+        "load_ms": 1.400000000372529,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "zx": {
+        "ok": true,
+        "result": "0",
+        "batches": 1024,
+        "warmup_ms": 150,
+        "warmup_count": 7922,
+        "batch_samples_ms": [
+          19.699999999254942,
+          19.699999999254942,
+          19.200000001117587,
+          19.699999999254942,
+          19.300000000745058
+        ],
+        "stdout_verified": true,
+        "load_ms": 19.40000000037253,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      },
+      "go": {
+        "ok": true,
+        "result": "0",
+        "batches": 256,
+        "warmup_ms": 150,
+        "warmup_count": 3308,
+        "batch_samples_ms": [
+          9.199999999254942,
+          9.400000000372529,
+          10.400000000372529,
+          10.699999999254942,
+          9.900000000372529
+        ],
+        "stdout_verified": true,
+        "load_ms": 16.09999999962747,
+        "user_agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36"
+      }
+    }
+  }
+}

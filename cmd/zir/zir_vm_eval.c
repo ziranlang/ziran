@@ -12,67 +12,191 @@ struct VmPrintBuffers {
 static void vm_print(Frame *frame, const ZirExpr *expression, int depth);
 static void free_scalar_plans(Vm *vm);
 
+typedef enum VmPrintKind {
+    VM_PRINT_STRING, VM_PRINT_BOOL, VM_PRINT_F32, VM_PRINT_F64,
+    VM_PRINT_UNSIGNED, VM_PRINT_SIGNED
+} VmPrintKind;
+
+typedef struct VmPrintArgument {
+    int expression;
+    VmPrintKind kind;
+} VmPrintArgument;
+
+typedef struct VmPrintStep {
+    int argument; /* -1 names decoded literal bytes. */
+    size_t offset, length;
+} VmPrintStep;
+
+/* Formats and argument types belong to immutable checked expressions. Keep
+ * only the prepared operations here; argument values are read on every call. */
+typedef struct VmPrintPlan {
+    int count, argument_count;
+    VmPrintStep *steps;
+    VmPrintArgument *arguments;
+    unsigned char *bytes;
+} VmPrintPlan;
+
+static VmPrintPlan *
+prepare_print(Frame *frame, const ZirExpr *expression, VmPrintBuffers *buffers)
+{
+    VmSignature *signature = vm_signature(frame->vm, frame->module, frame->function);
+    const ZirFunction *function = frame->function;
+    int index = (int)(expression - function->exprs);
+    if(signature == NULL || index < 0 || index >= function->expr_count)
+        return NULL;
+    if(signature->print_plans == NULL)
+        signature->print_plans = calloc((size_t)function->expr_count,
+                                        sizeof(*signature->print_plans));
+    if(signature->print_plans == NULL) return NULL;
+    if(signature->print_plans[index] != NULL)
+        return signature->print_plans[index];
+    PrintPiece *pieces = malloc(PRINT_PIECES_MAX * sizeof(*pieces));
+    int first = expression->first_child;
+    int count = first >= 0 && pieces != NULL ?
+        PrintFormatPieces(function->exprs[first].text, pieces, PRINT_PIECES_MAX) : -1;
+    if(count < 0) { free(pieces); return NULL; }
+    int arguments = 0, placeholders = 0;
+    size_t bytes = 0;
+    for(int child = function->exprs[first].next_sibling; child >= 0;
+        child = function->exprs[child].next_sibling) {
+        if(child >= function->expr_count || ++arguments > PRINT_PIECES_MAX) {
+            free(pieces); return NULL;
+        }
+    }
+    for(int i = 0; i < count; i++) {
+        size_t length;
+        if(pieces[i].is_argument) { placeholders++; continue; }
+        if(!DecodeStringLiteral(pieces[i].literal, buffers->bytes,
+                               sizeof(buffers->bytes), &length)) {
+            free(pieces); return NULL;
+        }
+        bytes += length;
+    }
+    if(placeholders != arguments) { free(pieces); return NULL; }
+    VmPrintPlan *plan = malloc(sizeof(*plan) + (size_t)count * sizeof(VmPrintStep) +
+                              (size_t)arguments * sizeof(VmPrintArgument) + bytes);
+    if(plan == NULL) { free(pieces); return NULL; }
+    plan->count = count;
+    plan->argument_count = arguments;
+    plan->steps = (VmPrintStep *)(plan + 1);
+    plan->arguments = (VmPrintArgument *)(plan->steps + count);
+    plan->bytes = (unsigned char *)(plan->arguments + arguments);
+    arguments = 0;
+    for(int child = function->exprs[first].next_sibling; child >= 0;
+        child = function->exprs[child].next_sibling) {
+        const char *type = ScalarType(function->exprs[child].type);
+        VmPrintKind kind = !strcmp(type, "string") ? VM_PRINT_STRING :
+            !strcmp(type, "bool") ? VM_PRINT_BOOL :
+            !strcmp(type, "float32") ? VM_PRINT_F32 :
+            !strcmp(type, "float64") ? VM_PRINT_F64 :
+            type[0] == 'u' ? VM_PRINT_UNSIGNED : VM_PRINT_SIGNED;
+        plan->arguments[arguments++] = (VmPrintArgument){child, kind};
+    }
+    bytes = 0;
+    arguments = 0;
+    for(int i = 0; i < count; i++) {
+        VmPrintStep *step = &plan->steps[i];
+        step->argument = pieces[i].is_argument ? arguments++ : -1;
+        step->offset = bytes;
+        step->length = 0;
+        if(step->argument < 0) {
+            if(!DecodeStringLiteral(pieces[i].literal, buffers->bytes,
+                                   sizeof(buffers->bytes), &step->length)) {
+                free(plan); free(pieces); return NULL;
+            }
+            memcpy(plan->bytes + bytes, buffers->bytes, step->length);
+            bytes += step->length;
+        }
+    }
+    free(pieces);
+    signature->print_plans[index] = plan;
+    return plan;
+}
+
+static void
+print_bytes(VmPrintBuffers *buffers, size_t *used,
+            const unsigned char *bytes, size_t count)
+{
+    while(count > 0) {
+        size_t available = sizeof(buffers->bytes) - *used;
+        size_t take = count < available ? count : available;
+        memcpy(buffers->bytes + *used, bytes, take);
+        *used += take;
+        bytes += take;
+        count -= take;
+        if(*used == sizeof(buffers->bytes)) {
+            fwrite(buffers->bytes, 1, *used, stdout);
+            *used = 0;
+        }
+    }
+}
+
+static size_t
+print_integer(char *output, uint64_t bits, int signed_value)
+{
+    size_t count = 0;
+    if(signed_value && signed64(bits) < 0) {
+        output[count++] = '-';
+        bits = UINT64_C(0) - bits;
+    }
+    char digits[20];
+    size_t length = 0;
+    do {
+        digits[length++] = (char)('0' + bits % 10);
+        bits /= 10;
+    } while(bits != 0);
+    while(length > 0) output[count++] = digits[--length];
+    return count;
+}
+
 static void
 vm_print_with_buffers(Frame *frame, const ZirExpr *expression, int depth, VmPrintBuffers *buffers)
 {
-    const ZirFunction *function = frame->function;
-    PrintPiece *pieces = calloc(PRINT_PIECES_MAX, sizeof(*pieces));
-    const char *types[PRINT_PIECES_MAX];
-    int first = expression->first_child, count, argument = 0;
-    if(pieces == NULL || first < 0 ||
-       (count = PrintFormatPieces(function->exprs[first].text, pieces,
-                                  PRINT_PIECES_MAX)) < 0) {
-        free(pieces);
+    const VmPrintPlan *plan = prepare_print(frame, expression, buffers);
+    if(plan == NULL) {
         frame->vm->failed = 1;
         return;
     }
     VmRoots roots = {frame->vm->evaluation_roots, buffers->values, 0};
     frame->vm->evaluation_roots = &roots;
-    for(int child = function->exprs[first].next_sibling;
-        child >= 0 && !frame->vm->failed && argument < PRINT_PIECES_MAX;
-        child = function->exprs[child].next_sibling, argument++) {
-        types[argument] = ScalarType(function->exprs[child].type);
-        buffers->values[argument] = eval(frame, child, depth + 1);
+    for(int argument = 0; argument < plan->argument_count && !frame->vm->failed; argument++) {
+        buffers->values[argument] = eval(frame, plan->arguments[argument].expression, depth + 1);
         roots.count = argument + 1;
     }
-    argument = 0;
-    for(int i = 0; i < count && !frame->vm->failed; i++) {
+    size_t used = 0;
+    for(int i = 0; i < plan->count && !frame->vm->failed; i++) {
         char text[64];
         size_t length;
         Value value;
-        const char *type;
-        if(!pieces[i].is_argument) {
-            if(DecodeStringLiteral(pieces[i].literal, buffers->bytes, sizeof(buffers->bytes),
-                                   &length))
-                fwrite(buffers->bytes, 1, length, stdout);
+        const VmPrintStep *step = &plan->steps[i];
+        if(step->argument < 0) {
+            print_bytes(buffers, &used, plan->bytes + step->offset, step->length);
             continue;
         }
-        value = buffers->values[argument];
-        type = types[argument++];
-        if(!strcmp(type, "string")) {
+        value = buffers->values[step->argument];
+        VmPrintKind kind = plan->arguments[step->argument].kind;
+        if(kind == VM_PRINT_STRING) {
             if(value.kind != VALUE_STRING) {
                 frame->vm->failed = 1;
                 break;
             }
             if(value.length > 0)
-                fwrite(value.data, 1, value.length, stdout);
+                print_bytes(buffers, &used, value.data, value.length);
             continue;
         }
-        if(!strcmp(type, "bool"))
-            snprintf(text, sizeof(text), "%s", truthy(value) ? "true" : "false");
-        else if(!strcmp(type, "float32") || !strcmp(type, "float64"))
+        if(kind == VM_PRINT_BOOL) {
+            const char *boolean = truthy(value) ? "true" : "false";
+            length = strlen(boolean);
+            memcpy(text, boolean, length);
+        } else if(kind == VM_PRINT_F32 || kind == VM_PRINT_F64) {
             FormatPrintFloat(value.kind == VALUE_REAL ? value.real :
                              (double)value.integer,
-                             !strcmp(type, "float32"), text, sizeof(text));
-        else if(type[0] == 'u')
-            snprintf(text, sizeof(text), "%llu",
-                     (unsigned long long)integer_bits(value));
-        else
-            snprintf(text, sizeof(text), "%lld",
-                     (long long)signed64(integer_bits(value)));
-        fputs(text, stdout);
+                             kind == VM_PRINT_F32, text, sizeof(text));
+            length = strlen(text);
+        } else length = print_integer(text, integer_bits(value), kind == VM_PRINT_SIGNED);
+        print_bytes(buffers, &used, (const unsigned char *)text, length);
     }
-    free(pieces);
+    if(used > 0) fwrite(buffers->bytes, 1, used, stdout);
     frame->vm->evaluation_roots = roots.previous;
 }
 
@@ -969,6 +1093,13 @@ void
 free_executable(Vm *vm)
 {
     for(size_t i = 0; i < vm->executable_function_count; i++) {
+        VmSignature *signature = &vm->executable_functions[i].signature;
+        free(signature->statement_closes);
+        if(signature->print_plans != NULL) {
+            for(int e = 0; e < vm->executable_functions[i].function->expr_count; e++)
+                free(signature->print_plans[e]);
+            free(signature->print_plans);
+        }
         free(vm->executable_functions[i].signature.scalar_plan);
         free(vm->executable_functions[i].signature.expression_plans);
     }
@@ -1421,7 +1552,8 @@ typedef enum ScalarOp {
     SCALAR_LOCAL, SCALAR_INT, SCALAR_UINT, SCALAR_REAL,
     SCALAR_TICK, SCALAR_SCOPE, SCALAR_DECLARE, SCALAR_STORE, SCALAR_RETURN,
     SCALAR_EMPTY_STRING, SCALAR_STRING_COUNT, SCALAR_STRING_BINARY,
-    SCALAR_STRING_DECLARE, SCALAR_STRING_STORE, SCALAR_CALL
+    SCALAR_STRING_DECLARE, SCALAR_STRING_STORE, SCALAR_CALL,
+    SCALAR_EVAL, SCALAR_STATEMENT
 } ScalarOp;
 
 typedef enum ScalarConversion {
@@ -1898,7 +2030,10 @@ function_type(const char *type)
 }
 
 static int
-function_expression(ScalarFunctionBuilder *builder, int index)
+function_collection_type(const char *type);
+
+static int
+function_expression_plan(ScalarFunctionBuilder *builder, int index)
 {
     ScalarBuilder expression = {.frame = builder->frame,
         .function = builder->frame->function, .allow_calls = 1};
@@ -1908,7 +2043,7 @@ function_expression(ScalarFunctionBuilder *builder, int index)
     for(int i = 0; i < expression.count; i++) {
         ScalarStep step = expression.steps[i];
         const ZirExpr *node = step.expression;
-        if(!function_type(node->type) &&
+        if(!function_type(node->type) && !function_collection_type(node->type) &&
            !(step.op == SCALAR_CALL && !strcmp(node->type, "void"))) return -1;
         if(step.op == SCALAR_CALL) builder->calls = 1;
         if(step.op == SCALAR_LEAF) {
@@ -1936,13 +2071,18 @@ function_expression(ScalarFunctionBuilder *builder, int index)
             } else return -1;
         } else if((step.op == SCALAR_MEMBER &&
                    (strcmp(node->name, "count") ||
-                    strcmp(builder->frame->function->exprs[node->left].type, "string"))) ||
+                    (strcmp(builder->frame->function->exprs[node->left].type, "string") &&
+                     !function_collection_type(builder->frame->function->exprs[node->left].type)))) ||
                   step.op == SCALAR_POINTER_MEMBER ||
                   (step.op == SCALAR_INDEX &&
-                   strcmp(builder->frame->function->exprs[node->left].type, "string")) ||
+                   strcmp(builder->frame->function->exprs[node->left].type, "string") &&
+                   !function_collection_type(builder->frame->function->exprs[node->left].type)) ||
                   (step.op == SCALAR_UNARY && !strcmp(node->op, "*")) ||
                   (step.op == SCALAR_CAST && !function_type(node->name)))
             return -1;
+        if(step.op == SCALAR_BINARY &&
+           (function_collection_type(builder->frame->function->exprs[node->left].type) ||
+            function_collection_type(builder->frame->function->exprs[node->right].type))) return -1;
         if(step.op == SCALAR_MEMBER) step.op = SCALAR_STRING_COUNT;
         if(step.op == SCALAR_BINARY &&
            (!strcmp(builder->frame->function->exprs[node->left].type, "string") ||
@@ -1958,6 +2098,49 @@ function_expression(ScalarFunctionBuilder *builder, int index)
 }
 
 static int
+function_expression(ScalarFunctionBuilder *builder, int index)
+{
+    int begin = builder->count, calls = builder->calls;
+    int output = function_expression_plan(builder, index);
+    if(output >= 0) return output;
+    builder->count = begin;
+    builder->calls = calls;
+    builder->literal_vm.failed = 0;
+    const ZirFunction *function = builder->frame->function;
+    if(index < 0 || index >= function->expr_count ||
+       !function_type(function->exprs[index].type)) return -1;
+    /* A collection read or another non-linear scalar expression can use
+     * the canonical evaluator without discarding the procedure's prepared
+     * loops. It may call or allocate, so retain roots and statement GC. */
+    builder->calls = 1;
+    builder->expression_registers = 1;
+    return function_step(builder, (ScalarStep){.op = SCALAR_EVAL,
+        .expression = &function->exprs[index], .output = 0}) < 0 ? -1 : 0;
+}
+
+static int
+function_collection_type(const char *type)
+{
+    char element[ZIR_NAME_MAX];
+    return (ArrayElementType(type, element, sizeof(element), NULL) ||
+            SliceElementType(type, element, sizeof(element))) && function_type(element);
+}
+
+static int
+function_value_type(Frame *frame, const char *type)
+{
+    if(function_type(type) || function_collection_type(type)) return 1;
+    const ZirType *record = vm_find_type(frame->vm, frame->module, type, NULL);
+    if(record == NULL || record->is_enum || record->is_union || record->is_procedure_type ||
+       record->is_extern || record->is_map) return 0;
+    const VmLayout *layout = record_layout(frame->vm, record);
+    if(layout == NULL) return 0;
+    for(int f = 0; f < layout->count; f++)
+        if(!function_type(layout->fields[f].type)) return 0;
+    return 1;
+}
+
+static int
 function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
                    int depth, ScalarLoop *loop)
 {
@@ -1970,12 +2153,22 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
     for(int s = begin; s < end; s++) {
         const ZirStmt *statement = &function->stmts[s];
         if(function_step(builder, (ScalarStep){.op = SCALAR_TICK,
+            .statement = statement,
             .depth = (unsigned char)depth}) < 0) return 0;
-        int output, local, close;
+        int output, local, close, tick = builder->count - 1;
         switch(statement->kind) {
         case ZIR_STMT_DECL:
-            if(!function_type(statement->type) ||
-               builder->local_count >= builder->local_capacity) return 0;
+            if(builder->local_count >= builder->local_capacity) return 0;
+            if(!function_type(statement->type)) {
+                /* These values have no owned Vec teardown. Keep construction
+                 * and value copying on the canonical statement path. */
+                if(!function_value_type(builder->frame, statement->type)) return 0;
+                local = builder->local_count++;
+                builder->locals[local] = (VmParameter){statement->name, statement->type};
+                builder->calls = 1;
+                builder->steps[tick].op = SCALAR_STATEMENT;
+                break;
+            }
             output = statement->expr_root >= 0 ?
                 function_expression(builder, statement->expr_root) :
                 function_step(builder, (ScalarStep){.op =
@@ -1993,6 +2186,13 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
             break;
         case ZIR_STMT_ASSIGN: {
             const ZirExpr *left = &function->exprs[statement->lhs_root];
+            if((left->kind == ZIR_EXPR_INDEX || left->kind == ZIR_EXPR_MEMBER) &&
+               !left->is_move && function_type(left->type) && left->left >= 0 &&
+               function_value_type(builder->frame, function->exprs[left->left].type)) {
+                builder->calls = 1;
+                builder->steps[tick].op = SCALAR_STATEMENT;
+                break;
+            }
             if(left->kind != ZIR_EXPR_IDENT || left->is_move ||
                !function_type(left->type) ||
                (local = function_local(builder, left->name)) < 0 ||
@@ -2084,6 +2284,7 @@ function_sequence(ScalarFunctionBuilder *builder, int begin, int end,
             ScalarLoop current = {.outer = loop, .id = statement->loop_id,
                 .locals = builder->local_count, .condition = builder->count, .breaks = -1};
             if(function_step(builder, (ScalarStep){.op = SCALAR_TICK,
+                .statement = statement,
                 .depth = (unsigned char)depth}) < 0) return 0;
             output = function_expression(builder, statement->expr_root);
             if(output < 0) return 0;
@@ -2146,7 +2347,7 @@ scalar_function_plan(Frame *frame, VmSignature *signature)
        frame->function->stmt_count > SCALAR_FUNCTION_STEPS ||
        vm->scalar_function_bytes >= SCALAR_FUNCTION_BYTES) return NULL;
     for(int i = 0; i < signature->count; i++)
-        if(!function_type(signature->parameters[i].type)) return NULL;
+        if(!function_value_type(frame, signature->parameters[i].type)) return NULL;
     ScalarFunctionBuilder builder = {.frame = frame,
         .local_count = signature->count, .local_capacity = signature->local_bound};
     builder.locals = calloc(signature->local_bound ? (size_t)signature->local_bound : 1,
@@ -2439,11 +2640,18 @@ scalar_run_function(Frame *frame, const ScalarPlan *plan, Flow *flow,
             values[step->output] = output;
             continue;
         case SCALAR_TICK:
+        case SCALAR_STATEMENT:
+            frame->statement = step->statement;
             if(calls) {
                 /* No expression temporary crosses a source statement.
                  * Clear roots before the canonical collection boundary. */
                 for(int i = 0; i < plan->output; i++)
                     storage[i].kind = VALUE_INVALID;
+                if(step->op == SCALAR_STATEMENT) {
+                    if(!execute_simple_statement(frame, step->statement, step->depth))
+                        vm->failed = 1;
+                    continue;
+                }
                 size_t threshold = vm->collection_threshold ?
                     vm->collection_threshold : 4 * 1024 * 1024;
                 if(vm->allocated_since_collection >= threshold)
@@ -2489,6 +2697,7 @@ scalar_run_function(Frame *frame, const ScalarPlan *plan, Flow *flow,
             *flow = FLOW_RETURN;
             return *values[step->left];
         case SCALAR_CALL:
+        case SCALAR_EVAL:
             if(!calls) { vm->failed = 1; break; }
             *output = eval(frame, (int)(step->expression - frame->function->exprs), step->depth);
             values[step->output] = output;
@@ -2513,23 +2722,31 @@ scalar_run_function(Frame *frame, const ScalarPlan *plan, Flow *flow,
                 step->expression->type, (ScalarConversion)step->conversion, output);
             continue;
         case SCALAR_STRING_COUNT:
-            if(values[step->left]->kind != VALUE_STRING) {
+            if(values[step->left]->kind == VALUE_STRING || values[step->left]->kind == VALUE_SLICE)
+                int_result(output, (int64_t)values[step->left]->length);
+            else if(values[step->left]->kind == VALUE_ARRAY && values[step->left]->array != NULL)
+                int_result(output, values[step->left]->array->length);
+            else {
                 vm->failed = 1;
                 continue;
             }
-            int_result(output, (int64_t)values[step->left]->length);
             values[step->output] = scalar_coerce(frame, output, step->expression->type,
                 (ScalarConversion)step->conversion, output);
             continue;
         case SCALAR_INDEX: {
             const Value *left = values[step->left], *right = values[step->right];
-            if(left->kind != VALUE_STRING || right->kind != VALUE_INT ||
-               (!right->unsigned64 && right->integer < 0) ||
-               integer_bits(*right) >= left->length) {
+            if(right->kind != VALUE_INT || (!right->unsigned64 && right->integer < 0)) {
                 vm->failed = 1;
                 continue;
             }
-            int_result(output, left->data[integer_bits(*right)]);
+            if(left->kind == VALUE_STRING) {
+                if(integer_bits(*right) >= left->length) { vm->failed = 1; continue; }
+                int_result(output, left->data[integer_bits(*right)]);
+            } else {
+                Value element = indexed_element(vm, *left, integer_bits(*right));
+                if(!place_valid(element)) { vm->failed = 1; continue; }
+                *output = place_read(vm, element);
+            }
             values[step->output] = scalar_coerce(frame, output, step->expression->type,
                 (ScalarConversion)step->conversion, output);
             continue;
@@ -2613,11 +2830,22 @@ execute_scalar_function(Frame *frame, VmSignature *signature, Value *result, Flo
     if(plan == NULL) return 0;
     /* Abstract numeric storage can retain an enum or pointer supplied through
      * a conversion. Those values need the canonical dispatch rules. */
-    for(int i = 0; i < signature->count; i++)
+    for(int i = 0; i < signature->count; i++) {
+        const char *type = signature->parameters[i].type;
+        ValueKind kind = frame->locals[i].value.kind;
+        if(function_collection_type(type)) {
+            if(kind != (SliceElementType(type, NULL, 0) ? VALUE_SLICE : VALUE_ARRAY)) return 0;
+            continue;
+        }
+        if(!function_type(type)) {
+            if(kind != VALUE_RECORD && kind != VALUE_INLINE_RECORD) return 0;
+            continue;
+        }
         if(!strcmp(signature->parameters[i].type, "string") ?
            frame->locals[i].value.kind != VALUE_STRING :
            (frame->locals[i].value.kind != VALUE_INT && frame->locals[i].value.kind != VALUE_REAL))
             return 0;
+    }
     *result = scalar_execute_function(frame, plan, flow);
     return 1;
 }
@@ -3673,6 +3901,14 @@ eval(Frame *frame, int index, int depth)
     }
     const ZirExpr *expression = &frame->function->exprs[index];
     switch(expression->kind) {
+    case ZIR_EXPR_CALL:
+        /* Print owns and roots its argument workspace. It has no result or
+         * partially evaluated operands needing the generic call's roots. */
+        if(builtin_call(expression->name) == BuiltinPrint) {
+            vm_print(frame, expression, depth);
+            return (Value){.kind = VALUE_VOID};
+        }
+        break;
     case ZIR_EXPR_SIZE_OF:
     case ZIR_EXPR_INT:
     case ZIR_EXPR_FLOAT:

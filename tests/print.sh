@@ -11,6 +11,22 @@ Twice :: (value: s32) -> s32 {
     return value * 2;
 }
 
+Large :: (binary: bool) {
+    bytes: [9000]u8
+    for index: 0..8999 { bytes[index] = cast(u8)(65 + index % 26) }
+    if binary {
+        bytes[4095] = 0
+        bytes[4096] = 0
+        bytes[8191] = 0
+    }
+    lowest: s64 = -9223372036854775807 - 1
+    widest: u64 = 18446744073709551615
+    print("large:<%>:%:%\n", TextView(bytes[:]), lowest, widest)
+}
+
+#program_export
+Binary :: () { Large(true) }
+
 #program_export
 Greet :: () -> s32 {
     name := "Ziran";
@@ -29,6 +45,7 @@ Greet :: () -> s32 {
     print("escapes: \x25 \"quoted\"\ttab\n", 25);
     print("order: % %\n", Twice(1), Twice(2));
     print("%%%%%\n", "!");
+    Large(false)
     return 0;
 }
 EOF
@@ -43,6 +60,15 @@ escapes: 25 "quoted"	tab
 [twice 1][twice 2]order: 2 4
 %%!
 EOF
+python3 - "$work/expected" "$work/expected-binary" <<'PY'
+import sys
+data=bytearray(65 + index % 26 for index in range(9000))
+with open(sys.argv[1], 'ab') as output:
+    output.write(b'large:<' + data + b'>:-9223372036854775808:18446744073709551615\n')
+for index in (4095, 4096, 8191): data[index]=0
+with open(sys.argv[2], 'wb') as output:
+    output.write(b'large:<' + data + b'>:-9223372036854775808:18446744073709551615\n')
+PY
 
 "$ziran" check --root "$work" "$work/greet.zi"
 "$ziran" ir --root "$work" -o "$work/ir" "$work/greet.zi"
@@ -56,6 +82,13 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
         -o "$work/$suffix.zx" "$input"
     "$ziran" run "$work/$suffix.zx" > "$work/$suffix.zx.out"
     printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.zx.out"
+    "$ziran" run --vm "$work/$suffix.zx" > "$work/$suffix.vm.out"
+    printf '0\n' | cat "$work/expected" - | cmp - "$work/$suffix.vm.out"
+    # The VM writes explicit byte lengths, including embedded NULs.
+    "$ziran" bundle --root "$work" --entry greet:Binary \
+        -o "$work/$suffix-binary.zx" "$input"
+    "$ziran" run --vm "$work/$suffix-binary.zx" > "$work/$suffix-binary.out"
+    cmp "$work/expected-binary" "$work/$suffix-binary.out"
 
     for target in c go; do
         out="$work/$suffix-$target"

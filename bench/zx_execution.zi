@@ -1,0 +1,199 @@
+#!/usr/bin/env ziran
+// Repeated warm execution of the matrix's unchanged portable bundles.
+#import "std/byte_text_linux"
+#import "std/environment_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+#scope_file
+Concat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextJoin(parts[:], "")
+}
+
+Number :: (value: s64) -> string {
+    bytes: [64]u8
+    return TextDetach(TextCopy(FormatInteger(value, bytes[:])))
+}
+
+Capture :: (arguments: []string, repo: string) -> string {
+    environment: [2]string = .["ZIRAN_PROFILE", "ZIRAN_VM_PROFILE"]
+    options: ProcessOptions = .{.arguments = arguments, .directory = repo,
+        .environment = environment[:], .capture_output = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) || run.code != 0 { return "" }
+    return TextDetach(BuilderFinish(run.output))
+}
+
+Hash :: (path: string, repo: string) -> string {
+    command: [2]string = .["sha256sum", path]
+    result := Capture(command[:], repo)
+    return ifx result.count >= 64 then result[:64] else ""
+}
+
+Field :: (document: *JsonDocument, node: s32, name: string) -> string {
+    return TextDetach(JsonString(document, JsonMember(document, node, name)))
+}
+
+Put :: (document: *JsonDocument, node: s32, name: string, value: string) {
+    JsonSet(document, node, name, JsonNewStringCopy(document, value))
+}
+
+Quantile :: (sorted: []float64, fraction: float64) -> float64 {
+    position := cast(float64)(sorted.count - 1) * fraction
+    lower := cast(s64)position
+    upper := ifx lower + 1 < sorted.count then lower + 1 else lower
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - cast(float64)lower)
+}
+
+#scope_export
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    repo := PathParent(PathParent(EnvironmentText("ZIRAN_SCRIPT_FILE")))
+    if repo == "" { repo = ResolvePath(".") }
+    output := JoinPath(repo, "bench/results/zx-loops/repeated")
+    samples: s64 = 9
+    repeats: s64 = 3
+    index: s32 = 1
+    while index < argc {
+        option := TextFromCString(argv[index])
+        if option == "--help" {
+            print("zx_execution.zi [--out DIR] [--samples 3..31] [--repeats N]\n")
+            return 0
+        }
+        if index + 1 >= argc { print("% needs a value\n", option); return 2 }
+        value := TextFromCString(argv[index + 1])
+        if option == "--out" { output = value }
+        else {
+            parsed, valid := TextInteger(value)
+            if !valid || parsed < 1 { print("invalid %\n", option); return 2 }
+            if option == "--samples" { samples = parsed }
+            else if option == "--repeats" { repeats = parsed }
+            else { print("unknown option: %\n", option); return 2 }
+        }
+        index += 2
+    }
+    if samples < 3 || samples > 31 { print("samples must be 3..31\n"); return 2 }
+    if !CreateDirectories(output) { return 1 }
+    manifest, found := ReadEntireFile(JoinPath(repo, "site/generated/targets/matrix.json"))
+    matrix: JsonDocument
+    if !found || !JsonRead(*matrix, manifest) { print("cannot read matrix\n"); return 1 }
+    runner := JoinPath(repo, "build/site-target-platforms/desktop/zx-runner")
+    if !CreateDirectories(PathParent(runner)) { return 1 }
+    compile: [12]string = .["cc", "-O2", "-std=c11", "-DMATRIX_ZX", "-Iinclude",
+        "bench/site_target_host.c", "build/libziran.a", "-lm", "-pthread", "-ldl", "-o", runner]
+    built: ProcessRun
+    options: ProcessOptions = .{.arguments = compile[:], .directory = repo}
+    if !RunProcess(options, *built) || built.code != 0 { return 1 }
+
+    report: JsonDocument
+    root := JsonNewObject(*report)
+    revision: [3]string = .["git", "rev-parse", "HEAD"]
+    Put(*report, root, "revision_base", TextTrim(Capture(revision[:], repo)))
+    Put(*report, root, "methodology", "Unchanged portable ZX bundles; same native host; output verified before timing; warm batches include formatting, null-sink I/O and VM call boundaries; startup and loading excluded; symmetric 1.5×IQR outliers excluded from medians; raw samples and excluded indices retained.")
+    library := Hash("build/libziran.a", repo)
+    Put(*report, root, "runtime_archive_sha256", library)
+    Put(*report, root, "runner_sha256", Hash(runner, repo))
+    source_hashes := JsonNewObject(*report)
+    source_paths: [5]string = .["cmd/zir/zir_vm_eval.c", "cmd/zir/zir_vm_run.c",
+        "cmd/zir/zir_vm_internal.h", "bench/site_target_host.c", "bench/zx_execution.zi"]
+    for path: source_paths { Put(*report, source_hashes, path, Hash(path, repo)) }
+    JsonSet(*report, root, "source_sha256", source_hashes)
+    results := JsonNewArray(*report)
+    JsonSet(*report, root, "measurements", results)
+    examples := JsonMember(*matrix, matrix.root, "examples")
+    for repetition: cast(s64)1..repeats {
+        for example_index: cast(s32)0..JsonCount(*matrix, examples) - 1 {
+            example := JsonElement(*matrix, examples, example_index)
+            name := Field(*matrix, example, "id")
+            expected := Field(*matrix, example, "expected")
+            stdout := Field(*matrix, example, "stdout")
+            targets := JsonMember(*matrix, example, "targets")
+            target := JsonMember(*matrix, targets, "zx")
+            if Field(*matrix, target, "status") != "ok" { continue }
+            files := JsonMember(*matrix, target, "files")
+            file := JsonElement(*matrix, files, 0)
+            artifact := JoinPath("site", Field(*matrix, file, "path"))
+            artifact_hash := Hash(artifact, repo)
+            if artifact_hash != Field(*matrix, file, "sha256") { print("stale artifact: %\n", name); return 1 }
+            command: [4]string = .[runner, artifact, expected, Number(samples)]
+            raw := Capture(command[:], repo)
+            if raw == "" { print("runner failed: %\n", name); return 1 }
+            tail := TextTrimEnd(raw)
+            start := tail.count
+            while start > 0 && tail[start - 1] != 10 { start -= 1 }
+            measured: JsonDocument
+            if raw[:start] != stdout || !JsonRead(*measured, tail[start:]) ||
+                Field(*measured, measured.root, "result") != expected {
+                print("output differs from oracle: %\n", name); return 1
+            }
+            batches, valid := JsonInteger(*measured, JsonMember(*measured, measured.root, "batches"))
+            timings := JsonMember(*measured, measured.root, "batch_samples_ms")
+            if !valid || batches < 1 || JsonCount(*measured, timings) != samples { return 1 }
+            values: Vec(float64)
+            for sample: cast(s32)0..cast(s32)samples - 1 {
+                text := JsonNumberText(*measured, JsonElement(*measured, timings, sample))
+                value, ok := ParseFloat64(text)
+                if !ok || value <= 0.0 { return 1 }
+                value /= cast(float64)batches
+                VecPush(values, value)
+                at := values.count - 1
+                while at > 0 && values[at] < values[at - 1] {
+                    previous := values[at - 1]
+                    values[at - 1] = values[at]
+                    values[at] = previous
+                    at -= 1
+                }
+            }
+            q1 := Quantile(values[:], 0.25)
+            q3 := Quantile(values[:], 0.75)
+            low := q1 - 1.5 * (q3 - q1)
+            high := q3 + 1.5 * (q3 - q1)
+            included: Vec(float64)
+            for value: values { if value >= low && value <= high { VecPush(included, value) } }
+            if included.count < 3 { print("too few samples after outlier filtering: %\n", name); return 1 }
+            median := Quantile(included[:], 0.5)
+            analysis := JsonNewObject(*report)
+            Put(*report, analysis, "rule", "Tukey 1.5×IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained")
+            JsonSet(*report, analysis, "lower_ms", JsonNewNumber(*report, Float64Repr(low)))
+            JsonSet(*report, analysis, "upper_ms", JsonNewNumber(*report, Float64Repr(high)))
+            excluded := JsonNewArray(*report)
+            kept := JsonNewArray(*report)
+            for sample: cast(s32)0..cast(s32)samples - 1 {
+                value, ok := ParseFloat64(JsonNumberText(*measured, JsonElement(*measured, timings, sample)))
+                if !ok { return 1 }
+                value /= cast(float64)batches
+                if value < low || value > high { JsonAppend(*report, excluded, JsonNewInteger(*report, cast(s64)sample)) }
+                else { JsonAppend(*report, kept, JsonNewNumber(*report, Float64Repr(value))) }
+            }
+            JsonSet(*report, analysis, "excluded_indices", excluded)
+            JsonSet(*report, analysis, "included_samples_ms", kept)
+            JsonSet(*report, analysis, "median_ms", JsonNewNumber(*report, Float64Repr(median)))
+            record := JsonNewObject(*report)
+            Put(*report, record, "example", name)
+            Put(*report, record, "bundle_sha256", artifact_hash)
+            JsonSet(*report, record, "repetition", JsonNewInteger(*report, repetition))
+            JsonSet(*report, record, "stdout_verified", JsonNewBool(*report, true))
+            JsonSet(*report, record, "execution_median_ms", JsonNewNumber(*report, Float64Repr(median)))
+            JsonSet(*report, record, "sample_statistics", analysis)
+            JsonSet(*report, record, "raw", JsonCopy(*report, *measured, measured.root))
+            JsonAppend(*report, results, record)
+            filename := Concat(name, Concat("-", Concat(Number(repetition), ".txt")))
+            if !WriteEntireFile(JoinPath(output, filename), raw) { return 1 }
+            print("% run %: % µs; output verified\n", name, repetition, median * 1000.0)
+        }
+    }
+    if library == "" || library != Hash("build/libziran.a", repo) { print("runtime changed during measurement\n"); return 1 }
+    for path: source_paths {
+        if Field(*report, source_hashes, path) != Hash(path, repo) {
+            print("source changed during measurement: %\n", path); return 1
+        }
+    }
+    return ifx WriteEntireFile(JoinPath(output, "summary.json"), JsonWrite(*report, root, JsonPythonStyle(2))) then 0 else 1
+}

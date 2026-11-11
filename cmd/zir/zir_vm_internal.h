@@ -513,6 +513,8 @@ typedef struct VmSignature {
     /* Each expression's plan, borrowed from the VM's plan sites, so a call
      * finds one by its index; allocated on the function's first call. */
     struct ScalarPlan **expression_plans;
+    struct VmPrintPlan **print_plans;
+    int *statement_closes;
     const VmParameter *parameters;
 } VmSignature;
 
@@ -667,6 +669,7 @@ struct Frame {
     const ZirFunction *function;
     const uint32_t *operands;
     Frame *caller;
+    const int *statement_closes;
     uint64_t serial; /* identifies this call to pointers at its locals */
     /* Sized for the whole call before it starts (function_local_bound):
      * pointers at locals hold their address, so the array never moves. */
@@ -738,6 +741,7 @@ int vm_type_contains_vec(Vm *vm, const ZirModule *module, const char *type, int 
 int vm_vec_element_type(Vm *vm, const ZirModule *module, const char *type,
                         char *element, size_t element_size);
 void drop_owned_locals(Frame *frame, int first);
+int execute_simple_statement(Frame *frame, const ZirStmt *statement, int depth);
 int parse_parameters(const ZirModule *module, const ZirFunction *function, Parameter *parameters);
 int prepare_signatures(Vm *vm);
 int function_local_bound(const ZirFunction *function, int parameters);

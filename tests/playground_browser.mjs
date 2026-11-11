@@ -49,7 +49,8 @@ async function waitFor(test, message, milliseconds = 15000) {
 function cdp(method, params = {}) {
   return new Promise((resolve, reject) => {
     const next = ++id;
-    const timer = setTimeout(() => { pending.delete(next); reject(new Error('CDP timeout: ' + method)); }, 15000);
+    const timeout = method === 'Page.navigate' ? 45000 : 15000;
+    const timer = setTimeout(() => { pending.delete(next); reject(new Error('CDP timeout: ' + method + ' ' + JSON.stringify(params) + '\n' + browserLog)); }, timeout);
     pending.set(next, {resolve, reject, timer});
     socket.send(JSON.stringify({id: next, method, params}));
   });
@@ -172,6 +173,8 @@ try {
     await waitFor(() => evaluate(`document.readyState === 'complete' && document.fonts.status === 'loaded'`), 'Route did not load: ' + route);
     await evaluate(`document.documentElement.dataset.theme = 'light'`);
     assert.ok(await evaluate(`!!document.querySelector('main h1')`), 'Missing page heading: ' + route);
+    assert.equal(await evaluate(`document.querySelector('#primary-nav a[href$="targets.html"]')?.textContent`), 'Targets', 'Primary navigation: ' + route);
+    assert.equal(await evaluate(`document.querySelector('footer nav a[href$="targets.html"]')?.textContent`), 'Targets', 'Footer navigation: ' + route);
     for (const width of [320, 390, 650, 768, 1024, 1440]) {
       await cdp('Emulation.setDeviceMetricsOverride', {width, height: 1000, deviceScaleFactor: 1, mobile: false});
       if (!await evaluate(`document.documentElement.scrollWidth <= ${width}`)) layoutFailures.push(route + ' at ' + width + ': ' + await evaluate(`JSON.stringify([...document.querySelectorAll('main *, header *, footer *')].filter(e => e.getBoundingClientRect().right > innerWidth + 1).slice(0, 10).map(e => [e.className, Math.round(e.getBoundingClientRect().width)]))`));
@@ -186,10 +189,13 @@ try {
   await cdp('Emulation.setDeviceMetricsOverride', {width: 1440, height: 1080, deviceScaleFactor: 1, mobile: false});
   await cdp('Page.navigate', {url: url + 'targets.html'});
   await waitFor(() => evaluate(`document.querySelector('.matrix-views')?.hidden === false && document.querySelector('#matrix-code')?.textContent.includes('Score ::')`), 'Target matrix did not initialize');
-  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell').length`), 25);
-  assert.equal(await evaluate(`document.querySelectorAll('.target-matrix thead th').length`), 6);
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell').length`), 20);
+  assert.equal(await evaluate(`document.querySelector('.target-matrix thead').querySelectorAll('th').length`), 5);
+  assert.equal(await evaluate(`document.querySelectorAll('.library-cell[href]').length`), 9);
+  assert.match(await evaluate(`document.querySelector('#widgets').textContent`), /excludes pixel rasterization and OS I\/O/);
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell[data-target="zir"]').length`), 0);
   assert.equal(await evaluate(`document.querySelectorAll('.matrix-state.is-limited').length`), 0);
-  for (const [target, content] of [['c', 'score_Answer'], ['go', '_Answer'], ['zx', 'function Answer'], ['zir', 'function Answer'], ['wasm', 'zx_entry']]) {
+  for (const [target, content] of [['c', 'score_Answer'], ['go', '_Answer'], ['zx', 'function Answer'], ['wasm', 'zx_entry']]) {
     await evaluate(`document.querySelector('[data-example="score"][data-target="${target}"]').click()`);
     await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes(${JSON.stringify(content)})`), 'Missing actual output: ' + target);
     assert.equal(await evaluate(`document.querySelector('#matrix-verified').textContent`), target === 'zir' ? 'Checked' : '42');
@@ -211,9 +217,9 @@ try {
     const value = await evaluate(`document.querySelector('[data-example="score"][data-target="c"] .matrix-value').textContent`);
     const formatted = expected < 0.001 ? (expected * 1000000).toFixed(1) + ' ns' : expected < 1 ? (expected * 1000).toFixed(2) + ' µs' : expected.toFixed(2) + ' ms';
     assert.equal(value, formatted);
-    assert.equal(await evaluate(`document.querySelector('[data-example="score"][data-target="zir"] .matrix-value').textContent`), '—');
   }
   assert.match(await evaluate(`document.querySelector('#matrix-sample-range').textContent`), /5 measured batches/);
+  assert.match(await evaluate(`document.querySelector('#matrix-sample-range').textContent`), /outliers excluded \(1.5×IQR\)/);
   assert.equal(await evaluate(`document.querySelector('#matrix-provenance a').getAttribute('href')`), 'generated/targets/matrix.json');
   await evaluate(`document.querySelector('[data-example="text_demo"][data-target="c"]').click()`);
   await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent !== 'Loading output…'`), 'Imported C output did not load');
@@ -232,7 +238,7 @@ try {
   await cdp('Input.dispatchKeyEvent', {type: 'keyDown', key: 'ArrowRight', code: 'ArrowRight', windowsVirtualKeyCode: 39});
   assert.equal(await evaluate(`document.activeElement.id`), 'view-c');
   assert.equal(await evaluate(`document.querySelector('#view-c').getAttribute('aria-selected')`), 'true');
-  await evaluate(`document.querySelector('[data-example="score"][data-target="c"]').click(); document.querySelector('[data-example="arrays"][data-target="zir"]').click()`);
+  await evaluate(`document.querySelector('[data-example="score"][data-target="c"]').click(); document.querySelector('[data-example="arrays"][data-target="c"]').click(); document.querySelector('#view-zir').click()`);
   await waitFor(() => evaluate(`document.querySelector('#matrix-code').textContent.includes('module arrays')`), 'Late fetch replaced selected output');
   await evaluate(`document.documentElement.dataset.theme = 'light'; document.documentElement.style.scrollBehavior = 'auto'; document.activeElement.blur(); window.scrollTo(0, 0)`);
   await screenshot(path.join(artifacts, 'targets-desktop.png'), true);
@@ -246,7 +252,7 @@ try {
   await cdp('Emulation.setScriptExecutionDisabled', {value: true});
   await cdp('Page.navigate', {url: url + 'targets.html'});
   await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript matrix did not load');
-  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell[href]').length`), 25);
+  assert.equal(await evaluate(`document.querySelectorAll('.matrix-cell[href]').length`), 20);
   assert.match(await evaluate(`document.querySelector('#matrix-code').textContent`), /Score ::/);
   await cdp('Page.navigate', {url});
   await waitFor(() => evaluate(`document.readyState === 'complete'`), 'No-JavaScript page did not load');
@@ -254,7 +260,7 @@ try {
   assert.equal(await evaluate(`document.querySelector('#example-text').hidden`), false);
   assert.equal(await evaluate(`document.querySelectorAll('.code-editor').length`), 0);
   assert.deepEqual(exceptions, []);
-  console.log('Website browser local tests: edited programs, diagnostics, cancellation, live diagrams, all target commands, 25 matrix cells, actual output and IR inspection, five WebAssembly runs, three measured platforms, file and metric controls, keyboard navigation, shared links, six widths, eleven routes, both themes and no-JavaScript fallbacks passed');
+  console.log('Website browser local tests: edited programs, diagnostics, cancellation, live diagrams, all target commands, 20 matrix cells, actual output and IR inspection, five WebAssembly runs, three measured platforms, file and metric controls, keyboard navigation, shared links, six widths, eleven routes, both themes and no-JavaScript fallbacks passed');
 } finally {
   if (socket && socket.readyState === WebSocket.OPEN) {
     try { await cdp('Browser.close'); } catch (_) {}

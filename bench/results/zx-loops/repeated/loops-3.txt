@@ -1,0 +1,14 @@
+while 1
+while 2
+while 3
+range 0
+range 1
+range 2
+apple is at 0
+banana is at 1
+cherry is at 2
+odd 1
+odd 3
+odd 5
+odd 7
+{"result":"0","batches":8192,"load_ms":0.401847001,"warmup_ms":150.000317000,"warmup_count":78533,"batch_samples_ms":[12.974068999,13.849711001,13.026774999,13.684612000,14.136654001,14.155656001,13.844800001,15.251994001,14.012149999]}

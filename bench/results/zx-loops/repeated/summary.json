@@ -1,0 +1,390 @@
+{
+  "revision_base": "8d44256676b5e125dfff96e0d551b5e0c1e8a1b7",
+  "methodology": "Unchanged portable ZX bundles; same native host; output verified before timing; warm batches include formatting, null-sink I/O and VM call boundaries; startup and loading excluded.",
+  "runtime_archive_sha256": "337c272140a0ed486a4b64fc3db4b01bb1e6b20039793e04cdd4442c8bbc1f54",
+  "runner_sha256": "c60390f2cfa22de08332f3862e7bda5a4b6a5cd9a1636bb8152b74b6496896de",
+  "source_sha256": {
+    "cmd/zir/zir_vm_eval.c": "a04c7baf51266cdf1a028dea0eb5622716dcc1724eb990e7fbdb9bf8ef94180c",
+    "cmd/zir/zir_vm_run.c": "ac2e371516660cdd59ef75c728ce581d8af82e72c49e759f2f9a497204051b72",
+    "cmd/zir/zir_vm_internal.h": "b7a69a940033b54630d9c82c73a3eb578984c993d8a2ad3ad1fe17fb424060a0",
+    "bench/site_target_host.c": "f9655f005582f8ffb6c95561884f8aaa96ca47fefd5426d7c3293f9146457c8e",
+    "bench/zx_execution.zi": "d37b11f0c9c59108da655b9c6cdf7715691029c3860b6b60af49dc9f31102b0f"
+  },
+  "measurements": [
+    {
+      "example": "score",
+      "bundle_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0002842539520263672,
+      "raw": {
+        "result": "42",
+        "batches": 65536,
+        "load_ms": 1.019989001,
+        "warmup_ms": 150.000116000,
+        "warmup_count": 430799,
+        "batch_samples_ms": [
+          18.317050001,
+          17.975651002,
+          18.628867000,
+          19.603490001,
+          18.387528999,
+          17.976041000,
+          19.137616001,
+          19.712751999,
+          18.785495000
+        ]
+      }
+    },
+    {
+      "example": "text_demo",
+      "bundle_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0008717066038818359,
+      "raw": {
+        "result": "1",
+        "batches": 16384,
+        "load_ms": 0.487906000,
+        "warmup_ms": 150.000436999,
+        "warmup_count": 164890,
+        "batch_samples_ms": [
+          14.266469000,
+          13.882934999,
+          15.660171000,
+          14.712272000,
+          14.622841001,
+          13.992337000,
+          16.118825002,
+          13.773011999,
+          14.282040998
+        ]
+      }
+    },
+    {
+      "example": "arrays",
+      "bundle_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001973945556640625,
+      "raw": {
+        "result": "0",
+        "batches": 4096,
+        "load_ms": 0.668858001,
+        "warmup_ms": 150.000697000,
+        "warmup_count": 69805,
+        "batch_samples_ms": [
+          8.764279000,
+          8.085281000,
+          8.260900000,
+          10.474098999,
+          7.601224000,
+          7.770053999,
+          8.475295000,
+          7.358366000,
+          7.604225000
+        ]
+      }
+    },
+    {
+      "example": "enums",
+      "bundle_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0011187196044921874,
+      "raw": {
+        "result": "0",
+        "batches": 16384,
+        "load_ms": 0.579127999,
+        "warmup_ms": 150.000375999,
+        "warmup_count": 110986,
+        "batch_samples_ms": [
+          20.292090001,
+          18.667321000,
+          19.063006999,
+          18.274486000,
+          18.329102000,
+          18.696874000,
+          18.230930999,
+          18.224350000,
+          18.112226000
+        ]
+      }
+    },
+    {
+      "example": "loops",
+      "bundle_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0017714340822753906,
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.375523999,
+        "warmup_ms": 150.001606999,
+        "warmup_count": 74984,
+        "batch_samples_ms": [
+          14.054645000,
+          15.301889000,
+          14.902333001,
+          14.480924001,
+          14.946469000,
+          14.931716001,
+          14.420097999,
+          14.120852001,
+          14.511588002
+        ]
+      }
+    },
+    {
+      "example": "score",
+      "bundle_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+      "repetition": 2,
+      "stdout_verified": true,
+      "execution_median_ms": 0.000272777236907959,
+      "raw": {
+        "result": "42",
+        "batches": 65536,
+        "load_ms": 0.275202001,
+        "warmup_ms": 150.000087000,
+        "warmup_count": 418755,
+        "batch_samples_ms": [
+          19.701161999,
+          18.187465001,
+          18.598023001,
+          17.820803000,
+          17.610078001,
+          17.829784000,
+          17.876728998,
+          18.445966000,
+          17.800580001
+        ]
+      }
+    },
+    {
+      "example": "text_demo",
+      "bundle_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+      "repetition": 2,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0008017747802734375,
+      "raw": {
+        "result": "1",
+        "batches": 16384,
+        "load_ms": 0.351851000,
+        "warmup_ms": 150.000277000,
+        "warmup_count": 170885,
+        "batch_samples_ms": [
+          13.136278000,
+          12.833782000,
+          14.317546001,
+          14.382352000,
+          12.855545999,
+          14.562724000,
+          13.130317001,
+          13.188544001,
+          12.671723999
+        ]
+      }
+    },
+    {
+      "example": "arrays",
+      "bundle_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
+      "repetition": 2,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0016764193115234374,
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.503227999,
+        "warmup_ms": 150.000296999,
+        "warmup_count": 81368,
+        "batch_samples_ms": [
+          13.733227000,
+          13.253012000,
+          16.401407000,
+          13.184793999,
+          13.801005000,
+          13.263183000,
+          13.475757001,
+          15.193918001,
+          14.175128000
+        ]
+      }
+    },
+    {
+      "example": "enums",
+      "bundle_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
+      "repetition": 2,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001138232971130371,
+      "raw": {
+        "result": "0",
+        "batches": 16384,
+        "load_ms": 0.654576000,
+        "warmup_ms": 150.001015998,
+        "warmup_count": 115762,
+        "batch_samples_ms": [
+          19.314896999,
+          18.913020000,
+          18.555338001,
+          19.221826000,
+          18.189485000,
+          18.648808999,
+          18.534426000,
+          19.318306999,
+          18.094275001
+        ]
+      }
+    },
+    {
+      "example": "loops",
+      "bundle_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+      "repetition": 2,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0016873482666015624,
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.396385999,
+        "warmup_ms": 150.001377000,
+        "warmup_count": 79850,
+        "batch_samples_ms": [
+          14.062775001,
+          14.437650001,
+          13.192253999,
+          13.766111000,
+          14.143525001,
+          13.702273000,
+          13.998857999,
+          13.822757000,
+          13.791733999
+        ]
+      }
+    },
+    {
+      "example": "score",
+      "bundle_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+      "repetition": 3,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0002741271972808838,
+      "raw": {
+        "result": "42",
+        "batches": 65536,
+        "load_ms": 0.320636999,
+        "warmup_ms": 150.000266999,
+        "warmup_count": 438112,
+        "batch_samples_ms": [
+          17.691438001,
+          18.066800999,
+          17.619309999,
+          20.158474000,
+          17.965200001,
+          17.842724999,
+          18.204108002,
+          17.779408000,
+          18.207788000
+        ]
+      }
+    },
+    {
+      "example": "text_demo",
+      "bundle_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+      "repetition": 3,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0008013364868164062,
+      "raw": {
+        "result": "1",
+        "batches": 16384,
+        "load_ms": 0.500279000,
+        "warmup_ms": 150.000676000,
+        "warmup_count": 162153,
+        "batch_samples_ms": [
+          13.036976000,
+          15.863946000,
+          12.766194001,
+          12.939114999,
+          13.129097000,
+          15.857045000,
+          13.730617000,
+          12.969608000,
+          13.818916999
+        ]
+      }
+    },
+    {
+      "example": "arrays",
+      "bundle_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
+      "repetition": 3,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0017289595948486328,
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.478936000,
+        "warmup_ms": 150.001306999,
+        "warmup_count": 77826,
+        "batch_samples_ms": [
+          16.840267999,
+          13.450594999,
+          13.681160999,
+          14.163637001,
+          14.396505000,
+          14.634372002,
+          14.190391000,
+          13.807275999,
+          13.740118001
+        ]
+      }
+    },
+    {
+      "example": "enums",
+      "bundle_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
+      "repetition": 3,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001102312011779785,
+      "raw": {
+        "result": "0",
+        "batches": 16384,
+        "load_ms": 0.454522999,
+        "warmup_ms": 150.000876999,
+        "warmup_count": 116667,
+        "batch_samples_ms": [
+          17.871758999,
+          17.936265999,
+          18.233251000,
+          18.060280001,
+          17.776347000,
+          18.088464001,
+          18.024055999,
+          18.699274002,
+          18.352004999
+        ]
+      }
+    },
+    {
+      "example": "loops",
+      "bundle_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+      "repetition": 3,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0016906385499267577,
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.401847001,
+        "warmup_ms": 150.000317000,
+        "warmup_count": 78533,
+        "batch_samples_ms": [
+          12.974068999,
+          13.849711001,
+          13.026774999,
+          13.684612000,
+          14.136654001,
+          14.155656001,
+          13.844800001,
+          15.251994001,
+          14.012149999
+        ]
+      }
+    }
+  ]
+}

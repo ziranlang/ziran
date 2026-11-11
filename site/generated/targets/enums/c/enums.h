@@ -3,6 +3,10 @@
 #define ZIRAN_ENUMS_H
 
 #include <stdint.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 typedef int64_t Shape;
 
 enum {
@@ -14,7 +18,7 @@ int32_t enums_Corners(Shape shape);
 void enums_main(void);
 
 /* Small procedures other modules inline; enums.c defines them. */
-#if !defined(ZIRAN_ENUMS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#if !defined(__cplusplus) && !defined(ZIRAN_ENUMS_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
 #include <stdint.h>
 static inline int32_t enums_Corners_ziran_inline(Shape shape);
 #define enums_Corners(...) enums_Corners_ziran_inline(__VA_ARGS__)
@@ -37,6 +41,10 @@ enums_Corners_ziran_inline(Shape shape)
         }
     }
     return -1;
+}
+#endif
+
+#ifdef __cplusplus
 }
 #endif
 

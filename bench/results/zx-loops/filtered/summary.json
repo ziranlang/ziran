@@ -1,0 +1,233 @@
+{
+  "revision_base": "8d44256676b5e125dfff96e0d551b5e0c1e8a1b7",
+  "methodology": "Unchanged portable ZX bundles; same native host; output verified before timing; warm batches include formatting, null-sink I/O and VM call boundaries; startup and loading excluded; symmetric 1.5\u00d7IQR outliers excluded from medians; raw samples and excluded indices retained.",
+  "runtime_archive_sha256": "337c272140a0ed486a4b64fc3db4b01bb1e6b20039793e04cdd4442c8bbc1f54",
+  "runner_sha256": "c60390f2cfa22de08332f3862e7bda5a4b6a5cd9a1636bb8152b74b6496896de",
+  "source_sha256": {
+    "cmd/zir/zir_vm_eval.c": "a04c7baf51266cdf1a028dea0eb5622716dcc1724eb990e7fbdb9bf8ef94180c",
+    "cmd/zir/zir_vm_run.c": "ac2e371516660cdd59ef75c728ce581d8af82e72c49e759f2f9a497204051b72",
+    "cmd/zir/zir_vm_internal.h": "b7a69a940033b54630d9c82c73a3eb578984c993d8a2ad3ad1fe17fb424060a0",
+    "bench/site_target_host.c": "f9655f005582f8ffb6c95561884f8aaa96ca47fefd5426d7c3293f9146457c8e",
+    "bench/zx_execution.zi": "14d3de5266152acc4424b95f2288f22c9ee544be904e3927df5ee5c5e41b7b16"
+  },
+  "measurements": [
+    {
+      "example": "score",
+      "bundle_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0002784398193359375,
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.0002297537612915039,
+        "upper_ms": 0.00034315982818603516,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.00026863372802734376,
+          0.00030766380310058594,
+          0.0003201437072753906,
+          0.0002874867706298828,
+          0.00027228103637695313,
+          0.0002738730010986328,
+          0.0002784398193359375,
+          0.0002682937469482422,
+          0.00030063255310058595
+        ],
+        "median_ms": 0.0002784398193359375
+      },
+      "raw": {
+        "result": "42",
+        "batches": 65536,
+        "load_ms": 0.674131000,
+        "warmup_ms": 150.000140000,
+        "warmup_count": 439118,
+        "batch_samples_ms": [
+          17.605180000,
+          20.163055000,
+          20.980938000,
+          18.840733000,
+          17.844210000,
+          17.948541000,
+          18.247832000,
+          17.582899000,
+          19.702255000
+        ]
+      }
+    },
+    {
+      "example": "text_demo",
+      "bundle_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.0007691985168457031,
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.0007551746520996093,
+        "upper_ms": 0.0007850162048339846,
+        "excluded_indices": [
+          0
+        ],
+        "included_samples_ms": [
+          0.0007707030639648437,
+          0.0007731511840820312,
+          0.0007623521728515625,
+          0.0007676939697265625,
+          0.0007750872192382812,
+          0.0007655925903320312,
+          0.0007738256225585938,
+          0.000766365234375
+        ],
+        "median_ms": 0.0007691985168457031
+      },
+      "raw": {
+        "result": "1",
+        "batches": 16384,
+        "load_ms": 0.319671000,
+        "warmup_ms": 150.000881000,
+        "warmup_count": 176706,
+        "batch_samples_ms": [
+          12.967379000,
+          12.627199000,
+          12.667309000,
+          12.490378000,
+          12.577898000,
+          12.699029000,
+          12.543469000,
+          12.678359000,
+          12.556128000
+        ]
+      }
+    },
+    {
+      "example": "arrays",
+      "bundle_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001619400634765625,
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.0015171899414062498,
+        "upper_ms": 0.00173440673828125,
+        "excluded_indices": [
+          1
+        ],
+        "included_samples_ms": [
+          0.0016415003662109376,
+          0.0016733631591796874,
+          0.0015899365234375,
+          0.001621785888671875,
+          0.001598646240234375,
+          0.001652950439453125,
+          0.001617015380859375,
+          0.0015898095703125
+        ],
+        "median_ms": 0.001619400634765625
+      },
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.408691000,
+        "warmup_ms": 150.001501000,
+        "warmup_count": 81870,
+        "batch_samples_ms": [
+          13.447171000,
+          14.515563000,
+          13.708191000,
+          13.024760000,
+          13.285670000,
+          13.096110000,
+          13.540970000,
+          13.246590000,
+          13.023720000
+        ]
+      }
+    },
+    {
+      "example": "enums",
+      "bundle_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001066841094970703,
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.0010607135009765623,
+        "upper_ms": 0.001074468383789063,
+        "excluded_indices": [
+          8
+        ],
+        "included_samples_ms": [
+          0.0010716668701171875,
+          0.001069310302734375,
+          0.0010665801391601562,
+          0.001064840087890625,
+          0.0010621721801757813,
+          0.00106587158203125,
+          0.0010687896728515626,
+          0.00106710205078125
+        ],
+        "median_ms": 0.001066841094970703
+      },
+      "raw": {
+        "result": "0",
+        "batches": 16384,
+        "load_ms": 0.412961000,
+        "warmup_ms": 150.000980000,
+        "warmup_count": 123183,
+        "batch_samples_ms": [
+          17.558190000,
+          17.519580000,
+          17.474849000,
+          17.446340000,
+          17.402629000,
+          17.463240000,
+          17.511050000,
+          17.483400000,
+          17.765010000
+        ]
+      }
+    },
+    {
+      "example": "loops",
+      "bundle_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+      "repetition": 1,
+      "stdout_verified": true,
+      "execution_median_ms": 0.001595146484375,
+      "sample_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.0015572509765625,
+        "upper_ms": 0.0016498095703125,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.001595662841796875,
+          0.0015840709228515625,
+          0.0016404932861328126,
+          0.0015865574951171874,
+          0.001592044677734375,
+          0.00161510009765625,
+          0.001595146484375,
+          0.00162054931640625,
+          0.00159196044921875
+        ],
+        "median_ms": 0.001595146484375
+      },
+      "raw": {
+        "result": "0",
+        "batches": 8192,
+        "load_ms": 0.436981000,
+        "warmup_ms": 150.000301000,
+        "warmup_count": 81927,
+        "batch_samples_ms": [
+          13.071670000,
+          12.976709000,
+          13.438921000,
+          12.997079000,
+          13.042030000,
+          13.230900000,
+          13.067440000,
+          13.275540000,
+          13.041340000
+        ]
+      }
+    }
+  ]
+}

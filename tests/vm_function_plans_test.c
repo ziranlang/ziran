@@ -53,7 +53,8 @@ execute(VmInstance *instance, const ZirFunction *function, const Value *args,
         assert(signature->scalar_plan->output > 0 &&
                signature->scalar_plan->output <= SCALAR_PLAN_STEPS + 1);
         if(signature->scalar_plan->calls) {
-            assert(!strncmp(function->name, "Call", 4) || !strncmp(function->name, "TextCall", 8));
+            assert(!strncmp(function->name, "Call", 4) || !strncmp(function->name, "TextCall", 8) ||
+                   !strncmp(function->name, "Collection", 10));
         } else assert(vm->allocation == allocation);
         if(!strcmp(function->name, "Large")) assert(signature->scalar_plan->count > 255);
     } else flow = execute_sequence(&frame, 0, function->stmt_count, 0, result);
@@ -82,7 +83,7 @@ main(int argc, char **argv)
     const char *names[] = {"Kernel", "Named", "Numeric", "Skipped", "Failure", "RealFailure", "Large",
         "TextScan", "TextFailure", "TextCopy", "TextCompare",
         "CallOrdering", "CallErrors", "CallRecursive", "CallSlot", "TextCalls", "TextCallScan",
-        "TextCallMutation"};
+        "TextCallMutation", "CollectionCopies", "CollectionStrings", "CollectionZero"};
     unsigned char bytes[] = {0, 'a', 255, 'b', 0xc3, 0xa9, 0, 13, 'z'};
     canonical->vm.collection_threshold = compiled->vm.collection_threshold = 1;
     const int limits[] = {-1, 0, 1, 2, 7, 16, 23, 64};

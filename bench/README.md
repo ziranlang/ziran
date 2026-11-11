@@ -1,5 +1,31 @@
 # Runtime and compiler benchmarks
 
+## Portable ZX execution
+
+```sh
+build-queue -- build/bin/ziran run --target=c bench/zx_execution.zi
+```
+
+This Ziran script measures every unchanged portable bundle in the published
+target matrix, verifies output and checksums, and records three repetitions of
+nine warm batches. Symmetric 1.5×IQR filtering excludes anomalies from each median while retaining the raw samples and excluded indices. Source, library and bundle hashes detect drift. Retained
+before/after measurements and the bottleneck analysis are in
+[`results/zx-loops/README.md`](results/zx-loops/README.md).
+
+Library workloads live upstream. The website's generic library harness accepts
+Kryon's manifest without adding widget behavior to Ziran:
+
+```sh
+build-queue -- python3 scripts/site_library_targets.py \
+  --project ../../kryonlabs/kryon \
+  --manifest ../../kryonlabs/kryon/tests/widget_benchmarks.json --samples 9
+```
+
+Use the actual Kryon checkout path. The published archive contains all checked modules;
+the source fixtures, generated C/Go/ZX and raw samples are downloadable.
+These desktop cases measure public widget behavior and recorded paint commands,
+excluding pixel rasterization and OS I/O.
+
 ## Fresh compiler rebuild
 
 ```sh

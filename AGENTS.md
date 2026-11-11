@@ -38,3 +38,7 @@ do not import a UI library.
   benchmark scripts in Ziran under `bench/`, and retained benchmark reports
   and logs under tracked `bench/results/` paths. Temporary compiler and test
   outputs belong in the existing `build/` layout.
+
+- Exclude statistical anomalies from benchmark results using the same symmetric
+  1.5×IQR rule for all targets and platforms (inclusive interpolated quartiles).
+  Keep raw samples and excluded indices; never silently discard measurements.

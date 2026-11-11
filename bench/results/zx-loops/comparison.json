@@ -1,0 +1,426 @@
+{
+  "baseline": "baseline-desktop-all.json",
+  "candidate": "repeated/summary.json",
+  "analysis": "Symmetric Tukey 1.5\u00d7IQR fences, inclusive interpolated quartiles, independently applied to each set of nine raw batches; median of three candidate medians. Historical raw evidence retained unchanged.",
+  "examples": [
+    {
+      "example": "loops",
+      "baseline_ms": 0.024251103517578126,
+      "candidate_ms": 0.0016980966185913085,
+      "speedup": 14.28134491999409,
+      "baseline_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.02370436620800781,
+        "upper_ms": 0.025074764653320314,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.024218265625,
+          0.024196505859375,
+          0.024685097658203124,
+          0.024251103517578126,
+          0.024474583984375,
+          0.024237564451171874,
+          0.024560865236328125,
+          0.024069986328125,
+          0.024577173830078125
+        ],
+        "median_ms": 0.024251103517578126
+      },
+      "repeated_statistics": [
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.001666585814941406,
+          "upper_ms": 0.0019163992924804687,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0017156549072265626,
+            0.0018679063720703124,
+            0.0018191324464111329,
+            0.0017676909180908203,
+            0.0018245201416015626,
+            0.0018227192384033203,
+            0.0017602658690185546,
+            0.0017237368165283202,
+            0.0017714340822753906
+          ],
+          "median_ms": 0.0017714340822753906
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.001626112670715332,
+          "upper_ms": 0.0017709681399536133,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.0017166473389892579,
+            0.0017624084473876953,
+            0.0016804334716796876,
+            0.0017265045167236329,
+            0.0016726407470703125,
+            0.0017088449705810547,
+            0.0016873482666015624,
+            0.0016835612791748047
+          ],
+          "median_ms": 0.0016980966185913085
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0015877135007934568,
+          "upper_ms": 0.0018084371340942383,
+          "excluded_indices": [
+            0,
+            7
+          ],
+          "included_samples_ms": [
+            0.0016906385499267577,
+            0.0015901824949951173,
+            0.00167048486328125,
+            0.0017256657716064453,
+            0.0017279853516845704,
+            0.0016900390626220702,
+            0.0017104675291748047
+          ],
+          "median_ms": 0.0016906385499267577
+        }
+      ],
+      "bundle_sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac"
+    },
+    {
+      "example": "text_demo",
+      "baseline_ms": 0.008926365234375,
+      "candidate_ms": 0.0008017747802734375,
+      "speedup": 11.133257685319997,
+      "baseline_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.00829767626879883,
+        "upper_ms": 0.009774977052001952,
+        "excluded_indices": [],
+        "included_samples_ms": [
+          0.00877586962890625,
+          0.008926365234375,
+          0.00876088720703125,
+          0.00922098925830078,
+          0.00937235497998047,
+          0.0088516640625,
+          0.009275424805175781,
+          0.0090596767578125,
+          0.00889695263671875
+        ],
+        "median_ms": 0.008926365234375
+      },
+      "repeated_statistics": [
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0007881124572753904,
+          "upper_ms": 0.0009638778381347657,
+          "excluded_indices": [
+            6
+          ],
+          "included_samples_ms": [
+            0.0008707561645507813,
+            0.0008473471068725586,
+            0.0009558209838867188,
+            0.0008979658203125,
+            0.0008925073853149414,
+            0.0008540244750976562,
+            0.0008406379393920898,
+            0.0008717066038818359
+          ],
+          "median_ms": 0.0008712313842163086
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0006507901608886719,
+          "upper_ms": 0.001007723755126953,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0008017747802734375,
+            0.0007833118896484375,
+            0.0008738736572875977,
+            0.0008778291015625,
+            0.0007846402587280274,
+            0.000888838134765625,
+            0.0008014109497680664,
+            0.0008049648438110352,
+            0.0007734206542358398
+          ],
+          "median_ms": 0.0008017747802734375
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0007138454895935057,
+          "upper_ms": 0.0009211963194274904,
+          "excluded_indices": [
+            1,
+            5
+          ],
+          "included_samples_ms": [
+            0.0007957138671875,
+            0.0007791866455688477,
+            0.0007897409057006835,
+            0.0008013364868164062,
+            0.0008380503540039063,
+            0.00079160205078125,
+            0.0008434397582397461
+          ],
+          "median_ms": 0.0007957138671875
+        }
+      ],
+      "bundle_sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d"
+    },
+    {
+      "example": "enums",
+      "baseline_ms": 0.013325978025878905,
+      "candidate_ms": 0.0011170528564453126,
+      "speedup": 11.929585917970662,
+      "baseline_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.012526393067871094,
+        "upper_ms": 0.014300232907714844,
+        "excluded_indices": [
+          8
+        ],
+        "included_samples_ms": [
+          0.0137405439453125,
+          0.013354785154296875,
+          0.013080251952148438,
+          0.0135600927734375,
+          0.013297170897460938,
+          0.013635042967773438,
+          0.0131516083984375,
+          0.0131915830078125
+        ],
+        "median_ms": 0.013325978025878905
+      },
+      "repeated_statistics": [
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0010700693663024904,
+          "upper_ms": 0.0011838249817810059,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.0011393628540039063,
+            0.0011635136107788085,
+            0.0011153861083984375,
+            0.0011187196044921874,
+            0.0011411666259765626,
+            0.0011127277221069337,
+            0.0011123260498046876,
+            0.0011054825439453125
+          ],
+          "median_ms": 0.0011170528564453126
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0010683182373046876,
+          "upper_ms": 0.0012361405029296876,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.001178887756286621,
+            0.001154359130859375,
+            0.0011325279541625976,
+            0.0011732071533203125,
+            0.0011101980590820313,
+            0.001138232971130371,
+            0.0011312515869140625,
+            0.0011790958861694336,
+            0.0011043869019165039
+          ],
+          "median_ms": 0.001138232971130371
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0010675530088806152,
+          "upper_ms": 0.0011400591126403807,
+          "excluded_indices": [
+            7
+          ],
+          "included_samples_ms": [
+            0.0010908056029663086,
+            0.0010947427977905273,
+            0.0011128693237304687,
+            0.001102312011779785,
+            0.0010849821166992188,
+            0.001104032226623535,
+            0.001100101074157715,
+            0.001120117492614746
+          ],
+          "median_ms": 0.00110120654296875
+        }
+      ],
+      "bundle_sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4"
+    },
+    {
+      "example": "arrays",
+      "baseline_ms": 0.01664157421875,
+      "candidate_ms": 0.0017072090454101562,
+      "speedup": 9.74782453472291,
+      "baseline_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.015203782716308591,
+        "upper_ms": 0.018561247556152346,
+        "excluded_indices": [
+          0
+        ],
+        "included_samples_ms": [
+          0.0163227578125,
+          0.01646283203125,
+          0.016197822265625,
+          0.016745306640625,
+          0.016953719727539063,
+          0.016537841796875,
+          0.017302198241210938,
+          0.017445564454101562
+        ],
+        "median_ms": 0.01664157421875
+      },
+      "repeated_statistics": [
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0015375048828125,
+          "upper_ms": 0.0023881591796874996,
+          "excluded_indices": [
+            3
+          ],
+          "included_samples_ms": [
+            0.002139716552734375,
+            0.001973945556640625,
+            0.0020168212890625,
+            0.001855767578125,
+            0.0018969858395996094,
+            0.002069163818359375,
+            0.00179647607421875,
+            0.001856500244140625
+          ],
+          "median_ms": 0.0019354656981201172
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0014520587768554684,
+          "upper_ms": 0.001897344421386719,
+          "excluded_indices": [
+            2
+          ],
+          "included_samples_ms": [
+            0.0016764193115234374,
+            0.00161779931640625,
+            0.0016094719237060547,
+            0.0016846929931640625,
+            0.0016190408935546875,
+            0.0016449898682861328,
+            0.0018547263184814453,
+            0.0017303623046875
+          ],
+          "median_ms": 0.001660704589904785
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0015570724490356449,
+          "upper_ms": 0.001877573913391113,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.0016419183348388672,
+            0.0016700635985107421,
+            0.0017289595948486328,
+            0.0017573858642578124,
+            0.0017864223635253905,
+            0.0017322254638671875,
+            0.0016854584959716797,
+            0.0016772604981689454
+          ],
+          "median_ms": 0.0017072090454101562
+        }
+      ],
+      "bundle_sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df"
+    },
+    {
+      "example": "score",
+      "baseline_ms": 0.008621774658447264,
+      "candidate_ms": 0.00027319278717041014,
+      "speedup": 31.55930560153932,
+      "baseline_statistics": {
+        "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+        "lower_ms": 0.008192792725830077,
+        "upper_ms": 0.009041462645751955,
+        "excluded_indices": [
+          8
+        ],
+        "included_samples_ms": [
+          0.00872321142578125,
+          0.00863987255908203,
+          0.008441694336425781,
+          0.008681874022949218,
+          0.00881036035205078,
+          0.00851104394580078,
+          0.008475018555175781,
+          0.0086036767578125
+        ],
+        "median_ms": 0.008621774658447264
+      },
+      "repeated_statistics": [
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.00026071473695373523,
+          "upper_ms": 0.0003107981109771729,
+          "excluded_indices": [],
+          "included_samples_ms": [
+            0.0002794960022125244,
+            0.00027428666690063476,
+            0.0002842539520263672,
+            0.0002991255188140869,
+            0.0002805714263763428,
+            0.00027429261779785154,
+            0.0002920168457183838,
+            0.00030079272459411624,
+            0.00028664390563964845
+          ],
+          "median_ms": 0.0002842539520263672
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.0002576150283813477,
+          "upper_ms": 0.0002957719497680663,
+          "excluded_indices": [
+            0
+          ],
+          "included_samples_ms": [
+            0.00027751869203186035,
+            0.00028378330995178225,
+            0.0002719238739013672,
+            0.0002687084655914307,
+            0.0002720609130859375,
+            0.000272777236907959,
+            0.00028146310424804685,
+            0.00027161529542541504
+          ],
+          "median_ms": 0.00027241907499694825
+        },
+        {
+          "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
+          "lower_ms": 0.000261571624710083,
+          "upper_ms": 0.0002874932556915284,
+          "excluded_indices": [
+            3
+          ],
+          "included_samples_ms": [
+            0.0002699499206695557,
+            0.0002756775054779053,
+            0.00026884933470153806,
+            0.0002741271972808838,
+            0.00027225837705993655,
+            0.00027777264407348635,
+            0.000271292236328125,
+            0.00027782879638671876
+          ],
+          "median_ms": 0.00027319278717041014
+        }
+      ],
+      "bundle_sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0"
+    }
+  ]
+}

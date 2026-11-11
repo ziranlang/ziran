@@ -1,0 +1,22 @@
+Functions sorted by metric: Exclusive Total CPU Time
+
+Excl. Total   Incl. Total    Name
+CPU           CPU
+ sec.      %   sec.      %
+0.007 100.00  0.007 100.00   <Total>
+0.004  57.14  0.004  57.14   __read_nocancel
+0.002  28.57  0.002  28.57   <static>@0x64f77 (<libc.so.6>)
+0.001  14.29  0.001  14.29   integer_operation_width
+0.      0.    0.007 100.00   <static>@0x29c21 (<libc.so.6>)
+0.      0.    0.007 100.00   VmInstanceRun
+0.      0.    0.007 100.00   VmInstanceRun_in_context
+0.      0.    0.004  57.14   _IO_file_underflow
+0.      0.    0.002  28.57   __isoc23_sscanf
+0.      0.    0.007 100.00   batch
+0.      0.    0.001  14.29   binary_value
+0.      0.    0.001  14.29   execute_sequence_body
+0.      0.    0.004  57.14   getdelim
+0.      0.    0.007 100.00   main
+0.      0.    0.006  85.71   pthread_getattr_np
+0.      0.    0.001  14.29   run_prepared_function
+

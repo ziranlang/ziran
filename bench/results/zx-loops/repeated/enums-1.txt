@@ -1,0 +1,4 @@
+a circle has 0 corners
+a square has 4 corners
+a triangle has 3 corners
+{"result":"0","batches":16384,"load_ms":0.579127999,"warmup_ms":150.000375999,"warmup_count":110986,"batch_samples_ms":[20.292090001,18.667321000,19.063006999,18.274486000,18.329102000,18.696874000,18.230930999,18.224350000,18.112226000]}

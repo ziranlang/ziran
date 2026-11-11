@@ -5,15 +5,7 @@ export YUE_DESKTOP_RECOVERY=0
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/compiler-files-portable.XXXXXX")
-wine_prefix_started=0
-cleanup() {
-    if [ "$wine_prefix_started" = 1 ]; then
-        WINEPREFIX="$work/prefix" wineserver -k || :
-        WINEPREFIX="$work/prefix" wineserver -w || :
-    fi
-    rm -rf "$work"
-}
-trap cleanup EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "${CC:-cc}" -D_GNU_SOURCE -std=c11 -Wall -Wextra -Werror \
     -I"$root/cmd/zir" -I"$root/bootstrap/compiler_ir" "$root/tests/compiler_files_portable.c" \
@@ -34,17 +26,4 @@ fi
     "$root/tests/compiler_files_portable.c" "$root/cmd/zir/zir_files.c" "$root/cmd/zir/zir_memory.c" \
     "$@" -o "$work/files.exe"
 
-wine=${WINE:-wine}
-if ! command -v "$wine" >/dev/null 2>&1 || \
-    ! command -v wineserver >/dev/null 2>&1 || \
-    ! command -v xvfb-run >/dev/null 2>&1; then
-    echo 'compiler_files_portable: native and Windows compile/link passed'
-    exit 0
-fi
-mkdir "$work/windows"
-wine_prefix_started=1
-(cd "$work/windows" && \
-    WINEPREFIX="$work/prefix" WINEDEBUG=-all \
-    WINEDLLOVERRIDES='mscoree,mshtml=' \
-    xvfb-run -a "$wine" "$work/files.exe")
-echo 'compiler_files_portable: native and Windows file operations passed'
+echo 'compiler_files_portable: native file operations and Windows compile/link passed'

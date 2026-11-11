@@ -6,14 +6,7 @@ ziran=${1:?pass ziran}
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/std-time-windows.XXXXXX")
-cleanup() {
-    if [ -d "$work/prefix" ] && command -v wineserver >/dev/null 2>&1; then
-        WINEPREFIX="$work/prefix" wineserver -k || :
-        WINEPREFIX="$work/prefix" wineserver -w || :
-    fi
-    rm -rf "$work"
-}
-trap cleanup EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 "$ziran" ir --root "$root/tests/spec" --module-path "$root/std" \
     --define _WIN32 -o "$work/ir" "$root/tests/spec/time_windows_test.zi"
@@ -64,15 +57,9 @@ int main(void) {
 C
     "$cc" -std=c11 -static -Wall -Wextra -Werror -I"$root/include" -I"$out" \
         "$out"/*.c "$@" -o "$work/time-$input.exe"
-    if command -v "${WINE:-wine}" >/dev/null 2>&1; then
-        # The prefix belongs only to this test. Scrubbed display variables
-        # prevent Wine's first-run services from touching the owner's desktop.
-        WINEPREFIX="$work/prefix" WINEDEBUG=-all WINEDLLOVERRIDES='mscoree,mshtml=' \
-            "${WINE:-wine}" "$work/time-$input.exe"
-    fi
 done
 if "$can_link"; then
-    echo 'std_time_windows: source and saved IR linked; Wine checks ran when available'
+    echo 'std_time_windows: source and saved IR generated, compiled and linked'
 else
     echo "std_time_windows: no working $cc; source and saved IR generation checked"
 fi

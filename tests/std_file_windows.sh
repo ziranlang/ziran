@@ -4,7 +4,7 @@ unset DISPLAY WAYLAND_DISPLAY
 
 # The native file and mapping modules on Windows: generate for _WIN32, link
 # with MinGW when it is installed (PE links report every unresolved symbol,
-# even in unused code), and run the result under Wine when that is present.
+# even in unused code).
 ziran=${1:?pass ziran}
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 compiler=$(dirname -- "$ziran")/zi2c
@@ -30,13 +30,4 @@ fi
     $(find "$work/gen" -name '*.h' -exec dirname {} \; | sort -u | sed 's/^/-iquote/') \
     $(find "$work/gen" -name '*.c') -o "$work/files.exe"
 
-wine=${WINE:-wine}
-if ! command -v "$wine" > /dev/null 2>&1; then
-    echo "std_file_windows: $wine unavailable; link checked only"
-    exit 0
-fi
-# A new Wine prefix takes over a gigabyte; reuse one when WINEPREFIX names it.
-mkdir "$work/run"
-(cd "$work/run" && WINEPREFIX="${WINEPREFIX:-$work/prefix}" WINEDEBUG=-all \
-    WINEDLLOVERRIDES='mscoree,mshtml=' "$wine" "$work/files.exe")
-echo "std_file_windows: passed under Wine"
+echo 'std_file_windows: file modules compiled and linked with MinGW'

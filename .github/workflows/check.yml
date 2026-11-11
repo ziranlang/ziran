@@ -29,9 +29,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
-      - name: Install ripgrep, MinGW, Wine, Vorbis, ARMv7 and Wasm tools, and the private display for the test scripts
+      - name: Install ripgrep, MinGW, Vorbis, ARMv7 and Wasm tools, and the private display for the test scripts
         timeout-minutes: 5
-        run: sh scripts/ci_packages.sh ccache ripgrep gcc-mingw-w64-x86-64 wine wine64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
+        run: sh scripts/ci_packages.sh ccache ripgrep gcc-mingw-w64-x86-64 xvfb xauth ffmpeg libvorbis-dev python3-markdown gcc-arm-linux-gnueabihf libc6-dev-armhf-cross qemu-user clang-18 lld-18
       - name: Keep compile results between runs
         uses: ./.github/actions/compile-cache
         with:

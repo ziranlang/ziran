@@ -1616,9 +1616,8 @@ without winpthreads. It starts through the C runtime, polls the native thread
 handle with a zero timeout, and closes that handle only after the thread and
 its cleanup finish. Keep its record and arguments at stable addresses until
 completion, including while a canceled request is being collected.
-<code>tests/thread_windows.sh</code> executes C source and saved-IR checks under
-Wine on a private display, including held notifications, thread cleanup,
-result publication and handle reuse.
+<code>tests/thread_windows.sh</code> compiles and links C source and saved IR with
+MinGW against the thread completion host.
 <code>std/parallel_linux.zi</code> supplies a reusable <code>ParallelPool</code> for independent
 half-open ranges. <code>ParallelRun</code> divides a range among persistent workers and
 the submitting thread, then waits for every lane before returning. Short ranges
@@ -1629,8 +1628,8 @@ immutable. Four lanes run by default; <code>ZIRAN_PAR_THREADS</code> selects 1â€
 Native C source builds define <code>POSIX_THREADS</code> automatically, including
 Windows. On <code>_WIN32</code>, the pool uses <code>std/thread_windows.zi</code>, native SRW locks
 and condition variables from kernel32; it needs no winpthreads or <code>-pthread</code>.
-<code>tests/native_workers_windows.sh</code> runs source and saved IR under private Wine
-with 1, 2, 4, 8 and 64 lanes. MinGW tests accept <code>MCFGTHREADS</code> as the installation
+<code>tests/native_workers_windows.sh</code> compiles and links source and saved IR
+with MinGW against the native worker pool. MinGW tests accept <code>MCFGTHREADS</code> as the installation
 prefix of an mcfgthread runtime when its <code>lib</code> directory is outside the compiler's
 search path. <code>PLATFORM_WEB</code> opts out;
 untargeted IR stays portable. Explicit C IR freezes the same capability
@@ -1729,8 +1728,8 @@ writes leave the file position unchanged, as on POSIX, and a private mapping
 is a copy-on-write view. An open file can itself be renamed or removed, but
 unlike POSIX, a rename cannot replace a destination that is still open. The
 libcurl HTTP and WebSocket adapters also build there; <code>std/zip_linux.zi</code> needs
-a MinGW zlib. <code>tests/std_file_windows.sh</code> links the file modules with MinGW
-and runs them under Wine when both are installed.</p>
+a MinGW zlib. <code>tests/std_file_windows.sh</code> compiles and links the file modules with MinGW
+when it is installed.</p>
 <h3 id="native-go-maps">Native Go maps</h3>
 <p>Import <code>map_go</code> to use <code>Map(K, V)</code> with the Go target. Keys must be comparable;
 values cannot own <code>Vec</code> storage. A map's zero value is nil. Copies share entries,
@@ -1802,7 +1801,7 @@ FILETIME and the system's timezone rules, with valid dates from 1601 through
 invalid offset because these Windows APIs do not expose an IANA database.
 Monotonic timestamps use QueryPerformanceCounter. Run
 <code>sh tests/std_time_windows.sh build/bin/ziran</code> for source and saved-IR checks,
-including linking with MinGW and execution under Wine when available.</p>
+including compilation and linking with MinGW when available.</p>
 <p>Import <code>calendar</code> for Gregorian <code>LeapYear</code>, <code>DaysInMonth</code>, <code>DayOfWeek</code>,
 <code>DayOfYear</code>, <code>DateTimeValid</code>, and <code>FormatDateTime</code>. <code>DayOfWeek</code> returns zero for
 Sunday and minus one for an invalid date. Calendar dates range from year 1 to

@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "validated_at": 1794365807,
+  "base_revision": "4dc2da6b099c0b2a539ad2b317aa4d3bc1ad4273",
+  "local_tests": {
+    "compiler_suite": {
+      "passed": 522,
+      "total": 522,
+      "executed": 522,
+      "reused": 0,
+      "seconds": 171.0465029219995
+    },
+    "bootstrap": "passed",
+    "matrix_sources_and_artifacts": "passed",
+    "site_links": {
+      "pages": 137,
+      "local_links": 4323,
+      "broken": 0
+    },
+    "playground_runtime": "passed",
+    "web_bundle_runtime": "passed",
+    "private_browser_interaction_and_layout": "passed"
+  },
+  "coverage": "Wine execution removed at owner request. Native execution and MinGW compilation/linking remain. Windows runtime execution is not claimed.",
+  "source_sha256": {
+    ".github/workflows/check.yml": "8a700c8453dc2e247ff4635072baec0d1c1601657236ceebf955f7aed90bf50a",
+    "docs/USAGE.md": "3e8a7e5885dd079766323311220f35242120bba1cfb7586b757c545362a10057",
+    "site/guide/usage.html": "49e3899824e9374e40fc3b8f1758ffe1dbdafd43efa995e40134109a8a60d3e3",
+    "tests/compiler_files_portable.sh": "39c7e59e523ef9fd9f6e92199db3479f75617cd3d217a8988d52e4a1b809c915",
+    "tests/compiler_profile_portable.sh": "057600b049d9999571302ffa46593bf3d467e4bffc4f816ca71fee25ede48b4d",
+    "tests/compiler_runtime_windows.sh": "25df25e3114a79c87d8ebd396af8ccf28b083040ac6c4ef3365bcce1ac79c753",
+    "tests/native_workers_windows.sh": "0a1ed2db5cdf14092a61bec3db410ce7ec044ab60dbb3cf054335b303a6ee71c",
+    "tests/std_file_windows.sh": "d6843856af258e383938ab721b1c70ebc4b955fd2b089489a8ad94038e01d58b",
+    "tests/std_time_windows.sh": "26477d74d10b1ed140fd87667835d9ea61ec09d054d22a5dd1b4501c66f0fbf8",
+    "tests/thread_windows.sh": "7fe32fac1a8fd1c9b648852add02580fbbd8daf94e44abc420d4acd0699609df"
+  },
+  "deployment_workflow": ".github/workflows/site.yml"
+}

@@ -5,15 +5,7 @@ export YUE_DESKTOP_RECOVERY=0
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$root/build"
 work=$(mktemp -d "$root/build/compiler-profile-portable.XXXXXX")
-wine_prefix_started=0
-cleanup() {
-    if [ "$wine_prefix_started" = 1 ]; then
-        WINEPREFIX="$work/prefix" wineserver -k || :
-        WINEPREFIX="$work/prefix" wineserver -w || :
-    fi
-    rm -rf "$work"
-}
-trap cleanup EXIT HUP INT TERM
+trap 'rm -rf "$work"' EXIT HUP INT TERM
 
 check_record() {
     python3 - "$1" <<'PY'
@@ -53,22 +45,4 @@ fi
     "$root/tests/compiler_profile_portable.c" "$root/cmd/zir/zir_profile.c" \
     "$@" -o "$work/profile.exe"
 
-wine=${WINE:-wine}
-if ! command -v "$wine" >/dev/null 2>&1 || \
-    ! command -v wineserver >/dev/null 2>&1 || \
-    ! command -v xvfb-run >/dev/null 2>&1; then
-    echo 'compiler_profile_portable: native and Windows compile/link passed'
-    exit 0
-fi
-mkdir "$work/run"
-wine_prefix_started=1
-(cd "$work/run" && \
-    WINEPREFIX="$work/prefix" WINEDEBUG=-all \
-    WINEDLLOVERRIDES='mscoree,mshtml=' \
-    xvfb-run -a env -u ZIRAN_PROFILE "$wine" "$work/profile.exe")
-(cd "$work/run" && \
-    WINEPREFIX="$work/prefix" WINEDEBUG=-all \
-    WINEDLLOVERRIDES='mscoree,mshtml=' ZIRAN_PROFILE=windows.jsonl \
-    xvfb-run -a "$wine" "$work/profile.exe")
-check_record "$work/run/windows.jsonl"
-echo 'compiler_profile_portable: native and Windows profile records passed'
+echo 'compiler_profile_portable: native profile records and Windows compile/link passed'

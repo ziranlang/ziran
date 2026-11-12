@@ -437,7 +437,7 @@ emit_vec_call_with_buffers(Emitter *e, const ZirExpr *expr, char *out, size_t si
         emit_expr(e, third, "s64", buffers->high, sizeof(buffers->high));
         fresh(e, view);
         if(e->target == ZIR_GO) {
-            line(e, "if %s < 0 || %s < %s || %s > %s.Count { panic(\"slice range out of bounds\") }",
+            line(e, "if int64(%s) < 0 || int64(%s) < int64(%s) || int64(%s) > %s.Count { panic(\"slice range out of bounds\") }",
                  buffers->low, buffers->high, buffers->low, buffers->high, buffers->vector);
             format(out, size, "%s.Data[%s:%s]", buffers->vector, buffers->low, buffers->high);
         } else {

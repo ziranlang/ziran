@@ -137,7 +137,11 @@ ClonesAndViews :: () -> s32 {
     total: s32 = 0
     good: bool = true
     {
-        view: []s32 = VecSlice(original, 1, 3)
+        low: s16 = 1
+        high: s32 = 3
+        view: []s32 = VecSlice(original, low, high)
+        slice := original[low:high]
+        if slice.count != 2 || slice[0] != view[0] { return -55 }
         if view.count != 2 { good = false }
         if good { total += view[0] + view[1] }
         if good && VecGet(original, 0).value != 4 { good = false }

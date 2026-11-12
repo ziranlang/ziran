@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Go output compiles `VecSlice` and slice bounds of mixed integer widths, such as `s16` and `s32` indices.
+
 - Extend the experimental direct assembly backend with checked global and
   fixed-array addressing, source-range inspection filters and executable
   identities. Saved lowered instructions now preserve source end positions.

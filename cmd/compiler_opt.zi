@@ -547,6 +547,7 @@ CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     state.counters.cfg.runs += 1
     for function_index: 0..program.functions.count - 1 {
         function := program.functions[function_index]
+        if function.external { continue }
         if !Scratch(state, function.values.count, 4) || !Scratch(state, function.blocks.count, 9) {
             return false
         }

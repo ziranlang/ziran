@@ -77,7 +77,7 @@ native variant; arbitrary machine bytes are never selected or executed.
 | 0 | 4 | manifest schema `1` |
 | 4 | 4 | LIR schema `3` |
 | 8 | 4 | signed entry function ID; nonnegative |
-| 12 | 4 | reachable host capability count; currently `0` |
+| 12 | 4 | reachable host capability count, at most 4,096 |
 | 16 | 4 | required native-variant count; currently `0` |
 | 20 | 4 | asset count |
 | 24 | 4 | verified proof status; currently `0` |
@@ -113,13 +113,17 @@ LIR verifier and codec. The reader copies all LIR strings, blobs and tables into
 the manifest and program entry IDs agree, and exposes a borrowed `LirProgram`
 until `ZxExecReadFree`. The original container bytes can be released immediately.
 
-Reachability starts at the entry. Direct calls and function-address constants
-add their symbol IDs; an indirect call conservatively adds every function.
+Reachability starts at the entry. Direct calls, host calls and function-address
+constants add their symbol IDs; an indirect call conservatively adds every
+portable function, since host procedure values do not exist.
 Duplicate module identities, duplicate module/name function definitions and
-duplicate module/name globals reject. Reachable external functions, non-portable
-calling conventions and `host.call` reject. Thus current capability requirements
-are recomputed as empty instead of trusting producer metadata. The existing
-bounded portable engine then executes the verified program.
+duplicate module/name globals reject. Each reachable bodiless `Host` function is
+one capability; its module, name and scalar signature are already in the
+verified program. The writer stores the recomputed count and the reader rejects
+a different manifest count (`capability-count`) instead of trusting producer
+metadata. Other external functions and non-portable calling conventions reject.
+The existing bounded portable engine then executes the verified program once
+the embedder has bound every capability.
 
 Outer validation uses the caller's `LirLimits` as well as the inner codec and
 verifier. The reader rejects a container larger than `limits.bytes` before

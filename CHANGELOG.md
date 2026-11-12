@@ -8,6 +8,11 @@
 
 - Add portable native standard facades for byte text, environment access, timers, secure randomness, mapped files, standard streams, worker pools, directory trees and threads. Platform backends remain private implementation seams behind one import.
 
+- Lower `#foreign host_api` calls with scalar signatures to explicit host
+  capabilities in the experimental direct backend. Revision-28 containers
+  record the recomputed capability count, and the portable engine runs only
+  after an embedder binds every capability and checks each host result.
+
 - Add an opt-in revision-28 ZX executable container to the experimental
   direct backend. `zi2asm --emit zx` stores verified lowered instructions;
   `--input zx` inspects, re-emits or runs stripped files through the

@@ -10,7 +10,7 @@ using Vectors :: #import "std/vec"
 
 ZxExecProblem :: enum s32 {
     None; Container; Codec; Verify; Allocation; Output; Identity; Entry
-    Capability; Variant; External; Symbol; DebugDependency; Limit
+    Capability; Variant; External; Symbol; DebugDependency; Limit; CapabilityCount
 }
 
 ZxExecResult :: struct {
@@ -442,7 +442,9 @@ Reach :: (reachable: *Vec(u8), queue: *Vec(s32), queued: *s64, function: s32,
     return .None
 }
 
-ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget) -> ZxExecProblem {
+// Recomputes the reachable host capabilities instead of trusting the producer.
+ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget, capabilities: *s64) -> ZxExecProblem {
+    <<capabilities = 0
     if program.entry < 0 || program.entry >= program.functions.count { return .Entry }
     symbol_problem := ValidateSymbols(program, budget)
     if symbol_problem != .None { return symbol_problem }
@@ -467,6 +469,10 @@ ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget) -> ZxExecProbl
         if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
         function := program.functions[queue[at]]
         at += 1
+        if function.external && function.calling == .Host {
+            <<capabilities += 1
+            continue
+        }
         if function.external || function.calling != .Portable {
             VecFree(reachable); VecFree(queue)
             return .External
@@ -475,17 +481,15 @@ ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget) -> ZxExecProbl
             if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
             for instruction: block.instructions {
                 if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
-                if instruction.op == .HostCall {
-                    VecFree(reachable); VecFree(queue)
-                    return .Capability
-                }
-                if instruction.op == .Call || instruction.op == .FunctionAddress {
+                if instruction.op == .Call || instruction.op == .FunctionAddress || instruction.op == .HostCall {
                     problem = Reach(*reachable, *queue, *queued, instruction.symbol, budget)
                     if problem != .None { VecFree(reachable); VecFree(queue); return problem }
                 }
                 if instruction.op == .CallIndirect && !all_reachable {
                     all_reachable = true
                     for target: cast(s32)0..cast(s32)program.functions.count - 1 {
+                        // The verifier forbids host procedure values, so indirect calls cannot reach them.
+                        if program.functions[target].external { continue }
                         problem = Reach(*reachable, *queue, *queued, target, budget)
                         if problem != .None { VecFree(reachable); VecFree(queue); return problem }
                     }
@@ -518,7 +522,8 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> Zx
         result.diagnostic = diagnostic
         return result
     }
-    problem := ValidateReachable(program, *budget)
+    capabilities: s64
+    problem := ValidateReachable(program, *budget, *capabilities)
     if problem != .None { return Result(problem) }
     strip: StripOwner
     problem = StripProgram(program, *strip, *budget)
@@ -562,7 +567,7 @@ ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> Zx
     assets_identity := assets_digest.bytes
     content_identity := content_digest.bytes
     no_attachments: []Bundle.ExecutableAttachment
-    header := Bundle.ExecutableHeader.{entry = program.entry, program = TextView(encoded[:]), assets = assets,
+    header := Bundle.ExecutableHeader.{entry = program.entry, capabilities = capabilities, program = TextView(encoded[:]), assets = assets,
         program_identity = TextView(program_identity[:]), assets_identity = TextView(assets_identity[:]),
         content_identity = TextView(content_identity[:]), attachments = no_attachments}
     measured_bundle := Bundle.ExecutableEncode(empty, header)
@@ -682,10 +687,15 @@ ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecR
         ZxExecReadFree(owner)
         return Result(.DebugDependency)
     }
-    problem := ValidateReachable(program, *budget)
+    capabilities: s64
+    problem := ValidateReachable(program, *budget, *capabilities)
     if problem != .None {
         ZxExecReadFree(owner)
         return Result(problem)
+    }
+    if capabilities != layout.capabilities {
+        ZxExecReadFree(owner)
+        return Result(.CapabilityCount)
     }
     owner.valid = true
     owner.entry = layout.entry
@@ -715,5 +725,6 @@ ZxExecProblemName :: (problem: ZxExecProblem) -> string {
     if problem == .External { return "unresolved-external" }
     if problem == .Symbol { return "symbol-identity" }
     if problem == .Limit { return "limit" }
+    if problem == .CapabilityCount { return "capability-count" }
     return "debug-execution-dependency"
 }

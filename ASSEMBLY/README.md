@@ -81,6 +81,12 @@ assembler, C compiler, or system linker to produce this executable.
   Every execution receives fresh zero-default or explicitly initialized storage.
   Native active-frame descriptors preserve aliases through calls and recursion;
   stale, wrong-type, forged, and exhausted-generation tokens trap with status 125.
+- `#foreign host_api` calls with bool, integer and float signatures lower to
+  bodiless `Host` functions and explicit `host.call` instructions from source
+  and saved IR. The revision-28 container records the recomputed capability
+  count. Embedders bind capabilities with `LirExecBindHost`; arguments and
+  results use canonical scalar bits, and malformed host results stop the run.
+  Native output rejects host calls until the native host ABI exists.
 - A verified, target-neutral [machine IR](machine-ir.md) boundary lowers the
   current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
   constraints, explicit flags, call clobbers and parallel copies. It is not yet

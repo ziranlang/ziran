@@ -41,6 +41,7 @@ ExecutableProblem :: enum s32 {
 ExecutableAttachment :: struct { kind: u32; data: string }
 ExecutableHeader :: struct {
     entry: s32
+    capabilities: s64
     program: string
     assets: []Asset
     program_identity: string
@@ -57,6 +58,7 @@ ExecutableLayout :: struct {
     required_features: u64
     optional_features: u64
     entry: s32
+    capabilities: s64
     assets: s64
     optional_sections: s64
     program: string
@@ -353,7 +355,7 @@ ExecutablePayload :: (writer: *ExecutableWriter, header: ExecutableHeader, index
         ExecutableU32(writer, ExecutableManifestSchema)
         ExecutableU32(writer, ExecutableLirSchema)
         ExecutableU32(writer, cast(u32)header.entry)
-        ExecutableU32(writer, 0) // reachable host capabilities
+        ExecutableU32(writer, cast(u32)header.capabilities) // reachable host capabilities
         ExecutableU32(writer, 0) // required native variants
         ExecutableU32(writer, cast(u32)header.assets.count)
         ExecutableU32(writer, 0) // proof metadata is absent/unverified
@@ -387,6 +389,7 @@ ExecutableValidateHeader :: (header: ExecutableHeader) -> ExecutableProblem {
     if header.entry < 0 || header.program.count < 1 || header.program.count > ProgramLimit {
         return .Entry
     }
+    if header.capabilities < 0 || header.capabilities > CapabilityLimit { return .Capabilities }
     if header.program_identity.count != ExecutableIdentitySize ||
         header.assets_identity.count != ExecutableIdentitySize ||
         header.content_identity.count != ExecutableIdentitySize { return .Identity }
@@ -559,7 +562,8 @@ ExecutableDecodeInternal :: (bytes: string, assets: []Asset) -> ExecutableLayout
         return layout
     }
     if layout.entry < 0 { layout.problem = .Entry; return layout }
-    if capabilities != 0 { layout.problem = .Capabilities; return layout }
+    if capabilities > cast(u32)CapabilityLimit { layout.problem = .Capabilities; return layout }
+    layout.capabilities = cast(s64)capabilities
     if variants != 0 { layout.problem = .Variant; return layout }
     identity_at := manifest_cursor.at
     layout.program_identity = manifest[identity_at:identity_at + ExecutableIdentitySize]

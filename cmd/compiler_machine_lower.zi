@@ -652,6 +652,8 @@ LowerInstruction :: (state: *LowerState, function: *MachineFunction,
 
 LowerFunction :: (state: *LowerState, function_id: s32) -> bool {
     source := state.lir.functions[function_id]
+    // Host capability calls need the native trampoline ABI, which is not lowered yet.
+    if source.external { return Fail(state, .Unsupported) }
     function := state.owner.functions[function_id]
     if !CreateVirtuals(state, function_id) { return false }
     function = state.owner.functions[function_id]

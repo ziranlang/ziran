@@ -506,7 +506,7 @@ Answer :: () -> s32 {
     for mode: cast(s32)0..6 { if !Expect(TypeGraph(mode), types[mode], 3, mode) { return 3 } }
     typed: [24]Lir.LirProblem = .{.None, .Effect, .Alignment, .Calling, .Calling,
         .Operand, .Operand, .Operand, .Effect, .Instruction, .Calling, .Operand,
-        .Unsupported, .Operand, .Unsupported, .Unsupported, .Unsupported, .Instruction,
+        .Calling, .Operand, .Unsupported, .Unsupported, .Unsupported, .Instruction,
         .Operand, .Global, .None, .None, .None, .Instruction}
     for mode: cast(s32)0..23 { if !Expect(Typed(mode), typed[mode], 4, mode) { return 4 } }
     diagnostic := Basic(19)

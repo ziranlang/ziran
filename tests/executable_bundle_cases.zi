@@ -2,6 +2,7 @@ using Bundle :: #import "compiler_bundle"
 using Exec :: #import "compiler_exec"
 using Link :: #import "compiler_exec_link"
 using Lir :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
 using Vectors :: #import "std/vec"
 
 Fail :: (code: s32, detail: s32 = 0) -> s32 {
@@ -157,6 +158,117 @@ BudgetRepeatedIndirect :: () -> s32 {
     return result
 }
 
+Doubler :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    if function != 1 || arguments.count != 1 { return false }
+    <<result = arguments[0] * cast(u64)2
+    return true
+}
+
+Wide :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    <<result = cast(u64)1 << cast(u64)40
+    return true
+}
+
+Refuse :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool { return false }
+
+HostRun :: (program: Lir.LirProgram, call: Exec.LirExecHostCall, bind: bool) -> Exec.LirExecResult {
+    plan: Exec.LirExecPlan
+    defer Exec.LirExecPlanFree(*plan)
+    built := Exec.LirExecPlanBuild(program, Lir.LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: Exec.LirExecInstance
+    defer Exec.LirExecInstanceClose(*instance)
+    opened := Exec.LirExecInstanceOpen(*plan, Exec.LirExecDefaultLimits(), 1, *instance)
+    if opened.problem != .None { return opened }
+    if bind {
+        if Exec.LirExecBindHost(*instance, 1, call, null) != .None { return Exec.LirExecResult.{problem = .NotReady} }
+        // A capability is bound once, and only host signatures can be bound.
+        if Exec.LirExecBindHost(*instance, 1, call, null) != .Calling ||
+            Exec.LirExecBindHost(*instance, 0, call, null) != .Calling { return Exec.LirExecResult.{problem = .NotReady} }
+    }
+    return Exec.LirExecRun(*instance)
+}
+
+// One portable entry calls one bodiless host capability: s32 -> s32.
+HostCapabilities :: () -> s32 {
+    types: [3]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 1}}
+    modules: [1]string = .{"executable"}
+    constants: [1]Lir.LirConstant = .{.{type = 1, bits = 21}}
+    values: [2]s32 = .{1, 1}
+    argument: [1]s32 = .{0}
+    returned: [1]s32 = .{1}
+    instructions: [3]Lir.LirInstruction
+    instructions[0] = .{op = .Constant, result = 0, symbol = 0, origin = -1}
+    instructions[1] = .{op = .HostCall, result = 1, operands = argument[:], symbol = 1, effect = 1, origin = -1}
+    instructions[2] = .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    parameters: [1]s32 = .{1}
+    functions: [2]Lir.LirFunction = .{
+        .{module = 0, name = "main", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "Input", parameters = parameters[:], result = 1, calling = .Host,
+            external = true, entry = -1, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .None { return Fail(40) }
+
+    no_assets: [0]Bundle.Asset
+    empty: []u8
+    measured := Link.ZxExecWrite(program, no_assets[:], empty)
+    if measured.problem != .None { return Fail(41, cast(s32)measured.problem) }
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !VecResizeBounded(bytes, measured.size, measured.size) { return Fail(42) }
+    if Link.ZxExecWrite(program, no_assets[:], bytes[:]).problem != .None { return Fail(43) }
+    // The manifest starts at 160; its fourth u32 is the recomputed capability count.
+    if bytes[172] != 1 || bytes[173] != 0 || bytes[174] != 0 || bytes[175] != 0 { return Fail(44) }
+    owner: Link.ZxExecOwner
+    read := Link.ZxExecRead(*owner, TextView(bytes[:]), Lir.LirDefaultLimits())
+    if read.problem != .None { return Fail(45, cast(s32)read.problem) }
+    decoded := Link.ZxExecReadProgram(*owner)
+    if decoded.functions.count != 2 || !decoded.functions[1].external || decoded.functions[1].calling != .Host { return Fail(46) }
+
+    // A run never starts while a required capability is unbound.
+    missing := HostRun(decoded, Doubler, false)
+    if missing.problem != .Host || missing.function != 1 { return Fail(47, cast(s32)missing.problem) }
+    bound := HostRun(decoded, Doubler, true)
+    if bound.problem != .None || bound.value.bits != 42 { return Fail(48, cast(s32)bound.problem) }
+    // Host results are checked against the declared scalar type before use.
+    wide := HostRun(decoded, Wide, true)
+    if wide.problem != .Host { return Fail(49, cast(s32)wide.problem) }
+    refused := HostRun(decoded, Refuse, true)
+    if refused.problem != .Host { return Fail(50, cast(s32)refused.problem) }
+    Link.ZxExecReadFree(*owner)
+
+    // The reader recomputes the count instead of trusting the producer.
+    tampered := CopyBytes(bytes[:])
+    tampered[172] = 0
+    read = Link.ZxExecRead(*owner, TextView(tampered[:]), Lir.LirDefaultLimits())
+    VecFree(tampered)
+    if read.problem != .CapabilityCount || owner.valid { return Fail(51, cast(s32)read.problem) }
+
+    // Host signatures stay bodiless scalars; ordinary calls and procedure values
+    // cannot reach them, and portable code cannot be host-called.
+    instructions[1].op = .Call
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Calling { return Fail(52) }
+    instructions[1].op = .HostCall
+    instructions[1].symbol = 0
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Calling { return Fail(53) }
+    instructions[1].symbol = 1
+    functions[1].blocks = blocks[:]
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Function { return Fail(54) }
+    functions[1].blocks = blocks[0:0]
+    pointer_parameters: [1]s32 = .{2}
+    functions[1].parameters = pointer_parameters[:]
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Unsupported { return Fail(55) }
+    functions[1].parameters = parameters[:]
+    functions[1].calling = .C
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Unsupported { return Fail(56) }
+    functions[1].calling = .Host
+    program.entry = 1
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Calling { return Fail(57) }
+    return 0
+}
+
 main :: () -> s32 {
     types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
     modules: [1]string = .{"executable"}
@@ -258,6 +370,8 @@ main :: () -> s32 {
     if budget_result != 0 { return budget_result }
     budget_result = BudgetRepeatedIndirect()
     if budget_result != 0 { return budget_result }
-    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls and mutation local tests passed\n")
+    host_result := HostCapabilities()
+    if host_result != 0 { return host_result }
+    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities and mutation local tests passed\n")
     return 0
 }

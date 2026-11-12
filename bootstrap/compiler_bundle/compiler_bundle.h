@@ -213,6 +213,7 @@ struct ExecutableAttachment {
 
 struct ExecutableHeader {
     int32_t entry;
+    int64_t capabilities;
     String program;
     Slice assets;
     String program_identity;
@@ -235,6 +236,7 @@ struct ExecutableLayout {
     uint64_t required_features;
     uint64_t optional_features;
     int32_t entry;
+    int64_t capabilities;
     int64_t assets;
     int64_t optional_sections;
     String program;

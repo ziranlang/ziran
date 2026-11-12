@@ -954,7 +954,8 @@ VerifierBoundaries :: () -> bool {
     plan: LirExecPlan
     defer LirExecPlanFree(*plan)
     rejected := LirExecPlanBuild(host_program, LirDefaultLimits(), *plan)
-    if rejected.problem != .InvalidProgram || rejected.verification.problem != .Unsupported ||
+    // host.call may target only a bodiless host capability, never portable code.
+    if rejected.problem != .InvalidProgram || rejected.verification.problem != .Calling ||
         rejected.function != 0 || rejected.block != 0 || rejected.instruction != 0 ||
         plan.ready { return false }
     native_type: [1]LirType = .[.{.kind = .Integer, .bits = 64, .native_width = true}]

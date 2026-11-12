@@ -599,6 +599,45 @@ RunLimits :: (test: *NativeTest, compiler: string, wire: string, flag: string, b
         "execution resource failure must identify the exact budget and instruction")
 }
 
+// A host_api call lowers to an explicit capability from source and saved IR.
+// The CLI has no host bindings, so a run stops before the entry executes, and
+// native output rejects the call until the native host ABI exists. Host
+// procedure values are refused.
+HostExercise :: (test: *NativeTest, compiler: string) -> bool {
+    input := CheckPath(test.work, "host_calls.zi")
+    source := "host_api :: #system_library \"host_api\";\nInput :: (key: s64) -> s64 #foreign host_api;\nTwice :: (x: s64) -> s64 { return x * 2 }\nAnswer :: () -> s64 { return Twice(Input(20)) + Input(2) - 20 }\n"
+    if !NativeWrite(test, input, source) { return false }
+    entry := "host_calls:Answer"
+    listing := CheckPath(test.work, "host_calls.lir")
+    if !Compile(test, compiler, input, entry, "lir", listing) { return false }
+    first := NativeRead(test, listing)
+    if !NativeAssert(test, TextContains(first, "host.call") && TextContains(first, "name=\"Input\"") &&
+        TextContains(first, "calling=3 external=1"), "host_api calls must lower to explicit host capabilities") { return false }
+    saved := CheckPath(test.work, "host_calls-ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", saved, input]
+    unused NativeRun(test, save[:])
+    if test.failed { return false }
+    second := CheckPath(test.work, "host_calls-saved.lir")
+    if !Compile(test, compiler, CheckPath(saved, "host_calls.zir"), entry, "lir", second) ||
+        !NativeAssert(test, NativeRead(test, second) == first, "source and saved IR host lowering must agree") { return false }
+    bundle := CheckPath(test.work, "host_calls.zx")
+    if !Compile(test, compiler, input, entry, "zx", bundle) { return false }
+    run := string.[compiler, "--diagnostics=json", "--input", "zx", "--run", bundle]
+    result := NativeRun(test, run[:], "", 125)
+    if !NativeAssert(test, TextContains(result.error, "assembly.execute") && TextContains(result.error, "problem=host"),
+        "an unbound host capability must stop the run before execution") { return false }
+    native := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", entry,
+        "-o", CheckPath(test.work, "host_calls"), input]
+    if !NativeReject(test, native[:], "host capability Input") { return false }
+    value_input := CheckPath(test.work, "host_value.zi")
+    value_source := "host_api :: #system_library \"host_api\";\nInput :: (key: s64) -> s64 #foreign host_api;\nCallback :: #type (key: s64) -> s64;\nAnswer :: () -> s64 { callback: Callback = Input; return callback(1) }\n"
+    if !NativeWrite(test, value_input, value_source) { return false }
+    value := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", "host_value:Answer",
+        "--emit", "lir", "-o", CheckPath(test.work, "host_value.lir"), value_input]
+    // The checker already refuses host procedure values before lowering.
+    return NativeReject(test, value[:], "check.slot_signature")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "assembly-")
@@ -751,6 +790,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeReject(*test, initializer_reject[:], "assembly.lower") ||
             !NativeAssert(*test, NativeRead(*test, initializer_output) == "preserved initializer output", "unsupported module initialization must not be skipped or overwrite outputs") { return 1 }
     }
+    if !HostExercise(*test, compiler) { return 1 }
     broken := CheckPath(test.work, "unsupported.zi")
     output := CheckPath(test.work, "untouched")
     if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"unsupported\\n\"); return 0 }\n") ||

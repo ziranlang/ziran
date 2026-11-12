@@ -68,6 +68,7 @@ typedef struct AssemblyLoop {
 typedef struct AssemblyFunction {
     const ZirModule *module;
     const ZirFunction *source;
+    const ZirImport *import;
     LirFunction result;
     AssemblyVector blocks;
     AssemblyVector values;
@@ -486,6 +487,7 @@ assembly_binding(AssemblyFunction *function, const char *name)
 }
 
 static int assembly_function(AssemblyProgram *, const ZirModule *, const ZirFunction *);
+static int assembly_host_function(AssemblyProgram *, const ZirModule *, const char *, ZirSourceSpan);
 static int assembly_expression(AssemblyProgram *, AssemblyFunction *, int, int);
 
 static int
@@ -907,6 +909,8 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         if(assembly_type_at(program, type)->kind != LirTypeKind_Function ||
            ResolveFunctionAt(function->module, expression->name, SpanPath(expression->span), &owner, &callee) != 1)
             return assembly_fail(program, expression->span, "procedure value is not a concrete portable function");
+        if(callee->is_extern)
+            return assembly_fail(program, expression->span, "host and foreign procedures cannot become portable procedure values");
         int symbol = assembly_function(program, owner, callee);
         if(program->failed) return -1;
         return assembly_emit(program, function, LirOp_FunctionAddress, type, NULL, 0, symbol, expression->span);
@@ -1046,10 +1050,11 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         } else {
             const ZirModule *owner = NULL;
             const ZirFunction *callee = NULL;
-            if(ResolveFunctionAt(function->module, expression->name, SpanPath(expression->span), &owner, &callee) != 1)
-                return assembly_fail(program, expression->span, "call is not a direct concrete Ziran procedure");
-            symbol = assembly_function(program, owner, callee);
+            if(ResolveFunctionAt(function->module, expression->name, SpanPath(expression->span), &owner, &callee) == 1)
+                symbol = assembly_function(program, owner, callee);
+            else symbol = assembly_host_function(program, function->module, expression->name, expression->span);
             if(program->failed) return -1;
+            if(symbol < 0) return assembly_fail(program, expression->span, "call is not a direct concrete Ziran procedure");
             AssemblyFunction *target = ((AssemblyFunction **)program->functions.data)[symbol];
             parameters = target->result.parameters;
             result = target->result.result;
@@ -1075,7 +1080,8 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         }
         for(int index = 0; index < count; index++) if(values[index] < 0)
             return assembly_fail(program, expression->span, "call arguments are not fully lowered");
-        return assembly_emit(program, function, indirect ? LirOp_CallIndirect : LirOp_Call, result,
+        int host = !indirect && ((AssemblyFunction **)program->functions.data)[symbol]->result.external;
+        return assembly_emit(program, function, indirect ? LirOp_CallIndirect : host ? LirOp_HostCall : LirOp_Call, result,
             arguments, count + indirect, symbol, expression->span);
     }
     return assembly_fail(program, expression->span, "expression is outside the initial direct scalar backend");
@@ -1359,9 +1365,12 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     AssemblyFunction **functions = program->functions.data;
     for(int index = 0; index < program->functions.count; index++)
         if(functions[index]->source == source && functions[index]->module == module) return index;
-    if(!source->checked || source->is_extern || source->is_template || source->is_global_initializer ||
-       source->uses_host || source->simd_target || (source->assembly_text && *source->assembly_text))
-        return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without runtime initializers, foreign services or native variants");
+    /* A host_api declaration becomes a bodiless capability signature; its
+     * callers lower ordinary arguments into an explicit host.call. */
+    int host = source->is_extern && source->extern_kind == ZIR_EXTERN_HOST;
+    if((!host && (!source->checked || source->is_extern)) || source->is_template || source->is_global_initializer ||
+       source->simd_target || (source->assembly_text && *source->assembly_text))
+        return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without runtime initializers, non-host foreign services or native variants");
     AssemblyFunction *function = assembly_allocate(program, 1, sizeof(*function));
     if(function == NULL) return -1;
     function->module = module;
@@ -1371,8 +1380,12 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     function->bindings.width = sizeof(AssemblyBinding);
     function->current = -1;
     function->result.module = assembly_name(program, &program->modules, module->name);
-    const char *name = assembly_text(program, source->name);
+    const char *name = assembly_text(program, host && source->extern_symbol[0] ? source->extern_symbol : source->name);
     function->result.name = (String){name, strlen(name)};
+    if(host) {
+        function->result.calling = LirCalling_Host;
+        function->result.external = 1;
+    }
     function->result.result = assembly_type(program, function, source->return_type, source->span);
     function->result.origin = assembly_origin(program, source->span);
     const ZirParameters *parameters = ParametersOf(FunctionArgs(source));
@@ -1387,6 +1400,39 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     assembly_find_addressed(program, function);
     int identity = program->functions.count;
     return assembly_push(program, &program->functions, &function) ? identity : -1;
+}
+
+/* A `#foreign host_api` declaration is a checked module import, not a function.
+ * Its signature-only function record is created once per import. */
+static int
+assembly_host_function(AssemblyProgram *program, const ZirModule *module, const char *name, ZirSourceSpan span)
+{
+    const ZirImport *import = NULL;
+    for(int index = 0; index < module->import_count && import == NULL; index++) {
+        const ZirImport *candidate = &module->imports[index];
+        if(candidate->kind == ZIR_IMPORT_EXTERN && candidate->extern_kind == ZIR_EXTERN_HOST &&
+           strcmp(candidate->name, name) == 0) import = candidate;
+    }
+    if(import == NULL) return -1;
+    AssemblyFunction **functions = program->functions.data;
+    for(int index = 0; index < program->functions.count; index++)
+        if(functions[index]->import == import) return index;
+    if(strncmp(import->target, "ziran:", 6) == 0)
+        return assembly_fail(program, span, "bound host providers are not lowered yet");
+    if(import->is_varargs) return assembly_fail(program, span, "variadic host capabilities are not lowered");
+    ZirFunction *signature = assembly_allocate(program, 1, sizeof(*signature));
+    if(signature == NULL) return -1;
+    snprintf(signature->name, sizeof(signature->name), "%s", import->name);
+    snprintf(signature->return_type, sizeof(signature->return_type), "%s", import->return_type);
+    snprintf(signature->extern_symbol, sizeof(signature->extern_symbol), "%s",
+             import->extern_symbol[0] ? import->extern_symbol : import->name);
+    signature->args_text = KeepParameters(import->args);
+    signature->is_extern = 1;
+    signature->extern_kind = ZIR_EXTERN_HOST;
+    signature->span = import->span;
+    int identity = assembly_function(program, module, signature);
+    if(identity >= 0) ((AssemblyFunction **)program->functions.data)[identity]->import = import;
+    return identity;
 }
 
 AssemblyProgram *
@@ -1437,6 +1483,7 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
     if(!program->failed) assembly_function(program, module, function);
     for(int index = 0; index < program->functions.count && !program->failed; index++) {
         AssemblyFunction *builder = ((AssemblyFunction **)program->functions.data)[index];
+        if(builder->result.external) { builder->result.entry = -1; continue; }
         int count = builder->bindings.count;
         AssemblyBinding *parameters = assembly_snapshot(program, builder, count);
         int entry = assembly_block(program, builder, parameters, count);

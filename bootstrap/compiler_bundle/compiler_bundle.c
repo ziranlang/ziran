@@ -1699,7 +1699,7 @@ compiler_bundle_ExecutablePayload(ExecutableWriter* writer, ExecutableHeader hea
         compiler_bundle_ExecutableU32(writer, 1);
         compiler_bundle_ExecutableU32(writer, 3);
         compiler_bundle_ExecutableU32(writer, (uint32_t)(header.entry));
-        compiler_bundle_ExecutableU32(writer, 0);
+        compiler_bundle_ExecutableU32(writer, (uint32_t)(header.capabilities));
         compiler_bundle_ExecutableU32(writer, 0);
         compiler_bundle_ExecutableU32(writer, (uint32_t)((int64_t)(header.assets).length));
         compiler_bundle_ExecutableU32(writer, 0);
@@ -1757,6 +1757,9 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
     if (header.entry < 0 || (int64_t)(header.program).length < 1LL || (int64_t)(header.program).length > 268435456LL) {
         return ExecutableProblem_Entry;
     }
+    if (header.capabilities < 0LL || header.capabilities > 4096LL) {
+        return ExecutableProblem_Capabilities;
+    }
     bool value_0 = (int64_t)(header.program_identity).length != 32LL || (int64_t)(header.assets_identity).length != 32LL;
     if (value_0 || (int64_t)(header.content_identity).length != 32LL) {
         return ExecutableProblem_Identity;
@@ -1768,12 +1771,12 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
     uint32_t previous = 2147483650;
     {
         Slice value_1 = header.attachments;
-        Slice loop_view_11 = value_1;
-        int64_t loop_count_11 = (int64_t)(loop_view_11).length;
-        int64_t loop_cursor_11 = 0LL;
-        while (loop_cursor_11 < loop_count_11) {
-            int64_t loop_index_11 = loop_cursor_11;
-            ExecutableAttachment attachment = ((ExecutableAttachment *)loop_view_11.data)[loop_index_11];
+        Slice loop_view_14 = value_1;
+        int64_t loop_count_14 = (int64_t)(loop_view_14).length;
+        int64_t loop_cursor_14 = 0LL;
+        while (loop_cursor_14 < loop_count_14) {
+            int64_t loop_index_14 = loop_cursor_14;
+            ExecutableAttachment attachment = ((ExecutableAttachment *)loop_view_14.data)[loop_index_14];
             ExecutableAttachment value_2 = attachment;
             uint32_t value_3 = previous;
             bool value_4 = false;
@@ -1786,7 +1789,7 @@ compiler_bundle_ExecutableValidateHeader(ExecutableHeader header)
                 return ExecutableProblem_Section;
             }
             previous = attachment.kind;
-            loop_cursor_11 = (int64_t)((uint64_t)loop_cursor_11 + UINT64_C(1));
+            loop_cursor_14 = (int64_t)((uint64_t)loop_cursor_14 + UINT64_C(1));
         }
     }
     Slice empty = {0};
@@ -2306,32 +2309,34 @@ compiler_bundle_ExecutableDecodeInternal(String bytes, Slice assets)
         (*value_55) = ExecutableProblem_Entry;
         return layout;
     }
-    if (capabilities != 0) {
+    if (capabilities > 4096) {
         ExecutableProblem* value_56 = &(layout.problem);
         (*value_56) = ExecutableProblem_Capabilities;
         return layout;
     }
+    int64_t* value_57 = &(layout.capabilities);
+    (*value_57) = (int64_t)(capabilities);
     if (variants != 0) {
-        ExecutableProblem* value_57 = &(layout.problem);
-        (*value_57) = ExecutableProblem_Variant;
+        ExecutableProblem* value_58 = &(layout.problem);
+        (*value_58) = ExecutableProblem_Variant;
         return layout;
     }
     int64_t identity_at = manifest_cursor.at;
-    String* value_58 = &(layout.program_identity);
-    (*value_58) = StringRange(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
-    identity_at = (int64_t)((uint64_t)identity_at + UINT64_C(32));
-    String* value_59 = &(layout.assets_identity);
+    String* value_59 = &(layout.program_identity);
     (*value_59) = StringRange(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
     identity_at = (int64_t)((uint64_t)identity_at + UINT64_C(32));
-    String* value_60 = &(layout.content_identity);
+    String* value_60 = &(layout.assets_identity);
     (*value_60) = StringRange(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
+    identity_at = (int64_t)((uint64_t)identity_at + UINT64_C(32));
+    String* value_61 = &(layout.content_identity);
+    (*value_61) = StringRange(manifest, (int64_t)identity_at, (int64_t)((int64_t)((uint64_t)identity_at + UINT64_C(32))));
     Slice output = {0};
     Codec asset_codec = {.input = asset_bytes, .output = output, .at = 0LL, .reading = true, .write = false, .valid = true, .ended = false};
-    int64_t* value_61 = &(layout.assets);
-    (*value_61) = compiler_bundle_Assets(&(asset_codec), assets);
+    int64_t* value_62 = &(layout.assets);
+    (*value_62) = compiler_bundle_Assets(&(asset_codec), assets);
     if (!asset_codec.valid || layout.assets != manifest_assets) {
-        ExecutableProblem* value_62 = &(layout.problem);
-        (*value_62) = ExecutableProblem_Assets;
+        ExecutableProblem* value_63 = &(layout.problem);
+        (*value_63) = ExecutableProblem_Assets;
         return layout;
     }
     return layout;

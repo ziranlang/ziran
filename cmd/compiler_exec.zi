@@ -9,7 +9,7 @@ LirExecProblem :: enum s32 {
     None; InvalidProgram; NotReady; Busy; Allocation
     WorkLimit; FuelLimit; FrameLimit; ValueLimit; AddressLimit; ValueBytes
     Type; Pointer; Calling; DivideByZero; InvalidShift; InvalidConversion
-    Trap; Unreachable; Unsupported
+    Trap; Unreachable; Unsupported; Host
 }
 
 LirExecLimits :: struct {
@@ -22,6 +22,10 @@ LirExecLimits :: struct {
 }
 
 LirExecValue :: struct { type: s32; bits: u64; bytes: s64 }
+// Arguments and the result use the canonical bits of their LIR scalar types:
+// zero-extended integers, 0/1 bools and IEEE float32/float64 patterns.
+LirExecHostCall :: #type (context: *void, function: s32, arguments: []u64, result: *u64) -> bool;
+LirExecHostBinding :: struct { function: s32; call: LirExecHostCall; context: *void }
 LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8 }
 
 LirExecResult :: struct {
@@ -84,6 +88,8 @@ LirExecInstance :: struct {
     frames: Vec(LirExecFrame)
     result_bytes: Vec(u8)
     result_value: LirExecValue
+    hosts: Vec(LirExecHostBinding)
+    host_arguments: Vec(u64)
     live_values: s64
     frame_epoch: u64
     work_remaining: s64
@@ -1014,6 +1020,46 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
+ExecHostCanonical :: (type: LirType, bits: u64) -> bool {
+    if type.kind == .Bool { return bits <= cast(u64)1 }
+    if type.kind == .Integer { return (bits & ~ExecMask(type.bits)) == cast(u64)0 }
+    if type.kind == .Float && type.bits == 32 { return bits <= cast(u64)4294967295 }
+    return type.kind == .Float && type.bits == 64
+}
+
+ExecHostBinding :: (instance: *LirExecInstance, function: s32) -> s64 {
+    for index: cast(s64)0..instance.hosts.count - 1 {
+        if instance.hosts[index].function == function { return index }
+    }
+    return -1
+}
+
+ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: LirInstruction) -> bool {
+    program := instance.plan.program
+    binding := ExecHostBinding(instance, instruction.symbol)
+    if binding < 0 { return ExecFail(instance, .Host) }
+    count := instruction.operands.count
+    if !ExecSpend(instance, count) { return false }
+    if !VecResizeBounded(instance.host_arguments, count, count) { return ExecFail(instance, .Allocation) }
+    for at: cast(s64)0..count - 1 {
+        instance.host_arguments[at] = ExecSlotBits(instance, frame_index, instruction.operands[at])
+        if instance.failure.problem != .None { return false }
+    }
+    host := instance.hosts[binding]
+    result: u64
+    if !host.call(host.context, instruction.symbol, VecSlice(instance.host_arguments, 0, count), *result) {
+        return ExecFail(instance, .Host)
+    }
+    if instruction.result != LirNoId {
+        if !ExecHostCanonical(program.types[program.functions[instruction.symbol].result], result) {
+            return ExecFail(instance, .Host)
+        }
+        ExecWriteSlotBits(instance, frame_index, instruction.result, result)
+    }
+    instance.frames[frame_index].instruction += 1
+    return true
+}
+
 ExecStep :: (instance: *LirExecInstance) -> bool {
     frame_index := instance.frames.count - 1
     frame := instance.frames[frame_index]
@@ -1038,6 +1084,7 @@ ExecStep :: (instance: *LirExecInstance) -> bool {
         return ExecEdge(instance, frame_index, instruction.edges[ifx condition then 0 else 1])
     }
     if op == .Return { return ExecFinishFrame(instance, frame_index, instruction) }
+    if op == .HostCall { return ExecHostCall(instance, frame_index, instruction) }
     if op == .Call || op == .CallIndirect {
         return ExecCallInstruction(instance, frame_index, function, instruction)
     }
@@ -1060,6 +1107,17 @@ ExecRunFunction :: (instance: *LirExecInstance, function: s32, arguments: []LirE
         return ExecResult(.NotReady)
     }
     if instance.running { return ExecResult(.Busy) }
+    program := instance.plan.program
+    if function < 0 || function >= program.functions.count || program.functions[function].external {
+        return ExecResult(.Calling)
+    }
+    for index: cast(s32)0..cast(s32)program.functions.count - 1 {
+        if program.functions[index].external && ExecHostBinding(instance, index) < 0 {
+            missing := ExecResult(.Host)
+            missing.function = index
+            return missing
+        }
+    }
     if !ExecResetRun(instance) { return ExecResult(.Allocation) }
     instance.running = true
     no_operands: [0]s32
@@ -1117,6 +1175,8 @@ LirExecInstanceClose :: (instance: *LirExecInstance) {
     VecFree(instance.validity)
     VecFree(instance.frames)
     VecFree(instance.result_bytes)
+    VecFree(instance.hosts)
+    VecFree(instance.host_arguments)
     instance.plan = null
     instance.limits = .{}
     instance.identity = 0
@@ -1214,6 +1274,17 @@ LirExecResultCopy :: (instance: *LirExecInstance, output: []u8) -> bool {
     return true
 }
 
+LirExecBindHost :: (instance: *LirExecInstance, function: s32, call: LirExecHostCall, context: *void) -> LirExecProblem {
+    if instance == null || !instance.ready || instance.plan == null { return .NotReady }
+    if instance.running { return .Busy }
+    program := instance.plan.program
+    if call == null || function < 0 || function >= program.functions.count ||
+        !program.functions[function].external || program.functions[function].calling != .Host ||
+        ExecHostBinding(instance, function) >= 0 { return .Calling }
+    if !VecPush(instance.hosts, LirExecHostBinding.{function = function, call = call, context = context}) { return .Allocation }
+    return .None
+}
+
 LirExecProblemName :: (problem: LirExecProblem) -> string {
     if problem == .None { return "none" }
     if problem == .InvalidProgram { return "invalid-program" }
@@ -1234,5 +1305,6 @@ LirExecProblemName :: (problem: LirExecProblem) -> string {
     if problem == .InvalidConversion { return "invalid-conversion" }
     if problem == .Trap { return "trap" }
     if problem == .Unreachable { return "unreachable" }
+    if problem == .Host { return "host" }
     return "unsupported"
 }

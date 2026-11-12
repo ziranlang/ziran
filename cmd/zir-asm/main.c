@@ -512,6 +512,14 @@ main(int argc, char **argv)
             goto done;
         }
     } else if(executable || mapping) {
+        const LirFunction *functions = view->functions.data;
+        for(int64_t index = 0; index < view->functions.length; index++) {
+            if(!functions[index].external) continue;
+            Diagnostic((ZirSourceSpan){0}, "assembly.encode",
+                "native output cannot call host capability %.*s yet; use --emit zx or --run with host bindings",
+                (int)functions[index].name.length, functions[index].name.data);
+            goto done;
+        }
         LirNativeResult measured = compiler_lowered_x64_LirX64Elf(*view, (Slice){0});
         if(measured.problem != LirProblem_None || measured.size <= 0 || measured.size > 268435456) {
             Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native encoder rejected the program: problem=%d", measured.problem);

@@ -90,11 +90,14 @@ assets). Optional debug/source changes do not change executable content identity
 Proof status is currently zero: producer law/proof attachments are not treated
 as verified evidence.
 
-The current reachable subset requires no `host.call`. The reader recomputes the
-reachable function set from the entry, direct calls and function addresses;
-indirect calls conservatively retain every function. It rejects reachable host
-calls, unresolved/external functions and non-portable calling conventions before
-execution. Required native variants and arbitrary machine-code sections are
+Reachable `#foreign host_api` calls with scalar signatures become bodiless
+host capabilities called by `host.call`. The reader recomputes the reachable
+function set from the entry, direct calls, host calls and function addresses;
+indirect calls conservatively retain every portable function. The manifest's
+capability count must equal the recomputed count. Other external functions and
+non-portable calling conventions reject before execution. An embedder binds each
+capability with `LirExecBindHost`; a run with any unbound capability stops before
+the entry executes, so the standalone `zi2asm --run` reports `problem=host`. Required native variants and arbitrary machine-code sections are
 also rejected. Portable instructions remain mandatory.
 
 Executable-container reads charge the supplied LIR work and byte limits before

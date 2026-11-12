@@ -219,7 +219,17 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
         if !Spend(state, 1) { return false }
         if !Id(function.module, program.modules.count) || !Id(function.result, program.types.count) ||
             !Optional(function.origin, program.origins.count) { return Fail(state, .Function) }
-        if function.calling != .Portable || function.variadic || function.external { return Fail(state, .Unsupported) }
+        if function.variadic { return Fail(state, .Unsupported) }
+        if function.external {
+            // Host capabilities are bodiless scalar signatures supplied by the embedder.
+            if function.calling != .Host { return Fail(state, .Unsupported) }
+            if function.blocks.count != 0 || function.values.count != 0 || function.entry != LirNoId { return Fail(state, .Function) }
+            if !HostScalar(program, function.result, true) { return Fail(state, .Unsupported) }
+            for parameter: function.parameters {
+                if !Spend(state, 1) { return false }
+                if !HostScalar(program, parameter, false) { return Fail(state, .Unsupported) }
+            }
+        } else if function.calling != .Portable { return Fail(state, .Unsupported) }
         for parameter: function.parameters {
             if !Spend(state, 1) { return false }
             if !ValueType(program, parameter) { return Fail(state, .Function) }
@@ -232,8 +242,15 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
     state.diagnostic.function = LirNoId
     state.diagnostic.origin = LirNoId
     if !Optional(program.entry, program.functions.count) { return Fail(state, .Function) }
-    if program.entry != LirNoId && program.functions[program.entry].parameters.count != 0 { return Fail(state, .Calling) }
+    if program.entry != LirNoId && (program.functions[program.entry].parameters.count != 0 ||
+        program.functions[program.entry].external) { return Fail(state, .Calling) }
     return true
+}
+
+HostScalar :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
+    if !Id(type, program.types.count) { return false }
+    kind := program.types[type].kind
+    return kind == .Bool || kind == .Integer || kind == .Float || allow_void && kind == .Void
 }
 
 Signature :: (state: *State, type: LirType, parameters: []s32, result: s32) -> bool {
@@ -269,7 +286,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if !symbolic && instruction.symbol != LirNoId || !indexed && instruction.immediate != 0 { return Fail(state, .Instruction) }
     if !memory && instruction.alignment != 0 { return Fail(state, .Alignment) }
     if memory && instruction.alignment != 0 && instruction.alignment != 1 { return Fail(state, .Alignment) }
-    if op == .Copy || op == .Zero || op == .HostCall {
+    if op == .Copy || op == .Zero {
         return Fail(state, .Unsupported)
     }
     if op == .Constant {
@@ -290,6 +307,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if op == .FunctionAddress {
         if operand_count != 0 || !Id(instruction.symbol, program.functions.count) || result == LirNoId { return Fail(state, .Calling) }
         target := program.functions[instruction.symbol]
+        if target.external { return Fail(state, .Calling) }
         return Signature(state, program.types[result], target.parameters, target.result)
     }
     if op == .Allocate {
@@ -392,12 +410,13 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         }
         return true
     }
-    if op == .Call || op == .CallIndirect {
+    if op == .Call || op == .CallIndirect || op == .HostCall {
         parameters: []s32
         returns: s32 = LirNoId
         skip: s64 = 0
-        if op == .Call {
-            if !Id(instruction.symbol, program.functions.count) { return Fail(state, .Calling) }
+        if op == .Call || op == .HostCall {
+            if !Id(instruction.symbol, program.functions.count) ||
+                program.functions[instruction.symbol].external != (op == .HostCall) { return Fail(state, .Calling) }
             parameters = program.functions[instruction.symbol].parameters
             returns = program.functions[instruction.symbol].result
         } else {
@@ -597,6 +616,7 @@ LirVerify :: (program: LirProgram, limits: LirLimits) -> LirDiagnostic {
         state.diagnostic.instruction = LirNoId
         state.diagnostic.value = LirNoId
         state.diagnostic.origin = program.functions[id].origin
+        if program.functions[id].external { continue }
         if !Function(*state, program, program.functions[id]) { return state.diagnostic }
     }
     return .{problem = .None, function = LirNoId, block = LirNoId,

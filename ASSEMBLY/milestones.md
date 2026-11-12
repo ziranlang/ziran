@@ -90,5 +90,6 @@ M0 integration is in progress. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
 boundary are implemented with focused local tests. The full local suite passes
 except for the site-page checks owned by the separate website-layout task. The
-Alpha baseline has not been captured yet. M1 starts with the two constructs
-blocking `bench/zx_compare.zi`: host capability calls and string values.
+Alpha baseline has not been captured yet. In M1, scalar host capability calls
+now work on the portable path; string values are the remaining construct that
+blocks `bench/zx_compare.zi`.

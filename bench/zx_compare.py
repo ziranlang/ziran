@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prepare on Alpha Personal VM; measure there, or transport built artifacts to USB Moto."""
+"""Prepare and measure on Alpha's physical host, or transport built artifacts to USB Moto."""
 import sys
 import argparse, hashlib, json, math, os, platform, random, re, shutil, statistics, subprocess, time
 from pathlib import Path
@@ -61,13 +61,33 @@ def prepare(a):
     build([*common,'-DCONTROL',ROOT/'bench/zx_compare_host.c',ROOT/'bench/zx_compare_control.c','-o',out/'control'])
     build([*common,ROOT/'bench/zx_compare_host.c',a.library,*links,'-o',out/'zx-host'])
     build([*common,ROOT/'bench/zx_compare_component.c',a.library,*links,'-o',out/'component-host'])
+    # New path: the same workload as a revision-28 executable container, run by
+    # the verified-LIR portable engine through the same harness contract.
+    build([tools/'zi2asm','--root',ROOT/'bench','--entry','zx_compare:Answer','--emit','zx','-o',out/'fixture-lowered.zx',ROOT/'bench/zx_compare.zi'])
+    build([*common,'-D_GNU_SOURCE','-I'+str(ROOT/'build/compiler-assembly'),ROOT/'bench/zx_lowered_host.c',
+           ROOT/'build/obj/assembly-core.o',a.library,*links,'-o',out/'lowered-host'])
     metadata={'commands':commands,'compiler':invoke([cc,'--version']).stdout.splitlines()[0],
       'source_revision':invoke(['git','rev-parse','HEAD']).stdout.strip(),
-      'sources':{str(p.relative_to(ROOT)):sha(p) for p in (ROOT/'bench').glob('zx_compare*') if p.is_file()},
-      'artifacts':{p.name:sha(p) for p in (out/'fixture.zx',out/'fixture.wasm',out/'control',out/'zx-host',out/'component-host',out/'component-old.zx',out/'component-new.zx')},
+      'sources':{str(p.relative_to(ROOT)):sha(p) for p in [*(ROOT/'bench').glob('zx_compare*'), ROOT/'bench/zx_lowered_host.c'] if p.is_file()},
+      'artifacts':{p.name:sha(p) for p in (out/'fixture.zx',out/'fixture.wasm',out/'control',out/'zx-host',out/'component-host',out/'component-old.zx',out/'component-new.zx',out/'fixture-lowered.zx',out/'lowered-host')},
       'queue_jobs':os.environ.get('BUILD_QUEUE_JOBS'), 'library':{'path':str(a.library),'sha256':sha(a.library)}}
     (out/'prepare.json').write_text(json.dumps(metadata,indent=2)+'\n')
-    print('Prepared checksum fixtures and four real engine artifacts')
+    print('Prepared checksum fixtures and five real engine artifacts')
+
+def quartiles(values):
+    """Inclusive interpolated quartiles, as the repository's IQR rule requires."""
+    q = statistics.quantiles(values, n=4, method='inclusive')
+    return q[0], q[2]
+
+def excluded(values):
+    if len(values) < 4: return []
+    low, high = quartiles(values); spread = 1.5 * (high - low)
+    return [i for i, v in enumerate(values) if v < low - spread or v > high + spread]
+
+def host_label():
+    virt = subprocess.run(['systemd-detect-virt'], text=True, capture_output=True).stdout.strip()
+    return ('Alpha physical host' if platform.node() == 'alpha' and virt == 'none' else
+            'Alpha Personal VM' if virt != 'none' else platform.node()), virt
 
 def measure(a):
     out=a.out.resolve(); meta=json.loads((out/'prepare.json').read_text())
@@ -79,7 +99,8 @@ def measure(a):
     def observe():
         if a.device: return re.sub(r'(?m)^Serial.*$', '', shell('dumpsys battery; cat /proc/cpuinfo'))
         return {'platform':platform.platform(),'cpu':Path('/proc/cpuinfo').read_text()[:3000],'load':os.getloadavg()}
-    receipt={'schema':1,'prepared':meta,'target':'USB Moto' if a.device else 'Alpha Personal VM',
+    label, virtualization = host_label()
+    receipt={'schema':1,'prepared':meta,'target':'USB Moto' if a.device else label,'virtualization':None if a.device else virtualization,
         'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'before':observe(),
         'samples':[],'unavailable':[],'complete':False}
     if a.device:
@@ -95,8 +116,8 @@ def measure(a):
     else:
         receipt['engines']={engine:shutil.which(engine) for engine in ('node','wasmtime','wasm3','iwasm')}
         if shutil.which('node'): receipt['node_version']=invoke(['node','--version']).stdout.strip()
-    receipt['measurement_sources']={p.name:sha(p) for p in (ROOT/'bench').glob('zx_compare*') if p.is_file()}
-    variants=['vm','native','c']+([] if a.device or not shutil.which('node') else ['wasm-node'])
+    receipt['measurement_sources']={p.name:sha(p) for p in [*(ROOT/'bench').glob('zx_compare*'), ROOT/'bench/zx_lowered_host.c'] if p.is_file()}
+    variants=['vm','native','lowered','c']+([] if a.device or not shutil.which('node') else ['wasm-node'])
     rng=random.Random(20261109)
     a.results.parent.mkdir(parents=True,exist_ok=True)
     def save(): a.results.write_text(json.dumps(receipt,indent=2)+'\n')
@@ -118,6 +139,8 @@ def measure(a):
                     binary='control' if variant=='c' else 'zx-host'
                     cmd=f'ZIRAN_NATIVE_TIMING=1 ZIRAN_NATIVE_CACHE={remote}/cache {remote}/{binary} {variant} {remote}/fixture.zx '+ ' '.join(map(str,args))
                     result=invoke(['adb','-s',serial,'shell',cmd])
+                elif variant=='lowered':
+                    result=invoke([out/'lowered-host','lowered',out/'fixture-lowered.zx',*args])
                 else:
                     binary=out/('control' if variant=='c' else 'zx-host')
                     result=invoke(['env','ZIRAN_NATIVE_TIMING=1','ZIRAN_NATIVE_CACHE='+str(out/'cache'),binary,variant,out/'fixture.zx',*args])
@@ -139,8 +162,12 @@ def measure(a):
         receipt['summary']=[]
         for kind in range(2):
             for variant in variants:
-                values=sorted(r['per_entry_ms'] for r in receipt['samples'] if r['kind']==kind and r['variant']==variant)
-                if values: receipt['summary'].append({'kind':kind,'variant':variant,'n':len(values),'median_ms':statistics.median(values),'p95_ms':values[math.ceil(.95*len(values))-1]})
+                raw=[r['per_entry_ms'] for r in receipt['samples'] if r['kind']==kind and r['variant']==variant]
+                if not raw: continue
+                dropped=excluded(raw)
+                values=sorted(v for i,v in enumerate(raw) if i not in dropped)
+                receipt['summary'].append({'kind':kind,'variant':variant,'n':len(values),'raw':raw,'excluded_indices':dropped,
+                    'median_ms':statistics.median(values),'p95_ms':values[math.ceil(.95*len(values))-1]})
         receipt['measurement_loop_finished']=True
         receipt['complete']=False  # Preliminary shell data; embedded comparison has a separate receipt.
     finally:

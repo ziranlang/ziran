@@ -8,6 +8,11 @@
 
 - Add portable native standard facades for byte text, environment access, timers, secure randomness, mapped files, standard streams, worker pools, directory trees and threads. Platform backends remain private implementation seams behind one import.
 
+- Lower string literals, copies and `.count` in the experimental direct
+  backend's portable path. Literal bytes are deduplicated read-only data
+  that execution can never write. `bench/zx_compare.zi` now lowers to a
+  revision-28 executable container.
+
 - Lower `#foreign host_api` calls with scalar signatures to explicit host
   capabilities in the experimental direct backend. Revision-28 containers
   record the recomputed capability count, and the portable engine runs only

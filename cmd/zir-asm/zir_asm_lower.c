@@ -93,6 +93,7 @@ struct AssemblyProgram {
     size_t bytes;
     int64_t work;
     int failed;
+    int string_type;
 };
 
 static int
@@ -214,6 +215,24 @@ assembly_pointer_type(AssemblyProgram *program, int element, ZirSourceSpan span)
     return assembly_push(program, &program->types, &type) ? identity : -1;
 }
 
+/* `string` is the record {data: *u8, count: s64}. Literal bytes live in
+ * read-only byte-array globals; an empty literal has a null data pointer. */
+static int
+assembly_string_type(AssemblyProgram *program, ZirSourceSpan span)
+{
+    if(program->string_type > 0) return program->string_type;
+    int pointer = assembly_pointer_type(program, 3, span);
+    int *fields = assembly_allocate(program, 2, sizeof(*fields));
+    if(program->failed || fields == NULL) return -1;
+    fields[0] = pointer;
+    fields[1] = 8;
+    LirType type = {.kind = LirTypeKind_Record, .fields = {fields, 2}};
+    int identity = program->types.count;
+    if(!assembly_push(program, &program->types, &type)) return -1;
+    program->string_type = identity;
+    return identity;
+}
+
 static int
 assembly_type_in(AssemblyProgram *program, const ZirModule *module,
                  const char *name, ZirSourceSpan span, int depth)
@@ -244,6 +263,7 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
         AssemblyType binding = {module, assembly_text(program, name), NULL, identity};
         return assembly_push(program, &program->type_names, &binding) ? identity : -1;
     }
+    if(!strcmp(name, "string")) return assembly_string_type(program, span);
     LirType type = {0};
     if(!strcmp(name, "float32") || !strcmp(name, "float64") || !strcmp(name, "real")) {
         type.kind = LirTypeKind_Float;
@@ -683,6 +703,74 @@ assembly_named_value(AssemblyProgram *program, AssemblyFunction *function,
 }
 
 static int
+assembly_string_global(AssemblyProgram *program, const ZirModule *module,
+                       const unsigned char *bytes, size_t length, ZirSourceSpan span)
+{
+    AssemblyGlobal *globals = program->globals.data;
+    LirConstant *constants = program->constants.data;
+    for(int index = 0; index < program->globals.count; index++) {
+        LirGlobal *global = &globals[index].result;
+        if(global->writable || global->constant < 0) continue;
+        LirConstant *constant = &constants[global->constant];
+        if((size_t)constant->bytes.length == length && !memcmp(constant->bytes.data, bytes, length)) return index;
+    }
+    int array = -1;
+    for(int index = 0; index < program->types.count && array < 0; index++) {
+        const LirType *type = assembly_type_at(program, index);
+        if(type->kind == LirTypeKind_Array && type->element == 3 && type->count == (int64_t)length) array = index;
+    }
+    if(array < 0) {
+        LirType type = {.kind = LirTypeKind_Array, .element = 3, .count = (int64_t)length};
+        array = program->types.count;
+        if(!assembly_push(program, &program->types, &type)) return -1;
+    }
+    unsigned char *copy = assembly_allocate(program, length, 1);
+    if(copy == NULL) return -1;
+    memcpy(copy, bytes, length);
+    LirConstant initial = {.type = array, .bytes = {copy, (int64_t)length}};
+    int constant = program->constants.count;
+    if(!assembly_push(program, &program->constants, &initial)) return -1;
+    char name[32];
+    snprintf(name, sizeof(name), "string.%d", program->globals.count);
+    const char *copied_name = assembly_text(program, name);
+    if(program->failed) return -1;
+    AssemblyGlobal global = {.module = module, .source = NULL,
+        .result = {.module = assembly_name(program, &program->modules, module->name),
+            .name = {copied_name, strlen(copied_name)}, .type = array,
+            .constant = constant, .writable = 0}};
+    int symbol = program->globals.count;
+    return assembly_push(program, &program->globals, &global) ? symbol : assembly_fail(program, span, "cannot record string data");
+}
+
+static int
+assembly_string(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression)
+{
+    size_t capacity = strlen(expression->text) + 1;
+    unsigned char *bytes = assembly_allocate(program, capacity, 1);
+    size_t length = 0;
+    if(bytes == NULL || !DecodeStringLiteral(expression->text, bytes, capacity, &length))
+        return assembly_fail(program, expression->span, "invalid checked string literal");
+    ZirSourceSpan span = expression->span;
+    int record = assembly_string_type(program, span);
+    int pointer = assembly_pointer_type(program, 3, span);
+    if(program->failed) return -1;
+    int data;
+    if(length == 0) data = assembly_emit(program, function, LirOp_Null, pointer, NULL, 0, -1, span);
+    else {
+        int global = assembly_string_global(program, function->module, bytes, length, span);
+        if(global < 0) return -1;
+        int array = ((AssemblyGlobal *)program->globals.data)[global].result.type;
+        int base = assembly_emit(program, function, LirOp_GlobalAddress,
+            assembly_pointer_type(program, array, span), NULL, 0, global, span);
+        int operands[] = {base, assembly_constant(program, function, 8, 0, span)};
+        data = assembly_emit(program, function, LirOp_ElementAddress, pointer, operands, 2, -1, span);
+    }
+    int fields[] = {data, assembly_constant(program, function, 8, (uint64_t)length, span)};
+    if(program->failed) return -1;
+    return assembly_emit(program, function, LirOp_Aggregate, record, fields, 2, -1, span);
+}
+
+static int
 assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
 {
     if(expression->kind == ZIR_EXPR_MEMBER) {
@@ -714,6 +802,10 @@ assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirE
                 operands, 2, 0, expression->span);
         }
         member = (int)ordinal;
+    } else if(identity == program->string_type && program->string_type > 0) {
+        if(strcmp(expression->name, "count") && strcmp(expression->name, "data"))
+            return assembly_fail(program, expression->span, "string has only data and count members");
+        member = !strcmp(expression->name, "count");
     } else if(type.kind == LirTypeKind_Array && !strcmp(expression->name, "count")) {
         int result_type = assembly_type(program, function, expression->type, expression->span);
         return assembly_constant(program, function, result_type, (uint64_t)type.count, expression->span);
@@ -915,6 +1007,7 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         if(program->failed) return -1;
         return assembly_emit(program, function, LirOp_FunctionAddress, type, NULL, 0, symbol, expression->span);
     }
+    if(expression->kind == ZIR_EXPR_STRING) return assembly_string(program, function, expression);
     if(expression->kind == ZIR_EXPR_INT) {
         unsigned long long bits = 0;
         if(!ZirIntegerLiteral(expression->text, &bits))

@@ -269,6 +269,54 @@ HostCapabilities :: () -> s32 {
     return 0
 }
 
+// Read-only globals exist only for byte strings, and nothing can write them.
+ReadOnlyBytes :: () -> s32 {
+    types: [5]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 8}, .{kind = .Array, element = 1, count = 2},
+        .{kind = .Pointer, element = 2}, .{kind = .Pointer, element = 1}}
+    modules: [1]string = .{"bytes"}
+    data: [2]u8 = .{104, 105}
+    constants: [3]Lir.LirConstant = .{.{type = 2, bytes = data[:]}, .{type = 1, bits = 0}, .{type = 1, bits = 7}}
+    globals: [1]Lir.LirGlobal = .{.{module = 0, name = "string.0", type = 2, constant = 0, writable = false}}
+    values: [5]s32 = .{3, 1, 4, 1, 1}
+    address: [2]s32 = .{0, 1}
+    read: [1]s32 = .{2}
+    stored: [2]s32 = .{2, 4}
+    returned: [1]s32 = .{3}
+    instructions: [6]Lir.LirInstruction
+    instructions[0] = .{op = .GlobalAddress, result = 0, symbol = 0, origin = -1}
+    instructions[1] = .{op = .Constant, result = 1, symbol = 1, origin = -1}
+    instructions[2] = .{op = .ElementAddress, result = 2, operands = address[:], symbol = -1, origin = -1}
+    instructions[3] = .{op = .Load, result = 3, operands = read[:], symbol = -1, effect = 1, origin = -1}
+    instructions[4] = .{op = .Constant, result = 4, symbol = 2, origin = -1}
+    instructions[5] = .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = -1}
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "main", result = 1, values = values[:], blocks = blocks[:], entry = 0, origin = -1}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:], constants = constants[:],
+        globals = globals[:], functions = functions[:], entry = 0}
+    no_hosts: Exec.LirExecHostCall = Refuse
+    loaded := HostRun(program, no_hosts, false)
+    if loaded.problem != .None || loaded.value.bits != 104 { return Fail(60, cast(s32)loaded.problem) }
+    // A store through read-only bytes traps instead of changing string data.
+    store_instructions: [7]Lir.LirInstruction
+    for index: 0..4 { store_instructions[index] = instructions[index] }
+    store_instructions[5] = .{op = .Store, result = -1, operands = stored[:], symbol = -1, effect = 2, origin = -1}
+    store_instructions[6] = instructions[5]
+    store_blocks: [1]Lir.LirBlock = .{.{instructions = store_instructions[:]}}
+    store_functions: [1]Lir.LirFunction = .{.{module = 0, name = "main", result = 1, values = values[:], blocks = store_blocks[:], entry = 0, origin = -1}}
+    store_program := program
+    store_program.functions = store_functions[:]
+    stored_result := HostRun(store_program, no_hosts, false)
+    if stored_result.problem != .Pointer { return Fail(61, cast(s32)stored_result.problem) }
+    short: [1]u8 = .{1}
+    constants[0].bytes = short[:]
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Constant { return Fail(62) }
+    constants[0].bytes = data[:]
+    scalar_globals: [1]Lir.LirGlobal = .{.{module = 0, name = "scalar", type = 1, constant = 1, writable = false}}
+    program.globals = scalar_globals[:]
+    if Verify.LirVerify(program, Lir.LirDefaultLimits()).problem != .Unsupported { return Fail(63) }
+    return 0
+}
+
 main :: () -> s32 {
     types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
     modules: [1]string = .{"executable"}
@@ -372,6 +420,8 @@ main :: () -> s32 {
     if budget_result != 0 { return budget_result }
     host_result := HostCapabilities()
     if host_result != 0 { return host_result }
-    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities and mutation local tests passed\n")
+    host_result = ReadOnlyBytes()
+    if host_result != 0 { return host_result }
+    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls, host capabilities, read-only bytes and mutation local tests passed\n")
     return 0
 }

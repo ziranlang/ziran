@@ -87,6 +87,12 @@ assembler, C compiler, or system linker to produce this executable.
   count. Embedders bind capabilities with `LirExecBindHost`; arguments and
   results use canonical scalar bits, and malformed host results stop the run.
   Native output rejects host calls until the native host ABI exists.
+- `string` lowers to the record `{data: *u8, count: s64}`. Literals become
+  deduplicated read-only byte-array globals (empty literals use a null data
+  pointer); copies, reassignment, returns, `.count` and `.data` work in source,
+  saved IR and the portable engine. Stores through read-only bytes trap.
+  Indexing, comparison and concatenation are rejected explicitly, and native
+  output rejects read-only data until it has a read-only section.
 - A verified, target-neutral [machine IR](machine-ir.md) boundary lowers the
   current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
   constraints, explicit flags, call clobbers and parallel copies. It is not yet

@@ -512,6 +512,13 @@ main(int argc, char **argv)
             goto done;
         }
     } else if(executable || mapping) {
+        const LirGlobal *globals = view->globals.data;
+        for(int64_t index = 0; index < view->globals.length; index++) {
+            if(globals[index].writable) continue;
+            Diagnostic((ZirSourceSpan){0}, "assembly.encode",
+                "native output cannot hold read-only string data yet; use --emit zx or --run");
+            goto done;
+        }
         const LirFunction *functions = view->functions.data;
         for(int64_t index = 0; index < view->functions.length; index++) {
             if(!functions[index].external) continue;

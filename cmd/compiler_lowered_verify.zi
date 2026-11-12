@@ -202,6 +202,11 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
         if !Spend(state, 1) { return false }
         if !ValueType(program, constant.type) { return Fail(state, .Constant) }
         type := program.types[constant.type]
+        if ByteArray(program, constant.type) {
+            // Byte-array constants initialize read-only string data.
+            if constant.bits != 0 || constant.bytes.count != type.count { return Fail(state, .Constant) }
+            continue
+        }
         if type.kind != .Bool && type.kind != .Integer && type.kind != .Float { return Fail(state, .Unsupported) }
         if constant.bytes.count != 0 || type.kind == .Bool && constant.bits > 1 ||
             type.kind != .Bool && type.bits < 64 && constant.bits >> cast(u64)type.bits != 0 { return Fail(state, .Constant) }
@@ -211,6 +216,7 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
         if !Id(global.module, program.modules.count) || !ValueType(program, global.type) ||
             !Optional(global.constant, program.constants.count) { return Fail(state, .Global) }
         if global.constant != LirNoId && program.constants[global.constant].type != global.type { return Fail(state, .Global) }
+        if !global.writable && (global.constant == LirNoId || !ByteArray(program, global.type)) { return Fail(state, .Unsupported) }
     }
     for index: cast(s32)0..cast(s32)program.functions.count - 1 {
         function := program.functions[index]
@@ -245,6 +251,13 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
     if program.entry != LirNoId && (program.functions[program.entry].parameters.count != 0 ||
         program.functions[program.entry].external) { return Fail(state, .Calling) }
     return true
+}
+
+ByteArray :: (program: LirProgram, type: s32) -> bool {
+    if !Id(type, program.types.count) || program.types[type].kind != .Array { return false }
+    element := program.types[type].element
+    return Id(element, program.types.count) && program.types[element].kind == .Integer &&
+        program.types[element].bits == 8 && !program.types[element].is_signed
 }
 
 HostScalar :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
@@ -291,6 +304,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     }
     if op == .Constant {
         if operand_count != 0 || !Id(instruction.symbol, program.constants.count) || program.constants[instruction.symbol].type != result { return Fail(state, .Constant) }
+        if ByteArray(program, result) { return Fail(state, .Unsupported) }
         return true
     }
     if op == .Null {
@@ -301,7 +315,10 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if op == .GlobalAddress {
         if operand_count != 0 || !Id(instruction.symbol, program.globals.count) || result == LirNoId ||
             program.types[result].kind != .Pointer || program.types[result].element != program.globals[instruction.symbol].type { return Fail(state, .Global) }
-        if !program.globals[instruction.symbol].writable { return Fail(state, .Unsupported) }
+        // A read-only global is string data; stores through it trap at run time.
+        if !program.globals[instruction.symbol].writable && !ByteArray(program, program.globals[instruction.symbol].type) {
+            return Fail(state, .Unsupported)
+        }
         return true
     }
     if op == .FunctionAddress {

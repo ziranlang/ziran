@@ -951,6 +951,9 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         function.values[value] != instance.addresses[address_index].type {
         return ExecFail(instance, .Type)
     }
+    // Read-only globals hold string literal bytes; no address can write them.
+    global := instance.addresses[address_index].global
+    if global >= 0 && !instance.plan.program.globals[global].writable { return ExecFail(instance, .Pointer) }
     size := instance.plan.type_sizes[instance.addresses[address_index].type]
     return ExecCopyStorageToAddress(instance, ExecFrameValueOffset(instance, frame_index, value),
         address_index, size)
@@ -1245,10 +1248,14 @@ LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32
         if global.constant != LirNoId {
             constant := plan.program.constants[global.constant]
             type := plan.program.types[global.type]
-            bits := constant.bits
-            if type.kind == .Bool { bits = cast(u64)(bits != 0) }
-            if type.kind == .Integer { bits &= ExecMask(type.bits) }
-            ExecWriteBits(output.globals[:], offset, plan.type_sizes[global.type], bits)
+            if type.kind == .Array {
+                for at: cast(s64)0..constant.bytes.count - 1 { output.globals[offset + at] = constant.bytes[at] }
+            } else {
+                bits := constant.bits
+                if type.kind == .Bool { bits = cast(u64)(bits != 0) }
+                if type.kind == .Integer { bits &= ExecMask(type.bits) }
+                ExecWriteBits(output.globals[:], offset, plan.type_sizes[global.type], bits)
+            }
         }
     }
     output.ready = true

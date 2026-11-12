@@ -91,5 +91,6 @@ M0 integration is in progress. The revision-28 container, frame-local
 boundary are implemented with focused local tests. The full local suite passes
 except for the site-page checks owned by the separate website-layout task. The
 Alpha baseline has not been captured yet. In M1, scalar host capability calls
-now work on the portable path; string values are the remaining construct that
-blocks `bench/zx_compare.zi`.
+and string values now work on the portable path, and `bench/zx_compare.zi`
+lowers to a revision-28 container. Its remaining M1 gap is an embedding runner
+that binds the workload's `Input` capability for measurement.

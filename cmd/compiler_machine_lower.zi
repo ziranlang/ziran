@@ -740,6 +740,8 @@ MachineLower :: (owner: *MachineOwner, program: LirProgram, target: TargetDescri
         return Result(state)
     }
     if limits.work < 0 || limits.bytes < 0 { state.problem = .Limit; return Result(state) }
+    // Read-only string data needs a read-only native data section first.
+    for global: program.globals { if !global.writable { state.problem = .Unsupported; return Result(state) } }
     lir_diagnostic := LirVerify(program, LirDefaultLimits())
     if lir_diagnostic.problem != .None {
         state.lir_diagnostic_problem = cast(s32)lir_diagnostic.problem

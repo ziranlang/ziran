@@ -638,6 +638,36 @@ HostExercise :: (test: *NativeTest, compiler: string) -> bool {
     return NativeReject(test, value[:], "check.slot_signature")
 }
 
+// String literals, copies, reassignment, empty strings and .count lower to a
+// {data, count} record over deduplicated read-only bytes. They run portably
+// and match C; native output rejects read-only data until it has a section for it.
+StringExercise :: (test: *NativeTest, compiler: string) -> bool {
+    input := CheckPath(test.work, "strings.zi")
+    source := "Pick :: (flag: bool) -> string { if flag { return \"event\" }; return \"layout\" }\nAnswer :: () -> s64 { title: string = \"layout\"; other := Pick(true); empty := \"\"; same := \"layout\"; copy := title; title = other; return title.count * 4 + copy.count + empty.count + same.count * 2 - 4 }\n"
+    if !NativeWrite(test, input, source) { return false }
+    entry := "strings:Answer"
+    reference := string.[test.ziran, "run", "--target=c", "--root", test.work, "--entry", entry, input]
+    unused NativeRun(test, reference[:], "", 34)
+    listing := CheckPath(test.work, "strings.lir")
+    if test.failed || !Compile(test, compiler, input, entry, "lir", listing) { return false }
+    first := NativeRead(test, listing)
+    if !NativeAssert(test, TextContains(first, "writable=0 name=\"string.0\"") && TextContains(first, "bytes=6c61796f7574") &&
+        !TextContains(first, "string.2"), "string literals must become deduplicated read-only bytes") { return false }
+    saved := CheckPath(test.work, "strings-ir")
+    save := string.[test.ziran, "ir", "--root", test.work, "-o", saved, input]
+    unused NativeRun(test, save[:])
+    second := CheckPath(test.work, "strings-saved.lir")
+    if test.failed || !Compile(test, compiler, CheckPath(saved, "strings.zir"), entry, "lir", second) ||
+        !NativeAssert(test, NativeRead(test, second) == first, "source and saved IR string lowering must agree") { return false }
+    bundle := CheckPath(test.work, "strings.zx")
+    if !Compile(test, compiler, input, entry, "zx", bundle) { return false }
+    run := string.[compiler, "--input", "zx", "--run", bundle]
+    unused NativeRun(test, run[:], "", 34)
+    native := string.[compiler, "--diagnostics=json", "--root", test.work, "--entry", entry,
+        "-o", CheckPath(test.work, "strings"), input]
+    return !test.failed && NativeReject(test, native[:], "read-only string data")
+}
+
 #program_export
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "assembly-")
@@ -790,7 +820,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         if !NativeReject(*test, initializer_reject[:], "assembly.lower") ||
             !NativeAssert(*test, NativeRead(*test, initializer_output) == "preserved initializer output", "unsupported module initialization must not be skipped or overwrite outputs") { return 1 }
     }
-    if !HostExercise(*test, compiler) { return 1 }
+    if !HostExercise(*test, compiler) || !StringExercise(*test, compiler) { return 1 }
     broken := CheckPath(test.work, "unsupported.zi")
     output := CheckPath(test.work, "untouched")
     if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"unsupported\\n\"); return 0 }\n") ||

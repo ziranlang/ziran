@@ -172,7 +172,8 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
             if (upper && byte >= 97 && byte <= 122) {
                 byte = (uint8_t)((uint32_t)byte - 32u);
             }
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = byte;
+            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+            (*value_0) = byte;
             used = (int64_t)((uint64_t)used + UINT64_C(1));
             upper = false;
         } else {
@@ -180,20 +181,24 @@ compiler_text_CamelIdentifier_ziran_inline(String source, Slice output)
         }
     }
     if (used == 0LL && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 88;
+        uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+        (*value_1) = 88;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
     if (used > 0LL && ((uint8_t *)output.data)[0] >= 48 && ((uint8_t *)output.data)[0] <= 57 && (int64_t)((uint64_t)used + UINT64_C(1)) < (int64_t)(output).length) {
         int64_t index = used;
         while (index > 0LL) {
-            uint8_t value_0 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = value_0;
+            uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)]);
+            uint8_t value_3 = ((uint8_t *)output.data)[SliceIndex(output, (int64_t)((int64_t)((uint64_t)index - UINT64_C(1))))];
+            (*value_2) = value_3;
             index = (int64_t)((uint64_t)index - UINT64_C(1));
         }
-        ((uint8_t *)output.data)[0] = 77;
+        uint8_t* value_4 = &(((uint8_t *)output.data)[0]);
+        (*value_4) = 77;
         used = (int64_t)((uint64_t)used + UINT64_C(1));
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;
+    uint8_t* value_5 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+    (*value_5) = 0;
     return used;
 }
 

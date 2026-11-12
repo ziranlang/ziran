@@ -1,0 +1,724 @@
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Codec :: #import "compiler_exec_serial"
+using Vectors :: #import "std/vec"
+
+LirOptProblem :: enum s32 {
+    None; Owner; Options; VerifyInput; VerifyPass; Limit; Allocation; Codec
+}
+
+LirOptPassCounters :: struct {
+    runs: s64
+    instructions: s64
+    values: s64
+    blocks: s64
+    constants: s64
+}
+
+LirOptCounters :: struct {
+    fold: LirOptPassCounters
+    copy: LirOptPassCounters
+    dead: LirOptPassCounters
+    cfg: LirOptPassCounters
+    input_functions: s64
+    input_blocks: s64
+    input_values: s64
+    input_instructions: s64
+    output_functions: s64
+    output_blocks: s64
+    output_values: s64
+    output_instructions: s64
+}
+
+LirOptOptions :: struct {
+    fold_constants: bool
+    propagate_copies: bool
+    eliminate_dead: bool
+    simplify_cfg: bool
+    maximum_rounds: s32
+}
+
+LirOptOwner :: struct {
+    valid: bool
+    program: LirProgram
+    storage: LirReadOwner
+}
+
+LirOptResult :: struct {
+    problem: LirOptProblem
+    diagnostic: LirDiagnostic
+    counters: LirOptCounters
+    work: s64
+    scratch_bytes: s64
+}
+
+#scope_file
+OptState :: struct {
+    problem: LirOptProblem
+    diagnostic: LirDiagnostic
+    remaining: s64
+    used: s64
+    scratch_bytes: s64
+    maximum_bytes: s64
+    counters: LirOptCounters
+}
+
+ConstantFact :: struct {
+    known: bool
+    type: s32
+    bits: u64
+}
+
+EmptyDiagnostic :: () -> LirDiagnostic {
+    return .{problem = .None, function = LirNoId, block = LirNoId,
+        instruction = LirNoId, value = LirNoId, origin = LirNoId}
+}
+
+Fail :: (state: *OptState, problem: LirOptProblem) -> bool {
+    if state.problem == .None { state.problem = problem }
+    return false
+}
+
+Spend :: (state: *OptState, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    state.used += count
+    return true
+}
+
+Scratch :: (state: *OptState, count: s64, width: s64) -> bool {
+    if count < 0 || width < 1 || count > 2147483647 ||
+        state.scratch_bytes > state.maximum_bytes ||
+        count > (state.maximum_bytes - state.scratch_bytes) / width { return Fail(state, .Limit) }
+    state.scratch_bytes += count * width
+    return true
+}
+
+CountProgram :: (state: *OptState, program: LirProgram, output: bool) -> bool {
+    blocks: s64
+    values: s64
+    instructions: s64
+    for function: program.functions {
+        if !Spend(state, 1) { return false }
+        if function.blocks.count > 9223372036854775807 - blocks ||
+            function.values.count > 9223372036854775807 - values { return Fail(state, .Limit) }
+        blocks += function.blocks.count
+        values += function.values.count
+        for block: function.blocks {
+            if !Spend(state, 1) || block.instructions.count > 9223372036854775807 - instructions {
+                return Fail(state, .Limit)
+            }
+            instructions += block.instructions.count
+        }
+    }
+    if output {
+        state.counters.output_functions = program.functions.count
+        state.counters.output_blocks = blocks
+        state.counters.output_values = values
+        state.counters.output_instructions = instructions
+    } else {
+        state.counters.input_functions = program.functions.count
+        state.counters.input_blocks = blocks
+        state.counters.input_values = values
+        state.counters.input_instructions = instructions
+    }
+    return true
+}
+
+CodecFailure :: (state: *OptState, result: LirCodecResult) -> bool {
+    if result.problem == .Allocation { return Fail(state, .Allocation) }
+    if result.problem == .Limit || result.problem == .Output || result.problem == .Count {
+        return Fail(state, .Limit)
+    }
+    if result.problem == .Verify {
+        state.diagnostic = result.diagnostic
+        return Fail(state, .VerifyPass)
+    }
+    return Fail(state, .Codec)
+}
+
+CloneProgram :: (state: *OptState, program: LirProgram, limits: LirLimits,
+    owner: *LirReadOwner) -> bool {
+    empty: []u8
+    measured := LirWrite(program, empty)
+    if measured.problem != .None { return CodecFailure(state, measured) }
+    if !Scratch(state, measured.size, 1) { return false }
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !VecResizeBounded(encoded, measured.size, measured.size) { return Fail(state, .Allocation) }
+    written := LirWrite(program, encoded[:])
+    if written.problem != .None || written.size != measured.size { return CodecFailure(state, written) }
+    read := LirRead(owner, TextView(encoded[:]), limits)
+    if read.problem != .None { return CodecFailure(state, read) }
+    return true
+}
+
+VerifyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    state.diagnostic = LirVerify(program, limits)
+    if state.diagnostic.problem != .None { return Fail(state, .VerifyPass) }
+    return true
+}
+
+Mask :: (bits: s32) -> u64 {
+    if bits >= 64 { return 18446744073709551615 }
+    return (cast(u64)1 << cast(u64)bits) - 1
+}
+
+Signed :: (bits: u64, width: s32) -> s64 {
+    value := bits & Mask(width)
+    if width < 64 && (value & (cast(u64)1 << cast(u64)(width - 1))) != 0 {
+        value |= ~Mask(width)
+    }
+    return cast(s64)value
+}
+
+Fact :: (facts: []ConstantFact, value: s32) -> ConstantFact {
+    if value < 0 || value >= facts.count { return .{} }
+    return facts[value]
+}
+
+FoldInstruction :: (program: LirProgram, function: LirFunction,
+    instruction: LirInstruction, facts: []ConstantFact) -> ConstantFact {
+    if instruction.result == LirNoId { return .{} }
+    result_type_id := function.values[instruction.result]
+    result_type := program.types[result_type_id]
+    first: ConstantFact
+    second: ConstantFact
+    if instruction.operands.count > 0 { first = Fact(facts, instruction.operands[0]) }
+    if instruction.operands.count > 1 { second = Fact(facts, instruction.operands[1]) }
+    op := instruction.op
+    if op == .Bitcast && first.known {
+        source := program.types[first.type]
+        if (source.kind == .Integer || source.kind == .Float) &&
+            (result_type.kind == .Integer || result_type.kind == .Float) && source.bits == result_type.bits {
+            return .{known = true, type = result_type_id, bits = first.bits & Mask(result_type.bits)}
+        }
+    }
+    if op == .Convert && first.known {
+        source := program.types[first.type]
+        bits: u64
+        if source.kind == .Bool && result_type.kind == .Integer {
+            bits = cast(u64)(first.bits != 0)
+        } else if source.kind == .Integer && result_type.kind == .Bool {
+            bits = cast(u64)((first.bits & Mask(source.bits)) != 0)
+        } else if source.kind == .Integer && result_type.kind == .Integer {
+            bits = first.bits & Mask(source.bits)
+            if source.is_signed && source.bits < 64 &&
+                (bits & (cast(u64)1 << cast(u64)(source.bits - 1))) != 0 { bits |= ~Mask(source.bits) }
+            bits &= Mask(result_type.bits)
+        } else { return .{} }
+        return .{known = true, type = result_type_id, bits = bits}
+    }
+    if op == .Negate || op == .BitNot {
+        if !first.known || result_type.kind != .Integer { return .{} }
+        bits := first.bits & Mask(result_type.bits)
+        if op == .Negate { bits = 0 - bits }
+        else { bits = ~bits }
+        return .{known = true, type = result_type_id, bits = bits & Mask(result_type.bits)}
+    }
+    if op == .Equal || op == .NotEqual || op == .Less || op == .LessEqual ||
+        op == .Greater || op == .GreaterEqual {
+        if !first.known || !second.known { return .{} }
+        type := program.types[first.type]
+        answer: bool
+        if type.kind == .Integer && type.is_signed {
+            left := Signed(first.bits, type.bits)
+            right := Signed(second.bits, type.bits)
+            if op == .Equal { answer = left == right }
+            if op == .NotEqual { answer = left != right }
+            if op == .Less { answer = left < right }
+            if op == .LessEqual { answer = left <= right }
+            if op == .Greater { answer = left > right }
+            if op == .GreaterEqual { answer = left >= right }
+        } else if type.kind == .Integer || type.kind == .Bool {
+            left := first.bits
+            right := second.bits
+            if type.kind == .Integer { left &= Mask(type.bits); right &= Mask(type.bits) }
+            if op == .Equal { answer = left == right }
+            if op == .NotEqual { answer = left != right }
+            if op == .Less { answer = left < right }
+            if op == .LessEqual { answer = left <= right }
+            if op == .Greater { answer = left > right }
+            if op == .GreaterEqual { answer = left >= right }
+        } else { return .{} }
+        return .{known = true, type = result_type_id, bits = cast(u64)answer}
+    }
+    if !first.known || !second.known || result_type.kind != .Integer { return .{} }
+    left := first.bits & Mask(result_type.bits)
+    right := second.bits
+    if op != .ShiftLeft && op != .ShiftRight { right &= Mask(result_type.bits) }
+    bits: u64
+    if op == .Add { bits = left + right }
+    else if op == .Subtract { bits = left - right }
+    else if op == .Multiply { bits = left * right }
+    else if op == .BitAnd { bits = left & right }
+    else if op == .BitOr { bits = left | right }
+    else if op == .BitXor { bits = left ^ right }
+    else if op == .Divide || op == .Remainder {
+        if right == 0 { return .{} }
+        if result_type.is_signed {
+            signed_left := Signed(left, result_type.bits)
+            signed_right := Signed(right, result_type.bits)
+            minimum := cast(u64)1 << cast(u64)(result_type.bits - 1)
+            if left == minimum && signed_right == -1 {
+                bits = ifx op == .Divide then minimum else 0
+            } else if op == .Divide { bits = cast(u64)(signed_left / signed_right) }
+            else { bits = cast(u64)(signed_left % signed_right) }
+        } else if op == .Divide { bits = left / right }
+        else { bits = left % right }
+    } else if op == .ShiftLeft || op == .ShiftRight {
+        count_type := program.types[second.type]
+        count := second.bits & Mask(count_type.bits)
+        if count >= cast(u64)result_type.bits { return .{} }
+        if op == .ShiftLeft { bits = left << count }
+        else {
+            bits = left >> count
+            if result_type.is_signed && count != 0 &&
+                (left & (cast(u64)1 << cast(u64)(result_type.bits - 1))) != 0 {
+                bits |= Mask(result_type.bits) ^ (Mask(result_type.bits) >> count)
+            }
+        }
+    } else { return .{} }
+    return .{known = true, type = result_type_id, bits = bits & Mask(result_type.bits)}
+}
+
+FoldPass :: (state: *OptState, owner: *LirOptOwner, limits: LirLimits,
+    options: LirOptOptions) -> bool {
+    program := LirReadProgram(*owner.storage)
+    maximum := program.constants.count + state.counters.input_instructions
+    if maximum < program.constants.count || maximum > 2147483647 ||
+        !Scratch(state, maximum, 40) { return false }
+    constants: Vec(LirConstant)
+    defer VecFree(constants)
+    if !VecResizeBounded(constants, maximum, maximum) { return Fail(state, .Allocation) }
+    for index: 0..program.constants.count - 1 {
+        if !Spend(state, 1) { return false }
+        constants[index] = program.constants[index]
+    }
+    constant_count := program.constants.count
+    maximum_values: s64
+    for function: program.functions { if function.values.count > maximum_values { maximum_values = function.values.count } }
+    if !Scratch(state, maximum_values, 24) { return false }
+    facts: Vec(ConstantFact)
+    defer VecFree(facts)
+    if !VecResizeBounded(facts, maximum_values, maximum_values) { return Fail(state, .Allocation) }
+    total: s64
+    for round: 0..options.maximum_rounds - 1 {
+        changed: s64
+        state.counters.fold.runs += 1
+        for function_index: 0..program.functions.count - 1 {
+            function := program.functions[function_index]
+            for value: 0..function.values.count - 1 { facts[value] = .{} }
+            for block: function.blocks {
+                for instruction: block.instructions {
+                    if !Spend(state, 1) { return false }
+                    if instruction.op == .Constant {
+                        constant := constants[instruction.symbol]
+                        facts[instruction.result] = .{known = true, type = constant.type, bits = constant.bits}
+                    }
+                }
+            }
+            for block_index: 0..function.blocks.count - 1 {
+                block := function.blocks[block_index]
+                for instruction_index: 0..block.instructions.count - 1 {
+                    if !Spend(state, 1) { return false }
+                    instruction := block.instructions[instruction_index]
+                    if instruction.op == .Constant {
+                        constant := constants[instruction.symbol]
+                        facts[instruction.result] = .{known = true, type = constant.type, bits = constant.bits}
+                        continue
+                    }
+                    folded := FoldInstruction(program, function, instruction, facts[:function.values.count])
+                    if !folded.known { continue }
+                    if constant_count >= constants.count { return Fail(state, .Limit) }
+                    constants[constant_count] = .{type = folded.type, bits = folded.bits}
+                    instruction.op = .Constant
+                    instruction.operands = instruction.operands[:0]
+                    instruction.edges = instruction.edges[:0]
+                    instruction.immediate = 0
+                    instruction.symbol = cast(s32)constant_count
+                    instruction.alignment = 0
+                    instruction.effect = 0
+                    block.instructions[instruction_index] = instruction
+                    facts[instruction.result] = folded
+                    constant_count += 1
+                    changed += 1
+                    total += 1
+                }
+                function.blocks[block_index] = block
+            }
+            program.functions[function_index] = function
+        }
+        if changed == 0 { break }
+    }
+    state.counters.fold.instructions += total
+    state.counters.fold.constants += total
+    pass_program := program
+    pass_program.constants = constants[:constant_count]
+    if !VerifyPass(state, pass_program, limits) { return false }
+    if total == 0 { return true }
+    return CloneProgram(state, pass_program, limits, *owner.storage)
+}
+
+ResolveAlias :: (state: *OptState, aliases: []s32, value: s32) -> s32 {
+    root := value
+    steps: s64
+    while root >= 0 && root < aliases.count && aliases[root] != root {
+        if !Spend(state, 1) { return value }
+        root = aliases[root]
+        steps += 1
+        if steps > aliases.count { unused Fail(state, .VerifyPass); return value }
+    }
+    return root
+}
+
+CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    state.counters.copy.runs += 1
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        if !Scratch(state, function.values.count, 5) { return false }
+        aliases: Vec(s32)
+        changed: Vec(u8)
+        if !VecResizeBounded(aliases, function.values.count, function.values.count) ||
+            !VecResizeBounded(changed, function.values.count, function.values.count) {
+            VecFree(aliases); VecFree(changed)
+            return Fail(state, .Allocation)
+        }
+        for value: 0..function.values.count - 1 { aliases[value] = cast(s32)value }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if !Spend(state, 1) { VecFree(aliases); VecFree(changed); return false }
+                if instruction.op == .Bitcast && instruction.result != LirNoId &&
+                    function.values[instruction.result] == function.values[instruction.operands[0]] {
+                    aliases[instruction.result] = instruction.operands[0]
+                }
+            }
+        }
+        for block_index: 0..function.blocks.count - 1 {
+            block := function.blocks[block_index]
+            for instruction_index: 0..block.instructions.count - 1 {
+                instruction := block.instructions[instruction_index]
+                for at: 0..instruction.operands.count - 1 {
+                    old := instruction.operands[at]
+                    replacement := ResolveAlias(state, aliases[:], old)
+                    if state.problem != .None { VecFree(aliases); VecFree(changed); return false }
+                    if replacement != old { instruction.operands[at] = replacement; changed[old] = 1 }
+                }
+                for edge_index: 0..instruction.edges.count - 1 {
+                    edge := instruction.edges[edge_index]
+                    for at: 0..edge.arguments.count - 1 {
+                        old := edge.arguments[at]
+                        replacement := ResolveAlias(state, aliases[:], old)
+                        if state.problem != .None { VecFree(aliases); VecFree(changed); return false }
+                        if replacement != old { edge.arguments[at] = replacement; changed[old] = 1 }
+                    }
+                    instruction.edges[edge_index] = edge
+                }
+                block.instructions[instruction_index] = instruction
+            }
+            function.blocks[block_index] = block
+        }
+        for value: 0..changed.count - 1 {
+            if changed[value] != 0 { state.counters.copy.instructions += 1; state.counters.copy.values += 1 }
+        }
+        program.functions[function_index] = function
+        VecFree(aliases)
+        VecFree(changed)
+    }
+    return VerifyPass(state, program, limits)
+}
+
+DeadOperation :: (op: LirOp) -> bool {
+    return op == .Constant || op == .Null || op == .Add || op == .Subtract ||
+        op == .Multiply || op == .Negate || op == .BitAnd || op == .BitOr ||
+        op == .BitXor || op == .BitNot || op == .Equal || op == .NotEqual ||
+        op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual ||
+        op == .Bitcast || op == .Aggregate || op == .Extract || op == .Insert
+}
+
+CompactValues :: (state: *OptState, function: *LirFunction, keep: []u8,
+    counter: *LirOptPassCounters) -> bool {
+    old_count := function.values.count
+    if !Scratch(state, old_count, 4) { return false }
+    remap: Vec(s32)
+    defer VecFree(remap)
+    if !VecResizeBounded(remap, old_count, old_count) { return Fail(state, .Allocation) }
+    for value: 0..old_count - 1 { remap[value] = LirNoId }
+    for block_index: 0..function.blocks.count - 1 {
+        if keep.count != 0 && keep[block_index] == 0 { continue }
+        block := function.blocks[block_index]
+        for value: block.parameters { remap[value] = 0 }
+        for instruction: block.instructions {
+            if instruction.result != LirNoId { remap[instruction.result] = 0 }
+        }
+    }
+    next: s32
+    for value: 0..old_count - 1 {
+        if remap[value] == LirNoId { continue }
+        remap[value] = next
+        function.values[next] = function.values[value]
+        next += 1
+    }
+    for block_index: 0..function.blocks.count - 1 {
+        if keep.count != 0 && keep[block_index] == 0 { continue }
+        block := function.blocks[block_index]
+        for at: 0..block.parameters.count - 1 { block.parameters[at] = remap[block.parameters[at]] }
+        for instruction_index: 0..block.instructions.count - 1 {
+            instruction := block.instructions[instruction_index]
+            if instruction.result != LirNoId { instruction.result = remap[instruction.result] }
+            for at: 0..instruction.operands.count - 1 { instruction.operands[at] = remap[instruction.operands[at]] }
+            for edge_index: 0..instruction.edges.count - 1 {
+                edge := instruction.edges[edge_index]
+                for at: 0..edge.arguments.count - 1 { edge.arguments[at] = remap[edge.arguments[at]] }
+                instruction.edges[edge_index] = edge
+            }
+            block.instructions[instruction_index] = instruction
+        }
+        function.blocks[block_index] = block
+    }
+    function.values = function.values[:next]
+    counter.values += old_count - cast(s64)next
+    return true
+}
+
+DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    state.counters.dead.runs += 1
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        count := function.values.count
+        if !Scratch(state, count, 9) { return false }
+        uses: Vec(s64)
+        removed: Vec(u8)
+        if !VecResizeBounded(uses, count, count) || !VecResizeBounded(removed, count, count) {
+            VecFree(uses); VecFree(removed)
+            return Fail(state, .Allocation)
+        }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if !Spend(state, 1) { VecFree(uses); VecFree(removed); return false }
+                for value: instruction.operands { uses[value] += 1 }
+                for edge: instruction.edges { for value: edge.arguments { uses[value] += 1 } }
+            }
+        }
+        changed := true
+        while changed {
+            changed = false
+            for block: function.blocks {
+                for instruction: block.instructions {
+                    if !Spend(state, 1) { VecFree(uses); VecFree(removed); return false }
+                    result := instruction.result
+                    if result == LirNoId || removed[result] != 0 || uses[result] != 0 ||
+                        !DeadOperation(instruction.op) { continue }
+                    removed[result] = 1
+                    for operand: instruction.operands {
+                        if uses[operand] <= 0 { VecFree(uses); VecFree(removed); return Fail(state, .VerifyPass) }
+                        uses[operand] -= 1
+                    }
+                    changed = true
+                    state.counters.dead.instructions += 1
+                }
+            }
+        }
+        for block_index: 0..function.blocks.count - 1 {
+            block := function.blocks[block_index]
+            write: s64
+            for read: 0..block.instructions.count - 1 {
+                instruction := block.instructions[read]
+                if instruction.result != LirNoId && removed[instruction.result] != 0 { continue }
+                block.instructions[write] = instruction
+                write += 1
+            }
+            block.instructions = block.instructions[:write]
+            function.blocks[block_index] = block
+        }
+        VecFree(uses)
+        VecFree(removed)
+        empty: []u8
+        if !CompactValues(state, *function, empty, *state.counters.dead) { return false }
+        program.functions[function_index] = function
+    }
+    return VerifyPass(state, program, limits)
+}
+
+CfgPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
+    state.counters.cfg.runs += 1
+    for function_index: 0..program.functions.count - 1 {
+        function := program.functions[function_index]
+        if !Scratch(state, function.values.count, 4) || !Scratch(state, function.blocks.count, 9) {
+            return false
+        }
+        symbols: Vec(s32)
+        reachable: Vec(u8)
+        queue: Vec(s32)
+        block_map: Vec(s32)
+        if !VecResizeBounded(symbols, function.values.count, function.values.count) ||
+            !VecResizeBounded(reachable, function.blocks.count, function.blocks.count) ||
+            !VecResizeBounded(queue, function.blocks.count, function.blocks.count) ||
+            !VecResizeBounded(block_map, function.blocks.count, function.blocks.count) {
+            VecFree(symbols); VecFree(reachable); VecFree(queue); VecFree(block_map)
+            return Fail(state, .Allocation)
+        }
+        for value: 0..symbols.count - 1 { symbols[value] = LirNoId }
+        for block: function.blocks {
+            for instruction: block.instructions {
+                if instruction.op == .Constant { symbols[instruction.result] = instruction.symbol }
+            }
+        }
+        for block_index: 0..function.blocks.count - 1 {
+            block := function.blocks[block_index]
+            terminal_index := block.instructions.count - 1
+            terminal := block.instructions[terminal_index]
+            if terminal.op == .Branch {
+                symbol := symbols[terminal.operands[0]]
+                if symbol != LirNoId && program.constants[symbol].type == function.values[terminal.operands[0]] {
+                    selected: s64 = ifx program.constants[symbol].bits != 0 then 0 else 1
+                    terminal.op = .Jump
+                    terminal.operands = terminal.operands[:0]
+                    terminal.edges = terminal.edges[selected:selected + 1]
+                    block.instructions[terminal_index] = terminal
+                    state.counters.cfg.instructions += 1
+                }
+            }
+            function.blocks[block_index] = block
+        }
+        head: s64
+        tail: s64 = 1
+        queue[0] = function.entry
+        reachable[function.entry] = 1
+        while head < tail {
+            if !Spend(state, 1) { VecFree(symbols); VecFree(reachable); VecFree(queue); VecFree(block_map); return false }
+            block_index := queue[head]
+            head += 1
+            block := function.blocks[block_index]
+            terminal := block.instructions[block.instructions.count - 1]
+            for edge: terminal.edges {
+                if reachable[edge.block] == 0 {
+                    reachable[edge.block] = 1
+                    queue[tail] = edge.block
+                    tail += 1
+                }
+            }
+        }
+        if tail != function.blocks.count {
+            if !CompactValues(state, *function, reachable[:], *state.counters.cfg) {
+                VecFree(symbols); VecFree(reachable); VecFree(queue); VecFree(block_map)
+                return false
+            }
+            next: s32
+            for old: 0..function.blocks.count - 1 {
+                if reachable[old] == 0 { block_map[old] = LirNoId; continue }
+                block_map[old] = next
+                next += 1
+            }
+            for old: 0..function.blocks.count - 1 {
+                if reachable[old] == 0 { continue }
+                block := function.blocks[old]
+                terminal_index := block.instructions.count - 1
+                terminal := block.instructions[terminal_index]
+                for edge_index: 0..terminal.edges.count - 1 {
+                    edge := terminal.edges[edge_index]
+                    edge.block = block_map[edge.block]
+                    terminal.edges[edge_index] = edge
+                }
+                block.instructions[terminal_index] = terminal
+                function.blocks[block_map[old]] = block
+            }
+            old_blocks := function.blocks.count
+            function.blocks = function.blocks[:next]
+            function.entry = block_map[function.entry]
+            state.counters.cfg.blocks += old_blocks - cast(s64)next
+        }
+        program.functions[function_index] = function
+        VecFree(symbols)
+        VecFree(reachable)
+        VecFree(queue)
+        VecFree(block_map)
+    }
+    return VerifyPass(state, program, limits)
+}
+
+Result :: (state: OptState) -> LirOptResult {
+    return .{problem = state.problem, diagnostic = state.diagnostic,
+        counters = state.counters, work = state.used, scratch_bytes = state.scratch_bytes}
+}
+
+#scope_export
+LirOptDefaultOptions :: () -> LirOptOptions {
+    return .{fold_constants = true, propagate_copies = true, eliminate_dead = true,
+        simplify_cfg = true, maximum_rounds = 8}
+}
+
+LirOptFree :: (owner: *LirOptOwner) {
+    if owner == null { return }
+    owner.valid = false
+    owner.program = .{version = LirVersion, entry = LirNoId}
+    LirReadFree(*owner.storage)
+}
+
+LirOptProgram :: (owner: *LirOptOwner) -> LirProgram {
+    if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
+    return owner.program
+}
+
+LirOptBuild :: (owner: *LirOptOwner, program: LirProgram, limits: LirLimits,
+    options: LirOptOptions) -> LirOptResult {
+    state := OptState.{remaining = limits.work, maximum_bytes = limits.bytes,
+        diagnostic = EmptyDiagnostic()}
+    if owner == null { state.problem = .Owner; return Result(state) }
+    if limits.work < 0 || limits.types < 0 || limits.functions < 0 || limits.blocks < 0 ||
+        limits.values < 0 || limits.instructions < 0 || limits.bytes < 0 {
+        LirOptFree(owner)
+        state.problem = .Limit
+        return Result(state)
+    }
+    if options.maximum_rounds < 1 || options.maximum_rounds > 64 {
+        LirOptFree(owner)
+        state.problem = .Options
+        return Result(state)
+    }
+    state.diagnostic = LirVerify(program, limits)
+    if state.diagnostic.problem != .None {
+        LirOptFree(owner)
+        state.problem = .VerifyInput
+        return Result(state)
+    }
+    if !CountProgram(*state, program, false) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    if !CloneProgram(*state, program, limits, *owner.storage) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    owner.valid = false
+    owner.program = .{version = LirVersion, entry = LirNoId}
+    if options.fold_constants && !FoldPass(*state, owner, limits, options) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    optimized := LirReadProgram(*owner.storage)
+    if options.propagate_copies && !CopyPass(*state, optimized, limits) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    optimized = LirReadProgram(*owner.storage)
+    if options.simplify_cfg && !CfgPass(*state, optimized, limits) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    optimized = LirReadProgram(*owner.storage)
+    if options.eliminate_dead && !DeadPass(*state, optimized, limits) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    optimized = LirReadProgram(*owner.storage)
+    if !CountProgram(*state, optimized, true) {
+        LirOptFree(owner)
+        return Result(state)
+    }
+    owner.program = optimized
+    owner.valid = true
+    state.problem = .None
+    state.diagnostic = EmptyDiagnostic()
+    return Result(state)
+}

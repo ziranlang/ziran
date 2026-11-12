@@ -190,6 +190,8 @@ WriteDebug :: (writer: *Writer, program: LirProgram) {
         S32(writer, origin.file)
         S32(writer, origin.line)
         S32(writer, origin.column)
+        S32(writer, origin.end_line)
+        S32(writer, origin.end_column)
         S64(writer, origin.begin)
         S64(writer, origin.end)
         S32(writer, origin.parent)
@@ -690,9 +692,10 @@ DecodeDebug :: (decoder: *Decoder) {
     }
     origin_count := DecodeCount(decoder)
     if decoder.mode == ModeShape { decoder.shape.origins = origin_count }
-    if !TopCount(decoder, origin_count, decoder.shape.origins, 40, 2147483647) { return }
+    if !TopCount(decoder, origin_count, decoder.shape.origins, 48, 2147483647) { return }
     for index: 0..origin_count - 1 {
         origin := LirOrigin.{file = DecodeS32(decoder), line = DecodeS32(decoder), column = DecodeS32(decoder),
+            end_line = DecodeS32(decoder), end_column = DecodeS32(decoder),
             begin = DecodeS64(decoder), end = DecodeS64(decoder), parent = DecodeS32(decoder)}
         if decoder.cursor.problem != .None { return }
         if decoder.mode == ModeViews { decoder.owner.origins[index] = origin }

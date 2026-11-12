@@ -154,7 +154,8 @@ compiler_source_NormalizeRecordSeparators_ziran_inline(Slice body, bool split_co
         } else if (byte == 93 || byte == 41) {
             nesting = (int32_t)((uint32_t)nesting - 1u);
         } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
-            ((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)] = 10;
+            uint8_t* value_0 = &(((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)]);
+            (*value_0) = 10;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }

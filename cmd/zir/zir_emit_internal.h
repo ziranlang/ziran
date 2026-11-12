@@ -252,6 +252,7 @@ void number(Emitter *e, const char *type, const char *a, const char *a_type, con
 void slice_index(Emitter *e, const char *type, const char *base, const char *index, int checked, char *out, size_t size);
 void go_pointer_index(Emitter *e, const char *base, const char *index, char *out, size_t size);
 void emit_destination(Emitter *e, int index, char *out, size_t size);
+void capture_destination(Emitter *e, int index, char *out, size_t size);
 /* A constant array literal read in place by a consumer that never writes
  * or keeps it, such as a SIMD load: the shared or function-local static
  * table, with no copy. Returns 0, having emitted nothing, for any other

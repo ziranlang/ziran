@@ -819,12 +819,23 @@ ExecCallInstruction :: (instance: *LirExecInstance, frame_index: s64,
 
 ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
     function: LirFunction, instruction: LirInstruction, result_type: s32) -> bool {
-    if instruction.op == .FieldAddress {
+    if instruction.op == .FieldAddress || instruction.op == .ElementAddress {
         token := ExecSlotBits(instance, frame_index, instruction.operands[0])
         address := ExecFindAddress(instance, token)
         if address < 0 { return ExecFail(instance, .Pointer) }
+        expected := instance.plan.program.types[function.values[instruction.operands[0]]].element
+        if instance.addresses[address].type != expected { return ExecFail(instance, .Type) }
         target := instance.plan.program.types[result_type].element
-        child := ExecFieldAddress(instance, address, instruction.immediate, target)
+        member := instruction.immediate
+        if instruction.op == .ElementAddress {
+            index := instruction.operands[1]
+            member = ExecSlotBits(instance, frame_index, index)
+            index_type := instance.plan.program.types[function.values[index]]
+            if index_type.is_signed && ExecSigned(member, index_type.bits) < 0 {
+                return ExecFail(instance, .Type)
+            }
+        }
+        child := ExecFieldAddress(instance, address, member, target)
         if instance.failure.problem != .None { return false }
         ExecWriteSlotBits(instance, frame_index, instruction.result, child)
         return true
@@ -903,7 +914,7 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if !ExecAggregate(instance, frame_index, instruction) { return false }
     } else if op == .Extract || op == .Insert {
         if !ExecExtractInsert(instance, frame_index, instruction) { return false }
-    } else if op == .FieldAddress || op == .Load || op == .Store {
+    } else if op == .FieldAddress || op == .ElementAddress || op == .Load || op == .Store {
         if !ExecMemoryInstruction(instance, frame_index, function, instruction, result_type) { return false }
     } else if op == .Negate || op == .BitNot {
         if !ExecUnaryInstruction(instance, frame_index, function, instruction) { return false }

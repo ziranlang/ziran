@@ -1,6 +1,6 @@
 # Step 03 — Lower the complete supported language into executable operations
 
-Status: in progress; [restricted scalar lowering only](README.md). Depends on [step 02](02-lowered-ir-and-verifier.md). Next: [portable instruction execution](04-portable-instruction-engine.md).
+Status: in progress; [scalar, record, fixed-array, procedure-value and restricted global/pointer lowering](README.md). Complete language coverage remains pending. Depends on [step 02](02-lowered-ir-and-verifier.md). Next: [portable instruction execution](04-portable-instruction-engine.md).
 
 ## Objective
 

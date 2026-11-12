@@ -1,6 +1,6 @@
 # Step 08 — Encode instructions, write objects, and link executables directly
 
-Status: in progress; [direct scalar ELF only](README.md), not relocatable objects or a linker. Depends on machine/target contracts from [steps 06](06-optimization-and-native-backend.md) and [07](07-architecture-and-platform-coverage.md).
+Status: in progress; [direct Linux x86-64 ELF with scalar/aggregate code and static data](README.md). Relocatable objects and a general native linker remain pending. Depends on machine/target contracts from [steps 06](06-optimization-and-native-backend.md) and [07](07-architecture-and-platform-coverage.md).
 
 ## Objective
 

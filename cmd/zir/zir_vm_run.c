@@ -1198,6 +1198,14 @@ pin_active_frames(Vm *vm)
             pin_value_at(vm, &frame->locals[i].value);
 }
 
+void
+pin_live_roots(Vm *vm)
+{
+    pin_globals(vm);
+    pin_active_frames(vm);
+    pin_evaluation_roots(vm);
+}
+
 static void
 release_call_strings(Vm *vm, uint64_t entry, uint64_t before_result)
 {
@@ -1218,9 +1226,7 @@ void
 collect_unreachable(Vm *vm)
 {
     vm->pin_generation++;
-    pin_globals(vm);
-    pin_active_frames(vm);
-    pin_evaluation_roots(vm);
+    pin_live_roots(vm);
     Record **record = &vm->records;
     while(*record != NULL) {
         Record *current = *record;

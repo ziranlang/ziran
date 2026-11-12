@@ -57,7 +57,10 @@ incoming values.
 
 Writable globals are instance-local packed byte storage. Pointer values are
 opaque tokens naming an instance identity and a checked global-derived
-provenance entry. `field.address` derives a checked member provenance entry;
+provenance entry. `field.address` derives a checked record member provenance
+entry, while `element.address` checks a dynamic fixed-integer index against the
+array's count and derives the element's provenance. Both require the exact
+parent pointee type, and repeated equivalent derivations reuse a token;
 load and store require an exact pointee type. Function addresses use a separate
 nonzero function-index encoding and indirect calls recheck the full signature.
 
@@ -91,7 +94,7 @@ The engine executes every operation and value type currently accepted by
 | Values | constant, null, global address, function address |
 | Numeric | add, subtract, multiply, divide, integer remainder, negate, bit operations, shifts, all comparisons, convert, bitcast |
 | Aggregate | aggregate, extract, insert |
-| Memory | field address, load, store over instance globals |
+| Memory | field/checked dynamic fixed-array element address, load, store over instance globals |
 | Calls | direct and indirect portable calls, including bounded recursion |
 | Control | fuel, trap, jump, branch, return, unreachable |
 
@@ -107,14 +110,14 @@ entry-pruned saved IR through generated C, generated Go, and the portable VM.
 
 ## Exact current boundary
 
-The verifier rejects `allocate`, `copy`, `zero`, `element.address`, and
+The verifier rejects `allocate`, `copy`, `zero`, and
 `host.call`; it also rejects native-width integers, vectors, capabilities,
 external functions, non-portable calling conventions, variadics, and
 non-writable global addresses. Plan construction returns `InvalidProgram` with
 the verifier diagnostic for these forms. They are not silently skipped.
 
 Consequently this slice does not yet provide heap allocation, arbitrary byte
-memory, element-derived pointers, host callbacks, native-width or SIMD values,
+memory, heap-derived pointers, host callbacks, native-width or SIMD values,
 capability values, strings or owned-vector values, state serialization or
 migration, thread-safe concurrent use of one instance, or parallel/SIMD
 dispatch. Serialization, CLI selection, `.zx` integration, source lowering,

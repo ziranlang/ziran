@@ -778,6 +778,7 @@ VmExecutableFunction *function_code(const Vm *vm, const ZirModule *module,
 Value run_prepared_function(Vm *vm, VmExecutableFunction *code,
                              const Value *args, int arg_count);
 void pin_evaluation_roots(Vm *vm);
+void pin_live_roots(Vm *vm);
 Value run_function(Vm *vm, const ZirModule *module, const ZirFunction *function, const Value *args, int arg_count);
 const VmLayout *record_layout(Vm *vm, const ZirType *type);
 void free_records(Vm *vm);

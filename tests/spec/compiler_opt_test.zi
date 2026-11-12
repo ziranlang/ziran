@@ -1,0 +1,287 @@
+using IR :: #import "compiler_lowered_ir"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
+
+Instruction :: (op: LirOp, result: s32, operands: []s32, symbol: s32 = -1) -> LirInstruction {
+    return .{op = op, result = result, operands = operands, symbol = symbol, origin = 0}
+}
+
+Execute :: (program: LirProgram, function: s32, fuel: s64 = 16000000) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    limits := LirExecDefaultLimits()
+    limits.fuel = fuel
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, limits, cast(u32)(function + 1), *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+HasOp :: (program: LirProgram, function: s32, op: LirOp) -> bool {
+    for block: program.functions[function].blocks {
+        for instruction: block.instructions { if instruction.op == op { return true } }
+    }
+    return false
+}
+
+FixtureCases :: () -> s32 {
+    record_fields: [2]s32 = .{2, 2}
+    identity_parameters: [1]s32 = .{2}
+    types: [6]LirType = .{
+        .{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Record, fields = record_fields[:]},
+        .{kind = .Function, parameters = identity_parameters[:], result = 2},
+        .{kind = .Float, bits = 64}}
+    modules: [1]string = .{"optimizer"}
+    sources: [1]string = .{"optimizer.zi"}
+    origins: [1]LirOrigin = .{.{file = 0, line = 9, column = 3, begin = 8, end = 19, parent = -1}}
+    constants: [9]LirConstant = .{
+        .{type = 2, bits = 20}, .{type = 2, bits = 22}, .{type = 1, bits = 1},
+        .{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 3},
+        .{type = 2, bits = 7}, .{type = 2, bits = 32},
+        .{type = 5, bits = 0x7ff8000000000000}}
+
+    none: [0]s32
+    answer_values: [8]s32 = .{2, 2, 2, 2, 1, 2, 2, 2}
+    answer_pair: [2]s32 = .{0, 1}
+    answer_copy: [1]s32 = .{2}
+    answer_condition: [1]s32 = .{4}
+    answer_true_argument: [1]s32 = .{3}
+    answer_false_argument: [1]s32 = .{0}
+    answer_true_edges: [2]LirEdge = .{
+        .{block = 1, arguments = answer_true_argument[:]},
+        .{block = 2, arguments = answer_false_argument[:]}}
+    answer_true_parameter: [1]s32 = .{6}
+    answer_false_parameter: [1]s32 = .{7}
+    answer_true_return: [1]s32 = .{6}
+    answer_false_return: [1]s32 = .{7}
+    answer_entry: [7]LirInstruction
+    answer_entry[0] = Instruction(.Constant, 0, none[:], 0)
+    answer_entry[1] = Instruction(.Constant, 1, none[:], 1)
+    answer_entry[2] = Instruction(.Add, 2, answer_pair[:])
+    answer_entry[3] = Instruction(.Bitcast, 3, answer_copy[:])
+    answer_entry[4] = Instruction(.Multiply, 5, answer_pair[:])
+    answer_entry[5] = Instruction(.Constant, 4, none[:], 2)
+    answer_entry[6] = Instruction(.Branch, -1, answer_condition[:])
+    answer_entry[6].edges = answer_true_edges[:]
+    answer_true: [1]LirInstruction = .{Instruction(.Return, -1, answer_true_return[:])}
+    answer_false: [1]LirInstruction = .{Instruction(.Return, -1, answer_false_return[:])}
+    answer_blocks: [3]LirBlock = .{
+        .{instructions = answer_entry[:]},
+        .{parameters = answer_true_parameter[:], instructions = answer_true[:]},
+        .{parameters = answer_false_parameter[:], instructions = answer_false[:]}}
+
+    divide_values: [3]s32 = .{2, 2, 2}
+    divide_pair: [2]s32 = .{0, 1}
+    divide_return: [1]s32 = .{0}
+    divide_instructions: [4]LirInstruction = .{
+        Instruction(.Constant, 0, none[:], 6),
+        Instruction(.Constant, 1, none[:], 3),
+        Instruction(.Divide, 2, divide_pair[:]),
+        Instruction(.Return, -1, divide_return[:])}
+    divide_blocks: [1]LirBlock = .{.{instructions = divide_instructions[:]}}
+
+    shift_values: [3]s32 = .{2, 2, 2}
+    shift_pair: [2]s32 = .{0, 1}
+    shift_return: [1]s32 = .{0}
+    shift_instructions: [4]LirInstruction = .{
+        Instruction(.Constant, 0, none[:], 4),
+        Instruction(.Constant, 1, none[:], 7),
+        Instruction(.ShiftLeft, 2, shift_pair[:]),
+        Instruction(.Return, -1, shift_return[:])}
+    shift_blocks: [1]LirBlock = .{.{instructions = shift_instructions[:]}}
+
+    fuel_values: [1]s32 = .{2}
+    fuel_return: [1]s32 = .{0}
+    fuel_instructions: [3]LirInstruction
+    fuel_instructions[0] = Instruction(.Fuel, -1, none[:])
+    fuel_instructions[0].immediate = 3
+    fuel_instructions[0].effect = 1
+    fuel_instructions[1] = Instruction(.Constant, 0, none[:], 6)
+    fuel_instructions[2] = Instruction(.Return, -1, fuel_return[:])
+    fuel_blocks: [1]LirBlock = .{.{instructions = fuel_instructions[:]}}
+
+    loop_values: [7]s32 = .{2, 2, 2, 2, 1, 2, 2}
+    loop_initial: [1]s32 = .{0}
+    loop_header_parameter: [1]s32 = .{3}
+    loop_compare: [2]s32 = .{3, 2}
+    loop_condition: [1]s32 = .{4}
+    loop_exit_argument: [1]s32 = .{3}
+    loop_next_operands: [2]s32 = .{3, 1}
+    loop_back_argument: [1]s32 = .{5}
+    loop_exit_parameter: [1]s32 = .{6}
+    loop_return: [1]s32 = .{6}
+    loop_entry_edge: [1]LirEdge = .{.{block = 1, arguments = loop_initial[:]}}
+    loop_header_edges: [2]LirEdge = .{.{block = 2}, .{block = 3, arguments = loop_exit_argument[:]}}
+    loop_back_edge: [1]LirEdge = .{.{block = 1, arguments = loop_back_argument[:]}}
+    loop_entry: [4]LirInstruction
+    loop_entry[0] = Instruction(.Constant, 0, none[:], 3)
+    loop_entry[1] = Instruction(.Constant, 1, none[:], 4)
+    loop_entry[2] = Instruction(.Constant, 2, none[:], 5)
+    loop_entry[3] = Instruction(.Jump, -1, none[:])
+    loop_entry[3].edges = loop_entry_edge[:]
+    loop_header: [2]LirInstruction
+    loop_header[0] = Instruction(.Less, 4, loop_compare[:])
+    loop_header[1] = Instruction(.Branch, -1, loop_condition[:])
+    loop_header[1].edges = loop_header_edges[:]
+    loop_body: [2]LirInstruction
+    loop_body[0] = Instruction(.Add, 5, loop_next_operands[:])
+    loop_body[1] = Instruction(.Jump, -1, none[:])
+    loop_body[1].edges = loop_back_edge[:]
+    loop_exit: [1]LirInstruction = .{Instruction(.Return, -1, loop_return[:])}
+    loop_blocks: [4]LirBlock = .{
+        .{instructions = loop_entry[:]},
+        .{parameters = loop_header_parameter[:], instructions = loop_header[:]},
+        .{instructions = loop_body[:]},
+        .{parameters = loop_exit_parameter[:], instructions = loop_exit[:]}}
+
+    aggregate_values: [5]s32 = .{2, 2, 3, 2, 4}
+    aggregate_pair: [2]s32 = .{0, 1}
+    aggregate_record: [1]s32 = .{2}
+    aggregate_return: [1]s32 = .{3}
+    aggregate_instructions: [6]LirInstruction
+    aggregate_instructions[0] = Instruction(.Constant, 0, none[:], 0)
+    aggregate_instructions[1] = Instruction(.Constant, 1, none[:], 1)
+    aggregate_instructions[2] = Instruction(.Aggregate, 2, aggregate_pair[:])
+    aggregate_instructions[3] = Instruction(.Extract, 3, aggregate_record[:])
+    aggregate_instructions[3].immediate = 1
+    aggregate_instructions[4] = Instruction(.FunctionAddress, 4, none[:], 7)
+    aggregate_instructions[5] = Instruction(.Return, -1, aggregate_return[:])
+    aggregate_blocks: [1]LirBlock = .{.{instructions = aggregate_instructions[:]}}
+
+    conversion_values: [3]s32 = .{5, 2, 2}
+    conversion_operand: [1]s32 = .{0}
+    conversion_return: [1]s32 = .{1}
+    conversion_instructions: [4]LirInstruction = .{
+        Instruction(.Constant, 0, none[:], 8),
+        Instruction(.Constant, 1, none[:], 6),
+        Instruction(.Convert, 2, conversion_operand[:]),
+        Instruction(.Return, -1, conversion_return[:])}
+    conversion_blocks: [1]LirBlock = .{.{instructions = conversion_instructions[:]}}
+
+    identity_values: [2]s32 = .{2, 2}
+    identity_entry_parameter: [1]s32 = .{0}
+    identity_copy: [1]s32 = .{0}
+    identity_return: [1]s32 = .{1}
+    identity_instructions: [2]LirInstruction = .{
+        Instruction(.Bitcast, 1, identity_copy[:]),
+        Instruction(.Return, -1, identity_return[:])}
+    identity_blocks: [1]LirBlock = .{
+        .{parameters = identity_entry_parameter[:], instructions = identity_instructions[:]}}
+
+    functions: [8]LirFunction = .{
+        .{module = 0, name = "answer", result = 2, values = answer_values[:],
+            blocks = answer_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "divide-trap", result = 2, values = divide_values[:],
+            blocks = divide_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "shift-trap", result = 2, values = shift_values[:],
+            blocks = shift_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "fuel", result = 2, values = fuel_values[:],
+            blocks = fuel_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "loop", result = 2, values = loop_values[:],
+            blocks = loop_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "aggregate", result = 2, values = aggregate_values[:],
+            blocks = aggregate_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "conversion-trap", result = 2, values = conversion_values[:],
+            blocks = conversion_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "identity", parameters = identity_parameters[:], result = 2,
+            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = 0}}
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], functions = functions[:],
+        origins = origins[:], entry = 0}
+
+    before_answer := Execute(program, 0)
+    before_divide := Execute(program, 1)
+    before_shift := Execute(program, 2)
+    before_fuel := Execute(program, 3, 3)
+    before_loop := Execute(program, 4)
+    before_aggregate := Execute(program, 5)
+    before_conversion := Execute(program, 6)
+    if before_answer.problem != .None || before_answer.value.bits != 42 ||
+        before_divide.problem != .DivideByZero || before_shift.problem != .InvalidShift ||
+        before_fuel.problem != .None || before_fuel.value.bits != 7 || before_fuel.fuel_remaining != 0 ||
+        before_loop.problem != .None || before_loop.value.bits != 3 ||
+        before_aggregate.problem != .None || before_aggregate.value.bits != 22 ||
+        before_conversion.problem != .InvalidConversion { return 1 }
+
+    owner: LirOptOwner
+    options := LirOptDefaultOptions()
+    built := LirOptBuild(*owner, program, LirDefaultLimits(), options)
+    if built.problem != .None || built.diagnostic.problem != .None || !owner.valid { return 2 }
+    optimized := LirOptProgram(*owner)
+    if answer_entry[2].op != .Add || constants[0].bits != 20 { return 3 }
+    if LirVerify(optimized, LirDefaultLimits()).problem != .None { return 4 }
+    if built.counters.fold.instructions < 3 || built.counters.copy.instructions < 1 ||
+        built.counters.dead.instructions < 1 || built.counters.cfg.instructions != 1 ||
+        built.counters.cfg.blocks != 1 ||
+        built.counters.output_instructions >= built.counters.input_instructions { return 5 }
+    if optimized.functions[0].blocks.count != 2 || HasOp(optimized, 0, .Branch) ||
+        !HasOp(optimized, 1, .Divide) || !HasOp(optimized, 2, .ShiftLeft) ||
+        !HasOp(optimized, 3, .Fuel) || !HasOp(optimized, 4, .Branch) ||
+        !HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||
+        !HasOp(optimized, 6, .Convert) || HasOp(optimized, 7, .Bitcast) { return 6 }
+    fuel := optimized.functions[3].blocks[0].instructions[0]
+    if fuel.op != .Fuel || fuel.effect != 1 || fuel.immediate != 3 || fuel.origin != 0 { return 7 }
+    for function: optimized.functions {
+        for block: function.blocks {
+            for instruction: block.instructions { if instruction.origin != 0 { return 8 } }
+        }
+    }
+
+    after_answer := Execute(optimized, 0)
+    after_divide := Execute(optimized, 1)
+    after_shift := Execute(optimized, 2)
+    after_fuel := Execute(optimized, 3, 3)
+    after_loop := Execute(optimized, 4)
+    after_aggregate := Execute(optimized, 5)
+    after_conversion := Execute(optimized, 6)
+    if after_answer.problem != before_answer.problem || after_answer.value.bits != before_answer.value.bits ||
+        after_divide.problem != before_divide.problem || after_shift.problem != before_shift.problem ||
+        after_fuel.problem != before_fuel.problem || after_fuel.value.bits != before_fuel.value.bits ||
+        after_fuel.fuel_remaining != before_fuel.fuel_remaining ||
+        after_loop.problem != before_loop.problem || after_loop.value.bits != before_loop.value.bits ||
+        after_aggregate.problem != before_aggregate.problem ||
+        after_aggregate.value.bits != before_aggregate.value.bits ||
+        after_conversion.problem != before_conversion.problem { return 9 }
+
+    rebuilt := LirOptBuild(*owner, optimized, LirDefaultLimits(), options)
+    if rebuilt.problem != .None || !owner.valid || Execute(LirOptProgram(*owner), 0).value.bits != 42 { return 10 }
+    alias := LirOptProgram(*owner)
+    limited := LirDefaultLimits()
+    limited.work = 0
+    rejected := LirOptBuild(*owner, alias, limited, options)
+    if rejected.problem != .VerifyInput || rejected.diagnostic.problem != .Limit ||
+        owner.valid || LirOptProgram(*owner).functions.count != 0 { return 11 }
+    invalid := program
+    invalid.version = 99
+    rejected = LirOptBuild(*owner, invalid, LirDefaultLimits(), options)
+    if rejected.problem != .VerifyInput || rejected.diagnostic.problem != .Version ||
+        owner.valid || LirOptProgram(*owner).functions.count != 0 { return 12 }
+    bad_options := options
+    bad_options.maximum_rounds = 0
+    rejected = LirOptBuild(*owner, program, LirDefaultLimits(), bad_options)
+    if rejected.problem != .Options || owner.valid { return 13 }
+    null_owner: *LirOptOwner = null
+    rejected = LirOptBuild(null_owner, program, LirDefaultLimits(), options)
+    if rejected.problem != .Owner { return 14 }
+    LirOptFree(*owner)
+    LirOptFree(*owner)
+    if owner.valid || LirOptProgram(*owner).functions.count != 0 { return 15 }
+    return 0
+}
+
+#program_export
+Run :: () -> s32 {
+    result := FixtureCases()
+    if result != 0 {
+        print("compiler optimizer failure %\n", result)
+        return result
+    }
+    print("compiler optimizer: verified bounded passes and differential execution local tests passed\n")
+    return 0
+}

@@ -1736,7 +1736,7 @@ emit_sequence_with_buffers(Emitter *e,int begin,int end, EmitSequenceBuffers *bu
             track_local(e, st->name, st->type);
             break;
         case ZIR_STMT_ASSIGN:
-            emit_destination(e, st->lhs_root, buffers->lhs, sizeof(buffers->lhs));
+            capture_destination(e, st->lhs_root, buffers->lhs, sizeof(buffers->lhs));
             if(strcmp(st->assignment_op,"=")) {
                 /* The target's old value reads in place unless a call on
                  * either side could run first or change it. */

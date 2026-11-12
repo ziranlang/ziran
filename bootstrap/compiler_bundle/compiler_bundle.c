@@ -56,9 +56,11 @@ static void
 compiler_bundle_Fail(Codec* codec, bool ended)
 {
     if (codec->valid) {
-        codec->ended = ended;
+        bool* value_0 = &(codec->ended);
+        (*value_0) = ended;
     }
-    codec->valid = false;
+    bool* value_1 = &(codec->valid);
+    (*value_1) = false;
 }
 
 static uint32_t
@@ -79,25 +81,32 @@ compiler_bundle_Word(Codec* codec, uint32_t value)
             Codec* codec = value_2;
             bool ended = true;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_4 = &(codec->ended);
+                (*value_4) = ended;
             }
-            codec->valid = false;
+            bool* value_5 = &(codec->valid);
+            (*value_5) = false;
         }
         return 0;
     }
-    codec->at = (int64_t)((uint64_t)(codec->at) + UINT64_C(4));
+    int64_t* value_6 = &(codec->at);
+    (*value_6) = (int64_t)((uint64_t)((*value_6)) + UINT64_C(4));
     if (codec->reading) {
-        uint8_t value_4 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(1))));
-        uint32_t value_5 = (uint32_t)((uint32_t)((uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, at)) | ((uint32_t)(value_4) << 8));
-        uint8_t value_6 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(2))));
-        uint8_t value_7 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(3))));
-        return (uint32_t)(((uint32_t)value_5 | ((uint32_t)(value_6) << 16)) | ((uint32_t)(value_7) << 24));
+        uint8_t value_7 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(1))));
+        uint32_t value_8 = (uint32_t)((uint32_t)((uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, at)) | ((uint32_t)(value_7) << 8));
+        uint8_t value_9 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(2))));
+        uint8_t value_10 = (uint8_t)ZIRAN_INDEX(codec->input.data, codec->input.length, ((int64_t)((uint64_t)at + UINT64_C(3))));
+        return (uint32_t)(((uint32_t)value_8 | ((uint32_t)(value_9) << 16)) | ((uint32_t)(value_10) << 24));
     }
     if (codec->write) {
-        ((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)at)] = (uint8_t)(((uint32_t)((uint32_t)value & 255u)));
-        ((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))] = (uint8_t)(((uint32_t)((uint32_t)((value >> 8)) & 255u)));
-        ((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(2))))] = (uint8_t)(((uint32_t)((uint32_t)((value >> 16)) & 255u)));
-        ((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(3))))] = (uint8_t)((value >> 24));
+        uint8_t* value_11 = &(((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)at)]);
+        (*value_11) = (uint8_t)(((uint32_t)((uint32_t)value & 255u)));
+        uint8_t* value_12 = &(((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(1))))]);
+        (*value_12) = (uint8_t)(((uint32_t)((uint32_t)((value >> 8)) & 255u)));
+        uint8_t* value_13 = &(((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(2))))]);
+        (*value_13) = (uint8_t)(((uint32_t)((uint32_t)((value >> 16)) & 255u)));
+        uint8_t* value_14 = &(((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + UINT64_C(3))))]);
+        (*value_14) = (uint8_t)((value >> 24));
     }
     return value;
 }
@@ -111,9 +120,11 @@ compiler_bundle_Count(Codec* codec, int64_t count)
             Codec* codec = value_0;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_2 = &(codec->ended);
+                (*value_2) = ended;
             }
-            codec->valid = false;
+            bool* value_3 = &(codec->valid);
+            (*value_3) = false;
         }
         return 0LL;
     }
@@ -121,8 +132,8 @@ compiler_bundle_Count(Codec* codec, int64_t count)
     if (!codec->reading) {
         value = (uint32_t)(count);
     }
-    uint32_t value_2 = compiler_bundle_Word(codec, value);
-    return (int64_t)(value_2);
+    uint32_t value_4 = compiler_bundle_Word(codec, value);
+    return (int64_t)(value_4);
 }
 
 static String
@@ -140,9 +151,11 @@ compiler_bundle_Bytes(Codec* codec, String text, int64_t limit)
                 Codec* codec = value_4;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_6 = &(codec->ended);
+                    (*value_6) = ended;
                 }
-                codec->valid = false;
+                bool* value_7 = &(codec->valid);
+                (*value_7) = false;
             }
             value_2 = 0LL;
             goto value_3;
@@ -151,46 +164,51 @@ compiler_bundle_Bytes(Codec* codec, String text, int64_t limit)
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_6 = compiler_bundle_Word(codec, value);
-        value_2 = (int64_t)(value_6);
+        uint32_t value_8 = compiler_bundle_Word(codec, value);
+        value_2 = (int64_t)(value_8);
     value_3: ;
     }
     int64_t length = value_2;
     if (codec->valid && length >= limit) {
-        Codec* value_7 = codec;
+        Codec* value_9 = codec;
         {
-            Codec* codec = value_7;
+            Codec* codec = value_9;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_11 = &(codec->ended);
+                (*value_11) = ended;
             }
-            codec->valid = false;
+            bool* value_12 = &(codec->valid);
+            (*value_12) = false;
         }
     }
-    bool value_9 = codec->valid && codec->reading;
-    if (value_9) {
-        int64_t value_10 = (int64_t)((uint64_t)((int64_t)(codec->input).length) - (uint64_t)(codec->at));
-        value_9 = (length > value_10);
+    bool value_13 = codec->valid && codec->reading;
+    if (value_13) {
+        int64_t value_14 = (int64_t)((uint64_t)((int64_t)(codec->input).length) - (uint64_t)(codec->at));
+        value_13 = (length > value_14);
     }
-    if (value_9) {
-        Codec* value_11 = codec;
+    if (value_13) {
+        Codec* value_15 = codec;
         {
-            Codec* codec = value_11;
+            Codec* codec = value_15;
             bool ended = true;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_17 = &(codec->ended);
+                (*value_17) = ended;
             }
-            codec->valid = false;
+            bool* value_18 = &(codec->valid);
+            (*value_18) = false;
         }
     }
     if (!codec->valid) {
         return StringLiteral("");
     }
     int64_t at = codec->at;
-    codec->at = (int64_t)((uint64_t)(codec->at) + (uint64_t)length);
+    int64_t* value_19 = &(codec->at);
+    (*value_19) = (int64_t)((uint64_t)((*value_19)) + (uint64_t)length);
     if (codec->reading) {
-        String value_13 = codec->input;
-        return StringRange(value_13, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)length)));
+        String value_20 = codec->input;
+        return StringRange(value_20, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)length)));
     }
     if (codec->write) {
         {
@@ -198,7 +216,8 @@ compiler_bundle_Bytes(Codec* codec, String text, int64_t limit)
             int64_t range_last_16 = (int64_t)((uint64_t)length - UINT64_C(1));
             int64_t index = range_first_16;
             if (index <= range_last_16) for (;;) {
-                ((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + (uint64_t)index)))] = (uint8_t)ZIRAN_INDEX(text.data, text.length, index);
+                uint8_t* value_21 = &(((uint8_t *)codec->output.data)[SliceIndex(codec->output, (int64_t)((int64_t)((uint64_t)at + (uint64_t)index)))]);
+                (*value_21) = (uint8_t)ZIRAN_INDEX(text.data, text.length, index);
                 if (index == range_last_16) {
                     break;
                 }
@@ -225,9 +244,11 @@ compiler_bundle_Field(Codec* codec, String text, bool empty, int64_t limit)
             Codec* codec = value_3;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_5 = &(codec->ended);
+                (*value_5) = ended;
             }
-            codec->valid = false;
+            bool* value_6 = &(codec->valid);
+            (*value_6) = false;
         }
     }
     return field;
@@ -237,326 +258,41 @@ static Law
 compiler_bundle_LawFields(Codec* codec, Law law)
 {
     Law result = {0};
-    Codec* value_0 = codec;
-    String value_1 = law.module;
-    String value_2 = StringView(NULL, 0);
+    String* value_0 = &(result.module);
+    Codec* value_1 = codec;
+    String value_2 = law.module;
+    String value_3 = StringView(NULL, 0);
     {
-        Codec* codec = value_0;
-        String text = value_1;
+        Codec* codec = value_1;
+        String text = value_2;
         bool empty = false;
         int64_t limit = 128LL;
         String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_4 = codec->valid;
-        bool value_5 = value_4;
-        if (value_5) {
-            bool value_6 = compiler_bundle_Fits(field, empty, limit);
-            value_5 = !value_6;
+        bool value_5 = codec->valid;
+        bool value_6 = value_5;
+        if (value_6) {
+            bool value_7 = compiler_bundle_Fits(field, empty, limit);
+            value_6 = !value_7;
         }
-        if (value_5) {
-            Codec* value_7 = codec;
+        if (value_6) {
+            Codec* value_8 = codec;
             {
-                Codec* codec = value_7;
+                Codec* codec = value_8;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_10 = &(codec->ended);
+                    (*value_10) = ended;
                 }
-                codec->valid = false;
+                bool* value_11 = &(codec->valid);
+                (*value_11) = false;
             }
         }
-        value_2 = field;
+        value_3 = field;
     }
-    result.module = value_2;
-    Codec* value_9 = codec;
-    String value_10 = law.name;
-    String value_11 = StringView(NULL, 0);
-    {
-        Codec* codec = value_9;
-        String text = value_10;
-        bool empty = false;
-        int64_t limit = 128LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_13 = codec->valid;
-        bool value_14 = value_13;
-        if (value_14) {
-            bool value_15 = compiler_bundle_Fits(field, empty, limit);
-            value_14 = !value_15;
-        }
-        if (value_14) {
-            Codec* value_16 = codec;
-            {
-                Codec* codec = value_16;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_11 = field;
-    }
-    result.name = value_11;
-    Codec* value_18 = codec;
-    String value_19 = law.kind;
-    String value_20 = StringView(NULL, 0);
-    {
-        Codec* codec = value_18;
-        String text = value_19;
-        bool empty = false;
-        int64_t limit = 16LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_22 = codec->valid;
-        bool value_23 = value_22;
-        if (value_23) {
-            bool value_24 = compiler_bundle_Fits(field, empty, limit);
-            value_23 = !value_24;
-        }
-        if (value_23) {
-            Codec* value_25 = codec;
-            {
-                Codec* codec = value_25;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_20 = field;
-    }
-    result.kind = value_20;
-    Codec* value_27 = codec;
-    String value_28 = law.status;
-    String value_29 = StringView(NULL, 0);
-    {
-        Codec* codec = value_27;
-        String text = value_28;
-        bool empty = false;
-        int64_t limit = 16LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_31 = codec->valid;
-        bool value_32 = value_31;
-        if (value_32) {
-            bool value_33 = compiler_bundle_Fits(field, empty, limit);
-            value_32 = !value_33;
-        }
-        if (value_32) {
-            Codec* value_34 = codec;
-            {
-                Codec* codec = value_34;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_29 = field;
-    }
-    result.status = value_29;
-    Codec* value_36 = codec;
-    String value_37 = law.detail;
-    String value_38 = StringView(NULL, 0);
-    {
-        Codec* codec = value_36;
-        String text = value_37;
-        bool empty = false;
-        int64_t limit = 128LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_40 = codec->valid;
-        bool value_41 = value_40;
-        if (value_41) {
-            bool value_42 = compiler_bundle_Fits(field, empty, limit);
-            value_41 = !value_42;
-        }
-        if (value_41) {
-            Codec* value_43 = codec;
-            {
-                Codec* codec = value_43;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_38 = field;
-    }
-    result.detail = value_38;
-    Codec* value_45 = codec;
-    String value_46 = law.method;
-    String value_47 = StringView(NULL, 0);
-    {
-        Codec* codec = value_45;
-        String text = value_46;
-        bool empty = false;
-        int64_t limit = 16LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_49 = codec->valid;
-        bool value_50 = value_49;
-        if (value_50) {
-            bool value_51 = compiler_bundle_Fits(field, empty, limit);
-            value_50 = !value_51;
-        }
-        if (value_50) {
-            Codec* value_52 = codec;
-            {
-                Codec* codec = value_52;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_47 = field;
-    }
-    result.method = value_47;
-    Codec* value_54 = codec;
-    String value_55 = law.domain;
-    String value_56 = StringView(NULL, 0);
-    {
-        Codec* codec = value_54;
-        String text = value_55;
-        bool empty = true;
-        int64_t limit = 4096LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_58 = codec->valid;
-        bool value_59 = value_58;
-        if (value_59) {
-            bool value_60 = compiler_bundle_Fits(field, empty, limit);
-            value_59 = !value_60;
-        }
-        if (value_59) {
-            Codec* value_61 = codec;
-            {
-                Codec* codec = value_61;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_56 = field;
-    }
-    result.domain = value_56;
-    uint32_t low = compiler_bundle_Word(codec, (uint32_t)(((uint64_t)((uint64_t)(law.cases) & UINT64_C(4294967295)))));
-    uint32_t high = compiler_bundle_Word(codec, (uint32_t)((law.cases >> 32)));
-    result.cases = (uint64_t)((uint64_t)(low) | ((uint64_t)(high) << 32));
-    Codec* value_63 = codec;
-    String value_64 = law.counterexample;
-    String value_65 = StringView(NULL, 0);
-    {
-        Codec* codec = value_63;
-        String text = value_64;
-        bool empty = true;
-        int64_t limit = 4096LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_67 = codec->valid;
-        bool value_68 = value_67;
-        if (value_68) {
-            bool value_69 = compiler_bundle_Fits(field, empty, limit);
-            value_68 = !value_69;
-        }
-        if (value_68) {
-            Codec* value_70 = codec;
-            {
-                Codec* codec = value_70;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_65 = field;
-    }
-    result.counterexample = value_65;
-    uint32_t waived = 0;
-    if (law.waived) {
-        waived = 1;
-    }
-    waived = compiler_bundle_Word(codec, waived);
-    if (waived > 1) {
-        Codec* value_72 = codec;
-        {
-            Codec* codec = value_72;
-            bool ended = false;
-            if (codec->valid) {
-                codec->ended = ended;
-            }
-            codec->valid = false;
-        }
-    }
-    result.waived = waived == 1;
-    return result;
-}
-
-static Layout
-compiler_bundle_Head(Codec* codec, Header header)
-{
-    Layout layout = {0};
-    if (compiler_bundle_Word(codec, 22618) != 22618) {
-        Codec* value_0 = codec;
-        {
-            Codec* codec = value_0;
-            bool ended = false;
-            if (codec->valid) {
-                codec->ended = ended;
-            }
-            codec->valid = false;
-        }
-    }
-    uint32_t version = 26;
-    if (header.partial) {
-        version = 27;
-    }
-    version = compiler_bundle_Word(codec, version);
-    if (codec->valid && (version < 26 || version > 27)) {
-        Codec* value_2 = codec;
-        {
-            Codec* codec = value_2;
-            bool ended = false;
-            if (codec->valid) {
-                codec->ended = ended;
-            }
-            codec->valid = false;
-        }
-        layout.problem = Problem_Version;
-        return layout;
-    }
-    layout.partial = version == 27;
-    Codec* value_4 = codec;
-    String value_5 = header.entry_module;
-    String value_6 = StringView(NULL, 0);
-    {
-        Codec* codec = value_4;
-        String text = value_5;
-        bool empty = false;
-        int64_t limit = 128LL;
-        String field = compiler_bundle_Bytes(codec, text, limit);
-        bool value_8 = codec->valid;
-        bool value_9 = value_8;
-        if (value_9) {
-            bool value_10 = compiler_bundle_Fits(field, empty, limit);
-            value_9 = !value_10;
-        }
-        if (value_9) {
-            Codec* value_11 = codec;
-            {
-                Codec* codec = value_11;
-                bool ended = false;
-                if (codec->valid) {
-                    codec->ended = ended;
-                }
-                codec->valid = false;
-            }
-        }
-        value_6 = field;
-    }
-    layout.entry_module = value_6;
+    (*value_0) = value_3;
+    String* value_12 = &(result.name);
     Codec* value_13 = codec;
-    String value_14 = header.entry_function;
+    String value_14 = law.name;
     String value_15 = StringView(NULL, 0);
     {
         Codec* codec = value_13;
@@ -576,53 +312,384 @@ compiler_bundle_Head(Codec* codec, Header header)
                 Codec* codec = value_20;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_22 = &(codec->ended);
+                    (*value_22) = ended;
                 }
-                codec->valid = false;
+                bool* value_23 = &(codec->valid);
+                (*value_23) = false;
             }
         }
         value_15 = field;
     }
-    layout.entry_function = value_15;
-    Codec* value_22 = codec;
-    int64_t value_23 = (int64_t)(header.capabilities).length;
-    int64_t value_24 = 0;
+    (*value_12) = value_15;
+    String* value_24 = &(result.kind);
+    Codec* value_25 = codec;
+    String value_26 = law.kind;
+    String value_27 = StringView(NULL, 0);
     {
-        Codec* codec = value_22;
-        int64_t count = value_23;
-        if (!codec->reading && (count < 0LL || count >= 4294967296LL)) {
-            Codec* value_26 = codec;
+        Codec* codec = value_25;
+        String text = value_26;
+        bool empty = false;
+        int64_t limit = 16LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_29 = codec->valid;
+        bool value_30 = value_29;
+        if (value_30) {
+            bool value_31 = compiler_bundle_Fits(field, empty, limit);
+            value_30 = !value_31;
+        }
+        if (value_30) {
+            Codec* value_32 = codec;
             {
-                Codec* codec = value_26;
+                Codec* codec = value_32;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_34 = &(codec->ended);
+                    (*value_34) = ended;
                 }
-                codec->valid = false;
+                bool* value_35 = &(codec->valid);
+                (*value_35) = false;
             }
-            value_24 = 0LL;
-            goto value_25;
+        }
+        value_27 = field;
+    }
+    (*value_24) = value_27;
+    String* value_36 = &(result.status);
+    Codec* value_37 = codec;
+    String value_38 = law.status;
+    String value_39 = StringView(NULL, 0);
+    {
+        Codec* codec = value_37;
+        String text = value_38;
+        bool empty = false;
+        int64_t limit = 16LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_41 = codec->valid;
+        bool value_42 = value_41;
+        if (value_42) {
+            bool value_43 = compiler_bundle_Fits(field, empty, limit);
+            value_42 = !value_43;
+        }
+        if (value_42) {
+            Codec* value_44 = codec;
+            {
+                Codec* codec = value_44;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_46 = &(codec->ended);
+                    (*value_46) = ended;
+                }
+                bool* value_47 = &(codec->valid);
+                (*value_47) = false;
+            }
+        }
+        value_39 = field;
+    }
+    (*value_36) = value_39;
+    String* value_48 = &(result.detail);
+    Codec* value_49 = codec;
+    String value_50 = law.detail;
+    String value_51 = StringView(NULL, 0);
+    {
+        Codec* codec = value_49;
+        String text = value_50;
+        bool empty = false;
+        int64_t limit = 128LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_53 = codec->valid;
+        bool value_54 = value_53;
+        if (value_54) {
+            bool value_55 = compiler_bundle_Fits(field, empty, limit);
+            value_54 = !value_55;
+        }
+        if (value_54) {
+            Codec* value_56 = codec;
+            {
+                Codec* codec = value_56;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_58 = &(codec->ended);
+                    (*value_58) = ended;
+                }
+                bool* value_59 = &(codec->valid);
+                (*value_59) = false;
+            }
+        }
+        value_51 = field;
+    }
+    (*value_48) = value_51;
+    String* value_60 = &(result.method);
+    Codec* value_61 = codec;
+    String value_62 = law.method;
+    String value_63 = StringView(NULL, 0);
+    {
+        Codec* codec = value_61;
+        String text = value_62;
+        bool empty = false;
+        int64_t limit = 16LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_65 = codec->valid;
+        bool value_66 = value_65;
+        if (value_66) {
+            bool value_67 = compiler_bundle_Fits(field, empty, limit);
+            value_66 = !value_67;
+        }
+        if (value_66) {
+            Codec* value_68 = codec;
+            {
+                Codec* codec = value_68;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_70 = &(codec->ended);
+                    (*value_70) = ended;
+                }
+                bool* value_71 = &(codec->valid);
+                (*value_71) = false;
+            }
+        }
+        value_63 = field;
+    }
+    (*value_60) = value_63;
+    String* value_72 = &(result.domain);
+    Codec* value_73 = codec;
+    String value_74 = law.domain;
+    String value_75 = StringView(NULL, 0);
+    {
+        Codec* codec = value_73;
+        String text = value_74;
+        bool empty = true;
+        int64_t limit = 4096LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_77 = codec->valid;
+        bool value_78 = value_77;
+        if (value_78) {
+            bool value_79 = compiler_bundle_Fits(field, empty, limit);
+            value_78 = !value_79;
+        }
+        if (value_78) {
+            Codec* value_80 = codec;
+            {
+                Codec* codec = value_80;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_82 = &(codec->ended);
+                    (*value_82) = ended;
+                }
+                bool* value_83 = &(codec->valid);
+                (*value_83) = false;
+            }
+        }
+        value_75 = field;
+    }
+    (*value_72) = value_75;
+    uint32_t low = compiler_bundle_Word(codec, (uint32_t)(((uint64_t)((uint64_t)(law.cases) & UINT64_C(4294967295)))));
+    uint32_t high = compiler_bundle_Word(codec, (uint32_t)((law.cases >> 32)));
+    uint64_t* value_84 = &(result.cases);
+    (*value_84) = (uint64_t)((uint64_t)(low) | ((uint64_t)(high) << 32));
+    String* value_85 = &(result.counterexample);
+    Codec* value_86 = codec;
+    String value_87 = law.counterexample;
+    String value_88 = StringView(NULL, 0);
+    {
+        Codec* codec = value_86;
+        String text = value_87;
+        bool empty = true;
+        int64_t limit = 4096LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_90 = codec->valid;
+        bool value_91 = value_90;
+        if (value_91) {
+            bool value_92 = compiler_bundle_Fits(field, empty, limit);
+            value_91 = !value_92;
+        }
+        if (value_91) {
+            Codec* value_93 = codec;
+            {
+                Codec* codec = value_93;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_95 = &(codec->ended);
+                    (*value_95) = ended;
+                }
+                bool* value_96 = &(codec->valid);
+                (*value_96) = false;
+            }
+        }
+        value_88 = field;
+    }
+    (*value_85) = value_88;
+    uint32_t waived = 0;
+    if (law.waived) {
+        waived = 1;
+    }
+    waived = compiler_bundle_Word(codec, waived);
+    if (waived > 1) {
+        Codec* value_97 = codec;
+        {
+            Codec* codec = value_97;
+            bool ended = false;
+            if (codec->valid) {
+                bool* value_99 = &(codec->ended);
+                (*value_99) = ended;
+            }
+            bool* value_100 = &(codec->valid);
+            (*value_100) = false;
+        }
+    }
+    bool* value_101 = &(result.waived);
+    (*value_101) = waived == 1;
+    return result;
+}
+
+static Layout
+compiler_bundle_Head(Codec* codec, Header header)
+{
+    Layout layout = {0};
+    if (compiler_bundle_Word(codec, 22618) != 22618) {
+        Codec* value_0 = codec;
+        {
+            Codec* codec = value_0;
+            bool ended = false;
+            if (codec->valid) {
+                bool* value_2 = &(codec->ended);
+                (*value_2) = ended;
+            }
+            bool* value_3 = &(codec->valid);
+            (*value_3) = false;
+        }
+    }
+    uint32_t version = 26;
+    if (header.partial) {
+        version = 27;
+    }
+    version = compiler_bundle_Word(codec, version);
+    if (codec->valid && (version < 26 || version > 27)) {
+        Codec* value_4 = codec;
+        {
+            Codec* codec = value_4;
+            bool ended = false;
+            if (codec->valid) {
+                bool* value_6 = &(codec->ended);
+                (*value_6) = ended;
+            }
+            bool* value_7 = &(codec->valid);
+            (*value_7) = false;
+        }
+        Problem* value_8 = &(layout.problem);
+        (*value_8) = Problem_Version;
+        return layout;
+    }
+    bool* value_9 = &(layout.partial);
+    (*value_9) = version == 27;
+    String* value_10 = &(layout.entry_module);
+    Codec* value_11 = codec;
+    String value_12 = header.entry_module;
+    String value_13 = StringView(NULL, 0);
+    {
+        Codec* codec = value_11;
+        String text = value_12;
+        bool empty = false;
+        int64_t limit = 128LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_15 = codec->valid;
+        bool value_16 = value_15;
+        if (value_16) {
+            bool value_17 = compiler_bundle_Fits(field, empty, limit);
+            value_16 = !value_17;
+        }
+        if (value_16) {
+            Codec* value_18 = codec;
+            {
+                Codec* codec = value_18;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_20 = &(codec->ended);
+                    (*value_20) = ended;
+                }
+                bool* value_21 = &(codec->valid);
+                (*value_21) = false;
+            }
+        }
+        value_13 = field;
+    }
+    (*value_10) = value_13;
+    String* value_22 = &(layout.entry_function);
+    Codec* value_23 = codec;
+    String value_24 = header.entry_function;
+    String value_25 = StringView(NULL, 0);
+    {
+        Codec* codec = value_23;
+        String text = value_24;
+        bool empty = false;
+        int64_t limit = 128LL;
+        String field = compiler_bundle_Bytes(codec, text, limit);
+        bool value_27 = codec->valid;
+        bool value_28 = value_27;
+        if (value_28) {
+            bool value_29 = compiler_bundle_Fits(field, empty, limit);
+            value_28 = !value_29;
+        }
+        if (value_28) {
+            Codec* value_30 = codec;
+            {
+                Codec* codec = value_30;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_32 = &(codec->ended);
+                    (*value_32) = ended;
+                }
+                bool* value_33 = &(codec->valid);
+                (*value_33) = false;
+            }
+        }
+        value_25 = field;
+    }
+    (*value_22) = value_25;
+    int64_t* value_34 = &(layout.capabilities);
+    Codec* value_35 = codec;
+    int64_t value_36 = (int64_t)(header.capabilities).length;
+    int64_t value_37 = 0;
+    {
+        Codec* codec = value_35;
+        int64_t count = value_36;
+        if (!codec->reading && (count < 0LL || count >= 4294967296LL)) {
+            Codec* value_39 = codec;
+            {
+                Codec* codec = value_39;
+                bool ended = false;
+                if (codec->valid) {
+                    bool* value_41 = &(codec->ended);
+                    (*value_41) = ended;
+                }
+                bool* value_42 = &(codec->valid);
+                (*value_42) = false;
+            }
+            value_37 = 0LL;
+            goto value_38;
         }
         uint32_t value = 0;
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_28 = compiler_bundle_Word(codec, value);
-        value_24 = (int64_t)(value_28);
-    value_25: ;
+        uint32_t value_43 = compiler_bundle_Word(codec, value);
+        value_37 = (int64_t)(value_43);
+    value_38: ;
     }
-    layout.capabilities = value_24;
+    (*value_34) = value_37;
     if (codec->valid && layout.capabilities > 4096LL) {
-        Codec* value_29 = codec;
+        Codec* value_44 = codec;
         {
-            Codec* codec = value_29;
+            Codec* codec = value_44;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_46 = &(codec->ended);
+                (*value_46) = ended;
             }
-            codec->valid = false;
+            bool* value_47 = &(codec->valid);
+            (*value_47) = false;
         }
-        layout.problem = Problem_Capabilities;
+        Problem* value_48 = &(layout.problem);
+        (*value_48) = Problem_Capabilities;
         return layout;
     }
     int64_t index = 0LL;
@@ -631,108 +698,118 @@ compiler_bundle_Head(Codec* codec, Header header)
         if (index < (int64_t)(header.capabilities).length) {
             capability = ((Capability *)header.capabilities.data)[SliceIndex(header.capabilities, (int64_t)index)];
         }
-        Capability value_31 = {0};
-        Codec* value_32 = codec;
-        String value_33 = capability.module;
-        String value_34 = StringView(NULL, 0);
+        Capability value_49 = {0};
+        Codec* value_50 = codec;
+        String value_51 = capability.module;
+        String value_52 = StringView(NULL, 0);
         {
-            Codec* codec = value_32;
-            String text = value_33;
+            Codec* codec = value_50;
+            String text = value_51;
             bool empty = false;
             int64_t limit = 128LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_36 = codec->valid;
-            bool value_37 = value_36;
-            if (value_37) {
-                bool value_38 = compiler_bundle_Fits(field, empty, limit);
-                value_37 = !value_38;
+            bool value_54 = codec->valid;
+            bool value_55 = value_54;
+            if (value_55) {
+                bool value_56 = compiler_bundle_Fits(field, empty, limit);
+                value_55 = !value_56;
             }
-            if (value_37) {
-                Codec* value_39 = codec;
+            if (value_55) {
+                Codec* value_57 = codec;
                 {
-                    Codec* codec = value_39;
+                    Codec* codec = value_57;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_59 = &(codec->ended);
+                        (*value_59) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_60 = &(codec->valid);
+                    (*value_60) = false;
                 }
             }
-            value_34 = field;
+            value_52 = field;
         }
-        value_31.module = value_34;
-        Codec* value_41 = codec;
-        String value_42 = capability.function;
-        String value_43 = StringView(NULL, 0);
+        value_49.module = value_52;
+        Codec* value_61 = codec;
+        String value_62 = capability.function;
+        String value_63 = StringView(NULL, 0);
         {
-            Codec* codec = value_41;
-            String text = value_42;
+            Codec* codec = value_61;
+            String text = value_62;
             bool empty = false;
             int64_t limit = 128LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_45 = codec->valid;
-            bool value_46 = value_45;
-            if (value_46) {
-                bool value_47 = compiler_bundle_Fits(field, empty, limit);
-                value_46 = !value_47;
+            bool value_65 = codec->valid;
+            bool value_66 = value_65;
+            if (value_66) {
+                bool value_67 = compiler_bundle_Fits(field, empty, limit);
+                value_66 = !value_67;
             }
-            if (value_46) {
-                Codec* value_48 = codec;
+            if (value_66) {
+                Codec* value_68 = codec;
                 {
-                    Codec* codec = value_48;
+                    Codec* codec = value_68;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_70 = &(codec->ended);
+                        (*value_70) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_71 = &(codec->valid);
+                    (*value_71) = false;
                 }
             }
-            value_43 = field;
+            value_63 = field;
         }
-        value_31.function = value_43;
-        Capability read = value_31;
+        value_49.function = value_63;
+        Capability read = value_49;
         if (codec->reading && index < (int64_t)(header.capabilities).length) {
-            ((Capability *)header.capabilities.data)[SliceIndex(header.capabilities, (int64_t)index)] = read;
+            Capability* value_72 = &(((Capability *)header.capabilities.data)[SliceIndex(header.capabilities, (int64_t)index)]);
+            (*value_72) = read;
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    Codec* value_50 = codec;
-    int64_t value_51 = (int64_t)(header.laws).length;
-    int64_t value_52 = 0;
+    int64_t* value_73 = &(layout.laws);
+    Codec* value_74 = codec;
+    int64_t value_75 = (int64_t)(header.laws).length;
+    int64_t value_76 = 0;
     {
-        Codec* codec = value_50;
-        int64_t count = value_51;
+        Codec* codec = value_74;
+        int64_t count = value_75;
         if (!codec->reading && (count < 0LL || count >= 4294967296LL)) {
-            Codec* value_54 = codec;
+            Codec* value_78 = codec;
             {
-                Codec* codec = value_54;
+                Codec* codec = value_78;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_80 = &(codec->ended);
+                    (*value_80) = ended;
                 }
-                codec->valid = false;
+                bool* value_81 = &(codec->valid);
+                (*value_81) = false;
             }
-            value_52 = 0LL;
-            goto value_53;
+            value_76 = 0LL;
+            goto value_77;
         }
         uint32_t value = 0;
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_56 = compiler_bundle_Word(codec, value);
-        value_52 = (int64_t)(value_56);
-    value_53: ;
+        uint32_t value_82 = compiler_bundle_Word(codec, value);
+        value_76 = (int64_t)(value_82);
+    value_77: ;
     }
-    layout.laws = value_52;
+    (*value_73) = value_76;
     if (layout.laws > 262144LL) {
-        Codec* value_57 = codec;
+        Codec* value_83 = codec;
         {
-            Codec* codec = value_57;
+            Codec* codec = value_83;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_85 = &(codec->ended);
+                (*value_85) = ended;
             }
-            codec->valid = false;
+            bool* value_86 = &(codec->valid);
+            (*value_86) = false;
         }
     }
     index = 0LL;
@@ -743,47 +820,53 @@ compiler_bundle_Head(Codec* codec, Header header)
         }
         Law read = compiler_bundle_LawFields(codec, law);
         if (codec->reading && index < (int64_t)(header.laws).length) {
-            ((Law *)header.laws.data)[SliceIndex(header.laws, (int64_t)index)] = read;
+            Law* value_87 = &(((Law *)header.laws.data)[SliceIndex(header.laws, (int64_t)index)]);
+            (*value_87) = read;
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    Codec* value_59 = codec;
-    int64_t value_60 = (int64_t)(header.waivers).length;
-    int64_t value_61 = 0;
+    int64_t* value_88 = &(layout.waivers);
+    Codec* value_89 = codec;
+    int64_t value_90 = (int64_t)(header.waivers).length;
+    int64_t value_91 = 0;
     {
-        Codec* codec = value_59;
-        int64_t count = value_60;
+        Codec* codec = value_89;
+        int64_t count = value_90;
         if (!codec->reading && (count < 0LL || count >= 4294967296LL)) {
-            Codec* value_63 = codec;
+            Codec* value_93 = codec;
             {
-                Codec* codec = value_63;
+                Codec* codec = value_93;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_95 = &(codec->ended);
+                    (*value_95) = ended;
                 }
-                codec->valid = false;
+                bool* value_96 = &(codec->valid);
+                (*value_96) = false;
             }
-            value_61 = 0LL;
-            goto value_62;
+            value_91 = 0LL;
+            goto value_92;
         }
         uint32_t value = 0;
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_65 = compiler_bundle_Word(codec, value);
-        value_61 = (int64_t)(value_65);
-    value_62: ;
+        uint32_t value_97 = compiler_bundle_Word(codec, value);
+        value_91 = (int64_t)(value_97);
+    value_92: ;
     }
-    layout.waivers = value_61;
+    (*value_88) = value_91;
     if (layout.waivers > 262144LL) {
-        Codec* value_66 = codec;
+        Codec* value_98 = codec;
         {
-            Codec* codec = value_66;
+            Codec* codec = value_98;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_100 = &(codec->ended);
+                (*value_100) = ended;
             }
-            codec->valid = false;
+            bool* value_101 = &(codec->valid);
+            (*value_101) = false;
         }
     }
     index = 0LL;
@@ -792,143 +875,157 @@ compiler_bundle_Head(Codec* codec, Header header)
         if (index < (int64_t)(header.waivers).length) {
             waiver = ((Waiver *)header.waivers.data)[SliceIndex(header.waivers, (int64_t)index)];
         }
-        Waiver value_68 = {0};
-        Codec* value_69 = codec;
-        String value_70 = waiver.module;
-        String value_71 = StringView(NULL, 0);
+        Waiver value_102 = {0};
+        Codec* value_103 = codec;
+        String value_104 = waiver.module;
+        String value_105 = StringView(NULL, 0);
         {
-            Codec* codec = value_69;
-            String text = value_70;
+            Codec* codec = value_103;
+            String text = value_104;
             bool empty = false;
             int64_t limit = 128LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_73 = codec->valid;
-            bool value_74 = value_73;
-            if (value_74) {
-                bool value_75 = compiler_bundle_Fits(field, empty, limit);
-                value_74 = !value_75;
+            bool value_107 = codec->valid;
+            bool value_108 = value_107;
+            if (value_108) {
+                bool value_109 = compiler_bundle_Fits(field, empty, limit);
+                value_108 = !value_109;
             }
-            if (value_74) {
-                Codec* value_76 = codec;
+            if (value_108) {
+                Codec* value_110 = codec;
                 {
-                    Codec* codec = value_76;
+                    Codec* codec = value_110;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_112 = &(codec->ended);
+                        (*value_112) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_113 = &(codec->valid);
+                    (*value_113) = false;
                 }
             }
-            value_71 = field;
+            value_105 = field;
         }
-        value_68.module = value_71;
-        Codec* value_78 = codec;
-        String value_79 = waiver.name;
-        String value_80 = StringView(NULL, 0);
+        value_102.module = value_105;
+        Codec* value_114 = codec;
+        String value_115 = waiver.name;
+        String value_116 = StringView(NULL, 0);
         {
-            Codec* codec = value_78;
-            String text = value_79;
+            Codec* codec = value_114;
+            String text = value_115;
             bool empty = false;
             int64_t limit = 128LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_82 = codec->valid;
-            bool value_83 = value_82;
-            if (value_83) {
-                bool value_84 = compiler_bundle_Fits(field, empty, limit);
-                value_83 = !value_84;
+            bool value_118 = codec->valid;
+            bool value_119 = value_118;
+            if (value_119) {
+                bool value_120 = compiler_bundle_Fits(field, empty, limit);
+                value_119 = !value_120;
             }
-            if (value_83) {
-                Codec* value_85 = codec;
+            if (value_119) {
+                Codec* value_121 = codec;
                 {
-                    Codec* codec = value_85;
+                    Codec* codec = value_121;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_123 = &(codec->ended);
+                        (*value_123) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_124 = &(codec->valid);
+                    (*value_124) = false;
                 }
             }
-            value_80 = field;
+            value_116 = field;
         }
-        value_68.name = value_80;
-        Codec* value_87 = codec;
-        String value_88 = waiver.reason;
-        String value_89 = StringView(NULL, 0);
+        value_102.name = value_116;
+        Codec* value_125 = codec;
+        String value_126 = waiver.reason;
+        String value_127 = StringView(NULL, 0);
         {
-            Codec* codec = value_87;
-            String text = value_88;
+            Codec* codec = value_125;
+            String text = value_126;
             bool empty = false;
             int64_t limit = 128LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_91 = codec->valid;
-            bool value_92 = value_91;
-            if (value_92) {
-                bool value_93 = compiler_bundle_Fits(field, empty, limit);
-                value_92 = !value_93;
+            bool value_129 = codec->valid;
+            bool value_130 = value_129;
+            if (value_130) {
+                bool value_131 = compiler_bundle_Fits(field, empty, limit);
+                value_130 = !value_131;
             }
-            if (value_92) {
-                Codec* value_94 = codec;
+            if (value_130) {
+                Codec* value_132 = codec;
                 {
-                    Codec* codec = value_94;
+                    Codec* codec = value_132;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_134 = &(codec->ended);
+                        (*value_134) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_135 = &(codec->valid);
+                    (*value_135) = false;
                 }
             }
-            value_89 = field;
+            value_127 = field;
         }
-        value_68.reason = value_89;
-        Waiver read = value_68;
+        value_102.reason = value_127;
+        Waiver read = value_102;
         if (codec->reading && index < (int64_t)(header.waivers).length) {
-            ((Waiver *)header.waivers.data)[SliceIndex(header.waivers, (int64_t)index)] = read;
+            Waiver* value_136 = &(((Waiver *)header.waivers.data)[SliceIndex(header.waivers, (int64_t)index)]);
+            (*value_136) = read;
         }
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    Codec* value_96 = codec;
-    int64_t value_97 = header.program;
-    int64_t value_98 = 0;
+    Codec* value_137 = codec;
+    int64_t value_138 = header.program;
+    int64_t value_139 = 0;
     {
-        Codec* codec = value_96;
-        int64_t count = value_97;
+        Codec* codec = value_137;
+        int64_t count = value_138;
         if (!codec->reading && (count < 0LL || count >= 4294967296LL)) {
-            Codec* value_100 = codec;
+            Codec* value_141 = codec;
             {
-                Codec* codec = value_100;
+                Codec* codec = value_141;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_143 = &(codec->ended);
+                    (*value_143) = ended;
                 }
-                codec->valid = false;
+                bool* value_144 = &(codec->valid);
+                (*value_144) = false;
             }
-            value_98 = 0LL;
-            goto value_99;
+            value_139 = 0LL;
+            goto value_140;
         }
         uint32_t value = 0;
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_102 = compiler_bundle_Word(codec, value);
-        value_98 = (int64_t)(value_102);
-    value_99: ;
+        uint32_t value_145 = compiler_bundle_Word(codec, value);
+        value_139 = (int64_t)(value_145);
+    value_140: ;
     }
-    int64_t length = value_98;
+    int64_t length = value_139;
     if (length == 0LL || length > 268435456LL) {
-        Codec* value_103 = codec;
+        Codec* value_146 = codec;
         {
-            Codec* codec = value_103;
+            Codec* codec = value_146;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_148 = &(codec->ended);
+                (*value_148) = ended;
             }
-            codec->valid = false;
+            bool* value_149 = &(codec->valid);
+            (*value_149) = false;
         }
     }
-    layout.program = codec->at;
-    layout.program_end = (int64_t)((uint64_t)(codec->at) + (uint64_t)length);
+    int64_t* value_150 = &(layout.program);
+    (*value_150) = codec->at;
+    int64_t* value_151 = &(layout.program_end);
+    (*value_151) = (int64_t)((uint64_t)(codec->at) + (uint64_t)length);
     if (!codec->valid) {
-        layout.problem = Problem_Invalid;
+        Problem* value_152 = &(layout.problem);
+        (*value_152) = Problem_Invalid;
     }
     return layout;
 }
@@ -948,9 +1045,11 @@ compiler_bundle_Assets(Codec* codec, Slice assets)
                 Codec* codec = value_4;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_6 = &(codec->ended);
+                    (*value_6) = ended;
                 }
-                codec->valid = false;
+                bool* value_7 = &(codec->valid);
+                (*value_7) = false;
             }
             value_2 = 0LL;
             goto value_3;
@@ -959,8 +1058,8 @@ compiler_bundle_Assets(Codec* codec, Slice assets)
         if (!codec->reading) {
             value = (uint32_t)(count);
         }
-        uint32_t value_6 = compiler_bundle_Word(codec, value);
-        value_2 = (int64_t)(value_6);
+        uint32_t value_8 = compiler_bundle_Word(codec, value);
+        value_2 = (int64_t)(value_8);
     value_3: ;
     }
     int64_t count = value_2;
@@ -971,83 +1070,90 @@ compiler_bundle_Assets(Codec* codec, Slice assets)
         if (index < (int64_t)(assets).length) {
             asset = ((Asset *)assets.data)[index];
         }
-        Codec* value_7 = codec;
-        String value_8 = asset.name;
-        String value_9 = StringView(NULL, 0);
+        Codec* value_9 = codec;
+        String value_10 = asset.name;
+        String value_11 = StringView(NULL, 0);
         {
-            Codec* codec = value_7;
-            String text = value_8;
+            Codec* codec = value_9;
+            String text = value_10;
             bool empty = false;
             int64_t limit = 4294967296LL;
             String field = compiler_bundle_Bytes(codec, text, limit);
-            bool value_11 = codec->valid;
-            bool value_12 = value_11;
-            if (value_12) {
-                bool value_13 = compiler_bundle_Fits(field, empty, limit);
-                value_12 = !value_13;
+            bool value_13 = codec->valid;
+            bool value_14 = value_13;
+            if (value_14) {
+                bool value_15 = compiler_bundle_Fits(field, empty, limit);
+                value_14 = !value_15;
             }
-            if (value_12) {
-                Codec* value_14 = codec;
+            if (value_14) {
+                Codec* value_16 = codec;
                 {
-                    Codec* codec = value_14;
+                    Codec* codec = value_16;
                     bool ended = false;
                     if (codec->valid) {
-                        codec->ended = ended;
+                        bool* value_18 = &(codec->ended);
+                        (*value_18) = ended;
                     }
-                    codec->valid = false;
+                    bool* value_19 = &(codec->valid);
+                    (*value_19) = false;
                 }
             }
-            value_9 = field;
+            value_11 = field;
         }
-        String name = value_9;
-        bool value_16 = codec->valid;
-        bool value_17 = value_16;
-        if (value_17) {
-            bool value_18 = compiler_bundle_AssetName(name);
-            bool value_19 = !value_18;
-            if (!value_19) {
-                bool value_20 = index > 0LL;
-                if (value_20) {
-                    bool value_21 = compiler_bundle_Before(previous, name);
-                    value_20 = !value_21;
+        String name = value_11;
+        bool value_20 = codec->valid;
+        bool value_21 = value_20;
+        if (value_21) {
+            bool value_22 = compiler_bundle_AssetName(name);
+            bool value_23 = !value_22;
+            if (!value_23) {
+                bool value_24 = index > 0LL;
+                if (value_24) {
+                    bool value_25 = compiler_bundle_Before(previous, name);
+                    value_24 = !value_25;
                 }
-                value_19 = value_20;
+                value_23 = value_24;
             }
-            value_17 = value_19;
+            value_21 = value_23;
         }
-        if (value_17) {
-            Codec* value_22 = codec;
+        if (value_21) {
+            Codec* value_26 = codec;
             {
-                Codec* codec = value_22;
+                Codec* codec = value_26;
                 bool ended = false;
                 if (codec->valid) {
-                    codec->ended = ended;
+                    bool* value_28 = &(codec->ended);
+                    (*value_28) = ended;
                 }
-                codec->valid = false;
+                bool* value_29 = &(codec->valid);
+                (*value_29) = false;
             }
         }
         String data = compiler_bundle_Bytes(codec, asset.data, 4294967296LL);
         if (codec->reading && index < (int64_t)(assets).length) {
-            ((Asset *)assets.data)[index] = (Asset){.name = name, .data = data};
+            Asset* value_30 = &(((Asset *)assets.data)[index]);
+            (*value_30) = (Asset){.name = name, .data = data};
         }
         previous = name;
         index = (int64_t)((uint64_t)index + UINT64_C(1));
     }
-    bool value_24 = codec->reading;
-    if (value_24) {
-        int64_t value_25 = codec->at;
-        int64_t value_26 = (int64_t)(codec->input).length;
-        value_24 = (value_25 != value_26);
+    bool value_31 = codec->reading;
+    if (value_31) {
+        int64_t value_32 = codec->at;
+        int64_t value_33 = (int64_t)(codec->input).length;
+        value_31 = (value_32 != value_33);
     }
-    if (value_24) {
-        Codec* value_27 = codec;
+    if (value_31) {
+        Codec* value_34 = codec;
         {
-            Codec* codec = value_27;
+            Codec* codec = value_34;
             bool ended = false;
             if (codec->valid) {
-                codec->ended = ended;
+                bool* value_36 = &(codec->ended);
+                (*value_36) = ended;
             }
-            codec->valid = false;
+            bool* value_37 = &(codec->valid);
+            (*value_37) = false;
         }
     }
     return count;
@@ -1129,13 +1235,17 @@ compiler_bundle_Decode(String bytes, Slice capabilities, Slice laws, Slice waive
         return layout;
     }
     if (layout.program_end > (int64_t)(bytes).length) {
-        layout.problem = Problem_Invalid;
+        Problem* value_1 = &(layout.problem);
+        (*value_1) = Problem_Invalid;
         return layout;
     }
-    codec.at = layout.program_end;
-    layout.assets = compiler_bundle_Assets(&(codec), assets);
+    int64_t* value_2 = &(codec.at);
+    (*value_2) = layout.program_end;
+    int64_t* value_3 = &(layout.assets);
+    (*value_3) = compiler_bundle_Assets(&(codec), assets);
     if (!codec.valid) {
-        layout.problem = Problem_Invalid;
+        Problem* value_4 = &(layout.problem);
+        (*value_4) = Problem_Invalid;
     }
     return layout;
 }

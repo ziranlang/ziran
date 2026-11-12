@@ -135,9 +135,11 @@ compiler_source_Put(Slice output, int64_t* used, uint8_t byte)
     int64_t value_0 = *(used);
     int64_t value_1 = (int64_t)(output).length;
     if (value_0 < value_1) {
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(used))] = byte;
+        uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)*(used))]);
+        (*value_2) = byte;
     }
-    (*(used)) = (int64_t)((uint64_t)((*(used))) + UINT64_C(1));
+    int64_t* value_3 = &((*(used)));
+    (*value_3) = (int64_t)((uint64_t)((*value_3)) + UINT64_C(1));
 }
 
 static void
@@ -149,7 +151,8 @@ compiler_source_PutScanned(Slice output, int64_t* used, uint8_t byte, int64_t* g
             int64_t value_0 = *(gaps);
             if (!(value_0 > 0LL)) { break; }
             compiler_source_Put(output, used, 10);
-            (*(gaps)) = (int64_t)((uint64_t)((*(gaps))) - UINT64_C(1));
+            int64_t* value_1 = &((*(gaps)));
+            (*value_1) = (int64_t)((uint64_t)((*value_1)) - UINT64_C(1));
         }
     }
 }
@@ -1090,7 +1093,8 @@ compiler_source_NormalizeRecordSeparators(Slice body, bool split_commas)
         } else if (byte == 93 || byte == 41) {
             nesting = (int32_t)((uint32_t)nesting - 1u);
         } else if (nesting == 0 && (byte == 59 || (split_commas && byte == 44))) {
-            ((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)] = 10;
+            uint8_t* value_0 = &(((uint8_t *)body.data)[SliceIndex(body, (int64_t)at)]);
+            (*value_0) = 10;
         }
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
@@ -1290,190 +1294,196 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
                     value_35 = value_36;
                 }
                 if (value_35) {
-                    result.line = line;
-                    result.column = column;
+                    int32_t* value_40 = &(result.line);
+                    (*value_40) = line;
+                    int32_t* value_41 = &(result.column);
+                    (*value_41) = column;
                     int64_t cursor = (int64_t)((uint64_t)at + UINT64_C(7));
                     while (true) {
-                        String value_40 = source;
-                        uint8_t value_41 = 0;
+                        String value_42 = source;
+                        uint8_t value_43 = 0;
                         {
-                            String source = value_40;
+                            String source = value_42;
                             int64_t at = cursor;
                             if (at < 0LL || at >= (int64_t)(source).length) {
-                                value_41 = 0;
-                                goto value_42;
+                                value_43 = 0;
+                                goto value_44;
                             }
-                            value_41 = (uint8_t)source.data[at];
-                        value_42: ;
+                            value_43 = (uint8_t)source.data[at];
+                        value_44: ;
                         }
-                        bool value_43 = value_41 == 32;
-                        if (!value_43) {
-                            String value_44 = source;
-                            uint8_t value_45 = 0;
+                        bool value_45 = value_43 == 32;
+                        if (!value_45) {
+                            String value_46 = source;
+                            uint8_t value_47 = 0;
                             {
-                                String source = value_44;
+                                String source = value_46;
                                 int64_t at = cursor;
                                 if (at < 0LL || at >= (int64_t)(source).length) {
-                                    value_45 = 0;
-                                    goto value_46;
+                                    value_47 = 0;
+                                    goto value_48;
                                 }
-                                value_45 = (uint8_t)source.data[at];
-                            value_46: ;
+                                value_47 = (uint8_t)source.data[at];
+                            value_48: ;
                             }
-                            value_43 = (value_45 == 9);
+                            value_45 = (value_47 == 9);
                         }
-                        if (!value_43) { break; }
+                        if (!value_45) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     int64_t begin = cursor;
                     while (true) {
-                        String value_47 = source;
-                        uint8_t value_48 = 0;
+                        String value_49 = source;
+                        uint8_t value_50 = 0;
                         {
-                            String source = value_47;
+                            String source = value_49;
                             int64_t at = cursor;
                             if (at < 0LL || at >= (int64_t)(source).length) {
-                                value_48 = 0;
-                                goto value_49;
+                                value_50 = 0;
+                                goto value_51;
                             }
-                            value_48 = (uint8_t)source.data[at];
-                        value_49: ;
+                            value_50 = (uint8_t)source.data[at];
+                        value_51: ;
                         }
-                        bool value_50 = false;
+                        bool value_52 = false;
                         {
-                            uint8_t byte = value_48;
-                            uint8_t value_52 = byte;
-                            bool value_53 = false;
+                            uint8_t byte = value_50;
+                            uint8_t value_54 = byte;
+                            bool value_55 = false;
                             {
-                                uint8_t byte = value_52;
-                                value_53 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                                uint8_t byte = value_54;
+                                value_55 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
                             }
-                            value_50 = value_53 || (byte >= 48 && byte <= 57);
+                            value_52 = value_55 || (byte >= 48 && byte <= 57);
                         }
-                        if (!value_50) { break; }
+                        if (!value_52) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     int64_t end = cursor;
-                    result.marker_begin = begin;
-                    result.marker_end = end;
-                    bool value_55 = end == begin || (int64_t)((uint64_t)end - (uint64_t)begin) >= marker_limit;
-                    if (!value_55) {
-                        String value_56 = source;
-                        uint8_t value_57 = 0;
+                    int64_t* value_57 = &(result.marker_begin);
+                    (*value_57) = begin;
+                    int64_t* value_58 = &(result.marker_end);
+                    (*value_58) = end;
+                    bool value_59 = end == begin || (int64_t)((uint64_t)end - (uint64_t)begin) >= marker_limit;
+                    if (!value_59) {
+                        String value_60 = source;
+                        uint8_t value_61 = 0;
                         {
-                            String source = value_56;
+                            String source = value_60;
                             int64_t at = begin;
                             if (at < 0LL || at >= (int64_t)(source).length) {
-                                value_57 = 0;
-                                goto value_58;
+                                value_61 = 0;
+                                goto value_62;
                             }
-                            value_57 = (uint8_t)source.data[at];
-                        value_58: ;
+                            value_61 = (uint8_t)source.data[at];
+                        value_62: ;
                         }
-                        bool value_59 = false;
+                        bool value_63 = false;
                         {
-                            uint8_t byte = value_57;
-                            value_59 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                            uint8_t byte = value_61;
+                            value_63 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
                         }
-                        value_55 = !value_59;
+                        value_59 = !value_63;
                     }
-                    if (value_55) {
-                        result.error = SourceError_Delimiter;
+                    if (value_59) {
+                        SourceError* value_65 = &(result.error);
+                        (*value_65) = SourceError_Delimiter;
                         return result;
                     }
                     while (true) {
-                        String value_61 = source;
-                        uint8_t value_62 = 0;
+                        String value_66 = source;
+                        uint8_t value_67 = 0;
                         {
-                            String source = value_61;
+                            String source = value_66;
                             int64_t at = cursor;
                             if (at < 0LL || at >= (int64_t)(source).length) {
-                                value_62 = 0;
-                                goto value_63;
+                                value_67 = 0;
+                                goto value_68;
                             }
-                            value_62 = (uint8_t)source.data[at];
-                        value_63: ;
+                            value_67 = (uint8_t)source.data[at];
+                        value_68: ;
                         }
-                        bool value_64 = value_62 == 32;
-                        if (!value_64) {
-                            String value_65 = source;
-                            uint8_t value_66 = 0;
+                        bool value_69 = value_67 == 32;
+                        if (!value_69) {
+                            String value_70 = source;
+                            uint8_t value_71 = 0;
                             {
-                                String source = value_65;
+                                String source = value_70;
                                 int64_t at = cursor;
                                 if (at < 0LL || at >= (int64_t)(source).length) {
-                                    value_66 = 0;
-                                    goto value_67;
+                                    value_71 = 0;
+                                    goto value_72;
                                 }
-                                value_66 = (uint8_t)source.data[at];
-                            value_67: ;
+                                value_71 = (uint8_t)source.data[at];
+                            value_72: ;
                             }
-                            value_64 = (value_66 == 9);
+                            value_69 = (value_71 == 9);
                         }
-                        if (!value_64) { break; }
+                        if (!value_69) { break; }
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
-                    String value_68 = source;
-                    uint8_t value_69 = 0;
+                    String value_73 = source;
+                    uint8_t value_74 = 0;
                     {
-                        String source = value_68;
+                        String source = value_73;
                         int64_t at = cursor;
                         if (at < 0LL || at >= (int64_t)(source).length) {
-                            value_69 = 0;
-                            goto value_70;
+                            value_74 = 0;
+                            goto value_75;
                         }
-                        value_69 = (uint8_t)source.data[at];
-                    value_70: ;
+                        value_74 = (uint8_t)source.data[at];
+                    value_75: ;
                     }
-                    if (value_69 == 13) {
+                    if (value_74 == 13) {
                         cursor = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     }
                     if (cursor >= (int64_t)(source).length || (uint8_t)ZIRAN_INDEX(source.data, source.length, cursor) != 10) {
-                        result.error = SourceError_DelimiterLine;
+                        SourceError* value_76 = &(result.error);
+                        (*value_76) = SourceError_DelimiterLine;
                         return result;
                     }
                     int64_t body = (int64_t)((uint64_t)cursor + UINT64_C(1));
                     int64_t close = body;
                     String marker = StringRange(source, (int64_t)begin, (int64_t)end);
                     while (close < (int64_t)(source).length) {
-                        String value_71 = source;
-                        bool value_72 = false;
+                        String value_77 = source;
+                        bool value_78 = false;
                         {
-                            String source = value_71;
+                            String source = value_77;
                             int64_t at = close;
                             String text = marker;
-                            bool value_74 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
-                            value_72 = value_74 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+                            bool value_80 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+                            value_78 = value_80 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
                         }
-                        bool value_75 = value_72;
-                        if (value_75) {
-                            String value_76 = source;
-                            int64_t value_77 = (int64_t)((uint64_t)close + (uint64_t)((int64_t)(marker).length));
-                            uint8_t value_78 = 0;
+                        bool value_81 = value_78;
+                        if (value_81) {
+                            String value_82 = source;
+                            int64_t value_83 = (int64_t)((uint64_t)close + (uint64_t)((int64_t)(marker).length));
+                            uint8_t value_84 = 0;
                             {
-                                String source = value_76;
-                                int64_t at = value_77;
+                                String source = value_82;
+                                int64_t at = value_83;
                                 if (at < 0LL || at >= (int64_t)(source).length) {
-                                    value_78 = 0;
-                                    goto value_79;
+                                    value_84 = 0;
+                                    goto value_85;
                                 }
-                                value_78 = (uint8_t)source.data[at];
-                            value_79: ;
+                                value_84 = (uint8_t)source.data[at];
+                            value_85: ;
                             }
-                            bool value_80 = false;
+                            bool value_86 = false;
                             {
-                                uint8_t byte = value_78;
-                                uint8_t value_82 = byte;
-                                bool value_83 = false;
+                                uint8_t byte = value_84;
+                                uint8_t value_88 = byte;
+                                bool value_89 = false;
                                 {
-                                    uint8_t byte = value_82;
-                                    value_83 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
+                                    uint8_t byte = value_88;
+                                    value_89 = (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || byte == 95;
                                 }
-                                value_80 = value_83 || (byte >= 48 && byte <= 57);
+                                value_86 = value_89 || (byte >= 48 && byte <= 57);
                             }
-                            value_75 = !value_80;
+                            value_81 = !value_86;
                         }
-                        if (value_75) {
+                        if (value_81) {
                             break;
                         }
                         while (close < (int64_t)(source).length && (uint8_t)ZIRAN_INDEX(source.data, source.length, close) != 10) {
@@ -1484,7 +1494,8 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
                         }
                     }
                     if (close >= (int64_t)(source).length) {
-                        result.error = SourceError_Unterminated;
+                        SourceError* value_91 = &(result.error);
+                        (*value_91) = SourceError_Unterminated;
                         return result;
                     }
                     compiler_source_Put(output, &(used), 34);
@@ -1531,7 +1542,8 @@ compiler_source_RewriteRawStrings(String source, Slice output, int64_t marker_li
             column = (int32_t)((uint32_t)column + 1u);
         }
     }
-    result.count = used;
+    int64_t* value_92 = &(result.count);
+    (*value_92) = used;
     return result;
 }
 
@@ -2149,7 +2161,8 @@ compiler_source_ProcedureHeaderParts(String source)
             if (!value_0) { break; }
             end = (int64_t)((uint64_t)end + UINT64_C(1));
         }
-        header.name = StringRange(source, (int64_t)begin, (int64_t)end);
+        String* value_7 = &(header.name);
+        (*value_7) = StringRange(source, (int64_t)begin, (int64_t)end);
     }
     int64_t opening = compiler_source_Find(source, StringLiteral("("));
     if (opening < 0LL) {
@@ -2162,36 +2175,37 @@ compiler_source_ProcedureHeaderParts(String source)
     closing = (int64_t)((uint64_t)closing + (uint64_t)opening);
     int64_t end = closing;
     while (true) {
-        bool value_7 = end > (int64_t)((uint64_t)opening + UINT64_C(1));
-        if (value_7) {
-            uint8_t value_8 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
-            bool value_9 = false;
+        bool value_8 = end > (int64_t)((uint64_t)opening + UINT64_C(1));
+        if (value_8) {
+            uint8_t value_9 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_10 = false;
             {
-                uint8_t byte = value_8;
-                value_9 = byte == 32 || (byte >= 9 && byte <= 13);
+                uint8_t byte = value_9;
+                value_10 = byte == 32 || (byte >= 9 && byte <= 13);
             }
-            value_7 = value_9;
+            value_8 = value_10;
         }
-        if (!value_7) { break; }
+        if (!value_8) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
-    header.parameters = StringRange(source, (int64_t)((int64_t)((uint64_t)opening + UINT64_C(1))), (int64_t)end);
+    String* value_12 = &(header.parameters);
+    (*value_12) = StringRange(source, (int64_t)((int64_t)((uint64_t)opening + UINT64_C(1))), (int64_t)end);
     int64_t at = (int64_t)((uint64_t)closing + UINT64_C(1));
     while (at < (int64_t)(source).length && ((uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 32 || (uint8_t)ZIRAN_INDEX(source.data, source.length, at) == 9)) {
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    String value_11 = source;
-    int64_t value_12 = at;
-    String value_13 = StringLiteral("->");
-    bool value_14 = false;
+    String value_13 = source;
+    int64_t value_14 = at;
+    String value_15 = StringLiteral("->");
+    bool value_16 = false;
     {
-        String source = value_11;
-        int64_t at = value_12;
-        String text = value_13;
-        bool value_16 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
-        value_14 = value_16 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
+        String source = value_13;
+        int64_t at = value_14;
+        String text = value_15;
+        bool value_18 = at >= 0LL && at <= (int64_t)(source).length && (int64_t)(text).length <= (int64_t)((uint64_t)((int64_t)(source).length) - (uint64_t)at);
+        value_16 = value_18 && StringEqual(StringRange(source, (int64_t)at, (int64_t)((int64_t)((uint64_t)at + (uint64_t)((int64_t)(text).length)))), text);
     }
-    if (!value_14) {
+    if (!value_16) {
         return header;
     }
     at = (int64_t)((uint64_t)at + UINT64_C(2));
@@ -2203,20 +2217,21 @@ compiler_source_ProcedureHeaderParts(String source)
         end = (int64_t)((uint64_t)end + UINT64_C(1));
     }
     while (true) {
-        bool value_17 = end > at;
-        if (value_17) {
-            uint8_t value_18 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
-            bool value_19 = false;
+        bool value_19 = end > at;
+        if (value_19) {
+            uint8_t value_20 = (uint8_t)ZIRAN_INDEX(source.data, source.length, ((int64_t)((uint64_t)end - UINT64_C(1))));
+            bool value_21 = false;
             {
-                uint8_t byte = value_18;
-                value_19 = byte == 32 || (byte >= 9 && byte <= 13);
+                uint8_t byte = value_20;
+                value_21 = byte == 32 || (byte >= 9 && byte <= 13);
             }
-            value_17 = value_19;
+            value_19 = value_21;
         }
-        if (!value_17) { break; }
+        if (!value_19) { break; }
         end = (int64_t)((uint64_t)end - UINT64_C(1));
     }
-    header.result = StringRange(source, (int64_t)at, (int64_t)end);
+    String* value_23 = &(header.result);
+    (*value_23) = StringRange(source, (int64_t)at, (int64_t)end);
     return header;
 }
 
@@ -2308,7 +2323,8 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
             int64_t range_last_15 = (int64_t)((uint64_t)count - UINT64_C(1));
             int64_t index = range_first_15;
             if (index <= range_last_15) for (;;) {
-                ((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)] = (uint8_t)ZIRAN_INDEX(source.data, source.length, index);
+                uint8_t* value_5 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)index)]);
+                (*value_5) = (uint8_t)ZIRAN_INDEX(source.data, source.length, index);
                 if (index == range_last_15) {
                     break;
                 }
@@ -2317,7 +2333,8 @@ compiler_source_CopyProcedureText(String source, Slice output, bool normalize_ty
         }
         used = count;
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)] = 0;
+    uint8_t* value_6 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)used)]);
+    (*value_6) = 0;
     return used;
 }
 

@@ -427,6 +427,51 @@ Pointers :: () -> bool {
     return result.problem == .None && result.value.bits == 1
 }
 
+ElementPointers :: () -> bool {
+    for mode: 0..9 {
+        types: [9]LirType = .[
+            .{.kind = .Void}, .{.kind = .Bool, .bits = 1}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+            .{.kind = .Integer, .bits = 64, .is_signed = true}, .{.kind = .Array, .element = 2, .count = 3},
+            .{.kind = .Pointer, .element = 4}, .{.kind = .Pointer, .element = 2},
+            .{.kind = .Array, .element = 2, .count = 0}, .{.kind = .Pointer, .element = 7}]
+        constants: [2]LirConstant = .[.{.type = 2, .bits = 42}, .{.type = 2, .bits = 1}]
+        globals: [1]LirGlobal = .[.{.module = 0, .name = "array", .type = 4, .constant = -1, .writable = true}]
+        values: [7]s32 = .[5, 2, 6, 2, 6, 1, 2]
+        empty: [0]s32
+        indexed: [2]s32 = .[0, 1]
+        stored: [2]s32 = .[2, 3]
+        compared: [2]s32 = .[2, 4]
+        loaded: [1]s32 = .[4]
+        returned: [1]s32 = .[ifx mode == 7 then 5 else 6]
+        instructions: [9]LirInstruction = .[
+            Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+            Instruction(.ElementAddress, 2, indexed[:]), Instruction(.Constant, 3, empty[:], 0),
+            Instruction(.Store, -1, stored[:]), Instruction(.ElementAddress, 4, indexed[:]),
+            Instruction(.Equal, 5, compared[:]), Instruction(.Load, 6, loaded[:]), Instruction(.Return, -1, returned[:])]
+        instructions[4].effect = 1
+        instructions[7].effect = 2
+        if mode == 1 { constants[1].bits = 0 }
+        if mode == 2 { constants[1].bits = 2 }
+        if mode == 3 { constants[1].bits = 3 }
+        if mode == 4 { constants[1].bits = 0xffffffff }
+        if mode == 5 { constants[1].bits = 0xffffffffffffffff; constants[1].type = 3; values[1] = 3 }
+        if mode == 6 { globals[0].type = 7; values[0] = 8 }
+        if mode == 8 { instructions[0] = Instruction(.Null, 0, empty[:]) }
+        if mode == 9 { constants[1].bits = 2; constants[1].type = 3; values[1] = 3 }
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        modules: [1]string = .["element-pointers"]
+        functions: [1]LirFunction = .[.{.module = 0, .name = "element-pointers", .result = ifx mode == 7 then 1 else 2,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+        result := Execute(program)
+        if mode >= 3 && mode <= 6 { if result.problem != .Type { return false } }
+        else if mode == 8 { if result.problem != .Pointer { return false } }
+        else if result.problem != .None || result.value.bits != (ifx mode == 7 then cast(u64)1 else cast(u64)42) { return false }
+    }
+    return true
+}
+
 AggregateApi :: () -> bool {
     fields: [2]s32 = .[4, 4]; type_parameter: [1]s32 = .[4]; types: [15]LirType
     Types(types[:], fields[:], type_parameter[:])
@@ -596,6 +641,7 @@ Answer :: () -> s32 {
     if !AggregateApi() { return 10 }
     if !LimitsAndTraps() { return 11 }
     if !VerifierBoundaries() { return 12 }
+    if !ElementPointers() { return 13 }
     return 42
 }
 

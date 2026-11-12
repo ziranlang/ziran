@@ -48,8 +48,8 @@ CodecCases :: () -> s32 {
     modules: [2]string = .{"codec", "nested"}
     sources: [2]string = .{"fixture.zi", "generated cleanup"}
     origins: [2]Lir.LirOrigin = .{
-        .{file = 0, line = 1, column = 1, begin = 0, end = 8, parent = -1},
-        .{file = 1, line = 7, column = 3, begin = 12, end = 19, parent = 0}}
+        .{file = 0, line = 1, column = 1, end_line = 1, end_column = 9, begin = 0, end = 8, parent = -1},
+        .{file = 1, line = 7, column = 3, end_line = 9, end_column = 1, begin = -1, end = -1, parent = 0}}
     constants: [3]Lir.LirConstant = .{
         .{type = 2, bits = 42}, .{type = 1, bits = 1}, .{type = 3, bits = 0x3ff0000000000000}}
     globals: [1]Lir.LirGlobal = .{
@@ -135,7 +135,10 @@ CodecCases :: () -> s32 {
         decoded.functions[0].blocks[0].instructions.count != 4 ||
         decoded.functions[0].blocks[0].instructions[3].edges.count != 2 ||
         decoded.functions[0].blocks[0].instructions[3].edges[1].arguments[0] != 1 ||
-        decoded.origins.count != 2 || decoded.origins[1].parent != 0 { return Fail(8) }
+        decoded.origins.count != 2 || decoded.origins[1].parent != 0 ||
+        decoded.origins[0].end_line != 1 || decoded.origins[0].end_column != 9 ||
+        decoded.origins[1].end_line != 9 || decoded.origins[1].end_column != 1 ||
+        decoded.origins[1].begin != -1 || decoded.origins[1].end != -1 { return Fail(8) }
 
     // The reader owns its copy; changing the encoded module bytes cannot change
     // a successfully decoded program. The first module begins at byte 132.
@@ -171,6 +174,11 @@ CodecCases :: () -> s32 {
     if read.problem != .Trailing { return Fail(17, cast(s32)read.problem) }
 
     mutation := CopyBytes(canonical[:])
+    mutation[8] = 1
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Version || owner.valid { return Fail(30, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(canonical[:])
     mutation[17] = 1
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Feature { return Fail(18, cast(s32)read.problem) }

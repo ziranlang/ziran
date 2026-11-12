@@ -5,6 +5,7 @@ Measure :: () -> s64 #foreign host_api;
 Payload :: struct { cells: [256]s32; label: string; value: s32 }
 Pair :: struct { first: Payload; second: Payload; marker: s32 }
 Rows :: struct { items: [2]Payload }
+BorrowedViews :: struct { groups: [2][]string }
 
 Label :: () -> string {
     text: Vec(u8)
@@ -68,7 +69,21 @@ ReplacePointer :: () -> s32 {
     return Burn(240)
 }
 
+NestedRetiredViews :: () -> s32 {
+    words: Vec(string)
+    VecPush(words, "retired view")
+    snapshot: BorrowedViews
+    snapshot.groups[0] = words[:]
+    snapshot.groups[1] = words[:]
+    VecFree(words)
+    if Burn(1200) != 7 { return 1 }
+    if snapshot.groups.count != 2 || snapshot.groups[0].count != 1 ||
+        snapshot.groups[1].count != 1 { return 2 }
+    return 42
+}
+
 RunCore :: () -> s32 {
+    if NestedRetiredViews() != 42 { return 15 }
     if Burn(1200) != 7 { return 1 }
     if startup.first.cells[0] != 11 || startup.second.cells[255] != 13 || startup.marker != 7 { return 2 }
     pair := MakePair()

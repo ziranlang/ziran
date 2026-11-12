@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+- Extend the experimental direct assembly backend with checked global and
+  fixed-array addressing, source-range inspection filters and executable
+  identities. Saved lowered instructions now preserve source end positions.
+- Add opt-in verified scalar optimization with deterministic transformation
+  reports. Full ZX format replacement and the remaining assembly upgrade are
+  still in progress; no performance improvement is claimed.
+- Preserve assignment destinations and preceding compound-assignment values
+  across side-effecting calls, and retain live nested portable-VM storage.
+
 ## [0.4.2] - 2026-11-11
 
 - Add the experimental `make assembly` / `zi2asm` scalar direct Linux x86-64

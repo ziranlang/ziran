@@ -460,7 +460,8 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)] = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
+            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)]);
+            (*value_0) = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
             if ((uint8_t)ZIRAN_INDEX(text.data, text.length, i) == 0) {
                 clean = false;
             }
@@ -470,7 +471,8 @@ compiler_ir_CopyText_ziran_inline(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)] = 0;
+    uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)]);
+    (*value_1) = 0;
     return clean;
 }
 #endif

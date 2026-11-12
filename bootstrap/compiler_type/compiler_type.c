@@ -139,60 +139,62 @@ RecordField
 compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name_limit, int64_t type_limit, Slice tag_workspace)
 {
     RecordField result = {0};
-    result.status = -1;
-    result.next = at;
+    int32_t* value_0 = &(result.status);
+    (*value_0) = -1;
+    int64_t* value_1 = &(result.next);
+    (*value_1) = at;
     if (at < 0LL || at > (int64_t)(body).length) {
         return result;
     }
     while (true) {
-        int64_t value_0 = at;
-        uint8_t value_1 = 0;
+        int64_t value_2 = at;
+        uint8_t value_3 = 0;
         {
             String source = body;
-            int64_t at = value_0;
+            int64_t at = value_2;
             if (at < 0LL || at >= (int64_t)(source).length) {
-                value_1 = 0;
-                goto value_2;
+                value_3 = 0;
+                goto value_4;
             }
-            value_1 = (uint8_t)source.data[at];
-        value_2: ;
+            value_3 = (uint8_t)source.data[at];
+        value_4: ;
         }
-        if (!(value_1 != 0)) { break; }
+        if (!(value_3 != 0)) { break; }
         int64_t end = at;
         bool quote = false;
         while (true) {
-            uint8_t value_3 = 0;
+            uint8_t value_5 = 0;
             {
                 String source = body;
                 int64_t at = end;
                 if (at < 0LL || at >= (int64_t)(source).length) {
-                    value_3 = 0;
-                    goto value_4;
+                    value_5 = 0;
+                    goto value_6;
                 }
-                value_3 = (uint8_t)source.data[at];
-            value_4: ;
+                value_5 = (uint8_t)source.data[at];
+            value_6: ;
             }
-            if (!(value_3 != 0)) { break; }
+            if (!(value_5 != 0)) { break; }
             uint8_t byte = (uint8_t)ZIRAN_INDEX(body.data, body.length, end);
             if (quote) {
-                bool value_5 = byte == 92;
-                bool value_6 = value_5;
-                if (value_6) {
-                    int64_t value_7 = (int64_t)((uint64_t)end + UINT64_C(1));
-                    uint8_t value_8 = 0;
+                bool value_7 = byte == 92;
+                bool value_8 = value_7;
+                if (value_8) {
+                    int64_t value_9 = (int64_t)((uint64_t)end + UINT64_C(1));
+                    uint8_t value_10 = 0;
                     {
                         String source = body;
-                        int64_t at = value_7;
+                        int64_t at = value_9;
                         if (at < 0LL || at >= (int64_t)(source).length) {
-                            value_8 = 0;
-                            goto value_9;
+                            value_10 = 0;
+                            goto value_11;
                         }
-                        value_8 = (uint8_t)source.data[at];
-                    value_9: ;
+                        value_10 = (uint8_t)source.data[at];
+                    value_11: ;
                     }
-                    value_6 = (value_8 != 0);
+                    value_8 = (value_10 != 0);
                 }
-                if (value_6) {
+                if (value_8) {
                     end = (int64_t)((uint64_t)end + UINT64_C(1));
                 } else if (byte == 34) {
                     quote = false;
@@ -207,93 +209,97 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
         if (quote) {
             return result;
         }
-        result.next = end;
-        uint8_t value_10 = 0;
+        int64_t* value_12 = &(result.next);
+        (*value_12) = end;
+        uint8_t value_13 = 0;
         {
             String source = body;
             int64_t at = end;
             if (at < 0LL || at >= (int64_t)(source).length) {
-                value_10 = 0;
-                goto value_11;
+                value_13 = 0;
+                goto value_14;
             }
-            value_10 = (uint8_t)source.data[at];
-        value_11: ;
+            value_13 = (uint8_t)source.data[at];
+        value_14: ;
         }
-        if (value_10 != 0) {
-            result.next = (int64_t)((uint64_t)(result.next) + UINT64_C(1));
+        if (value_13 != 0) {
+            int64_t* value_15 = &(result.next);
+            (*value_15) = (int64_t)((uint64_t)((*value_15)) + UINT64_C(1));
         }
-        String value_12 = StringRange(body, (int64_t)at, (int64_t)end);
-        String value_13 = StringView(NULL, 0);
+        String value_16 = StringRange(body, (int64_t)at, (int64_t)end);
+        String value_17 = StringView(NULL, 0);
         {
-            String source = value_12;
+            String source = value_16;
             SourceRange range = compiler_text_TrimRange(source);
-            value_13 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_17 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        String line = value_13;
+        String line = value_17;
         at = result.next;
         if ((int64_t)(line).length == 0LL) {
             continue;
         }
-        bool value_15 = (int64_t)(line).length >= 6LL && StringEqual(StringRange(line, (int64_t)0LL, (int64_t)5LL), StringLiteral("using"));
-        bool value_16 = value_15;
-        if (value_16 && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(line.data, line.length, 5))) {
-            result.is_using = true;
-            String value_17 = StringRange(line, (int64_t)5LL, (int64_t)line.length);
-            String value_18 = StringView(NULL, 0);
+        bool value_19 = (int64_t)(line).length >= 6LL && StringEqual(StringRange(line, (int64_t)0LL, (int64_t)5LL), StringLiteral("using"));
+        bool value_20 = value_19;
+        if (value_20 && compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(line.data, line.length, 5))) {
+            bool* value_21 = &(result.is_using);
+            (*value_21) = true;
+            String value_22 = StringRange(line, (int64_t)5LL, (int64_t)line.length);
+            String value_23 = StringView(NULL, 0);
             {
-                String source = value_17;
+                String source = value_22;
                 SourceRange range = compiler_text_TrimRange(source);
-                value_18 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                value_23 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
             }
-            line = value_18;
+            line = value_23;
         }
         int64_t colon = compiler_type_Find(line, 58, 0LL);
         if (colon < 0LL) {
             return result;
         }
-        String value_20 = StringRange(line, (int64_t)0LL, (int64_t)colon);
-        String value_21 = StringView(NULL, 0);
+        String value_25 = StringRange(line, (int64_t)0LL, (int64_t)colon);
+        String value_26 = StringView(NULL, 0);
         {
-            String source = value_20;
+            String source = value_25;
             SourceRange range = compiler_text_TrimRange(source);
-            value_21 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_26 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        String name = value_21;
-        String value_23 = StringRange(line, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)line.length);
-        String value_24 = StringView(NULL, 0);
+        String name = value_26;
+        String value_28 = StringRange(line, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)line.length);
+        String value_29 = StringView(NULL, 0);
         {
-            String source = value_23;
+            String source = value_28;
             SourceRange range = compiler_text_TrimRange(source);
-            value_24 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_29 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        String type = value_24;
+        String type = value_29;
         int64_t tag = compiler_type_Find(type, 35, 0LL);
         if (tag >= 0LL) {
             String directive = StringRange(type, (int64_t)tag, (int64_t)type.length);
-            String value_26 = compiler_type_CSpelling(directive);
-            result.c_type = value_26;
+            String* value_31 = &(result.c_type);
+            String value_32 = compiler_type_CSpelling(directive);
+            (*value_31) = value_32;
             if ((int64_t)(result.c_type).length >= type_limit) {
                 return result;
             }
             if ((int64_t)(result.c_type).length == 0LL) {
-                bool value_27 = union_record || (int64_t)(directive).length < 8LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag"));
-                bool value_28 = value_27;
-                bool value_29 = value_28;
-                if (!value_29) {
-                    bool value_30 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
-                    value_29 = !value_30;
+                bool value_33 = union_record || (int64_t)(directive).length < 8LL || !StringEqual(StringRange(directive, (int64_t)0LL, (int64_t)7LL), StringLiteral("#go_tag"));
+                bool value_34 = value_33;
+                bool value_35 = value_34;
+                if (!value_35) {
+                    bool value_36 = compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(directive.data, directive.length, 7));
+                    value_35 = !value_36;
                 }
-                if (value_29) {
+                if (value_35) {
                     return result;
                 }
-                String value_31 = StringRange(directive, (int64_t)7LL, (int64_t)directive.length);
-                String value_32 = StringView(NULL, 0);
+                String value_37 = StringRange(directive, (int64_t)7LL, (int64_t)directive.length);
+                String value_38 = StringView(NULL, 0);
                 {
-                    String source = value_31;
+                    String source = value_37;
                     SourceRange range = compiler_text_TrimRange(source);
-                    value_32 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                    value_38 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
                 }
-                String literal = value_32;
+                String literal = value_38;
                 if ((int64_t)(literal).length == 0LL || (int64_t)(literal).length >= (int64_t)(tag_workspace).length) {
                     return result;
                 }
@@ -302,9 +308,9 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                     return result;
                 }
                 {
-                    Slice value_34 = tag_workspace;
-                    Slice value_35 = SliceRange(value_34, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
-                    Slice loop_view_68 = value_35;
+                    Slice value_40 = tag_workspace;
+                    Slice value_41 = SliceRange(value_40, (int64_t)0LL, (int64_t)decoded.count, sizeof(uint8_t));
+                    Slice loop_view_68 = value_41;
                     int64_t loop_count_68 = (int64_t)(loop_view_68).length;
                     int64_t loop_cursor_68 = 0LL;
                     while (loop_cursor_68 < loop_count_68) {
@@ -316,27 +322,32 @@ compiler_type_NextField(String body, int64_t at, bool union_record, int64_t name
                         loop_cursor_68 = (int64_t)((uint64_t)loop_cursor_68 + UINT64_C(1));
                     }
                 }
-                result.tag = literal;
+                String* value_42 = &(result.tag);
+                (*value_42) = literal;
             }
-            String value_36 = StringRange(type, (int64_t)0LL, (int64_t)tag);
-            String value_37 = StringView(NULL, 0);
+            String value_43 = StringRange(type, (int64_t)0LL, (int64_t)tag);
+            String value_44 = StringView(NULL, 0);
             {
-                String source = value_36;
+                String source = value_43;
                 SourceRange range = compiler_text_TrimRange(source);
-                value_37 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                value_44 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
             }
-            type = value_37;
+            type = value_44;
         }
-        bool value_39 = compiler_type_Identifier(name);
-        if (!value_39 || (int64_t)(name).length >= name_limit || (int64_t)(type).length == 0LL || (int64_t)(type).length >= type_limit) {
+        bool value_46 = compiler_type_Identifier(name);
+        if (!value_46 || (int64_t)(name).length >= name_limit || (int64_t)(type).length == 0LL || (int64_t)(type).length >= type_limit) {
             return result;
         }
-        result.status = 1;
-        result.name = name;
-        result.type = type;
+        int32_t* value_47 = &(result.status);
+        (*value_47) = 1;
+        String* value_48 = &(result.name);
+        (*value_48) = name;
+        String* value_49 = &(result.type);
+        (*value_49) = type;
         return result;
     }
-    result.status = 0;
+    int32_t* value_50 = &(result.status);
+    (*value_50) = 0;
     return result;
 }
 

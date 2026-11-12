@@ -1092,6 +1092,48 @@ COMPILER_SCRATCH_VOID(, emit_destination,
     emit_destination_with_buffers(e, index, out, size, buffers))
 
 void
+capture_destination(Emitter *e, int index, char *out, size_t size)
+{
+    const ZirExpr *place = &e->fn->exprs[index];
+    char temporary[ZIR_NAME_MAX];
+    char native[ZIR_NAME_MAX * 2];
+
+    emit_destination(e, index, out, size);
+    if(place->kind == ZIR_EXPR_IDENT)
+        return;
+    fresh(e, temporary);
+    if(e->target == ZIR_GO) {
+        line(e, "%s := &(%s)", temporary, out);
+    } else if(ArrayElementType(place->type, NULL, 0, NULL)) {
+        char element[ZIR_NAME_MAX * 2];
+        char bounds[ZIR_NAME_MAX * 2];
+        array_target_type(e, place->type, element, sizeof(element), bounds,
+                          sizeof(bounds));
+        line(e, "%s%s (*%s)%s = &(%s);",
+             TypeHasZeroArray(e->module, place->type) ? "__extension__ " : "",
+             element, temporary, bounds, out);
+    } else {
+        ZirTypeField field;
+        int spelled = (place->kind == ZIR_EXPR_MEMBER ||
+                       place->kind == ZIR_EXPR_POINTER_MEMBER) &&
+                      spelled_pointer_field(field_record(e->module,
+                            e->fn->exprs[place->left].type, NULL),
+                            place->name, &field);
+        const char *target = TargetType(place->type, ZIR_C);
+        if(spelled)
+            copy_text(native, sizeof(native), field.c_type);
+        else if(target != NULL)
+            copy_text(native, sizeof(native), target);
+        else
+            slot_type_at_use(place->type, ZIR_C, resolve_type_at_use,
+                             (void *)e->module, native, sizeof(native));
+        line(e, "%s* %s = &(%s);", native, temporary, out);
+    }
+    format(out, size, "(*%s)", temporary);
+    e->pure = 0;
+}
+
+void
 literal(Emitter *e, const ZirExpr *expr, const char *type, int negative, char *out, size_t size)
 {
     char raw[ZIR_TEXT_MAX], *end;

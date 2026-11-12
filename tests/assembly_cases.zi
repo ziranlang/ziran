@@ -4,11 +4,17 @@
 #import "std/file_tree_linux"
 #import "std/text_tools"
 #import "std/json_document"
+using Vectors :: #import "std/vec"
 
 #scope_file
 native_execution: bool;
 
 #scope_export
+ElfWord :: (binary: string, at: s64, width: s64) -> u64 {
+    value: u64
+    for offset: cast(s64)0..width - 1 { value |= cast(u64)binary[at + offset] << cast(u64)(offset * 8) }
+    return value
+}
 
 Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     document: JsonDocument
@@ -16,10 +22,20 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     ranges := JsonMember(*document, document.root, "ranges")
     functions := JsonMember(*document, document.root, "functions")
     origins := JsonMember(*document, document.root, "origins")
+    identity := JsonMember(*document, document.root, "identity")
+    digest := CheckField(*document, identity, "digest")
     if !NativeAssert(test, CheckField(*document, document.root, "coordinate") == "text-relative" &&
         CheckInteger(*document, document.root, "version") == 1 && JsonCount(*document, ranges) > 2 &&
         JsonCount(*document, functions) > 0 && JsonCount(*document, origins) > 0,
         "invalid native map metadata") { return false }
+    if !NativeAssert(test, CheckField(*document, identity, "algorithm") == "sha256" &&
+        CheckField(*document, identity, "scope") == "complete-elf" && digest.count == 64 &&
+        CheckField(*document, document.root, "variant") == "x86-64-baseline" &&
+        CheckField(*document, document.root, "abi") == "ziran-internal", "native maps must identify their exact code image and target policy") { return false }
+    for byte: digest {
+        if !NativeAssert(test, byte >= #char "0" && byte <= #char "9" || byte >= #char "a" && byte <= #char "f",
+            "native image identity must be lowercase hexadecimal") { return false }
+    }
     previous: s64
     mapped: s64
     for index: 0..JsonCount(*document, ranges) - 1 {
@@ -34,7 +50,9 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
             if !NativeAssert(test, CheckField(*document, range, "file") != "" &&
                 CheckField(*document, range, "file") == CheckField(*document, origin, "file") &&
                 CheckInteger(*document, range, "line") == CheckInteger(*document, origin, "line") &&
-                CheckInteger(*document, range, "column") == CheckInteger(*document, origin, "column"),
+                CheckInteger(*document, range, "column") == CheckInteger(*document, origin, "column") &&
+                CheckInteger(*document, range, "end_line") == CheckInteger(*document, origin, "end_line") &&
+                CheckInteger(*document, range, "end_column") == CheckInteger(*document, origin, "end_column"),
                 "native map must retain source origins") { return false }
             mapped += 1
         }
@@ -52,18 +70,43 @@ Inspect :: (test: *NativeTest, listing: string, binary: string) -> bool {
     for index: 0..JsonCount(*document, origins) - 1 {
         origin := JsonElement(*document, origins, index)
         parent := CheckInteger(*document, origin, "parent")
+        end_line := CheckInteger(*document, origin, "end_line")
+        end_column := CheckInteger(*document, origin, "end_column")
+        line := CheckInteger(*document, origin, "line")
+        column := CheckInteger(*document, origin, "column")
+        begin := CheckInteger(*document, origin, "begin")
+        end := CheckInteger(*document, origin, "end")
         if !NativeAssert(test, CheckInteger(*document, origin, "id") == index &&
-            CheckInteger(*document, origin, "begin") >= 0 &&
-            CheckInteger(*document, origin, "end") >= CheckInteger(*document, origin, "begin") &&
-            CheckInteger(*document, origin, "line") > 0 && CheckInteger(*document, origin, "column") > 0 &&
+            ((begin == -1 && end == -1) || (begin >= 0 && end >= begin)) && line > 0 && column > 0 &&
+            ((end_line == 0 && end_column == 0) ||
+             (end_line >= line && end_column > 0 && (end_line > line || end_column >= column))) &&
             parent >= -1 && parent < JsonCount(*document, origins) && parent != index,
-            "native map must preserve complete source spans and parent origin identities") { return false }
+            "native map must preserve source positions, unavailable byte offsets and parent identities") { return false }
     }
     if !NativeAssert(test, binary.count >= 120, "native ELF header is truncated") { return false }
-    file_size: u64
-    for offset: 0..7 { file_size |= cast(u64)binary[96 + offset] << cast(u64)(offset * 8) }
-    return NativeAssert(test, previous == cast(s64)file_size - 120 && mapped > 0 &&
-        CheckInteger(*document, document.root, "text_size") == previous, "native map must match encoded text size")
+    image := JsonMember(*document, document.root, "image")
+    segments := ElfWord(binary, 56, 2)
+    text_offset := CheckInteger(*document, image, "text_file_offset")
+    text_address := CheckInteger(*document, image, "text_virtual_address")
+    data_size := CheckInteger(*document, image, "data_size")
+    if !NativeAssert(test, (segments == 1 || segments == 2) && binary.count >= 64 + cast(s64)segments * 56 &&
+        text_offset == 64 + cast(s64)segments * 56 && ElfWord(binary, 64, 4) == 1 && ElfWord(binary, 68, 4) == 5 &&
+        text_address == cast(s64)ElfWord(binary, 80, 8) + text_offset &&
+        CheckField(*document, image, "kind") == "aot-elf" && CheckField(*document, image, "address_space") == "elf-virtual" &&
+        CheckInteger(*document, image, "file_size") == binary.count &&
+        CheckInteger(*document, image, "text_size") == previous &&
+        previous == cast(s64)ElfWord(binary, 96, 8) - text_offset && mapped > 0 &&
+        CheckInteger(*document, document.root, "text_size") == previous,
+        "native map layout must match actual RX ELF text and file extents") { return false }
+    if segments == 2 {
+        return NativeAssert(test, ElfWord(binary, 120, 4) == 1 && ElfWord(binary, 124, 4) == 6 &&
+            CheckInteger(*document, image, "data_file_offset") == cast(s64)ElfWord(binary, 128, 8) &&
+            CheckInteger(*document, image, "data_virtual_address") == cast(s64)ElfWord(binary, 136, 8) &&
+            data_size > 0 && data_size == cast(s64)ElfWord(binary, 152, 8),
+            "global images must have a separate nonexecutable RW data extent")
+    }
+    return NativeAssert(test, data_size == 0 && CheckInteger(*document, image, "data_file_offset") == 0 &&
+        CheckInteger(*document, image, "data_virtual_address") == 0, "scalar image must not invent a data segment")
 }
 
 Compile :: (test: *NativeTest, compiler: string, source: string, entry: string, emit: string, output: string) -> bool {
@@ -123,6 +166,139 @@ WireReject :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
     return !test.failed
 }
 
+MapSelect :: (test: *NativeTest, compiler: string, wire: string) -> bool {
+    output := CheckPath(test.work, "selected.map.json")
+    arguments := string.[compiler, "--input", "exec", "--emit", "map", "-o", output, wire]
+    unused NativeRun(test, arguments[:])
+    full: JsonDocument
+    if test.failed || !NativeAssert(test, JsonRead(*full, NativeRead(test, output)), "full inspection map must parse") { return false }
+    ranges := JsonMember(*full, full.root, "ranges")
+    origins := JsonMember(*full, full.root, "origins")
+    functions := JsonMember(*full, full.root, "functions")
+    text_size := CheckInteger(*full, full.root, "text_size")
+    window_begin: s64 = -1
+    window_end: s64 = -1
+    for index: 0..JsonCount(*full, ranges) - 1 {
+        range := JsonElement(*full, ranges, index)
+        if CheckInteger(*full, range, "function_id") == 0 && CheckInteger(*full, range, "instruction") >= 0 &&
+            CheckInteger(*full, range, "end") - CheckInteger(*full, range, "begin") > 1 {
+            window_begin = CheckInteger(*full, range, "begin") + 1
+            window_end = window_begin + 1
+            break
+        }
+    }
+    if !NativeAssert(test, window_begin >= 0, "selection fixture needs a multi-byte native instruction") { return false }
+    for mode: 0..4 {
+        selected_function: s64 = -1
+        selected_block: s64 = -1
+        begin: s64 = -1
+        end: s64 = -1
+        if mode == 0 || mode == 1 || mode == 3 { selected_function = 0 }
+        if mode == 1 || mode == 3 { selected_block = 0 }
+        if mode == 2 { begin = window_begin; end = window_end }
+        if mode >= 3 { begin = text_size + 1; end = text_size + 2 }
+        selected: Vec(string)
+        for index: 0..arguments.count - 2 { VecPush(selected, arguments[index]) }
+        if selected_function >= 0 { VecPush(selected, "--function-id"); VecPush(selected, CheckNumber(selected_function)) }
+        if selected_block >= 0 { VecPush(selected, "--block-id"); VecPush(selected, CheckNumber(selected_block)) }
+        if begin >= 0 {
+            VecPush(selected, "--address-begin"); VecPush(selected, CheckNumber(begin))
+            VecPush(selected, "--address-end"); VecPush(selected, CheckNumber(end))
+        }
+        VecPush(selected, wire)
+        unused NativeRun(test, selected[:])
+        VecFree(selected)
+        document: JsonDocument
+        if test.failed || !NativeAssert(test, JsonRead(*document, NativeRead(test, output)), "selected inspection map must parse") { return false }
+        selection := JsonMember(*document, document.root, "selection")
+        if !NativeAssert(test, CheckInteger(*document, selection, "function_id") == selected_function &&
+            CheckInteger(*document, selection, "block_id") == selected_block &&
+            CheckInteger(*document, selection, "begin") == begin && CheckInteger(*document, selection, "end") == end &&
+            CheckInteger(*document, document.root, "text_size") == text_size &&
+            CheckInteger(*document, document.root, "total_ranges") == JsonCount(*full, ranges),
+            "selection metadata must describe the original native coordinates") { return false }
+        selected_ranges := JsonMember(*document, document.root, "ranges")
+        expected: s32
+        for index: 0..JsonCount(*full, ranges) - 1 {
+            range := JsonElement(*full, ranges, index)
+            range_begin := CheckInteger(*full, range, "begin")
+            range_end := CheckInteger(*full, range, "end")
+            if selected_function >= 0 && CheckInteger(*full, range, "function_id") != selected_function { continue }
+            if selected_block >= 0 && CheckInteger(*full, range, "block") != selected_block { continue }
+            if begin >= 0 {
+                if range_begin == range_end { if range_begin < begin || range_begin >= end { continue } }
+                else { if range_begin >= end || range_end <= begin { continue } }
+            }
+            actual := JsonElement(*document, selected_ranges, expected)
+            fields := string.["begin", "end", "function_id", "block", "instruction", "origin"]
+            for field: fields {
+                if !NativeAssert(test, CheckInteger(*document, actual, field) == CheckInteger(*full, range, field),
+                    "selection must preserve whole actual instruction extents and identities") { return false }
+            }
+            expected += 1
+        }
+        if !NativeAssert(test, JsonCount(*document, selected_ranges) == expected &&
+            CheckInteger(*document, document.root, "selected_ranges") == expected,
+            "selection must include every matching range, including zero-byte sites") { return false }
+        selected_functions := JsonMember(*document, document.root, "functions")
+        for index: 0..JsonCount(*document, selected_functions) - 1 {
+            function := JsonElement(*document, selected_functions, index)
+            original := JsonElement(*full, functions, cast(s32)CheckInteger(*document, function, "id"))
+            if !NativeAssert(test, CheckField(*document, function, "name") == CheckField(*full, original, "name") &&
+                CheckInteger(*document, function, "begin") == CheckInteger(*full, original, "begin") &&
+                CheckInteger(*document, function, "end") == CheckInteger(*full, original, "end"),
+                "selected functions must keep original identities and complete extents") { return false }
+        }
+        selected_origins := JsonMember(*document, document.root, "origins")
+        for index: 0..JsonCount(*document, selected_origins) - 1 {
+            origin := JsonElement(*document, selected_origins, index)
+            original := JsonElement(*full, origins, cast(s32)CheckInteger(*document, origin, "id"))
+            if !NativeAssert(test, CheckInteger(*document, origin, "line") == CheckInteger(*full, original, "line") &&
+                CheckInteger(*document, origin, "end_column") == CheckInteger(*full, original, "end_column"),
+                "selected origin tables must retain stable source identities") { return false }
+            parent := CheckInteger(*document, origin, "parent")
+            found := parent == -1
+            for candidate: 0..JsonCount(*document, selected_origins) - 1 {
+                if CheckInteger(*document, JsonElement(*document, selected_origins, candidate), "id") == parent { found = true }
+            }
+            if !NativeAssert(test, found, "selected origin tables must retain complete parent chains") { return false }
+        }
+        if mode == 0 && !NativeAssert(test, JsonCount(*document, selected_functions) == 1 &&
+            JsonCount(*document, selected_origins) < JsonCount(*full, origins), "function selection must omit unrelated metadata") { return false }
+        if mode == 3 && !NativeAssert(test, expected == 0 && JsonCount(*document, selected_functions) == 1,
+            "an empty range intersection must still identify the selected function") { return false }
+        if mode == 4 && !NativeAssert(test, expected == 0 && JsonCount(*document, selected_functions) == 0 &&
+            JsonCount(*document, selected_origins) == 0, "empty address selection must not dump unrelated tables") { return false }
+    }
+    for mode: 0..1 {
+        if !NativeWrite(test, output, "preserved inspection") { return false }
+        bad_function := string.[compiler, "--diagnostics=json", "--input", "exec", "--emit", "map", "--function-id", "65536", "-o", output, wire]
+        bad_block := string.[compiler, "--diagnostics=json", "--input", "exec", "--emit", "map", "--function-id", "0", "--block-id", "2147483647", "-o", output, wire]
+        if mode == 0 { if !NativeReject(test, bad_function[:], "assembly.inspect") { return false } }
+        else { if !NativeReject(test, bad_block[:], "assembly.inspect") { return false } }
+        if !NativeAssert(test, NativeRead(test, output) == "preserved inspection", "invalid selections must preserve existing output") { return false }
+    }
+    names := string.["--function-id", "--function-id", "--function-id", "--function-id", "--block-id",
+        "--address-begin", "--address-end", "--address-begin", "--address-begin", "--address-begin", "--function-id"]
+    values := string.["-1", "", "9223372036854775808", "2147483648", "0", "0", "1", "1", "2", "invalid", "0"]
+    for mode: 0..names.count - 1 {
+        if !NativeWrite(test, output, "preserved usage output") { return false }
+        invalid: Vec(string)
+        for index: 0..arguments.count - 2 { VecPush(invalid, arguments[index]) }
+        VecPush(invalid, names[mode]); VecPush(invalid, values[mode])
+        if mode == 7 || mode == 8 { VecPush(invalid, "--address-end"); VecPush(invalid, "1") }
+        if mode == 10 { VecPush(invalid, "--emit"); VecPush(invalid, "elf") }
+        VecPush(invalid, wire)
+        unused NativeRun(test, invalid[:], "", 2)
+        VecFree(invalid)
+        if test.failed || !NativeAssert(test, NativeRead(test, output) == "preserved usage output",
+            "invalid selection syntax must fail before replacing output") { return false }
+    }
+    run_selection := string.[compiler, "--run", "--input", "exec", "--function-id", "0", wire]
+    unused NativeRun(test, run_selection[:], "", 2)
+    return !test.failed
+}
+
 WireInspect :: (test: *NativeTest, compiler: string, wire_path: string) -> bool {
     wire := NativeRead(test, wire_path)
     position: s64 = -1
@@ -148,6 +324,19 @@ WireInspect :: (test: *NativeTest, compiler: string, wire_path: string) -> bool 
     functions := JsonMember(*document, document.root, "functions")
     first := JsonElement(*document, functions, 0)
     if !NativeAssert(test, CheckField(*document, first, "name") == "An\nwer", "native map function names must survive JSON escaping") { return false }
+    unicode := CheckConcat(wire[:position], CheckConcat("A\xc3\xa9wer", wire[position + 6:]))
+    if !NativeWrite(test, input, unicode) { return false }
+    unused NativeRun(test, mapping[:])
+    if test.failed || !NativeAssert(test, JsonRead(*document, NativeRead(test, mapped)), "Unicode names must retain valid JSON inspection") { return false }
+    functions = JsonMember(*document, document.root, "functions")
+    first = JsonElement(*document, functions, 0)
+    if !NativeAssert(test, CheckField(*document, first, "name") == "A\xc3\xa9wer", "native maps must preserve valid multibyte names") { return false }
+    invalid_bytes: [1]u8 = .[255]
+    malformed := CheckConcat(wire[:position + 2], CheckConcat(TextView(invalid_bytes[:]), wire[position + 3:]))
+    if !NativeWrite(test, input, malformed) || !NativeWrite(test, mapped, "preserved map") { return false }
+    invalid := string.[compiler, "--diagnostics=json", "--input", "exec", "--emit", "map", "-o", mapped, input]
+    if !NativeReject(test, invalid[:], "assembly.codec") ||
+        !NativeAssert(test, NativeRead(test, mapped) == "preserved map", "malformed UTF-8 metadata must not reach JSON output") { return false }
     return !test.failed
 }
 
@@ -171,6 +360,16 @@ Exercise :: (test: *NativeTest, compiler: string, name: string, source: string, 
     mapping := CheckPath(test.work, CheckConcat(name, ".map.json"))
     if !Compile(test, compiler, input, entry, "map", mapping) ||
         !Inspect(test, NativeRead(test, mapping), first) { return false }
+    if native_execution {
+        hash := string.["sha256sum", binary]
+        actual := NativeRun(test, hash[:])
+        document: JsonDocument
+        if test.failed || !NativeAssert(test, actual.output.count >= 64 && JsonRead(*document, NativeRead(test, mapping)),
+            "external image identity oracle must succeed") { return false }
+        identity := JsonMember(*document, document.root, "identity")
+        if !NativeAssert(test, CheckField(*document, identity, "digest") == actual.output[:64],
+            "map identity must hash the actual complete emitted ELF, not a source estimate") { return false }
+    }
     permissions := string.["chmod", "600", binary]
     unused NativeRun(test, permissions[:])
     if !Compile(test, compiler, input, entry, "elf", binary) ||
@@ -198,7 +397,14 @@ Exercise :: (test: *NativeTest, compiler: string, name: string, source: string, 
         "source and saved IR must lower identically")
 }
 
-LowerExercise :: (test: *NativeTest, compiler: string, name: string, source: string, expected: s32, operation: string) -> bool {
+LowerExercise :: (test: *NativeTest, compiler: string, name: string, source: string, expected: s32, operation: string,
+    native: bool = false) -> bool {
+    if native {
+        if !Exercise(test, compiler, name, source, expected) { return false }
+        listing := CheckPath(test.work, CheckConcat(name, ".lir"))
+        return NativeAssert(test, TextContains(NativeRead(test, listing), operation),
+            "native lowering must preserve the requested operation")
+    }
     input := CheckPath(test.work, CheckConcat(name, ".zi"))
     if !NativeWrite(test, input, source) { return false }
     entry := CheckConcat(name, ":Answer")
@@ -222,6 +428,149 @@ LowerExercise :: (test: *NativeTest, compiler: string, name: string, source: str
         NativeAssert(test, NativeRead(test, second) == first, "source and saved IR aggregate/numeric lowering must agree")
 }
 
+OptimizeExercise :: (test: *NativeTest, compiler: string) -> bool {
+    source := "Answer :: () -> s32 { first: s32 = 6 * 7; discarded: s32 = 9 + 7; if true { return first } else { return discarded } }\n"
+    if !Exercise(test, compiler, "optimization", source, 42) { return false }
+    input := CheckPath(test.work, "optimization.zi")
+    saved := CheckPath(test.work, "optimization-ir/optimization.zir")
+    wire := CheckConcat(input, ".lirb")
+    inputs := string.[input, saved, wire]
+    forms := string.["source", "saved", "wire"]
+    emissions := string.["lir", "map", "exec", "elf", "opt-report"]
+    for index: 0..inputs.count - 1 {
+        for emit: emissions {
+            output := CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], CheckConcat(".", emit))))
+            arguments: Vec(string)
+            defer VecFree(arguments)
+            VecPush(arguments, compiler); VecPush(arguments, "--opt")
+            if index == 2 { VecPush(arguments, "--input"); VecPush(arguments, "exec") }
+            else {
+                VecPush(arguments, "--root"); VecPush(arguments, PathParent(inputs[index]))
+                VecPush(arguments, "--entry"); VecPush(arguments, "optimization:Answer")
+            }
+            VecPush(arguments, "--emit"); VecPush(arguments, emit)
+            VecPush(arguments, "-o"); VecPush(arguments, output); VecPush(arguments, inputs[index])
+            unused NativeRun(test, arguments[:])
+            if test.failed { return false }
+            baseline := CheckPath(test.work, CheckConcat("optimized-source.", emit))
+            if index > 0 && !NativeAssert(test, NativeRead(test, output) == NativeRead(test, baseline),
+                "source, saved and wire optimization must produce identical inspection and output") { return false }
+        }
+        optimized_wire := CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], ".exec")))
+        execute := string.[compiler, "--run", "--input", "exec", optimized_wire]
+        unused NativeRun(test, execute[:], "", 42)
+        if native_execution {
+            executable := string.[CheckPath(test.work, CheckConcat("optimized-", CheckConcat(forms[index], ".elf")))]
+            unused NativeRun(test, executable[:], "", 42)
+        }
+        if test.failed { return false }
+    }
+    optimized_lir := NativeRead(test, CheckPath(test.work, "optimized-source.lir"))
+    if !NativeAssert(test, optimized_lir != NativeRead(test, CheckPath(test.work, "optimization.lir")),
+        "opt-in optimization must expose its transformed instruction listing") { return false }
+    report := NativeRead(test, CheckPath(test.work, "optimized-source.opt-report"))
+    document: JsonDocument
+    if !NativeAssert(test, JsonRead(*document, report), "optimization report must be JSON") { return false }
+    before := JsonMember(*document, document.root, "input")
+    after := JsonMember(*document, document.root, "output")
+    passes := JsonMember(*document, document.root, "passes")
+    if !NativeAssert(test, CheckInteger(*document, document.root, "version") == 1 &&
+        CheckInteger(*document, document.root, "work") > 0 &&
+        CheckInteger(*document, document.root, "scratch_bytes") > 0 && JsonCount(*document, passes) == 4 &&
+        CheckInteger(*document, after, "instructions") < CheckInteger(*document, before, "instructions"),
+        "optimization report must identify measured transformation counters") { return false }
+    for index: cast(s32)0..3 {
+        pass := JsonElement(*document, passes, index)
+        if !NativeAssert(test, CheckField(*document, pass, "name") != "" &&
+            CheckInteger(*document, pass, "runs") > 0, "enabled optimization passes must report their runs") { return false }
+    }
+    map := NativeRead(test, CheckPath(test.work, "optimized-source.map"))
+    executable := NativeRead(test, CheckPath(test.work, "optimized-source.elf"))
+    if !Inspect(test, map, executable) { return false }
+    stdout_report := string.[compiler, "--opt", "--input", "exec", "--emit", "opt-report", "-o", "-", wire]
+    if !NativeExpect(test, stdout_report[:], report) { return false }
+    fuel_empty := string.[compiler, "--opt", "--run", "--input", "exec", "--fuel", "0", wire]
+    unused NativeRun(test, fuel_empty[:], "", 125)
+    fuel_once := string.[compiler, "--opt", "--run", "--input", "exec", "--fuel", "1", wire]
+    unused NativeRun(test, fuel_once[:], "", 42)
+    output := CheckPath(test.work, "optimization-untouched")
+    if !NativeWrite(test, output, "preserved optimization output") { return false }
+    invalid := string.[compiler, "--input", "exec", "--emit", "opt-report", "-o", output, wire]
+    unused NativeRun(test, invalid[:], "", 2)
+    if test.failed || !NativeAssert(test, NativeRead(test, output) == "preserved optimization output",
+        "reporting must not silently enable optimization or overwrite output on invalid usage") { return false }
+    trap_names := string.["opt_divide_trap", "opt_shift_trap", "opt_convert_trap", "opt_negative_index"]
+    trap_sources := string.[
+        "Bad :: (value: s32) -> s32 { unused 7 / value; return 42 }; Answer :: () -> s32 { return Bad(0) }\n",
+        "Bad :: (count: s64) -> s32 { unused cast(s32)1 << count; return 42 }; Answer :: () -> s32 { return Bad(64) }\n",
+        "Bad :: (value: float64) -> s32 { unused cast(s64)value; return 42 }; Answer :: () -> s32 { return Bad(9223372036854775808.0) }\n",
+        "values: [300]s32; Answer :: () -> s32 { index: s8 = -1; unused values[index]; return 42 }\n"]
+    for index: 0..trap_names.count - 1 {
+        name := trap_names[index]
+        if !Exercise(test, compiler, name, trap_sources[index], 125, 134) { return false }
+        trap_wire := CheckPath(test.work, CheckConcat(name, ".zi.lirb"))
+        trap_run := string.[compiler, "--opt", "--run", "--input", "exec", trap_wire]
+        unused NativeRun(test, trap_run[:], "", 125)
+        trap_elf := CheckPath(test.work, CheckConcat(name, "-optimized"))
+        trap_build := string.[compiler, "--opt", "--input", "exec", "-o", trap_elf, trap_wire]
+        unused NativeRun(test, trap_build[:])
+        if native_execution {
+            trap_execute := string.[trap_elf]
+            unused NativeRun(test, trap_execute[:], "", 125)
+        }
+        if test.failed { return false }
+    }
+    return true
+}
+
+GlobalExercise :: (test: *NativeTest, compiler: string, name: string, source: string, operation: string,
+    legacy_vm: bool = true) -> bool {
+    if !LowerExercise(test, compiler, name, source, 42, operation, true) { return false }
+    input := CheckPath(test.work, CheckConcat(name, ".zi"))
+    saved := CheckPath(test.work, CheckConcat(name, CheckConcat("-ir/", CheckConcat(name, ".zir"))))
+    inputs := string.[input, saved]
+    forms := string.["source", "saved"]
+    entry := CheckConcat(name, ":Answer")
+    for index: 0..inputs.count - 1 {
+        form := CheckConcat(name, CheckConcat("-", forms[index]))
+        if legacy_vm {
+            bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+            bundle_build := string.[test.ziran, "bundle", "--root", PathParent(inputs[index]), "--entry", entry, "-o", bundle, inputs[index]]
+            unused NativeRun(test, bundle_build[:])
+            vm := string.[test.ziran, "run", "--vm", bundle]
+            if test.failed || !NativeExpect(test, vm[:], "42\n") { return false }
+        }
+        optimized := string.[compiler, "--opt", "--run", "--root", PathParent(inputs[index]), "--entry", entry, inputs[index]]
+        unused NativeRun(test, optimized[:], "", 42)
+        optimized_wire := string.[compiler, "--opt", "--run", "--input", "exec", CheckConcat(inputs[index], ".lirb")]
+        unused NativeRun(test, optimized_wire[:], "", 42)
+        if test.failed { return false }
+        if !native_execution { continue }
+        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry", entry,
+            "--root", PathParent(inputs[index]), "-o", c_output, inputs[index]]
+        unused NativeRun(test, c_build[:])
+        c_run := string.[CheckPath(c_output, name)]
+        unused NativeRun(test, c_run[:], "", 42)
+        if test.failed { return false }
+        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main", "--entry", entry,
+            "--root", PathParent(inputs[index]), "-o", go_output, inputs[index]]
+        unused NativeRun(test, go_build[:])
+        executable := CheckPath(go_output, name)
+        go_compile: Vec(string)
+        defer VecFree(go_compile)
+        VecPush(go_compile, "go"); VecPush(go_compile, "build"); VecPush(go_compile, "-o"); VecPush(go_compile, executable)
+        go_files := NativeFiles(go_output, ".go")
+        for path: go_files { VecPush(go_compile, path) }
+        unused NativeRun(test, go_compile[:])
+        go_run := string.[executable]
+        unused NativeRun(test, go_run[:], "", 42)
+        if test.failed { return false }
+    }
+    return true
+}
+
 RunLimits :: (test: *NativeTest, compiler: string, wire: string, flag: string, budget: string, problem: string) -> bool {
     arguments := string.[compiler, "--diagnostics=json", "--run", "--input", "exec", flag, budget, wire]
     result := NativeRun(test, arguments[:], "", 125)
@@ -234,6 +583,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "assembly-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    NativeSet(*test, "GOWORK", "off")
+    NativeSet(*test, "GOMAXPROCS", "2")
+    NativeSet(*test, "GOFLAGS", "-p=2")
     host_command := string.["uname", "-s", "-m"]
     host := NativeRun(*test, host_command[:])
     native_execution = TextContains(host.output, "Linux") && TextContains(host.output, "x86_64")
@@ -243,6 +599,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !Exercise(*test, compiler, "scalar", scalar, 42) { return 1 }
     if !WireReject(*test, compiler, CheckPath(test.work, "scalar.zi.lirb")) { return 1 }
     if !WireInspect(*test, compiler, CheckPath(test.work, "scalar.zi.lirb")) { return 1 }
+    if !MapSelect(*test, compiler, CheckPath(test.work, "scalar.zi.lirb")) { return 1 }
     scalar_wire := CheckPath(test.work, "scalar.zi.lirb")
     if !RunLimits(*test, compiler, scalar_wire, "--fuel", "0", "fuel-limit") ||
         !RunLimits(*test, compiler, scalar_wire, "--work", "0", "work-limit") ||
@@ -296,25 +653,67 @@ main :: (argc: s32, argv: **u8) -> s32 {
     float_overflow := "Answer :: () -> s32 { value: float64 = 9223372036854775808.0; return cast(s32)cast(s64)value }\n"
     if !Exercise(*test, compiler, "float_overflow", float_overflow, 125, 134) { return 1 }
     records := "Pair :: struct { left: s32; right: s32 }; Make :: () -> Pair { return .{left = 20, right = 21} }; Answer :: () -> s32 { pair := Make(); pair.right += 1; return pair.left + pair.right }\n"
-    if !LowerExercise(*test, compiler, "records", records, 42, "insert") { return 1 }
+    if !LowerExercise(*test, compiler, "records", records, 42, "insert", true) { return 1 }
     arrays := "Answer :: () -> s32 { values: [3]s32 = .[20, 20, 1]; values[1] += 1; return values[0] + values[1] + values[2] }\n"
-    if !LowerExercise(*test, compiler, "arrays", arrays, 42, "extract") { return 1 }
+    if !LowerExercise(*test, compiler, "arrays", arrays, 42, "extract", true) { return 1 }
     nested := "Pair :: struct { left: s32; right: s32 }; Box :: struct { pair: Pair; values: [2]s32 }; Answer :: () -> s32 { item: Box = .{pair = Pair.{left = 10, right = 20}, values = s32.[5, 7]}; item.pair.left += item.values[0]; return item.pair.left + item.pair.right + item.values[1] }\n"
-    if !LowerExercise(*test, compiler, "nested", nested, 42, "insert") { return 1 }
+    if !LowerExercise(*test, compiler, "nested", nested, 42, "insert", true) { return 1 }
     aggregate_edges := "Pair :: struct { left: s32; right: s32 }; Select :: (flag: bool) -> Pair { pair: Pair = .{left = 1, right = 2}; if flag { pair = .{left = 20, right = 22} } else { pair.right = 3 }; return pair }; Answer :: () -> s32 { pair := Select(true); return pair.left + pair.right }\n"
-    if !LowerExercise(*test, compiler, "aggregate_edges", aggregate_edges, 42, "jump") { return 1 }
+    if !LowerExercise(*test, compiler, "aggregate_edges", aggregate_edges, 42, "jump", true) { return 1 }
     procedure_arguments := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Apply :: (operation: Operation, value: s32) -> s32 { return operation(value) }; Answer :: () -> s32 { operation: Operation = Twice; return Apply(operation, 21) }\n"
-    if !LowerExercise(*test, compiler, "procedure_arguments", procedure_arguments, 42, "call.indirect") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_arguments", procedure_arguments, 42, "call.indirect", true) { return 1 }
     procedure_results := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Triple :: (value: s32) -> s32 { return value * 3 }; Choose :: (flag: bool) -> Operation { return ifx flag then Twice else Triple }; Answer :: () -> s32 { operation := Choose(true); return operation(value = 21) }\n"
-    if !LowerExercise(*test, compiler, "procedure_results", procedure_results, 42, "function.address") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_results", procedure_results, 42, "function.address", true) { return 1 }
     procedure_fields := "Operation :: #type (value: s32) -> s32; Holder :: struct { operation: Operation }; Box :: struct { holder: Holder }; Twice :: (value: s32) -> s32 { return value * 2 }; Answer :: () -> s32 { box: Box = .{holder = Holder.{operation = Twice}}; return box.holder.operation(21) }\n"
-    if !LowerExercise(*test, compiler, "procedure_fields", procedure_fields, 42, "call.indirect") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_fields", procedure_fields, 42, "call.indirect", true) { return 1 }
     procedure_arrays := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Triple :: (value: s32) -> s32 { return value * 3 }; Answer :: () -> s32 { operations: [2]Operation = .[Triple, Twice]; return operations[1](21) }\n"
-    if !LowerExercise(*test, compiler, "procedure_arrays", procedure_arrays, 42, "extract") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_arrays", procedure_arrays, 42, "extract", true) { return 1 }
     procedure_recursion := "Operation :: #type (value: s32) -> s32; Twice :: (value: s32) -> s32 { return value * 2 }; Sum :: (operation: Operation, value: s32) -> s32 { if value == 0 { return 0 }; return operation(value) + Sum(operation, value - 1) }; Answer :: () -> s32 { return Sum(Twice, 6) }\n"
-    if !LowerExercise(*test, compiler, "procedure_recursion", procedure_recursion, 42, "call.indirect") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_recursion", procedure_recursion, 42, "call.indirect", true) { return 1 }
     procedure_void := "Action :: #type () -> void; Noop :: () { }; Apply :: (action: Action) { action() }; Answer :: () -> s32 { Apply(Noop); return 42 }\n"
-    if !LowerExercise(*test, compiler, "procedure_void", procedure_void, 42, "call.indirect") { return 1 }
+    if !LowerExercise(*test, compiler, "procedure_void", procedure_void, 42, "call.indirect", true) { return 1 }
+    global_scalar := "counter: s32 = 40; Advance :: () -> s32 { counter += 1; return counter }; Answer :: () -> s32 { unused Advance(); return Advance() }\n"
+    if !GlobalExercise(*test, compiler, "global_scalar", global_scalar, "global.address") { return 1 }
+    global_aggregate := "Pair :: struct { left: s32; right: s32 }; Box :: struct { pair: Pair; values: [2]s32 }; state: Box; Answer :: () -> s32 { state.pair.left = 20; state.values[1] = 21; state.pair.right += 1; return state.pair.left + state.pair.right + state.values[1] }\n"
+    if !GlobalExercise(*test, compiler, "global_aggregate", global_aggregate, "store") { return 1 }
+    global_literals := "wide: u64 = 18446744073709551615; narrow: s8 = -2; enabled: bool = true; base: s32 = 6 * 7; Answer :: () -> s32 { if wide != cast(u64)18446744073709551615 || narrow != cast(s8)-2 || !enabled { return 1 }; return base }\n"
+    if !GlobalExercise(*test, compiler, "global_literals", global_literals, "load") { return 1 }
+    unsigned_array_index := "values: [300]s32; Answer :: () -> s32 { index: u8 = 255; values[index] = 42; return values[index] }\n"
+    if !GlobalExercise(*test, compiler, "unsigned_array_index", unsigned_array_index, "element.address") { return 1 }
+    global_shadow := "counter: s32 = 41; Read :: () -> s32 { return counter }; Answer :: () -> s32 { counter: s32 = 1; return Read() + counter }\n"
+    if !GlobalExercise(*test, compiler, "global_shadow", global_shadow, "global.address") { return 1 }
+    global_pointer := "counter: s32 = 41; Choose :: () -> *s32 { return *counter }; Bump :: (pointer: *s32) -> s32 { <<pointer += 1; return <<pointer }; Answer :: () -> s32 { initial := counter; selected := Choose(); if initial != 41 { return 1 }; return Bump(selected) }\n"
+    if !GlobalExercise(*test, compiler, "global_pointer", global_pointer, "load") { return 1 }
+    global_field_pointer := "Pair :: struct { left: s32; right: s32 }; Box :: struct { pair: Pair }; state: Box; picks: s32; Pick :: () -> *s32 { picks += 1; return *state.pair.right }; Next :: () -> s32 { state.pair.left = 21; state.pair.right = 99; if picks != 1 { return 8 }; return 1 }; Answer :: () -> s32 { state.pair.right = 20; <<Pick() += Next(); if picks != 1 { return 1 }; return state.pair.left + state.pair.right }\n"
+    if !GlobalExercise(*test, compiler, "global_field_pointer", global_field_pointer, "field.address", false) { return 1 }
+    global_pointer_alias := "left: s32; right: s32; selected: *s32; Swap :: () -> s32 { selected = *right; return 42 }; Answer :: () -> s32 { selected = *left; <<selected = Swap(); if left != 42 || right != 0 { return 1 }; return left }\n"
+    if !GlobalExercise(*test, compiler, "global_pointer_alias", global_pointer_alias, "store") { return 1 }
+    global_elements := "values: [3]s32; Set :: (pointer: *s32, value: s32) { <<pointer = value }; At :: (index: s32) -> *s32 { return *values[index] }; #program_export\nAnswer :: () -> s32 { index: s32 = 0; while index < 3 { Set(At(index), 20 + index); index += 1 }; if At(1) != *values[1] { return 1 }; return values[0] + values[2] }\n"
+    if !GlobalExercise(*test, compiler, "global_elements", global_elements, "element.address") { return 1 }
+    nested_elements := "Row :: struct { values: [2]s32 }; grid: [2]Row; Select :: (row: s32, column: u64) -> *s32 { return *grid[row].values[column] }; #program_export\nAnswer :: () -> s32 { <<Select(0, 1) = 20; <<Select(1, 0) = 22; if Select(0, 1) != *grid[0].values[1] { return 1 }; return grid[0].values[1] + grid[1].values[0] }\n"
+    if !GlobalExercise(*test, compiler, "nested_elements", nested_elements, "element.address", false) { return 1 }
+    element_alias := "Cell :: struct { value: s32 }; Row :: struct { cells: [3]Cell }; data: Row; other: Row; selected: *Row; calls: s32; Index :: () -> s32 { calls += 1; return 1 }; Rebind :: () -> s32 { selected = *other; data.cells[1].value = 100; other.cells[1].value = 99; return 2 }; #program_export\nAnswer :: () -> s32 { data.cells[1].value = 20; selected = *data; (<<selected).cells[Index()].value += Rebind(); if data.cells[1].value != 22 || other.cells[1].value != 99 || calls != 1 { return 1 }; pointer := *data.cells[1].value; return <<pointer + 20 }\n"
+    if !GlobalExercise(*test, compiler, "element_alias", element_alias, "element.address") { return 1 }
+    global_library := CheckPath(test.work, "global_library.zi")
+    if !NativeWrite(*test, global_library, "#scope_file\nsecret: s32 = 2;\n#scope_export\ncounter: s32 = 39; Advance :: () -> s32 { counter += secret; return counter }; ReadPointer :: () -> *s32 { return *counter }\n") { return 1 }
+    global_imports := "Library :: #import \"global_library\"; counter: s32 = 1; Answer :: () -> s32 { unused Library.Advance(); Library.counter += counter; return Library.counter }\n"
+    if !GlobalExercise(*test, compiler, "global_imports", global_imports, "global.address") { return 1 }
+    global_pointer_imports := "Library :: #import \"global_library\"; Bump :: (pointer: *s32) { <<pointer += 1 }; Answer :: () -> s32 { initial := Library.counter; pointer := Library.ReadPointer(); if initial != 39 { return 1 }; Bump(pointer); <<pointer += 1; return Library.counter + 1 }\n"
+    if !GlobalExercise(*test, compiler, "global_pointer_imports", global_pointer_imports, "store") { return 1 }
+    if !OptimizeExercise(*test, compiler) { return 1 }
+    initializer := CheckPath(test.work, "runtime_initializer.zi")
+    initializer_output := CheckPath(test.work, "initializer-untouched")
+    if !NativeWrite(*test, initializer, "counter: s32; Advance :: () -> s32 { counter += 1; return counter }; unused_value: s32 = Advance(); Answer :: () -> s32 { return 42 }\n") ||
+        !NativeWrite(*test, initializer_output, "preserved initializer output") { return 1 }
+    initializer_ir := CheckPath(test.work, "runtime-initializer-ir")
+    initializer_save := string.[test.ziran, "ir", "--root", test.work, "-o", initializer_ir, initializer]
+    unused NativeRun(*test, initializer_save[:])
+    initializer_inputs := string.[initializer, CheckPath(initializer_ir, "runtime_initializer.zir")]
+    for initializer_input: initializer_inputs {
+        initializer_reject := string.[compiler, "--diagnostics=json", "--root", PathParent(initializer_input), "--entry", "runtime_initializer:Answer", "--emit", "exec", "-o", initializer_output, initializer_input]
+        if !NativeReject(*test, initializer_reject[:], "assembly.lower") ||
+            !NativeAssert(*test, NativeRead(*test, initializer_output) == "preserved initializer output", "unsupported module initialization must not be skipped or overwrite outputs") { return 1 }
+    }
     broken := CheckPath(test.work, "unsupported.zi")
     output := CheckPath(test.work, "untouched")
     if !NativeWrite(*test, broken, "Answer :: () -> s32 { print(\"unsupported\\n\"); return 0 }\n") ||

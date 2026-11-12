@@ -1,6 +1,4 @@
 #!/usr/bin/env ziran
-// Deterministic comparison of bounded, same-host ZX benchmark receipts.
-// This processor never measures or compiles a benchmark workload.
 #import "benchmark_statistics"
 #import "std/byte_text_linux"
 #import "std/file"
@@ -285,9 +283,25 @@ AllCells :: (required: []RequiredCell, receipts: []Receipt) -> Vec(RequiredCell)
 }
 
 EscapeMarkdown :: (value: string) -> string {
-    no_pipe := TextDetach(TextReplace(value, "|", "\\|"))
-    no_newline := TextDetach(TextReplace(no_pipe, "\n", " "))
-    return TextDetach(TextReplace(no_newline, "\r", " "))
+    escaped: Vec(u8)
+    for byte: value {
+        entity := ""
+        if byte == #char "&" { entity = "&amp;" }
+        else if byte == #char "<" { entity = "&lt;" }
+        else if byte == #char ">" { entity = "&gt;" }
+        else if byte == #char "|" { entity = "&#124;" }
+        else if byte == #char "`" { entity = "&#96;" }
+        else if byte == #char "\\" { entity = "&#92;" }
+        else if byte == #char "*" { entity = "&#42;" }
+        else if byte == #char "_" { entity = "&#95;" }
+        else if byte == #char "[" { entity = "&#91;" }
+        else if byte == #char "]" { entity = "&#93;" }
+        else if byte == #char "#" { entity = "&#35;" }
+        if entity != "" {
+            if !BuilderAppend(escaped, entity) { return "" }
+        } else if !VecPush(escaped, byte) { return "" }
+    }
+    return TextDetach(BuilderFinish(escaped))
 }
 
 Decimal :: (value: float64, places: s32) -> string {
@@ -362,15 +376,19 @@ PairRow :: (output: *Markdown, receipts: []Receipt, cell: *RequiredCell,
             baseline_value := receipts[base].statistics.median
             candidate_value := receipts[next].statistics.median
             ratio := ifx direction > 0 then candidate_value / baseline_value else baseline_value / candidate_value
-            Put(output, Decimal(ratio, 3)); Put(output, "x; ")
-            if ratio > 1.0 {
-                Put(output, "improvement +")
-                Put(output, Decimal((ratio - 1.0) * 100.0, 2)); Put(output, "%")
-            } else if ratio < 1.0 {
-                Put(output, "regression ")
-                Put(output, Decimal((1.0 - ratio) * 100.0, 2)); Put(output, "%")
+            metric_ratio := candidate_value / baseline_value
+            metric_change := (metric_ratio - 1.0) * 100.0
+            if ratio <= 0.0 || metric_ratio <= 0.0 || !Finite64(ratio) ||
+            !Finite64(metric_ratio) || !Finite64(metric_change) {
+                Put(output, "noncomparable: derived ratio outside finite range")
             } else {
-                Put(output, "unchanged")
+                Put(output, Decimal(ratio, 3)); Put(output, "x favorable factor; ")
+                if ratio > 1.0 { Put(output, "improvement") }
+                else if ratio < 1.0 { Put(output, "regression") }
+                else { Put(output, "unchanged") }
+                Put(output, "; candidate metric change ")
+                if metric_change > 0.0 { Put(output, "+") }
+                Put(output, Decimal(metric_change, 2)); Put(output, "%")
             }
         }
     }
@@ -393,7 +411,7 @@ BuildReport :: (campaign: string, required: []RequiredCell,
         Put(*output, " required engine/phase cells missing")
     }
     Put(*output, ".\n\n")
-    Put(*output, "This report contains no aggregate or geometric mean. Each row keeps its absolute median, ratio, raw samples, and audited outlier indices. Ratios are candidate/baseline for throughput and baseline/candidate for duration, memory, code size, and bundle size.\n\n")
+    Put(*output, "This report contains no aggregate or geometric mean. Each row keeps its absolute median, normalized favorable factor, candidate metric change, raw samples, and audited outlier indices. Favorable factors are candidate/baseline for throughput and baseline/candidate for duration, memory, code size, and bundle size; candidate metric change is always (candidate - baseline) / baseline.\n\n")
     Put(*output, "## Environment\n\n")
     first := *receipts[0]
     Put(*output, "- Physical host: `"); Put(*output, EscapeMarkdown(first.physical_host)); Put(*output, "` (`")

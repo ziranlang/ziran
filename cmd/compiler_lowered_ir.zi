@@ -1,4 +1,4 @@
-LirVersion :: 1
+LirVersion :: 2
 LirNoId :: -1
 
 LirTypeKind :: enum s32 {
@@ -65,7 +65,16 @@ LirFunction :: struct {
 
 LirConstant :: struct { type: s32; bits: u64; bytes: []u8 }
 LirGlobal :: struct { module: s32; name: string; type: s32; constant: s32; writable: bool }
-LirOrigin :: struct { file: s32; line: s32; column: s32; begin: s64; end: s64; parent: s32 }
+LirOrigin :: struct {
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+    begin: s64
+    end: s64
+    parent: s32
+}
 
 LirProgram :: struct {
     version: s32

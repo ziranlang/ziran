@@ -1,0 +1,101 @@
+#import "native_test"
+#import "check_support"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+FailureBeforeRight :: (test: *NativeTest, arguments: []string, label: string, directory: string = "") -> bool {
+    result := NativeInvoke(test, arguments, directory)
+    diagnostic := CheckConcat(result.output, result.error)
+    return NativeAssert(test, result.code != 0 &&
+        (TextContains(diagnostic, "bounds") || TextContains(diagnostic, "out of range")),
+        CheckConcat(label, " did not reject the destination before the right side"))
+}
+
+VmFailureBeforeRight :: (test: *NativeTest, arguments: []string, label: string, directory: string = "") -> bool {
+    result := NativeInvoke(test, arguments, directory)
+    return NativeAssert(test, result.code != 0 && !TextContains(result.output, "bounds-right-evaluated"),
+        CheckConcat(label, " did not reject the destination before the right side"))
+}
+
+VmRightObserved :: (test: *NativeTest, arguments: []string, label: string, directory: string = "") -> bool {
+    result := NativeInvoke(test, arguments, directory)
+    return NativeAssert(test, result.code != 0 && TextContains(result.output, "bounds-right-evaluated"),
+        CheckConcat(label, " did not preserve output before the right-side trap"))
+}
+
+GoCommand :: (directory: string) -> Vec(string) {
+    command: Vec(string)
+    VecPush(command, "go")
+    VecPush(command, "run")
+    files := NativeFiles(directory, ".go")
+    for file: files { VecPush(command, file) }
+    return command
+}
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "compound-order-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    NativeSet(*test, "GOWORK", "off")
+    module := "native_operand_order_test"
+    root := CheckPath(test.repo, "tests/spec")
+    source := CheckPath(root, CheckConcat(module, ".zi"))
+    saved := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", root, "-o", saved, source]
+    unused NativeRun(*test, save[:])
+    if test.failed { return 1 }
+    forms := string.["source", "saved"]
+    for form: forms {
+        input := ifx form == "source" then source else CheckPath(saved, CheckConcat(module, ".zir"))
+        input_root := ifx form == "source" then root else saved
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        bundle_command := string.[test.ziran, "bundle", "--root", input_root,
+            "--entry", CheckConcat(module, ":Answer"), "-o", bundle, input]
+        unused NativeRun(*test, bundle_command[:])
+        vm := string.[test.ziran, "run", "--vm", bundle]
+        if test.failed || !NativeExpect(*test, vm[:], "42\n") { return 1 }
+        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+            CheckConcat(module, ":main"), "--root", input_root, "-o", c_output, input]
+        unused NativeRun(*test, c_build[:])
+        c_run := string.[CheckPath(c_output, module)]
+        unused NativeRun(*test, c_run[:])
+        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+            "--entry", CheckConcat(module, ":main"), "--root", input_root, "-o", go_output, input]
+        unused NativeRun(*test, go_build[:])
+        go_run := GoCommand(go_output)
+        unused NativeRun(*test, go_run[:])
+        if test.failed { return 1 }
+        right_bundle := CheckPath(test.work, CheckConcat(form, "-right.zx"))
+        right_bundle_command := string.[test.ziran, "bundle", "--root", input_root,
+            "--entry", CheckConcat(module, ":BoundsRight"), "-o", right_bundle, input]
+        unused NativeRun(*test, right_bundle_command[:])
+        right_vm := string.[test.ziran, "run", "--vm", right_bundle]
+        if test.failed || !VmRightObserved(*test, right_vm[:], CheckConcat(form, " VM right side")) { return 1 }
+        failure_bundle := CheckPath(test.work, CheckConcat(form, "-failure.zx"))
+        failure_bundle_command := string.[test.ziran, "bundle", "--root", input_root,
+            "--entry", CheckConcat(module, ":BoundsFailure"), "-o", failure_bundle, input]
+        unused NativeRun(*test, failure_bundle_command[:])
+        failure_vm := string.[test.ziran, "run", "--vm", failure_bundle]
+        if test.failed || !VmFailureBeforeRight(*test, failure_vm[:], CheckConcat(form, " VM")) { return 1 }
+        failure_c := CheckPath(test.work, CheckConcat(form, "-failure-c"))
+        failure_c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+            CheckConcat(module, ":BoundsFailure"), "--root", input_root, "-o", failure_c, input]
+        unused NativeRun(*test, failure_c_build[:])
+        failure_c_run := string.[CheckPath(failure_c, module)]
+        if test.failed || !FailureBeforeRight(*test, failure_c_run[:], CheckConcat(form, " C")) { return 1 }
+        failure_go := CheckPath(test.work, CheckConcat(form, "-failure-go"))
+        failure_go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+            "--entry", CheckConcat(module, ":BoundsFailure"), "--root", input_root, "-o", failure_go, input]
+        unused NativeRun(*test, failure_go_build[:])
+        failure_go_run := GoCommand(failure_go)
+        if test.failed || !FailureBeforeRight(*test, failure_go_run[:], CheckConcat(form, " Go")) { return 1 }
+    }
+    print("assignment destinations: source/saved C, Go and explicit VM local tests passed\n")
+    return 0
+}

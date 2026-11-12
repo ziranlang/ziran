@@ -226,8 +226,10 @@ compiler_proof_Trim(String text)
 static int32_t
 compiler_proof_Unsupported(Context* c, String reason)
 {
-    c->unsupported = true;
-    c->reason = reason;
+    bool* value_0 = &(c->unsupported);
+    (*value_0) = true;
+    String* value_1 = &(c->reason);
+    (*value_1) = reason;
     return -1;
 }
 
@@ -235,12 +237,14 @@ static bool
 compiler_proof_Tick(Context* c, int32_t depth)
 {
     if (depth <= 64) {
-        c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+        int32_t* value_0 = &(c->kernel.budget);
+        (*value_0) = (int32_t)((uint32_t)((*value_0)) - 1u);
         if (c->kernel.budget >= 0) {
             return !c->kernel.exhausted;
         }
     }
-    c->kernel.exhausted = true;
+    bool* value_1 = &(c->kernel.exhausted);
+    (*value_1) = true;
     return false;
 }
 
@@ -269,21 +273,22 @@ compiler_proof_Index(String text, uint8_t byte)
 static bool
 compiler_proof_ParseSignature(String source, Signature* out)
 {
-    (*(out)) = (Signature){0};
-    String value_0 = StringView(NULL, 0);
+    Signature* value_0 = &((*(out)));
+    (*value_0) = (Signature){0};
+    String value_1 = StringView(NULL, 0);
     {
         String text = source;
         SourceRange range = compiler_text_TrimRange(text);
-        value_0 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
+        value_1 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
     }
-    int64_t value_2 = (int64_t)(value_0).length;
-    int64_t value_3 = 0;
-    if (value_2 == 0LL) {
-        value_3 = -1LL;
+    int64_t value_3 = (int64_t)(value_1).length;
+    int64_t value_4 = 0;
+    if (value_3 == 0LL) {
+        value_4 = -1LL;
     } else {
-        value_3 = 0LL;
+        value_4 = 0LL;
     }
-    int64_t at = value_3;
+    int64_t at = value_4;
     while (at >= 0LL) {
         SourcePart part = compiler_text_NextSourcePart(source, at);
         String text = StringRange(source, (int64_t)part.begin, (int64_t)part.end);
@@ -291,37 +296,37 @@ compiler_proof_ParseSignature(String source, Signature* out)
         if (out->count == 16 || colon == (int64_t)(text).length) {
             return false;
         }
-        String value_4 = StringRange(text, (int64_t)0LL, (int64_t)colon);
-        String value_5 = StringView(NULL, 0);
+        String value_5 = StringRange(text, (int64_t)0LL, (int64_t)colon);
+        String value_6 = StringView(NULL, 0);
         {
-            String text = value_4;
+            String text = value_5;
             SourceRange range = compiler_text_TrimRange(text);
-            value_5 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
+            value_6 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
         }
-        String name = value_5;
-        String value_7 = StringRange(text, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)(int64_t)(text).length);
-        String value_8 = StringView(NULL, 0);
+        String name = value_6;
+        String value_8 = StringRange(text, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)(int64_t)(text).length);
+        String value_9 = StringView(NULL, 0);
         {
-            String text = value_7;
+            String text = value_8;
             SourceRange range = compiler_text_TrimRange(text);
-            value_8 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
+            value_9 = StringRange(text, (int64_t)range.begin, (int64_t)range.end);
         }
-        String type = value_8;
-        bool value_10 = compiler_source_IdentifierText(name, false);
-        bool value_11 = !value_10 || (int64_t)(name).length >= 128LL || (int64_t)(type).length == 0LL || (int64_t)(type).length >= 128LL;
-        bool value_12 = value_11;
-        if (!value_12) {
-            int64_t value_13 = compiler_proof_Index(type, 61);
-            int64_t value_14 = (int64_t)(type).length;
-            value_12 = (value_13 < value_14);
+        String type = value_9;
+        bool value_11 = compiler_source_IdentifierText(name, false);
+        bool value_12 = !value_11 || (int64_t)(name).length >= 128LL || (int64_t)(type).length == 0LL || (int64_t)(type).length >= 128LL;
+        bool value_13 = value_12;
+        if (!value_13) {
+            int64_t value_14 = compiler_proof_Index(type, 61);
+            int64_t value_15 = (int64_t)(type).length;
+            value_13 = (value_14 < value_15);
         }
-        bool value_15 = value_12;
-        if (!value_15) {
-            int64_t value_16 = compiler_proof_Index(type, 36);
-            int64_t value_17 = (int64_t)(type).length;
-            value_15 = (value_16 < value_17);
+        bool value_16 = value_13;
+        if (!value_16) {
+            int64_t value_17 = compiler_proof_Index(type, 36);
+            int64_t value_18 = (int64_t)(type).length;
+            value_16 = (value_17 < value_18);
         }
-        if (value_15) {
+        if (value_16) {
             return false;
         }
         {
@@ -338,9 +343,12 @@ compiler_proof_ParseSignature(String source, Signature* out)
                 i = (int32_t)((uint32_t)i + 1u);
             }
         }
-        ZIRAN_INDEX(out->names, sizeof(out->names) / sizeof(out->names[0]), out->count) = name;
-        ZIRAN_INDEX(out->types, sizeof(out->types) / sizeof(out->types[0]), out->count) = type;
-        out->count = (int32_t)((uint32_t)(out->count) + 1u);
+        String* value_19 = &(ZIRAN_INDEX(out->names, sizeof(out->names) / sizeof(out->names[0]), out->count));
+        (*value_19) = name;
+        String* value_20 = &(ZIRAN_INDEX(out->types, sizeof(out->types) / sizeof(out->types[0]), out->count));
+        (*value_20) = type;
+        int32_t* value_21 = &(out->count);
+        (*value_21) = (int32_t)((uint32_t)((*value_21)) + 1u);
         at = part.next;
     }
     return true;
@@ -517,19 +525,21 @@ compiler_proof_ScalarType(Context* c, ZirModule* m, String name)
         {
             Context* c = value_21;
             String reason = value_22;
-            c->unsupported = true;
-            c->reason = reason;
+            bool* value_25 = &(c->unsupported);
+            (*value_25) = true;
+            String* value_26 = &(c->reason);
+            (*value_26) = reason;
             value_23 = -1;
         }
         return value_23;
     }
-    uint64_t value_25 = 0;
+    uint64_t value_27 = 0;
     if (ziran_keyword_enum_0) {
-        value_25 = (uint64_t)(type);
+        value_27 = (uint64_t)(type);
     } else {
-        value_25 = 0ULL;
+        value_27 = 0ULL;
     }
-    uint64_t identity = value_25;
+    uint64_t identity = value_27;
     return compiler_proof_kernel_TypeAdd(&(c->kernel), (ProofType){.width = width, .is_unsigned = (uint8_t)ZIRAN_INDEX(scalar.data, scalar.length, 0) == 117, .identity = identity});
 }
 
@@ -580,11 +590,14 @@ compiler_proof_Bind(Context* c, Environment* e, String name, int32_t value)
         return false;
     }
     if (e->count == 64) {
-        c->kernel.exhausted = true;
+        bool* value_0 = &(c->kernel.exhausted);
+        (*value_0) = true;
         return false;
     }
-    ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count) = (Binding){.name = name, .value = value};
-    e->count = (int32_t)((uint32_t)(e->count) + 1u);
+    Binding* value_1 = &(ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count));
+    (*value_1) = (Binding){.name = name, .value = value};
+    int32_t* value_2 = &(e->count);
+    (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
     return true;
 }
 
@@ -648,10 +661,11 @@ compiler_proof_CallName(ZirFunction* fn, ZirExpr* call, Slice out)
         return false;
     }
     compiler_ir_CopyText(out, alias);
-    ((uint8_t *)out.data)[SliceIndex(out, (int64_t)(int64_t)(alias).length)] = 46;
-    Slice value_11 = out;
-    Slice value_12 = SliceRange(value_11, (int64_t)((int64_t)((uint64_t)((int64_t)(alias).length) + UINT64_C(1))), (int64_t)(int64_t)(out).length, sizeof(uint8_t));
-    return compiler_ir_CopyText(value_12, field);
+    uint8_t* value_11 = &(((uint8_t *)out.data)[SliceIndex(out, (int64_t)(int64_t)(alias).length)]);
+    (*value_11) = 46;
+    Slice value_12 = out;
+    Slice value_13 = SliceRange(value_12, (int64_t)((int64_t)((uint64_t)((int64_t)(alias).length) + UINT64_C(1))), (int64_t)(int64_t)(out).length, sizeof(uint8_t));
+    return compiler_ir_CopyText(value_13, field);
 }
 
 static int32_t
@@ -693,38 +707,42 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
         Context* c = value_0;
         int32_t depth = value_1;
         if (depth <= 64) {
-            c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+            int32_t* value_4 = &(c->kernel.budget);
+            (*value_4) = (int32_t)((uint32_t)((*value_4)) - 1u);
             if (c->kernel.budget >= 0) {
                 value_2 = !c->kernel.exhausted;
                 goto value_3;
             }
         }
-        c->kernel.exhausted = true;
+        bool* value_5 = &(c->kernel.exhausted);
+        (*value_5) = true;
         value_2 = false;
     value_3: ;
     }
     if (!value_2) {
         return -1;
     }
-    bool value_4 = fn->checked == 0 || fn->is_extern != 0 || fn->uses_host != 0;
-    bool value_5 = value_4;
-    if (!value_5) {
-        Slice value_6 = {fn->effect_class, 12};
-        bool value_7 = !StringEqual(compiler_proof_Name(value_6), StringLiteral("pure"));
-        value_5 = value_7;
+    bool value_6 = fn->checked == 0 || fn->is_extern != 0 || fn->uses_host != 0;
+    bool value_7 = value_6;
+    if (!value_7) {
+        Slice value_8 = {fn->effect_class, 12};
+        bool value_9 = !StringEqual(compiler_proof_Name(value_8), StringLiteral("pure"));
+        value_7 = value_9;
     }
-    if (value_5) {
-        Context* value_8 = c;
-        String value_9 = StringLiteral("proofs cannot unfold foreign, observing, or mutating procedures");
-        int32_t value_10 = 0;
+    if (value_7) {
+        Context* value_10 = c;
+        String value_11 = StringLiteral("proofs cannot unfold foreign, observing, or mutating procedures");
+        int32_t value_12 = 0;
         {
-            Context* c = value_8;
-            String reason = value_9;
-            c->unsupported = true;
-            c->reason = reason;
-            value_10 = -1;
+            Context* c = value_10;
+            String reason = value_11;
+            bool* value_14 = &(c->unsupported);
+            (*value_14) = true;
+            String* value_15 = &(c->reason);
+            (*value_15) = reason;
+            value_12 = -1;
         }
-        return value_10;
+        return value_12;
     }
     {
         int32_t range_first_6 = 0;
@@ -732,17 +750,19 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
         int32_t i = range_first_6;
         if (i <= range_last_6) for (;;) {
             if (ZIRAN_INDEX(c->active, 64, i) == fn) {
-                Context* value_12 = c;
-                String value_13 = StringLiteral("recursive procedures are outside the scalar proof fragment");
-                int32_t value_14 = 0;
+                Context* value_16 = c;
+                String value_17 = StringLiteral("recursive procedures are outside the scalar proof fragment");
+                int32_t value_18 = 0;
                 {
-                    Context* c = value_12;
-                    String reason = value_13;
-                    c->unsupported = true;
-                    c->reason = reason;
-                    value_14 = -1;
+                    Context* c = value_16;
+                    String reason = value_17;
+                    bool* value_20 = &(c->unsupported);
+                    (*value_20) = true;
+                    String* value_21 = &(c->reason);
+                    (*value_21) = reason;
+                    value_18 = -1;
                 }
-                return value_14;
+                return value_18;
             }
             if (i == range_last_6) {
                 break;
@@ -751,29 +771,32 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
         }
     }
     if (c->active_count == 64) {
-        c->kernel.exhausted = true;
+        bool* value_22 = &(c->kernel.exhausted);
+        (*value_22) = true;
         return -1;
     }
     Signature p = {0};
-    ZirFunction* value_16 = fn;
-    String value_17 = StringView(NULL, 0);
+    ZirFunction* value_23 = fn;
+    String value_24 = StringView(NULL, 0);
     {
-        ZirFunction* fn = value_16;
-        value_17 = compiler_ir_CText((uint8_t*)fn->args_text);
+        ZirFunction* fn = value_23;
+        value_24 = compiler_ir_CText((uint8_t*)fn->args_text);
     }
-    bool value_19 = compiler_proof_ParseSignature(value_17, &(p));
-    if (!value_19 || (int64_t)(args).length != (int64_t)(p.count)) {
-        Context* value_20 = c;
-        String value_21 = StringLiteral("proof calls require explicit scalar parameters");
-        int32_t value_22 = 0;
+    bool value_26 = compiler_proof_ParseSignature(value_24, &(p));
+    if (!value_26 || (int64_t)(args).length != (int64_t)(p.count)) {
+        Context* value_27 = c;
+        String value_28 = StringLiteral("proof calls require explicit scalar parameters");
+        int32_t value_29 = 0;
         {
-            Context* c = value_20;
-            String reason = value_21;
-            c->unsupported = true;
-            c->reason = reason;
-            value_22 = -1;
+            Context* c = value_27;
+            String reason = value_28;
+            bool* value_31 = &(c->unsupported);
+            (*value_31) = true;
+            String* value_32 = &(c->reason);
+            (*value_32) = reason;
+            value_29 = -1;
         }
-        return value_22;
+        return value_29;
     }
     Environment env = {0};
     bool ok = true;
@@ -782,84 +805,92 @@ compiler_proof_FunctionValue(Context* c, ZirModule* m, ZirFunction* fn, Slice ar
         int32_t range_last_21 = (int32_t)((uint32_t)(p.count) - 1u);
         int32_t i = range_first_21;
         if (i <= range_last_21) for (;;) {
-            int32_t value_24 = 0;
+            int32_t value_33 = 0;
             if (ok) {
-                int32_t value_25 = compiler_proof_ScalarType(c, m, ZIRAN_INDEX(p.types, 16, i));
-                value_24 = value_25;
+                int32_t value_34 = compiler_proof_ScalarType(c, m, ZIRAN_INDEX(p.types, 16, i));
+                value_33 = value_34;
             } else {
-                value_24 = -1;
+                value_33 = -1;
             }
-            int32_t type = value_24;
-            bool value_26 = ok && ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)] >= 0 && type >= 0;
-            bool value_27 = value_26;
-            if (value_27) {
-                Context* value_28 = c;
-                int32_t value_29 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
-                int32_t value_30 = 0;
+            int32_t type = value_33;
+            bool value_35 = ok && ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)] >= 0 && type >= 0;
+            bool value_36 = value_35;
+            if (value_36) {
+                Context* value_37 = c;
+                int32_t value_38 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
+                int32_t value_39 = 0;
                 {
-                    Context* c = value_28;
-                    int32_t term = value_29;
-                    value_30 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    Context* c = value_37;
+                    int32_t term = value_38;
+                    value_39 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                 }
-                value_27 = (value_30 == type);
+                value_36 = (value_39 == type);
             }
-            bool value_32 = value_27;
-            bool value_33 = value_32;
-            if (value_33) {
-                Context* value_34 = c;
-                Environment* value_35 = &(env);
-                String value_36 = ZIRAN_INDEX(p.names, 16, i);
-                int32_t value_37 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
-                bool value_38 = false;
+            bool value_41 = value_36;
+            bool value_42 = value_41;
+            if (value_42) {
+                Context* value_43 = c;
+                Environment* value_44 = &(env);
+                String value_45 = ZIRAN_INDEX(p.names, 16, i);
+                int32_t value_46 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
+                bool value_47 = false;
                 {
-                    Context* c = value_34;
-                    Environment* e = value_35;
-                    String name = value_36;
-                    int32_t value = value_37;
+                    Context* c = value_43;
+                    Environment* e = value_44;
+                    String name = value_45;
+                    int32_t value = value_46;
                     if (value < 0) {
-                        value_38 = false;
-                        goto value_39;
+                        value_47 = false;
+                        goto value_48;
                     }
                     if (e->count == 64) {
-                        c->kernel.exhausted = true;
-                        value_38 = false;
-                        goto value_39;
+                        bool* value_49 = &(c->kernel.exhausted);
+                        (*value_49) = true;
+                        value_47 = false;
+                        goto value_48;
                     }
-                    ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count) = (Binding){.name = name, .value = value};
-                    e->count = (int32_t)((uint32_t)(e->count) + 1u);
-                    value_38 = true;
-                value_39: ;
+                    Binding* value_50 = &(ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count));
+                    (*value_50) = (Binding){.name = name, .value = value};
+                    int32_t* value_51 = &(e->count);
+                    (*value_51) = (int32_t)((uint32_t)((*value_51)) + 1u);
+                    value_47 = true;
+                value_48: ;
                 }
-                value_33 = value_38;
+                value_42 = value_47;
             }
-            ok = value_33;
+            ok = value_42;
             if (i == range_last_21) {
                 break;
             }
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    Context* value_40 = c;
-    ZirModule* value_41 = m;
-    Slice value_42 = {fn->return_type, 128};
-    int32_t type = compiler_proof_ScalarType(value_40, value_41, compiler_proof_Name(value_42));
+    Context* value_52 = c;
+    ZirModule* value_53 = m;
+    Slice value_54 = {fn->return_type, 128};
+    int32_t type = compiler_proof_ScalarType(value_52, value_53, compiler_proof_Name(value_54));
     if (!ok || type < 0) {
-        Context* value_43 = c;
-        String value_44 = StringLiteral("procedure arguments do not match their declared scalar types");
-        int32_t value_45 = 0;
+        Context* value_55 = c;
+        String value_56 = StringLiteral("procedure arguments do not match their declared scalar types");
+        int32_t value_57 = 0;
         {
-            Context* c = value_43;
-            String reason = value_44;
-            c->unsupported = true;
-            c->reason = reason;
-            value_45 = -1;
+            Context* c = value_55;
+            String reason = value_56;
+            bool* value_59 = &(c->unsupported);
+            (*value_59) = true;
+            String* value_60 = &(c->reason);
+            (*value_60) = reason;
+            value_57 = -1;
         }
-        return value_45;
+        return value_57;
     }
-    ZIRAN_INDEX(c->active, sizeof(c->active) / sizeof(c->active[0]), c->active_count) = fn;
-    c->active_count = (int32_t)((uint32_t)(c->active_count) + 1u);
+    ZirFunction** value_61 = &(ZIRAN_INDEX(c->active, sizeof(c->active) / sizeof(c->active[0]), c->active_count));
+    (*value_61) = fn;
+    int32_t* value_62 = &(c->active_count);
+    (*value_62) = (int32_t)((uint32_t)((*value_62)) + 1u);
     int32_t result = compiler_proof_Sequence(c, m, fn, &(env), 0, fn->stmt_count, (void *)0, type, (int32_t)((uint32_t)depth + 1u));
-    c->active_count = (int32_t)((uint32_t)(c->active_count) - 1u);
+    int32_t* value_63 = &(c->active_count);
+    (*value_63) = (int32_t)((uint32_t)((*value_63)) - 1u);
     return result;
 }
 
@@ -938,8 +969,9 @@ compiler_proof_Tag(Context* c, ZirFunction* fn, int32_t index, int32_t result)
             name = value_9;
         }
     }
-    uint8_t* value_15 = compiler_services_KeepName(name);
-    (fn->exprs[index]).type = (const char *)(value_15);
+    const char ** value_15 = &((fn->exprs[index]).type);
+    uint8_t* value_16 = compiler_services_KeepName(name);
+    (*value_15) = (const char *)(value_16);
     return result;
 }
 
@@ -953,96 +985,100 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
         Context* c = value_0;
         int32_t depth = value_1;
         if (depth <= 64) {
-            c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+            int32_t* value_4 = &(c->kernel.budget);
+            (*value_4) = (int32_t)((uint32_t)((*value_4)) - 1u);
             if (c->kernel.budget >= 0) {
                 value_2 = !c->kernel.exhausted;
                 goto value_3;
             }
         }
-        c->kernel.exhausted = true;
+        bool* value_5 = &(c->kernel.exhausted);
+        (*value_5) = true;
         value_2 = false;
     value_3: ;
     }
-    bool value_4 = !value_2;
-    if (!value_4) {
-        ZirFunction* value_5 = fn;
-        bool value_6 = false;
+    bool value_6 = !value_2;
+    if (!value_6) {
+        ZirFunction* value_7 = fn;
+        bool value_8 = false;
         {
-            ZirFunction* fn = value_5;
+            ZirFunction* fn = value_7;
             int32_t at = index;
-            value_6 = at >= 0 && at < fn->expr_count;
+            value_8 = at >= 0 && at < fn->expr_count;
         }
-        value_4 = !value_6;
+        value_6 = !value_8;
     }
-    if (value_4) {
+    if (value_6) {
         return -1;
     }
     ZirExpr* e = &(fn->exprs[index]);
-    Slice value_8 = {e->op, 8};
-    String op = compiler_proof_Name(value_8);
+    Slice value_10 = {e->op, 8};
+    String op = compiler_proof_Name(value_10);
     int32_t result = -1;
     if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(2))) {
         LiteralBits literal = compiler_text_IntegerLiteral(compiler_ir_CText((uint8_t*)e->text));
         if (!literal.valid) {
-            Context* value_9 = c;
-            String value_10 = StringLiteral("invalid integer literal in proof");
-            int32_t value_11 = 0;
+            Context* value_11 = c;
+            String value_12 = StringLiteral("invalid integer literal in proof");
+            int32_t value_13 = 0;
             {
-                Context* c = value_9;
-                String reason = value_10;
-                c->unsupported = true;
-                c->reason = reason;
-                value_11 = -1;
+                Context* c = value_11;
+                String reason = value_12;
+                bool* value_15 = &(c->unsupported);
+                (*value_15) = true;
+                String* value_16 = &(c->reason);
+                (*value_16) = reason;
+                value_13 = -1;
             }
-            return value_11;
+            return value_13;
         }
-        int32_t value_13 = 0;
+        int32_t value_17 = 0;
         if (expected > 0) {
-            value_13 = expected;
+            value_17 = expected;
         } else {
-            String value_14 = StringView(NULL, 0);
+            String value_18 = StringView(NULL, 0);
             if (literal.value > 9223372036854775807ULL) {
-                value_14 = StringLiteral("u64");
+                value_18 = StringLiteral("u64");
             } else {
-                value_14 = StringLiteral("s64");
+                value_18 = StringLiteral("s64");
             }
-            int32_t value_15 = compiler_proof_ScalarType(c, m, value_14);
-            value_13 = value_15;
+            int32_t value_19 = compiler_proof_ScalarType(c, m, value_18);
+            value_17 = value_19;
         }
-        int32_t type = value_13;
+        int32_t type = value_17;
         if (type < 0) {
             return -1;
         }
-        Context* value_16 = c;
-        int32_t value_17 = type;
-        uint64_t value_18 = literal.value;
-        int32_t value_19 = 0;
+        Context* value_20 = c;
+        int32_t value_21 = type;
+        uint64_t value_22 = literal.value;
+        int32_t value_23 = 0;
         {
-            Context* c = value_16;
-            int32_t type = value_17;
-            uint64_t value = value_18;
-            value_19 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
+            Context* c = value_20;
+            int32_t type = value_21;
+            uint64_t value = value_22;
+            value_23 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
         }
-        result = value_19;
+        result = value_23;
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(1))) {
         String name = compiler_ir_CText((uint8_t*)e->name);
         int32_t at = compiler_proof_Find(env, name);
         if (at >= 0) {
             result = (ZIRAN_INDEX(env->bindings, sizeof(env->bindings) / sizeof(env->bindings[0]), at)).value;
         } else if (StringEqual(name, StringLiteral("true")) || StringEqual(name, StringLiteral("false"))) {
-            Context* value_21 = c;
-            uint64_t value_22 = 0;
+            Context* value_25 = c;
+            uint64_t value_26 = 0;
             if (StringEqual(name, StringLiteral("true"))) {
-                value_22 = 1;
+                value_26 = 1;
             }
-            int32_t value_23 = 0;
+            int32_t value_27 = 0;
             {
-                Context* c = value_21;
+                Context* c = value_25;
                 int32_t type = 0;
-                uint64_t value = value_22;
-                value_23 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
+                uint64_t value = value_26;
+                value_27 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
             }
-            result = value_23;
+            result = value_27;
         } else {
             ZirDefine* define = (void *)0;
             {
@@ -1050,9 +1086,9 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
                 int32_t range_last_28 = (int32_t)((uint32_t)(m->define_count) - 1u);
                 int32_t i = range_first_28;
                 if (i <= range_last_28) for (;;) {
-                    Slice value_25 = {(m->defines[i]).name, 128};
-                    String value_26 = compiler_proof_Name(value_25);
-                    if (StringEqual(value_26, name)) {
+                    Slice value_29 = {(m->defines[i]).name, 128};
+                    String value_30 = compiler_proof_Name(value_29);
+                    if (StringEqual(value_30, name)) {
                         define = &(m->defines[i]);
                     }
                     if (i == range_last_28) {
@@ -1062,82 +1098,88 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
                 }
             }
             if (define == ((void *)0)) {
-                Context* value_27 = c;
-                String value_28 = StringLiteral("proof expressions cannot read runtime globals or unresolved names");
-                int32_t value_29 = 0;
+                Context* value_31 = c;
+                String value_32 = StringLiteral("proof expressions cannot read runtime globals or unresolved names");
+                int32_t value_33 = 0;
                 {
-                    Context* c = value_27;
-                    String reason = value_28;
-                    c->unsupported = true;
-                    c->reason = reason;
-                    value_29 = -1;
+                    Context* c = value_31;
+                    String reason = value_32;
+                    bool* value_35 = &(c->unsupported);
+                    (*value_35) = true;
+                    String* value_36 = &(c->reason);
+                    (*value_36) = reason;
+                    value_33 = -1;
                 }
-                return value_29;
+                return value_33;
             }
             ZirFunction probe = {0};
             Environment empty = {0};
-            Context* value_31 = c;
-            ZirModule* value_32 = m;
-            int32_t value_33 = zir_f_5116a9a569c28f15_ParseExpr(&(probe), m, (uint8_t*)define->value, define->span);
-            result = compiler_proof_Expression(value_31, value_32, &(probe), value_33, &(empty), expected, (int32_t)((uint32_t)depth + 1u));
+            Context* value_37 = c;
+            ZirModule* value_38 = m;
+            int32_t value_39 = zir_f_5116a9a569c28f15_ParseExpr(&(probe), m, (uint8_t*)define->value, define->span);
+            result = compiler_proof_Expression(value_37, value_38, &(probe), value_39, &(empty), expected, (int32_t)((uint32_t)depth + 1u));
             zir_f_5116a9a569c28f15_free((uint8_t*)(probe.exprs));
         }
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(8))) {
-        ZirFunction* value_34 = fn;
-        int32_t value_35 = e->left;
-        bool value_36 = false;
+        ZirFunction* value_40 = fn;
+        int32_t value_41 = e->left;
+        bool value_42 = false;
         {
-            ZirFunction* fn = value_34;
-            int32_t at = value_35;
-            value_36 = at >= 0 && at < fn->expr_count;
+            ZirFunction* fn = value_40;
+            int32_t at = value_41;
+            value_42 = at >= 0 && at < fn->expr_count;
         }
-        if (!value_36 || ((ZirExprKind)((fn->exprs[e->left]).kind)) != ((ZirExprKind)(1))) {
-            Context* value_38 = c;
-            String value_39 = StringLiteral("record and pointer members are outside scalar proofs");
-            int32_t value_40 = 0;
+        if (!value_42 || ((ZirExprKind)((fn->exprs[e->left]).kind)) != ((ZirExprKind)(1))) {
+            Context* value_44 = c;
+            String value_45 = StringLiteral("record and pointer members are outside scalar proofs");
+            int32_t value_46 = 0;
             {
-                Context* c = value_38;
-                String reason = value_39;
-                c->unsupported = true;
-                c->reason = reason;
-                value_40 = -1;
+                Context* c = value_44;
+                String reason = value_45;
+                bool* value_48 = &(c->unsupported);
+                (*value_48) = true;
+                String* value_49 = &(c->reason);
+                (*value_49) = reason;
+                value_46 = -1;
             }
-            return value_40;
+            return value_46;
         }
         uint8_t* alias = (uint8_t*)(fn->exprs[e->left]).name;
         ZirType* t = zir_f_5116a9a569c28f15_FindType(m, alias, (void *)0);
         int64_t value = 0;
-        bool value_42 = t == ((void *)0) || t->is_enum == 0;
-        if (value_42 || zir_f_5116a9a569c28f15_EnumMemberValue(t, (uint8_t*)e->name, &(value)) == 0) {
-            Context* value_43 = c;
-            String value_44 = StringLiteral("unresolved enum member in proof");
-            int32_t value_45 = 0;
+        bool value_50 = t == ((void *)0) || t->is_enum == 0;
+        if (value_50 || zir_f_5116a9a569c28f15_EnumMemberValue(t, (uint8_t*)e->name, &(value)) == 0) {
+            Context* value_51 = c;
+            String value_52 = StringLiteral("unresolved enum member in proof");
+            int32_t value_53 = 0;
             {
-                Context* c = value_43;
-                String reason = value_44;
-                c->unsupported = true;
-                c->reason = reason;
-                value_45 = -1;
+                Context* c = value_51;
+                String reason = value_52;
+                bool* value_55 = &(c->unsupported);
+                (*value_55) = true;
+                String* value_56 = &(c->reason);
+                (*value_56) = reason;
+                value_53 = -1;
             }
-            return value_45;
+            return value_53;
         }
-        Context* value_47 = c;
-        Context* value_48 = c;
-        ZirModule* value_49 = m;
-        int32_t value_50 = compiler_proof_ScalarType(value_48, value_49, compiler_ir_CText(alias));
-        uint64_t value_51 = (uint64_t)(value);
-        int32_t value_52 = 0;
+        Context* value_57 = c;
+        Context* value_58 = c;
+        ZirModule* value_59 = m;
+        int32_t value_60 = compiler_proof_ScalarType(value_58, value_59, compiler_ir_CText(alias));
+        uint64_t value_61 = (uint64_t)(value);
+        int32_t value_62 = 0;
         {
-            Context* c = value_47;
-            int32_t type = value_50;
-            uint64_t value = value_51;
-            value_52 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
+            Context* c = value_57;
+            int32_t type = value_60;
+            uint64_t value = value_61;
+            value_62 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
         }
-        result = value_52;
+        result = value_62;
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(11))) {
-        Context* value_54 = c;
-        ZirModule* value_55 = m;
-        int32_t type = compiler_proof_ScalarType(value_54, value_55, compiler_ir_CText((uint8_t*)e->name));
+        Context* value_64 = c;
+        ZirModule* value_65 = m;
+        int32_t type = compiler_proof_ScalarType(value_64, value_65, compiler_ir_CText((uint8_t*)e->name));
         int32_t operand = compiler_proof_Expression(c, m, fn, e->right, env, -1, (int32_t)((uint32_t)depth + 1u));
         if (type < 0 || operand < 0) {
             return -1;
@@ -1152,135 +1194,141 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
             if (t.type != 0 && !from.is_unsigned && ((uint64_t)((uint64_t)bits & (uint64_t)sign)) != 0ULL) {
                 bits = (uint64_t)((uint64_t)bits | (uint64_t)(((uint64_t)~((uint64_t)sign | ((uint64_t)sign - UINT64_C(1))))));
             }
-            Context* value_56 = c;
-            int32_t value_57 = type;
-            uint64_t value_58 = 0;
+            Context* value_66 = c;
+            int32_t value_67 = type;
+            uint64_t value_68 = 0;
             if (type != 0) {
-                value_58 = bits;
+                value_68 = bits;
             } else {
-                uint64_t value_59 = 0;
+                uint64_t value_69 = 0;
                 if (bits != 0ULL) {
-                    value_59 = 1;
+                    value_69 = 1;
                 }
-                value_58 = value_59;
+                value_68 = value_69;
             }
-            int32_t value_60 = 0;
+            int32_t value_70 = 0;
             {
-                Context* c = value_56;
-                int32_t type = value_57;
-                uint64_t value = value_58;
-                value_60 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
+                Context* c = value_66;
+                int32_t type = value_67;
+                uint64_t value = value_68;
+                value_70 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
             }
-            result = value_60;
+            result = value_70;
         } else {
-            Context* value_62 = c;
-            String value_63 = StringLiteral("symbolic conversions between scalar types need a separate proof rule");
-            int32_t value_64 = 0;
+            Context* value_72 = c;
+            String value_73 = StringLiteral("symbolic conversions between scalar types need a separate proof rule");
+            int32_t value_74 = 0;
             {
-                Context* c = value_62;
-                String reason = value_63;
-                c->unsupported = true;
-                c->reason = reason;
-                value_64 = -1;
+                Context* c = value_72;
+                String reason = value_73;
+                bool* value_76 = &(c->unsupported);
+                (*value_76) = true;
+                String* value_77 = &(c->reason);
+                (*value_77) = reason;
+                value_74 = -1;
             }
-            return value_64;
+            return value_74;
         }
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(7))) {
         String declared = compiler_ir_CText((uint8_t*)e->type);
-        int32_t value_66 = 0;
+        int32_t value_78 = 0;
         if ((int64_t)(declared).length > 0LL && fn->checked != 0) {
-            int32_t value_67 = compiler_proof_ScalarType(c, m, declared);
-            value_66 = value_67;
+            int32_t value_79 = compiler_proof_ScalarType(c, m, declared);
+            value_78 = value_79;
         } else {
-            value_66 = expected;
+            value_78 = expected;
         }
-        int32_t type = value_66;
-        int32_t value_68 = 0;
+        int32_t type = value_78;
+        int32_t value_80 = 0;
         if (StringEqual(op, StringLiteral("!"))) {
-            value_68 = 0;
+            value_80 = 0;
         } else {
-            value_68 = type;
+            value_80 = type;
         }
-        int32_t operand = compiler_proof_Expression(c, m, fn, e->right, env, value_68, (int32_t)((uint32_t)depth + 1u));
+        int32_t operand = compiler_proof_Expression(c, m, fn, e->right, env, value_80, (int32_t)((uint32_t)depth + 1u));
         if (operand < 0) {
             return -1;
         }
-        Context* value_69 = c;
-        int32_t value_70 = 0;
+        Context* value_81 = c;
+        int32_t value_82 = 0;
         {
-            Context* c = value_69;
+            Context* c = value_81;
             int32_t term = operand;
-            value_70 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+            value_82 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
         }
-        type = value_70;
-        bool value_72 = type != 0;
-        if (value_72) {
-            uint64_t value_73 = (ZIRAN_INDEX(c->kernel.types, sizeof(c->kernel.types) / sizeof(c->kernel.types[0]), type)).identity;
-            value_72 = (value_73 != 0ULL);
+        type = value_82;
+        bool value_84 = type != 0;
+        if (value_84) {
+            uint64_t value_85 = (ZIRAN_INDEX(c->kernel.types, sizeof(c->kernel.types) / sizeof(c->kernel.types[0]), type)).identity;
+            value_84 = (value_85 != 0ULL);
         }
-        if (value_72) {
-            Context* value_74 = c;
-            String value_75 = StringLiteral("enum proofs currently support equality only");
-            int32_t value_76 = 0;
+        if (value_84) {
+            Context* value_86 = c;
+            String value_87 = StringLiteral("enum proofs currently support equality only");
+            int32_t value_88 = 0;
             {
-                Context* c = value_74;
-                String reason = value_75;
-                c->unsupported = true;
-                c->reason = reason;
-                value_76 = -1;
+                Context* c = value_86;
+                String reason = value_87;
+                bool* value_90 = &(c->unsupported);
+                (*value_90) = true;
+                String* value_91 = &(c->reason);
+                (*value_91) = reason;
+                value_88 = -1;
             }
-            return value_76;
+            return value_88;
         }
         if (StringEqual(op, StringLiteral("+")) && type != 0) {
             result = operand;
         } else if (StringEqual(op, StringLiteral("!")) && type == 0) {
-            Context* value_78 = c;
-            ProofOp value_79 = (ProofOp)((ProofOp)(10));
-            int32_t value_80 = 0;
+            Context* value_92 = c;
+            ProofOp value_93 = (ProofOp)((ProofOp)(10));
+            int32_t value_94 = 0;
             {
-                Context* c = value_78;
-                ProofOp op = (ProofOp)(value_79);
+                Context* c = value_92;
+                ProofOp op = (ProofOp)(value_93);
                 int32_t type = 0;
                 int32_t a = operand;
                 int32_t b = -1;
-                value_80 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+                value_94 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
             }
-            result = value_80;
+            result = value_94;
         } else if (StringEqual(op, StringLiteral("-")) && type != 0) {
-            Context* value_82 = c;
-            ProofOp value_83 = (ProofOp)((ProofOp)(3));
-            int32_t value_84 = type;
-            Context* value_85 = c;
-            int32_t value_86 = type;
-            int32_t value_87 = 0;
+            Context* value_96 = c;
+            ProofOp value_97 = (ProofOp)((ProofOp)(3));
+            int32_t value_98 = type;
+            Context* value_99 = c;
+            int32_t value_100 = type;
+            int32_t value_101 = 0;
             {
-                Context* c = value_85;
-                int32_t type = value_86;
+                Context* c = value_99;
+                int32_t type = value_100;
                 uint64_t value = 0ULL;
-                value_87 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
+                value_101 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
             }
-            int32_t value_89 = 0;
+            int32_t value_103 = 0;
             {
-                Context* c = value_82;
-                ProofOp op = (ProofOp)(value_83);
-                int32_t type = value_84;
-                int32_t a = value_87;
+                Context* c = value_96;
+                ProofOp op = (ProofOp)(value_97);
+                int32_t type = value_98;
+                int32_t a = value_101;
                 int32_t b = operand;
-                value_89 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+                value_103 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
             }
-            result = value_89;
+            result = value_103;
         } else {
-            Context* value_91 = c;
-            String value_92 = StringLiteral("unsupported unary operation in scalar proof");
-            int32_t value_93 = 0;
+            Context* value_105 = c;
+            String value_106 = StringLiteral("unsupported unary operation in scalar proof");
+            int32_t value_107 = 0;
             {
-                Context* c = value_91;
-                String reason = value_92;
-                c->unsupported = true;
-                c->reason = reason;
-                value_93 = -1;
+                Context* c = value_105;
+                String reason = value_106;
+                bool* value_109 = &(c->unsupported);
+                (*value_109) = true;
+                String* value_110 = &(c->reason);
+                (*value_110) = reason;
+                value_107 = -1;
             }
-            return value_93;
+            return value_107;
         }
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(6))) {
         result = compiler_proof_Binary(c, m, fn, e, env, expected, depth);
@@ -1290,199 +1338,204 @@ compiler_proof_Expression(Context* c, ZirModule* m, ZirFunction* fn, int32_t ind
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(14))) {
         int32_t cond = compiler_proof_Expression(c, m, fn, e->left, env, 0, (int32_t)((uint32_t)depth + 1u));
         int32_t a = compiler_proof_Expression(c, m, fn, e->right, env, expected, (int32_t)((uint32_t)depth + 1u));
-        int32_t value_95 = 0;
+        int32_t value_111 = 0;
         if (a >= 0) {
-            Context* value_96 = c;
-            ZirModule* value_97 = m;
-            ZirFunction* value_98 = fn;
-            int32_t value_99 = e->third;
-            Environment* value_100 = env;
-            Context* value_101 = c;
-            int32_t value_102 = 0;
-            {
-                Context* c = value_101;
-                int32_t term = a;
-                value_102 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
-            }
-            int32_t value_104 = compiler_proof_Expression(value_96, value_97, value_98, value_99, value_100, value_102, (int32_t)((uint32_t)depth + 1u));
-            value_95 = value_104;
-        } else {
-            value_95 = -1;
-        }
-        int32_t b = value_95;
-        bool value_105 = cond < 0 || a < 0 || b < 0;
-        bool value_106 = value_105;
-        if (!value_106) {
-            Context* value_107 = c;
-            int32_t value_108 = 0;
-            {
-                Context* c = value_107;
-                int32_t term = cond;
-                value_108 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
-            }
-            value_106 = (value_108 != 0);
-        }
-        bool value_110 = value_106;
-        bool value_111 = value_110;
-        if (!value_111) {
             Context* value_112 = c;
-            int32_t value_113 = a;
-            int32_t value_114 = b;
-            bool value_115 = false;
+            ZirModule* value_113 = m;
+            ZirFunction* value_114 = fn;
+            int32_t value_115 = e->third;
+            Environment* value_116 = env;
+            Context* value_117 = c;
+            int32_t value_118 = 0;
             {
-                Context* c = value_112;
-                int32_t a = value_113;
-                int32_t b = value_114;
-                bool value_117 = a >= 0 && b >= 0;
-                if (value_117) {
-                    Context* value_118 = c;
-                    int32_t value_119 = 0;
+                Context* c = value_117;
+                int32_t term = a;
+                value_118 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+            }
+            int32_t value_120 = compiler_proof_Expression(value_112, value_113, value_114, value_115, value_116, value_118, (int32_t)((uint32_t)depth + 1u));
+            value_111 = value_120;
+        } else {
+            value_111 = -1;
+        }
+        int32_t b = value_111;
+        bool value_121 = cond < 0 || a < 0 || b < 0;
+        bool value_122 = value_121;
+        if (!value_122) {
+            Context* value_123 = c;
+            int32_t value_124 = 0;
+            {
+                Context* c = value_123;
+                int32_t term = cond;
+                value_124 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+            }
+            value_122 = (value_124 != 0);
+        }
+        bool value_126 = value_122;
+        bool value_127 = value_126;
+        if (!value_127) {
+            Context* value_128 = c;
+            int32_t value_129 = a;
+            int32_t value_130 = b;
+            bool value_131 = false;
+            {
+                Context* c = value_128;
+                int32_t a = value_129;
+                int32_t b = value_130;
+                bool value_133 = a >= 0 && b >= 0;
+                if (value_133) {
+                    Context* value_134 = c;
+                    int32_t value_135 = 0;
                     {
-                        Context* c = value_118;
+                        Context* c = value_134;
                         int32_t term = a;
-                        value_119 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        value_135 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                     }
-                    Context* value_121 = c;
-                    int32_t value_122 = 0;
+                    Context* value_137 = c;
+                    int32_t value_138 = 0;
                     {
-                        Context* c = value_121;
+                        Context* c = value_137;
                         int32_t term = b;
-                        value_122 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        value_138 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                     }
-                    value_117 = (value_119 == value_122);
+                    value_133 = (value_135 == value_138);
                 }
-                value_115 = value_117;
+                value_131 = value_133;
             }
-            value_111 = !value_115;
+            value_127 = !value_131;
         }
-        if (value_111) {
-            Context* value_124 = c;
-            String value_125 = StringLiteral("ill-typed conditional in proof");
-            int32_t value_126 = 0;
+        if (value_127) {
+            Context* value_140 = c;
+            String value_141 = StringLiteral("ill-typed conditional in proof");
+            int32_t value_142 = 0;
             {
-                Context* c = value_124;
-                String reason = value_125;
-                c->unsupported = true;
-                c->reason = reason;
-                value_126 = -1;
+                Context* c = value_140;
+                String reason = value_141;
+                bool* value_144 = &(c->unsupported);
+                (*value_144) = true;
+                String* value_145 = &(c->reason);
+                (*value_145) = reason;
+                value_142 = -1;
             }
-            return value_126;
+            return value_142;
         }
-        Context* value_128 = c;
-        int32_t value_129 = 0;
+        Context* value_146 = c;
+        int32_t value_147 = 0;
         {
-            Context* c = value_128;
+            Context* c = value_146;
             int32_t term = a;
-            value_129 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+            value_147 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
         }
-        result = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(11), value_129, cond, a, b, 0ULL);
+        result = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(11), value_147, cond, a, b, 0ULL);
     } else if (((ZirExprKind)(e->kind)) == ((ZirExprKind)(5))) {
         result = compiler_proof_Call(c, m, fn, e, env, depth);
         if (result < 0) {
             return -1;
         }
     } else {
-        Context* value_131 = c;
-        String value_132 = StringLiteral("expression is outside the pure scalar proof fragment");
-        int32_t value_133 = 0;
+        Context* value_149 = c;
+        String value_150 = StringLiteral("expression is outside the pure scalar proof fragment");
+        int32_t value_151 = 0;
         {
-            Context* c = value_131;
-            String reason = value_132;
-            c->unsupported = true;
-            c->reason = reason;
-            value_133 = -1;
+            Context* c = value_149;
+            String reason = value_150;
+            bool* value_153 = &(c->unsupported);
+            (*value_153) = true;
+            String* value_154 = &(c->reason);
+            (*value_154) = reason;
+            value_151 = -1;
         }
-        return value_133;
+        return value_151;
     }
-    Context* value_135 = c;
-    ZirFunction* value_136 = fn;
-    int32_t value_137 = index;
-    int32_t value_138 = result;
-    int32_t value_139 = 0;
+    Context* value_155 = c;
+    ZirFunction* value_156 = fn;
+    int32_t value_157 = index;
+    int32_t value_158 = result;
+    int32_t value_159 = 0;
     {
-        Context* c = value_135;
-        ZirFunction* fn = value_136;
-        int32_t index = value_137;
-        int32_t result = value_138;
+        Context* c = value_155;
+        ZirFunction* fn = value_156;
+        int32_t index = value_157;
+        int32_t result = value_158;
         if (result < 0 || fn->checked != 0) {
-            value_139 = result;
-            goto value_140;
+            value_159 = result;
+            goto value_160;
         }
-        Context* value_141 = c;
-        int32_t value_142 = 0;
+        Context* value_161 = c;
+        int32_t value_162 = 0;
         {
-            Context* c = value_141;
+            Context* c = value_161;
             int32_t term = result;
-            value_142 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+            value_162 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
         }
-        ProofType type = ZIRAN_INDEX(c->kernel.types, 32, value_142);
+        ProofType type = ZIRAN_INDEX(c->kernel.types, 32, value_162);
         String name = StringLiteral("bool");
         if (type.identity != 0ULL) {
-            Slice value_144 = {((ZirType*)(type.identity))->name, 128};
-            name = compiler_proof_Name(value_144);
+            Slice value_164 = {((ZirType*)(type.identity))->name, 128};
+            name = compiler_proof_Name(value_164);
         } else {
-            Context* value_145 = c;
-            int32_t value_146 = 0;
+            Context* value_165 = c;
+            int32_t value_166 = 0;
             {
-                Context* c = value_145;
+                Context* c = value_165;
                 int32_t term = result;
-                value_146 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                value_166 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
             }
-            if (value_146 != 0) {
-                uint32_t value_148 = type.width;
-                bool value_149 = type.is_unsigned;
-                String value_150 = StringView(NULL, 0);
+            if (value_166 != 0) {
+                uint32_t value_168 = type.width;
+                bool value_169 = type.is_unsigned;
+                String value_170 = StringView(NULL, 0);
                 {
-                    uint32_t width = value_148;
-                    bool ziran_keyword_unsigned_0 = value_149;
+                    uint32_t width = value_168;
+                    bool ziran_keyword_unsigned_0 = value_169;
                     if (width == 8) {
-                        String value_152 = StringView(NULL, 0);
+                        String value_172 = StringView(NULL, 0);
                         if (ziran_keyword_unsigned_0) {
-                            value_152 = StringLiteral("u8");
+                            value_172 = StringLiteral("u8");
                         } else {
-                            value_152 = StringLiteral("s8");
+                            value_172 = StringLiteral("s8");
                         }
-                        value_150 = value_152;
-                        goto value_151;
+                        value_170 = value_172;
+                        goto value_171;
                     }
                     if (width == 16) {
-                        String value_153 = StringView(NULL, 0);
+                        String value_173 = StringView(NULL, 0);
                         if (ziran_keyword_unsigned_0) {
-                            value_153 = StringLiteral("u16");
+                            value_173 = StringLiteral("u16");
                         } else {
-                            value_153 = StringLiteral("s16");
+                            value_173 = StringLiteral("s16");
                         }
-                        value_150 = value_153;
-                        goto value_151;
+                        value_170 = value_173;
+                        goto value_171;
                     }
                     if (width == 32) {
-                        String value_154 = StringView(NULL, 0);
+                        String value_174 = StringView(NULL, 0);
                         if (ziran_keyword_unsigned_0) {
-                            value_154 = StringLiteral("u32");
+                            value_174 = StringLiteral("u32");
                         } else {
-                            value_154 = StringLiteral("s32");
+                            value_174 = StringLiteral("s32");
                         }
-                        value_150 = value_154;
-                        goto value_151;
+                        value_170 = value_174;
+                        goto value_171;
                     }
-                    String value_155 = StringView(NULL, 0);
+                    String value_175 = StringView(NULL, 0);
                     if (ziran_keyword_unsigned_0) {
-                        value_155 = StringLiteral("u64");
+                        value_175 = StringLiteral("u64");
                     } else {
-                        value_155 = StringLiteral("s64");
+                        value_175 = StringLiteral("s64");
                     }
-                    value_150 = value_155;
-                value_151: ;
+                    value_170 = value_175;
+                value_171: ;
                 }
-                name = value_150;
+                name = value_170;
             }
         }
-        uint8_t* value_156 = compiler_services_KeepName(name);
-        (fn->exprs[index]).type = (const char *)(value_156);
-        value_139 = result;
-    value_140: ;
+        const char ** value_176 = &((fn->exprs[index]).type);
+        uint8_t* value_177 = compiler_services_KeepName(name);
+        (*value_176) = (const char *)(value_177);
+        value_159 = result;
+    value_160: ;
     }
-    return value_139;
+    return value_159;
 }
 
 static int32_t
@@ -1515,19 +1568,21 @@ compiler_proof_Binary(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Env
         {
             Context* c = value_9;
             String reason = value_10;
-            c->unsupported = true;
-            c->reason = reason;
+            bool* value_13 = &(c->unsupported);
+            (*value_13) = true;
+            String* value_14 = &(c->reason);
+            (*value_14) = reason;
             value_11 = -1;
         }
         return value_11;
     }
-    int32_t value_13 = 0;
+    int32_t value_15 = 0;
     if (expected > 0) {
-        value_13 = expected;
+        value_15 = expected;
     } else {
-        value_13 = -1;
+        value_15 = -1;
     }
-    int32_t numeric = value_13;
+    int32_t numeric = value_15;
     String declared = compiler_ir_CText((uint8_t*)e->type);
     if (fn->checked != 0 && (int64_t)(declared).length > 0LL && !StringEqual(declared, StringLiteral("bool"))) {
         numeric = compiler_proof_ScalarType(c, m, declared);
@@ -1539,92 +1594,94 @@ compiler_proof_Binary(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Env
     if (reverse) {
         b = compiler_proof_Expression(c, m, fn, e->right, env, numeric, (int32_t)((uint32_t)depth + 1u));
         if (b >= 0) {
-            Context* value_14 = c;
-            ZirModule* value_15 = m;
-            ZirFunction* value_16 = fn;
-            int32_t value_17 = e->left;
-            Environment* value_18 = env;
-            Context* value_19 = c;
-            int32_t value_20 = 0;
+            Context* value_16 = c;
+            ZirModule* value_17 = m;
+            ZirFunction* value_18 = fn;
+            int32_t value_19 = e->left;
+            Environment* value_20 = env;
+            Context* value_21 = c;
+            int32_t value_22 = 0;
             {
-                Context* c = value_19;
+                Context* c = value_21;
                 int32_t term = b;
-                value_20 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                value_22 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
             }
-            a = compiler_proof_Expression(value_14, value_15, value_16, value_17, value_18, value_20, (int32_t)((uint32_t)depth + 1u));
+            a = compiler_proof_Expression(value_16, value_17, value_18, value_19, value_20, value_22, (int32_t)((uint32_t)depth + 1u));
         }
     } else {
         a = compiler_proof_Expression(c, m, fn, e->left, env, numeric, (int32_t)((uint32_t)depth + 1u));
         if (a >= 0) {
-            Context* value_22 = c;
-            ZirModule* value_23 = m;
-            ZirFunction* value_24 = fn;
-            int32_t value_25 = e->right;
-            Environment* value_26 = env;
-            Context* value_27 = c;
-            int32_t value_28 = 0;
+            Context* value_24 = c;
+            ZirModule* value_25 = m;
+            ZirFunction* value_26 = fn;
+            int32_t value_27 = e->right;
+            Environment* value_28 = env;
+            Context* value_29 = c;
+            int32_t value_30 = 0;
             {
-                Context* c = value_27;
+                Context* c = value_29;
                 int32_t term = a;
-                value_28 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                value_30 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
             }
-            b = compiler_proof_Expression(value_22, value_23, value_24, value_25, value_26, value_28, (int32_t)((uint32_t)depth + 1u));
+            b = compiler_proof_Expression(value_24, value_25, value_26, value_27, value_28, value_30, (int32_t)((uint32_t)depth + 1u));
         }
     }
     if (a < 0 || b < 0) {
         return -1;
     }
-    Context* value_30 = c;
-    int32_t value_31 = a;
-    int32_t value_32 = b;
-    bool value_33 = false;
+    Context* value_32 = c;
+    int32_t value_33 = a;
+    int32_t value_34 = b;
+    bool value_35 = false;
     {
-        Context* c = value_30;
-        int32_t a = value_31;
-        int32_t b = value_32;
-        bool value_35 = a >= 0 && b >= 0;
-        if (value_35) {
-            Context* value_36 = c;
-            int32_t value_37 = 0;
+        Context* c = value_32;
+        int32_t a = value_33;
+        int32_t b = value_34;
+        bool value_37 = a >= 0 && b >= 0;
+        if (value_37) {
+            Context* value_38 = c;
+            int32_t value_39 = 0;
             {
-                Context* c = value_36;
+                Context* c = value_38;
                 int32_t term = a;
-                value_37 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                value_39 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
             }
-            Context* value_39 = c;
-            int32_t value_40 = 0;
+            Context* value_41 = c;
+            int32_t value_42 = 0;
             {
-                Context* c = value_39;
+                Context* c = value_41;
                 int32_t term = b;
-                value_40 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                value_42 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
             }
-            value_35 = (value_37 == value_40);
+            value_37 = (value_39 == value_42);
         }
-        value_33 = value_35;
+        value_35 = value_37;
     }
-    if (!value_33) {
-        Context* value_42 = c;
-        String value_43 = StringLiteral("scalar proof operands require identical types");
-        int32_t value_44 = 0;
+    if (!value_35) {
+        Context* value_44 = c;
+        String value_45 = StringLiteral("scalar proof operands require identical types");
+        int32_t value_46 = 0;
         {
-            Context* c = value_42;
-            String reason = value_43;
-            c->unsupported = true;
-            c->reason = reason;
-            value_44 = -1;
+            Context* c = value_44;
+            String reason = value_45;
+            bool* value_48 = &(c->unsupported);
+            (*value_48) = true;
+            String* value_49 = &(c->reason);
+            (*value_49) = reason;
+            value_46 = -1;
         }
-        return value_44;
+        return value_46;
     }
-    Context* value_46 = c;
-    int32_t value_47 = 0;
+    Context* value_50 = c;
+    int32_t value_51 = 0;
     {
-        Context* c = value_46;
+        Context* c = value_50;
         int32_t term = a;
-        value_47 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+        value_51 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
     }
-    int32_t type = value_47;
-    Slice value_49 = {e->op, 8};
-    String op = compiler_proof_Name(value_49);
+    int32_t type = value_51;
+    Slice value_53 = {e->op, 8};
+    String op = compiler_proof_Name(value_53);
     ProofOp kind = (ProofOp)((ProofOp)(0));
     if (type != 0) {
         if (StringEqual(op, StringLiteral("+"))) {
@@ -1647,35 +1704,39 @@ compiler_proof_Binary(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Env
         kind = (ProofOp)(5);
     }
     if (kind == ((ProofOp)(0))) {
-        Context* value_50 = c;
-        String value_51 = StringLiteral("unsupported binary operation in scalar proof");
-        int32_t value_52 = 0;
+        Context* value_54 = c;
+        String value_55 = StringLiteral("unsupported binary operation in scalar proof");
+        int32_t value_56 = 0;
         {
-            Context* c = value_50;
-            String reason = value_51;
-            c->unsupported = true;
-            c->reason = reason;
-            value_52 = -1;
+            Context* c = value_54;
+            String reason = value_55;
+            bool* value_58 = &(c->unsupported);
+            (*value_58) = true;
+            String* value_59 = &(c->reason);
+            (*value_59) = reason;
+            value_56 = -1;
         }
-        return value_52;
+        return value_56;
     }
-    bool value_54 = type != 0;
-    if (value_54) {
-        uint64_t value_55 = (ZIRAN_INDEX(c->kernel.types, sizeof(c->kernel.types) / sizeof(c->kernel.types[0]), type)).identity;
-        value_54 = (value_55 != 0ULL);
+    bool value_60 = type != 0;
+    if (value_60) {
+        uint64_t value_61 = (ZIRAN_INDEX(c->kernel.types, sizeof(c->kernel.types) / sizeof(c->kernel.types[0]), type)).identity;
+        value_60 = (value_61 != 0ULL);
     }
-    if (value_54 && kind != ((ProofOp)(5))) {
-        Context* value_56 = c;
-        String value_57 = StringLiteral("enum proofs currently support equality only");
-        int32_t value_58 = 0;
+    if (value_60 && kind != ((ProofOp)(5))) {
+        Context* value_62 = c;
+        String value_63 = StringLiteral("enum proofs currently support equality only");
+        int32_t value_64 = 0;
         {
-            Context* c = value_56;
-            String reason = value_57;
-            c->unsupported = true;
-            c->reason = reason;
-            value_58 = -1;
+            Context* c = value_62;
+            String reason = value_63;
+            bool* value_66 = &(c->unsupported);
+            (*value_66) = true;
+            String* value_67 = &(c->reason);
+            (*value_67) = reason;
+            value_64 = -1;
         }
-        return value_58;
+        return value_64;
     }
     if (StringEqual(op, StringLiteral(">")) || StringEqual(op, StringLiteral(">="))) {
         int32_t swap = a;
@@ -1683,43 +1744,43 @@ compiler_proof_Binary(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Env
         b = swap;
     }
     bool ring = kind == ((ProofOp)(2)) || kind == ((ProofOp)(3)) || kind == ((ProofOp)(4));
-    Context* value_60 = c;
-    int32_t value_61 = 0;
+    Context* value_68 = c;
+    int32_t value_69 = 0;
     if (ring) {
-        value_61 = type;
+        value_69 = type;
     } else {
-        value_61 = 0;
+        value_69 = 0;
     }
-    int32_t value_62 = a;
-    int32_t value_63 = b;
-    int32_t value_64 = 0;
+    int32_t value_70 = a;
+    int32_t value_71 = b;
+    int32_t value_72 = 0;
     {
-        Context* c = value_60;
+        Context* c = value_68;
         ProofOp op = (ProofOp)(kind);
-        int32_t type = value_61;
-        int32_t a = value_62;
-        int32_t b = value_63;
-        value_64 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+        int32_t type = value_69;
+        int32_t a = value_70;
+        int32_t b = value_71;
+        value_72 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
     }
-    int32_t result = value_64;
-    int32_t value_66 = 0;
+    int32_t result = value_72;
+    int32_t value_74 = 0;
     if (StringEqual(op, StringLiteral("!="))) {
-        Context* value_67 = c;
-        ProofOp value_68 = (ProofOp)((ProofOp)(10));
-        int32_t value_69 = 0;
+        Context* value_75 = c;
+        ProofOp value_76 = (ProofOp)((ProofOp)(10));
+        int32_t value_77 = 0;
         {
-            Context* c = value_67;
-            ProofOp op = (ProofOp)(value_68);
+            Context* c = value_75;
+            ProofOp op = (ProofOp)(value_76);
             int32_t type = 0;
             int32_t a = result;
             int32_t b = -1;
-            value_69 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+            value_77 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
         }
-        value_66 = value_69;
+        value_74 = value_77;
     } else {
-        value_66 = result;
+        value_74 = result;
     }
-    return value_66;
+    return value_74;
 }
 
 static int32_t
@@ -1743,8 +1804,10 @@ compiler_proof_Call(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Envir
         {
             Context* c = value_5;
             String reason = value_6;
-            c->unsupported = true;
-            c->reason = reason;
+            bool* value_9 = &(c->unsupported);
+            (*value_9) = true;
+            String* value_10 = &(c->reason);
+            (*value_10) = reason;
             value_7 = -1;
         }
         return value_7;
@@ -1765,116 +1828,127 @@ compiler_proof_Call(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Envir
         }
     }
     if (!allowed) {
-        Context* value_9 = c;
-        String value_10 = StringLiteral("procedure calls need an unfold step");
-        int32_t value_11 = 0;
+        Context* value_11 = c;
+        String value_12 = StringLiteral("procedure calls need an unfold step");
+        int32_t value_13 = 0;
         {
-            Context* c = value_9;
-            String reason = value_10;
-            c->unsupported = true;
-            c->reason = reason;
-            value_11 = -1;
+            Context* c = value_11;
+            String reason = value_12;
+            bool* value_15 = &(c->unsupported);
+            (*value_15) = true;
+            String* value_16 = &(c->reason);
+            (*value_16) = reason;
+            value_13 = -1;
         }
-        return value_11;
+        return value_13;
     }
     Signature p = {0};
-    String value_13 = StringView(NULL, 0);
+    String value_17 = StringView(NULL, 0);
     {
         ZirFunction* fn = callee;
-        value_13 = compiler_ir_CText((uint8_t*)fn->args_text);
+        value_17 = compiler_ir_CText((uint8_t*)fn->args_text);
     }
-    bool value_15 = compiler_proof_ParseSignature(value_13, &(p));
-    if (!value_15) {
-        Context* value_16 = c;
-        String value_17 = StringLiteral("unsupported procedure signature in proof");
-        int32_t value_18 = 0;
+    bool value_19 = compiler_proof_ParseSignature(value_17, &(p));
+    if (!value_19) {
+        Context* value_20 = c;
+        String value_21 = StringLiteral("unsupported procedure signature in proof");
+        int32_t value_22 = 0;
         {
-            Context* c = value_16;
-            String reason = value_17;
-            c->unsupported = true;
-            c->reason = reason;
-            value_18 = -1;
+            Context* c = value_20;
+            String reason = value_21;
+            bool* value_24 = &(c->unsupported);
+            (*value_24) = true;
+            String* value_25 = &(c->reason);
+            (*value_25) = reason;
+            value_22 = -1;
         }
-        return value_18;
+        return value_22;
     }
     int32_t args[16] = {0};
     int32_t count = 0;
     uint32_t used = 0;
     int32_t at = e->first_child;
     while (at >= 0) {
-        Context* value_20 = c;
-        int32_t value_21 = depth;
-        bool value_22 = false;
+        Context* value_26 = c;
+        int32_t value_27 = depth;
+        bool value_28 = false;
         {
-            Context* c = value_20;
-            int32_t depth = value_21;
+            Context* c = value_26;
+            int32_t depth = value_27;
             if (depth <= 64) {
-                c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+                int32_t* value_30 = &(c->kernel.budget);
+                (*value_30) = (int32_t)((uint32_t)((*value_30)) - 1u);
                 if (c->kernel.budget >= 0) {
-                    value_22 = !c->kernel.exhausted;
-                    goto value_23;
+                    value_28 = !c->kernel.exhausted;
+                    goto value_29;
                 }
             }
-            c->kernel.exhausted = true;
-            value_22 = false;
-        value_23: ;
+            bool* value_31 = &(c->kernel.exhausted);
+            (*value_31) = true;
+            value_28 = false;
+        value_29: ;
         }
-        if (!value_22 || at >= fn->expr_count || count == 16) {
-            Context* value_24 = c;
-            String value_25 = StringLiteral("malformed proof call arguments");
-            int32_t value_26 = 0;
+        if (!value_28 || at >= fn->expr_count || count == 16) {
+            Context* value_32 = c;
+            String value_33 = StringLiteral("malformed proof call arguments");
+            int32_t value_34 = 0;
             {
-                Context* c = value_24;
-                String reason = value_25;
-                c->unsupported = true;
-                c->reason = reason;
-                value_26 = -1;
+                Context* c = value_32;
+                String reason = value_33;
+                bool* value_36 = &(c->unsupported);
+                (*value_36) = true;
+                String* value_37 = &(c->reason);
+                (*value_37) = reason;
+                value_34 = -1;
             }
-            return value_26;
+            return value_34;
         }
         ZirExpr* argument = &(fn->exprs[at]);
-        int32_t value_28 = 0;
+        int32_t value_38 = 0;
         if (fn->checked != 0) {
-            value_28 = argument->argument_index;
+            value_38 = argument->argument_index;
         } else {
-            value_28 = count;
+            value_38 = count;
         }
-        int32_t position = value_28;
-        bool value_29 = position < 0 || position >= p.count || ((uint32_t)((uint32_t)used & (uint32_t)((ZiShl32(1, (uint64_t)((uint32_t)(position)), 32))))) != 0;
-        bool value_30 = value_29;
-        bool value_31 = value_30;
-        if (!value_31) {
-            bool value_32 = fn->checked == 0;
-            bool value_33 = value_32;
-            if (value_33) {
-                String value_34 = compiler_ir_CText((uint8_t*)argument->argument_name);
-                int64_t value_35 = (int64_t)(value_34).length;
-                value_33 = (value_35 > 0LL);
+        int32_t position = value_38;
+        bool value_39 = position < 0 || position >= p.count || ((uint32_t)((uint32_t)used & (uint32_t)((ZiShl32(1, (uint64_t)((uint32_t)(position)), 32))))) != 0;
+        bool value_40 = value_39;
+        bool value_41 = value_40;
+        if (!value_41) {
+            bool value_42 = fn->checked == 0;
+            bool value_43 = value_42;
+            if (value_43) {
+                String value_44 = compiler_ir_CText((uint8_t*)argument->argument_name);
+                int64_t value_45 = (int64_t)(value_44).length;
+                value_43 = (value_45 > 0LL);
             }
-            value_31 = value_33;
+            value_41 = value_43;
         }
-        if (value_31) {
-            Context* value_36 = c;
-            String value_37 = StringLiteral("proof expressions use positional arguments");
-            int32_t value_38 = 0;
+        if (value_41) {
+            Context* value_46 = c;
+            String value_47 = StringLiteral("proof expressions use positional arguments");
+            int32_t value_48 = 0;
             {
-                Context* c = value_36;
-                String reason = value_37;
-                c->unsupported = true;
-                c->reason = reason;
-                value_38 = -1;
+                Context* c = value_46;
+                String reason = value_47;
+                bool* value_50 = &(c->unsupported);
+                (*value_50) = true;
+                String* value_51 = &(c->reason);
+                (*value_51) = reason;
+                value_48 = -1;
             }
-            return value_38;
+            return value_48;
         }
         used = (uint32_t)((uint32_t)used | (uint32_t)((ZiShl32(1, (uint64_t)((uint32_t)(position)), 32))));
-        Context* value_40 = c;
-        ZirModule* value_41 = m;
-        ZirFunction* value_42 = fn;
-        int32_t value_43 = at;
-        Environment* value_44 = env;
-        int32_t value_45 = compiler_proof_ScalarType(c, owner, ZIRAN_INDEX(p.types, 16, position));
-        int32_t value_46 = compiler_proof_Expression(value_40, value_41, value_42, value_43, value_44, value_45, (int32_t)((uint32_t)depth + 1u));
-        ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), position) = value_46;
+        int32_t* value_52 = &(ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), position));
+        Context* value_53 = c;
+        ZirModule* value_54 = m;
+        ZirFunction* value_55 = fn;
+        int32_t value_56 = at;
+        Environment* value_57 = env;
+        int32_t value_58 = compiler_proof_ScalarType(c, owner, ZIRAN_INDEX(p.types, 16, position));
+        int32_t value_59 = compiler_proof_Expression(value_53, value_54, value_55, value_56, value_57, value_58, (int32_t)((uint32_t)depth + 1u));
+        (*value_52) = value_59;
         if (ZIRAN_INDEX(args, 16, position) < 0) {
             return -1;
         }
@@ -1882,20 +1956,22 @@ compiler_proof_Call(Context* c, ZirModule* m, ZirFunction* fn, ZirExpr* e, Envir
         at = argument->next_sibling;
     }
     if (count != p.count) {
-        Context* value_47 = c;
-        String value_48 = StringLiteral("proof calls require all procedure arguments");
-        int32_t value_49 = 0;
+        Context* value_60 = c;
+        String value_61 = StringLiteral("proof calls require all procedure arguments");
+        int32_t value_62 = 0;
         {
-            Context* c = value_47;
-            String reason = value_48;
-            c->unsupported = true;
-            c->reason = reason;
-            value_49 = -1;
+            Context* c = value_60;
+            String reason = value_61;
+            bool* value_64 = &(c->unsupported);
+            (*value_64) = true;
+            String* value_65 = &(c->reason);
+            (*value_65) = reason;
+            value_62 = -1;
         }
-        return value_49;
+        return value_62;
     }
-    Slice value_51 = {args, 16};
-    return compiler_proof_FunctionValue(c, owner, callee, SliceRange(value_51, (int64_t)0LL, (int64_t)count, sizeof(int32_t)), (int32_t)((uint32_t)depth + 1u));
+    Slice value_66 = {args, 16};
+    return compiler_proof_FunctionValue(c, owner, callee, SliceRange(value_66, (int64_t)0LL, (int64_t)count, sizeof(int32_t)), (int32_t)((uint32_t)depth + 1u));
 }
 
 static int32_t
@@ -1908,13 +1984,15 @@ compiler_proof_Arms(Context* c, ZirModule* m, ZirFunction* fn, Environment* env,
         Context* c = value_0;
         int32_t depth = value_1;
         if (depth <= 64) {
-            c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+            int32_t* value_4 = &(c->kernel.budget);
+            (*value_4) = (int32_t)((uint32_t)((*value_4)) - 1u);
             if (c->kernel.budget >= 0) {
                 value_2 = !c->kernel.exhausted;
                 goto value_3;
             }
         }
-        c->kernel.exhausted = true;
+        bool* value_5 = &(c->kernel.exhausted);
+        (*value_5) = true;
         value_2 = false;
     value_3: ;
     }
@@ -1926,17 +2004,19 @@ compiler_proof_Arms(Context* c, ZirModule* m, ZirFunction* fn, Environment* env,
     }
     int32_t close = compiler_proof_BlockClose(fn, at, after);
     if (close < 0) {
-        Context* value_4 = c;
-        String value_5 = StringLiteral("malformed conditional body in proof");
-        int32_t value_6 = 0;
+        Context* value_6 = c;
+        String value_7 = StringLiteral("malformed conditional body in proof");
+        int32_t value_8 = 0;
         {
-            Context* c = value_4;
-            String reason = value_5;
-            c->unsupported = true;
-            c->reason = reason;
-            value_6 = -1;
+            Context* c = value_6;
+            String reason = value_7;
+            bool* value_10 = &(c->unsupported);
+            (*value_10) = true;
+            String* value_11 = &(c->reason);
+            (*value_11) = reason;
+            value_8 = -1;
         }
-        return value_6;
+        return value_8;
     }
     Environment yes = *(env);
     int32_t a = compiler_proof_Sequence(c, m, fn, &(yes), (int32_t)((uint32_t)at + 1u), close, rest, result, (int32_t)((uint32_t)depth + 1u));
@@ -1947,66 +2027,68 @@ compiler_proof_Arms(Context* c, ZirModule* m, ZirFunction* fn, Environment* env,
         return a;
     }
     int32_t cond = compiler_proof_Expression(c, m, fn, (fn->stmts[at]).expr_root, env, 0, (int32_t)((uint32_t)depth + 1u));
-    bool value_8 = cond < 0;
-    bool value_9 = value_8;
-    if (!value_9) {
-        Context* value_10 = c;
-        int32_t value_11 = 0;
-        {
-            Context* c = value_10;
-            int32_t term = cond;
-            value_11 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
-        }
-        value_9 = (value_11 != 0);
-    }
-    if (value_9) {
-        Context* value_13 = c;
-        String value_14 = StringLiteral("proof branch condition must be boolean");
+    bool value_12 = cond < 0;
+    bool value_13 = value_12;
+    if (!value_13) {
+        Context* value_14 = c;
         int32_t value_15 = 0;
         {
-            Context* c = value_13;
-            String reason = value_14;
-            c->unsupported = true;
-            c->reason = reason;
-            value_15 = -1;
+            Context* c = value_14;
+            int32_t term = cond;
+            value_15 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
         }
-        return value_15;
+        value_13 = (value_15 != 0);
+    }
+    if (value_13) {
+        Context* value_17 = c;
+        String value_18 = StringLiteral("proof branch condition must be boolean");
+        int32_t value_19 = 0;
+        {
+            Context* c = value_17;
+            String reason = value_18;
+            bool* value_21 = &(c->unsupported);
+            (*value_21) = true;
+            String* value_22 = &(c->reason);
+            (*value_22) = reason;
+            value_19 = -1;
+        }
+        return value_19;
     }
     int32_t b = compiler_proof_Arms(c, m, fn, env, (int32_t)((uint32_t)close + 1u), after, rest, result, (int32_t)((uint32_t)depth + 1u));
-    bool value_17 = b < 0;
-    bool value_18 = value_17;
-    if (!value_18) {
-        Context* value_19 = c;
-        int32_t value_20 = a;
-        int32_t value_21 = b;
-        bool value_22 = false;
+    bool value_23 = b < 0;
+    bool value_24 = value_23;
+    if (!value_24) {
+        Context* value_25 = c;
+        int32_t value_26 = a;
+        int32_t value_27 = b;
+        bool value_28 = false;
         {
-            Context* c = value_19;
-            int32_t a = value_20;
-            int32_t b = value_21;
-            bool value_24 = a >= 0 && b >= 0;
-            if (value_24) {
-                Context* value_25 = c;
-                int32_t value_26 = 0;
+            Context* c = value_25;
+            int32_t a = value_26;
+            int32_t b = value_27;
+            bool value_30 = a >= 0 && b >= 0;
+            if (value_30) {
+                Context* value_31 = c;
+                int32_t value_32 = 0;
                 {
-                    Context* c = value_25;
+                    Context* c = value_31;
                     int32_t term = a;
-                    value_26 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    value_32 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                 }
-                Context* value_28 = c;
-                int32_t value_29 = 0;
+                Context* value_34 = c;
+                int32_t value_35 = 0;
                 {
-                    Context* c = value_28;
+                    Context* c = value_34;
                     int32_t term = b;
-                    value_29 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    value_35 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                 }
-                value_24 = (value_26 == value_29);
+                value_30 = (value_32 == value_35);
             }
-            value_22 = value_24;
+            value_28 = value_30;
         }
-        value_18 = !value_22;
+        value_24 = !value_28;
     }
-    if (value_18) {
+    if (value_24) {
         return -1;
     }
     return compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(11), result, cond, a, b, 0ULL);
@@ -2022,13 +2104,15 @@ compiler_proof_Sequence(Context* c, ZirModule* m, ZirFunction* fn, Environment* 
         Context* c = value_0;
         int32_t depth = value_1;
         if (depth <= 64) {
-            c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+            int32_t* value_4 = &(c->kernel.budget);
+            (*value_4) = (int32_t)((uint32_t)((*value_4)) - 1u);
             if (c->kernel.budget >= 0) {
                 value_2 = !c->kernel.exhausted;
                 goto value_3;
             }
         }
-        c->kernel.exhausted = true;
+        bool* value_5 = &(c->kernel.exhausted);
+        (*value_5) = true;
         value_2 = false;
     value_3: ;
     }
@@ -2040,267 +2124,283 @@ compiler_proof_Sequence(Context* c, ZirModule* m, ZirFunction* fn, Environment* 
         int32_t range_last_3 = (int32_t)((uint32_t)stop - 1u);
         int32_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
-            Context* value_4 = c;
-            int32_t value_5 = depth;
-            bool value_6 = false;
+            Context* value_6 = c;
+            int32_t value_7 = depth;
+            bool value_8 = false;
             {
-                Context* c = value_4;
-                int32_t depth = value_5;
+                Context* c = value_6;
+                int32_t depth = value_7;
                 if (depth <= 64) {
-                    c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+                    int32_t* value_10 = &(c->kernel.budget);
+                    (*value_10) = (int32_t)((uint32_t)((*value_10)) - 1u);
                     if (c->kernel.budget >= 0) {
-                        value_6 = !c->kernel.exhausted;
-                        goto value_7;
+                        value_8 = !c->kernel.exhausted;
+                        goto value_9;
                     }
                 }
-                c->kernel.exhausted = true;
-                value_6 = false;
-            value_7: ;
+                bool* value_11 = &(c->kernel.exhausted);
+                (*value_11) = true;
+                value_8 = false;
+            value_9: ;
             }
-            if (!value_6) {
+            if (!value_8) {
                 return -1;
             }
             ZirStmt* s = &(fn->stmts[i]);
             if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(10))) {
                 int32_t value = compiler_proof_Expression(c, m, fn, s->expr_root, env, result, (int32_t)((uint32_t)depth + 1u));
-                bool value_8 = value >= 0;
-                bool value_9 = value_8;
-                if (value_9) {
-                    Context* value_10 = c;
-                    int32_t value_11 = 0;
+                bool value_12 = value >= 0;
+                bool value_13 = value_12;
+                if (value_13) {
+                    Context* value_14 = c;
+                    int32_t value_15 = 0;
                     {
-                        Context* c = value_10;
+                        Context* c = value_14;
                         int32_t term = value;
-                        value_11 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        value_15 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                     }
-                    value_9 = (value_11 == result);
+                    value_13 = (value_15 == result);
                 }
-                if (value_9) {
+                if (value_13) {
                     return value;
                 }
-                Context* value_13 = c;
-                String value_14 = StringLiteral("proof return type differs from its declared type");
-                int32_t value_15 = 0;
-                {
-                    Context* c = value_13;
-                    String reason = value_14;
-                    c->unsupported = true;
-                    c->reason = reason;
-                    value_15 = -1;
-                }
-                return value_15;
-            } else if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(3))) {
                 Context* value_17 = c;
-                ZirModule* value_18 = m;
-                int32_t type = compiler_proof_ScalarType(value_17, value_18, compiler_ir_CText((uint8_t*)s->type));
+                String value_18 = StringLiteral("proof return type differs from its declared type");
                 int32_t value_19 = 0;
-                if (s->expr_root >= 0) {
-                    int32_t value_20 = compiler_proof_Expression(c, m, fn, s->expr_root, env, type, (int32_t)((uint32_t)depth + 1u));
-                    value_19 = value_20;
-                } else {
-                    Context* value_21 = c;
-                    int32_t value_22 = type;
-                    int32_t value_23 = 0;
-                    {
-                        Context* c = value_21;
-                        int32_t type = value_22;
-                        uint64_t value = 0ULL;
-                        value_23 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
-                    }
-                    value_19 = value_23;
+                {
+                    Context* c = value_17;
+                    String reason = value_18;
+                    bool* value_21 = &(c->unsupported);
+                    (*value_21) = true;
+                    String* value_22 = &(c->reason);
+                    (*value_22) = reason;
+                    value_19 = -1;
                 }
-                int32_t value = value_19;
-                bool value_25 = type < 0 || value < 0;
-                bool value_26 = value_25;
-                if (!value_26) {
+                return value_19;
+            } else if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(3))) {
+                Context* value_23 = c;
+                ZirModule* value_24 = m;
+                int32_t type = compiler_proof_ScalarType(value_23, value_24, compiler_ir_CText((uint8_t*)s->type));
+                int32_t value_25 = 0;
+                if (s->expr_root >= 0) {
+                    int32_t value_26 = compiler_proof_Expression(c, m, fn, s->expr_root, env, type, (int32_t)((uint32_t)depth + 1u));
+                    value_25 = value_26;
+                } else {
                     Context* value_27 = c;
-                    int32_t value_28 = 0;
+                    int32_t value_28 = type;
+                    int32_t value_29 = 0;
                     {
                         Context* c = value_27;
-                        int32_t term = value;
-                        value_28 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        int32_t type = value_28;
+                        uint64_t value = 0ULL;
+                        value_29 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(0), type, -1, -1, -1, value);
                     }
-                    value_26 = (value_28 != type);
+                    value_25 = value_29;
                 }
-                bool value_30 = value_26;
-                bool value_31 = value_30;
-                if (!value_31) {
-                    Context* value_32 = c;
-                    Environment* value_33 = env;
-                    String value_34 = compiler_ir_CText((uint8_t*)s->names.name);
-                    int32_t value_35 = value;
-                    bool value_36 = false;
+                int32_t value = value_25;
+                bool value_31 = type < 0 || value < 0;
+                bool value_32 = value_31;
+                if (!value_32) {
+                    Context* value_33 = c;
+                    int32_t value_34 = 0;
                     {
-                        Context* c = value_32;
-                        Environment* e = value_33;
-                        String name = value_34;
-                        int32_t value = value_35;
+                        Context* c = value_33;
+                        int32_t term = value;
+                        value_34 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    }
+                    value_32 = (value_34 != type);
+                }
+                bool value_36 = value_32;
+                bool value_37 = value_36;
+                if (!value_37) {
+                    Context* value_38 = c;
+                    Environment* value_39 = env;
+                    String value_40 = compiler_ir_CText((uint8_t*)s->names.name);
+                    int32_t value_41 = value;
+                    bool value_42 = false;
+                    {
+                        Context* c = value_38;
+                        Environment* e = value_39;
+                        String name = value_40;
+                        int32_t value = value_41;
                         if (value < 0) {
-                            value_36 = false;
-                            goto value_37;
+                            value_42 = false;
+                            goto value_43;
                         }
                         if (e->count == 64) {
-                            c->kernel.exhausted = true;
-                            value_36 = false;
-                            goto value_37;
+                            bool* value_44 = &(c->kernel.exhausted);
+                            (*value_44) = true;
+                            value_42 = false;
+                            goto value_43;
                         }
-                        ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count) = (Binding){.name = name, .value = value};
-                        e->count = (int32_t)((uint32_t)(e->count) + 1u);
-                        value_36 = true;
-                    value_37: ;
+                        Binding* value_45 = &(ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count));
+                        (*value_45) = (Binding){.name = name, .value = value};
+                        int32_t* value_46 = &(e->count);
+                        (*value_46) = (int32_t)((uint32_t)((*value_46)) + 1u);
+                        value_42 = true;
+                    value_43: ;
                     }
-                    value_31 = !value_36;
+                    value_37 = !value_42;
                 }
-                if (value_31) {
+                if (value_37) {
                     return -1;
                 }
             } else if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(4))) {
-                ZirFunction* value_38 = fn;
-                int32_t value_39 = s->lhs_root;
-                bool value_40 = false;
+                ZirFunction* value_47 = fn;
+                int32_t value_48 = s->lhs_root;
+                bool value_49 = false;
                 {
-                    ZirFunction* fn = value_38;
-                    int32_t at = value_39;
-                    value_40 = at >= 0 && at < fn->expr_count;
+                    ZirFunction* fn = value_47;
+                    int32_t at = value_48;
+                    value_49 = at >= 0 && at < fn->expr_count;
                 }
-                if (!value_40 || ((ZirExprKind)((fn->exprs[s->lhs_root]).kind)) != ((ZirExprKind)(1))) {
-                    Context* value_42 = c;
-                    String value_43 = StringLiteral("proof procedures can assign only scalar locals");
-                    int32_t value_44 = 0;
+                if (!value_49 || ((ZirExprKind)((fn->exprs[s->lhs_root]).kind)) != ((ZirExprKind)(1))) {
+                    Context* value_51 = c;
+                    String value_52 = StringLiteral("proof procedures can assign only scalar locals");
+                    int32_t value_53 = 0;
                     {
-                        Context* c = value_42;
-                        String reason = value_43;
-                        c->unsupported = true;
-                        c->reason = reason;
-                        value_44 = -1;
+                        Context* c = value_51;
+                        String reason = value_52;
+                        bool* value_55 = &(c->unsupported);
+                        (*value_55) = true;
+                        String* value_56 = &(c->reason);
+                        (*value_56) = reason;
+                        value_53 = -1;
                     }
-                    return value_44;
+                    return value_53;
                 }
-                Environment* value_46 = env;
-                int32_t local = compiler_proof_Find(value_46, compiler_ir_CText((uint8_t*)(fn->exprs[s->lhs_root]).name));
+                Environment* value_57 = env;
+                int32_t local = compiler_proof_Find(value_57, compiler_ir_CText((uint8_t*)(fn->exprs[s->lhs_root]).name));
                 if (local < 0) {
-                    Context* value_47 = c;
-                    String value_48 = StringLiteral("proof procedure writes outside its local scope");
-                    int32_t value_49 = 0;
+                    Context* value_58 = c;
+                    String value_59 = StringLiteral("proof procedure writes outside its local scope");
+                    int32_t value_60 = 0;
                     {
-                        Context* c = value_47;
-                        String reason = value_48;
-                        c->unsupported = true;
-                        c->reason = reason;
-                        value_49 = -1;
+                        Context* c = value_58;
+                        String reason = value_59;
+                        bool* value_62 = &(c->unsupported);
+                        (*value_62) = true;
+                        String* value_63 = &(c->reason);
+                        (*value_63) = reason;
+                        value_60 = -1;
                     }
-                    return value_49;
+                    return value_60;
                 }
                 int32_t old = (ZIRAN_INDEX(env->bindings, sizeof(env->bindings) / sizeof(env->bindings[0]), local)).value;
-                Context* value_51 = c;
-                int32_t value_52 = 0;
+                Context* value_64 = c;
+                int32_t value_65 = 0;
                 {
-                    Context* c = value_51;
+                    Context* c = value_64;
                     int32_t term = old;
-                    value_52 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    value_65 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                 }
-                int32_t type = value_52;
+                int32_t type = value_65;
                 int32_t value = compiler_proof_Expression(c, m, fn, s->expr_root, env, type, (int32_t)((uint32_t)depth + 1u));
-                bool value_54 = value < 0;
-                bool value_55 = value_54;
-                if (!value_55) {
-                    Context* value_56 = c;
-                    int32_t value_57 = 0;
+                bool value_67 = value < 0;
+                bool value_68 = value_67;
+                if (!value_68) {
+                    Context* value_69 = c;
+                    int32_t value_70 = 0;
                     {
-                        Context* c = value_56;
+                        Context* c = value_69;
                         int32_t term = value;
-                        value_57 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        value_70 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                     }
-                    value_55 = (value_57 != type);
+                    value_68 = (value_70 != type);
                 }
-                if (value_55) {
+                if (value_68) {
                     return -1;
                 }
-                Slice value_59 = {s->assignment_op, 4};
-                String assignment = compiler_proof_Name(value_59);
+                Slice value_72 = {s->assignment_op, 4};
+                String assignment = compiler_proof_Name(value_72);
                 if (StringEqual(assignment, StringLiteral("+="))) {
-                    Context* value_60 = c;
-                    ProofOp value_61 = (ProofOp)((ProofOp)(2));
-                    int32_t value_62 = type;
-                    int32_t value_63 = 0;
+                    Context* value_73 = c;
+                    ProofOp value_74 = (ProofOp)((ProofOp)(2));
+                    int32_t value_75 = type;
+                    int32_t value_76 = 0;
                     {
-                        Context* c = value_60;
-                        ProofOp op = (ProofOp)(value_61);
-                        int32_t type = value_62;
+                        Context* c = value_73;
+                        ProofOp op = (ProofOp)(value_74);
+                        int32_t type = value_75;
                         int32_t a = old;
                         int32_t b = value;
-                        value_63 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+                        value_76 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
                     }
-                    value = value_63;
+                    value = value_76;
                 } else if (StringEqual(assignment, StringLiteral("-="))) {
-                    Context* value_65 = c;
-                    ProofOp value_66 = (ProofOp)((ProofOp)(3));
-                    int32_t value_67 = type;
-                    int32_t value_68 = 0;
+                    Context* value_78 = c;
+                    ProofOp value_79 = (ProofOp)((ProofOp)(3));
+                    int32_t value_80 = type;
+                    int32_t value_81 = 0;
                     {
-                        Context* c = value_65;
-                        ProofOp op = (ProofOp)(value_66);
-                        int32_t type = value_67;
+                        Context* c = value_78;
+                        ProofOp op = (ProofOp)(value_79);
+                        int32_t type = value_80;
                         int32_t a = old;
                         int32_t b = value;
-                        value_68 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+                        value_81 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
                     }
-                    value = value_68;
+                    value = value_81;
                 } else if (StringEqual(assignment, StringLiteral("*="))) {
-                    Context* value_70 = c;
-                    ProofOp value_71 = (ProofOp)((ProofOp)(4));
-                    int32_t value_72 = type;
-                    int32_t value_73 = 0;
+                    Context* value_83 = c;
+                    ProofOp value_84 = (ProofOp)((ProofOp)(4));
+                    int32_t value_85 = type;
+                    int32_t value_86 = 0;
                     {
-                        Context* c = value_70;
-                        ProofOp op = (ProofOp)(value_71);
-                        int32_t type = value_72;
+                        Context* c = value_83;
+                        ProofOp op = (ProofOp)(value_84);
+                        int32_t type = value_85;
                         int32_t a = old;
                         int32_t b = value;
-                        value_73 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
+                        value_86 = compiler_proof_kernel_Node(&(c->kernel), op, type, a, b, -1, 0ULL);
                     }
-                    value = value_73;
+                    value = value_86;
                 } else if ((int64_t)(assignment).length > 0LL && !StringEqual(assignment, StringLiteral("="))) {
-                    Context* value_75 = c;
-                    String value_76 = StringLiteral("unsupported scalar assignment in proof");
-                    int32_t value_77 = 0;
+                    Context* value_88 = c;
+                    String value_89 = StringLiteral("unsupported scalar assignment in proof");
+                    int32_t value_90 = 0;
                     {
-                        Context* c = value_75;
-                        String reason = value_76;
-                        c->unsupported = true;
-                        c->reason = reason;
-                        value_77 = -1;
+                        Context* c = value_88;
+                        String reason = value_89;
+                        bool* value_92 = &(c->unsupported);
+                        (*value_92) = true;
+                        String* value_93 = &(c->reason);
+                        (*value_93) = reason;
+                        value_90 = -1;
                     }
-                    return value_77;
+                    return value_90;
                 }
-                (ZIRAN_INDEX(env->bindings, sizeof(env->bindings) / sizeof(env->bindings[0]), local)).value = value;
+                int32_t* value_94 = &((ZIRAN_INDEX(env->bindings, sizeof(env->bindings) / sizeof(env->bindings[0]), local)).value);
+                (*value_94) = value;
             } else if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(6)) || ((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(1))) {
                 int32_t after = i;
                 while (true) {
-                    bool value_79 = after == i;
-                    if (!value_79) {
-                        bool value_80 = ((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(6)) && after < stop && ((ZirStmtKind)((fn->stmts[after]).kind)) == ((ZirStmtKind)(6));
-                        value_79 = (value_80 && (fn->stmts[after]).is_else != 0);
+                    bool value_95 = after == i;
+                    if (!value_95) {
+                        bool value_96 = ((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(6)) && after < stop && ((ZirStmtKind)((fn->stmts[after]).kind)) == ((ZirStmtKind)(6));
+                        value_95 = (value_96 && (fn->stmts[after]).is_else != 0);
                     }
-                    if (!value_79) { break; }
+                    if (!value_95) { break; }
                     int32_t close = compiler_proof_BlockClose(fn, after, stop);
                     if (close < 0) {
-                        Context* value_81 = c;
-                        String value_82 = StringView(NULL, 0);
+                        Context* value_97 = c;
+                        String value_98 = StringView(NULL, 0);
                         if (((ZirStmtKind)(s->kind)) == ((ZirStmtKind)(6))) {
-                            value_82 = StringLiteral("malformed branch in proof procedure");
+                            value_98 = StringLiteral("malformed branch in proof procedure");
                         } else {
-                            value_82 = StringLiteral("malformed scope in proof procedure");
+                            value_98 = StringLiteral("malformed scope in proof procedure");
                         }
-                        int32_t value_83 = 0;
+                        int32_t value_99 = 0;
                         {
-                            Context* c = value_81;
-                            String reason = value_82;
-                            c->unsupported = true;
-                            c->reason = reason;
-                            value_83 = -1;
+                            Context* c = value_97;
+                            String reason = value_98;
+                            bool* value_101 = &(c->unsupported);
+                            (*value_101) = true;
+                            String* value_102 = &(c->reason);
+                            (*value_102) = reason;
+                            value_99 = -1;
                         }
-                        return value_83;
+                        return value_99;
                     }
                     after = (int32_t)((uint32_t)close + 1u);
                 }
@@ -2314,17 +2414,19 @@ compiler_proof_Sequence(Context* c, ZirModule* m, ZirFunction* fn, Environment* 
                     return -1;
                 }
             } else if (((ZirStmtKind)(s->kind)) != ((ZirStmtKind)(14))) {
-                Context* value_85 = c;
-                String value_86 = StringLiteral("loops, pointers, and effects are outside scalar proofs");
-                int32_t value_87 = 0;
+                Context* value_103 = c;
+                String value_104 = StringLiteral("loops, pointers, and effects are outside scalar proofs");
+                int32_t value_105 = 0;
                 {
-                    Context* c = value_85;
-                    String reason = value_86;
-                    c->unsupported = true;
-                    c->reason = reason;
-                    value_87 = -1;
+                    Context* c = value_103;
+                    String reason = value_104;
+                    bool* value_107 = &(c->unsupported);
+                    (*value_107) = true;
+                    String* value_108 = &(c->reason);
+                    (*value_108) = reason;
+                    value_105 = -1;
                 }
-                return value_87;
+                return value_105;
             }
             if (i == range_last_3) {
                 break;
@@ -2333,19 +2435,22 @@ compiler_proof_Sequence(Context* c, ZirModule* m, ZirFunction* fn, Environment* 
         }
     }
     if (next == ((void *)0)) {
-        Context* value_89 = c;
-        String value_90 = StringLiteral("proof procedures must return on every branch");
-        int32_t value_91 = 0;
+        Context* value_109 = c;
+        String value_110 = StringLiteral("proof procedures must return on every branch");
+        int32_t value_111 = 0;
         {
-            Context* c = value_89;
-            String reason = value_90;
-            c->unsupported = true;
-            c->reason = reason;
-            value_91 = -1;
+            Context* c = value_109;
+            String reason = value_110;
+            bool* value_113 = &(c->unsupported);
+            (*value_113) = true;
+            String* value_114 = &(c->reason);
+            (*value_114) = reason;
+            value_111 = -1;
         }
-        return value_91;
+        return value_111;
     }
-    env->count = next->scope;
+    int32_t* value_115 = &(env->count);
+    (*value_115) = next->scope;
     return compiler_proof_Sequence(c, m, fn, env, next->start, next->stop, next->next, result, (int32_t)((uint32_t)depth + 1u));
 }
 
@@ -2390,7 +2495,8 @@ compiler_proof_FindLaw(ZirModule* m, String name, int32_t depth, ZirModule** own
             Slice value_5 = {(m->laws[i]).name, 128};
             String value_6 = compiler_proof_Name(value_5);
             if (StringEqual(value_6, name)) {
-                (*(owner)) = m;
+                ZirModule** value_7 = &((*(owner)));
+                (*value_7) = m;
                 return &(m->laws[i]);
             }
             if (i == range_last_13) {
@@ -2414,7 +2520,8 @@ compiler_proof_FindLaw(ZirModule* m, String name, int32_t depth, ZirModule** own
                 }
                 if (candidate != ((void *)0)) {
                     found = candidate;
-                    (*(owner)) = candidate_owner;
+                    ZirModule** value_8 = &((*(owner)));
+                    (*value_8) = candidate_owner;
                 }
             }
             if (i == range_last_20) {
@@ -2446,33 +2553,35 @@ compiler_proof_GraphVisit(ZirFunction* fn, int32_t at, Slice seen, int32_t depth
     if (((uint8_t *)seen.data)[SliceIndex(seen, (int64_t)at)] == 2) {
         return true;
     }
-    ((uint8_t *)seen.data)[SliceIndex(seen, (int64_t)at)] = 1;
+    uint8_t* value_4 = &(((uint8_t *)seen.data)[SliceIndex(seen, (int64_t)at)]);
+    (*value_4) = 1;
     ZirExpr* e = &(fn->exprs[at]);
-    bool value_4 = compiler_proof_GraphVisit(fn, e->left, seen, (int32_t)((uint32_t)depth + 1u));
-    bool value_5 = !value_4;
-    if (!value_5) {
-        bool value_6 = compiler_proof_GraphVisit(fn, e->right, seen, (int32_t)((uint32_t)depth + 1u));
-        value_5 = !value_6;
+    bool value_5 = compiler_proof_GraphVisit(fn, e->left, seen, (int32_t)((uint32_t)depth + 1u));
+    bool value_6 = !value_5;
+    if (!value_6) {
+        bool value_7 = compiler_proof_GraphVisit(fn, e->right, seen, (int32_t)((uint32_t)depth + 1u));
+        value_6 = !value_7;
     }
-    bool value_7 = value_5;
-    if (!value_7) {
-        bool value_8 = compiler_proof_GraphVisit(fn, e->third, seen, (int32_t)((uint32_t)depth + 1u));
-        value_7 = !value_8;
+    bool value_8 = value_6;
+    if (!value_8) {
+        bool value_9 = compiler_proof_GraphVisit(fn, e->third, seen, (int32_t)((uint32_t)depth + 1u));
+        value_8 = !value_9;
     }
-    bool value_9 = value_7;
-    if (!value_9) {
-        bool value_10 = compiler_proof_GraphVisit(fn, e->first_child, seen, (int32_t)((uint32_t)depth + 1u));
-        value_9 = !value_10;
+    bool value_10 = value_8;
+    if (!value_10) {
+        bool value_11 = compiler_proof_GraphVisit(fn, e->first_child, seen, (int32_t)((uint32_t)depth + 1u));
+        value_10 = !value_11;
     }
-    bool value_11 = value_9;
-    if (!value_11) {
-        bool value_12 = compiler_proof_GraphVisit(fn, e->next_sibling, seen, (int32_t)((uint32_t)depth + 1u));
-        value_11 = !value_12;
+    bool value_12 = value_10;
+    if (!value_12) {
+        bool value_13 = compiler_proof_GraphVisit(fn, e->next_sibling, seen, (int32_t)((uint32_t)depth + 1u));
+        value_12 = !value_13;
     }
-    if (value_11) {
+    if (value_12) {
         return false;
     }
-    ((uint8_t *)seen.data)[SliceIndex(seen, (int64_t)at)] = 2;
+    uint8_t* value_14 = &(((uint8_t *)seen.data)[SliceIndex(seen, (int64_t)at)]);
+    (*value_14) = 2;
     return true;
 }
 
@@ -2578,12 +2687,15 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         int64_t value_7 = compiler_text_SkipSpace(text, length, false);
         String operand = StringRange(value_6, (int64_t)value_7, (int64_t)(int64_t)(text).length);
         ZirProofStep step = {0};
-        step.term_root = -1;
-        step.span = p->span;
+        int32_t* value_8 = &(step.term_root);
+        (*value_8) = -1;
+        ZirSourceSpan* value_9 = &(step.span);
+        (*value_9) = p->span;
         String words[7] = {StringLiteral("unfold"), StringLiteral("cases"), StringLiteral("rewrite"), StringLiteral("use"), StringLiteral("refl"), StringLiteral("ring"), StringLiteral("order")};
         for (int64_t i = 0LL; i <= 6LL; i++) {
             if (StringEqual((words)[i], word)) {
-                step.kind = (ZirProofStepKind)((int32_t)(((int64_t)((uint64_t)i + UINT64_C(1)))));
+                ZirProofStepKind* value_10 = &(step.kind);
+                (*value_10) = (ZirProofStepKind)((int32_t)(((int64_t)((uint64_t)i + UINT64_C(1)))));
             }
         }
         if ((int32_t)(((ZirProofStepKind)(step.kind))) == 0) {
@@ -2592,36 +2704,40 @@ compiler_proof_ParseSteps(ZirProof* p, ZirModule* m)
         closed = ((ZirProofStepKind)(step.kind)) >= ((ZirProofStepKind)(4));
         if (((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(3)) || ((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(4))) {
             Long spelled = compiler_proof_CLong(operand);
-            int32_t value_8 = zir_f_5116a9a569c28f15_ParseExpr(&(p->terms), m, &(spelled.bytes[0]), step.span);
-            step.term_root = value_8;
-            bool value_9 = step.term_root < 0 || ((ZirExprKind)((p->terms.exprs[step.term_root]).kind)) != ((ZirExprKind)(5));
-            bool value_10 = value_9;
-            bool value_11 = value_10;
-            if (!value_11) {
-                Slice value_12 = {step.target, 128};
-                bool value_13 = compiler_proof_CallName(&(p->terms), &(p->terms.exprs[step.term_root]), value_12);
-                value_11 = !value_13;
+            int32_t* value_11 = &(step.term_root);
+            int32_t value_12 = zir_f_5116a9a569c28f15_ParseExpr(&(p->terms), m, &(spelled.bytes[0]), step.span);
+            (*value_11) = value_12;
+            bool value_13 = step.term_root < 0 || ((ZirExprKind)((p->terms.exprs[step.term_root]).kind)) != ((ZirExprKind)(5));
+            bool value_14 = value_13;
+            bool value_15 = value_14;
+            if (!value_15) {
+                Slice value_16 = {step.target, 128};
+                bool value_17 = compiler_proof_CallName(&(p->terms), &(p->terms.exprs[step.term_root]), value_16);
+                value_15 = !value_17;
             }
-            if (value_11) {
+            if (value_15) {
                 return false;
             }
         } else if (((ZirProofStepKind)(step.kind)) == ((ZirProofStepKind)(1))) {
-            Slice value_14 = {step.target, 128};
-            bool value_15 = compiler_ir_CopyText(value_14, operand);
-            if (!value_15) {
+            Slice value_18 = {step.target, 128};
+            bool value_19 = compiler_ir_CopyText(value_18, operand);
+            if (!value_19) {
                 return false;
             }
         } else if ((int64_t)(operand).length > 0LL) {
             return false;
         }
-        uint8_t* value_16 = zir_f_5116a9a569c28f15_realloc((uint8_t*)(p->steps), (size_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * sizeof(ZirProofStep));
-        ZirProofStep* steps = (ZirProofStep*)(value_16);
+        uint8_t* value_20 = zir_f_5116a9a569c28f15_realloc((uint8_t*)(p->steps), (size_t)(((int32_t)((uint32_t)(p->step_count) + 1u))) * sizeof(ZirProofStep));
+        ZirProofStep* steps = (ZirProofStep*)(value_20);
         if (steps == ((void *)0)) {
             return false;
         }
-        p->steps = steps;
-        p->steps[p->step_count] = step;
-        p->step_count = (int32_t)((uint32_t)(p->step_count) + 1u);
+        ZirProofStep** value_21 = &(p->steps);
+        (*value_21) = steps;
+        ZirProofStep* value_22 = &(p->steps[p->step_count]);
+        (*value_22) = step;
+        int32_t* value_23 = &(p->step_count);
+        (*value_23) = (int32_t)((uint32_t)((*value_23)) + 1u);
         at = compiler_text_SkipSpace(source, (int64_t)((uint64_t)end + UINT64_C(1)), false);
     }
     return true;
@@ -2674,78 +2790,82 @@ compiler_proof_PrepareClaim(ZirModule* module, ZirLaw* law)
     Signature bindings = {0};
     bool ok = compiler_proof_ParseSignature(args, &(bindings));
     if (law->claim == ((void *)0) && ok) {
-        uint8_t* value_14 = zir_f_5116a9a569c28f15_calloc(1, sizeof(ZirFunction));
-        law->claim = (ZirFunction*)(value_14);
+        ZirFunction** value_14 = &(law->claim);
+        uint8_t* value_15 = zir_f_5116a9a569c28f15_calloc(1, sizeof(ZirFunction));
+        (*value_14) = (ZirFunction*)(value_15);
         if (law->claim == ((void *)0)) {
             return false;
         }
-        uint8_t* value_15 = compiler_services_KeepParameters(args);
-        law->claim->args_text = (const char *)(value_15);
-        Slice value_16 = {law->claim->return_type, 128};
-        compiler_ir_CopyText(value_16, StringLiteral("bool"));
-        law->claim->span = law->span;
+        const char ** value_16 = &(law->claim->args_text);
+        uint8_t* value_17 = compiler_services_KeepParameters(args);
+        (*value_16) = (const char *)(value_17);
+        Slice value_18 = {law->claim->return_type, 128};
+        compiler_ir_CopyText(value_18, StringLiteral("bool"));
+        ZirSourceSpan* value_19 = &(law->claim->span);
+        (*value_19) = law->span;
         Long text = compiler_proof_CLong(proposition);
         int32_t root = zir_f_5116a9a569c28f15_ParseExpr(law->claim, module, &(text.bytes[0]), law->span);
         ZirStmt* s = zir_f_5116a9a569c28f15_FunctionAddStmt(law->claim, (ZirStmtKind)(10), &(text.bytes[0]), law->span);
         if (s != ((void *)0)) {
-            s->expr_root = root;
+            int32_t* value_20 = &(s->expr_root);
+            (*value_20) = root;
         }
         ok = root >= 0 && s != ((void *)0);
     }
     ZirFunction* claim = law->claim;
-    bool value_17 = !ok || claim == ((void *)0);
-    bool value_18 = value_17;
-    if (!value_18) {
-        String value_19 = StringView(NULL, 0);
-        {
-            ZirFunction* fn = claim;
-            value_19 = compiler_ir_CText((uint8_t*)fn->args_text);
-        }
-        value_18 = (!StringEqual(value_19, args));
-    }
-    bool value_21 = value_18;
+    bool value_21 = !ok || claim == ((void *)0);
     bool value_22 = value_21;
     if (!value_22) {
-        Slice value_23 = {claim->return_type, 128};
-        bool value_24 = !StringEqual(compiler_proof_Name(value_23), StringLiteral("bool"));
-        value_22 = value_24;
-    }
-    bool value_25 = value_22 || claim->stmt_count != 1 || ((ZirStmtKind)((claim->stmts[0]).kind)) != ((ZirStmtKind)(10));
-    bool value_26 = value_25;
-    bool value_27 = value_26;
-    if (!value_27) {
-        int32_t value_28 = (claim->stmts[0]).expr_root;
-        bool value_29 = false;
+        String value_23 = StringView(NULL, 0);
         {
             ZirFunction* fn = claim;
-            int32_t at = value_28;
-            value_29 = at >= 0 && at < fn->expr_count;
+            value_23 = compiler_ir_CText((uint8_t*)fn->args_text);
         }
-        value_27 = !value_29;
+        value_22 = (!StringEqual(value_23, args));
     }
-    bool value_31 = value_27;
-    bool value_32 = value_31;
-    if (!value_32) {
-        bool value_33 = compiler_proof_GraphValid(claim);
-        value_32 = !value_33;
+    bool value_25 = value_22;
+    bool value_26 = value_25;
+    if (!value_26) {
+        Slice value_27 = {claim->return_type, 128};
+        bool value_28 = !StringEqual(compiler_proof_Name(value_27), StringLiteral("bool"));
+        value_26 = value_28;
     }
-    if (value_32) {
-        ZirSourceSpan value_34 = law->span;
-        String value_35 = StringLiteral("proof.claim");
-        String value_36 = StringLiteral("malformed theorem proposition");
-        String value_37 = StringLiteral("");
-        String value_38 = StringLiteral("");
-        bool value_39 = false;
+    bool value_29 = value_26 || claim->stmt_count != 1 || ((ZirStmtKind)((claim->stmts[0]).kind)) != ((ZirStmtKind)(10));
+    bool value_30 = value_29;
+    bool value_31 = value_30;
+    if (!value_31) {
+        int32_t value_32 = (claim->stmts[0]).expr_root;
+        bool value_33 = false;
         {
-            ZirSourceSpan span = value_34;
-            String code = value_35;
-            String message = value_36;
-            String name = value_37;
-            String tail = value_38;
-            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
-            value_39 = false;
+            ZirFunction* fn = claim;
+            int32_t at = value_32;
+            value_33 = at >= 0 && at < fn->expr_count;
         }
-        return value_39;
+        value_31 = !value_33;
+    }
+    bool value_35 = value_31;
+    bool value_36 = value_35;
+    if (!value_36) {
+        bool value_37 = compiler_proof_GraphValid(claim);
+        value_36 = !value_37;
+    }
+    if (value_36) {
+        ZirSourceSpan value_38 = law->span;
+        String value_39 = StringLiteral("proof.claim");
+        String value_40 = StringLiteral("malformed theorem proposition");
+        String value_41 = StringLiteral("");
+        String value_42 = StringLiteral("");
+        bool value_43 = false;
+        {
+            ZirSourceSpan span = value_38;
+            String code = value_39;
+            String message = value_40;
+            String name = value_41;
+            String tail = value_42;
+            compiler_services_Diagnose__overload_2(span, code, message, name, tail);
+            value_43 = false;
+        }
+        return value_43;
     }
     return true;
 }
@@ -2783,55 +2903,56 @@ compiler_proof_PrepareProof(ZirModule* module, ZirProof* proof)
         }
         return value_12;
     }
-    proof->owner = (const struct ZirModule *)(module);
-    bool value_14 = proof->step_count == 0;
-    bool value_15 = value_14;
-    if (value_15) {
-        bool value_16 = compiler_proof_ParseSteps(proof, owner);
-        value_15 = !value_16;
+    const struct ZirModule ** value_14 = &(proof->owner);
+    (*value_14) = (const struct ZirModule *)(module);
+    bool value_15 = proof->step_count == 0;
+    bool value_16 = value_15;
+    if (value_16) {
+        bool value_17 = compiler_proof_ParseSteps(proof, owner);
+        value_16 = !value_17;
     }
-    if (value_15) {
-        ZirSourceSpan value_17 = proof->span;
-        String value_18 = StringLiteral("proof.syntax");
-        String value_19 = StringLiteral("invalid proof steps for ");
-        Slice value_20 = {proof->name, 128};
-        String value_21 = compiler_proof_Name(value_20);
-        String value_22 = StringLiteral("");
-        bool value_23 = false;
+    if (value_16) {
+        ZirSourceSpan value_18 = proof->span;
+        String value_19 = StringLiteral("proof.syntax");
+        String value_20 = StringLiteral("invalid proof steps for ");
+        Slice value_21 = {proof->name, 128};
+        String value_22 = compiler_proof_Name(value_21);
+        String value_23 = StringLiteral("");
+        bool value_24 = false;
         {
-            ZirSourceSpan span = value_17;
-            String code = value_18;
-            String message = value_19;
-            String name = value_21;
-            String tail = value_22;
+            ZirSourceSpan span = value_18;
+            String code = value_19;
+            String message = value_20;
+            String name = value_22;
+            String tail = value_23;
             compiler_services_Diagnose__overload_2(span, code, message, name, tail);
-            value_23 = false;
+            value_24 = false;
         }
-        return value_23;
+        return value_24;
     }
-    bool value_25 = proof->step_count > 4096 || proof->terms.stmt_count != 0;
-    bool value_26 = value_25;
-    if (!value_26) {
-        bool value_27 = compiler_proof_GraphValid(&(proof->terms));
-        value_26 = !value_27;
+    bool value_26 = proof->step_count > 4096 || proof->terms.stmt_count != 0;
+    bool value_27 = value_26;
+    if (!value_27) {
+        bool value_28 = compiler_proof_GraphValid(&(proof->terms));
+        value_27 = !value_28;
     }
-    if (value_26) {
-        ZirSourceSpan value_28 = proof->span;
-        String value_29 = StringLiteral("proof.graph");
-        String value_30 = StringLiteral("invalid proof expression graph");
-        String value_31 = StringLiteral("");
+    if (value_27) {
+        ZirSourceSpan value_29 = proof->span;
+        String value_30 = StringLiteral("proof.graph");
+        String value_31 = StringLiteral("invalid proof expression graph");
         String value_32 = StringLiteral("");
-        bool value_33 = false;
+        String value_33 = StringLiteral("");
+        bool value_34 = false;
         {
-            ZirSourceSpan span = value_28;
-            String code = value_29;
-            String message = value_30;
-            String name = value_31;
-            String tail = value_32;
+            ZirSourceSpan span = value_29;
+            String code = value_30;
+            String message = value_31;
+            String name = value_32;
+            String tail = value_33;
             compiler_services_Diagnose__overload_2(span, code, message, name, tail);
-            value_33 = false;
+            value_34 = false;
         }
-        return value_33;
+        return value_34;
     }
     {
         int32_t range_first_12 = 0;
@@ -2841,40 +2962,40 @@ compiler_proof_PrepareProof(ZirModule* module, ZirProof* proof)
             ZirProofStep* step = &(proof->steps[s]);
             bool valid = ((ZirProofStepKind)(step->kind)) >= ((ZirProofStepKind)(1)) && ((ZirProofStepKind)(step->kind)) <= ((ZirProofStepKind)(7));
             if (((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(3)) || ((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(4))) {
-                bool value_35 = valid;
-                bool value_36 = value_35;
-                if (value_36) {
-                    ZirFunction* value_37 = &(proof->terms);
-                    int32_t value_38 = step->term_root;
-                    bool value_39 = false;
+                bool value_36 = valid;
+                bool value_37 = value_36;
+                if (value_37) {
+                    ZirFunction* value_38 = &(proof->terms);
+                    int32_t value_39 = step->term_root;
+                    bool value_40 = false;
                     {
-                        ZirFunction* fn = value_37;
-                        int32_t at = value_38;
-                        value_39 = at >= 0 && at < fn->expr_count;
+                        ZirFunction* fn = value_38;
+                        int32_t at = value_39;
+                        value_40 = at >= 0 && at < fn->expr_count;
                     }
-                    value_36 = value_39;
+                    value_37 = value_40;
                 }
-                valid = value_36;
+                valid = value_37;
             } else {
                 valid = valid && step->term_root == -1 && (((ZirProofStepKind)(step->kind)) == ((ZirProofStepKind)(1)) || (step->target)[0] == 0);
             }
             if (!valid) {
-                ZirSourceSpan value_41 = proof->span;
-                String value_42 = StringLiteral("proof.graph");
-                String value_43 = StringLiteral("invalid proof step");
-                String value_44 = StringLiteral("");
+                ZirSourceSpan value_42 = proof->span;
+                String value_43 = StringLiteral("proof.graph");
+                String value_44 = StringLiteral("invalid proof step");
                 String value_45 = StringLiteral("");
-                bool value_46 = false;
+                String value_46 = StringLiteral("");
+                bool value_47 = false;
                 {
-                    ZirSourceSpan span = value_41;
-                    String code = value_42;
-                    String message = value_43;
-                    String name = value_44;
-                    String tail = value_45;
+                    ZirSourceSpan span = value_42;
+                    String code = value_43;
+                    String message = value_44;
+                    String name = value_45;
+                    String tail = value_46;
                     compiler_services_Diagnose__overload_2(span, code, message, name, tail);
-                    value_46 = false;
+                    value_47 = false;
                 }
-                return value_46;
+                return value_47;
             }
             if (s == range_last_12) {
                 break;
@@ -2882,7 +3003,8 @@ compiler_proof_PrepareProof(ZirModule* module, ZirProof* proof)
             s = (int32_t)((uint32_t)s + 1u);
         }
     }
-    law->proof = (const ZirProof *)(proof);
+    const ZirProof ** value_49 = &(law->proof);
+    (*value_49) = (const ZirProof *)(proof);
     return true;
 }
 
@@ -2910,8 +3032,10 @@ compiler_proof_Application(Context* c, ZirModule* m, ZirProof* proof, ZirProofSt
         {
             Context* c = value_5;
             String reason = value_6;
-            c->unsupported = true;
-            c->reason = reason;
+            bool* value_9 = &(c->unsupported);
+            (*value_9) = true;
+            String* value_10 = &(c->reason);
+            (*value_10) = reason;
             value_7 = -1;
         }
         return value_7;
@@ -2919,81 +3043,84 @@ compiler_proof_Application(Context* c, ZirModule* m, ZirProof* proof, ZirProofSt
     ZirFunction* terms = &(proof->terms);
     Spelled name = {0};
     Signature p = {0};
-    int32_t value_9 = step->term_root;
-    bool value_10 = false;
+    int32_t value_11 = step->term_root;
+    bool value_12 = false;
     {
         ZirFunction* fn = terms;
-        int32_t at = value_9;
-        value_10 = at >= 0 && at < fn->expr_count;
+        int32_t at = value_11;
+        value_12 = at >= 0 && at < fn->expr_count;
     }
-    bool value_12 = !value_10 || ((ZirExprKind)((terms->exprs[step->term_root]).kind)) != ((ZirExprKind)(5));
-    bool value_13 = value_12;
-    if (!value_13) {
-        Slice value_14 = {name.bytes, 128};
-        bool value_15 = compiler_proof_CallName(terms, &(terms->exprs[step->term_root]), value_14);
-        value_13 = !value_15;
+    bool value_14 = !value_12 || ((ZirExprKind)((terms->exprs[step->term_root]).kind)) != ((ZirExprKind)(5));
+    bool value_15 = value_14;
+    if (!value_15) {
+        Slice value_16 = {name.bytes, 128};
+        bool value_17 = compiler_proof_CallName(terms, &(terms->exprs[step->term_root]), value_16);
+        value_15 = !value_17;
     }
-    bool value_16 = value_13;
-    bool value_17 = value_16;
-    if (!value_17) {
-        Slice value_18 = {name.bytes, 128};
-        String value_19 = compiler_proof_Name(value_18);
-        value_17 = (!StringEqual(value_19, target));
+    bool value_18 = value_15;
+    bool value_19 = value_18;
+    if (!value_19) {
+        Slice value_20 = {name.bytes, 128};
+        String value_21 = compiler_proof_Name(value_20);
+        value_19 = (!StringEqual(value_21, target));
     }
-    bool value_20 = value_17;
-    bool value_21 = value_20;
-    if (!value_21) {
-        ZirFunction* value_22 = law->claim;
-        String value_23 = StringView(NULL, 0);
+    bool value_22 = value_19;
+    bool value_23 = value_22;
+    if (!value_23) {
+        ZirFunction* value_24 = law->claim;
+        String value_25 = StringView(NULL, 0);
         {
-            ZirFunction* fn = value_22;
-            value_23 = compiler_ir_CText((uint8_t*)fn->args_text);
+            ZirFunction* fn = value_24;
+            value_25 = compiler_ir_CText((uint8_t*)fn->args_text);
         }
-        bool value_25 = compiler_proof_ParseSignature(value_23, &(p));
-        value_21 = !value_25;
+        bool value_27 = compiler_proof_ParseSignature(value_25, &(p));
+        value_23 = !value_27;
     }
-    if (value_21) {
+    if (value_23) {
         return -1;
     }
     int32_t args[16] = {0};
     int32_t count = 0;
     int32_t at = (terms->exprs[step->term_root]).first_child;
     while (at >= 0) {
-        Context* value_26 = c;
-        int32_t value_27 = depth;
-        bool value_28 = false;
+        Context* value_28 = c;
+        int32_t value_29 = depth;
+        bool value_30 = false;
         {
-            Context* c = value_26;
-            int32_t depth = value_27;
+            Context* c = value_28;
+            int32_t depth = value_29;
             if (depth <= 64) {
-                c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+                int32_t* value_32 = &(c->kernel.budget);
+                (*value_32) = (int32_t)((uint32_t)((*value_32)) - 1u);
                 if (c->kernel.budget >= 0) {
-                    value_28 = !c->kernel.exhausted;
-                    goto value_29;
+                    value_30 = !c->kernel.exhausted;
+                    goto value_31;
                 }
             }
-            c->kernel.exhausted = true;
-            value_28 = false;
-        value_29: ;
+            bool* value_33 = &(c->kernel.exhausted);
+            (*value_33) = true;
+            value_30 = false;
+        value_31: ;
         }
-        bool value_30 = !value_28 || at >= terms->expr_count || count >= p.count;
-        bool value_31 = value_30;
-        if (!value_31) {
-            String value_32 = compiler_ir_CText((uint8_t*)(terms->exprs[at]).argument_name);
-            int64_t value_33 = (int64_t)(value_32).length;
-            value_31 = (value_33 > 0LL);
+        bool value_34 = !value_30 || at >= terms->expr_count || count >= p.count;
+        bool value_35 = value_34;
+        if (!value_35) {
+            String value_36 = compiler_ir_CText((uint8_t*)(terms->exprs[at]).argument_name);
+            int64_t value_37 = (int64_t)(value_36).length;
+            value_35 = (value_37 > 0LL);
         }
-        if (value_31) {
+        if (value_35) {
             return -1;
         }
-        Context* value_34 = c;
-        ZirModule* value_35 = m;
-        ZirFunction* value_36 = terms;
-        int32_t value_37 = at;
-        Environment* value_38 = env;
-        int32_t value_39 = compiler_proof_ScalarType(c, owner, ZIRAN_INDEX(p.types, 16, count));
-        int32_t value_40 = compiler_proof_Expression(value_34, value_35, value_36, value_37, value_38, value_39, (int32_t)((uint32_t)depth + 1u));
-        ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), count) = value_40;
+        int32_t* value_38 = &(ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), count));
+        Context* value_39 = c;
+        ZirModule* value_40 = m;
+        ZirFunction* value_41 = terms;
+        int32_t value_42 = at;
+        Environment* value_43 = env;
+        int32_t value_44 = compiler_proof_ScalarType(c, owner, ZIRAN_INDEX(p.types, 16, count));
+        int32_t value_45 = compiler_proof_Expression(value_39, value_40, value_41, value_42, value_43, value_44, (int32_t)((uint32_t)depth + 1u));
+        (*value_38) = value_45;
         if (ZIRAN_INDEX(args, 16, count) < 0) {
             return -1;
         }
@@ -3003,20 +3130,24 @@ compiler_proof_Application(Context* c, ZirModule* m, ZirProof* proof, ZirProofSt
     if (count != p.count) {
         return -1;
     }
-    ProofFact value_41[128] = {0};
-    memmove(value_41, c->kernel.facts, sizeof(value_41));
+    ProofFact value_46[128] = {0};
+    memmove(value_46, c->kernel.facts, sizeof(value_46));
     ProofFact facts[128] = {0};
-    memmove(facts, value_41, sizeof(facts));
+    memmove(facts, value_46, sizeof(facts));
     int32_t fact_count = c->kernel.fact_count;
     Unfolds unfold = c->unfold;
-    c->kernel.fact_count = 0;
-    Slice value_42 = {args, 16};
-    int32_t proved = compiler_proof_Theorem(c, owner, law, SliceRange(value_42, (int64_t)0LL, (int64_t)count, sizeof(int32_t)), (int32_t)((uint32_t)depth + 1u));
-    ProofFact value_43[128] = {0};
-    memmove(value_43, facts, sizeof(value_43));
-    memmove(c->kernel.facts, value_43, sizeof(c->kernel.facts));
-    c->kernel.fact_count = fact_count;
-    c->unfold = unfold;
+    int32_t* value_47 = &(c->kernel.fact_count);
+    (*value_47) = 0;
+    Slice value_48 = {args, 16};
+    int32_t proved = compiler_proof_Theorem(c, owner, law, SliceRange(value_48, (int64_t)0LL, (int64_t)count, sizeof(int32_t)), (int32_t)((uint32_t)depth + 1u));
+    ProofFact (*value_49)[128] = &(c->kernel.facts);
+    ProofFact value_50[128] = {0};
+    memmove(value_50, facts, sizeof(value_50));
+    memmove((*value_49), value_50, sizeof((*value_49)));
+    int32_t* value_51 = &(c->kernel.fact_count);
+    (*value_51) = fact_count;
+    Unfolds* value_52 = &(c->unfold);
+    (*value_52) = unfold;
     return proved;
 }
 
@@ -3030,13 +3161,15 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
         Context* c = value_0;
         int32_t depth = value_1;
         if (depth <= 64) {
-            c->kernel.budget = (int32_t)((uint32_t)(c->kernel.budget) - 1u);
+            int32_t* value_4 = &(c->kernel.budget);
+            (*value_4) = (int32_t)((uint32_t)((*value_4)) - 1u);
             if (c->kernel.budget >= 0) {
                 value_2 = !c->kernel.exhausted;
                 goto value_3;
             }
         }
-        c->kernel.exhausted = true;
+        bool* value_5 = &(c->kernel.exhausted);
+        (*value_5) = true;
         value_2 = false;
     value_3: ;
     }
@@ -3049,18 +3182,21 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
         int32_t i = range_first_3;
         if (i <= range_last_3) for (;;) {
             if (ZIRAN_INDEX(c->laws, 64, i) == law) {
-                c->invalid = true;
-                Context* value_4 = c;
-                String value_5 = StringLiteral("circular theorem dependency");
-                int32_t value_6 = 0;
+                bool* value_6 = &(c->invalid);
+                (*value_6) = true;
+                Context* value_7 = c;
+                String value_8 = StringLiteral("circular theorem dependency");
+                int32_t value_9 = 0;
                 {
-                    Context* c = value_4;
-                    String reason = value_5;
-                    c->unsupported = true;
-                    c->reason = reason;
-                    value_6 = -1;
+                    Context* c = value_7;
+                    String reason = value_8;
+                    bool* value_11 = &(c->unsupported);
+                    (*value_11) = true;
+                    String* value_12 = &(c->reason);
+                    (*value_12) = reason;
+                    value_9 = -1;
                 }
-                return value_6;
+                return value_9;
             }
             if (i == range_last_3) {
                 break;
@@ -3069,97 +3205,107 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
         }
     }
     if (c->law_count == 64) {
-        c->kernel.exhausted = true;
+        bool* value_13 = &(c->kernel.exhausted);
+        (*value_13) = true;
         return -1;
     }
     ZirProof* proof = (ZirProof*)law->proof;
     if (proof == ((void *)0) || proof->step_count == 0) {
-        Context* value_8 = c;
-        String value_9 = StringLiteral("theorem has no complete proof certificate");
-        int32_t value_10 = 0;
+        Context* value_14 = c;
+        String value_15 = StringLiteral("theorem has no complete proof certificate");
+        int32_t value_16 = 0;
         {
-            Context* c = value_8;
-            String reason = value_9;
-            c->unsupported = true;
-            c->reason = reason;
-            value_10 = -1;
+            Context* c = value_14;
+            String reason = value_15;
+            bool* value_18 = &(c->unsupported);
+            (*value_18) = true;
+            String* value_19 = &(c->reason);
+            (*value_19) = reason;
+            value_16 = -1;
         }
-        return value_10;
+        return value_16;
     }
-    ZIRAN_INDEX(c->laws, sizeof(c->laws) / sizeof(c->laws[0]), c->law_count) = law;
-    c->law_count = (int32_t)((uint32_t)(c->law_count) + 1u);
+    ZirLaw** value_20 = &(ZIRAN_INDEX(c->laws, sizeof(c->laws) / sizeof(c->laws[0]), c->law_count));
+    (*value_20) = law;
+    int32_t* value_21 = &(c->law_count);
+    (*value_21) = (int32_t)((uint32_t)((*value_21)) + 1u);
     Signature params = {0};
     Environment env = {0};
     int32_t goal = -1;
     int32_t original = -1;
-    ZirFunction* value_12 = law->claim;
-    String value_13 = StringView(NULL, 0);
+    ZirFunction* value_22 = law->claim;
+    String value_23 = StringView(NULL, 0);
     {
-        ZirFunction* fn = value_12;
-        value_13 = compiler_ir_CText((uint8_t*)fn->args_text);
+        ZirFunction* fn = value_22;
+        value_23 = compiler_ir_CText((uint8_t*)fn->args_text);
     }
-    bool value_15 = compiler_proof_ParseSignature(value_13, &(params));
-    bool ok = value_15 && (int64_t)(args).length == (int64_t)(params.count);
+    bool value_25 = compiler_proof_ParseSignature(value_23, &(params));
+    bool ok = value_25 && (int64_t)(args).length == (int64_t)(params.count);
     bool cases = false;
     bool closed = false;
-    c->unfold.count = 0;
-    c->unfold.all = false;
+    int32_t* value_26 = &(c->unfold.count);
+    (*value_26) = 0;
+    bool* value_27 = &(c->unfold.all);
+    (*value_27) = false;
     {
         int32_t range_first_28 = 0;
         int32_t range_last_28 = (int32_t)((uint32_t)(params.count) - 1u);
         int32_t i = range_first_28;
         if (i <= range_last_28) for (;;) {
-            int32_t value_16 = 0;
+            int32_t value_28 = 0;
             if (ok) {
-                int32_t value_17 = compiler_proof_ScalarType(c, m, ZIRAN_INDEX(params.types, 16, i));
-                value_16 = value_17;
+                int32_t value_29 = compiler_proof_ScalarType(c, m, ZIRAN_INDEX(params.types, 16, i));
+                value_28 = value_29;
             } else {
-                value_16 = -1;
+                value_28 = -1;
             }
-            int32_t type = value_16;
-            bool value_18 = ok && ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)] >= 0 && type >= 0;
-            bool value_19 = value_18;
-            if (value_19) {
-                Context* value_20 = c;
-                int32_t value_21 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
-                int32_t value_22 = 0;
+            int32_t type = value_28;
+            bool value_30 = ok && ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)] >= 0 && type >= 0;
+            bool value_31 = value_30;
+            if (value_31) {
+                Context* value_32 = c;
+                int32_t value_33 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
+                int32_t value_34 = 0;
                 {
-                    Context* c = value_20;
-                    int32_t term = value_21;
-                    value_22 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                    Context* c = value_32;
+                    int32_t term = value_33;
+                    value_34 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                 }
-                value_19 = (value_22 == type);
+                value_31 = (value_34 == type);
             }
-            bool value_24 = value_19;
-            bool value_25 = value_24;
-            if (value_25) {
-                Context* value_26 = c;
-                Environment* value_27 = &(env);
-                String value_28 = ZIRAN_INDEX(params.names, 16, i);
-                int32_t value_29 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
-                bool value_30 = false;
+            bool value_36 = value_31;
+            bool value_37 = value_36;
+            if (value_37) {
+                Context* value_38 = c;
+                Environment* value_39 = &(env);
+                String value_40 = ZIRAN_INDEX(params.names, 16, i);
+                int32_t value_41 = ((int32_t *)args.data)[SliceIndex(args, (int64_t)i)];
+                bool value_42 = false;
                 {
-                    Context* c = value_26;
-                    Environment* e = value_27;
-                    String name = value_28;
-                    int32_t value = value_29;
+                    Context* c = value_38;
+                    Environment* e = value_39;
+                    String name = value_40;
+                    int32_t value = value_41;
                     if (value < 0) {
-                        value_30 = false;
-                        goto value_31;
+                        value_42 = false;
+                        goto value_43;
                     }
                     if (e->count == 64) {
-                        c->kernel.exhausted = true;
-                        value_30 = false;
-                        goto value_31;
+                        bool* value_44 = &(c->kernel.exhausted);
+                        (*value_44) = true;
+                        value_42 = false;
+                        goto value_43;
                     }
-                    ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count) = (Binding){.name = name, .value = value};
-                    e->count = (int32_t)((uint32_t)(e->count) + 1u);
-                    value_30 = true;
-                value_31: ;
+                    Binding* value_45 = &(ZIRAN_INDEX(e->bindings, sizeof(e->bindings) / sizeof(e->bindings[0]), e->count));
+                    (*value_45) = (Binding){.name = name, .value = value};
+                    int32_t* value_46 = &(e->count);
+                    (*value_46) = (int32_t)((uint32_t)((*value_46)) + 1u);
+                    value_42 = true;
+                value_43: ;
                 }
-                value_25 = value_30;
+                value_37 = value_42;
             }
-            ok = value_25;
+            ok = value_37;
             if (i == range_last_28) {
                 break;
             }
@@ -3182,7 +3328,8 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
                     break;
                 }
                 if ((step->target)[0] == 0) {
-                    c->unfold.all = true;
+                    bool* value_47 = &(c->unfold.all);
+                    (*value_47) = true;
                     if (i == range_last_32) {
                         break;
                     }
@@ -3199,8 +3346,10 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
                     ok = false;
                     break;
                 }
-                ZIRAN_INDEX(c->unfold.functions, sizeof(c->unfold.functions) / sizeof(c->unfold.functions[0]), c->unfold.count) = fn;
-                c->unfold.count = (int32_t)((uint32_t)(c->unfold.count) + 1u);
+                ZirFunction** value_48 = &(ZIRAN_INDEX(c->unfold.functions, sizeof(c->unfold.functions) / sizeof(c->unfold.functions[0]), c->unfold.count));
+                (*value_48) = fn;
+                int32_t* value_49 = &(c->unfold.count);
+                (*value_49) = (int32_t)((uint32_t)((*value_49)) + 1u);
                 if (i == range_last_32) {
                     break;
                 }
@@ -3210,19 +3359,19 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
             if (goal < 0) {
                 goal = compiler_proof_Expression(c, m, law->claim, (law->claim->stmts[0]).expr_root, &(env), 0, (int32_t)((uint32_t)depth + 1u));
                 original = goal;
-                bool value_32 = goal < 0;
-                bool value_33 = value_32;
-                if (!value_33) {
-                    Context* value_34 = c;
-                    int32_t value_35 = 0;
+                bool value_50 = goal < 0;
+                bool value_51 = value_50;
+                if (!value_51) {
+                    Context* value_52 = c;
+                    int32_t value_53 = 0;
                     {
-                        Context* c = value_34;
+                        Context* c = value_52;
                         int32_t term = goal;
-                        value_35 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
+                        value_53 = (ZIRAN_INDEX(c->kernel.terms, sizeof(c->kernel.terms) / sizeof(c->kernel.terms[0]), term)).type;
                     }
-                    value_33 = (value_35 != 0);
+                    value_51 = (value_53 != 0);
                 }
-                if (value_33) {
+                if (value_51) {
                     ok = false;
                     break;
                 }
@@ -3256,27 +3405,30 @@ compiler_proof_Theorem(Context* c, ZirModule* m, ZirLaw* law, Slice args, int32_
             i = (int32_t)((uint32_t)i + 1u);
         }
     }
-    c->law_count = (int32_t)((uint32_t)(c->law_count) - 1u);
+    int32_t* value_55 = &(c->law_count);
+    (*value_55) = (int32_t)((uint32_t)((*value_55)) - 1u);
     if (!closed && !c->unsupported && !c->kernel.exhausted) {
-        Context* value_37 = c;
-        String value_38 = StringLiteral("proof certificate has no closing step");
-        int32_t value_39 = 0;
+        Context* value_56 = c;
+        String value_57 = StringLiteral("proof certificate has no closing step");
+        int32_t value_58 = 0;
         {
-            Context* c = value_37;
-            String reason = value_38;
-            c->unsupported = true;
-            c->reason = reason;
-            value_39 = -1;
+            Context* c = value_56;
+            String reason = value_57;
+            bool* value_60 = &(c->unsupported);
+            (*value_60) = true;
+            String* value_61 = &(c->reason);
+            (*value_61) = reason;
+            value_58 = -1;
         }
-        (void)value_39;
+        (void)value_58;
     }
-    int32_t value_41 = 0;
+    int32_t value_62 = 0;
     if (ok && closed && !c->unsupported && !c->kernel.exhausted) {
-        value_41 = original;
+        value_62 = original;
     } else {
-        value_41 = -1;
+        value_62 = -1;
     }
-    return value_41;
+    return value_62;
 }
 
 ZirLaw*
@@ -3385,30 +3537,31 @@ PrepareLawProofs(ZirProgram** programs, int32_t count)
                                     break;
                                 }
                                 ZirLaw* law = &(module->laws[l]);
-                                law->proof = (const ZirProof *)(((void *)0));
-                                Slice value_0 = {law->kind, 16};
-                                if (StringEqual(compiler_proof_Name(value_0), StringLiteral("theorem"))) {
-                                    bool value_1 = compiler_proof_PrepareClaim(module, law);
-                                    if (!value_1) {
+                                const ZirProof ** value_0 = &(law->proof);
+                                (*value_0) = (const ZirProof *)(((void *)0));
+                                Slice value_1 = {law->kind, 16};
+                                if (StringEqual(compiler_proof_Name(value_1), StringLiteral("theorem"))) {
+                                    bool value_2 = compiler_proof_PrepareClaim(module, law);
+                                    if (!value_2) {
                                         return 0;
                                     }
                                 } else if (law->claim != ((void *)0)) {
-                                    ZirSourceSpan value_2 = law->span;
-                                    String value_3 = StringLiteral("proof.claim");
-                                    String value_4 = StringLiteral("non-theorem law has a proposition graph");
-                                    String value_5 = StringLiteral("");
+                                    ZirSourceSpan value_3 = law->span;
+                                    String value_4 = StringLiteral("proof.claim");
+                                    String value_5 = StringLiteral("non-theorem law has a proposition graph");
                                     String value_6 = StringLiteral("");
-                                    bool value_7 = false;
+                                    String value_7 = StringLiteral("");
+                                    bool value_8 = false;
                                     {
-                                        ZirSourceSpan span = value_2;
-                                        String code = value_3;
-                                        String message = value_4;
-                                        String name = value_5;
-                                        String tail = value_6;
+                                        ZirSourceSpan span = value_3;
+                                        String code = value_4;
+                                        String message = value_5;
+                                        String name = value_6;
+                                        String tail = value_7;
                                         compiler_services_Diagnose__overload_2(span, code, message, name, tail);
-                                        value_7 = false;
+                                        value_8 = false;
                                     }
-                                    (void)value_7;
+                                    (void)value_8;
                                     return 0;
                                 }
                                 if (l == range_last_4) {
@@ -3422,13 +3575,13 @@ PrepareLawProofs(ZirProgram** programs, int32_t count)
                             int32_t range_last_20 = (int32_t)((uint32_t)(module->proof_count) - 1u);
                             int32_t n = range_first_20;
                             if (n <= range_last_20) for (;;) {
-                                bool value_9 = pass == 1LL;
-                                bool value_10 = value_9;
-                                if (value_10) {
-                                    bool value_11 = compiler_proof_PrepareProof(module, &(module->proofs[n]));
-                                    value_10 = !value_11;
+                                bool value_10 = pass == 1LL;
+                                bool value_11 = value_10;
+                                if (value_11) {
+                                    bool value_12 = compiler_proof_PrepareProof(module, &(module->proofs[n]));
+                                    value_11 = !value_12;
                                 }
-                                if (value_10) {
+                                if (value_11) {
                                     return 0;
                                 }
                                 if (n == range_last_20) {
@@ -3482,15 +3635,16 @@ EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
         int32_t range_last_14 = (int32_t)((uint32_t)(p.count) - 1u);
         int32_t i = range_first_14;
         if (i <= range_last_14) for (;;) {
-            int32_t value_4 = 0;
+            int32_t* value_4 = &(ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), i));
+            int32_t value_5 = 0;
             if (ok) {
-                int32_t value_5 = compiler_proof_ScalarType(c, module, ZIRAN_INDEX(p.types, 16, i));
-                int32_t value_6 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(1), value_5, -1, -1, -1, (uint64_t)(i));
-                value_4 = value_6;
+                int32_t value_6 = compiler_proof_ScalarType(c, module, ZIRAN_INDEX(p.types, 16, i));
+                int32_t value_7 = compiler_proof_kernel_Node(&(c->kernel), (ProofOp)(1), value_6, -1, -1, -1, (uint64_t)(i));
+                value_5 = value_7;
             } else {
-                value_4 = -1;
+                value_5 = -1;
             }
-            ZIRAN_INDEX(args, sizeof(args) / sizeof(args[0]), i) = value_4;
+            (*value_4) = value_5;
             ok = ZIRAN_INDEX(args, 16, i) >= 0;
             if (i == range_last_14) {
                 break;
@@ -3500,20 +3654,20 @@ EvaluateTheorem(ZirModule* module, ZirLaw* law, uint8_t* detail, size_t size)
     }
     int32_t status = 3;
     String reason = StringLiteral("invalid proof: a step did not establish its goal");
-    bool value_7 = ok;
-    bool value_8 = value_7;
-    if (value_8) {
-        Slice value_9 = {args, 16};
-        bool value_10 = compiler_proof_Theorem(c, module, law, SliceRange(value_9, (int64_t)0LL, (int64_t)p.count, sizeof(int32_t)), 0) >= 0;
-        value_8 = value_10;
+    bool value_8 = ok;
+    bool value_9 = value_8;
+    if (value_9) {
+        Slice value_10 = {args, 16};
+        bool value_11 = compiler_proof_Theorem(c, module, law, SliceRange(value_10, (int64_t)0LL, (int64_t)p.count, sizeof(int32_t)), 0) >= 0;
+        value_9 = value_11;
     }
-    if (value_8) {
+    if (value_9) {
         status = 0;
         reason = StringLiteral("kernel checked proof over the full typed domain");
     } else if (c->invalid) {
         compiler_ir_CopyText(out, StringLiteral("invalid proof: "));
-        Slice value_11 = out;
-        out = SliceRange(value_11, (int64_t)15LL, (int64_t)(int64_t)(out).length, sizeof(uint8_t));
+        Slice value_12 = out;
+        out = SliceRange(value_12, (int64_t)15LL, (int64_t)(int64_t)(out).length, sizeof(uint8_t));
         reason = c->reason;
     } else if (c->kernel.exhausted) {
         status = 2;

@@ -21,7 +21,8 @@ ControlLine
 compiler_statement_SplitControlLine(String source)
 {
     ControlLine result = {0};
-    result.header = source;
+    String* value_0 = &(result.header);
+    (*value_0) = source;
     int64_t condition = -1LL;
     if (compiler_source_StartsWord(source, StringLiteral("if"))) {
         condition = compiler_text_SkipSpace(source, 2LL, true);
@@ -64,24 +65,28 @@ compiler_statement_SplitControlLine(String source)
                 }
                 if (StringEqual(spelling, StringLiteral("then"))) {
                     if (token.begin == condition) {
-                        result.error = ControlError_Condition;
+                        ControlError* value_1 = &(result.error);
+                        (*value_1) = ControlError_Condition;
                         return result;
                     }
-                    String value_0 = StringRange(source, (int64_t)0LL, (int64_t)token.begin);
-                    String value_1 = StringView(NULL, 0);
+                    String* value_2 = &(result.header);
+                    String value_3 = StringRange(source, (int64_t)0LL, (int64_t)token.begin);
+                    String value_4 = StringView(NULL, 0);
                     {
-                        String source = value_0;
+                        String source = value_3;
                         SourceRange range = compiler_text_TrimRange(source);
-                        value_1 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                        value_4 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
                     }
-                    result.header = value_1;
-                    String value_3 = source;
-                    int64_t value_4 = compiler_text_SkipSpace(source, token.end, true);
-                    String body = StringRange(value_3, (int64_t)value_4, (int64_t)value_3.length);
+                    (*value_2) = value_4;
+                    String value_6 = source;
+                    int64_t value_7 = compiler_text_SkipSpace(source, token.end, true);
+                    String body = StringRange(value_6, (int64_t)value_7, (int64_t)value_6.length);
                     if ((int64_t)(body).length > 0LL && (uint8_t)ZIRAN_INDEX(body.data, body.length, 0) == 123) {
-                        result.inline_body = body;
+                        String* value_8 = &(result.inline_body);
+                        (*value_8) = body;
                     } else {
-                        result.queued_body = body;
+                        String* value_9 = &(result.queued_body);
+                        (*value_9) = body;
                     }
                     return result;
                 }
@@ -91,24 +96,26 @@ compiler_statement_SplitControlLine(String source)
         }
     }
     if (compiler_source_StartsWord(source, StringLiteral("else"))) {
-        String value_5 = source;
-        int64_t value_6 = compiler_text_SkipSpace(source, 4LL, true);
-        String body = StringRange(value_5, (int64_t)value_6, (int64_t)value_5.length);
-        bool value_7 = (int64_t)(body).length > 0LL && (uint8_t)ZIRAN_INDEX(body.data, body.length, 0) != 123;
-        bool value_8 = value_7;
-        if (value_8) {
-            bool value_9 = compiler_source_StartsWord(body, StringLiteral("if"));
-            value_8 = !value_9;
+        String value_10 = source;
+        int64_t value_11 = compiler_text_SkipSpace(source, 4LL, true);
+        String body = StringRange(value_10, (int64_t)value_11, (int64_t)value_10.length);
+        bool value_12 = (int64_t)(body).length > 0LL && (uint8_t)ZIRAN_INDEX(body.data, body.length, 0) != 123;
+        bool value_13 = value_12;
+        if (value_13) {
+            bool value_14 = compiler_source_StartsWord(body, StringLiteral("if"));
+            value_13 = !value_14;
         }
-        bool value_10 = value_8;
-        bool value_11 = value_10;
-        if (value_11) {
-            bool value_12 = compiler_source_StartsWord(body, StringLiteral("#if"));
-            value_11 = !value_12;
+        bool value_15 = value_13;
+        bool value_16 = value_15;
+        if (value_16) {
+            bool value_17 = compiler_source_StartsWord(body, StringLiteral("#if"));
+            value_16 = !value_17;
         }
-        if (value_11) {
-            result.header = StringRange(source, (int64_t)0LL, (int64_t)4LL);
-            result.queued_body = body;
+        if (value_16) {
+            String* value_18 = &(result.header);
+            (*value_18) = StringRange(source, (int64_t)0LL, (int64_t)4LL);
+            String* value_19 = &(result.queued_body);
+            (*value_19) = body;
         }
     }
     return result;
@@ -133,72 +140,76 @@ compiler_statement_CompileCondition(String source)
     value_3: ;
     }
     if (value_2) {
-        result.kind = 1;
+        int32_t* value_4 = &(result.kind);
+        (*value_4) = 1;
         prefix = 3LL;
     } else {
-        String value_4 = source;
-        String value_5 = StringLiteral("else #if");
-        bool value_6 = false;
+        String value_5 = source;
+        String value_6 = StringLiteral("else #if");
+        bool value_7 = false;
         {
-            String source = value_4;
-            String prefix = value_5;
+            String source = value_5;
+            String prefix = value_6;
             if ((int64_t)(source).length < (int64_t)(prefix).length || !StringEqual(StringRange(source, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix)) {
-                value_6 = false;
-                goto value_7;
+                value_7 = false;
+                goto value_8;
             }
-            value_6 = (int64_t)(source).length == (int64_t)(prefix).length || compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, (int64_t)(prefix).length));
-        value_7: ;
+            value_7 = (int64_t)(source).length == (int64_t)(prefix).length || compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, (int64_t)(prefix).length));
+        value_8: ;
         }
-        if (value_6) {
-            result.kind = 2;
+        if (value_7) {
+            int32_t* value_9 = &(result.kind);
+            (*value_9) = 2;
             prefix = 8LL;
         } else {
-            String value_8 = source;
-            String value_9 = StringLiteral("} else #if");
-            bool value_10 = false;
+            String value_10 = source;
+            String value_11 = StringLiteral("} else #if");
+            bool value_12 = false;
             {
-                String source = value_8;
-                String prefix = value_9;
+                String source = value_10;
+                String prefix = value_11;
                 if ((int64_t)(source).length < (int64_t)(prefix).length || !StringEqual(StringRange(source, (int64_t)0LL, (int64_t)(int64_t)(prefix).length), prefix)) {
-                    value_10 = false;
-                    goto value_11;
+                    value_12 = false;
+                    goto value_13;
                 }
-                value_10 = (int64_t)(source).length == (int64_t)(prefix).length || compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, (int64_t)(prefix).length));
-            value_11: ;
+                value_12 = (int64_t)(source).length == (int64_t)(prefix).length || compiler_text_SpaceByte((uint8_t)ZIRAN_INDEX(source.data, source.length, (int64_t)(prefix).length));
+            value_13: ;
             }
-            if (value_10) {
-                result.kind = 2;
+            if (value_12) {
+                int32_t* value_14 = &(result.kind);
+                (*value_14) = 2;
                 prefix = 10LL;
             } else {
                 return result;
             }
         }
     }
-    String value_12 = StringRange(source, (int64_t)prefix, (int64_t)source.length);
-    String value_13 = StringView(NULL, 0);
-    {
-        String source = value_12;
-        SourceRange range = compiler_text_TrimRange(source);
-        value_13 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
-    }
-    String condition = value_13;
-    if ((int64_t)(condition).length == 0LL || (uint8_t)ZIRAN_INDEX(condition.data, condition.length, ((int64_t)((uint64_t)((int64_t)(condition).length) - UINT64_C(1)))) != 123) {
-        return (CompileHeader){0};
-    }
-    String value_15 = StringRange(condition, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(condition).length) - UINT64_C(1))));
+    String value_15 = StringRange(source, (int64_t)prefix, (int64_t)source.length);
     String value_16 = StringView(NULL, 0);
     {
         String source = value_15;
         SourceRange range = compiler_text_TrimRange(source);
         value_16 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
     }
-    result.condition = value_16;
+    String condition = value_16;
+    if ((int64_t)(condition).length == 0LL || (uint8_t)ZIRAN_INDEX(condition.data, condition.length, ((int64_t)((uint64_t)((int64_t)(condition).length) - UINT64_C(1)))) != 123) {
+        return (CompileHeader){0};
+    }
+    String* value_18 = &(result.condition);
+    String value_19 = StringRange(condition, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(condition).length) - UINT64_C(1))));
+    String value_20 = StringView(NULL, 0);
+    {
+        String source = value_19;
+        SourceRange range = compiler_text_TrimRange(source);
+        value_20 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+    }
+    (*value_18) = value_20;
     if ((int64_t)(result.condition).length == 0LL) {
         return (CompileHeader){0};
     }
     {
-        String value_18 = result.condition;
-        String loop_view_25 = StringRange(value_18, (int64_t)0, (int64_t)value_18.length);
+        String value_22 = result.condition;
+        String loop_view_25 = StringRange(value_22, (int64_t)0, (int64_t)value_22.length);
         int64_t loop_count_25 = (int64_t)(loop_view_25).length;
         int64_t loop_cursor_25 = 0LL;
         while (loop_cursor_25 < loop_count_25) {
@@ -285,21 +296,23 @@ compiler_statement_ForHeader(String source, int64_t name_limit, int64_t text_lim
             if (result.reverse) {
                 return (LoopHeader){0};
             }
-            result.reverse = true;
+            bool* value_14 = &(result.reverse);
+            (*value_14) = true;
         } else {
             if (result.pointer) {
                 return (LoopHeader){0};
             }
-            result.pointer = true;
+            bool* value_15 = &(result.pointer);
+            (*value_15) = true;
         }
-        String value_14 = StringRange(header, (int64_t)1LL, (int64_t)header.length);
-        String value_15 = StringView(NULL, 0);
+        String value_16 = StringRange(header, (int64_t)1LL, (int64_t)header.length);
+        String value_17 = StringView(NULL, 0);
         {
-            String source = value_14;
+            String source = value_16;
             SourceRange range = compiler_text_TrimRange(source);
-            value_15 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_17 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        header = value_15;
+        header = value_17;
     }
     uint8_t delimiters[128] = {0};
     int64_t depth = 0LL;
@@ -322,7 +335,8 @@ compiler_statement_ForHeader(String source, int64_t name_limit, int64_t text_lim
             if (depth == 128) {
                 return (LoopHeader){0};
             }
-            ZIRAN_INDEX(delimiters, sizeof(delimiters) / sizeof(delimiters[0]), depth) = byte;
+            uint8_t* value_19 = &(ZIRAN_INDEX(delimiters, sizeof(delimiters) / sizeof(delimiters[0]), depth));
+            (*value_19) = byte;
             depth = (int64_t)((uint64_t)depth + UINT64_C(1));
         } else if (byte == 41 || byte == 93 || byte == 125) {
             if (depth == 0LL) {
@@ -356,101 +370,110 @@ compiler_statement_ForHeader(String source, int64_t name_limit, int64_t text_lim
     if (depth != 0LL) {
         return (LoopHeader){0};
     }
-    result.value_name = StringLiteral("it");
-    result.index_name = StringLiteral("it_index");
+    String* value_20 = &(result.value_name);
+    (*value_20) = StringLiteral("it");
+    String* value_21 = &(result.index_name);
+    (*value_21) = StringLiteral("it_index");
     String expression = header;
     if (colon >= 0LL) {
-        String value_17 = StringRange(header, (int64_t)0LL, (int64_t)colon);
-        String value_18 = StringView(NULL, 0);
+        String value_22 = StringRange(header, (int64_t)0LL, (int64_t)colon);
+        String value_23 = StringView(NULL, 0);
         {
-            String source = value_17;
+            String source = value_22;
             SourceRange range = compiler_text_TrimRange(source);
-            value_18 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_23 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        String names = value_18;
+        String names = value_23;
         int64_t comma = compiler_statement_FindByte(names, 44);
         if (comma >= 0LL) {
             if (dots >= 0LL) {
                 return (LoopHeader){0};
             }
-            String value_20 = StringRange(names, (int64_t)((int64_t)((uint64_t)comma + UINT64_C(1))), (int64_t)names.length);
-            String value_21 = StringView(NULL, 0);
+            String* value_25 = &(result.index_name);
+            String value_26 = StringRange(names, (int64_t)((int64_t)((uint64_t)comma + UINT64_C(1))), (int64_t)names.length);
+            String value_27 = StringView(NULL, 0);
             {
-                String source = value_20;
+                String source = value_26;
                 SourceRange range = compiler_text_TrimRange(source);
-                value_21 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                value_27 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
             }
-            result.index_name = value_21;
-            String value_23 = StringRange(names, (int64_t)0LL, (int64_t)comma);
-            String value_24 = StringView(NULL, 0);
+            (*value_25) = value_27;
+            String value_29 = StringRange(names, (int64_t)0LL, (int64_t)comma);
+            String value_30 = StringView(NULL, 0);
             {
-                String source = value_23;
+                String source = value_29;
                 SourceRange range = compiler_text_TrimRange(source);
-                value_24 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+                value_30 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
             }
-            names = value_24;
+            names = value_30;
         }
-        result.value_name = names;
-        String value_26 = StringRange(header, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)header.length);
-        String value_27 = StringView(NULL, 0);
+        String* value_32 = &(result.value_name);
+        (*value_32) = names;
+        String value_33 = StringRange(header, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)header.length);
+        String value_34 = StringView(NULL, 0);
         {
-            String source = value_26;
+            String source = value_33;
             SourceRange range = compiler_text_TrimRange(source);
-            value_27 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_34 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        expression = value_27;
+        expression = value_34;
     }
-    String value_29 = result.value_name;
-    bool value_30 = false;
+    String value_36 = result.value_name;
+    bool value_37 = false;
     {
-        String source = value_29;
+        String source = value_36;
         int64_t limit = name_limit;
-        value_30 = (int64_t)(source).length < limit && compiler_source_IdentifierText(source, false);
+        value_37 = (int64_t)(source).length < limit && compiler_source_IdentifierText(source, false);
     }
-    if (!value_30) {
+    if (!value_37) {
         return (LoopHeader){0};
     }
     if (dots >= 0LL) {
         if (result.pointer) {
             return (LoopHeader){0};
         }
-        String value_32 = StringRange(header, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)dots);
-        String value_33 = StringView(NULL, 0);
+        String* value_39 = &(result.first);
+        String value_40 = StringRange(header, (int64_t)((int64_t)((uint64_t)colon + UINT64_C(1))), (int64_t)dots);
+        String value_41 = StringView(NULL, 0);
         {
-            String source = value_32;
+            String source = value_40;
             SourceRange range = compiler_text_TrimRange(source);
-            value_33 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_41 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        result.first = value_33;
-        String value_35 = StringRange(header, (int64_t)((int64_t)((uint64_t)dots + UINT64_C(2))), (int64_t)header.length);
-        String value_36 = StringView(NULL, 0);
+        (*value_39) = value_41;
+        String* value_43 = &(result.last);
+        String value_44 = StringRange(header, (int64_t)((int64_t)((uint64_t)dots + UINT64_C(2))), (int64_t)header.length);
+        String value_45 = StringView(NULL, 0);
         {
-            String source = value_35;
+            String source = value_44;
             SourceRange range = compiler_text_TrimRange(source);
-            value_36 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
+            value_45 = StringRange(source, (int64_t)range.begin, (int64_t)range.end);
         }
-        result.last = value_36;
+        (*value_43) = value_45;
         if ((int64_t)(result.first).length == 0LL || (int64_t)(result.last).length == 0LL) {
             return (LoopHeader){0};
         }
-        result.kind = LoopKind_Range;
+        LoopKind* value_47 = &(result.kind);
+        (*value_47) = LoopKind_Range;
     } else {
-        bool value_38 = (int64_t)(expression).length == 0LL;
-        if (!value_38) {
-            String value_39 = result.index_name;
-            bool value_40 = false;
+        bool value_48 = (int64_t)(expression).length == 0LL;
+        if (!value_48) {
+            String value_49 = result.index_name;
+            bool value_50 = false;
             {
-                String source = value_39;
+                String source = value_49;
                 int64_t limit = name_limit;
-                value_40 = (int64_t)(source).length < limit && compiler_source_IdentifierText(source, false);
+                value_50 = (int64_t)(source).length < limit && compiler_source_IdentifierText(source, false);
             }
-            value_38 = !value_40;
+            value_48 = !value_50;
         }
-        if (value_38 || StringEqual(result.value_name, result.index_name)) {
+        if (value_48 || StringEqual(result.value_name, result.index_name)) {
             return (LoopHeader){0};
         }
-        result.collection = expression;
-        result.kind = LoopKind_Collection;
+        String* value_52 = &(result.collection);
+        (*value_52) = expression;
+        LoopKind* value_53 = &(result.kind);
+        (*value_53) = LoopKind_Collection;
     }
     return result;
 }

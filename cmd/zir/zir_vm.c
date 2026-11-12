@@ -1254,15 +1254,7 @@ release_retired(Vm *vm)
     if(vm->retired_records == NULL && vm->retired_arrays == NULL)
         return;
     vm->pin_generation++;
-    pin_evaluation_roots(vm);
-    for(Frame *frame = vm->active_frame; frame != NULL;
-        frame = frame->caller) {
-        for(int i = 0; i < frame->local_count; i++)
-            if(frame->locals[i].value.kind == VALUE_SLICE)
-                pin_value(vm, frame->locals[i].value, 0);
-    }
-    // An old borrowed value must not cause each small assignment to scan
-    // every newer, still-live allocation. Visit only discarded storage.
+    pin_live_roots(vm);
     for(Record *record = vm->retired_records; record != NULL;) {
         Record *next = record->retired_next;
         if(record->pinned != vm->pin_generation)

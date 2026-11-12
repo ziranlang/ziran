@@ -164,11 +164,14 @@ compiler_proof_kernel_TypeAdd_ziran_inline(ProofKernel* k, ProofType type)
         }
     }
     if (k->type_count == 32) {
-        k->exhausted = true;
+        bool* value_0 = &(k->exhausted);
+        (*value_0) = true;
         return -1;
     }
-    ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), k->type_count) = type;
-    k->type_count = (int32_t)((uint32_t)(k->type_count) + 1u);
+    ProofType* value_1 = &(ZIRAN_INDEX(k->types, sizeof(k->types) / sizeof(k->types[0]), k->type_count));
+    (*value_1) = type;
+    int32_t* value_2 = &(k->type_count);
+    (*value_2) = (int32_t)((uint32_t)((*value_2)) + 1u);
     return (int32_t)((uint32_t)(k->type_count) - 1u);
 }
 #endif

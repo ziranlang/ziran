@@ -127,9 +127,9 @@ Each receipt is analyzed by the canonical
 - the median is computed from retained samples;
 - original raw order and zero-based excluded indices are reported.
 
-Recognized phase/metric pairs and intended ratios are:
+Recognized phase/metric pairs and intended normalized favorable factors are:
 
-| Phase | Metric | Better direction | Reported ratio |
+| Phase | Metric | Better direction | Favorable factor |
 | --- | --- | --- | --- |
 | `coldcompile` | `duration` | lower | baseline / candidate |
 | `coldstartup` | `duration` | lower | baseline / candidate |
@@ -139,8 +139,15 @@ Recognized phase/metric pairs and intended ratios are:
 | `code-size` | `code-size` | lower | baseline / candidate |
 | `bundle-size` | `bundle-size` | lower | baseline / candidate |
 
-A ratio above 1 is an improvement, below 1 is a regression, and exactly 1 is
-unchanged. An unknown metric is retained with its absolute medians and raw audit
+A favorable factor above 1 is an improvement, below 1 is a regression, and
+exactly 1 is unchanged. Every comparable row separately reports candidate
+metric change as `(candidate - baseline) / baseline × 100%`. For example, this
+keeps a lower-is-better duration increase distinct from the reciprocal favorable
+factor; it never presents factor change as elapsed-time or size change.
+
+If division of positive finite medians underflows or overflows, the row is marked
+`noncomparable: derived ratio outside finite range`; no infinity or NaN claim is
+written. An unknown metric is retained with its absolute medians and raw audit
 but its pair is explicitly marked `noncomparable: unknown metric direction`.
 No overall or geometric mean is calculated, so missing cells cannot disappear
 inside an aggregate.
@@ -166,12 +173,57 @@ The Markdown output contains:
   correctness identities;
 - raw samples in original order, excluded indices, and retained medians.
 
+All receipt-controlled Markdown and HTML metacharacters are encoded before
+rendering, including pipes, backticks, backslashes, angle brackets, ampersands,
+asterisks, underscores, brackets, and hashes.
+
 The output follows input order and is byte-deterministic for identical input.
 It is built completely in memory, then written through `ReplaceFile`, which
 writes and syncs a private sibling before renaming it over the destination.
 Malformed, statistically invalid, or incompatible receipts return failure
 without replacing an existing report. An atomic write failure also returns
 failure and removes its private sibling.
+
+## Full comparison delivery gate
+
+The owner's requested final comparison is the complete before/after campaign,
+not a scalar microbenchmark or a selected best-case ratio. It remains pending
+until the implementation and its local correctness gates are complete.
+
+- Run every actual compilation and measurement directly on Alpha's physical
+  host. Record fresh host/virtualization evidence; do not fall back to this
+  desktop or the personal VM if Alpha is unavailable.
+- Validate the baseline executable's complete runtime closure, standard
+  modules, headers and dependency/toolchain identities before calling it an
+  old-version baseline. The saved baseline binaries alone are not evidence
+  that this closure has been preserved. Keep exact workload/input bytes and
+  expected output checksums identical across comparable engines.
+- Explicitly force each engine and reject silent interpreter/compiler/Wasm
+  fallbacks. A missing new-native ZX path remains `missing`, not an AOT result
+  relabeled as native ZX. Record optimization, CPU features, runtime budgets
+  and cache policy per engine; do not imply unmetered AOT has identical safety
+  costs to a metered interpreter.
+- Cover scalar arithmetic, branches/loops, direct and indirect calls, packed
+  records/arrays, checked dynamic indexing, global/field pointers and aliasing,
+  allocation/collection/borrowed-view churn, text processing, host bridges and
+  applicable concurrency/runtime workloads. Include the VM root-tracing fix
+  and current linear token dispatch in relevant workload results. Unsupported
+  engine/workload pairs must be explicit limitations, never zero-time samples.
+- Measure cold compilation, cold startup, warm cached startup, warm sustained
+  throughput, memory, native code size and bundle size separately. Define the
+  cache/process boundary in each phase; never delete unrelated application or
+  user caches to manufacture a cold run. Exclude compilation from steady-state
+  throughput, but report it in the compilation phase instead of hiding it.
+- Report every requested cell with absolute units, before/after medians,
+  favorable factor, actual metric percent change, sample count, raw samples
+  and symmetric outlier exclusions. Include regressions and missing cells as
+  prominently as speedups. Keep C/Go/Wasm controls alongside ZX results.
+- Correlate measured hot paths with the exact ELF digest, emitted assembly,
+  byte ranges and source origins. Distinguish observed elapsed time or hardware
+  counters from estimated instruction costs. Missing counters remain unknown.
+- Retain the real collector inputs, raw receipts and the generated Markdown
+  comparison under `bench/results/`. Synthetic reporter tests prove report
+  behavior only and must never be presented as measured language performance.
 
 ## Current limitation and next integration step
 

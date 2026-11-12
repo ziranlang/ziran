@@ -193,6 +193,8 @@ repeat origin_count:
     s32 file
     s32 line
     s32 column
+    s32 end_line
+    s32 end_column
     s64 begin
     s64 end
     s32 parent
@@ -201,6 +203,16 @@ repeat origin_count:
 Source strings are copied like all other strings. Origin parent chains and
 file references are checked by `LirVerify`; hostile depth is handled by its
 bounded iterative validation.
+
+LIR schema version 2 preserves checked source end-line/end-column coordinates.
+Coordinates are one-based; `end_line = end_column = 0` explicitly means the
+end position is unavailable. A known end cannot precede the start. Byte offsets
+are either an ordered nonnegative pair or `begin = end = -1` when unavailable.
+The source/saved-IR adapter preserves the checked graph's line/column positions
+and emits unknown byte offsets: that graph does not contain byte coordinates.
+It never rereads source text to invent offsets. Format framing remains version
+1, but readers reject the previous LIR schema with `Version`; rebuild `.lirb`
+artifacts rather than interpreting old debug records as the new layout.
 
 ## Validation and error boundary
 

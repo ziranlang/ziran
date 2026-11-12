@@ -1,6 +1,6 @@
 # Step 02 — Implement lowered portable IR and its verifier
 
-Status: in progress; [scalar schema and verifier only](README.md). Depends on [step 01](01-contract-and-completion-matrix.md). Next: [complete language lowering](03-language-lowering.md).
+Status: in progress; [typed scalar/aggregate schema and verifier](README.md), including checked global-derived pointers and procedure values. Complete memory, capability and language coverage remain pending. Depends on [step 01](01-contract-and-completion-matrix.md). Next: [complete language lowering](03-language-lowering.md).
 
 ## Objective
 

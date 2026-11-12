@@ -1,7 +1,19 @@
 WideBox :: struct { value: s64 }
+Bucket :: struct { values: [2]s32 }
 current: string = "abc";
 values: [2]WideBox;
 calls: s32;
+counter: s32 = 1;
+pointer_left: s32;
+pointer_right: s32;
+selected: *s32;
+buckets: [2]Bucket;
+bucket: *Bucket;
+slice_left: [2]s32;
+slice_right: [2]s32;
+selected_slice: []s32;
+bounds_index: s64 = 2;
+zero: s32;
 
 #program_export
 PlainWide :: (left: WideBox, right: WideBox) -> bool { return left.value < right.value }
@@ -14,6 +26,29 @@ Rebind :: () -> s64 { current = "changed"; return 0 }
 Clear :: () -> s64 { values[0].value = 0; return 1 }
 Pick :: () -> s32 { index := calls; calls += 1; return index }
 Mark :: () -> bool { calls += 1; return true }
+Bump :: () -> s32 { counter = 10; return 5 }
+SwapPointer :: () -> s32 { selected = *pointer_right; return 42 }
+SwapPointerCompound :: () -> s32 { selected = *pointer_right; pointer_left = 20; return 5 }
+SwapBucket :: () -> s32 { bucket = *buckets[1]; return 17 }
+SwapBucketCompound :: () -> s32 { bucket = *buckets[1]; buckets[0].values[0] = 20; return 3 }
+SwapSlice :: () -> s32 { selected_slice = slice_right[:]; return 23 }
+SwapSliceCompound :: () -> s32 { selected_slice = slice_right[:]; slice_left[0] = 20; return 3 }
+MakeBucketValues :: () -> [2]s32 {
+    bucket = *buckets[1]
+    result: [2]s32
+    result[0] = 31
+    result[1] = 32
+    return result
+}
+#program_export
+BoundsRight :: () -> s32 { print("bounds-right-evaluated\n"); return 9 / zero }
+
+#program_export
+BoundsFailure :: () -> s32 {
+    destination: [1]s32
+    destination[bounds_index] = BoundsRight()
+    return destination[0]
+}
 
 #program_export
 Answer :: () -> s32 {
@@ -37,6 +72,54 @@ Answer :: () -> s32 {
     calls = 0
     if PlainShort(false) || calls != 0 { return 9 }
     if !PlainShort(true) || calls != 1 { return 10 }
+    counter = 1
+    counter += Bump()
+    local: s32 = 2
+    local *= 3 + 4
+    if counter * 100 + local != 614 { return 11 }
+    pointer_left = 0
+    pointer_right = 0
+    selected = *pointer_left
+    <<selected = SwapPointer()
+    if pointer_left != 42 || pointer_right != 0 || selected != *pointer_right { return 12 }
+    pointer_left = 10
+    pointer_right = 100
+    selected = *pointer_left
+    <<selected += SwapPointerCompound()
+    if pointer_left != 15 || pointer_right != 100 || selected != *pointer_right { return 13 }
+    buckets[0].values[0] = 0
+    buckets[1].values[0] = 0
+    bucket = *buckets[0]
+    calls = 0
+    bucket.values[Pick()] = SwapBucket()
+    if buckets[0].values[0] != 17 || buckets[1].values[0] != 0 ||
+        bucket != *buckets[1] || calls != 1 { return 14 }
+    buckets[0].values[0] = 4
+    buckets[1].values[0] = 100
+    bucket = *buckets[0]
+    calls = 0
+    bucket.values[Pick()] += SwapBucketCompound()
+    if buckets[0].values[0] != 7 || buckets[1].values[0] != 100 ||
+        bucket != *buckets[1] || calls != 1 { return 15 }
+    slice_left[0] = 0
+    slice_right[0] = 0
+    selected_slice = slice_left[:]
+    calls = 0
+    selected_slice[Pick()] = SwapSlice()
+    if slice_left[0] != 23 || slice_right[0] != 0 || calls != 1 { return 16 }
+    slice_left[0] = 4
+    slice_right[0] = 100
+    selected_slice = slice_left[:]
+    calls = 0
+    selected_slice[Pick()] += SwapSliceCompound()
+    if slice_left[0] != 7 || slice_right[0] != 100 || calls != 1 { return 17 }
+    buckets[0].values[0] = 0
+    buckets[0].values[1] = 0
+    buckets[1].values[0] = 100
+    bucket = *buckets[0]
+    bucket.values = MakeBucketValues()
+    if buckets[0].values[0] != 31 || buckets[0].values[1] != 32 ||
+        buckets[1].values[0] != 100 || bucket != *buckets[1] { return 18 }
     return 42
 }
 

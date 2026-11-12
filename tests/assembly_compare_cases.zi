@@ -7,6 +7,9 @@ Compare :: #import "assembly_compare"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
+HOSTILE_CASE :: "unknown|`<img>\\*_[#&";
+HOSTILE_TOOLCHAIN :: "cc|`\\<script>&";
+
 PutText :: (document: *JsonDocument, object: s32, name: string, value: string) {
     JsonSet(document, object, name, JsonNewStringCopy(document, value))
 }
@@ -44,7 +47,8 @@ AddReceipt :: (document: *JsonDocument, receipts: s32, engine: string,
     PutText(document, receipt, "vm", "none")
     PutText(document, receipt, "cpu", "synthetic-cpu")
     PutText(document, receipt, "os", "synthetic-os")
-    PutText(document, receipt, "toolchain", CheckConcat("synthetic-", engine))
+    PutText(document, receipt, "toolchain",
+        ifx case_id == HOSTILE_CASE then HOSTILE_TOOLCHAIN else CheckConcat("synthetic-", engine))
     flags := JsonNewArray(document)
     JsonAppend(document, flags, JsonNewStringCopy(document, "-O2"))
     JsonSet(document, receipt, "flags", flags)
@@ -62,6 +66,9 @@ AddReceipt :: (document: *JsonDocument, receipts: s32, engine: string,
     JsonSet(document, receipt, "iterations", JsonNewInteger(document, 1000))
     higher := metric == "throughput"
     value := ReceiptValue(engine, higher)
+    if case_id == "extreme-ratio" {
+        value = ifx engine == "old-portable-vm" then 1e-300 else 1e300
+    }
     samples := JsonNewArray(document)
     repeats: s64 = 3
     if changed && issue == "" {
@@ -109,8 +116,10 @@ Fixture :: (test: *NativeTest, path: string, issue: string) -> bool {
     for engine: controls {
         AddReceipt(*document, receipts, engine, "warmthroughput", "throughput", "ops/s", issue)
     }
-    AddReceipt(*document, receipts, "old-portable-vm", "custom", "mystery", "ticks", issue, "unknown-metric")
-    AddReceipt(*document, receipts, "new-portable", "custom", "mystery", "ticks", issue, "unknown-metric")
+    AddReceipt(*document, receipts, "old-portable-vm", "custom", "mystery", "ticks", issue, HOSTILE_CASE)
+    AddReceipt(*document, receipts, "new-portable", "custom", "mystery", "ticks", issue, HOSTILE_CASE)
+    AddReceipt(*document, receipts, "old-portable-vm", "extreme", "duration", "seconds", issue, "extreme-ratio")
+    AddReceipt(*document, receipts, "new-portable", "extreme", "duration", "seconds", issue, "extreme-ratio")
     JsonSet(*document, root, "receipts", receipts)
     return NativeWrite(test, path, JsonWrite(*document, root, JsonPythonStyle(2)))
 }
@@ -143,10 +152,25 @@ main :: (argc: s32, argv: **u8) -> s32 {
     !NativeAssert(*test, TextContains(report, "[1.0, 125.0, 125.0, 125.0, 125.0, 125.0, 125.0, 125.0, 1000.0]"),
         "raw outlier samples changed") ||
     !NativeAssert(*test, TextContains(report, "Excluded indices: `[0, 8]`"), "symmetric outlier indices missing") ||
-    !NativeAssert(*test, TextContains(report, "1.25x; improvement +25%"), "throughput ratio direction changed") ||
-    !NativeAssert(*test, TextContains(report, "2x; improvement +100%"), "duration ratio direction changed") ||
-    !NativeAssert(*test, TextContains(report, "0.9x; regression 10%"), "regression direction changed") ||
+    !NativeAssert(*test, TextContains(report,
+        "1.25x favorable factor; improvement; candidate metric change +25%"),
+        "throughput ratio direction changed") ||
+    !NativeAssert(*test, TextContains(report,
+        "2x favorable factor; improvement; candidate metric change -50%"),
+        "duration ratio direction changed") ||
+    !NativeAssert(*test, TextContains(report,
+        "0.9x favorable factor; regression; candidate metric change -10%"),
+        "throughput regression direction changed") ||
+    !NativeAssert(*test, TextContains(report,
+        "code-size / code-size | old-c-tinycc-native → new-native | 10.0 bytes | 12.0 bytes | 0.833x favorable factor; regression; candidate metric change +20%"),
+        "size regression metric change is ambiguous") ||
     !NativeAssert(*test, TextContains(report, "noncomparable: unknown metric direction"), "unknown metric was not preserved") ||
+    !NativeAssert(*test, TextContains(report, "noncomparable: derived ratio outside finite range"),
+        "nonfinite derived ratio was printed") ||
+    !NativeAssert(*test, !TextContains(report, "<img>") && !TextContains(report, "<script>") &&
+        TextContains(report, "unknown&#124;&#96;&lt;img&gt;&#92;&#42;&#95;&#91;&#35;&amp;") &&
+        TextContains(report, "cc&#124;&#96;&#92;&lt;script&gt;&amp;"),
+        "hostile Markdown metadata was not escaped") ||
     !NativeAssert(*test, TextContains(report, "coldcompile") && TextContains(report, "coldstartup") &&
         TextContains(report, "warmstartup") && TextContains(report, "warmthroughput") &&
         TextContains(report, "memory") && TextContains(report, "code-size") &&

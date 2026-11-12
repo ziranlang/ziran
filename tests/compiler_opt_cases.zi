@@ -1,0 +1,57 @@
+#import "native_test"
+#import "check_support"
+using Vectors :: #import "std/vec"
+
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "compiler-opt-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    NativeSet(*test, "GO111MODULE", "off")
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
+    NativeSet(*test, "GOWORK", "off")
+    module := "compiler_opt_test"
+    root := CheckPath(test.repo, "tests/spec")
+    modules := CheckPath(test.repo, "cmd")
+    source := CheckPath(root, CheckConcat(module, ".zi"))
+    saved := CheckPath(test.work, "ir")
+    save := string.[test.ziran, "ir", "--root", root, "--module-path", modules,
+        "-o", saved, source]
+    unused NativeRun(*test, save[:])
+    if test.failed { return 1 }
+    expected := "compiler optimizer: verified bounded passes and differential execution local tests passed\n"
+    vm_expected := CheckConcat(expected, "0\n")
+    forms: [2]string = .["source", "saved"]
+    for form: forms {
+        input := ifx form == "source" then source else CheckPath(saved, CheckConcat(module, ".zir"))
+        input_root := ifx form == "source" then root else saved
+        bundle := CheckPath(test.work, CheckConcat(form, ".zx"))
+        bundle_command := string.[test.ziran, "bundle", "--root", input_root,
+            "--module-path", modules, "--entry", CheckConcat(module, ":Run"),
+            "-o", bundle, input]
+        unused NativeRun(*test, bundle_command[:])
+        vm := string.[test.ziran, "run", "--vm", bundle]
+        if test.failed || !NativeExpect(*test, vm[:], vm_expected) { return 1 }
+        c_output := CheckPath(test.work, CheckConcat(form, "-c"))
+        c_build := string.[test.ziran, "build", "--target=c", "--exe", "--entry",
+            CheckConcat(module, ":Run"), "--root", input_root, "--module-path", modules,
+            "-o", c_output, input]
+        unused NativeRun(*test, c_build[:])
+        c_run := string.[CheckPath(c_output, module)]
+        if test.failed || !NativeExpect(*test, c_run[:], expected) { return 1 }
+        go_output := CheckPath(test.work, CheckConcat(form, "-go"))
+        go_build := string.[test.ziran, "build", "--target=go", "--exe", "--pkg", "main",
+            "--entry", CheckConcat(module, ":Run"), "--root", input_root,
+            "--module-path", modules, "-o", go_output, input]
+        unused NativeRun(*test, go_build[:])
+        go_run: Vec(string)
+        VecPush(go_run, "go")
+        VecPush(go_run, "run")
+        go_files := NativeFiles(go_output, ".go")
+        for file: go_files { VecPush(go_run, file) }
+        if test.failed || !NativeExpect(*test, go_run[:], expected) { return 1 }
+    }
+    print("compiler optimizer: source/saved C, Go and explicit VM local tests passed\n")
+    return 0
+}

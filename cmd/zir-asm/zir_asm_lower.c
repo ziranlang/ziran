@@ -1,6 +1,7 @@
 #include "zir_asm_lower.h"
 #include "zir_check.h"
 #include "zir_diagnostic.h"
+#include "zir_parse.h"
 #include "zir_scalar.h"
 #include "zir_text.h"
 
@@ -33,6 +34,12 @@ typedef struct AssemblyType {
     int identity;
 } AssemblyType;
 
+typedef struct AssemblyGlobal {
+    const ZirModule *module;
+    const ZirGlobal *source;
+    LirGlobal result;
+} AssemblyGlobal;
+
 typedef struct AssemblyBlock {
     AssemblyVector parameters;
     AssemblyVector instructions;
@@ -64,6 +71,7 @@ struct AssemblyProgram {
     AssemblyVector modules;
     AssemblyVector sources;
     AssemblyVector constants;
+    AssemblyVector globals;
     AssemblyVector origins;
     AssemblyVector functions;
     AssemblyVector types;
@@ -165,7 +173,9 @@ assembly_origin(AssemblyProgram *program, ZirSourceSpan span)
 {
     int file = assembly_name(program, &program->sources, SpanPath(span));
     LirOrigin origin = {.file = file, .line = span.line > 0 ? span.line : 1,
-        .column = span.column > 0 ? span.column : 1, .parent = -1};
+        .column = span.column > 0 ? span.column : 1,
+        .end_line = span.end_line, .end_column = span.end_column,
+        .begin = -1, .end = -1, .parent = -1};
     int index = program->origins.count;
     return assembly_push(program, &program->origins, &origin) ? index : -1;
 }
@@ -174,6 +184,20 @@ static LirType *
 assembly_type_at(AssemblyProgram *program, int identity)
 {
     return &((LirType *)program->types.data)[identity];
+}
+
+static int
+assembly_pointer_type(AssemblyProgram *program, int element, ZirSourceSpan span)
+{
+    if(program->failed || element < 0) return -1;
+    for(int index = 0; index < program->types.count; index++) {
+        if(!assembly_spend(program, span)) return -1;
+        LirType type = *assembly_type_at(program, index);
+        if(type.kind == LirTypeKind_Pointer && type.element == element) return index;
+    }
+    LirType type = {.kind = LirTypeKind_Pointer, .element = element};
+    int identity = program->types.count;
+    return assembly_push(program, &program->types, &type) ? identity : -1;
 }
 
 static int
@@ -199,12 +223,18 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     if(record)
         for(int index = 0; index < program->type_names.count; index++)
             if(names[index].record == record) return names[index].identity;
+    if(name[0] == '*') {
+        int element = assembly_type_in(program, module, name + 1, span, depth + 1);
+        int identity = assembly_pointer_type(program, element, span);
+        if(program->failed) return -1;
+        AssemblyType binding = {module, assembly_text(program, name), NULL, identity};
+        return assembly_push(program, &program->type_names, &binding) ? identity : -1;
+    }
     LirType type = {0};
     if(!strcmp(name, "float32") || !strcmp(name, "float64") || !strcmp(name, "real")) {
         type.kind = LirTypeKind_Float;
         type.bits = !strcmp(name, "float32") ? 32 : 64;
-    } else if(name[0] == '*') type.kind = LirTypeKind_Pointer;
-    else if(ArrayValueType(name)) type.kind = LirTypeKind_Array;
+    } else if(ArrayValueType(name)) type.kind = LirTypeKind_Array;
     else if(record && record->is_procedure_type && !record->is_c_call)
         type.kind = LirTypeKind_Function;
     else if(record && !record->is_procedure_type && !record->is_union && !record->is_record_template &&
@@ -215,10 +245,7 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     AssemblyType binding = {module, assembly_text(program, name), record, identity};
     if(!assembly_push(program, &program->types, &type) ||
        !assembly_push(program, &program->type_names, &binding)) return -1;
-    if(type.kind == LirTypeKind_Pointer) {
-        int element = assembly_type_in(program, module, name + 1, span, depth + 1);
-        assembly_type_at(program, identity)->element = element;
-    } else if(type.kind == LirTypeKind_Array) {
+    if(type.kind == LirTypeKind_Array) {
         char element[ZIR_NAME_MAX];
         int count = 0;
         if(!ArrayElementType(name, element, sizeof(element), &count) || count < 0)
@@ -368,6 +395,62 @@ assembly_constant(AssemblyProgram *program, AssemblyFunction *function, int type
     int symbol = program->constants.count;
     assembly_push(program, &program->constants, &constant);
     return assembly_emit(program, function, LirOp_Constant, type, NULL, 0, symbol, span);
+}
+
+static int
+assembly_global_address(AssemblyProgram *program, AssemblyFunction *function,
+                        const char *name, ZirSourceSpan span)
+{
+    const ZirModule *owner = NULL;
+    const ZirGlobal *source = NULL;
+    if(ResolveGlobalAt(function->module, name, SpanPath(span), &owner, &source) != 1)
+        return assembly_fail(program, span, "global reference has no unique checked declaration");
+    int symbol = -1;
+    AssemblyGlobal *globals = program->globals.data;
+    for(int index = 0; index < program->globals.count; index++) {
+        if(!assembly_spend(program, span)) return -1;
+        if(globals[index].module == owner && globals[index].source == source) {
+            symbol = index;
+            break;
+        }
+    }
+    if(symbol < 0) {
+        int type = assembly_type_in(program, owner, source->type, source->span, 0);
+        if(program->failed) return -1;
+        if(assembly_type_at(program, type)->kind == LirTypeKind_Function)
+            return assembly_fail(program, source->span, "global procedure slots are not lowered yet");
+        int constant = -1;
+        if(source->init && *source->init) {
+            LirType value_type = *assembly_type_at(program, type);
+            if(value_type.kind != LirTypeKind_Integer && value_type.kind != LirTypeKind_Bool)
+                return assembly_fail(program, source->span, "only zero defaults and integer/bool constant global initializers are lowered yet");
+            unsigned long long literal = 0;
+            int negative = 0;
+            int64_t evaluated = 0;
+            uint64_t bits;
+            if(ZirSignedIntegerLiteral(source->init, &literal, &negative))
+                bits = (uint64_t)literal;
+            else if(EvaluateCompileExpression(owner, source->init, source->span, 0, &evaluated))
+                bits = (uint64_t)evaluated;
+            else return assembly_fail(program, source->span, "runtime global initialization is not lowered yet");
+            if(value_type.bits > 0 && value_type.bits < 64)
+                bits &= (UINT64_C(1) << value_type.bits) - 1;
+            LirConstant initial = {.type = type, .bits = bits};
+            constant = program->constants.count;
+            if(!assembly_push(program, &program->constants, &initial)) return -1;
+        }
+        const char *copied_name = assembly_text(program, source->name);
+        if(program->failed) return -1;
+        AssemblyGlobal global = {.module = owner, .source = source,
+            .result = {.module = assembly_name(program, &program->modules, owner->name),
+                .name = {copied_name, strlen(copied_name)}, .type = type,
+                .constant = constant, .writable = 1}};
+        symbol = program->globals.count;
+        if(!assembly_push(program, &program->globals, &global)) return -1;
+    }
+    int element = ((AssemblyGlobal *)program->globals.data)[symbol].result.type;
+    int pointer_type = assembly_pointer_type(program, element, span);
+    return assembly_emit(program, function, LirOp_GlobalAddress, pointer_type, NULL, 0, symbol, span);
 }
 
 static int
@@ -526,6 +609,67 @@ assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirE
 }
 
 static int
+assembly_addressable(AssemblyProgram *program, AssemblyFunction *function, int index, int depth)
+{
+    if(program->failed || index < 0 || index >= function->source->expr_count) return 0;
+    const ZirExpr *expression = &function->source->exprs[index];
+    if(!assembly_spend(program, expression->span)) return 0;
+    if(depth > 256) return assembly_fail(program, expression->span, "address nesting budget exhausted") >= 0;
+    if(expression->kind == ZIR_EXPR_IDENT) return expression->is_global_value;
+    if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) return 1;
+    if(expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_INDEX)
+        return assembly_addressable(program, function, expression->left, depth + 1);
+    return 0;
+}
+
+static int
+assembly_address(AssemblyProgram *program, AssemblyFunction *function, int index, int depth)
+{
+    if(program->failed) return -1;
+    if(index < 0 || index >= function->source->expr_count)
+        return assembly_fail(program, function->source->span, "invalid checked address expression");
+    const ZirExpr *expression = &function->source->exprs[index];
+    if(!assembly_spend(program, expression->span)) return -1;
+    if(depth > 256) return assembly_fail(program, expression->span, "address nesting budget exhausted");
+    if(expression->kind == ZIR_EXPR_IDENT && expression->is_global_value)
+        return assembly_global_address(program, function, expression->name, expression->span);
+    if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*"))
+        return assembly_expression(program, function, expression->right, depth + 1);
+    if(expression->kind == ZIR_EXPR_INDEX) {
+        int address = assembly_address(program, function, expression->left, depth + 1);
+        if(program->failed) return -1;
+        int pointer = ((int *)function->values.data)[address];
+        LirType type = *assembly_type_at(program, pointer);
+        if(type.kind != LirTypeKind_Pointer || assembly_type_at(program, type.element)->kind != LirTypeKind_Array)
+            return assembly_fail(program, expression->span, "element address requires a fixed-array pointer");
+        int element = assembly_type_at(program, type.element)->element;
+        int ordinal = assembly_expression(program, function, expression->right, depth + 1);
+        if(program->failed) return -1;
+        if(assembly_type_at(program, ((int *)function->values.data)[ordinal])->kind != LirTypeKind_Integer)
+            return assembly_fail(program, expression->span, "element address requires a fixed integer index");
+        int result_type = assembly_pointer_type(program, element, expression->span);
+        int operands[] = {address, ordinal};
+        return assembly_emit(program, function, LirOp_ElementAddress, result_type, operands, 2, -1, expression->span);
+    }
+    if(expression->kind == ZIR_EXPR_MEMBER) {
+        int address = assembly_address(program, function, expression->left, depth + 1);
+        if(program->failed) return -1;
+        int pointer = ((int *)function->values.data)[address];
+        LirType type = *assembly_type_at(program, pointer);
+        if(type.kind != LirTypeKind_Pointer)
+            return assembly_fail(program, expression->span, "record address requires a pointer");
+        int field = assembly_field(program, type.element, expression->name, expression->span);
+        if(program->failed) return -1;
+        int member = assembly_member_type(program, type.element, field);
+        if(member < 0) return assembly_fail(program, expression->span, "record address is outside its declared shape");
+        int result_type = assembly_pointer_type(program, member, expression->span);
+        return assembly_indexed(program, function, LirOp_FieldAddress, result_type, &address, 1,
+            (uint64_t)field, expression->span);
+    }
+    return assembly_fail(program, expression->span, "only globals, dereferenced pointers and their fields or fixed-array elements have lowered addresses yet");
+}
+
+static int
 assembly_compound(AssemblyProgram *program, AssemblyFunction *function,
                   const ZirExpr *expression, int identity, int depth)
 {
@@ -629,8 +773,8 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
     if(depth > 256 || root < 0 || root >= function->source->expr_count)
         return assembly_fail(program, function->source->span, "invalid or excessively deep expression graph");
     const ZirExpr *expression = &function->source->exprs[root];
-    if(expression->is_move || expression->is_global_value)
-        return assembly_fail(program, expression->span, "owned moves and global state are not lowered yet");
+    if(expression->is_move)
+        return assembly_fail(program, expression->span, "owned moves are not lowered yet");
     int type = assembly_type(program, function, expression->type, expression->span);
     if(program->failed) return -1;
     if(expression->is_function_value) {
@@ -674,9 +818,17 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
     }
     if(expression->kind == ZIR_EXPR_COMPOUND)
         return assembly_compound(program, function, expression, type, depth + 1);
+    if(expression->kind == ZIR_EXPR_INDEX && assembly_addressable(program, function, root, depth + 1)) {
+        int address = assembly_address(program, function, root, depth + 1);
+        return assembly_emit(program, function, LirOp_Load, type, &address, 1, -1, expression->span);
+    }
     if(expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_INDEX)
         return assembly_member(program, function, expression, depth + 1);
     if(expression->kind == ZIR_EXPR_IDENT) {
+        if(expression->is_global_value) {
+            int address = assembly_global_address(program, function, expression->name, expression->span);
+            return assembly_emit(program, function, LirOp_Load, type, &address, 1, -1, expression->span);
+        }
         if(!strcmp(expression->name, "null")) {
             LirTypeKind kind = assembly_type_at(program, type)->kind;
             if(kind != LirTypeKind_Pointer && kind != LirTypeKind_Function)
@@ -694,8 +846,12 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         return assembly_convert(program, function, value, type, expression->span);
     }
     if(expression->kind == ZIR_EXPR_UNARY) {
+        if(!strcmp(expression->op, "&"))
+            return assembly_address(program, function, expression->right, depth + 1);
         int value = assembly_expression(program, function, expression->right, depth + 1);
         if(program->failed) return -1;
+        if(!strcmp(expression->op, "*"))
+            return assembly_emit(program, function, LirOp_Load, type, &value, 1, -1, expression->span);
         if(!strcmp(expression->op, "+")) return assembly_convert(program, function, value, type, expression->span);
         if(!strcmp(expression->op, "!")) {
             int actual = ((int *)function->values.data)[value];
@@ -819,7 +975,14 @@ assembly_store_local(AssemblyProgram *program, AssemblyFunction *function, int r
     if(depth > 256 || root < 0 || root >= function->source->expr_count)
         return assembly_fail(program, function->source->span, "invalid or excessively deep local assignment") >= 0;
     const ZirExpr *destination = &function->source->exprs[root];
-    if(destination->kind == ZIR_EXPR_IDENT && !destination->is_global_value) {
+    if(destination->kind == ZIR_EXPR_IDENT && destination->is_global_value) {
+        int address = assembly_global_address(program, function, destination->name, destination->span);
+        int type = assembly_type(program, function, destination->type, destination->span);
+        int operands[2] = {address, assembly_convert(program, function, value, type, destination->span)};
+        assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, destination->span);
+        return !program->failed;
+    }
+    if(destination->kind == ZIR_EXPR_IDENT) {
         int binding = assembly_binding(function, destination->name);
         if(binding < 0) return assembly_fail(program, destination->span, "assignment requires a local binding") >= 0;
         int identity = ((AssemblyBinding *)function->bindings.data)[binding].type;
@@ -929,8 +1092,12 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
             }
             int previous = -1;
             int identity = assembly_type(program, function, function->source->exprs[statement->lhs_root].type, statement->span);
+            int address = -1;
+            if(assembly_addressable(program, function, statement->lhs_root, 0))
+                address = assembly_address(program, function, statement->lhs_root, 0);
             if(strcmp(statement->assignment_op, "="))
-                previous = assembly_expression(program, function, statement->lhs_root, 0);
+                previous = address >= 0 ? assembly_emit(program, function, LirOp_Load, identity,
+                    &address, 1, -1, statement->span) : assembly_expression(program, function, statement->lhs_root, 0);
             int value = assembly_expression(program, function, statement->expr_root, 0);
             if(strcmp(statement->assignment_op, "=")) {
                 char operator_text[4];
@@ -944,7 +1111,10 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                 int operands[2] = {previous, value};
                 value = assembly_emit(program, function, op, identity, operands, 2, -1, statement->span);
             }
-            assembly_store_local(program, function, statement->lhs_root, value, 0);
+            if(address >= 0) {
+                int operands[2] = {address, assembly_convert(program, function, value, identity, statement->span)};
+                assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, statement->span);
+            } else assembly_store_local(program, function, statement->lhs_root, value, 0);
         } else if(statement->kind == ZIR_STMT_EXPR || statement->kind == ZIR_STMT_UNUSED) {
             assembly_expression(program, function, statement->expr_root, 0);
         } else if(statement->kind == ZIR_STMT_RETURN) {
@@ -1017,7 +1187,7 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
         if(functions[index]->source == source && functions[index]->module == module) return index;
     if(!source->checked || source->is_extern || source->is_template || source->is_global_initializer ||
        source->uses_host || source->simd_target || (source->assembly_text && *source->assembly_text))
-        return assembly_fail(program, source->span, "direct scalar lowering requires a concrete checked function without globals, foreign services or native variants");
+        return assembly_fail(program, source->span, "direct lowering requires a concrete checked function without runtime initializers, foreign services or native variants");
     AssemblyFunction *function = assembly_allocate(program, 1, sizeof(*function));
     if(function == NULL) return -1;
     function->module = module;
@@ -1053,6 +1223,7 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
     program->modules.width = sizeof(String);
     program->sources.width = sizeof(String);
     program->constants.width = sizeof(LirConstant);
+    program->globals.width = sizeof(AssemblyGlobal);
     program->origins.width = sizeof(LirOrigin);
     program->functions.width = sizeof(AssemblyFunction *);
     program->types.width = sizeof(LirType);
@@ -1068,6 +1239,17 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
     }
     const ZirModule *module = NULL;
     const ZirFunction *function = NULL;
+    for(int module_index = 0; module_index < source->module_count && !program->failed; module_index++) {
+        const ZirModule *candidate = &source->modules[module_index];
+        for(int function_index = 0; function_index < candidate->function_count; function_index++) {
+            if(!assembly_spend(program, candidate->functions[function_index].span)) break;
+            if(candidate->functions[function_index].is_global_initializer) {
+                assembly_fail(program, candidate->functions[function_index].span,
+                    "runtime module initialization is not lowered yet");
+                break;
+            }
+        }
+    }
     for(int index = 0; index < source->module_count; index++)
         if(!strcmp(source->modules[index].name, module_name)) {
             if(module) { assembly_fail(program, source->modules[index].span, "ambiguous entry module"); break; }
@@ -1102,12 +1284,16 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
         builder->result.values = assembly_slice(builder->values);
     }
     LirFunction *functions = assembly_allocate(program, (size_t)program->functions.count, sizeof(*functions));
+    LirGlobal *globals = assembly_allocate(program, (size_t)program->globals.count, sizeof(*globals));
     if(!program->failed) {
         for(int index = 0; index < program->functions.count; index++)
             functions[index] = ((AssemblyFunction **)program->functions.data)[index]->result;
+        for(int index = 0; index < program->globals.count; index++)
+            globals[index] = ((AssemblyGlobal *)program->globals.data)[index].result;
         program->result = (LirProgram){.version = LirVersion, .modules = assembly_slice(program->modules),
             .sources = assembly_slice(program->sources), .types = assembly_slice(program->types),
-            .constants = assembly_slice(program->constants), .functions = {functions, program->functions.count},
+            .constants = assembly_slice(program->constants), .globals = {globals, program->globals.count},
+            .functions = {functions, program->functions.count},
             .origins = assembly_slice(program->origins), .entry = 0};
     }
     if(program->failed) { AssemblyFree(program); return NULL; }
@@ -1197,8 +1383,9 @@ AssemblyPrintLir(const LirProgram *view, FILE *output)
     LirOrigin *origins = view->origins.data;
     for(int index = 0; index < view->origins.length; index++) {
         LirOrigin origin = origins[index];
-        fprintf(output, "origin o%d source=s%d line=%d column=%d begin=%lld end=%lld parent=o%d\n",
-            index, origin.file, origin.line, origin.column, (long long)origin.begin, (long long)origin.end, origin.parent);
+        fprintf(output, "origin o%d source=s%d line=%d column=%d end_line=%d end_column=%d begin=%lld end=%lld parent=o%d\n",
+            index, origin.file, origin.line, origin.column, origin.end_line, origin.end_column,
+            (long long)origin.begin, (long long)origin.end, origin.parent);
     }
     LirFunction *functions = view->functions.data;
     for(int function = 0; function < view->functions.length; function++) {

@@ -205,24 +205,27 @@ compiler_link_Numbered(Slice output, String prefix, int32_t serial)
     int64_t count = 0LL;
     int32_t value = serial;
     while (count == 0LL || value > 0) {
-        ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), count) = (uint8_t)(((int32_t)(48u + (uint32_t)((value % 10)))));
+        uint8_t* value_0 = &(ZIRAN_INDEX(digits, sizeof(digits) / sizeof(digits[0]), count));
+        (*value_0) = (uint8_t)(((int32_t)(48u + (uint32_t)((value % 10)))));
         count = (int64_t)((uint64_t)count + UINT64_C(1));
         value = value / 10;
     }
     int64_t at = 0LL;
     for (int64_t it_index = 0LL; it_index < (int64_t)(prefix).length; it_index++) {
         uint8_t byte = (uint8_t)prefix.data[it_index];
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)at)] = byte;
+        uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)at)]);
+        (*value_1) = byte;
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
     while (count > 0LL) {
         count = (int64_t)((uint64_t)count - UINT64_C(1));
-        ((uint8_t *)output.data)[SliceIndex(output, (int64_t)at)] = ZIRAN_INDEX(digits, 12, count);
+        uint8_t* value_2 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)at)]);
+        (*value_2) = ZIRAN_INDEX(digits, 12, count);
         at = (int64_t)((uint64_t)at + UINT64_C(1));
     }
-    Slice value_0 = output;
-    Slice value_1 = SliceRange(value_0, (int64_t)0LL, (int64_t)at, sizeof(uint8_t));
-    return StringView((const char *)(value_1).data, (size_t)(value_1).length);
+    Slice value_3 = output;
+    Slice value_4 = SliceRange(value_3, (int64_t)0LL, (int64_t)at, sizeof(uint8_t));
+    return StringView((const char *)(value_4).data, (size_t)(value_4).length);
 }
 
 static bool
@@ -380,21 +383,22 @@ compiler_link_ResolveImports(ZirProgram** programs, int32_t count)
                         int32_t i = range_first_4;
                         if (i <= range_last_4) for (;;) {
                             ZirImport* import = &(module->imports[i]);
-                            import->resolved_module = (const struct ZirModule *)(((void *)0));
-                            bool value_0 = ((ZirImportKind)(import->kind)) == ((ZirImportKind)(2));
-                            bool value_1 = value_0;
-                            if (value_1) {
-                                ZirModule* value_2 = module;
-                                Slice value_3 = {import->name, 128};
-                                String value_4 = compiler_ir_BufferText(value_3);
-                                bool value_5 = compiler_link_ModuleAlias(value_2, value_4, i);
-                                value_1 = value_5;
+                            const struct ZirModule ** value_0 = &(import->resolved_module);
+                            (*value_0) = (const struct ZirModule *)(((void *)0));
+                            bool value_1 = ((ZirImportKind)(import->kind)) == ((ZirImportKind)(2));
+                            bool value_2 = value_1;
+                            if (value_2) {
+                                ZirModule* value_3 = module;
+                                Slice value_4 = {import->name, 128};
+                                String value_5 = compiler_ir_BufferText(value_4);
+                                bool value_6 = compiler_link_ModuleAlias(value_3, value_5, i);
+                                value_2 = value_6;
                             }
-                            if (value_1) {
-                                ZirSourceSpan value_6 = import->span;
-                                Slice value_7 = {import->name, 128};
-                                String value_8 = compiler_ir_BufferText(value_7);
-                                return compiler_link_Fail(value_6, StringLiteral("check.import"), StringLiteral("duplicate import alias: "), value_8, StringLiteral(""));
+                            if (value_2) {
+                                ZirSourceSpan value_7 = import->span;
+                                Slice value_8 = {import->name, 128};
+                                String value_9 = compiler_ir_BufferText(value_8);
+                                return compiler_link_Fail(value_7, StringLiteral("check.import"), StringLiteral("duplicate import alias: "), value_9, StringLiteral(""));
                             }
                             if (((ZirImportKind)(import->kind)) != ((ZirImportKind)(1)) && ((ZirImportKind)(import->kind)) != ((ZirImportKind)(2))) {
                                 if (i == range_last_4) {
@@ -403,10 +407,10 @@ compiler_link_ResolveImports(ZirProgram** programs, int32_t count)
                                 i = (int32_t)((uint32_t)i + 1u);
                                 continue;
                             }
-                            Slice value_9 = {import->target, 1024};
-                            String target = compiler_ir_BufferText(value_9);
-                            bool value_10 = compiler_link_ModuleName(target);
-                            if (!value_10) {
+                            Slice value_10 = {import->target, 1024};
+                            String target = compiler_ir_BufferText(value_10);
+                            bool value_11 = compiler_link_ModuleName(target);
+                            if (!value_11) {
                                 return compiler_link_Fail(import->span, StringLiteral("check.import"), StringLiteral("invalid Jai module name: "), target, StringLiteral(""));
                             }
                             {
@@ -420,28 +424,28 @@ compiler_link_ResolveImports(ZirProgram** programs, int32_t count)
                                         int32_t n = range_first_18;
                                         if (n <= range_last_18) for (;;) {
                                             ZirModule* candidate = &(((programs[q])->modules)[n]);
-                                            String value_11 = target;
-                                            Slice value_12 = {candidate->name, 128};
-                                            bool value_13 = !StringEqual(value_11, compiler_ir_BufferText(value_12));
-                                            bool value_14 = value_13;
+                                            String value_12 = target;
+                                            Slice value_13 = {candidate->name, 128};
+                                            bool value_14 = !StringEqual(value_12, compiler_ir_BufferText(value_13));
                                             bool value_15 = value_14;
-                                            if (value_15) {
-                                                String value_16 = target;
-                                                Slice value_17 = {candidate->source_path, 1024};
-                                                String value_18 = compiler_ir_BufferText(value_17);
-                                                String value_19 = StringView(NULL, 0);
+                                            bool value_16 = value_15;
+                                            if (value_16) {
+                                                String value_17 = target;
+                                                Slice value_18 = {candidate->source_path, 1024};
+                                                String value_19 = compiler_ir_BufferText(value_18);
+                                                String value_20 = StringView(NULL, 0);
                                                 {
-                                                    String path = value_18;
+                                                    String path = value_19;
                                                     if ((int64_t)(path).length > 3LL && StringEqual(StringRange(path, (int64_t)((int64_t)((uint64_t)((int64_t)(path).length) - UINT64_C(3))), (int64_t)path.length), StringLiteral(".zi"))) {
-                                                        value_19 = StringRange(path, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(path).length) - UINT64_C(3))));
-                                                        goto value_20;
+                                                        value_20 = StringRange(path, (int64_t)0LL, (int64_t)((int64_t)((uint64_t)((int64_t)(path).length) - UINT64_C(3))));
+                                                        goto value_21;
                                                     }
-                                                    value_19 = path;
-                                                value_20: ;
+                                                    value_20 = path;
+                                                value_21: ;
                                                 }
-                                                value_15 = (!StringEqual(value_16, value_19));
+                                                value_16 = (!StringEqual(value_17, value_20));
                                             }
-                                            if (value_15) {
+                                            if (value_16) {
                                                 if (n == range_last_18) {
                                                     break;
                                                 }
@@ -451,7 +455,8 @@ compiler_link_ResolveImports(ZirProgram** programs, int32_t count)
                                             if (((ZirModule*)import->resolved_module) != ((void *)0) && ((ZirModule*)import->resolved_module) != candidate) {
                                                 return compiler_link_Fail(import->span, StringLiteral("check.import"), StringLiteral("ambiguous Ziran import: "), target, StringLiteral(""));
                                             }
-                                            import->resolved_module = (const struct ZirModule *)(candidate);
+                                            const struct ZirModule ** value_22 = &(import->resolved_module);
+                                            (*value_22) = (const struct ZirModule *)(candidate);
                                             if (n == range_last_18) {
                                                 break;
                                             }
@@ -814,49 +819,50 @@ compiler_link_NameKind(ZirModule* module, Kind kind)
                 return value_15;
             }
             Rename rename = {0};
-            rename.index = d;
+            int32_t* value_16 = &(rename.index);
+            (*value_16) = d;
             int32_t serial = d;
             while (true) {
-                Slice value_16 = {(renames).data, (renames).count};
-                Slice value_17 = {rename.internal, 32};
-                Slice value_18 = value_17;
-                Kind value_19 = (Kind)(kind);
-                String value_20 = StringView(NULL, 0);
+                Slice value_17 = {(renames).data, (renames).count};
+                Slice value_18 = {rename.internal, 32};
+                Slice value_19 = value_18;
+                Kind value_20 = (Kind)(kind);
+                String value_21 = StringView(NULL, 0);
                 {
-                    Kind kind = (Kind)(value_19);
+                    Kind kind = (Kind)(value_20);
                     if (kind == Kind_Function) {
-                        value_20 = StringLiteral("zir_file_function_");
-                        goto value_21;
+                        value_21 = StringLiteral("zir_file_function_");
+                        goto value_22;
                     }
                     if (kind == Kind_Constant) {
-                        value_20 = StringLiteral("zir_file_constant_");
-                        goto value_21;
+                        value_21 = StringLiteral("zir_file_constant_");
+                        goto value_22;
                     }
                     if (kind == Kind_Global) {
-                        value_20 = StringLiteral("zir_file_global_");
-                        goto value_21;
+                        value_21 = StringLiteral("zir_file_global_");
+                        goto value_22;
                     }
-                    value_20 = StringLiteral("zir_file_type_");
-                value_21: ;
+                    value_21 = StringLiteral("zir_file_type_");
+                value_22: ;
                 }
-                if (!compiler_link_Taken(module, SliceRange(value_16, 0LL, renames.count, sizeof(*(renames).data)), compiler_link_Numbered(value_18, value_20, serial))) { break; }
+                if (!compiler_link_Taken(module, SliceRange(value_17, 0LL, renames.count, sizeof(*(renames).data)), compiler_link_Numbered(value_19, value_21, serial))) { break; }
                 serial = (int32_t)((uint32_t)serial + 1u);
             }
-            Rename value_22 = rename;
-            bool value_23 = false;
-            void *value_24 = ZirVecGrow((void *)(renames).data, &(renames).capacity, (renames).count, sizeof(*(renames).data));
-            if (value_24 != NULL) {
-                (renames).data = (Rename *)value_24;
-                (renames).data[(renames).count++] = value_22;
-                value_23 = true;
+            Rename value_23 = rename;
+            bool value_24 = false;
+            void *value_25 = ZirVecGrow((void *)(renames).data, &(renames).capacity, (renames).count, sizeof(*(renames).data));
+            if (value_25 != NULL) {
+                (renames).data = (Rename *)value_25;
+                (renames).data[(renames).count++] = value_23;
+                value_24 = true;
             }
-            if (!value_23) {
-                bool value_25 = compiler_link_Fail(declaration.span, StringLiteral("check.file_scope"), StringLiteral("cannot allocate file-private names"), StringLiteral(""), StringLiteral(""));
+            if (!value_24) {
+                bool value_26 = compiler_link_Fail(declaration.span, StringLiteral("check.file_scope"), StringLiteral("cannot allocate file-private names"), StringLiteral(""), StringLiteral(""));
                 free((*value_0).data);
                 (*value_0).data = NULL;
                 (*value_0).capacity = 0;
                 (*value_0).count = 0;
-                return value_25;
+                return value_26;
             }
             if (d == range_last_2) {
                 break;
@@ -865,63 +871,63 @@ compiler_link_NameKind(ZirModule* module, Kind kind)
         }
     }
     if (renames.count == 0LL) {
-        bool value_26 = true;
+        bool value_27 = true;
         free((*value_0).data);
         (*value_0).data = NULL;
         (*value_0).capacity = 0;
         (*value_0).count = 0;
-        return value_26;
+        return value_27;
     }
     if (kind == Kind_Function) {
-        Slice value_27 = {(renames).data, (renames).count};
-        compiler_link_RenameCalls(module, SliceRange(value_27, 0LL, renames.count, sizeof(*(renames).data)));
+        Slice value_28 = {(renames).data, (renames).count};
+        compiler_link_RenameCalls(module, SliceRange(value_28, 0LL, renames.count, sizeof(*(renames).data)));
     } else {
         for (int64_t it_index = 0LL; it_index < renames.count; it_index++) {
             Rename rename = ZIRAN_VEC_INDEX((renames).data, (renames).count, it_index);
             Entry declaration = compiler_link_Declared(module, kind, rename.index);
             bool template = kind == Kind_Type && (module->types[rename.index]).is_record_template != 0;
-            ZirSourceSpan value_28 = declaration.span;
-            String value_29 = StringView(NULL, 0);
+            ZirSourceSpan value_29 = declaration.span;
+            String value_30 = StringView(NULL, 0);
             {
-                ZirSourceSpan span = value_28;
-                value_29 = compiler_ir_CText(compiler_services_SpanPath(span));
+                ZirSourceSpan span = value_29;
+                value_30 = compiler_ir_CText(compiler_services_SpanPath(span));
             }
-            Slice value_31 = {rename.internal, 32};
-            bool value_32 = compiler_link_RewriteReferences(module, kind, value_29, declaration.name, compiler_ir_BufferText(value_31), template);
-            if (!value_32) {
-                bool value_33 = false;
+            Slice value_32 = {rename.internal, 32};
+            bool value_33 = compiler_link_RewriteReferences(module, kind, value_30, declaration.name, compiler_ir_BufferText(value_32), template);
+            if (!value_33) {
+                bool value_34 = false;
                 free((*value_0).data);
                 (*value_0).data = NULL;
                 (*value_0).capacity = 0;
                 (*value_0).count = 0;
-                return value_33;
+                return value_34;
             }
         }
     }
     for (int64_t it_index = 0LL; it_index < renames.count; it_index++) {
         Rename rename = ZIRAN_VEC_INDEX((renames).data, (renames).count, it_index);
-        ZirModule* value_34 = module;
-        Kind value_35 = (Kind)(kind);
-        int32_t value_36 = rename.index;
-        Slice value_37 = {rename.internal, 32};
-        String value_38 = compiler_ir_BufferText(value_37);
+        ZirModule* value_35 = module;
+        Kind value_36 = (Kind)(kind);
+        int32_t value_37 = rename.index;
+        Slice value_38 = {rename.internal, 32};
+        String value_39 = compiler_ir_BufferText(value_38);
         {
-            ZirModule* module = value_34;
-            Kind kind = (Kind)(value_35);
-            int32_t index = value_36;
-            String name = value_38;
+            ZirModule* module = value_35;
+            Kind kind = (Kind)(value_36);
+            int32_t index = value_37;
+            String name = value_39;
             if (kind == Kind_Function) {
-                Slice value_40 = {(module->functions[index]).name, 128};
-                compiler_ir_CopyText(value_40, name);
-            } else if (kind == Kind_Constant) {
-                Slice value_41 = {(module->defines[index]).name, 128};
+                Slice value_41 = {(module->functions[index]).name, 128};
                 compiler_ir_CopyText(value_41, name);
-            } else if (kind == Kind_Global) {
-                Slice value_42 = {(module->globals[index]).name, 128};
+            } else if (kind == Kind_Constant) {
+                Slice value_42 = {(module->defines[index]).name, 128};
                 compiler_ir_CopyText(value_42, name);
-            } else {
-                Slice value_43 = {(module->types[index]).name, 128};
+            } else if (kind == Kind_Global) {
+                Slice value_43 = {(module->globals[index]).name, 128};
                 compiler_ir_CopyText(value_43, name);
+            } else {
+                Slice value_44 = {(module->types[index]).name, 128};
+                compiler_ir_CopyText(value_44, name);
             }
         }
     }
@@ -931,7 +937,8 @@ compiler_link_NameKind(ZirModule* module, Kind kind)
             int32_t range_last_54 = (int32_t)((uint32_t)(module->function_count) - 1u);
             int32_t f = range_first_54;
             if (f <= range_last_54) for (;;) {
-                (module->functions[f]).from_ir = 1;
+                int32_t* value_45 = &((module->functions[f]).from_ir);
+                (*value_45) = 1;
                 if (f == range_last_54) {
                     break;
                 }
@@ -940,12 +947,12 @@ compiler_link_NameKind(ZirModule* module, Kind kind)
         }
     }
     compiler_services_LookupsChanged();
-    bool value_44 = true;
+    bool value_46 = true;
     free((*value_0).data);
     (*value_0).data = NULL;
     (*value_0).capacity = 0;
     (*value_0).count = 0;
-    return value_44;
+    return value_46;
 }
 
 static void
@@ -1001,9 +1008,10 @@ compiler_link_RenameCalls(ZirModule* module, Slice renames)
                     for (int64_t it_index = 0LL; it_index < (int64_t)(renames).length; it_index++) {
                         Rename rename = ((Rename *)renames.data)[it_index];
                         if (target == &(module->functions[rename.index])) {
-                            Slice value_10 = {rename.internal, 32};
-                            uint8_t* value_11 = compiler_services_KeepName(compiler_ir_BufferText(value_10));
-                            expression->name = (const char *)(value_11);
+                            const char ** value_10 = &(expression->name);
+                            Slice value_11 = {rename.internal, 32};
+                            uint8_t* value_12 = compiler_services_KeepName(compiler_ir_BufferText(value_11));
+                            (*value_10) = (const char *)(value_12);
                             break;
                         }
                     }
@@ -1044,13 +1052,15 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
                 g = (int32_t)((uint32_t)g + 1u);
                 continue;
             }
-            edit.span = global->span;
+            ZirSourceSpan* value_3 = &(edit.span);
+            (*value_3) = global->span;
             if (kind != Kind_Global) {
-                Slice value_3 = {global->type, 4096};
-                compiler_link_RewriteBuffer(&(edit), value_3);
+                Slice value_4 = {global->type, 4096};
+                compiler_link_RewriteBuffer(&(edit), value_4);
             }
-            uint8_t* value_4 = compiler_link_RewriteKept(&(edit), (uint8_t*)global->init, Kept_Plain);
-            global->init = (const char *)(value_4);
+            const char ** value_5 = &(global->init);
+            uint8_t* value_6 = compiler_link_RewriteKept(&(edit), (uint8_t*)global->init, Kept_Plain);
+            (*value_5) = (const char *)(value_6);
             if (g == range_last_1) {
                 break;
             }
@@ -1064,13 +1074,13 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
             int32_t f = range_first_13;
             if (f <= range_last_13) for (;;) {
                 ZirFunction* caller = &(module->functions[f]);
-                ZirSourceSpan value_5 = caller->span;
-                String value_6 = StringView(NULL, 0);
+                ZirSourceSpan value_7 = caller->span;
+                String value_8 = StringView(NULL, 0);
                 {
-                    ZirSourceSpan span = value_5;
-                    value_6 = compiler_ir_CText(compiler_services_SpanPath(span));
+                    ZirSourceSpan span = value_7;
+                    value_8 = compiler_ir_CText(compiler_services_SpanPath(span));
                 }
-                if (!StringEqual(value_6, path)) {
+                if (!StringEqual(value_8, path)) {
                     if (f == range_last_13) {
                         break;
                     }
@@ -1083,15 +1093,16 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
                     int32_t x = range_first_18;
                     if (x <= range_last_18) for (;;) {
                         ZirExpr* expression = &(caller->exprs[x]);
-                        bool value_8 = expression->is_global_value != 0;
-                        bool value_9 = value_8;
-                        if (value_9) {
-                            String value_10 = compiler_ir_CText((uint8_t*)expression->name);
-                            value_9 = (StringEqual(value_10, original));
+                        bool value_10 = expression->is_global_value != 0;
+                        bool value_11 = value_10;
+                        if (value_11) {
+                            String value_12 = compiler_ir_CText((uint8_t*)expression->name);
+                            value_11 = (StringEqual(value_12, original));
                         }
-                        if (value_9) {
-                            uint8_t* value_11 = compiler_services_KeepName(internal);
-                            expression->name = (const char *)(value_11);
+                        if (value_11) {
+                            const char ** value_13 = &(expression->name);
+                            uint8_t* value_14 = compiler_services_KeepName(internal);
+                            (*value_13) = (const char *)(value_14);
                         }
                         if (x == range_last_18) {
                             break;
@@ -1113,22 +1124,24 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
         int32_t d = range_first_27;
         if (d <= range_last_27) for (;;) {
             ZirDefine* constant = &(module->defines[d]);
-            ZirSourceSpan value_12 = constant->span;
-            String value_13 = StringView(NULL, 0);
+            ZirSourceSpan value_15 = constant->span;
+            String value_16 = StringView(NULL, 0);
             {
-                ZirSourceSpan span = value_12;
-                value_13 = compiler_ir_CText(compiler_services_SpanPath(span));
+                ZirSourceSpan span = value_15;
+                value_16 = compiler_ir_CText(compiler_services_SpanPath(span));
             }
-            if (!StringEqual(value_13, path)) {
+            if (!StringEqual(value_16, path)) {
                 if (d == range_last_27) {
                     break;
                 }
                 d = (int32_t)((uint32_t)d + 1u);
                 continue;
             }
-            edit.span = constant->span;
-            uint8_t* value_15 = compiler_link_RewriteKept(&(edit), (uint8_t*)constant->value, Kept_Plain);
-            constant->value = (const char *)(value_15);
+            ZirSourceSpan* value_18 = &(edit.span);
+            (*value_18) = constant->span;
+            const char ** value_19 = &(constant->value);
+            uint8_t* value_20 = compiler_link_RewriteKept(&(edit), (uint8_t*)constant->value, Kept_Plain);
+            (*value_19) = (const char *)(value_20);
             if (d == range_last_27) {
                 break;
             }
@@ -1141,44 +1154,45 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
         int32_t t = range_first_35;
         if (t <= range_last_35) for (;;) {
             ZirType* type = &(module->types[t]);
-            ZirSourceSpan value_16 = type->span;
-            String value_17 = StringView(NULL, 0);
+            ZirSourceSpan value_21 = type->span;
+            String value_22 = StringView(NULL, 0);
             {
-                ZirSourceSpan span = value_16;
-                value_17 = compiler_ir_CText(compiler_services_SpanPath(span));
+                ZirSourceSpan span = value_21;
+                value_22 = compiler_ir_CText(compiler_services_SpanPath(span));
             }
-            if (!StringEqual(value_17, path)) {
+            if (!StringEqual(value_22, path)) {
                 if (t == range_last_35) {
                     break;
                 }
                 t = (int32_t)((uint32_t)t + 1u);
                 continue;
             }
-            edit.span = type->span;
-            bool value_19 = kind == Kind_Constant;
-            bool value_20 = value_19;
-            if (!value_20) {
-                bool value_21 = type->is_enum == 0;
-                bool value_22 = value_21;
-                if (value_22) {
-                    bool value_23 = compiler_link_Shadows(type, original);
-                    value_22 = !value_23;
+            ZirSourceSpan* value_24 = &(edit.span);
+            (*value_24) = type->span;
+            bool value_25 = kind == Kind_Constant;
+            bool value_26 = value_25;
+            if (!value_26) {
+                bool value_27 = type->is_enum == 0;
+                bool value_28 = value_27;
+                if (value_28) {
+                    bool value_29 = compiler_link_Shadows(type, original);
+                    value_28 = !value_29;
                 }
-                value_20 = value_22;
+                value_26 = value_28;
             }
-            if (value_20) {
-                Slice value_24 = {type->body, 8192};
-                compiler_link_RewriteBuffer(&(edit), value_24);
+            if (value_26) {
+                Slice value_30 = {type->body, 8192};
+                compiler_link_RewriteBuffer(&(edit), value_30);
             }
             if (kind == Kind_Type) {
-                Slice value_25 = {type->template_name, 128};
-                compiler_link_RewriteBuffer(&(edit), value_25);
+                Slice value_31 = {type->template_name, 128};
+                compiler_link_RewriteBuffer(&(edit), value_31);
             }
-            Slice value_26 = {type->template_args, 4096};
-            compiler_link_RewriteBuffer(&(edit), value_26);
+            Slice value_32 = {type->template_args, 4096};
+            compiler_link_RewriteBuffer(&(edit), value_32);
             if (kind == Kind_Type) {
-                Slice value_27 = {type->procedure_return_type, 128};
-                compiler_link_RewriteBuffer(&(edit), value_27);
+                Slice value_33 = {type->procedure_return_type, 128};
+                compiler_link_RewriteBuffer(&(edit), value_33);
             }
             if (t == range_last_35) {
                 break;
@@ -1195,26 +1209,27 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
         int32_t i = range_first_55;
         if (i <= range_last_55) for (;;) {
             ZirImport* import = &(module->imports[i]);
-            ZirSourceSpan value_28 = import->span;
-            String value_29 = StringView(NULL, 0);
+            ZirSourceSpan value_34 = import->span;
+            String value_35 = StringView(NULL, 0);
             {
-                ZirSourceSpan span = value_28;
-                value_29 = compiler_ir_CText(compiler_services_SpanPath(span));
+                ZirSourceSpan span = value_34;
+                value_35 = compiler_ir_CText(compiler_services_SpanPath(span));
             }
-            if (!StringEqual(value_29, path)) {
+            if (!StringEqual(value_35, path)) {
                 if (i == range_last_55) {
                     break;
                 }
                 i = (int32_t)((uint32_t)i + 1u);
                 continue;
             }
-            edit.span = import->span;
-            Slice value_31 = {import->signature, 4096};
-            compiler_link_RewriteBuffer(&(edit), value_31);
-            Slice value_32 = {import->args, 4096};
-            compiler_link_RewriteBuffer(&(edit), value_32);
-            Slice value_33 = {import->return_type, 128};
-            compiler_link_RewriteBuffer(&(edit), value_33);
+            ZirSourceSpan* value_37 = &(edit.span);
+            (*value_37) = import->span;
+            Slice value_38 = {import->signature, 4096};
+            compiler_link_RewriteBuffer(&(edit), value_38);
+            Slice value_39 = {import->args, 4096};
+            compiler_link_RewriteBuffer(&(edit), value_39);
+            Slice value_40 = {import->return_type, 128};
+            compiler_link_RewriteBuffer(&(edit), value_40);
             if (i == range_last_55) {
                 break;
             }
@@ -1227,33 +1242,37 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
         int32_t f = range_first_65;
         if (f <= range_last_65) for (;;) {
             ZirFunction* function = &(module->functions[f]);
-            ZirSourceSpan value_34 = function->span;
-            String value_35 = StringView(NULL, 0);
+            ZirSourceSpan value_41 = function->span;
+            String value_42 = StringView(NULL, 0);
             {
-                ZirSourceSpan span = value_34;
-                value_35 = compiler_ir_CText(compiler_services_SpanPath(span));
+                ZirSourceSpan span = value_41;
+                value_42 = compiler_ir_CText(compiler_services_SpanPath(span));
             }
-            if (!StringEqual(value_35, path)) {
+            if (!StringEqual(value_42, path)) {
                 if (f == range_last_65) {
                     break;
                 }
                 f = (int32_t)((uint32_t)f + 1u);
                 continue;
             }
-            edit.span = function->span;
-            uint8_t* value_37 = compiler_link_RewriteKept(&(edit), (uint8_t*)function->args_text, Kept_Parameters);
-            function->args_text = (const char *)(value_37);
-            Slice value_38 = {function->return_type, 128};
-            compiler_link_RewriteBuffer(&(edit), value_38);
+            ZirSourceSpan* value_44 = &(edit.span);
+            (*value_44) = function->span;
+            const char ** value_45 = &(function->args_text);
+            uint8_t* value_46 = compiler_link_RewriteKept(&(edit), (uint8_t*)function->args_text, Kept_Parameters);
+            (*value_45) = (const char *)(value_46);
+            Slice value_47 = {function->return_type, 128};
+            compiler_link_RewriteBuffer(&(edit), value_47);
             {
                 int32_t range_first_73 = 0;
                 int32_t range_last_73 = (int32_t)((uint32_t)(function->stmt_count) - 1u);
                 int32_t s = range_first_73;
                 if (s <= range_last_73) for (;;) {
                     ZirStmt* statement = &(function->stmts[s]);
-                    edit.span = statement->span;
-                    uint8_t* value_39 = compiler_link_RewriteKept(&(edit), (uint8_t*)statement->type, Kept_Name);
-                    statement->type = (const char *)(value_39);
+                    ZirSourceSpan* value_48 = &(edit.span);
+                    (*value_48) = statement->span;
+                    const char ** value_49 = &(statement->type);
+                    uint8_t* value_50 = compiler_link_RewriteKept(&(edit), (uint8_t*)statement->type, Kept_Name);
+                    (*value_49) = (const char *)(value_50);
                     if (s == range_last_73) {
                         break;
                     }
@@ -1266,15 +1285,19 @@ compiler_link_RewriteReferences(ZirModule* module, Kind kind, String path, Strin
                 int32_t x = range_first_78;
                 if (x <= range_last_78) for (;;) {
                     ZirExpr* expression = &(function->exprs[x]);
-                    edit.span = expression->span;
-                    uint8_t* value_40 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->type, Kept_Name);
-                    expression->type = (const char *)(value_40);
-                    uint8_t* value_41 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->slot_type, Kept_Name);
-                    expression->slot_type = (const char *)(value_41);
-                    bool value_42 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(11)) || ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(12));
-                    if (value_42 || ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(13)) || (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(5)) && template)) {
-                        uint8_t* value_43 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->name, Kept_Name);
-                        expression->name = (const char *)(value_43);
+                    ZirSourceSpan* value_51 = &(edit.span);
+                    (*value_51) = expression->span;
+                    const char ** value_52 = &(expression->type);
+                    uint8_t* value_53 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->type, Kept_Name);
+                    (*value_52) = (const char *)(value_53);
+                    const char ** value_54 = &(expression->slot_type);
+                    uint8_t* value_55 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->slot_type, Kept_Name);
+                    (*value_54) = (const char *)(value_55);
+                    bool value_56 = ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(11)) || ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(12));
+                    if (value_56 || ((ZirExprKind)(expression->kind)) == ((ZirExprKind)(13)) || (((ZirExprKind)(expression->kind)) == ((ZirExprKind)(5)) && template)) {
+                        const char ** value_57 = &(expression->name);
+                        uint8_t* value_58 = compiler_link_RewriteKept(&(edit), (uint8_t*)expression->name, Kept_Name);
+                        (*value_57) = (const char *)(value_58);
                     }
                     if (x == range_last_78) {
                         break;
@@ -1394,15 +1417,16 @@ compiler_link_Rewrite(Edit* edit, String source, int64_t limit)
         return value_11;
     }
     if (copied != 0LL) {
-        edit->failed = true;
+        bool* value_12 = &(edit->failed);
+        (*value_12) = true;
         compiler_link_Fail(edit->span, StringLiteral("check.file_scope"), StringLiteral("file-private reference exceeds text limit: "), edit->original, StringLiteral(""));
     }
-    Text value_12 = (Text){0};
+    Text value_13 = (Text){0};
     free((text).bytes.data);
     (text).bytes.data = NULL;
     (text).bytes.capacity = 0;
     (text).bytes.count = 0;
-    return value_12;
+    return value_13;
 }
 
 static void

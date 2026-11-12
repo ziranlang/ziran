@@ -11,8 +11,8 @@ Basic :: (mode: s32) -> Lir.LirDiagnostic {
         .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 2}}
     modules: [1]string = .{"test"}
     sources: [1]string = .{"fixture.zi"}
-    origins: [2]Lir.LirOrigin = .{.{file = 0, line = 1, column = 1, begin = 0, end = 3, parent = -1},
-        .{file = 0, line = 2, column = 1, begin = 3, end = 4, parent = 0}}
+    origins: [2]Lir.LirOrigin = .{.{file = 0, line = 1, column = 1, end_line = 1, end_column = 4, begin = 0, end = 3, parent = -1},
+        .{file = 0, line = 2, column = 1, end_line = 2, end_column = 2, begin = 3, end = 4, parent = 0}}
     constants: [2]Lir.LirConstant = .{.{type = 2, bits = 21}, .{type = 1, bits = 1}}
     values: [3]s32 = .{2, 2, 2}
     add: [2]s32 = .{0, 0}
@@ -80,7 +80,79 @@ Basic :: (mode: s32) -> Lir.LirDiagnostic {
     if mode == 43 { program.functions[0].blocks[0].instructions[0].symbol = 2 }
     if mode == 44 { program.functions[0].blocks[0].instructions[1].op = .Invalid }
     if mode == 45 { blocks[1].instructions = instructions[2:]; program.functions[0].blocks = blocks[:] }
+    malformed: [15]u8 = .[255, 192, 175, 237, 160, 128, 244, 144, 128, 128, 226, 130, 110, 0, 108]
+    if mode == 46 { program.modules[0] = TextView(malformed[:1]) }
+    if mode == 47 { program.sources[0] = TextView(malformed[1:3]) }
+    if mode == 48 { program.globals[0].name = TextView(malformed[3:6]) }
+    if mode == 49 { program.functions[0].name = TextView(malformed[6:10]) }
+    if mode == 50 {
+        program.modules[0] = "m\xe2\x82\xac"
+        program.sources[0] = "\xe4\xb8\xad.zi"
+        program.globals[0].name = "\xc3\xa9"
+        program.functions[0].name = "\xf0\x9f\x98\x80"
+    }
+    if mode == 51 { program.modules[0] = "" }
+    if mode == 52 { program.sources[0] = TextView(malformed[10:12]) }
+    if mode == 53 { program.functions[0].name = TextView(malformed[12:15]) }
+    if mode == 54 { program.globals[0].name = "quoted\"\\\n" }
+    if mode == 55 { program.origins[0].end_line = -1; program.origins[0].end_column = 0 }
+    if mode == 56 { program.origins[0].end_column = 0 }
+    if mode == 57 { program.origins[0].end_line = 0 }
+    if mode == 58 { program.origins[1].end_line = 1 }
+    if mode == 59 { program.origins[1].end_column = -1 }
+    if mode == 60 { program.origins[1].column = 3 }
+    if mode == 61 { program.origins[1].end_line = 3; program.origins[1].end_column = 1 }
+    if mode == 62 { program.origins[0].begin = -1; program.origins[0].end = -1 }
+    if mode == 63 { program.origins[0].begin = -1 }
+    if mode == 64 { program.origins[0].end = -1 }
+    if mode == 65 { program.origins[0].begin = -2; program.origins[0].end = -2 }
+    if mode == 66 { program.version = 1 }
+    if mode == 67 { program.origins[0].end_line = 0; program.origins[0].end_column = 0 }
     return Verifier.LirVerify(program, limits)
+}
+
+ElementAddress :: (mode: s32) -> Lir.LirProblem {
+    types: [10]Lir.LirType = .[
+        .{kind = .Void}, .{kind = .Bool, bits = 1}, .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Float, bits = 64}, .{kind = .Array, element = 2, count = 3},
+        .{kind = .Pointer, element = 4}, .{kind = .Pointer, element = 2},
+        .{kind = .Pointer, element = 1}, .{kind = .Array, element = 2, count = 0}, .{kind = .Pointer, element = 8}]
+    modules: [1]string = .["array-address"]
+    constants: [1]Lir.LirConstant = .[.{type = 2, bits = 1}]
+    globals: [1]Lir.LirGlobal = .[.{module = 0, name = "array", type = 4, constant = -1, writable = true}]
+    values: [4]s32 = .[5, 2, 6, 2]
+    indexed: [3]s32 = .[ifx mode == 1 then 1 else 0, 1, 1]
+    pointer: [1]s32 = .[2]
+    returned: [1]s32 = .[3]
+    instructions: [5]Lir.LirInstruction = .[
+        Instruction(.GlobalAddress, 0), Instruction(.Constant, 1), Instruction(.ElementAddress, 2),
+        Instruction(.Load, 3), Instruction(.Return, -1)]
+    instructions[0].symbol = 0
+    instructions[1].symbol = 0
+    instructions[2].operands = indexed[:2]
+    instructions[3].operands = pointer[:]
+    instructions[3].effect = 1
+    instructions[4].operands = returned[:]
+    if mode == 2 { values[1] = 3; constants[0].type = 3 }
+    if mode == 3 { values[1] = 1; constants[0].type = 1 }
+    if mode == 4 { values[2] = 7 }
+    if mode == 5 { instructions[2].result = -1 }
+    if mode == 6 { instructions[2].operands = indexed[:1] }
+    if mode == 7 { instructions[2].operands = indexed[:] }
+    if mode == 8 { instructions[2].immediate = 1 }
+    if mode == 9 { instructions[2].symbol = 0 }
+    if mode == 10 { instructions[2].alignment = 1 }
+    if mode == 11 { instructions[2].effect = 1 }
+    if mode == 12 { globals[0].type = 8; values[0] = 9 }
+    if mode == 13 { globals[0].type = 2; values[0] = 6 }
+    if mode == 14 { types[2].native_width = true }
+    if mode == 15 { values[2] = 2 }
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "array-address", result = 2,
+        values = values[:], blocks = blocks[:], origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], globals = globals[:], functions = functions[:], entry = 0}
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits()).problem
 }
 
 Graph :: (mode: s32, work: s64 = 16000000) -> Lir.LirDiagnostic {
@@ -345,13 +417,15 @@ Budgets :: () -> bool {
 
 #program_export
 Answer :: () -> s32 {
-    basic: [46]Lir.LirProblem = .{.None, .Version, .Limit, .Limit, .Type, .Unsupported,
+    basic: [68]Lir.LirProblem = .{.None, .Version, .Limit, .Limit, .Type, .Unsupported,
         .Constant, .Constant, .Global, .Origin, .Origin, .Origin, .Function, .Origin,
         .Block, .Terminator, .Terminator, .Definition, .Definition, .Dominance, .Operand,
         .Operand, .Effect, .Alignment, .Instruction, .Instruction, .Unsupported, .Unsupported,
         .Unsupported, .Function, .Result, .Type, .Unsupported, .Limit, .Limit, .Limit, .Limit,
-        .Limit, .Limit, .Function, .Constant, .Global, .Result, .Constant, .Instruction, .Block}
-    for mode: cast(s32)0..45 { if !Expect(Basic(mode), basic[mode], 0, mode) { return 0 } }
+        .Limit, .Limit, .Function, .Constant, .Global, .Result, .Constant, .Instruction, .Block,
+        .Function, .Function, .Function, .Function, .None, .Function, .Function, .Function, .None,
+        .Origin, .Origin, .Origin, .Origin, .Origin, .Origin, .None, .None, .Origin, .Origin, .Origin, .Version, .None}
+    for mode: cast(s32)0..67 { if !Expect(Basic(mode), basic[mode], 0, mode) { return 0 } }
     graph: [13]Lir.LirProblem = .{.None, .Dominance, .Dominance, .Edge, .Edge, .Edge,
         .Edge, .Definition, .Operand, .None, .Calling, .Calling, .Edge}
     for mode: cast(s32)0..12 { if !Expect(Graph(mode), graph[mode], 1, mode) { return 1 } }
@@ -361,7 +435,7 @@ Answer :: () -> s32 {
     for mode: cast(s32)0..6 { if !Expect(TypeGraph(mode), types[mode], 3, mode) { return 3 } }
     typed: [24]Lir.LirProblem = .{.None, .Effect, .Alignment, .Calling, .Calling,
         .Operand, .Operand, .Operand, .Effect, .Instruction, .Calling, .Unsupported,
-        .Unsupported, .Unsupported, .Unsupported, .Unsupported, .Unsupported, .Instruction,
+        .Unsupported, .Operand, .Unsupported, .Unsupported, .Unsupported, .Instruction,
         .Operand, .Global, .None, .None, .None, .Instruction}
     for mode: cast(s32)0..23 { if !Expect(Typed(mode), typed[mode], 4, mode) { return 4 } }
     diagnostic := Basic(19)
@@ -374,13 +448,19 @@ Answer :: () -> s32 {
     if !Operations() { return 8 }
     if !Budgets() { return 9 }
     if VoidCall(0) != .None || VoidCall(1) != .Result || VoidCall(2) != .Result { return 10 }
+    element: [16]Lir.LirProblem = .[.None, .Operand, .Operand, .Operand, .Operand, .Result, .Operand, .Operand,
+        .Instruction, .Instruction, .Alignment, .Effect, .None, .Operand, .Unsupported, .Operand]
+    for mode: cast(s32)0..15 {
+        actual := ElementAddress(mode)
+        if actual != element[mode] { print("element-address verifier % got % expected %\n", mode, cast(s32)actual, cast(s32)element[mode]); return 11 }
+    }
     return 42
 }
 
 #program_export
 Fingerprint :: () -> s64 {
     result: u32 = 2166136261
-    for mode: cast(s32)0..45 {
+    for mode: cast(s32)0..67 {
         diagnostic := Basic(mode)
         result = result * 16777619 ^ cast(u32)diagnostic.problem
         result = result * 16777619 ^ cast(u32)diagnostic.function

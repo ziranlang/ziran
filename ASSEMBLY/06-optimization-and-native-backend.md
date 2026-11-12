@@ -1,6 +1,6 @@
 # Step 06 — Optimize executable IR and implement the first native backend
 
-Status: in progress; [unoptimized scalar encoder only](README.md). Depends on stable contracts from [steps 02](02-lowered-ir-and-verifier.md)–[05](05-zx-format-and-linking.md). Next: [target coverage](07-architecture-and-platform-coverage.md).
+Status: in progress; [verified scalar optimization](optimization-pipeline.md) and a [stack-slot scalar/aggregate encoder](README.md), with a [packed internal aggregate ABI](native-aggregate-abi.md). Register allocation, the full optimizer and external System V aggregate interoperability remain pending. Depends on stable contracts from [steps 02](02-lowered-ir-and-verifier.md)–[05](05-zx-format-and-linking.md). Next: [target coverage](07-architecture-and-platform-coverage.md).
 
 ## Objective
 

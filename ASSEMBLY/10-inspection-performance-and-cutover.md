@@ -1,6 +1,6 @@
 # Step 10 — Complete inspectability, validate performance, and cut over
 
-Status: in progress; [scalar dumps and native byte-range maps only](README.md). Depends on all preceding steps. This is the only step that may declare the complete upgrade finished.
+Status: in progress; [lowered instruction dumps, optimization counters and bounded native byte-range maps](README.md). Complete pipeline inspection, profiling, performance validation and cutover remain pending. Depends on all preceding steps. This is the only step that may declare the complete upgrade finished.
 
 ## Objective
 

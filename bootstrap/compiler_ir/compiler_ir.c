@@ -19,8 +19,10 @@ compiler_ir_CText(uint8_t* value)
         length = length + 1;
     }
     TextDescriptor* descriptor = (TextDescriptor*)(&(result));
-    descriptor->data = value;
-    descriptor->length = length;
+    uint8_t** value_0 = &(descriptor->data);
+    (*value_0) = value;
+    size_t* value_1 = &(descriptor->length);
+    (*value_1) = length;
     return result;
 }
 
@@ -29,8 +31,10 @@ compiler_ir_CBuffer(uint8_t* data, size_t count)
 {
     Slice result = {0};
     ByteDescriptor* descriptor = (ByteDescriptor*)(&(result));
-    descriptor->data = data;
-    descriptor->length = (int64_t)(count);
+    uint8_t** value_0 = &(descriptor->data);
+    (*value_0) = data;
+    int64_t* value_1 = &(descriptor->length);
+    (*value_1) = (int64_t)(count);
     return result;
 }
 
@@ -62,7 +66,8 @@ compiler_ir_CopyText(Slice output, String text)
         int64_t range_last_8 = (int64_t)((uint64_t)length - UINT64_C(1));
         int64_t i = range_first_8;
         if (i <= range_last_8) for (;;) {
-            ((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)] = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
+            uint8_t* value_0 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)i)]);
+            (*value_0) = (uint8_t)ZIRAN_INDEX(text.data, text.length, i);
             if ((uint8_t)ZIRAN_INDEX(text.data, text.length, i) == 0) {
                 clean = false;
             }
@@ -72,6 +77,7 @@ compiler_ir_CopyText(Slice output, String text)
             i = (int64_t)((uint64_t)i + UINT64_C(1));
         }
     }
-    ((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)] = 0;
+    uint8_t* value_1 = &(((uint8_t *)output.data)[SliceIndex(output, (int64_t)length)]);
+    (*value_1) = 0;
     return clean;
 }

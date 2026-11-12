@@ -11,6 +11,11 @@ using Texts :: #import "std/text_tools"
 native_execution: bool;
 aggregate_record_fields: [2]s32 = .[7, 11];
 aggregate_top_fields: [5]s32 = .[12, 13, 10, 15, 16];
+native_recursive_signature_parameters: [3]s32 = .[7, 12, 17];
+native_holder_fields: [2]s32 = .[17, 7];
+native_selector_signature_parameters: [1]s32 = .[1];
+native_wide_signature_parameters: [9]s32 = .[7, 15, 12, 17, 7, 7, 7, 7, 7];
+native_float_signature_parameters: [1]s32 = .[15];
 
 #scope_export
 
@@ -21,20 +26,47 @@ Little :: (bytes: []u8, at: s64, count: s64) -> u64 {
     return result
 }
 
-Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNativeRange, code_size: s64) -> bool {
+PackedSize :: (program: LirProgram, type_id: s32) -> s64 {
+    type := program.types[type_id]
+    if type.kind == .Bool { return 1 }
+    if type.kind == .Integer || type.kind == .Float { return type.bits / 8 }
+    if type.kind == .Pointer || type.kind == .Function { return 8 }
+    if type.kind == .Array { return type.count * PackedSize(program, type.element) }
+    size: s64
+    for field: type.fields { size += PackedSize(program, field) }
+    return size
+}
+
+GlobalOffset :: (program: LirProgram, global: s64) -> s64 {
+    offset: s64
+    for index: cast(s64)0..global - 1 { offset += PackedSize(program, program.globals[index].type) }
+    return offset
+}
+
+Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNativeRange,
+    image: LirX64ImageLayout) -> bool {
+    globals := program.globals.count != 0
+    section_count := ifx globals then 6 else 5
+    names_index := ifx globals then 3 else 2
     section_bits := Little(bytes, 40, 8)
-    if !NativeAssert(test, section_bits <= cast(u64)bytes.count && Little(bytes, 60, 2) == 5 &&
-        Little(bytes, 62, 2) == 2, "ELF section directory and names index") { return false }
+    if !NativeAssert(test, section_bits <= cast(u64)bytes.count &&
+        Little(bytes, 60, 2) == cast(u64)section_count &&
+        Little(bytes, 62, 2) == cast(u64)names_index, "ELF section directory and names index") { return false }
     section_at := cast(s64)section_bits
-    if !NativeAssert(test, section_at % 8 == 0 && section_at + 320 == bytes.count, "ELF section directory extent") { return false }
-    symbol_at := Little(bytes, section_at + 256 + 24, 8)
-    symbol_size := Little(bytes, section_at + 256 + 32, 8)
-    string_at := Little(bytes, section_at + 192 + 24, 8)
-    string_size := Little(bytes, section_at + 192 + 32, 8)
-    if !NativeAssert(test, Little(bytes, section_at + 256 + 4, 4) == 2 &&
-        Little(bytes, section_at + 256 + 40, 4) == 3 && Little(bytes, section_at + 256 + 44, 4) == 1 &&
-        Little(bytes, section_at + 256 + 48, 8) == 8 && Little(bytes, section_at + 256 + 56, 8) == 24 &&
-        symbol_size == cast(u64)(program.functions.count + 3) * 24 && symbol_at + symbol_size == section_bits &&
+    if !NativeAssert(test, section_at % 8 == 0 && section_at + section_count * 64 == bytes.count,
+        "ELF section directory extent") { return false }
+    symbol_header := section_at + (ifx globals then 5 else 4) * 64
+    string_header := section_at + (ifx globals then 4 else 3) * 64
+    symbol_at := Little(bytes, symbol_header + 24, 8)
+    symbol_size := Little(bytes, symbol_header + 32, 8)
+    string_at := Little(bytes, string_header + 24, 8)
+    string_size := Little(bytes, string_header + 32, 8)
+    if !NativeAssert(test, Little(bytes, symbol_header + 4, 4) == 2 &&
+        Little(bytes, symbol_header + 40, 4) == cast(u64)(ifx globals then 4 else 3) &&
+        Little(bytes, symbol_header + 44, 4) == 1 &&
+        Little(bytes, symbol_header + 48, 8) == 8 && Little(bytes, symbol_header + 56, 8) == 24 &&
+        symbol_size == cast(u64)(program.functions.count + program.globals.count + 3) * 24 &&
+        symbol_at + symbol_size == section_bits &&
         string_at <= symbol_at && string_size <= symbol_at - string_at, "ELF symbol and string table layout") { return false }
     for index: cast(s64)0..23 {
         if !NativeAssert(test, bytes[cast(s64)symbol_at + index] == 0, "ELF null symbol") { return false }
@@ -53,13 +85,55 @@ Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNa
             Little(bytes, symbol + 4, 1) == 18 && Little(bytes, symbol + 6, 2) == 1,
             "ELF function symbol kind and code section") { return false }
         begin: s64 = -1
-        end := code_size
+        end := image.text_size
         for range: ranges {
             if range.block == -1 && range.function == cast(s32)function_index { begin = range.begin }
             if range.block == -1 && range.function == cast(s32)function_index + 1 { end = range.begin }
         }
-        if !NativeAssert(test, begin >= 35 && Little(bytes, symbol + 8, 8) == cast(u64)(4194424 + begin) &&
+        if !NativeAssert(test, begin >= 35 && Little(bytes, symbol + 8, 8) == image.text_address + cast(u64)begin &&
             Little(bytes, symbol + 16, 8) == cast(u64)(end - begin), "ELF symbols match final mapped function bytes") { return false }
+    }
+    name_at: s64 = 18
+    for function: program.functions {
+        name_at += program.modules[function.module].count + function.name.count + 2
+    }
+    for global_index: cast(s64)0..program.globals.count - 1 {
+        global := program.globals[global_index]
+        symbol := cast(s64)symbol_at + (program.functions.count + global_index + 3) * 24
+        name := Little(bytes, symbol, 4)
+        expected := CheckConcat(CheckConcat(program.modules[global.module], ":"), global.name)
+        if !NativeAssert(test, name == cast(u64)name_at && name < string_size &&
+            cast(u64)expected.count < string_size - name, "ELF global name extent") { return false }
+        for index: cast(s64)0..expected.count - 1 {
+            if !NativeAssert(test, bytes[cast(s64)(string_at + name) + index] == expected[index],
+                "ELF qualified global names") { return false }
+        }
+        if !NativeAssert(test, Little(bytes, symbol + 4, 1) == 17 && Little(bytes, symbol + 6, 2) == 2 &&
+            Little(bytes, symbol + 8, 8) == image.data_address + cast(u64)GlobalOffset(program, global_index) &&
+            Little(bytes, symbol + 16, 8) == cast(u64)PackedSize(program, global.type),
+            "ELF object symbols match packed globals") { return false }
+        name_at += program.modules[global.module].count + global.name.count + 2
+    }
+    if globals {
+        data_header := section_at + 128
+        if !NativeAssert(test, Little(bytes, 56, 2) == 2 &&
+            Little(bytes, 64, 4) == 1 && Little(bytes, 68, 4) == 5 &&
+            Little(bytes, 96, 8) == cast(u64)(image.text_offset + image.text_size) &&
+            Little(bytes, 104, 8) == cast(u64)(image.text_offset + image.text_size) &&
+            Little(bytes, 112, 8) == 4096 &&
+            Little(bytes, 120, 4) == 1 && Little(bytes, 124, 4) == 6 &&
+            Little(bytes, 128, 8) == cast(u64)image.data_offset &&
+            Little(bytes, 136, 8) == image.data_address &&
+            Little(bytes, 152, 8) == cast(u64)image.data_size &&
+            Little(bytes, 160, 8) == cast(u64)image.data_size && Little(bytes, 168, 8) == 4096 &&
+            Little(bytes, data_header + 4, 4) == 1 && Little(bytes, data_header + 8, 8) == 3 &&
+            Little(bytes, data_header + 16, 8) == image.data_address &&
+            Little(bytes, data_header + 24, 8) == cast(u64)image.data_offset &&
+            Little(bytes, data_header + 32, 8) == cast(u64)image.data_size,
+            "ELF has distinct RX text and RW data") { return false }
+    } else {
+        if !NativeAssert(test, image.text_offset == 120 && Little(bytes, 56, 2) == 1 &&
+            Little(bytes, 68, 4) == 5, "legacy no-global ELF layout") { return false }
     }
     return !test.failed
 }
@@ -83,6 +157,40 @@ AggregateTypes :: (types: []LirType) {
     types[16] = .{.kind = .Float, .bits = 64}
 }
 
+FunctionTypes :: (types: []LirType) {
+    AggregateTypes(types[:17])
+    types[17] = .{.kind = .Function, .parameters = native_recursive_signature_parameters[:], .result = 12}
+    types[18] = .{.kind = .Record, .fields = native_holder_fields[:]}
+    types[19] = .{.kind = .Array, .element = 18, .count = 2}
+    types[20] = .{.kind = .Function, .parameters = native_selector_signature_parameters[:], .result = 17}
+    types[21] = .{.kind = .Function, .parameters = native_wide_signature_parameters[:], .result = 12}
+    types[22] = .{.kind = .Function, .parameters = native_float_signature_parameters[:], .result = 15}
+}
+
+GlobalTypes :: (types: []LirType) {
+    AggregateTypes(types[:17])
+    types[17] = .{.kind = .Pointer, .element = 1}
+    types[18] = .{.kind = .Pointer, .element = 2}
+    types[19] = .{.kind = .Pointer, .element = 5}
+    types[20] = .{.kind = .Pointer, .element = 16}
+    types[21] = .{.kind = .Pointer, .element = 12}
+    types[22] = .{.kind = .Pointer, .element = 11}
+    types[23] = .{.kind = .Pointer, .element = 10}
+    types[24] = .{.kind = .Pointer, .element = 14}
+    types[25] = .{.kind = .Pointer, .element = 15}
+}
+
+ElementTypes :: (types: []LirType) {
+    GlobalTypes(types[:26])
+    types[26] = .{.kind = .Pointer, .element = 13}
+    types[27] = .{.kind = .Record}
+    types[28] = .{.kind = .Array, .element = 27, .count = 3}
+    types[29] = .{.kind = .Pointer, .element = 28}
+    types[30] = .{.kind = .Pointer, .element = 27}
+    types[31] = .{.kind = .Array, .element = 7, .count = 0}
+    types[32] = .{.kind = .Pointer, .element = 31}
+}
+
 Instruction :: (op: LirOp, result: s64, operands: []s32, symbol: s64 = -1) -> LirInstruction {
     return .{.op = op, .result = cast(s32)result, .operands = operands, .symbol = cast(s32)symbol, .origin = -1}
 }
@@ -92,11 +200,15 @@ Execute :: (test: *NativeTest, program: LirProgram, expected: s32, label: string
     empty: [0]u8
     measured := LirX64Elf(program, empty[:])
     raw_size := LirX64Encode(program, empty[:])
+    image := LirX64ElfLayout(program)
     no_ranges: [0]LirNativeRange
     range_size := LirX64Ranges(program, no_ranges[:])
     ranges: Vec(LirNativeRange)
     if !NativeAssert(test, range_size.problem == .None && range_size.size > 2 &&
-        VecResize(ranges, range_size.size + 1), "measure and allocate native ranges") { return }
+        VecResize(ranges, range_size.size + 1), CheckConcat("measure native ranges: ", label)) {
+        print("native range problem %\n", cast(s32)range_size.problem)
+        return
+    }
     for range_index: cast(s64)0..ranges.count - 1 { ranges[range_index].begin = 12345 }
     short_ranges := LirX64Ranges(program, ranges[:range_size.size - 1])
     unused NativeAssert(test, short_ranges.problem == .Limit && short_ranges.size == range_size.size, "short map reports range count")
@@ -111,7 +223,9 @@ Execute :: (test: *NativeTest, program: LirProgram, expected: s32, label: string
         previous = range.end
     }
     unused NativeAssert(test, previous == raw_size.size, "native map covers final encoded bytes")
-    if !NativeAssert(test, measured.problem == .None && measured.size > 120, CheckConcat("measure ", label)) {
+    if !NativeAssert(test, measured.problem == .None && image.problem == .None &&
+        measured.size == image.file_size && raw_size.size == image.text_size &&
+        measured.size > image.text_offset, CheckConcat("measure ", label)) {
         print("native problem %\n", cast(s32)measured.problem); return
     }
     bytes: Vec(u8); again: Vec(u8); raw: Vec(u8)
@@ -125,11 +239,14 @@ Execute :: (test: *NativeTest, program: LirProgram, expected: s32, label: string
     second := LirX64Elf(program, again[:])
     encoded := LirX64Encode(program, raw[:])
     unused NativeAssert(test, written.problem == .None && written.size == measured.size &&
-        second.problem == .None && encoded.problem == .None && encoded.size + 120 < measured.size, "complete encodings")
+        second.problem == .None && encoded.problem == .None &&
+        encoded.size + image.text_offset <= measured.size, "complete encodings")
     for index: cast(s64)0..measured.size - 1 { unused NativeAssert(test, bytes[index] == again[index], "deterministic output") }
     for index: measured.size..bytes.count - 1 { unused NativeAssert(test, bytes[index] == 165, "output tail unchanged") }
-    for index: cast(s64)0..raw.count - 1 { unused NativeAssert(test, bytes[index + 120] == raw[index], "raw and ELF code match") }
-    if !Symbols(test, program, bytes[:measured.size], ranges[:range_size.size], raw_size.size) { return }
+    for index: cast(s64)0..raw.count - 1 {
+        unused NativeAssert(test, bytes[index + image.text_offset] == raw[index], "raw and ELF code match")
+    }
+    if !Symbols(test, program, bytes[:measured.size], ranges[:range_size.size], image) { return }
     entry: [5]u8 = .[72, 131, 228, 240, 232]
     for index: 0..4 { unused NativeAssert(test, raw[index] == entry[index], "SysV entry bytes") }
     path := CheckPath(test.work, "direct-elf")
@@ -502,6 +619,900 @@ AggregateFlow :: (test: *NativeTest) {
     Execute(test, program, 10, "aggregate parallel-copy cycle")
 }
 
+FunctionOracle :: (test: *NativeTest) {
+    if !native_execution || test.failed { return }
+    source := #string END
+#include <stdbool.h>
+#include <stdint.h>
+typedef struct { uint32_t value; uint32_t data[3]; } Row;
+typedef Row (*Step)(uint32_t, Row);
+typedef Row (*Wide)(uint32_t, float, Row, Step, uint32_t, uint32_t, uint32_t, uint32_t, uint32_t);
+typedef float (*FloatIdentity)(float);
+typedef struct { Step callback; uint32_t marker; } Holder;
+static Row recursive(uint32_t depth, Row state) {
+    if (depth == 0) return state;
+    state = recursive(depth - 1, state);
+    state.value += 1;
+    return state;
+}
+static Step select_step(bool choose) { return choose ? recursive : 0; }
+static Row wide(uint32_t depth, float add, Row state, Step callback,
+    uint32_t a, uint32_t b, uint32_t c, uint32_t d, uint32_t e) {
+    state = callback(depth, state);
+    state.value += (uint32_t)add + a + b + c + d + e;
+    return state;
+}
+static float identity(float value) { return value; }
+int main(void) {
+    Row state = {5, {0, 1, 2}};
+    Step selected = select_step(true);
+    Holder callbacks[2] = {{selected, 1}, {0, 0}};
+    Wide operation = wide;
+    FloatIdentity same_float = identity;
+    Row result = operation(2, 3.0f, state, callbacks[0].callback, 1, 1, 1, 1, 1);
+    return (int)(result.value + (uint32_t)same_float(3.0f) +
+        (recursive == recursive) + (recursive != 0) + (selected == recursive) +
+        (callbacks[0].callback == recursive) + (callbacks[1].callback == 0));
+}
+END
+    source_path := CheckPath(test.work, "function-oracle.c")
+    executable_path := CheckPath(test.work, "function-oracle")
+    if !NativeWrite(test, source_path, source) { return }
+    compile: [5]string = .["/usr/bin/cc", "-std=c11", source_path, "-o", executable_path]
+    unused NativeRun(test, compile[:])
+    command: [1]string = .[executable_path]
+    unused NativeRun(test, command[:], "", 23)
+}
+
+FunctionValues :: (test: *NativeTest) {
+    types: [23]LirType
+    FunctionTypes(types[:])
+    constants: [6]LirConstant = .[
+        .{.type = 7, .bits = 2}, .{.type = 7, .bits = 5}, .{.type = 7, .bits = 0},
+        .{.type = 7, .bits = 1}, .{.type = 15, .bits = 0x40400000}, .{.type = 1, .bits = 1}]
+    empty: [0]s32
+    array_values: [3]s32 = .[2, 3, 0]
+    state_values: [2]s32 = .[1, 6]
+    same_values: [2]s32 = .[8, 9]
+    nonnull_values: [2]s32 = .[8, 11]
+    selector_arguments: [2]s32 = .[13, 5]
+    selected_values: [2]s32 = .[14, 8]
+    first_holder_values: [2]s32 = .[14, 3]
+    second_holder_values: [2]s32 = .[11, 2]
+    holder_array_values: [2]s32 = .[16, 17]
+    first_holder: [1]s32 = .[18]
+    first_callback: [1]s32 = .[19]
+    second_holder: [1]s32 = .[18]
+    second_callback: [1]s32 = .[21]
+    nested_first_values: [2]s32 = .[20, 8]
+    nested_second_values: [2]s32 = .[22, 11]
+    wide_arguments: [10]s32 = .[25, 0, 4, 7, 20, 3, 3, 3, 3, 3]
+    result_value: [1]s32 = .[26]
+    float_arguments: [2]s32 = .[28, 4]
+    float_value: [1]s32 = .[29]
+    same_integer: [1]s32 = .[10]
+    nonnull_integer: [1]s32 = .[12]
+    selected_integer: [1]s32 = .[15]
+    nested_first_integer: [1]s32 = .[23]
+    nested_second_integer: [1]s32 = .[24]
+    sum0: [2]s32 = .[27, 30]
+    sum1: [2]s32 = .[36, 31]
+    sum2: [2]s32 = .[37, 32]
+    sum3: [2]s32 = .[38, 33]
+    sum4: [2]s32 = .[39, 34]
+    sum5: [2]s32 = .[40, 35]
+    returned: [1]s32 = .[41]
+    entry_instructions: [43]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Constant, 2, empty[:], 2), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.Constant, 4, empty[:], 4), Instruction(.Constant, 5, empty[:], 5),
+        Instruction(.Aggregate, 6, array_values[:]), Instruction(.Aggregate, 7, state_values[:]),
+        Instruction(.FunctionAddress, 8, empty[:], 1), Instruction(.FunctionAddress, 9, empty[:], 1),
+        Instruction(.Equal, 10, same_values[:]), Instruction(.Null, 11, empty[:]),
+        Instruction(.NotEqual, 12, nonnull_values[:]), Instruction(.FunctionAddress, 13, empty[:], 3),
+        Instruction(.CallIndirect, 14, selector_arguments[:]), Instruction(.Equal, 15, selected_values[:]),
+        Instruction(.Aggregate, 16, first_holder_values[:]), Instruction(.Aggregate, 17, second_holder_values[:]),
+        Instruction(.Aggregate, 18, holder_array_values[:]), Instruction(.Extract, 19, first_holder[:]),
+        Instruction(.Extract, 20, first_callback[:]), Instruction(.Extract, 21, second_holder[:]),
+        Instruction(.Extract, 22, second_callback[:]), Instruction(.Equal, 23, nested_first_values[:]),
+        Instruction(.Equal, 24, nested_second_values[:]), Instruction(.FunctionAddress, 25, empty[:], 2),
+        Instruction(.CallIndirect, 26, wide_arguments[:]), Instruction(.Extract, 27, result_value[:]),
+        Instruction(.FunctionAddress, 28, empty[:], 4), Instruction(.CallIndirect, 29, float_arguments[:]),
+        Instruction(.Convert, 30, float_value[:]), Instruction(.Convert, 31, same_integer[:]),
+        Instruction(.Convert, 32, nonnull_integer[:]), Instruction(.Convert, 33, selected_integer[:]),
+        Instruction(.Convert, 34, nested_first_integer[:]), Instruction(.Convert, 35, nested_second_integer[:]),
+        Instruction(.Add, 36, sum0[:]), Instruction(.Add, 37, sum1[:]), Instruction(.Add, 38, sum2[:]),
+        Instruction(.Add, 39, sum3[:]), Instruction(.Add, 40, sum4[:]), Instruction(.Add, 41, sum5[:]),
+        Instruction(.Return, -1, returned[:])]
+    entry_instructions[14].effect = 1
+    entry_instructions[19].immediate = 0
+    entry_instructions[20].immediate = 0
+    entry_instructions[21].immediate = 1
+    entry_instructions[22].immediate = 0
+    entry_instructions[26].effect = 2
+    entry_instructions[27].immediate = 0
+    entry_instructions[29].effect = 3
+    entry_values: [42]s32 = .[
+        7, 7, 7, 7, 15, 1, 11, 12, 17, 17, 1, 17, 1, 20, 17, 1, 18, 18, 19, 18, 17,
+        18, 17, 1, 1, 21, 12, 7, 22, 15, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7]
+
+    recursive_parameter_values: [3]s32 = .[0, 1, 2]
+    zero_equal: [2]s32 = .[0, 3]
+    recursive_condition: [1]s32 = .[4]
+    recursive_edges: [2]LirEdge = .[.{.block = 0}, .{.block = 1}]
+    recursive_dispatch: [3]LirInstruction = .[
+        Instruction(.Constant, 3, empty[:], 2), Instruction(.Equal, 4, zero_equal[:]),
+        .{.op = .Branch, .result = -1, .operands = recursive_condition[:], .edges = recursive_edges[:],
+            .symbol = -1, .origin = -1}]
+    recursive_base_value: [1]s32 = .[1]
+    recursive_base: [1]LirInstruction = .[Instruction(.Return, -1, recursive_base_value[:])]
+    next_depth: [2]s32 = .[0, 5]
+    recursive_arguments: [4]s32 = .[2, 6, 1, 2]
+    recursive_result: [1]s32 = .[7]
+    recursive_add: [2]s32 = .[8, 5]
+    recursive_insert: [2]s32 = .[7, 9]
+    recursive_return: [1]s32 = .[10]
+    recursive_body: [7]LirInstruction = .[
+        Instruction(.Constant, 5, empty[:], 3), Instruction(.Subtract, 6, next_depth[:]),
+        Instruction(.CallIndirect, 7, recursive_arguments[:]), Instruction(.Extract, 8, recursive_result[:]),
+        Instruction(.Add, 9, recursive_add[:]), Instruction(.Insert, 10, recursive_insert[:]),
+        Instruction(.Return, -1, recursive_return[:])]
+    recursive_body[2].effect = 1
+    recursive_body[3].immediate = 0
+    recursive_body[5].immediate = 0
+    recursive_values: [11]s32 = .[7, 12, 17, 7, 1, 7, 7, 12, 7, 7, 12]
+
+    wide_parameter_values: [9]s32 = .[0, 1, 2, 3, 4, 5, 6, 7, 8]
+    wide_callback_arguments: [4]s32 = .[3, 0, 2, 3]
+    wide_result: [1]s32 = .[9]
+    wide_float: [1]s32 = .[1]
+    wide_sum0: [2]s32 = .[10, 11]
+    wide_sum1: [2]s32 = .[12, 4]
+    wide_sum2: [2]s32 = .[13, 5]
+    wide_sum3: [2]s32 = .[14, 6]
+    wide_sum4: [2]s32 = .[15, 7]
+    wide_sum5: [2]s32 = .[16, 8]
+    wide_insert: [2]s32 = .[9, 17]
+    wide_return: [1]s32 = .[18]
+    wide_body: [11]LirInstruction = .[
+        Instruction(.CallIndirect, 9, wide_callback_arguments[:]), Instruction(.Extract, 10, wide_result[:]),
+        Instruction(.Convert, 11, wide_float[:]), Instruction(.Add, 12, wide_sum0[:]),
+        Instruction(.Add, 13, wide_sum1[:]), Instruction(.Add, 14, wide_sum2[:]),
+        Instruction(.Add, 15, wide_sum3[:]), Instruction(.Add, 16, wide_sum4[:]),
+        Instruction(.Add, 17, wide_sum5[:]), Instruction(.Insert, 18, wide_insert[:]),
+        Instruction(.Return, -1, wide_return[:])]
+    wide_body[0].effect = 1
+    wide_body[1].immediate = 0
+    wide_body[9].immediate = 0
+    wide_values: [19]s32 = .[7, 15, 12, 17, 7, 7, 7, 7, 7, 12, 7, 7, 7, 7, 7, 7, 7, 7, 12]
+
+    selector_parameter_values: [1]s32 = .[0]
+    selector_return: [1]s32 = .[1]
+    selector_body: [2]LirInstruction = .[
+        Instruction(.FunctionAddress, 1, empty[:], 1), Instruction(.Return, -1, selector_return[:])]
+    selector_values: [2]s32 = .[1, 17]
+    float_parameter_values: [1]s32 = .[0]
+    float_return: [1]s32 = .[0]
+    float_body: [1]LirInstruction = .[Instruction(.Return, -1, float_return[:])]
+    float_values: [1]s32 = .[15]
+
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    recursive_blocks: [3]LirBlock = .[
+        .{.instructions = recursive_base[:]}, .{.instructions = recursive_body[:]},
+        .{.parameters = recursive_parameter_values[:], .instructions = recursive_dispatch[:]}]
+    wide_blocks: [1]LirBlock = .[.{.parameters = wide_parameter_values[:], .instructions = wide_body[:]}]
+    selector_blocks: [1]LirBlock = .[.{.parameters = selector_parameter_values[:], .instructions = selector_body[:]}]
+    float_blocks: [1]LirBlock = .[.{.parameters = float_parameter_values[:], .instructions = float_body[:]}]
+    functions: [5]LirFunction = .[
+        .{.name = "function-entry", .module = 0, .result = 7,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "recursive-callback", .module = 0, .parameters = native_recursive_signature_parameters[:], .result = 12,
+            .values = recursive_values[:], .blocks = recursive_blocks[:], .entry = 2, .origin = -1},
+        .{.name = "wide-callback", .module = 0, .parameters = native_wide_signature_parameters[:], .result = 12,
+            .values = wide_values[:], .blocks = wide_blocks[:], .origin = -1},
+        .{.name = "callback-selector", .module = 0, .parameters = native_selector_signature_parameters[:], .result = 17,
+            .values = selector_values[:], .blocks = selector_blocks[:], .origin = -1},
+        .{.name = "float-identity", .module = 0, .parameters = native_float_signature_parameters[:], .result = 15,
+            .values = float_values[:], .blocks = float_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    FunctionOracle(test)
+    Execute(test, program, 23, "typed function values, nested callbacks, wide mixed calls, and recursion")
+}
+
+FunctionFlow :: (test: *NativeTest) {
+    types: [11]LirType
+    Types(types[:10])
+    no_parameters: [0]s32
+    types[10] = .{.kind = .Function, .parameters = no_parameters[:], .result = 6}
+    constants: [5]LirConstant = .[
+        .{.type = 6, .bits = 0}, .{.type = 6, .bits = 1}, .{.type = 6, .bits = 2},
+        .{.type = 6, .bits = 10}, .{.type = 6, .bits = 20}]
+    empty: [0]s32
+    initial_arguments: [3]s32 = .[0, 1, 2]
+    initial_edge: [1]LirEdge = .[.{.block = 1, .arguments = initial_arguments[:]}]
+    initial: [4]LirInstruction = .[
+        Instruction(.FunctionAddress, 0, empty[:], 1), Instruction(.FunctionAddress, 1, empty[:], 2),
+        Instruction(.Constant, 2, empty[:], 0),
+        .{.op = .Jump, .result = -1, .edges = initial_edge[:], .symbol = -1, .origin = -1}]
+    loop_parameters: [3]s32 = .[3, 4, 5]
+    increment: [2]s32 = .[5, 6]
+    compare: [2]s32 = .[7, 8]
+    condition: [1]s32 = .[9]
+    swapped_arguments: [3]s32 = .[4, 3, 7]
+    final_arguments: [2]s32 = .[3, 4]
+    loop_edges: [2]LirEdge = .[
+        .{.block = 1, .arguments = swapped_arguments[:]},
+        .{.block = 2, .arguments = final_arguments[:]}]
+    loop: [5]LirInstruction = .[
+        Instruction(.Constant, 6, empty[:], 1), Instruction(.Add, 7, increment[:]),
+        Instruction(.Constant, 8, empty[:], 2), Instruction(.Less, 9, compare[:]),
+        .{.op = .Branch, .result = -1, .operands = condition[:], .edges = loop_edges[:],
+            .symbol = -1, .origin = -1}]
+    final_parameters: [2]s32 = .[10, 11]
+    indirect_arguments: [1]s32 = .[10]
+    final_return: [1]s32 = .[12]
+    final: [2]LirInstruction = .[
+        Instruction(.CallIndirect, 12, indirect_arguments[:]), Instruction(.Return, -1, final_return[:])]
+    final[0].effect = 1
+    values: [13]s32 = .[10, 10, 6, 10, 10, 6, 6, 6, 6, 1, 10, 10, 6]
+    first_return: [1]s32 = .[0]
+    first_body: [2]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 3), Instruction(.Return, -1, first_return[:])]
+    second_return: [1]s32 = .[0]
+    second_body: [2]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 4), Instruction(.Return, -1, second_return[:])]
+    target_values: [1]s32 = .[6]
+    entry_blocks: [3]LirBlock = .[
+        .{.instructions = initial[:]}, .{.parameters = loop_parameters[:], .instructions = loop[:]},
+        .{.parameters = final_parameters[:], .instructions = final[:]}]
+    first_blocks: [1]LirBlock = .[.{.instructions = first_body[:]}]
+    second_blocks: [1]LirBlock = .[.{.instructions = second_body[:]}]
+    functions: [3]LirFunction = .[
+        .{.name = "function-flow", .module = 0, .result = 6,
+            .values = values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "first-target", .module = 0, .result = 6,
+            .values = target_values[:], .blocks = first_blocks[:], .origin = -1},
+        .{.name = "second-target", .module = 0, .result = 6,
+            .values = target_values[:], .blocks = second_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 20, "function value parallel-copy cycle")
+}
+
+FunctionTraps :: (test: *NativeTest) {
+    types: [11]LirType
+    Types(types[:10])
+    no_parameters: [0]s32
+    types[10] = .{.kind = .Function, .parameters = no_parameters[:], .result = 6}
+    empty: [0]s32
+    null_arguments: [1]s32 = .[0]
+    null_return: [1]s32 = .[1]
+    null_instructions: [3]LirInstruction = .[
+        Instruction(.Null, 0, empty[:]), Instruction(.CallIndirect, 1, null_arguments[:]),
+        Instruction(.Return, -1, null_return[:])]
+    null_instructions[1].effect = 1
+    null_values: [2]s32 = .[10, 6]
+    null_blocks: [1]LirBlock = .[.{.instructions = null_instructions[:]}]
+    null_functions: [1]LirFunction = .[.{.name = "null-function", .module = 0, .result = 6,
+        .values = null_values[:], .blocks = null_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    null_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .functions = null_functions[:], .entry = 0}
+    Execute(test, null_program, 125, "null indirect function target traps")
+    if !native_execution || test.failed { return }
+
+    one_parameter: [1]s32 = .[6]
+    invalid_types: [12]LirType
+    Types(invalid_types[:10])
+    invalid_types[10] = .{.kind = .Function, .parameters = no_parameters[:], .result = 6}
+    invalid_types[11] = .{.kind = .Function, .parameters = one_parameter[:], .result = 6}
+    constants: [1]LirConstant = .[.{.type = 6, .bits = 42}]
+    address_arguments: [1]s32 = .[0]
+    entry_return: [1]s32 = .[1]
+    entry_instructions: [3]LirInstruction = .[
+        Instruction(.FunctionAddress, 0, empty[:], 1), Instruction(.CallIndirect, 1, address_arguments[:]),
+        Instruction(.Return, -1, entry_return[:])]
+    entry_instructions[1].effect = 1
+    entry_values: [2]s32 = .[10, 6]
+    good_return: [1]s32 = .[0]
+    good_instructions: [2]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Return, -1, good_return[:])]
+    good_values: [1]s32 = .[6]
+    bad_parameter_values: [1]s32 = .[0]
+    bad_return: [1]s32 = .[0]
+    bad_instructions: [1]LirInstruction = .[Instruction(.Return, -1, bad_return[:])]
+    bad_values: [1]s32 = .[6]
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    good_blocks: [1]LirBlock = .[.{.instructions = good_instructions[:]}]
+    bad_blocks: [1]LirBlock = .[.{.parameters = bad_parameter_values[:], .instructions = bad_instructions[:]}]
+    functions: [3]LirFunction = .[
+        .{.name = "invalid-entry", .module = 0, .result = 6,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "valid-target", .module = 0, .result = 6,
+            .values = good_values[:], .blocks = good_blocks[:], .origin = -1},
+        .{.name = "wrong-signature", .module = 0, .parameters = one_parameter[:], .result = 6,
+            .values = bad_values[:], .blocks = bad_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = invalid_types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 42, "valid typed indirect function target")
+    if test.failed { return }
+    no_bytes: [0]u8
+    measured := LirX64Elf(program, no_bytes[:])
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, measured.problem == .None && VecResize(bytes, measured.size),
+        "allocate invalid indirect target fixture") { return }
+    written := LirX64Elf(program, bytes[:])
+    if !NativeAssert(test, written.problem == .None, "encode invalid indirect target fixture") { return }
+    address_at: s64 = -1
+    for index: cast(s64)120..bytes.count - 10 {
+        if bytes[index] == 72 && bytes[index + 1] == 184 && Little(bytes[:], index + 2, 8) == 2 {
+            if address_at != -1 {
+                unused NativeAssert(test, false, "unique function address encoding")
+                return
+            }
+            address_at = index
+        }
+    }
+    if !NativeAssert(test, address_at >= 120, "locate function address encoding") { return }
+    bytes[address_at + 2] = 3
+    path := CheckPath(test.work, "invalid-function-elf")
+    if !NativeWrite(test, path, TextFromBytes(bytes[:])) { return }
+    chmod: [3]string = .["/usr/bin/chmod", "700", path]
+    unused NativeRun(test, chmod[:])
+    command: [1]string = .[path]
+    unused NativeRun(test, command[:], "", 125)
+}
+
+GlobalOracle :: (test: *NativeTest) {
+    if !native_execution || test.failed { return }
+    source := #string END
+#include <stdbool.h>
+#include <stdint.h>
+typedef struct { uint32_t value; uint32_t data[3]; } Row;
+typedef struct { Row head; Row rows[2]; uint32_t *pointer; float f32; double f64; } Top;
+int main(void) {
+    bool flag = true;
+    int8_t narrow = -2;
+    uint16_t wide = 20;
+    double real = 3.0;
+    uint32_t counter = 9;
+    Top state = {0};
+    uint32_t *saved = 0;
+    state.head.value = 7;
+    state.head.data[0] = 1;
+    state.head.data[1] = 2;
+    state.head.data[2] = 3;
+    uint32_t *first = &state.head.value;
+    saved = first;
+    uint32_t *second = &counter;
+    uint32_t *temporary = first;
+    first = second;
+    second = temporary;
+    return (int)((uint32_t)flag + (uint32_t)narrow + wide + (uint32_t)real +
+        *first + *second + *saved + state.head.data[0] + state.head.data[1] +
+        state.head.data[2] + state.head.value);
+}
+END
+    source_path := CheckPath(test.work, "global-oracle.c")
+    executable_path := CheckPath(test.work, "global-oracle")
+    if !NativeWrite(test, source_path, source) { return }
+    compile: [5]string = .["/usr/bin/cc", "-std=c11", source_path, "-o", executable_path]
+    unused NativeRun(test, compile[:])
+    command: [1]string = .[executable_path]
+    unused NativeRun(test, command[:], "", 58)
+}
+
+GlobalValues :: (test: *NativeTest) {
+    types: [26]LirType
+    GlobalTypes(types[:])
+    constants: [11]LirConstant = .[
+        .{.type = 1, .bits = 1}, .{.type = 2, .bits = 0xfe}, .{.type = 5, .bits = 20},
+        .{.type = 16, .bits = 0x4008000000000000}, .{.type = 7, .bits = 9},
+        .{.type = 1, .bits = 0}, .{.type = 1, .bits = 1}, .{.type = 7, .bits = 7},
+        .{.type = 7, .bits = 1}, .{.type = 7, .bits = 2}, .{.type = 7, .bits = 3}]
+    globals: [7]LirGlobal = .[
+        .{.module = 0, .name = "flag", .type = 1, .constant = 0, .writable = true},
+        .{.module = 0, .name = "narrow", .type = 2, .constant = 1, .writable = true},
+        .{.module = 0, .name = "wide", .type = 5, .constant = 2, .writable = true},
+        .{.module = 0, .name = "real", .type = 16, .constant = 3, .writable = true},
+        .{.module = 0, .name = "counter", .type = 7, .constant = 4, .writable = true},
+        .{.module = 0, .name = "state", .type = 14, .constant = -1, .writable = true},
+        .{.module = 0, .name = "saved", .type = 10, .constant = -1, .writable = true}]
+    empty: [0]s32
+    flag_pointer: [1]s32 = .[0]
+    narrow_pointer: [1]s32 = .[1]
+    wide_pointer: [1]s32 = .[2]
+    real_pointer: [1]s32 = .[3]
+    flag_value: [1]s32 = .[7]
+    narrow_value: [1]s32 = .[8]
+    wide_value: [1]s32 = .[9]
+    real_value: [1]s32 = .[10]
+    state_argument: [1]s32 = .[5]
+    identity_argument: [1]s32 = .[15]
+    save_operands: [2]s32 = .[6, 16]
+    saved_pointer: [1]s32 = .[6]
+    initial_arguments: [3]s32 = .[16, 4, 18]
+    initial_edge: [1]LirEdge = .[.{.block = 1, .arguments = initial_arguments[:]}]
+    entry_instructions: [21]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.GlobalAddress, 1, empty[:], 1),
+        Instruction(.GlobalAddress, 2, empty[:], 2), Instruction(.GlobalAddress, 3, empty[:], 3),
+        Instruction(.GlobalAddress, 4, empty[:], 4), Instruction(.GlobalAddress, 5, empty[:], 5),
+        Instruction(.GlobalAddress, 6, empty[:], 6), Instruction(.Load, 7, flag_pointer[:]),
+        Instruction(.Load, 8, narrow_pointer[:]), Instruction(.Load, 9, wide_pointer[:]),
+        Instruction(.Load, 10, real_pointer[:]), Instruction(.Convert, 11, flag_value[:]),
+        Instruction(.Convert, 12, narrow_value[:]), Instruction(.Convert, 13, wide_value[:]),
+        Instruction(.Convert, 14, real_value[:]), Instruction(.Call, 15, state_argument[:], 2),
+        Instruction(.Call, 16, identity_argument[:], 1), Instruction(.Store, -1, save_operands[:]),
+        Instruction(.Load, 17, saved_pointer[:]), Instruction(.Constant, 18, empty[:], 5),
+        .{.op = .Jump, .result = -1, .edges = initial_edge[:], .symbol = -1, .origin = -1}]
+    for index: 7..10 { entry_instructions[index].effect = cast(s32)(index - 6) }
+    entry_instructions[15].effect = 5
+    entry_instructions[16].effect = 6
+    entry_instructions[17].effect = 7
+    entry_instructions[18].effect = 8
+    loop_parameters: [3]s32 = .[19, 20, 21]
+    true_arguments: [2]s32 = .[19, 20]
+    false_arguments: [3]s32 = .[20, 19, 22]
+    loop_edges: [2]LirEdge = .[
+        .{.block = 2, .arguments = true_arguments[:]},
+        .{.block = 1, .arguments = false_arguments[:]}]
+    loop_condition: [1]s32 = .[21]
+    loop_instructions: [2]LirInstruction = .[
+        Instruction(.Constant, 22, empty[:], 6),
+        .{.op = .Branch, .result = -1, .operands = loop_condition[:],
+            .edges = loop_edges[:], .symbol = -1, .origin = -1}]
+    final_parameters: [2]s32 = .[23, 24]
+    first_pointer: [1]s32 = .[23]
+    second_pointer: [1]s32 = .[24]
+    loaded_pointer: [1]s32 = .[17]
+    top_pointer: [1]s32 = .[5]
+    top_value: [1]s32 = .[28]
+    row_value: [1]s32 = .[29]
+    array_value: [1]s32 = .[30]
+    sums: [20]s32 = .[
+        11, 12, 35, 13, 36, 14, 37, 25, 38, 26,
+        39, 27, 40, 31, 41, 32, 42, 33, 43, 34]
+    returned: [1]s32 = .[44]
+    final_instructions: [21]LirInstruction = .[
+        Instruction(.Load, 25, first_pointer[:]), Instruction(.Load, 26, second_pointer[:]),
+        Instruction(.Load, 27, loaded_pointer[:]), Instruction(.Load, 28, top_pointer[:]),
+        Instruction(.Extract, 29, top_value[:]), Instruction(.Extract, 30, row_value[:]),
+        Instruction(.Extract, 31, array_value[:]), Instruction(.Extract, 32, array_value[:]),
+        Instruction(.Extract, 33, array_value[:]), Instruction(.Extract, 34, row_value[:]),
+        Instruction(.Add, 35, sums[0:2]), Instruction(.Add, 36, sums[2:4]),
+        Instruction(.Add, 37, sums[4:6]), Instruction(.Add, 38, sums[6:8]),
+        Instruction(.Add, 39, sums[8:10]), Instruction(.Add, 40, sums[10:12]),
+        Instruction(.Add, 41, sums[12:14]), Instruction(.Add, 42, sums[14:16]),
+        Instruction(.Add, 43, sums[16:18]), Instruction(.Add, 44, sums[18:20]),
+        Instruction(.Return, -1, returned[:])]
+    for index: 0..3 { final_instructions[index].effect = cast(s32)(index + 1) }
+    final_instructions[4].immediate = 0
+    final_instructions[5].immediate = 1
+    final_instructions[6].immediate = 0
+    final_instructions[7].immediate = 1
+    final_instructions[8].immediate = 2
+    final_instructions[9].immediate = 0
+    entry_values: [45]s32 = .[
+        17, 18, 19, 20, 10, 24, 23, 1, 2, 5, 16, 7, 7, 7, 7, 10, 10, 10, 1,
+        10, 10, 1, 1, 10, 10, 7, 7, 7, 14, 12, 11, 7, 7, 7, 7,
+        7, 7, 7, 7, 7, 7, 7, 7, 7, 7]
+    entry_blocks: [3]LirBlock = .[
+        .{.instructions = entry_instructions[:]},
+        .{.parameters = loop_parameters[:], .instructions = loop_instructions[:]},
+        .{.parameters = final_parameters[:], .instructions = final_instructions[:]}]
+    identity_parameters: [1]s32 = .[10]
+    identity_parameter_values: [1]s32 = .[0]
+    identity_return: [1]s32 = .[0]
+    identity_instructions: [1]LirInstruction = .[Instruction(.Return, -1, identity_return[:])]
+    identity_blocks: [1]LirBlock = .[
+        .{.parameters = identity_parameter_values[:], .instructions = identity_instructions[:]}]
+    mutator_parameters: [1]s32 = .[24]
+    mutator_parameter_values: [1]s32 = .[0]
+    top_operand: [1]s32 = .[0]
+    row_operand: [1]s32 = .[5]
+    value_store: [2]s32 = .[6, 1]
+    array_operands: [3]s32 = .[2, 3, 4]
+    array_store: [2]s32 = .[7, 8]
+    mutator_return: [1]s32 = .[6]
+    mutator_instructions: [11]LirInstruction = .[
+        Instruction(.Constant, 1, empty[:], 7), Instruction(.Constant, 2, empty[:], 8),
+        Instruction(.Constant, 3, empty[:], 9), Instruction(.Constant, 4, empty[:], 10),
+        Instruction(.FieldAddress, 5, top_operand[:]), Instruction(.FieldAddress, 6, row_operand[:]),
+        Instruction(.Store, -1, value_store[:]), Instruction(.FieldAddress, 7, row_operand[:]),
+        Instruction(.Aggregate, 8, array_operands[:]), Instruction(.Store, -1, array_store[:]),
+        Instruction(.Return, -1, mutator_return[:])]
+    mutator_instructions[4].immediate = 0
+    mutator_instructions[5].immediate = 0
+    mutator_instructions[6].effect = 1
+    mutator_instructions[7].immediate = 1
+    mutator_instructions[9].effect = 2
+    mutator_values: [9]s32 = .[24, 7, 7, 7, 7, 21, 10, 22, 11]
+    mutator_blocks: [1]LirBlock = .[
+        .{.parameters = mutator_parameter_values[:], .instructions = mutator_instructions[:]}]
+    functions: [3]LirFunction = .[
+        .{.name = "global-entry", .module = 0, .result = 7,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "pointer-identity", .module = 0, .parameters = identity_parameters[:], .result = 10,
+            .values = identity_parameters[:], .blocks = identity_blocks[:], .origin = -1},
+        .{.name = "mutate-global", .module = 0, .parameters = mutator_parameters[:], .result = 10,
+            .values = mutator_values[:], .blocks = mutator_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 58, "packed static globals and checked pointer flow")
+    if test.failed { return }
+    no_bytes: [0]u8
+    image := LirX64ElfLayout(program)
+    measured := LirX64Elf(program, no_bytes[:])
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, image.problem == .None && image.text_offset == 176 &&
+        image.data_offset % 4096 == 0 && image.data_size == 92 &&
+        measured.problem == .None && VecResize(bytes, measured.size), "global image layout query") { return }
+    written := LirX64Elf(program, bytes[:])
+    if !NativeAssert(test, written.problem == .None &&
+        Little(bytes[:], image.data_offset, 1) == 1 &&
+        Little(bytes[:], image.data_offset + 1, 1) == 0xfe &&
+        Little(bytes[:], image.data_offset + 2, 2) == 20 &&
+        Little(bytes[:], image.data_offset + 4, 8) == 0x4008000000000000 &&
+        Little(bytes[:], image.data_offset + 12, 4) == 9,
+        "global scalar initializers and packed offsets") { return }
+    for index: image.data_offset + 16..image.data_offset + image.data_size - 1 {
+        unused NativeAssert(test, bytes[index] == 0, "default aggregate and pointer globals are zero")
+    }
+}
+
+GlobalPointerTraps :: (test: *NativeTest) {
+    types: [12]LirType
+    Types(types[:10])
+    types[10] = .{.kind = .Pointer, .element = 7}
+    types[11] = .{.kind = .Pointer, .element = 1}
+    constants: [2]LirConstant = .[.{.type = 7, .bits = 9}, .{.type = 1, .bits = 1}]
+    globals: [2]LirGlobal = .[
+        .{.module = 0, .name = "number", .type = 7, .constant = 0, .writable = true},
+        .{.module = 0, .name = "flag", .type = 1, .constant = 1, .writable = true}]
+    empty: [0]s32
+    pointer: [1]s32 = .[0]
+    returned: [1]s32 = .[1]
+    instructions: [3]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Load, 1, pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    instructions[1].effect = 1
+    values: [2]s32 = .[10, 7]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "pointer-traps", .module = 0, .result = 7,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 9, "valid checked global pointer")
+    readonly_globals: [2]LirGlobal = .[
+        .{.module = 0, .name = "number", .type = 7, .constant = 0},
+        .{.module = 0, .name = "flag", .type = 1, .constant = 1, .writable = true}]
+    readonly_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = readonly_globals[:], .functions = functions[:], .entry = 0}
+    rejected: [64]u8
+    for index: 0..63 { rejected[index] = 165 }
+    readonly_result := LirX64Elf(readonly_program, rejected[:])
+    readonly_layout := LirX64ElfLayout(readonly_program)
+    unused NativeAssert(test, readonly_result.problem == .Unsupported &&
+        readonly_layout.problem == .Unsupported, "readonly global address remains rejected")
+    for byte: rejected { unused NativeAssert(test, byte == 165, "readonly rejection is atomic") }
+    null_instructions: [3]LirInstruction = .[
+        Instruction(.Null, 0, empty[:]), Instruction(.Load, 1, pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    null_instructions[1].effect = 1
+    null_blocks: [1]LirBlock = .[.{.instructions = null_instructions[:]}]
+    null_functions: [1]LirFunction = .[.{.name = "null-pointer", .module = 0, .result = 7,
+        .values = values[:], .blocks = null_blocks[:], .origin = -1}]
+    null_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = null_functions[:], .entry = 0}
+    Execute(test, null_program, 125, "null global pointer traps")
+    if !native_execution || test.failed { return }
+    no_bytes: [0]u8
+    measured := LirX64Elf(program, no_bytes[:])
+    image := LirX64ElfLayout(program)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, measured.problem == .None && image.problem == .None &&
+        VecResize(bytes, measured.size), "allocate hostile pointer fixture") { return }
+    written := LirX64Elf(program, bytes[:])
+    if !NativeAssert(test, written.problem == .None, "encode hostile pointer fixture") { return }
+    address_at: s64 = -1
+    for index: image.text_offset..image.text_offset + image.text_size - 10 {
+        if bytes[index] == 72 && bytes[index + 1] == 184 && Little(bytes[:], index + 2, 8) == 1 {
+            if address_at != -1 {
+                unused NativeAssert(test, false, "unique global pointer token")
+                return
+            }
+            address_at = index
+        }
+    }
+    if !NativeAssert(test, address_at >= image.text_offset, "locate global pointer token") { return }
+    hostile: [4]u64 = .[0, 2, 3, 0x100000003]
+    for mode: 0..3 {
+        written = LirX64Elf(program, bytes[:])
+        if !NativeAssert(test, written.problem == .None, "reset hostile pointer fixture") { return }
+        for byte: 0..7 {
+            bytes[address_at + 2 + byte] = cast(u8)(hostile[mode] >> cast(u64)(byte * 8))
+        }
+        path := CheckPath(test.work, CheckConcat("hostile-pointer-", CheckNumber(mode)))
+        if !NativeWrite(test, path, TextFromBytes(bytes[:])) { return }
+        chmod: [3]string = .["/usr/bin/chmod", "700", path]
+        unused NativeRun(test, chmod[:])
+        command: [1]string = .[path]
+        unused NativeRun(test, command[:], "", 125)
+    }
+}
+
+GlobalLimits :: (test: *NativeTest) {
+    types: [10]LirType
+    Types(types[:])
+    constants: [1]LirConstant = .[.{.type = 7, .bits = 0}]
+    globals: Vec(LirGlobal)
+    defer VecFree(globals)
+    if !NativeAssert(test, VecResize(globals, 5700), "allocate global limit fixture") { return }
+    for index: cast(s64)0..globals.count - 1 {
+        globals[index] = .{.module = 0, .name = "bounded", .type = 7,
+            .constant = -1, .writable = true}
+    }
+    empty: [0]s32
+    returned: [1]s32 = .[0]
+    instructions: [2]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Return, -1, returned[:])]
+    values: [1]s32 = .[7]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "global-limit", .module = 0, .result = 7,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    bytes: [64]u8
+    for index: 0..63 { bytes[index] = 165 }
+    result := LirX64Elf(program, bytes[:])
+    layout := LirX64ElfLayout(program)
+    unused NativeAssert(test, result.problem == .Limit && result.size == 0 &&
+        layout.problem == .Limit, "bounded global planning work reports limit")
+    for byte: bytes { unused NativeAssert(test, byte == 165, "global limit leaves output unchanged") }
+}
+
+ElementOracle :: (test: *NativeTest) {
+    if !native_execution || test.failed { return }
+    source := #string END
+#include <stdbool.h>
+#include <stdint.h>
+typedef struct { uint32_t value; uint32_t data[3]; } Row;
+typedef struct { Row head; Row rows[2]; uint32_t *pointer; float f32; double f64; } Top;
+static Row *select_row(Row rows[2], int32_t index) { return &rows[index]; }
+int main(void) {
+    Row matrix[2] = {0};
+    Top top = {0};
+    int32_t row_index = 1;
+    Row *row = select_row(matrix, row_index);
+    row->value = 7;
+    uint8_t column = 2;
+    uint32_t *element = &row->data[column];
+    *element = 9;
+    uint32_t *same = &row->data[column];
+    top.pointer = element;
+    return (int)(*top.pointer + row->value + (element == same) +
+        (top.pointer == element) + 1);
+}
+END
+    source_path := CheckPath(test.work, "element-oracle.c")
+    executable_path := CheckPath(test.work, "element-oracle")
+    if !NativeWrite(test, source_path, source) { return }
+    compile: [5]string = .["/usr/bin/cc", "-std=c11", source_path, "-o", executable_path]
+    unused NativeRun(test, compile[:])
+    command: [1]string = .[executable_path]
+    unused NativeRun(test, command[:], "", 19)
+}
+
+ElementValues :: (test: *NativeTest) {
+    types: [33]LirType
+    ElementTypes(types[:])
+    constants: [6]LirConstant = .[
+        .{.type = 6, .bits = 1}, .{.type = 3, .bits = 2},
+        .{.type = 7, .bits = 7}, .{.type = 7, .bits = 9},
+        .{.type = 7, .bits = 0}, .{.type = 9, .bits = 2}]
+    globals: [3]LirGlobal = .[
+        .{.module = 0, .name = "matrix", .type = 13, .constant = -1, .writable = true},
+        .{.module = 0, .name = "top", .type = 14, .constant = -1, .writable = true},
+        .{.module = 0, .name = "empty-elements", .type = 28, .constant = -1, .writable = true}]
+    empty: [0]s32
+    select_arguments: [2]s32 = .[0, 1]
+    row_operand: [1]s32 = .[2]
+    row_value_store: [2]s32 = .[3, 4]
+    inner_array: [1]s32 = .[2]
+    inner_element: [2]s32 = .[5, 6]
+    element_store: [2]s32 = .[7, 8]
+    inner_alias: [2]s32 = .[5, 6]
+    equal_elements: [2]s32 = .[7, 9]
+    top_operand: [1]s32 = .[11]
+    pointer_store: [2]s32 = .[12, 7]
+    top_value: [1]s32 = .[13]
+    equal_aggregate_pointer: [2]s32 = .[14, 7]
+    extracted_pointer: [1]s32 = .[14]
+    row_value_pointer: [1]s32 = .[3]
+    empty_zero: [2]s32 = .[18, 19]
+    empty_two: [2]s32 = .[18, 21]
+    equal_empty: [2]s32 = .[20, 22]
+    empty_store: [2]s32 = .[20, 24]
+    empty_pointer: [1]s32 = .[22]
+    alias_bool: [1]s32 = .[10]
+    aggregate_alias_bool: [1]s32 = .[15]
+    empty_alias_bool: [1]s32 = .[23]
+    sums: [8]s32 = .[16, 17, 29, 26, 30, 27, 31, 28]
+    returned: [1]s32 = .[32]
+    instructions: [38]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 0),
+        Instruction(.Call, 2, select_arguments[:], 1), Instruction(.FieldAddress, 3, row_operand[:]),
+        Instruction(.Constant, 4, empty[:], 2), Instruction(.Store, -1, row_value_store[:]),
+        Instruction(.FieldAddress, 5, inner_array[:]), Instruction(.Constant, 6, empty[:], 1),
+        Instruction(.ElementAddress, 7, inner_element[:]), Instruction(.Constant, 8, empty[:], 3),
+        Instruction(.Store, -1, element_store[:]), Instruction(.ElementAddress, 9, inner_alias[:]),
+        Instruction(.Equal, 10, equal_elements[:]),
+        Instruction(.GlobalAddress, 11, empty[:], 1), Instruction(.FieldAddress, 12, top_operand[:]),
+        Instruction(.Store, -1, pointer_store[:]), Instruction(.Load, 13, top_operand[:]),
+        Instruction(.Extract, 14, top_value[:]), Instruction(.Equal, 15, equal_aggregate_pointer[:]),
+        Instruction(.Load, 16, extracted_pointer[:]), Instruction(.Load, 17, row_value_pointer[:]),
+        Instruction(.GlobalAddress, 18, empty[:], 2), Instruction(.Constant, 19, empty[:], 4),
+        Instruction(.ElementAddress, 20, empty_zero[:]), Instruction(.Constant, 21, empty[:], 5),
+        Instruction(.ElementAddress, 22, empty_two[:]), Instruction(.Equal, 23, equal_empty[:]),
+        Instruction(.Aggregate, 24, empty[:]), Instruction(.Store, -1, empty_store[:]),
+        Instruction(.Load, 25, empty_pointer[:]), Instruction(.Convert, 26, alias_bool[:]),
+        Instruction(.Convert, 27, aggregate_alias_bool[:]), Instruction(.Convert, 28, empty_alias_bool[:]),
+        Instruction(.Add, 29, sums[0:2]), Instruction(.Add, 30, sums[2:4]),
+        Instruction(.Add, 31, sums[4:6]), Instruction(.Add, 32, sums[6:8]),
+        Instruction(.Return, -1, returned[:])]
+    instructions[2].effect = 1
+    instructions[3].immediate = 0
+    instructions[5].effect = 2
+    instructions[6].immediate = 1
+    instructions[10].effect = 3
+    instructions[14].immediate = 2
+    instructions[15].effect = 4
+    instructions[16].effect = 5
+    instructions[17].immediate = 2
+    instructions[19].effect = 6
+    instructions[20].effect = 7
+    instructions[28].effect = 8
+    instructions[29].effect = 9
+    values: [33]s32 = .[
+        26, 6, 21, 10, 7, 22, 3, 10, 7, 10, 1,
+        24, 23, 14, 10, 1, 7, 7, 29, 7, 30, 9, 30, 1,
+        27, 27, 7, 7, 7, 7, 7, 7, 7]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    selector_parameters: [2]s32 = .[26, 6]
+    selector_parameter_values: [2]s32 = .[0, 1]
+    selector_operands: [2]s32 = .[0, 1]
+    selector_return: [1]s32 = .[2]
+    selector_instructions: [2]LirInstruction = .[
+        Instruction(.ElementAddress, 2, selector_operands[:]),
+        Instruction(.Return, -1, selector_return[:])]
+    selector_values: [3]s32 = .[26, 6, 21]
+    selector_blocks: [1]LirBlock = .[
+        .{.parameters = selector_parameter_values[:], .instructions = selector_instructions[:]}]
+    functions: [2]LirFunction = .[
+        .{.name = "element-entry", .module = 0, .result = 7,
+            .values = values[:], .blocks = blocks[:], .origin = -1},
+        .{.name = "select-row", .module = 0, .parameters = selector_parameters[:], .result = 21,
+            .values = selector_values[:], .blocks = selector_blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 19, "checked dynamic array element addresses")
+}
+
+ElementTraps :: (test: *NativeTest) {
+    types: [33]LirType
+    ElementTypes(types[:])
+    constants: [4]LirConstant = .[
+        .{.type = 6, .bits = 0xffffffff}, .{.type = 9, .bits = 3},
+        .{.type = 7, .bits = 0}, .{.type = 7, .bits = 0}]
+    globals: [3]LirGlobal = .[
+        .{.module = 0, .name = "numbers", .type = 11, .constant = -1, .writable = true},
+        .{.module = 0, .name = "wrong-type", .type = 14, .constant = -1, .writable = true},
+        .{.module = 0, .name = "zero-count", .type = 31, .constant = -1, .writable = true}]
+    empty: [0]s32
+    element_operands: [2]s32 = .[0, 1]
+    element_pointer: [1]s32 = .[2]
+    returned: [1]s32 = .[3]
+    modules: [1]string = .["native-test"]
+    for mode: 0..3 {
+        instructions: [5]LirInstruction
+        values: [4]s32
+        instructions[0] = Instruction(.GlobalAddress, 0, empty[:], ifx mode == 3 then 2 else 0)
+        instructions[1] = Instruction(.Constant, 1, empty[:], ifx mode == 0 then 0 else ifx mode == 1 then 1 else 2)
+        if mode == 2 { instructions[0] = Instruction(.Null, 0, empty[:]) }
+        instructions[2] = Instruction(.ElementAddress, 2, element_operands[:])
+        instructions[3] = Instruction(.Load, 3, element_pointer[:]); instructions[3].effect = 1
+        instructions[4] = Instruction(.Return, -1, returned[:])
+        values[0] = ifx mode == 3 then 32 else 22
+        values[1] = ifx mode == 0 then 6 else ifx mode == 1 then 9 else 7
+        values[2] = 10
+        values[3] = 7
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        functions: [1]LirFunction = .[.{.name = "element-trap", .module = 0, .result = 7,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+        Execute(test, program, 125, CheckConcat("element address trap mode ", CheckNumber(mode)))
+    }
+    valid_instructions: [5]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 2),
+        Instruction(.ElementAddress, 2, element_operands[:]), Instruction(.Load, 3, element_pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    valid_instructions[3].effect = 1
+    valid_values: [4]s32 = .[22, 7, 10, 7]
+    valid_blocks: [1]LirBlock = .[.{.instructions = valid_instructions[:]}]
+    valid_functions: [1]LirFunction = .[.{.name = "wrong-element-token", .module = 0, .result = 7,
+        .values = valid_values[:], .blocks = valid_blocks[:], .origin = -1}]
+    valid_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = valid_functions[:], .entry = 0}
+    Execute(test, valid_program, 0, "valid element address token")
+    if !native_execution || test.failed { return }
+    no_bytes: [0]u8
+    measured := LirX64Elf(valid_program, no_bytes[:])
+    image := LirX64ElfLayout(valid_program)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, measured.problem == .None && image.problem == .None &&
+        VecResize(bytes, measured.size), "allocate wrong element token fixture") { return }
+    written := LirX64Elf(valid_program, bytes[:])
+    if !NativeAssert(test, written.problem == .None, "encode wrong element token fixture") { return }
+    address_at: s64 = -1
+    for index: image.text_offset..image.text_offset + image.text_size - 10 {
+        if bytes[index] == 72 && bytes[index + 1] == 184 && Little(bytes[:], index + 2, 8) == 1 {
+            if address_at != -1 {
+                unused NativeAssert(test, false, "unique element parent token")
+                return
+            }
+            address_at = index
+        }
+    }
+    if !NativeAssert(test, address_at >= image.text_offset, "locate element parent token") { return }
+    bytes[address_at + 2] = 2
+    path := CheckPath(test.work, "wrong-element-token")
+    if !NativeWrite(test, path, TextFromBytes(bytes[:])) { return }
+    chmod: [3]string = .["/usr/bin/chmod", "700", path]
+    unused NativeRun(test, chmod[:])
+    command: [1]string = .[path]
+    unused NativeRun(test, command[:], "", 125)
+}
+
+ElementLimits :: (test: *NativeTest) {
+    types: [12]LirType
+    Types(types[:10])
+    types[10] = .{.kind = .Record}
+    types[11] = .{.kind = .Array, .element = 10, .count = 1048577}
+    constants: [1]LirConstant = .[.{.type = 7, .bits = 0}]
+    globals: [1]LirGlobal = .[
+        .{.module = 0, .name = "too-many-elements", .type = 11, .constant = -1, .writable = true}]
+    empty: [0]s32
+    returned: [1]s32 = .[0]
+    instructions: [2]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Return, -1, returned[:])]
+    values: [1]s32 = .[7]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "element-limit", .module = 0, .result = 7,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    bytes: [64]u8
+    for index: 0..63 { bytes[index] = 165 }
+    result := LirX64Elf(program, bytes[:])
+    layout := LirX64ElfLayout(program)
+    unused NativeAssert(test, result.problem == .Limit && result.size == 0 &&
+        layout.problem == .Limit, "bounded element slot planning reports limit")
+    for byte: bytes { unused NativeAssert(test, byte == 165, "element limit leaves output unchanged") }
+}
+
 Arithmetic :: (test: *NativeTest, types: []LirType) {
     for type: 2..9 {
         bits := cast(u64)types[type].bits
@@ -669,7 +1680,7 @@ Rejections :: (test: *NativeTest) {
         functions: [1]LirFunction = .[.{.name = "reject", .module = 0, .result = 6,
             .values = values[:], .blocks = blocks[:], .origin = -1}]
         problem: LirProblem = .Unsupported
-        if mode == 0 { types[10] = .{.kind = .Function, .result = 0} }
+        if mode == 0 { types[10] = .{.kind = .Capability} }
         if mode == 1 { types[10] = .{.kind = .Float, .bits = 16}; problem = .Type }
         if mode == 2 { types[10] = .{.kind = .Record} }
         if mode == 3 { types[10].native_width = true }
@@ -750,6 +1761,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
     AggregateCalls(*test)
     AggregateRecursive(*test)
     AggregateFlow(*test)
+    FunctionValues(*test)
+    FunctionFlow(*test)
+    FunctionTraps(*test)
+    GlobalOracle(*test)
+    GlobalValues(*test)
+    GlobalPointerTraps(*test)
+    GlobalLimits(*test)
+    ElementOracle(*test)
+    ElementValues(*test)
+    ElementTraps(*test)
+    ElementLimits(*test)
     Flow(*test, types[:], true)
     Flow(*test, types[:], false)
     Calls(*test, types[:])

@@ -1,5 +1,6 @@
 #import "compiler_lowered_ir"
 using Vectors :: #import "std/vec"
+using Utf8 :: #import "std/utf8"
 
 #scope_file
 State :: struct {
@@ -37,7 +38,7 @@ Composite :: (type: LirType) -> bool { return type.kind == .Record || type.kind 
 
 Text :: (state: *State, text: string) -> bool {
     if !Charge(state, text.count, 1) { return false }
-    if text.count == 0 { return Fail(state, .Function) }
+    if text.count == 0 || !Utf8.Valid(text) { return Fail(state, .Function) }
     for byte: text { if byte == 0 { return Fail(state, .Function) } }
     return true
 }
@@ -169,7 +170,12 @@ Origins :: (state: *State, program: LirProgram) -> bool {
         state.diagnostic.origin = index
         if !Spend(state, 1) { return false }
         if !Id(origin.file, program.sources.count) || !Optional(origin.parent, program.origins.count) ||
-            origin.line < 1 || origin.column < 1 || origin.begin < 0 || origin.end < origin.begin { return Fail(state, .Origin) }
+            origin.line < 1 || origin.column < 1 { return Fail(state, .Origin) }
+        if !(origin.begin == -1 && origin.end == -1) &&
+            (origin.begin < 0 || origin.end < origin.begin) { return Fail(state, .Origin) }
+        if !(origin.end_line == 0 && origin.end_column == 0) &&
+            (origin.end_line < origin.line || origin.end_column < 1 ||
+             (origin.end_line == origin.line && origin.end_column < origin.column)) { return Fail(state, .Origin) }
     }
     for root: cast(s32)0..cast(s32)program.origins.count - 1 {
         state.diagnostic.origin = root
@@ -263,7 +269,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if !symbolic && instruction.symbol != LirNoId || !indexed && instruction.immediate != 0 { return Fail(state, .Instruction) }
     if !memory && instruction.alignment != 0 { return Fail(state, .Alignment) }
     if memory && instruction.alignment != 0 && instruction.alignment != 1 { return Fail(state, .Alignment) }
-    if op == .Allocate || op == .Copy || op == .Zero || op == .ElementAddress || op == .HostCall {
+    if op == .Allocate || op == .Copy || op == .Zero || op == .HostCall {
         return Fail(state, .Unsupported)
     }
     if op == .Constant {
@@ -345,6 +351,13 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         if operand_count != 1 || result == LirNoId || program.types[first_type].kind != .Pointer || program.types[result].kind != .Pointer { return Fail(state, .Operand) }
         target := program.types[program.types[first_type].element]
         if target.kind != .Record || Member(target, instruction.immediate) != program.types[result].element { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .ElementAddress {
+        if operand_count != 2 || result == LirNoId || program.types[first_type].kind != .Pointer ||
+            program.types[result].kind != .Pointer || program.types[second_type].kind != .Integer { return Fail(state, .Operand) }
+        target := program.types[program.types[first_type].element]
+        if target.kind != .Array || target.element != program.types[result].element { return Fail(state, .Operand) }
         return true
     }
     if op == .Load || op == .Store {

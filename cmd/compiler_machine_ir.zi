@@ -1,0 +1,281 @@
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+MachineVersion :: 1
+MachineNoId :: -1
+
+MachineRegisterClass :: enum s32 {
+    Invalid; General; Float; Vector; Flags; Stack
+}
+
+MachineOperandKind :: enum s32 {
+    Invalid; Virtual; Physical; Immediate; Block; Function; StackObject; Global
+}
+
+MachineOperandRole :: enum s32 { Invalid; Use; Define; UseDefine }
+
+MachineOpcode :: enum s32 {
+    Invalid
+    Move; MoveImmediate; Allocate; StackAddress; GlobalAddress; FunctionAddress
+    IntegerAdd; IntegerSubtract; IntegerMultiply; IntegerDivide; IntegerRemainder
+    IntegerNegate; IntegerAnd; IntegerOr; IntegerXor; IntegerNot
+    ShiftLeft; ShiftRight
+    FloatAdd; FloatSubtract; FloatMultiply; FloatDivide; FloatNegate
+    Compare; SetCondition; Convert; Bitcast
+    AggregateBuild; AggregateExtract; AggregateInsert
+    Load; Store; FieldAddress; ElementAddress
+    CallDirect; CallIndirect
+    Fuel; Trap; Jump; Branch; Return; Unreachable
+}
+
+MachineCondition :: enum s32 {
+    None; Equal; NotEqual; Less; LessEqual; Greater; GreaterEqual
+}
+
+MachineRelocationKind :: enum s32 {
+    Invalid; FunctionAddress; FunctionCall; GlobalAddress
+}
+
+MachineStackKind :: enum s32 {
+    Invalid; Value; Local; IncomingArgument; OutgoingArgument; Spill
+}
+
+MachineCalling :: enum s32 { Invalid; Internal; C; System; Host }
+
+MachineOperand :: struct {
+    kind: MachineOperandKind
+    role: MachineOperandRole
+    class: MachineRegisterClass
+    id: s32
+    type: s32
+    fixed_register: s32
+    tied_to: s32
+    immediate: u64
+}
+
+MachineInstruction :: struct {
+    opcode: MachineOpcode
+    operand_begin: s32
+    operand_count: s32
+    edge_begin: s32
+    edge_count: s32
+    flags_use: s32
+    flags_def: s32
+    call: s32
+    condition: MachineCondition
+    origin: s32
+}
+
+MachineVirtual :: struct {
+    class: MachineRegisterClass
+    type: s32
+    fixed_register: s32
+    stack_object: s32
+    origin: s32
+}
+
+MachineCopy :: struct {
+    destination: s32
+    source: s32
+    class: MachineRegisterClass
+}
+
+MachineEdge :: struct {
+    target: s32
+    copy_begin: s32
+    copy_count: s32
+}
+
+MachineStackObject :: struct {
+    function: s32
+    kind: MachineStackKind
+    size: s64
+    alignment: s32
+    type: s32
+    origin: s32
+}
+
+MachineRelocation :: struct {
+    instruction: s32
+    operand: s32
+    kind: MachineRelocationKind
+    symbol: s32
+    addend: s64
+}
+
+MachineCall :: struct {
+    instruction: s32
+    calling: MachineCalling
+    argument_begin: s32
+    argument_count: s32
+    result_operand: s32
+    stack_argument_bytes: s64
+    clobber_general: u64
+    clobber_float: u64
+    clobber_vector: u64
+    indirect: bool
+}
+
+MachineGlobal :: struct {
+    type: s32
+    writable: bool
+}
+
+MachineBlock :: struct {
+    function: s32
+    lir_block: s32
+    instruction_begin: s32
+    instruction_count: s32
+}
+
+MachineFunction :: struct {
+    lir_function: s32
+    name_offset: s32
+    name_length: s32
+    block_begin: s32
+    block_count: s32
+    virtual_begin: s32
+    virtual_count: s32
+    stack_begin: s32
+    stack_count: s32
+    parameter_count: s32
+    result_type: s32
+    calling: MachineCalling
+    entry: s32
+    origin: s32
+}
+
+MachineOrigin :: struct {
+    file: s32
+    line: s32
+    column: s32
+    end_line: s32
+    end_column: s32
+    begin: s64
+    end: s64
+    parent: s32
+}
+
+MachineSource :: struct { text_offset: s32; text_length: s32 }
+
+MachineTypeKind :: enum s32 {
+    Invalid; Void; Bool; Integer; Float; Pointer; Array; Record; Function
+}
+
+MachineType :: struct {
+    kind: MachineTypeKind
+    class: MachineRegisterClass
+    bits: s32
+    is_signed: bool
+    size: s64
+    alignment: s32
+    element: s32
+    count: s64
+    fields_begin: s32
+    fields_count: s32
+    parameters_begin: s32
+    parameters_count: s32
+    result: s32
+}
+
+MachineProgram :: struct {
+    version: s32
+    target: TargetDescription
+    text: []u8
+    sources: []MachineSource
+    origins: []MachineOrigin
+    types: []MachineType
+    type_ids: []s32
+    globals: []MachineGlobal
+    functions: []MachineFunction
+    blocks: []MachineBlock
+    virtuals: []MachineVirtual
+    instructions: []MachineInstruction
+    operands: []MachineOperand
+    edges: []MachineEdge
+    copies: []MachineCopy
+    stack_objects: []MachineStackObject
+    relocations: []MachineRelocation
+    calls: []MachineCall
+    entry: s32
+}
+
+MachineLimits :: struct {
+    work: s64
+    bytes: s64
+    functions: s64
+    types: s64
+    type_ids: s64
+    globals: s64
+    blocks: s64
+    virtuals: s64
+    instructions: s64
+    operands: s64
+    edges: s64
+    copies: s64
+    stack_objects: s64
+    relocations: s64
+    calls: s64
+}
+
+MachineProblem :: enum s32 {
+    None; Owner; Target; UnsupportedTarget; VerifyInput; Limit; Allocation
+    Version; Source; Origin; Function; Block; Virtual; Instruction; Operand
+    Constraint; Flags; Call; Stack; Edge; Copy; Relocation; Unsupported
+}
+
+MachineDiagnostic :: struct {
+    problem: MachineProblem
+    function: s32
+    block: s32
+    instruction: s32
+    operand: s32
+    virtual: s32
+}
+
+MachineOptions :: struct {
+    preserve_origins: bool
+}
+
+MachineResult :: struct {
+    problem: MachineProblem
+    diagnostic: MachineDiagnostic
+    lir_diagnostic_problem: s32
+    work: s64
+    bytes: s64
+}
+
+MachineOwner :: struct {
+    valid: bool
+    program: MachineProgram
+    text: Vec(u8)
+    sources: Vec(MachineSource)
+    origins: Vec(MachineOrigin)
+    types: Vec(MachineType)
+    type_ids: Vec(s32)
+    globals: Vec(MachineGlobal)
+    functions: Vec(MachineFunction)
+    blocks: Vec(MachineBlock)
+    virtuals: Vec(MachineVirtual)
+    instructions: Vec(MachineInstruction)
+    operands: Vec(MachineOperand)
+    edges: Vec(MachineEdge)
+    copies: Vec(MachineCopy)
+    stack_objects: Vec(MachineStackObject)
+    relocations: Vec(MachineRelocation)
+    calls: Vec(MachineCall)
+}
+
+#scope_export
+
+MachineDefaultLimits :: () -> MachineLimits {
+    return .{.work = 16000000, .bytes = 268435456, .functions = 65536, .types = 65536,
+        .type_ids = 1048576, .globals = 1048576,
+        .blocks = 262144, .virtuals = 1048576, .instructions = 2097152,
+        .operands = 8388608, .edges = 524288, .copies = 2097152,
+        .stack_objects = 1048576, .relocations = 1048576, .calls = 1048576}
+}
+
+MachineDefaultOptions :: () -> MachineOptions {
+    return .{preserve_origins = true}
+}

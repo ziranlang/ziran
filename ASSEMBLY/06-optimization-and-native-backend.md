@@ -1,6 +1,6 @@
 # Step 06 — Optimize executable IR and implement the first native backend
 
-Status: in progress; [verified scalar optimization](optimization-pipeline.md) and a [stack-slot scalar/aggregate encoder](README.md), with a [packed internal aggregate ABI](native-aggregate-abi.md). Register allocation, the full optimizer and external System V aggregate interoperability remain pending. Depends on stable contracts from [steps 02](02-lowered-ir-and-verifier.md)–[05](05-zx-format-and-linking.md). Next: [target coverage](07-architecture-and-platform-coverage.md).
+Status: in progress; [verified scalar optimization](optimization-pipeline.md) and a [stack-slot scalar/aggregate encoder](README.md), with a [packed internal aggregate ABI](native-aggregate-abi.md). The [target-neutral machine IR](machine-ir.md) boundary and its verifier exist for Linux x86-64 SysV. Liveness, register allocation, the machine-IR encoder, the full optimizer and external System V aggregate interoperability remain pending. The direct LIR encoder now receives fixes only; new native features land on the machine-IR path ([milestone](milestones.md) M2). Depends on stable contracts from [steps 02](02-lowered-ir-and-verifier.md)–[05](05-zx-format-and-linking.md). Next: [target coverage](07-architecture-and-platform-coverage.md).
 
 ## Objective
 

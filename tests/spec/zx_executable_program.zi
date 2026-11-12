@@ -1,0 +1,4 @@
+main :: () -> s32 {
+    value: s32 = 40
+    return value + 2
+}

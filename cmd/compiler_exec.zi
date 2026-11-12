@@ -57,6 +57,8 @@ LirExecPlan :: struct {
 LirExecAddress :: struct {
     token: u64
     global: s32
+    frame: s64
+    generation: u64
     offset: s64
     type: s32
 }
@@ -68,6 +70,7 @@ LirExecFrame :: struct {
     return_value: s32
     base: s64
     valid_base: s64
+    generation: u64
 }
 
 LirExecInstance :: struct {
@@ -82,6 +85,7 @@ LirExecInstance :: struct {
     result_bytes: Vec(u8)
     result_value: LirExecValue
     live_values: s64
+    frame_epoch: u64
     work_remaining: s64
     fuel_remaining: s64
     failure: LirExecResult
@@ -359,6 +363,14 @@ ExecSlotBits :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> u6
     return ExecReadBits(instance.storage[:], ExecFrameValueOffset(instance, frame_index, value), size)
 }
 
+ExecIndexBits :: (instance: *LirExecInstance, frame_index: s64, value: s32) -> u64 {
+    bits := ExecSlotBits(instance, frame_index, value)
+    function := instance.plan.program.functions[instance.frames[frame_index].function]
+    type := instance.plan.program.types[function.values[value]]
+    if type.is_signed && ExecSigned(bits, type.bits) < 0 { unused ExecFail(instance, .Type) }
+    return bits
+}
+
 ExecWriteSlotBits :: (instance: *LirExecInstance, frame_index: s64, value: s32, bits: u64) {
     frame := instance.frames[frame_index]
     function := instance.plan.program.functions[frame.function]
@@ -433,19 +445,35 @@ ExecFieldAddress :: (instance: *LirExecInstance, parent: s32, member: u64, targe
     base := instance.addresses[parent]
     member_offset: s64
     member_type: s32
-    if !ExecMember(instance, base.type, member, *member_offset, *member_type) || member_type != target_type { return 0 }
+    if !ExecMember(instance, base.type, member, *member_offset, *member_type) ||
+        member_type != target_type { unused ExecFail(instance, .Type); return 0 }
     offset := base.offset + member_offset
+    child_frame := cast(s64)-1
+    child_generation: u64
+    child_global := base.global
+    if base.frame >= 0 {
+        if base.frame >= instance.frames.count ||
+            instance.frames[base.frame].generation != base.generation {
+            unused ExecFail(instance, .Pointer); return 0
+        }
+        child_frame = base.frame
+        child_generation = base.generation
+        child_global = -1
+    }
     for index: cast(s64)0..instance.addresses.count - 1 {
         if !ExecSpend(instance, 1) { return 0 }
         address := instance.addresses[index]
-        if address.global == base.global && address.offset == offset && address.type == target_type { return address.token }
+        if address.frame == child_frame && address.generation == child_generation &&
+            address.global == child_global &&
+            address.offset == offset && address.type == target_type { return address.token }
     }
     if instance.addresses.count >= instance.limits.addresses || instance.addresses.count >= 4294967294 {
         unused ExecFail(instance, .AddressLimit); return 0
     }
     index := instance.addresses.count
     address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
-        .global = base.global, .offset = offset, .type = target_type}
+        .global = child_global, .frame = child_frame,
+        .generation = child_generation, .offset = offset, .type = target_type}
     if !VecPush(instance.addresses, address) { unused ExecFail(instance, .Allocation); return 0 }
     return address.token
 }
@@ -486,8 +514,10 @@ ExecPushFrame :: (instance: *LirExecInstance, function_id: s32, caller: s64,
         if caller < 0 { ExecInitialLocation(instance, function_id) }
         return false
     }
+    instance.frame_epoch += 1
     frame := LirExecFrame.{.function = function_id, .block = function.entry,
-        .return_value = return_value, .base = base, .valid_base = valid_base}
+        .return_value = return_value, .base = base, .valid_base = valid_base,
+        .generation = instance.frame_epoch}
     if !VecPush(instance.frames, frame) {
         unused ExecFail(instance, .Allocation)
         if caller < 0 { ExecInitialLocation(instance, function_id) }
@@ -738,17 +768,23 @@ ExecExtractInsert :: (instance: *LirExecInstance, frame_index: s64, instruction:
     aggregate_type := function.values[aggregate]
     offset: s64
     member_type: s32
-    if !ExecMember(instance, aggregate_type, instruction.immediate, *offset, *member_type) { return false }
+    member := instruction.immediate
+    expected := ifx instruction.op == .Extract then 1 else 2
+    if instruction.operands.count == expected + 1 {
+        member = ExecIndexBits(instance, frame_index, instruction.operands[expected])
+        if instance.failure.problem != .None { return false }
+    }
+    if !ExecMember(instance, aggregate_type, member, *offset, *member_type) { return false }
     if instruction.op == .Extract {
         size := instance.plan.type_sizes[member_type]
         if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, aggregate) + offset,
             ExecFrameValueOffset(instance, frame_index, instruction.result), size) { return false }
     } else {
         if !ExecCopySlot(instance, frame_index, aggregate, instruction.result) { return false }
-        member := instruction.operands[1]
-        if !ExecValueValid(instance, frame_index, member) { return false }
+        replacement := instruction.operands[1]
+        if !ExecValueValid(instance, frame_index, replacement) { return false }
         size := instance.plan.type_sizes[member_type]
-        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, member),
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, replacement),
             ExecFrameValueOffset(instance, frame_index, instruction.result) + offset, size) { return false }
     }
     ExecMarkValue(instance, frame_index, instruction.result)
@@ -817,6 +853,63 @@ ExecCallInstruction :: (instance: *LirExecInstance, frame_index: s64,
     return true
 }
 
+ExecAddressValid :: (instance: *LirExecInstance, address_index: s64) -> bool {
+    address := instance.addresses[address_index]
+    if address.frame < 0 { return true }
+    return address.frame < instance.frames.count &&
+        instance.frames[address.frame].generation == address.generation
+}
+
+ExecAddressOffset :: (instance: *LirExecInstance, address_index: s64) -> s64 {
+    if !ExecAddressValid(instance, address_index) { unused ExecFail(instance, .Pointer); return -1 }
+    address := instance.addresses[address_index]
+    if address.frame < 0 { return address.offset }
+    return instance.frames[address.frame].base + address.offset
+}
+
+ExecCopyAddressToStorage :: (instance: *LirExecInstance, address_index: s64,
+    destination: s64, count: s64) -> bool {
+    source := ExecAddressOffset(instance, address_index)
+    if instance.failure.problem != .None || source < 0 { return false }
+    bytes := ifx instance.addresses[address_index].frame < 0 then instance.globals[:] else instance.storage[:]
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    for index: cast(s64)0..count - 1 { instance.storage[destination + index] = bytes[source + index] }
+    return true
+}
+
+ExecCopyStorageToAddress :: (instance: *LirExecInstance, source: s64,
+    address_index: s64, count: s64) -> bool {
+    destination := ExecAddressOffset(instance, address_index)
+    if instance.failure.problem != .None || destination < 0 { return false }
+    bytes := ifx instance.addresses[address_index].frame < 0 then instance.globals[:] else instance.storage[:]
+    if !ExecSpend(instance, ExecCopyCost(count)) { return false }
+    for index: cast(s64)0..count - 1 { bytes[destination + index] = instance.storage[source + index] }
+    return true
+}
+
+ExecAllocate :: (instance: *LirExecInstance, frame_index: s64,
+    function: LirFunction, instruction: LirInstruction, result_type: s32) -> bool {
+    pointee := instance.plan.program.types[result_type].element
+    size := instance.plan.type_sizes[pointee]
+    base := instance.storage.count
+    if !ExecResizeStorage(instance, base + size) { return false }
+    if instance.addresses.count >= instance.limits.addresses ||
+        instance.addresses.count >= 4294967294 { return ExecFail(instance, .AddressLimit) }
+    index := instance.addresses.count
+    address := LirExecAddress.{.token = ExecAddressToken(instance.identity, index),
+        .global = -1, .frame = frame_index, .generation = instance.frames[frame_index].generation,
+        .offset = base - instance.frames[frame_index].base, .type = pointee}
+    if !VecPush(instance.addresses, address) { return ExecFail(instance, .Allocation) }
+    if instruction.operands.count != 0 {
+        value := instruction.operands[0]
+        if !ExecValueValid(instance, frame_index, value) ||
+            function.values[value] != pointee { return ExecFail(instance, .Type) }
+        if !ExecCopyStorage(instance, ExecFrameValueOffset(instance, frame_index, value), base, size) { return false }
+    }
+    ExecWriteSlotBits(instance, frame_index, instruction.result, address.token)
+    return true
+}
+
 ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
     function: LirFunction, instruction: LirInstruction, result_type: s32) -> bool {
     if instruction.op == .FieldAddress || instruction.op == .ElementAddress {
@@ -828,12 +921,8 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
         target := instance.plan.program.types[result_type].element
         member := instruction.immediate
         if instruction.op == .ElementAddress {
-            index := instruction.operands[1]
-            member = ExecSlotBits(instance, frame_index, index)
-            index_type := instance.plan.program.types[function.values[index]]
-            if index_type.is_signed && ExecSigned(member, index_type.bits) < 0 {
-                return ExecFail(instance, .Type)
-            }
+            member = ExecIndexBits(instance, frame_index, instruction.operands[1])
+            if instance.failure.problem != .None { return false }
         }
         child := ExecFieldAddress(instance, address, member, target)
         if instance.failure.problem != .None { return false }
@@ -843,22 +932,22 @@ ExecMemoryInstruction :: (instance: *LirExecInstance, frame_index: s64,
     token := ExecSlotBits(instance, frame_index, instruction.operands[0])
     address_index := ExecFindAddress(instance, token)
     if address_index < 0 { return ExecFail(instance, .Pointer) }
-    address := instance.addresses[address_index]
     if instruction.op == .Load {
         size := instance.plan.type_sizes[result_type]
-        if address.type != result_type { return ExecFail(instance, .Type) }
-        if !ExecCopyGlobalToStorage(instance, address.offset,
+        if instance.addresses[address_index].type != result_type { return ExecFail(instance, .Type) }
+        if !ExecCopyAddressToStorage(instance, address_index,
             ExecFrameValueOffset(instance, frame_index, instruction.result), size) { return false }
         ExecMarkValue(instance, frame_index, instruction.result)
         return true
     }
     value := instruction.operands[1]
-    if !ExecValueValid(instance, frame_index, value) || function.values[value] != address.type {
+    if !ExecValueValid(instance, frame_index, value) ||
+        function.values[value] != instance.addresses[address_index].type {
         return ExecFail(instance, .Type)
     }
-    size := instance.plan.type_sizes[address.type]
-    return ExecCopyStorageToGlobal(instance, ExecFrameValueOffset(instance, frame_index, value),
-        address.offset, size)
+    size := instance.plan.type_sizes[instance.addresses[address_index].type]
+    return ExecCopyStorageToAddress(instance, ExecFrameValueOffset(instance, frame_index, value),
+        address_index, size)
 }
 
 ExecUnaryInstruction :: (instance: *LirExecInstance, frame_index: s64,
@@ -916,6 +1005,8 @@ ExecValueInstruction :: (instance: *LirExecInstance, frame_index: s64,
         if !ExecExtractInsert(instance, frame_index, instruction) { return false }
     } else if op == .FieldAddress || op == .ElementAddress || op == .Load || op == .Store {
         if !ExecMemoryInstruction(instance, frame_index, function, instruction, result_type) { return false }
+    } else if op == .Allocate {
+        if !ExecAllocate(instance, frame_index, function, instruction, result_type) { return false }
     } else if op == .Negate || op == .BitNot {
         if !ExecUnaryInstruction(instance, frame_index, function, instruction) { return false }
     } else if !ExecNumericInstruction(instance, frame_index, function, instruction, result_type) { return false }
@@ -1077,6 +1168,7 @@ LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32
     output.plan = plan
     output.limits = limits
     output.identity = identity
+    output.frame_epoch = 1
     output.work_remaining = limits.work
     output.fuel_remaining = limits.fuel
     output.failure = ExecResult(.None)
@@ -1089,7 +1181,7 @@ LirExecInstanceOpen :: (plan: *LirExecPlan, limits: LirExecLimits, identity: u32
         global := plan.program.globals[global_index]
         offset := plan.global_offsets[global_index]
         output.addresses[global_index] = .{.token = ExecAddressToken(identity, global_index),
-            .global = cast(s32)global_index, .offset = offset, .type = global.type}
+            .global = cast(s32)global_index, .frame = -1, .offset = offset, .type = global.type}
         if global.constant != LirNoId {
             constant := plan.program.constants[global.constant]
             type := plan.program.types[global.type]

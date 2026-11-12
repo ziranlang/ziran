@@ -41,6 +41,82 @@ A graphical `.zx` then runs with `ziran run app.zx` without application sources,
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.
 
+## Opt-in executable instruction container (revision 28)
+
+ASSEMBLY step 05 now has an independent executable-container foundation. It is
+opt-in through `zi2asm`; the installed/default `ziran` and `zi2zx` routes still
+write and read experimental versions 26/27 until the complete ASSEMBLY cutover
+gates pass. The two paths never guess or fall back between formats.
+
+```sh
+zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
+zi2asm --input exec --emit zx -o app.zx app.lirb
+zi2asm --input zx --run app.zx
+zi2asm --input zx --emit lir -o - app.zx
+```
+
+Revision 28 stores deterministic schema-3 lowered instructions, not `.zir`.
+`--emit zx` removes source names and instruction origins from the required
+program before encoding. `--input zx` validates section framing, SHA-256 content
+identities, the owned LIR decoding, the LIR verifier, entry identity and the
+reachable symbol/capability subset before inspection, re-emission, native local
+generation, or portable execution. The input bytes may be released after the
+read. A stripped file therefore runs through the bounded portable instruction
+engine with no source or semantic-IR parser.
+
+The fixed 64-byte header uses little-endian fields: `ZX\0\0`, version 28,
+header size 64, directory-entry size 32, required and optional feature masks,
+section count, flags, total byte length, directory offset 64, identity algorithm
+1 (SHA-256), and a zero reserved word. Required feature bit 0 means the portable
+schema-3 LIR contract. Unknown required feature bits reject the file; unknown
+optional feature bits are recorded but do not affect execution.
+
+Each 32-byte directory record contains kind, flags, offset, length, alignment
+and a zero reserved word. Kinds are strictly increasing and unique. Required
+manifest, program and asset sections are kinds 1, 2 and 3. Kind 4 is reserved
+for native variants. Optional debug and source attachments are `0x80000001` and
+`0x80000002`; producer-defined optional attachments begin at `0x80000100`.
+Required sections have flag bit 0. Unknown optional sections are skipped;
+unknown required sections reject. Offsets use canonical zero padding and are
+currently 8-byte aligned. The reader rejects arithmetic overflow, invalid
+alignment, gaps, overlaps, truncation and bytes after the last section.
+
+The required 128-byte manifest contains schema 1, LIR schema 3, the signed
+entry function ID, reachable capability count, required native-variant count,
+asset count, proof status, a reserved word, then three 32-byte SHA-256 values.
+They identify the domain-separated stripped program, canonical asset sequence,
+and combined executable content (entry, required feature contract, program and
+assets). Optional debug/source changes do not change executable content identity.
+Proof status is currently zero: producer law/proof attachments are not treated
+as verified evidence.
+
+The current reachable subset requires no `host.call`. The reader recomputes the
+reachable function set from the entry, direct calls and function addresses;
+indirect calls conservatively retain every function. It rejects reachable host
+calls, unresolved/external functions and non-portable calling conventions before
+execution. Required native variants and arbitrary machine-code sections are
+also rejected. Portable instructions remain mandatory.
+
+Executable-container reads charge the supplied LIR work and byte limits before
+hashing or allocating. Symbol identities use bounded deterministic hash tables,
+including name-byte and collision work, and the first indirect call expands the
+conservative all-functions set only once. A limit failure leaves no valid owned
+program. Writes use the default LIR budget, including stripping, hashing and
+temporary output storage; short-output calls remain non-mutating.
+
+Asset encoding retains the existing canonical sorted relative-name contract:
+little-endian u32 count, then u32 name length/name bytes and u32 data length/
+exact binary bytes. NUL is valid in asset data and invalid in names. Measuring
+and short-output calls do not modify the destination, so the CLI keeps its
+temporary-and-replace behavior and a failed write preserves an existing file.
+Full symbolic linking across separate revision-28 library containers, export
+tables, capability ABI tables, verified proof attachments, native variant
+metadata and the default-runtime cutover remain later step-05/integration work.
+Versions 26/27 library and partial-module composition continue unchanged on
+their existing APIs while this path remains opt-in. The normative byte contract
+and exact remaining gates are in
+[the executable format specification](../ASSEMBLY/zx-executable-format.md).
+
 ## Experimental versions 26 and 27
 
 Run source in one command: `ziran run hello.zi` or `zi2zx hello.zi`.

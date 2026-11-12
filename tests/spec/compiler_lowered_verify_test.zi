@@ -372,6 +372,77 @@ Depth :: (mode: s32) -> Lir.LirProblem {
     return Verifier.LirVerify(program, limits).problem
 }
 
+DynamicElements :: (mode: s32) -> Lir.LirDiagnostic {
+    fields: [2]s32 = .[2, 2]
+    types: [7]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Array, element = 2, count = 2},
+        .{kind = .Integer, bits = 64}, .{kind = .Float, bits = 64},
+        .{kind = .Integer, bits = 8, is_signed = true}]
+    modules := string.["dynamic-elements"]
+    parameters: [3]s32 = .[3, 2, 4]
+    incoming: [3]s32 = .[0, 1, 2]
+    values: [5]s32 = .[3, 2, 4, 2, 3]
+    extracted: [3]s32 = .[0, 2, 1]
+    inserted: [4]s32 = .[0, 1, 2, 2]
+    returned: [1]s32 = .[3]
+    instructions: [3]Lir.LirInstruction
+    instructions[0] = Instruction(.Extract, 3); instructions[0].operands = extracted[:2]
+    instructions[1] = Instruction(.Insert, 4); instructions[1].operands = inserted[:3]
+    instructions[2] = Instruction(.Return, -1); instructions[2].operands = returned[:]
+    blocks: [1]Lir.LirBlock = .[.{parameters = incoming[:], instructions = instructions[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "replace", parameters = parameters[:],
+        result = 2, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        functions = functions[:], entry = -1}
+    if mode == 1 { program.functions[0].parameters[2] = 5; program.functions[0].values[2] = 5 }
+    if mode == 2 { program.functions[0].parameters[2] = 1; program.functions[0].values[2] = 1 }
+    if mode == 3 { program.functions[0].blocks[0].instructions[0].immediate = 1 }
+    if mode == 4 { program.functions[0].blocks[0].instructions[1].immediate = 1 }
+    if mode == 5 { program.functions[0].values[3] = 1; program.functions[0].result = 1 }
+    if mode == 6 { program.functions[0].parameters[1] = 4; program.functions[0].values[1] = 4 }
+    if mode == 7 { program.types[3] = .{kind = .Record, fields = fields[:]} }
+    if mode == 8 { program.functions[0].blocks[0].instructions[0].operands = extracted[:] }
+    if mode == 9 { program.functions[0].blocks[0].instructions[1].operands = inserted[:] }
+    if mode == 10 { program.types[3].count = 0 }
+    if mode == 11 { program.functions[0].parameters[2] = 6; program.functions[0].values[2] = 6 }
+    if mode == 12 { program.functions[0].blocks[0].instructions[0].operands = extracted[:1]; program.functions[0].blocks[0].instructions[0].immediate = 1 }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits())
+}
+
+Allocation :: (mode: s32) -> Lir.LirDiagnostic {
+    types: [5]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 2},
+        .{kind = .Array, element = 2, count = 2}]
+    modules := string.["allocation"]
+    values: [4]s32 = .[3, 2, 2, 1]
+    initial: [1]s32 = .[1]
+    pair: [2]s32 = .[1, 1]
+    loaded: [1]s32 = .[0]
+    boolean: [1]s32 = .[3]
+    returned: [1]s32 = .[2]
+    constants: [2]Lir.LirConstant = .[.{type = 2, bits = 21}, .{type = 1, bits = 1}]
+    instructions: [5]Lir.LirInstruction
+    instructions[0] = Instruction(.Constant, 3); instructions[0].symbol = 1
+    instructions[1] = Instruction(.Constant, 1); instructions[1].symbol = 0
+    instructions[2] = Instruction(.Allocate, 0); instructions[2].operands = initial[:0]
+    instructions[2].effect = 1
+    instructions[3] = Instruction(.Load, 2); instructions[3].operands = loaded[:]
+    instructions[3].effect = 2
+    instructions[4] = Instruction(.Return, -1); instructions[4].operands = returned[:]
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "allocate", result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:],
+        types = types[:], constants = constants[:], functions = functions[:], entry = 0}
+    if mode == 1 { program.functions[0].blocks[0].instructions[2].operands = initial[:] }
+    if mode == 2 { program.functions[0].blocks[0].instructions[2].result = -1 }
+    if mode == 3 { program.functions[0].values[0] = 2 }
+    if mode == 4 { program.functions[0].values[0] = 4 }
+    if mode == 5 { program.functions[0].blocks[0].instructions[2].operands = pair[:] }
+    if mode == 6 { program.functions[0].blocks[0].instructions[2].operands = boolean[:] }
+    return Verifier.LirVerify(program, Lir.LirDefaultLimits())
+}
+
 Operations :: () -> bool {
     types: [4]Lir.LirType = .{.{kind = .Void}, .{kind = .Bool, bits = 1},
         .{kind = .Integer, bits = 64}, .{kind = .Float, bits = 64}}
@@ -434,7 +505,7 @@ Answer :: () -> s32 {
     types: [7]Lir.LirProblem = .{.None, .Type, .Type, .Type, .Type, .Limit, .Unsupported}
     for mode: cast(s32)0..6 { if !Expect(TypeGraph(mode), types[mode], 3, mode) { return 3 } }
     typed: [24]Lir.LirProblem = .{.None, .Effect, .Alignment, .Calling, .Calling,
-        .Operand, .Operand, .Operand, .Effect, .Instruction, .Calling, .Unsupported,
+        .Operand, .Operand, .Operand, .Effect, .Instruction, .Calling, .Operand,
         .Unsupported, .Operand, .Unsupported, .Unsupported, .Unsupported, .Instruction,
         .Operand, .Global, .None, .None, .None, .Instruction}
     for mode: cast(s32)0..23 { if !Expect(Typed(mode), typed[mode], 4, mode) { return 4 } }
@@ -453,6 +524,15 @@ Answer :: () -> s32 {
     for mode: cast(s32)0..15 {
         actual := ElementAddress(mode)
         if actual != element[mode] { print("element-address verifier % got % expected %\n", mode, cast(s32)actual, cast(s32)element[mode]); return 11 }
+    }
+    dynamic: [13]Lir.LirProblem = .[.None, .Operand, .Operand, .Instruction, .Instruction,
+        .Operand, .Operand, .Operand, .Operand, .Operand, .None, .None, .None]
+    for mode: cast(s32)0..12 {
+        if !Expect(DynamicElements(mode), dynamic[mode], 7, mode) { return 12 }
+    }
+    allocation: [7]Lir.LirProblem = .[.None, .None, .Result, .Operand, .Operand, .Operand, .Operand]
+    for mode: cast(s32)0..6 {
+        if !Expect(Allocation(mode), allocation[mode], 8, mode) { return 13 }
     }
     return 42
 }

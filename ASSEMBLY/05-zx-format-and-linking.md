@@ -1,6 +1,6 @@
 # Step 05 — Make ZX a versioned portable executable container
 
-Status: planned. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
+Status: in progress; the [revision-28 executable container](zx-executable-format.md) stores verified LIR, runs stripped through the portable engine, and rejects revisions 26/27 with a rebuild diagnostic. It is opt-in through `zi2asm --emit zx`/`--input zx`; host capabilities, libraries/partial composition, native variants and the default cutover remain pending. Delivery order: [milestones](milestones.md) M1 and M3. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
 
 ## Objective
 

@@ -25,7 +25,18 @@ typedef struct AssemblyBinding {
     const char *name;
     int type;
     int value;
+    int storage_type;
 } AssemblyBinding;
+
+typedef struct AssemblyLocalPlace {
+    int binding;
+    int type;
+    int value;
+    int member;
+    int index;
+    int storage;
+    struct AssemblyLocalPlace *parent;
+} AssemblyLocalPlace;
 
 typedef struct AssemblyType {
     const ZirModule *module;
@@ -61,6 +72,8 @@ typedef struct AssemblyFunction {
     AssemblyVector blocks;
     AssemblyVector values;
     AssemblyVector bindings;
+    unsigned char *addressed;
+    int addressed_count;
     int current;
     AssemblyLoop *loop;
 } AssemblyFunction;
@@ -302,7 +315,8 @@ assembly_block(AssemblyProgram *program, AssemblyFunction *function,
 {
     AssemblyBlock block = {.parameters.width = sizeof(int), .instructions.width = sizeof(LirInstruction)};
     for(int index = 0; index < count && !program->failed; index++) {
-        int value = assembly_value(program, function, bindings[index].type);
+        int type = bindings[index].storage_type >= 0 ? bindings[index].storage_type : bindings[index].type;
+        int value = assembly_value(program, function, type);
         assembly_push(program, &block.parameters, &value);
     }
     int index = function->blocks.count;
@@ -486,6 +500,99 @@ assembly_indexed(AssemblyProgram *program, AssemblyFunction *function, LirOp op,
     return result;
 }
 
+typedef struct AssemblyScopeBinding {
+    const char *name;
+    int source;
+} AssemblyScopeBinding;
+
+/* Resolve address-taking to the declaration the checker saw. A declaration's
+ * initializer still sees an outer declaration with the same name, and closing
+ * a lexical block restores the previous binding. */
+static int
+assembly_find_addressed(AssemblyProgram *program, AssemblyFunction *function)
+{
+    const ZirFunction *source = function->source;
+    const ZirParameters *parameters = ParametersOf(FunctionArgs(source));
+    int count = source->stmt_count + parameters->count;
+    function->addressed = assembly_allocate(program, (size_t)count, 1);
+    function->addressed_count = count;
+    int *binding_of = assembly_allocate(program, (size_t)source->expr_count, sizeof(*binding_of));
+    int *pending = assembly_allocate(program, (size_t)source->expr_count, sizeof(*pending));
+    AssemblyScopeBinding *scope = assembly_allocate(program, (size_t)count + 1, sizeof(*scope));
+    int *opens = assembly_allocate(program, (size_t)source->stmt_count + 1, sizeof(*opens));
+    if(program->failed) return 0;
+    for(int index = 0; index < source->expr_count; index++) binding_of[index] = -1;
+    int scope_count = 0, open_count = 0;
+    for(int index = 0; index < parameters->count; index++) {
+        const ZirParameter *parameter = &parameters->items[index];
+        const char *name = parameter->binding_name ? parameter->binding_name : parameter->name;
+        if(name && *name)
+            scope[scope_count++] = (AssemblyScopeBinding){name, source->stmt_count + index};
+    }
+    ZirExprWalk walk = {.fn = source, .pending = pending};
+    for(int statement = 0; statement < source->stmt_count && !program->failed; statement++) {
+        const ZirStmt *body = &source->stmts[statement];
+        int roots[] = {body->expr_root, body->lhs_root};
+        for(int root = 0; root < 2; root++)
+            for(int expression = ExprWalkFirst(&walk, roots[root]); expression >= 0;
+                expression = ExprWalkNext(&walk)) {
+                if(!assembly_spend(program, source->exprs[expression].span)) return 0;
+                const ZirExpr *value = &source->exprs[expression];
+                if(value->kind != ZIR_EXPR_IDENT || value->is_global_value ||
+                   value->is_function_value || value->name == NULL) continue;
+                for(int binding = scope_count; binding > 0; binding--)
+                    if(!strcmp(scope[binding - 1].name, value->name)) {
+                        binding_of[expression] = scope[binding - 1].source;
+                        break;
+                    }
+            }
+        if(body->kind == ZIR_STMT_DECL && body->name && *body->name)
+            scope[scope_count++] = (AssemblyScopeBinding){body->name, statement};
+        if(body->kind == ZIR_STMT_IF || body->kind == ZIR_STMT_WHILE ||
+           body->kind == ZIR_STMT_BLOCK_OPEN)
+            opens[open_count++] = scope_count;
+        if(body->kind == ZIR_STMT_BLOCK_CLOSE) {
+            if(open_count == 0)
+                return assembly_fail(program, body->span, "unbalanced checked statement blocks") >= 0;
+            scope_count = opens[--open_count];
+        }
+    }
+    for(int index = 0; index < source->expr_count && !program->failed; index++) {
+        const ZirExpr *expression = &source->exprs[index];
+        if(expression->kind != ZIR_EXPR_UNARY || strcmp(expression->op, "&")) continue;
+        int target = expression->right;
+        while(target >= 0 && target < source->expr_count &&
+              (source->exprs[target].kind == ZIR_EXPR_MEMBER ||
+               source->exprs[target].kind == ZIR_EXPR_INDEX))
+            target = source->exprs[target].left;
+        if(target >= 0 && target < source->expr_count && binding_of[target] >= 0)
+            function->addressed[binding_of[target]] = 1;
+    }
+    return !program->failed;
+}
+
+static int
+assembly_promote_binding(AssemblyProgram *program, AssemblyFunction *function,
+                         int binding_index, ZirSourceSpan span)
+{
+    AssemblyBinding *binding = &((AssemblyBinding *)function->bindings.data)[binding_index];
+    LirType type = *assembly_type_at(program, binding->type);
+    if(type.kind != LirTypeKind_Bool && type.kind != LirTypeKind_Integer &&
+       type.kind != LirTypeKind_Float && type.kind != LirTypeKind_Pointer)
+        return assembly_fail(program, span, type.kind == LirTypeKind_Record || type.kind == LirTypeKind_Array ?
+            "addresses of aggregate locals are not lowered yet" :
+            "this local type cannot use checked frame allocation yet");
+    int pointer_type = assembly_pointer_type(program, binding->type, span);
+    if(program->failed) return -1;
+    int operands[1] = {binding->value};
+    int address = assembly_emit(program, function, LirOp_Allocate, pointer_type,
+        operands, 1, -1, span);
+    if(program->failed || address < 0) return -1;
+    binding->value = address;
+    binding->storage_type = pointer_type;
+    return address;
+}
+
 static int
 assembly_zero(AssemblyProgram *program, AssemblyFunction *function, int identity,
               ZirSourceSpan span, int depth)
@@ -594,9 +701,16 @@ assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirE
             return assembly_fail(program, expression->span, "invalid checked array index");
         const ZirExpr *index = &function->source->exprs[expression->right];
         unsigned long long ordinal = 0;
-        if(type.kind != LirTypeKind_Array || index->kind != ZIR_EXPR_INT ||
-           !ZirIntegerLiteral(index->text, &ordinal) || ordinal > INT_MAX || ordinal >= (uint64_t)type.count)
-            return assembly_fail(program, expression->span, "dynamic or invalid array indexing is not lowered yet");
+        if(type.kind != LirTypeKind_Array)
+            return assembly_fail(program, expression->span, "indexed value is not a lowered fixed array");
+        if(index->kind != ZIR_EXPR_INT || !ZirIntegerLiteral(index->text, &ordinal) ||
+           ordinal > INT_MAX || ordinal >= (uint64_t)type.count) {
+            int selected = assembly_expression(program, function, expression->right, depth + 1);
+            if(program->failed) return -1;
+            int operands[] = {value, selected};
+            return assembly_indexed(program, function, LirOp_Extract, type.element,
+                operands, 2, 0, expression->span);
+        }
         member = (int)ordinal;
     } else if(type.kind == LirTypeKind_Array && !strcmp(expression->name, "count")) {
         int result_type = assembly_type(program, function, expression->type, expression->span);
@@ -615,7 +729,11 @@ assembly_addressable(AssemblyProgram *program, AssemblyFunction *function, int i
     const ZirExpr *expression = &function->source->exprs[index];
     if(!assembly_spend(program, expression->span)) return 0;
     if(depth > 256) return assembly_fail(program, expression->span, "address nesting budget exhausted") >= 0;
-    if(expression->kind == ZIR_EXPR_IDENT) return expression->is_global_value;
+    if(expression->kind == ZIR_EXPR_IDENT) {
+        if(expression->is_global_value) return 1;
+        int binding = assembly_binding(function, expression->name);
+        return binding >= 0 && ((AssemblyBinding *)function->bindings.data)[binding].storage_type >= 0;
+    }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*")) return 1;
     if(expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_INDEX)
         return assembly_addressable(program, function, expression->left, depth + 1);
@@ -633,6 +751,12 @@ assembly_address(AssemblyProgram *program, AssemblyFunction *function, int index
     if(depth > 256) return assembly_fail(program, expression->span, "address nesting budget exhausted");
     if(expression->kind == ZIR_EXPR_IDENT && expression->is_global_value)
         return assembly_global_address(program, function, expression->name, expression->span);
+    if(expression->kind == ZIR_EXPR_IDENT) {
+        int binding = assembly_binding(function, expression->name);
+        if(binding < 0 || ((AssemblyBinding *)function->bindings.data)[binding].storage_type < 0)
+            return assembly_fail(program, expression->span, "address requires a promoted scalar local");
+        return ((AssemblyBinding *)function->bindings.data)[binding].value;
+    }
     if(expression->kind == ZIR_EXPR_UNARY && !strcmp(expression->op, "*"))
         return assembly_expression(program, function, expression->right, depth + 1);
     if(expression->kind == ZIR_EXPR_INDEX) {
@@ -744,7 +868,7 @@ assembly_select(AssemblyProgram *program, AssemblyFunction *function, const ZirE
     AssemblyBinding *joined = assembly_allocate(program, (size_t)count + 1, sizeof(*joined));
     if(program->failed) return -1;
     if(count) memcpy(joined, before, (size_t)count * sizeof(*joined));
-    joined[count] = (AssemblyBinding){"", type, yes_value};
+    joined[count] = (AssemblyBinding){"", type, yes_value, -1};
     int join = assembly_block(program, function, joined, count + 1);
     if(program->failed) return -1;
     LirEdge edges[2] = {assembly_edge(program, join, joined, count + 1), {0}};
@@ -838,7 +962,12 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
         if(!strcmp(expression->name, "true") || !strcmp(expression->name, "false"))
             return assembly_constant(program, function, 1, !strcmp(expression->name, "true"), expression->span);
         int binding = assembly_binding(function, expression->name);
-        if(binding >= 0) return ((AssemblyBinding *)function->bindings.data)[binding].value;
+        if(binding >= 0) {
+            AssemblyBinding *local = &((AssemblyBinding *)function->bindings.data)[binding];
+            if(local->storage_type < 0) return local->value;
+            return assembly_emit(program, function, LirOp_Load, local->type, &local->value, 1, -1,
+                expression->span);
+        }
         return assembly_fail(program, expression->span, "only local scalar bindings are lowered in identifier expressions");
     }
     if(expression->kind == ZIR_EXPR_CAST) {
@@ -968,50 +1097,87 @@ assembly_close(AssemblyProgram *program, const ZirFunction *source, int begin, i
 
 static void assembly_sequence(AssemblyProgram *, AssemblyFunction *, int, int, int);
 
-static int
-assembly_store_local(AssemblyProgram *program, AssemblyFunction *function, int root, int value, int depth)
+static AssemblyLocalPlace *
+assembly_capture_local(AssemblyProgram *program, AssemblyFunction *function, int root, int depth)
 {
-    if(!assembly_spend(program, function->source->span)) return 0;
-    if(depth > 256 || root < 0 || root >= function->source->expr_count)
-        return assembly_fail(program, function->source->span, "invalid or excessively deep local assignment") >= 0;
+    if(!assembly_spend(program, function->source->span)) return NULL;
+    if(depth > 256 || root < 0 || root >= function->source->expr_count) {
+        assembly_fail(program, function->source->span, "invalid or excessively deep local assignment");
+        return NULL;
+    }
     const ZirExpr *destination = &function->source->exprs[root];
-    if(destination->kind == ZIR_EXPR_IDENT && destination->is_global_value) {
-        int address = assembly_global_address(program, function, destination->name, destination->span);
-        int type = assembly_type(program, function, destination->type, destination->span);
-        int operands[2] = {address, assembly_convert(program, function, value, type, destination->span)};
-        assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, destination->span);
-        return !program->failed;
-    }
-    if(destination->kind == ZIR_EXPR_IDENT) {
+    if(destination->kind == ZIR_EXPR_IDENT && !destination->is_global_value) {
         int binding = assembly_binding(function, destination->name);
-        if(binding < 0) return assembly_fail(program, destination->span, "assignment requires a local binding") >= 0;
-        int identity = ((AssemblyBinding *)function->bindings.data)[binding].type;
-        value = assembly_convert(program, function, value, identity, destination->span);
-        ((AssemblyBinding *)function->bindings.data)[binding].value = value;
-        return !program->failed;
+        if(binding < 0) {
+            assembly_fail(program, destination->span, "assignment requires a local binding");
+            return NULL;
+        }
+        AssemblyLocalPlace *place = assembly_allocate(program, 1, sizeof(*place));
+        if(place == NULL) return NULL;
+        AssemblyBinding current = ((AssemblyBinding *)function->bindings.data)[binding];
+        *place = (AssemblyLocalPlace){.binding = binding, .type = current.type,
+            .value = current.value, .index = -1, .storage = current.storage_type >= 0};
+        return place;
     }
-    if(destination->kind != ZIR_EXPR_MEMBER && destination->kind != ZIR_EXPR_INDEX)
-        return assembly_fail(program, destination->span, "assignment destination has no lowered storage representation yet") >= 0;
-    int aggregate = assembly_expression(program, function, destination->left, depth + 1);
-    if(program->failed) return 0;
-    int identity = ((int *)function->values.data)[aggregate];
-    int member;
-    if(destination->kind == ZIR_EXPR_MEMBER) member = assembly_field(program, identity, destination->name, destination->span);
+    if(destination->kind != ZIR_EXPR_MEMBER && destination->kind != ZIR_EXPR_INDEX) {
+        assembly_fail(program, destination->span, "assignment destination has no lowered storage representation yet");
+        return NULL;
+    }
+    AssemblyLocalPlace *parent = assembly_capture_local(program, function, destination->left, depth + 1);
+    if(parent == NULL) return NULL;
+    int member = -1, selected = -1, member_type = -1;
+    if(destination->kind == ZIR_EXPR_MEMBER) {
+        member = assembly_field(program, parent->type, destination->name, destination->span);
+        if(!program->failed) member_type = assembly_member_type(program, parent->type, member);
+    }
     else {
-        if(destination->right < 0 || destination->right >= function->source->expr_count)
-            return assembly_fail(program, destination->span, "invalid checked array assignment index") >= 0;
+        LirType type = *assembly_type_at(program, parent->type);
+        if(type.kind != LirTypeKind_Array || destination->right < 0 || destination->right >= function->source->expr_count) {
+            assembly_fail(program, destination->span, "invalid checked array assignment index");
+            return NULL;
+        }
         const ZirExpr *index = &function->source->exprs[destination->right];
         unsigned long long ordinal = 0;
-        if(index->kind != ZIR_EXPR_INT || !ZirIntegerLiteral(index->text, &ordinal) || ordinal > INT_MAX)
-            return assembly_fail(program, destination->span, "dynamic array assignment is not lowered yet") >= 0;
-        member = (int)ordinal;
+        if(index->kind == ZIR_EXPR_INT && ZirIntegerLiteral(index->text, &ordinal) &&
+           ordinal <= INT_MAX && ordinal < (uint64_t)type.count) member = (int)ordinal;
+        else selected = assembly_expression(program, function, destination->right, depth + 1);
+        member_type = type.element;
     }
-    if(program->failed) return 0;
-    int member_type = assembly_member_type(program, identity, member);
-    if(member_type < 0) return assembly_fail(program, destination->span, "aggregate assignment is outside its declared shape") >= 0;
-    int operands[2] = {aggregate, assembly_convert(program, function, value, member_type, destination->span)};
-    int updated = assembly_indexed(program, function, LirOp_Insert, identity, operands, 2, (uint64_t)member, destination->span);
-    return assembly_store_local(program, function, destination->left, updated, depth + 1);
+    if(program->failed) return NULL;
+    if(member_type < 0) {
+        assembly_fail(program, destination->span, "aggregate assignment is outside its declared shape");
+        return NULL;
+    }
+    int operands[] = {parent->value, selected};
+    int current = assembly_indexed(program, function, LirOp_Extract, member_type,
+        operands, selected < 0 ? 1 : 2, selected < 0 ? (uint64_t)member : 0, destination->span);
+    if(program->failed) return NULL;
+    AssemblyLocalPlace *place = assembly_allocate(program, 1, sizeof(*place));
+    if(place) *place = (AssemblyLocalPlace){.type = member_type, .value = current,
+        .member = member, .index = selected, .parent = parent};
+    return place;
+}
+
+static void
+assembly_store_captured(AssemblyProgram *program, AssemblyFunction *function,
+                       const AssemblyLocalPlace *place, int value, ZirSourceSpan span)
+{
+    if(program->failed || place == NULL || !assembly_spend(program, span)) return;
+    value = assembly_convert(program, function, value, place->type, span);
+    if(program->failed) return;
+    if(place->parent == NULL) {
+        if(place->storage) {
+            int operands[2] = {place->value, value};
+            assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, span);
+            return;
+        }
+        ((AssemblyBinding *)function->bindings.data)[place->binding].value = value;
+        return;
+    }
+    int operands[] = {place->parent->value, value, place->index};
+    int updated = assembly_indexed(program, function, LirOp_Insert, place->parent->type,
+        operands, place->index < 0 ? 2 : 3, place->index < 0 ? (uint64_t)place->member : 0, span);
+    assembly_store_captured(program, function, place->parent, updated, span);
 }
 
 static int
@@ -1083,8 +1249,11 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
             int value = statement->expr_root >= 0 ? assembly_expression(program, function, statement->expr_root, 0) :
                 assembly_zero(program, function, type, statement->span, 0);
             value = assembly_convert(program, function, value, type, statement->span);
-            AssemblyBinding binding = {assembly_text(program, statement->name), type, value};
+            AssemblyBinding binding = {assembly_text(program, statement->name), type, value, -1};
             assembly_push(program, &function->bindings, &binding);
+            if(index < function->addressed_count && function->addressed[index])
+                assembly_promote_binding(program, function, function->bindings.count - 1,
+                    statement->span);
         } else if(statement->kind == ZIR_STMT_ASSIGN) {
             if(statement->lhs_root < 0 || statement->lhs_root >= function->source->expr_count) {
                 assembly_fail(program, statement->span, "invalid checked assignment destination");
@@ -1093,11 +1262,16 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
             int previous = -1;
             int identity = assembly_type(program, function, function->source->exprs[statement->lhs_root].type, statement->span);
             int address = -1;
+            AssemblyLocalPlace *destination = NULL;
             if(assembly_addressable(program, function, statement->lhs_root, 0))
                 address = assembly_address(program, function, statement->lhs_root, 0);
+            else destination = assembly_capture_local(program, function, statement->lhs_root, 0);
+            if(program->failed) break;
             if(strcmp(statement->assignment_op, "="))
-                previous = address >= 0 ? assembly_emit(program, function, LirOp_Load, identity,
-                    &address, 1, -1, statement->span) : assembly_expression(program, function, statement->lhs_root, 0);
+                previous = address >= 0 || destination->storage ?
+                    assembly_emit(program, function, LirOp_Load, identity,
+                        address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
+                    destination->value;
             int value = assembly_expression(program, function, statement->expr_root, 0);
             if(strcmp(statement->assignment_op, "=")) {
                 char operator_text[4];
@@ -1114,7 +1288,7 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
             if(address >= 0) {
                 int operands[2] = {address, assembly_convert(program, function, value, identity, statement->span)};
                 assembly_emit(program, function, LirOp_Store, 0, operands, 2, -1, statement->span);
-            } else assembly_store_local(program, function, statement->lhs_root, value, 0);
+            } else assembly_store_captured(program, function, destination, value, statement->span);
         } else if(statement->kind == ZIR_STMT_EXPR || statement->kind == ZIR_STMT_UNUSED) {
             assembly_expression(program, function, statement->expr_root, 0);
         } else if(statement->kind == ZIR_STMT_RETURN) {
@@ -1206,10 +1380,11 @@ assembly_function(AssemblyProgram *program, const ZirModule *module, const ZirFu
     for(int index = 0; index < parameters->count && !program->failed; index++) {
         const ZirParameter *parameter = &parameters->items[index];
         types[index] = assembly_type(program, function, parameter->value_type, source->span);
-        AssemblyBinding binding = {assembly_text(program, parameter->binding_name), types[index], -1};
+        AssemblyBinding binding = {assembly_text(program, parameter->binding_name), types[index], -1, -1};
         assembly_push(program, &function->bindings, &binding);
     }
     function->result.parameters = (Slice){types, parameters->count};
+    assembly_find_addressed(program, function);
     int identity = program->functions.count;
     return assembly_push(program, &program->functions, &function) ? identity : -1;
 }
@@ -1269,6 +1444,12 @@ AssemblyLower(const ZirProgram *source, const char *module_name, const char *fun
         builder->result.entry = entry;
         assembly_enter(builder, entry, parameters, count);
         assembly_emit(program, builder, LirOp_Fuel, 0, NULL, 0, -1, builder->source->span);
+        for(int parameter = 0; parameter < count && !program->failed; parameter++) {
+            AssemblyBinding *binding = &((AssemblyBinding *)builder->bindings.data)[parameter];
+            int source_binding = builder->source->stmt_count + parameter;
+            if(source_binding < builder->addressed_count && builder->addressed[source_binding])
+                assembly_promote_binding(program, builder, parameter, builder->source->span);
+        }
         assembly_sequence(program, builder, 0, builder->source->stmt_count, 0);
         if(builder->current >= 0 && !program->failed) {
             if(builder->result.result) assembly_fail(program, builder->source->span, "scalar procedure falls through without a return");

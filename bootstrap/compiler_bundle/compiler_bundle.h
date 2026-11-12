@@ -39,6 +39,63 @@ extern "C" {
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 #define SizeLimit 4294967296
 #endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableVersion 28
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableHeaderSize 64
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableDirectoryEntrySize 32
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableManifestSize 128
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableAlignment 8
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionLimit 1024
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableByteLimit 268435456
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableFeaturePortableLir 1
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionManifest 1
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionProgram 2
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionAssets 3
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionVariants 4
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionDebug 0x80000001
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionSource 0x80000002
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableAttachmentMinimum 0x80000100
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableSectionRequired 1
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableManifestSchema 1
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableLirSchema 3
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+#define ExecutableIdentitySize 32
+#endif
 typedef struct Capability Capability;
 typedef struct Law Law;
 typedef struct Waiver Waiver;
@@ -46,8 +103,19 @@ typedef struct Asset Asset;
 typedef struct Header Header;
 typedef int32_t Problem;
 typedef struct Layout Layout;
+typedef int32_t ExecutableProblem;
+typedef struct ExecutableAttachment ExecutableAttachment;
+typedef struct ExecutableHeader ExecutableHeader;
+typedef struct ExecutableResult ExecutableResult;
+typedef struct ExecutableLayout ExecutableLayout;
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 typedef struct Codec Codec;
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+typedef struct ExecutableWriter ExecutableWriter;
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+typedef struct ExecutableCursor ExecutableCursor;
 #endif
 
 struct Capability {
@@ -111,6 +179,71 @@ struct Layout {
     int64_t program;
     int64_t program_end;
 };
+
+enum {
+    ExecutableProblem_None = 0,
+    ExecutableProblem_Invalid = 1,
+    ExecutableProblem_Magic = 2,
+    ExecutableProblem_Legacy = 3,
+    ExecutableProblem_Version = 4,
+    ExecutableProblem_Header = 5,
+    ExecutableProblem_Feature = 6,
+    ExecutableProblem_Flags = 7,
+    ExecutableProblem_Section = 8,
+    ExecutableProblem_RequiredSection = 9,
+    ExecutableProblem_Duplicate = 10,
+    ExecutableProblem_Alignment = 11,
+    ExecutableProblem_Overlap = 12,
+    ExecutableProblem_Truncated = 13,
+    ExecutableProblem_Trailing = 14,
+    ExecutableProblem_Limit = 15,
+    ExecutableProblem_Output = 16,
+    ExecutableProblem_Manifest = 17,
+    ExecutableProblem_Entry = 18,
+    ExecutableProblem_Capabilities = 19,
+    ExecutableProblem_Variant = 20,
+    ExecutableProblem_Assets = 21,
+    ExecutableProblem_Identity = 22,
+};
+
+struct ExecutableAttachment {
+    uint32_t kind;
+    String data;
+};
+
+struct ExecutableHeader {
+    int32_t entry;
+    String program;
+    Slice assets;
+    String program_identity;
+    String assets_identity;
+    String content_identity;
+    String debug;
+    String source;
+    Slice attachments;
+};
+
+struct ExecutableResult {
+    ExecutableProblem problem;
+    int64_t size;
+    int64_t offset;
+};
+
+struct ExecutableLayout {
+    ExecutableProblem problem;
+    uint32_t found_version;
+    uint64_t required_features;
+    uint64_t optional_features;
+    int32_t entry;
+    int64_t assets;
+    int64_t optional_sections;
+    String program;
+    String program_identity;
+    String assets_identity;
+    String content_identity;
+    String debug;
+    String source;
+};
 #ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
 
 struct Codec {
@@ -123,6 +256,23 @@ struct Codec {
     bool ended;
 };
 #endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+
+struct ExecutableWriter {
+    Slice output;
+    int64_t at;
+    ExecutableProblem problem;
+};
+#endif
+#ifdef ZIRAN_COMPILER_BUNDLE_H_PRIVATE
+
+struct ExecutableCursor {
+    String input;
+    int64_t at;
+    int64_t end;
+    ExecutableProblem problem;
+};
+#endif
 bool compiler_bundle_AssetName(String name);
 int64_t compiler_bundle_EncodeHeader(Slice output, Header header);
 int64_t compiler_bundle_EncodeAssets(Slice output, Slice assets);
@@ -130,6 +280,23 @@ Layout compiler_bundle_Decode(String bytes, Slice capabilities, Slice laws, Slic
 int64_t compiler_bundle_ProgramEnd(String bytes);
 Problem compiler_bundle_Differs(Header expected, Header found);
 String compiler_bundle_Message(Problem problem);
+ExecutableResult compiler_bundle_ExecutableEncode(Slice output, ExecutableHeader header);
+ExecutableLayout compiler_bundle_ExecutableDecode(String bytes, Slice assets);
+uint32_t compiler_bundle_ExecutableVersionNumber(void);
+String compiler_bundle_ExecutableMessage(ExecutableProblem problem);
+
+/* Small procedures other modules inline; compiler_bundle.c defines them. */
+#if !defined(__cplusplus) && !defined(ZIRAN_COMPILER_BUNDLE_H_SOURCE) && !defined(ZIRAN_NO_HEADER_INLINE)
+#include <stdint.h>
+static inline uint32_t compiler_bundle_ExecutableVersionNumber_ziran_inline(void);
+#define compiler_bundle_ExecutableVersionNumber(...) compiler_bundle_ExecutableVersionNumber_ziran_inline(__VA_ARGS__)
+
+static inline uint32_t
+compiler_bundle_ExecutableVersionNumber_ziran_inline(void)
+{
+    return 28;
+}
+#endif
 
 #ifdef __cplusplus
 }

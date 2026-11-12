@@ -3,6 +3,7 @@
 #include "compiler_lowered_verify.h"
 #include "compiler_lowered_x64.h"
 #include "compiler_exec_serial.h"
+#include "compiler_exec_link.h"
 #include "compiler_exec.h"
 #include "compiler_opt.h"
 #include "zir_command.h"
@@ -19,8 +20,8 @@
 static int
 assembly_usage(void)
 {
-    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--opt] [--emit lir|map|exec|elf|opt-report] -o FILE INPUT...\n"
-          "       zi2asm --input exec [--opt] [--emit lir|map|exec|elf|opt-report] -o FILE INPUT\n"
+    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--opt] [--emit lir|map|exec|zx|elf|opt-report] -o FILE INPUT...\n"
+          "       zi2asm --input exec|zx [--opt] [--emit lir|map|exec|zx|elf|opt-report] -o FILE INPUT\n"
           "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] INPUT...\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "experimental direct backend; opt-report requires --opt; native target: Linux x86-64 ELF\n", stderr);
@@ -371,7 +372,9 @@ main(int argc, char **argv)
     };
     int input = ReadCommandOptions(argc, argv, options, sizeof(options) / sizeof(*options));
     char module[ZIR_NAME_MAX], function[ZIR_NAME_MAX];
-    int serialized = !strcmp(input_kind, "exec");
+    int serialized_exec = !strcmp(input_kind, "exec");
+    int serialized_zx = !strcmp(input_kind, "zx");
+    int serialized = serialized_exec || serialized_zx;
     LirExecLimits execution_limits = compiler_exec_LirExecDefaultLimits();
     if(input <= 0 || (!run && output == NULL) ||
        (run && (output != NULL || strcmp(emit, "elf"))) ||
@@ -390,12 +393,13 @@ main(int argc, char **argv)
        (!serialized && (root == NULL || entry == NULL || !split_entry(entry, module, function))) ||
        (serialized && (argc - input != 1 || root != NULL || entry != NULL || module_path_count != 0)) ||
        (!strcmp(emit, "opt-report") && !optimize) ||
-       (strcmp(emit, "lir") && strcmp(emit, "map") && strcmp(emit, "exec") && strcmp(emit, "elf") && strcmp(emit, "opt-report"))) return assembly_usage();
+       (strcmp(emit, "lir") && strcmp(emit, "map") && strcmp(emit, "exec") && strcmp(emit, "zx") && strcmp(emit, "elf") && strcmp(emit, "opt-report"))) return assembly_usage();
     int status = 1;
     ProgramSet sources = {0};
     ZirProgram merged = {0};
     AssemblyProgram *lowered = NULL;
     LirReadOwner read_owner = {0};
+    ZxExecOwner zx_owner = {0};
     LirProgram decoded = {0};
     LirOptOwner optimized_owner = {0};
     LirOptResult optimization = {0};
@@ -408,15 +412,31 @@ main(int argc, char **argv)
         size_t input_size = 0;
         unsigned char *input_bytes = assembly_read(argv[input], &input_size);
         if(input_bytes == NULL) goto done;
-        LirCodecResult read = compiler_exec_serial_LirRead(&read_owner,
-            (String){(char *)input_bytes, input_size}, compiler_lowered_ir_LirDefaultLimits());
-        free(input_bytes);
-        if(read.problem != LirCodecProblem_None) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.codec", "instruction input rejected: problem=%d offset=%lld verifier=%d",
-                read.problem, (long long)read.offset, read.diagnostic.problem);
-            goto done;
+        if(serialized_zx) {
+            ZxExecResult read = compiler_exec_link_ZxExecRead(&zx_owner,
+                (String){(char *)input_bytes, input_size}, compiler_lowered_ir_LirDefaultLimits());
+            free(input_bytes);
+            if(read.problem != ZxExecProblem_None) {
+                String problem = compiler_exec_link_ZxExecProblemName(read.problem);
+                String container = compiler_bundle_ExecutableMessage(read.container);
+                Diagnostic((ZirSourceSpan){0}, "assembly.container",
+                    "executable ZX rejected: problem=%.*s container=%.*s codec=%d offset=%lld verifier=%d",
+                    (int)problem.length, problem.data, (int)container.length, container.data,
+                    read.codec, (long long)read.offset, read.diagnostic.problem);
+                goto done;
+            }
+            decoded = compiler_exec_link_ZxExecReadProgram(&zx_owner);
+        } else {
+            LirCodecResult read = compiler_exec_serial_LirRead(&read_owner,
+                (String){(char *)input_bytes, input_size}, compiler_lowered_ir_LirDefaultLimits());
+            free(input_bytes);
+            if(read.problem != LirCodecProblem_None) {
+                Diagnostic((ZirSourceSpan){0}, "assembly.codec", "instruction input rejected: problem=%d offset=%lld verifier=%d",
+                    read.problem, (long long)read.offset, read.diagnostic.problem);
+                goto done;
+            }
+            decoded = compiler_exec_serial_LirReadProgram(&read_owner);
         }
-        decoded = compiler_exec_serial_LirReadProgram(&read_owner);
         view = &decoded;
     } else {
         if(!ProgramsLoad(&sources, root, module_paths, module_path_count,
@@ -469,6 +489,26 @@ main(int argc, char **argv)
         LirCodecResult encoded = compiler_exec_serial_LirWrite(*view, (Slice){bytes, size});
         if(encoded.problem != LirCodecProblem_None || encoded.size != size) {
             Diagnostic((ZirSourceSpan){0}, "assembly.codec", "cannot encode instruction output: problem=%d", encoded.problem);
+            goto done;
+        }
+    } else if(!strcmp(emit, "zx")) {
+        ZxExecResult measured = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){0});
+        if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
+            String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
+            Diagnostic((ZirSourceSpan){0}, "assembly.container",
+                "cannot measure executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
+                (int)problem.length, problem.data, measured.container, measured.codec, measured.diagnostic.problem);
+            goto done;
+        }
+        size = measured.size;
+        bytes = malloc((size_t)size);
+        if(bytes == NULL) { DiagnosticOutOfMemory(); goto done; }
+        ZxExecResult encoded = compiler_exec_link_ZxExecWrite(*view, (Slice){0}, (Slice){bytes, size});
+        if(encoded.problem != ZxExecProblem_None || encoded.size != size) {
+            String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
+            Diagnostic((ZirSourceSpan){0}, "assembly.container",
+                "cannot encode executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
+                (int)problem.length, problem.data, encoded.container, encoded.codec, encoded.diagnostic.problem);
             goto done;
         }
     } else if(executable || mapping) {
@@ -528,6 +568,7 @@ done:
     free(bytes);
     compiler_opt_LirOptFree(&optimized_owner);
     AssemblyFree(lowered);
+    compiler_exec_link_ZxExecReadFree(&zx_owner);
     compiler_exec_serial_LirReadFree(&read_owner);
     free(merged.modules);
     ProgramsFree(&sources);

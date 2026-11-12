@@ -1,0 +1,136 @@
+// Native target descriptions shared by machine lowering, allocation and
+// encoding. A described target is not necessarily implemented by the current
+// machine lowerer; callers must check TargetMachineLoweringSupported.
+
+TargetArch :: enum s32 { Invalid; X86_64; ArmV7; AArch64; Wasm32 }
+TargetOS :: enum s32 { Invalid; Linux; Android; Windows; MacOS; Browser; Wasi }
+TargetABI :: enum s32 { Invalid; SysV; Aapcs32; Aapcs64; Win64; Apple64; Wasm }
+TargetEndian :: enum s32 { Invalid; Little; Big }
+
+TargetProblem :: enum s32 { None; Architecture; OperatingSystem; Combination }
+
+TargetDescription :: struct {
+    arch: TargetArch
+    os: TargetOS
+    abi: TargetABI
+    endian: TargetEndian
+    pointer_bits: s32
+    general_registers: s32
+    float_registers: s32
+    vector_registers: s32
+    float_vector_overlap: bool
+    allocatable_general: u64
+    reserved_general: u64
+    allocatable_float: u64
+    allocatable_vector: u64
+    feature_mask: u64
+}
+
+TargetResult :: struct { problem: TargetProblem; target: TargetDescription }
+
+#scope_file
+
+Describe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
+    target := TargetDescription.{.arch = arch, .os = os, .endian = .Little}
+    if arch == .X86_64 {
+        target.pointer_bits = 64
+        target.general_registers = 16
+        target.float_registers = 16
+        target.vector_registers = 16
+        target.float_vector_overlap = true
+        target.allocatable_general = 0xffcf
+        target.reserved_general = 0x30
+        target.allocatable_float = 0xffff
+        target.allocatable_vector = 0xffff
+        if os == .Linux || os == .Android { target.abi = .SysV }
+        else if os == .Windows { target.abi = .Win64 }
+        else if os == .MacOS { target.abi = .Apple64 }
+        else { return .{problem = .Combination} }
+    } else if arch == .ArmV7 {
+        target.pointer_bits = 32
+        target.general_registers = 16
+        target.float_registers = 32
+        target.vector_registers = 16
+        target.float_vector_overlap = true
+        target.allocatable_general = 0x1fff
+        target.reserved_general = 0xe000
+        target.allocatable_float = 0xffffffff
+        target.allocatable_vector = 0xffff
+        if os == .Linux || os == .Android { target.abi = .Aapcs32 }
+        else { return .{problem = .Combination} }
+    } else if arch == .AArch64 {
+        target.pointer_bits = 64
+        target.general_registers = 32
+        target.float_registers = 32
+        target.vector_registers = 32
+        target.float_vector_overlap = true
+        target.allocatable_general = 0x3fffffff
+        target.reserved_general = 0xc0000000
+        target.allocatable_float = 0xffffffff
+        target.allocatable_vector = 0xffffffff
+        if os == .Linux || os == .Android { target.abi = .Aapcs64 }
+        else if os == .Windows { target.abi = .Win64 }
+        else if os == .MacOS { target.abi = .Apple64 }
+        else { return .{problem = .Combination} }
+    } else if arch == .Wasm32 {
+        target.pointer_bits = 32
+        if os == .Browser || os == .Wasi { target.abi = .Wasm }
+        else { return .{problem = .Combination} }
+    } else {
+        return .{problem = .Architecture}
+    }
+    return .{target = target}
+}
+
+#scope_export
+
+TargetDescribe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
+    if cast(s32)os <= cast(s32)TargetOS.Invalid || cast(s32)os > cast(s32)TargetOS.Wasi {
+        return .{problem = .OperatingSystem}
+    }
+    return Describe(arch, os)
+}
+
+TargetLinuxX64 :: () -> TargetDescription {
+    return Describe(.X86_64, .Linux).target
+}
+
+TargetValid :: (target: TargetDescription) -> bool {
+    described := Describe(target.arch, target.os)
+    if described.problem != .None { return false }
+    expected := described.target
+    return target.abi == expected.abi && target.endian == expected.endian &&
+        target.pointer_bits == expected.pointer_bits &&
+        target.general_registers == expected.general_registers &&
+        target.float_registers == expected.float_registers &&
+        target.vector_registers == expected.vector_registers &&
+        target.float_vector_overlap == expected.float_vector_overlap &&
+        target.allocatable_general == expected.allocatable_general &&
+        target.reserved_general == expected.reserved_general &&
+        target.allocatable_float == expected.allocatable_float &&
+        target.allocatable_vector == expected.allocatable_vector &&
+        target.feature_mask == expected.feature_mask
+}
+
+TargetMachineLoweringSupported :: (target: TargetDescription) -> bool {
+    return TargetValid(target) && target.arch == .X86_64 && target.os == .Linux &&
+        target.abi == .SysV
+}
+
+TargetArchName :: (arch: TargetArch) -> string {
+    if arch == .X86_64 { return "x86_64" }
+    if arch == .ArmV7 { return "armv7" }
+    if arch == .AArch64 { return "aarch64" }
+    if arch == .Wasm32 { return "wasm32" }
+    return "invalid"
+}
+
+TargetOSName :: (os: TargetOS) -> string {
+    if os == .Linux { return "linux" }
+    if os == .Android { return "android" }
+    if os == .Windows { return "windows" }
+    if os == .MacOS { return "macos" }
+    if os == .Browser { return "browser" }
+    if os == .Wasi { return "wasi" }
+    return "invalid"
+}

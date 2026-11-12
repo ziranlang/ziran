@@ -1,6 +1,6 @@
 # Step 01 — Freeze the execution contract and completion matrix
 
-Status: in progress. The experimental [scalar prototype](README.md) does not close this step's completion gates.
+Status: in progress. The experimental [scalar prototype](README.md) does not close this step's completion gates. Delivery order, plan review and per-row cutover rules are in [milestones](milestones.md); capturing the Alpha physical-host baseline of the old engines is milestone M0, before any old path is replaced.
 
 ## Objective
 

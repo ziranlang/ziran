@@ -491,7 +491,8 @@ BuildReport :: (campaign: string, required: []RequiredCell,
         }
         Put(*output, "\n- Correctness identity: `"); Put(*output, EscapeMarkdown(receipt.correctness_expected))
         Put(*output, "` = `"); Put(*output, EscapeMarkdown(receipt.correctness_actual)); Put(*output, "`\n")
-        Put(*output, "- Raw samples ("); Put(*output, EscapeMarkdown(receipt.unit)); Put(*output, "): `")
+        Put(*output, "- Sample count: `"); Put(*output, FormatInteger(receipt.repeats, buffer[:]))
+        Put(*output, "`; raw samples ("); Put(*output, EscapeMarkdown(receipt.unit)); Put(*output, "): `")
         Put(*output, SamplesText(receipt.samples[:])); Put(*output, "`\n")
         Put(*output, "- Excluded indices: `"); Put(*output, IndicesText(receipt.statistics.excluded[:]))
         Put(*output, "`; retained median: `"); Put(*output, MedianText(receipt)); Put(*output, "`\n\n")

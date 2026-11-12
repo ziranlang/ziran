@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Ziran portable bundle (`.zx`): the Ziran guide, rendered from docs/ZX.md."><title>Ziran portable bundle (`.zx`) · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/zx"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Ziran portable bundle (`.zx`)</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/ZX.md">docs/ZX.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#running-bundles">Running bundles</a><a href="#experimental-versions-26-and-27">Experimental versions 26 and 27</a><a href="#target-contract">Target contract</a><a href="#shared-libraries-and-partial-modules">Shared libraries and partial modules</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#native-execution">Native execution</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#running-bundles">Running bundles</a><a href="#opt-in-executable-instruction-container-revision-28">Opt-in executable instruction container (revision 28)</a><a href="#experimental-versions-26-and-27">Experimental versions 26 and 27</a><a href="#target-contract">Target contract</a><a href="#shared-libraries-and-partial-modules">Shared libraries and partial modules</a><a href="#component-identity-state-and-replacement">Component identity, state, and replacement</a><a href="#native-execution">Native execution</a><a href="#webassembly-execution-tier">WebAssembly execution tier</a><a href="#embedded-files-and-application-hosts">Embedded files and application hosts</a></aside><div class="article-body">
 <section class="prose"><p>This describes the target contract and the experimental subset that ships now.
 See <a href="implementation-status.html">Implementation status</a> for the remaining work.</p>
 <p>The file roles are <code>.zi</code> for source, <code>.zir</code> for checked intermediate modules,
@@ -38,6 +38,71 @@ platform installation and adds no requirement to a console-only Ziran install.</
 A graphical <code>.zx</code> then runs with <code>ziran run app.zx</code> without application sources,
 a manifest or generated native output. The portable bundle carries its linked
 UI code and embedded assets; the installed provider bridges the local OS.</p>
+<h2 id="opt-in-executable-instruction-container-revision-28">Opt-in executable instruction container (revision 28)</h2>
+<p>ASSEMBLY step 05 now has an independent executable-container foundation. It is
+opt-in through <code>zi2asm</code>; the installed/default <code>ziran</code> and <code>zi2zx</code> routes still
+write and read experimental versions 26/27 until the complete ASSEMBLY cutover
+gates pass. The two paths never guess or fall back between formats.</p>
+<pre><code class="language-sh">zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
+zi2asm --input exec --emit zx -o app.zx app.lirb
+zi2asm --input zx --run app.zx
+zi2asm --input zx --emit lir -o - app.zx
+</code></pre>
+<p>Revision 28 stores deterministic schema-3 lowered instructions, not <code>.zir</code>.
+<code>--emit zx</code> removes source names and instruction origins from the required
+program before encoding. <code>--input zx</code> validates section framing, SHA-256 content
+identities, the owned LIR decoding, the LIR verifier, entry identity and the
+reachable symbol/capability subset before inspection, re-emission, native local
+generation, or portable execution. The input bytes may be released after the
+read. A stripped file therefore runs through the bounded portable instruction
+engine with no source or semantic-IR parser.</p>
+<p>The fixed 64-byte header uses little-endian fields: <code>ZX\0\0</code>, version 28,
+header size 64, directory-entry size 32, required and optional feature masks,
+section count, flags, total byte length, directory offset 64, identity algorithm
+1 (SHA-256), and a zero reserved word. Required feature bit 0 means the portable
+schema-3 LIR contract. Unknown required feature bits reject the file; unknown
+optional feature bits are recorded but do not affect execution.</p>
+<p>Each 32-byte directory record contains kind, flags, offset, length, alignment
+and a zero reserved word. Kinds are strictly increasing and unique. Required
+manifest, program and asset sections are kinds 1, 2 and 3. Kind 4 is reserved
+for native variants. Optional debug and source attachments are <code>0x80000001</code> and
+<code>0x80000002</code>; producer-defined optional attachments begin at <code>0x80000100</code>.
+Required sections have flag bit 0. Unknown optional sections are skipped;
+unknown required sections reject. Offsets use canonical zero padding and are
+currently 8-byte aligned. The reader rejects arithmetic overflow, invalid
+alignment, gaps, overlaps, truncation and bytes after the last section.</p>
+<p>The required 128-byte manifest contains schema 1, LIR schema 3, the signed
+entry function ID, reachable capability count, required native-variant count,
+asset count, proof status, a reserved word, then three 32-byte SHA-256 values.
+They identify the domain-separated stripped program, canonical asset sequence,
+and combined executable content (entry, required feature contract, program and
+assets). Optional debug/source changes do not change executable content identity.
+Proof status is currently zero: producer law/proof attachments are not treated
+as verified evidence.</p>
+<p>The current reachable subset requires no <code>host.call</code>. The reader recomputes the
+reachable function set from the entry, direct calls and function addresses;
+indirect calls conservatively retain every function. It rejects reachable host
+calls, unresolved/external functions and non-portable calling conventions before
+execution. Required native variants and arbitrary machine-code sections are
+also rejected. Portable instructions remain mandatory.</p>
+<p>Executable-container reads charge the supplied LIR work and byte limits before
+hashing or allocating. Symbol identities use bounded deterministic hash tables,
+including name-byte and collision work, and the first indirect call expands the
+conservative all-functions set only once. A limit failure leaves no valid owned
+program. Writes use the default LIR budget, including stripping, hashing and
+temporary output storage; short-output calls remain non-mutating.</p>
+<p>Asset encoding retains the existing canonical sorted relative-name contract:
+little-endian u32 count, then u32 name length/name bytes and u32 data length/
+exact binary bytes. NUL is valid in asset data and invalid in names. Measuring
+and short-output calls do not modify the destination, so the CLI keeps its
+temporary-and-replace behavior and a failed write preserves an existing file.
+Full symbolic linking across separate revision-28 library containers, export
+tables, capability ABI tables, verified proof attachments, native variant
+metadata and the default-runtime cutover remain later step-05/integration work.
+Versions 26/27 library and partial-module composition continue unchanged on
+their existing APIs while this path remains opt-in. The normative byte contract
+and exact remaining gates are in
+<a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/zx-executable-format.md">the executable format specification</a>.</p>
 <h2 id="experimental-versions-26-and-27">Experimental versions 26 and 27</h2>
 <p>Run source in one command: <code>ziran run hello.zi</code> or <code>zi2zx hello.zi</code>.
 Both check the file and execute its <code>main</code>; its folder is the default module

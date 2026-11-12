@@ -1,0 +1,91 @@
+#import "native_test"
+#import "check_support"
+#import "std/environment_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+
+RunLocalAddress :: (test: *NativeTest, arguments: []string, expected: s32 = 0) -> bool {
+    unused NativeRun(test, arguments, "", expected)
+    return !test.failed
+}
+
+CompileLocalAddress :: (test: *NativeTest, compiler: string, input: string,
+    root: string, emit: string, output: string) -> bool {
+    command := string.[compiler, "--root", root, "--entry", "assembly_local_addresses:Answer",
+        "--emit", emit, "-o", output, input]
+    return RunLocalAddress(test, command[:])
+}
+
+RunReference :: (test: *NativeTest, input: string, root: string) -> bool {
+    command := string.[test.ziran, "run", "--target=c", "--root", root,
+        "--entry", "assembly_local_addresses:Answer", input]
+    return RunLocalAddress(test, command[:], 42)
+}
+
+RejectAtomic :: (test: *NativeTest, compiler: string, fixture: string, diagnostic: string) -> bool {
+    output := CheckPath(test.work, CheckConcat(PathName(fixture), ".preserved"))
+    if !NativeWrite(test, output, "preserved output\n") { return false }
+    command := string.[compiler, "--root", PathParent(fixture), "--entry",
+        CheckConcat(PathStem(fixture), ":Answer"), "--emit", "lir", "-o", output, fixture]
+    return NativeReject(test, command[:], diagnostic) &&
+        NativeAssert(test, NativeRead(test, output) == "preserved output\n",
+            "rejected local address lowering replaced its output")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "assembly-local-addresses-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    compiler := TextDetach(ResolvePath(EnvironmentText("ZIRAN_ZI2ASM")))
+    if !NativeAssert(*test, compiler != "", "cannot resolve the zi2asm executable") { return 1 }
+    source_root := CheckPath(test.repo, "tests/spec")
+    source := CheckPath(source_root, "assembly_local_addresses.zi")
+    if !RunReference(*test, source, source_root) { return 1 }
+
+    saved_root := CheckPath(test.work, "saved")
+    save := string.[test.ziran, "ir", "--root", source_root, "-o", saved_root, source]
+    if !RunLocalAddress(*test, save[:]) { return 1 }
+    saved := CheckPath(saved_root, "assembly_local_addresses.zir")
+    if !RunReference(*test, saved, saved_root) { return 1 }
+
+    source_lir := CheckPath(test.work, "source.lir")
+    saved_lir := CheckPath(test.work, "saved.lir")
+    source_exec := CheckPath(test.work, "source.lirb")
+    saved_exec := CheckPath(test.work, "saved.lirb")
+    if !CompileLocalAddress(*test, compiler, source, source_root, "lir", source_lir) ||
+        !CompileLocalAddress(*test, compiler, saved, saved_root, "lir", saved_lir) ||
+        !CompileLocalAddress(*test, compiler, source, source_root, "exec", source_exec) ||
+        !CompileLocalAddress(*test, compiler, saved, saved_root, "exec", saved_exec) { return 1 }
+    listing := NativeRead(*test, source_lir)
+    if !NativeAssert(*test, listing == NativeRead(*test, saved_lir) &&
+        NativeRead(*test, source_exec) == NativeRead(*test, saved_exec),
+        "source and saved local addresses must lower identically") ||
+        !NativeAssert(*test, TextContains(listing, "allocate") && TextContains(listing, "load") &&
+            TextContains(listing, "store"), "local addresses must use checked allocation, loads and stores") { return 1 }
+
+    source_portable := string.[compiler, "--run", "--root", source_root, "--entry",
+        "assembly_local_addresses:Answer", source]
+    saved_portable := string.[compiler, "--run", "--root", saved_root, "--entry",
+        "assembly_local_addresses:Answer", saved]
+    wire_portable := string.[compiler, "--input", "exec", "--run", source_exec]
+    if !RunLocalAddress(*test, source_portable[:], 42) ||
+        !RunLocalAddress(*test, saved_portable[:], 42) ||
+        !RunLocalAddress(*test, wire_portable[:], 42) { return 1 }
+
+    source_elf := CheckPath(test.work, "source-elf")
+    saved_elf := CheckPath(test.work, "saved-elf")
+    if !CompileLocalAddress(*test, compiler, source, source_root, "elf", source_elf) ||
+        !CompileLocalAddress(*test, compiler, saved, saved_root, "elf", saved_elf) ||
+        !NativeAssert(*test, NativeRead(*test, source_elf) == NativeRead(*test, saved_elf),
+            "source and saved local addresses must encode identical native output") { return 1 }
+    native_source := string.[source_elf]
+    native_saved := string.[saved_elf]
+    if !RunLocalAddress(*test, native_source[:], 42) || !RunLocalAddress(*test, native_saved[:], 42) { return 1 }
+
+    aggregate := CheckPath(source_root, "assembly_local_addresses_aggregate_reject.zi")
+    procedure := CheckPath(source_root, "assembly_local_addresses_procedure_reject.zi")
+    if !RejectAtomic(*test, compiler, aggregate, "addresses of aggregate locals are not lowered yet") ||
+        !RejectAtomic(*test, compiler, procedure, "this local type cannot use checked frame allocation yet") { return 1 }
+    return ifx test.failed then 1 else 0
+}

@@ -221,6 +221,352 @@ ArraysAndInsert :: () -> bool {
     return result.problem == .None && result.value.bits == 42
 }
 
+DynamicArrayValues :: () -> bool {
+    for mode: 0..8 {
+        types: [7]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+            .{.kind = .Integer, .bits = 8}, .{.kind = .Integer, .bits = 8, .is_signed = true},
+            .{.kind = .Array, .element = 1, .count = 300}, .{.kind = .Pointer, .element = 4},
+            .{.kind = .Integer, .bits = 64}]
+        constants: [3]LirConstant = .[.{.type = 2, .bits = 255}, .{.type = 1, .bits = 42},
+            .{.type = 2, .bits = 255}]
+        values: [7]s32 = .[5, 4, 2, 1, 4, 2, 1]
+        if mode == 1 { types[4].count = 3; constants[0].bits = 2; constants[2].bits = 2 }
+        if mode == 2 { types[4].count = 0; constants[0].bits = 0; constants[2].bits = 0 }
+        if mode == 3 { constants[0].type = 3; values[2] = 3 }
+        if mode == 4 || mode == 5 {
+            constants[0].type = 6; values[2] = 6; constants[2].type = 6; values[5] = 6
+            constants[0].bits = ifx mode == 4 then cast(u64)4294967296 else cast(u64)299
+            constants[2].bits = constants[0].bits
+        }
+        if mode == 6 { constants[2].type = 3; values[5] = 3 }
+        if mode == 7 { constants[2].type = 6; values[5] = 6; constants[2].bits = 300 }
+        if mode == 8 { constants[2].bits = 0 }
+        empty: [0]s32; loaded: [1]s32 = .[0]
+        inserted: [3]s32 = .[1, 3, 2]; extracted: [2]s32 = .[4, 5]; returned: [1]s32 = .[6]
+        instructions: [8]LirInstruction = .[
+            Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Load, 1, loaded[:]),
+            Instruction(.Constant, 2, empty[:], 0), Instruction(.Constant, 3, empty[:], 1),
+            Instruction(.Insert, 4, inserted[:]), Instruction(.Constant, 5, empty[:], 2),
+            Instruction(.Extract, 6, extracted[:]), Instruction(.Return, -1, returned[:])]
+        instructions[1].effect = 1
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        modules := string.["dynamic-array"]
+        globals: [1]LirGlobal = .[.{.module = 0, .name = "zero-array", .type = 4, .constant = -1, .writable = true}]
+        functions: [1]LirFunction = .[.{.module = 0, .name = "replace", .result = 1,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+        result := Execute(program)
+        trapping := mode >= 2 && mode <= 4 || mode == 6 || mode == 7
+        if trapping {
+            if result.problem != .Type || result.instruction != (ifx mode <= 4 then 4 else 6) { return false }
+        } else if result.problem != .None || result.value.bits != (ifx mode == 8 then cast(u64)0 else cast(u64)42) { return false }
+    }
+    return true
+}
+
+AllocateValues :: () -> bool {
+    function_parameters: [2]s32 = .[1, 1]
+    types: [3]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    empty: [0]s32
+    modules := string.["allocate"]
+
+    basic_constants: [2]LirConstant = .[.{.type = 1, .bits = 7}, .{.type = 1, .bits = 9}]
+    basic_values: [4]s32 = .[1, 2, 1, 1]
+    basic_store: [2]s32 = .[1, 2]
+    basic_load: [1]s32 = .[1]
+    basic_return: [1]s32 = .[3]
+    basic_instructions: [6]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Allocate, 1, empty[:]),
+        Instruction(.Constant, 2, empty[:], 1), Instruction(.Store, -1, basic_store[:]),
+        Instruction(.Load, 3, basic_load[:]),
+        Instruction(.Return, -1, basic_return[:])]
+    basic_instructions[1].effect = 1
+    basic_instructions[3].effect = 2
+    basic_instructions[4].effect = 3
+    basic_blocks: [1]LirBlock = .[.{.instructions = basic_instructions[:]}]
+    basic_functions: [1]LirFunction = .[.{.module = 0, .name = "basic", .result = 1,
+        .values = basic_values[:], .blocks = basic_blocks[:], .origin = -1}]
+    basic := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = basic_constants[:], .functions = basic_functions[:], .entry = 0}
+    basic_result := Execute(basic)
+    if basic_result.problem != .None || basic_result.value.bits != 9 { return false }
+
+    distinct_constants: [2]LirConstant = .[.{.type = 1, .bits = 7}, .{.type = 1, .bits = 11}]
+    distinct_values: [7]s32 = .[1, 2, 1, 2, 1, 1, 1]
+    distinct_store_a: [2]s32 = .[1, 2]
+    distinct_store_b: [2]s32 = .[3, 0]
+    distinct_load_b: [1]s32 = .[3]
+    distinct_load_a: [1]s32 = .[1]
+    distinct_add: [2]s32 = .[4, 5]
+    distinct_returned: [1]s32 = .[6]
+    distinct_instructions: [8]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Allocate, 1, empty[:]),
+        Instruction(.Constant, 2, empty[:], 1), Instruction(.Allocate, 3, empty[:]),
+        Instruction(.Store, -1, distinct_store_a[:]),
+        Instruction(.Store, -1, distinct_store_b[:]),
+        Instruction(.Load, 4, distinct_load_b[:]), Instruction(.Jump, -1, empty[:])]
+    distinct_instructions[1].effect = 1
+    distinct_instructions[3].effect = 2
+    distinct_instructions[4].effect = 3
+    distinct_instructions[5].effect = 4
+    distinct_instructions[6].effect = 5
+    distinct_edge: [1]LirEdge = .[.{.block = 1}]
+    distinct_instructions[7].edges = distinct_edge[:]
+    distinct_tail: [3]LirInstruction = .[Instruction(.Load, 5, distinct_load_a[:]),
+        Instruction(.Add, 6, distinct_add[:]), Instruction(.Return, -1, distinct_returned[:])]
+    distinct_tail[0].effect = 1
+    distinct_blocks: [2]LirBlock = .[.{.instructions = distinct_instructions[:]},
+        .{.instructions = distinct_tail[:]}]
+    distinct_functions: [1]LirFunction = .[.{.module = 0, .name = "distinct", .result = 1,
+        .values = distinct_values[:], .blocks = distinct_blocks[:], .origin = -1}]
+    distinct := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = distinct_constants[:], .functions = distinct_functions[:], .entry = 0}
+    distinct_result := Execute(distinct)
+    if distinct_result.problem != .None || distinct_result.value.bits != 18 { return false }
+
+    alias_parameter: [2]s32 = .[2, 1]
+    alias_callee_slots: [2]s32 = .[0, 1]
+    alias_callee_store: [2]s32 = .[0, 1]
+    alias_callee_instructions: [2]LirInstruction = .[
+        Instruction(.Store, -1, alias_callee_store[:]),
+        Instruction(.Return, -1, alias_parameter[1:2])]
+    alias_callee_instructions[0].effect = 1
+    alias_caller_values: [3]s32 = .[2, 1, 1]
+    alias_caller_arguments: [2]s32 = .[0, 1]
+    alias_returned: [1]s32 = .[2]
+    alias_caller_instructions: [4]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]),
+        Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.Call, 2, alias_caller_arguments[:], 1),
+        Instruction(.Return, -1, alias_returned[:])]
+    alias_caller_instructions[0].effect = 1
+    alias_caller_instructions[2].effect = 2
+    alias_caller_blocks: [1]LirBlock = .[.{.instructions = alias_caller_instructions[:]}]
+    alias_callee_blocks: [1]LirBlock = .[.{.parameters = alias_callee_slots[:],
+        .instructions = alias_callee_instructions[:]}]
+    alias_blocks: [2]LirBlock = .[alias_caller_blocks[0], alias_callee_blocks[0]]
+    alias_functions: [2]LirFunction = .[
+        .{.module = 0, .name = "caller", .result = 1, .values = alias_caller_values[:],
+            .blocks = alias_blocks[0:1], .origin = -1},
+        .{.module = 0, .name = "store", .parameters = alias_parameter[:], .result = 1,
+            .values = alias_parameter[:], .blocks = alias_blocks[1:2], .origin = -1}]
+    alias := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = basic_constants[:], .functions = alias_functions[:], .entry = 0}
+    alias_result := Execute(alias)
+    if alias_result.problem != .None || alias_result.value.bits != 9 { print("alias % %\n", alias_result.problem, alias_result.instruction); return false }
+
+    stale_callee_values: [1]s32 = .[2]
+    stale_callee_returned: [1]s32 = .[0]
+    stale_callee_instructions: [2]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]),
+        Instruction(.Return, -1, stale_callee_returned[:])]
+    stale_callee_instructions[0].effect = 1
+    stale_callee_blocks: [1]LirBlock = .[.{.instructions = stale_callee_instructions[:]}]
+    stale_caller_values: [3]s32 = .[1, 2, 1]
+    stale_store: [2]s32 = .[1, 0]
+    stale_load: [1]s32 = .[1]
+    stale_returned: [1]s32 = .[2]
+    stale_caller_instructions: [5]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0),
+        Instruction(.Call, 1, empty[:], 1),
+        Instruction(.Store, -1, stale_store[:]),
+        Instruction(.Load, 2, stale_load[:]),
+        Instruction(.Return, -1, stale_returned[:])]
+    stale_caller_instructions[1].effect = 1
+    stale_caller_instructions[2].effect = 2
+    stale_caller_instructions[3].effect = 3
+    stale_blocks: [2]LirBlock = .[.{.instructions = stale_caller_instructions[:]},
+        .{.instructions = stale_callee_blocks[0].instructions}]
+    stale_functions: [2]LirFunction = .[
+        .{.module = 0, .name = "caller", .result = 1, .values = stale_caller_values[:],
+            .blocks = stale_blocks[0:1], .origin = -1},
+        .{.module = 0, .name = "escape", .result = 2, .values = stale_callee_values[:],
+            .blocks = stale_blocks[1:2], .origin = -1}]
+    stale := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = basic_constants[:], .functions = stale_functions[:], .entry = 0}
+    stale_result := Execute(stale)
+    if stale_result.problem != .Pointer { print("stale % %\n", stale_result.problem, stale_result.instruction); return false }
+    return true
+
+}
+
+AllocateLoopFreshness :: () -> bool {
+    types: [4]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
+    constants: [4]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 7},
+        .{.type = 1, .bits = 1}, .{.type = 1, .bits = 11}]
+    empty: [0]s32
+    entry_arguments: [2]s32 = .[0, 1]
+    entry_edges: [1]LirEdge = .[.{.block = 1, .arguments = entry_arguments[:]}]
+    entry: [3]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Null, 1, empty[:]),
+        Instruction(.Jump, -1, empty[:])]
+    entry[2].edges = entry_edges[:]
+    loop_parameters: [2]s32 = .[2, 3]
+    comparison: [2]s32 = .[2, 0]; condition: [1]s32 = .[5]
+    branch_edges: [2]LirEdge = .[.{.block = 2}, .{.block = 3}]
+    loop: [3]LirInstruction = .[
+        Instruction(.Allocate, 4, empty[:]), Instruction(.Equal, 5, comparison[:]),
+        Instruction(.Branch, -1, condition[:])]
+    loop[0].effect = 1; loop[2].edges = branch_edges[:]
+    first_store: [2]s32 = .[4, 6]
+    next_arguments: [2]s32 = .[7, 4]
+    next_edges: [1]LirEdge = .[.{.block = 1, .arguments = next_arguments[:]}]
+    first: [4]LirInstruction = .[
+        Instruction(.Constant, 6, empty[:], 1), Instruction(.Store, -1, first_store[:]),
+        Instruction(.Constant, 7, empty[:], 2), Instruction(.Jump, -1, empty[:])]
+    first[1].effect = 1; first[3].edges = next_edges[:]
+    second_store: [2]s32 = .[4, 8]
+    first_pointer: [1]s32 = .[3]; second_pointer: [1]s32 = .[4]
+    sum: [2]s32 = .[9, 10]; returned: [1]s32 = .[11]
+    second: [6]LirInstruction = .[
+        Instruction(.Constant, 8, empty[:], 3), Instruction(.Store, -1, second_store[:]),
+        Instruction(.Load, 9, first_pointer[:]), Instruction(.Load, 10, second_pointer[:]),
+        Instruction(.Add, 11, sum[:]), Instruction(.Return, -1, returned[:])]
+    second[1].effect = 1; second[2].effect = 2; second[3].effect = 3
+    values: [12]s32 = .[1, 3, 1, 3, 3, 2, 1, 1, 1, 1, 1, 1]
+    blocks: [4]LirBlock = .[.{.instructions = entry[:]},
+        .{.parameters = loop_parameters[:], .instructions = loop[:]},
+        .{.instructions = first[:]}, .{.instructions = second[:]}]
+    modules: [1]string = .["allocate"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "loop-freshness", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 18
+}
+
+AllocateRecursiveFreshness :: () -> bool {
+    types: [4]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
+    constants: [2]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 1}]
+    empty: [0]s32
+    entry_call: [1]s32 = .[0]; entry_return: [1]s32 = .[1]
+    entry_instructions: [3]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 1), Instruction(.Call, 1, entry_call[:], 1),
+        Instruction(.Return, -1, entry_return[:])]
+    entry_instructions[1].effect = 1
+    entry_values: [2]s32 = .[1, 1]
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    parameters: [1]s32 = .[1]; parameter_values: [1]s32 = .[0]
+    initialized: [1]s32 = .[0]
+    comparison: [2]s32 = .[0, 2]; condition: [1]s32 = .[3]
+    recursive_edges: [2]LirEdge = .[.{.block = 1}, .{.block = 2}]
+    recursive_entry: [4]LirInstruction = .[
+        Instruction(.Allocate, 1, initialized[:]), Instruction(.Constant, 2, empty[:], 0),
+        Instruction(.Equal, 3, comparison[:]), Instruction(.Branch, -1, condition[:])]
+    recursive_entry[0].effect = 1; recursive_entry[3].edges = recursive_edges[:]
+    own_pointer: [1]s32 = .[1]; base_return: [1]s32 = .[4]
+    base: [2]LirInstruction = .[
+        Instruction(.Load, 4, own_pointer[:]), Instruction(.Return, -1, base_return[:])]
+    base[0].effect = 1
+    inner_argument: [1]s32 = .[2]; outer_return: [1]s32 = .[6]
+    recurse: [3]LirInstruction = .[
+        Instruction(.Call, 5, inner_argument[:], 1), Instruction(.Load, 6, own_pointer[:]),
+        Instruction(.Return, -1, outer_return[:])]
+    recurse[0].effect = 1; recurse[1].effect = 2
+    recursive_values: [7]s32 = .[1, 3, 1, 2, 1, 1, 1]
+    recursive_blocks: [3]LirBlock = .[
+        .{.parameters = parameter_values[:], .instructions = recursive_entry[:]},
+        .{.instructions = base[:]}, .{.instructions = recurse[:]}]
+    modules: [1]string = .["allocate"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "recursive-entry", .result = 1,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.module = 0, .name = "recursive-site", .parameters = parameters[:], .result = 1,
+            .values = recursive_values[:], .blocks = recursive_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 1
+}
+
+AllocateScalarValues :: () -> bool {
+    types: [8]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}, .{.kind = .Bool, .bits = 1},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Float, .bits = 32},
+        .{.kind = .Pointer, .element = 5}, .{.kind = .Pointer, .element = 2}]
+    constants: [3]LirConstant = .[.{.type = 1, .bits = 39},
+        .{.type = 3, .bits = 1}, .{.type = 5, .bits = 0x3f800000}]
+    empty: [0]s32
+    int_initial: [1]s32 = .[0]; int_pointer: [1]s32 = .[1]
+    bool_initial: [1]s32 = .[3]; bool_pointer: [1]s32 = .[4]; bool_value: [1]s32 = .[5]
+    float_initial: [1]s32 = .[7]; float_pointer: [1]s32 = .[8]; float_value: [1]s32 = .[9]
+    pointer_initial: [1]s32 = .[11]; pointer_pointer: [1]s32 = .[12]
+    pointer_equal: [2]s32 = .[11, 13]; pointer_bool: [1]s32 = .[14]
+    zero_pointer: [1]s32 = .[16]
+    sum_a: [2]s32 = .[2, 6]; sum_b: [2]s32 = .[18, 10]
+    sum_c: [2]s32 = .[19, 15]; sum_d: [2]s32 = .[20, 17]
+    returned: [1]s32 = .[21]
+    values: [22]s32 = .[1, 2, 1, 3, 4, 3, 1, 5, 6, 5, 1,
+        2, 7, 2, 3, 1, 2, 1, 1, 1, 1, 1]
+    instructions: [23]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Allocate, 1, int_initial[:]),
+        Instruction(.Load, 2, int_pointer[:]), Instruction(.Constant, 3, empty[:], 1),
+        Instruction(.Allocate, 4, bool_initial[:]), Instruction(.Load, 5, bool_pointer[:]),
+        Instruction(.Convert, 6, bool_value[:]), Instruction(.Constant, 7, empty[:], 2),
+        Instruction(.Allocate, 8, float_initial[:]), Instruction(.Load, 9, float_pointer[:]),
+        Instruction(.Convert, 10, float_value[:]), Instruction(.Null, 11, empty[:]),
+        Instruction(.Allocate, 12, pointer_initial[:]), Instruction(.Load, 13, pointer_pointer[:]),
+        Instruction(.Equal, 14, pointer_equal[:]), Instruction(.Convert, 15, pointer_bool[:]),
+        Instruction(.Allocate, 16, empty[:]), Instruction(.Load, 17, zero_pointer[:]),
+        Instruction(.Add, 18, sum_a[:]), Instruction(.Add, 19, sum_b[:]),
+        Instruction(.Add, 20, sum_c[:]), Instruction(.Add, 21, sum_d[:]),
+        Instruction(.Return, -1, returned[:])]
+    instructions[1].effect = 1; instructions[2].effect = 2
+    instructions[4].effect = 3; instructions[5].effect = 4
+    instructions[8].effect = 5; instructions[9].effect = 6
+    instructions[12].effect = 7; instructions[13].effect = 8
+    instructions[16].effect = 9; instructions[17].effect = 10
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["allocate"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "scalar-values", .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    result := Execute(program)
+    return result.problem == .None && result.value.bits == 42
+}
+
+AllocateReusedFrame :: () -> bool {
+    types: [3]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [1]LirConstant = .[.{.type = 1, .bits = 9}]
+    empty: [0]s32
+    argument: [1]s32 = .[0]; stale_pointer: [1]s32 = .[1]; returned: [1]s32 = .[3]
+    caller: [5]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Call, 1, argument[:], 1),
+        Instruction(.Call, 2, argument[:], 1), Instruction(.Load, 3, stale_pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    caller[1].effect = 1; caller[2].effect = 2; caller[3].effect = 3
+    caller_values: [4]s32 = .[1, 2, 2, 1]
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller[:]}]
+    parameters: [1]s32 = .[1]; parameter_values: [1]s32 = .[0]
+    initialized: [1]s32 = .[0]; pointer_return: [1]s32 = .[1]
+    callee: [2]LirInstruction = .[
+        Instruction(.Allocate, 1, initialized[:]), Instruction(.Return, -1, pointer_return[:])]
+    callee[0].effect = 1
+    callee_values: [2]s32 = .[1, 2]
+    callee_blocks: [1]LirBlock = .[.{.parameters = parameter_values[:], .instructions = callee[:]}]
+    modules: [1]string = .["allocate"]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "reused-frame-entry", .result = 1,
+            .values = caller_values[:], .blocks = caller_blocks[:], .origin = -1},
+        .{.module = 0, .name = "reused-frame", .parameters = parameters[:], .result = 2,
+            .values = callee_values[:], .blocks = callee_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    return Execute(program).problem == .Pointer
+}
+
 MixedShift :: () -> bool {
     fields: [2]s32 = .[4, 4]; parameter: [1]s32 = .[4]; types: [15]LirType
     Types(types[:], fields[:], parameter[:])
@@ -642,6 +988,12 @@ Answer :: () -> s32 {
     if !LimitsAndTraps() { return 11 }
     if !VerifierBoundaries() { return 12 }
     if !ElementPointers() { return 13 }
+    if !DynamicArrayValues() { return 14 }
+    if !AllocateValues() { return 15 }
+    if !AllocateLoopFreshness() { return 16 }
+    if !AllocateRecursiveFreshness() { return 17 }
+    if !AllocateScalarValues() { return 18 }
+    if !AllocateReusedFrame() { return 19 }
     return 42
 }
 

@@ -1,0 +1,409 @@
+using ABI :: #import "compiler_abi"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+#scope_file
+
+VerifyState :: struct {
+    diagnostic: MachineDiagnostic
+    remaining: s64
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Fail :: (state: *VerifyState, problem: MachineProblem, function: s32 = MachineNoId,
+    block: s32 = MachineNoId, instruction: s32 = MachineNoId,
+    operand: s32 = MachineNoId, virtual: s32 = MachineNoId) -> bool {
+    if state.diagnostic.problem == .None {
+        state.diagnostic = .{problem = problem, function = function, block = block,
+            instruction = instruction, operand = operand, virtual = virtual}
+    }
+    return false
+}
+
+Spend :: (state: *VerifyState, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    return true
+}
+
+Range :: (begin: s32, count: s32, total: s64) -> bool {
+    return begin >= 0 && count >= 0 && cast(s64)begin <= total &&
+        cast(s64)count <= total - cast(s64)begin
+}
+
+Optional :: (id: s32, total: s64) -> bool {
+    return id == MachineNoId || id >= 0 && cast(s64)id < total
+}
+
+ClassValid :: (class: MachineRegisterClass) -> bool {
+    return cast(s32)class >= cast(s32)MachineRegisterClass.General &&
+        cast(s32)class <= cast(s32)MachineRegisterClass.Stack
+}
+
+Counts :: (state: *VerifyState, program: MachineProgram, limits: MachineLimits) -> bool {
+    if limits.work < 0 || limits.bytes < 0 || limits.functions < 0 || limits.types < 0 || limits.blocks < 0 ||
+        limits.type_ids < 0 || limits.globals < 0 || limits.virtuals < 0 || limits.instructions < 0 || limits.operands < 0 ||
+        limits.edges < 0 || limits.copies < 0 || limits.stack_objects < 0 ||
+        limits.relocations < 0 || limits.calls < 0 { return Fail(state, .Limit) }
+    if program.text.count > limits.bytes || program.functions.count > limits.functions ||
+        program.types.count > limits.types ||
+        program.type_ids.count > limits.type_ids ||
+        program.globals.count > limits.globals ||
+        program.blocks.count > limits.blocks || program.virtuals.count > limits.virtuals ||
+        program.instructions.count > limits.instructions || program.operands.count > limits.operands ||
+        program.edges.count > limits.edges || program.copies.count > limits.copies ||
+        program.stack_objects.count > limits.stack_objects ||
+        program.relocations.count > limits.relocations || program.calls.count > limits.calls {
+        return Fail(state, .Limit)
+    }
+    total := program.text.count +
+        program.sources.count * cast(s64)size_of(MachineSource) +
+        program.origins.count * cast(s64)size_of(MachineOrigin) +
+        program.types.count * cast(s64)size_of(MachineType) +
+        program.type_ids.count * cast(s64)size_of(s32) +
+        program.globals.count * cast(s64)size_of(MachineGlobal) +
+        program.functions.count * cast(s64)size_of(MachineFunction) +
+        program.blocks.count * cast(s64)size_of(MachineBlock) +
+        program.virtuals.count * cast(s64)size_of(MachineVirtual) +
+        program.instructions.count * cast(s64)size_of(MachineInstruction) +
+        program.operands.count * cast(s64)size_of(MachineOperand) +
+        program.edges.count * cast(s64)size_of(MachineEdge) +
+        program.copies.count * cast(s64)size_of(MachineCopy) +
+        program.stack_objects.count * cast(s64)size_of(MachineStackObject) +
+        program.relocations.count * cast(s64)size_of(MachineRelocation) +
+        program.calls.count * cast(s64)size_of(MachineCall)
+    if total < 0 || total > limits.bytes { return Fail(state, .Limit) }
+    return true
+}
+
+Metadata :: (state: *VerifyState, program: MachineProgram) -> bool {
+    for source_index: cast(s64)0..program.sources.count - 1 {
+        if !Spend(state, 1) { return false }
+        source := program.sources[source_index]
+        if !Range(source.text_offset, source.text_length, program.text.count) {
+            return Fail(state, .Source)
+        }
+    }
+    for origin_index: cast(s64)0..program.origins.count - 1 {
+        if !Spend(state, 1) { return false }
+        origin := program.origins[origin_index]
+        if origin.file < 0 || origin.file >= program.sources.count ||
+            origin.line < 1 || origin.column < 1 ||
+            origin.end_line < 0 || origin.end_column < 0 ||
+            (origin.end_line == 0) != (origin.end_column == 0) ||
+            origin.begin < -1 || origin.end < -1 ||
+            (origin.begin == -1) != (origin.end == -1) ||
+            origin.begin > origin.end || !Optional(origin.parent, program.origins.count) {
+            return Fail(state, .Origin)
+        }
+    }
+    return true
+}
+
+VirtualsAndStack :: (state: *VerifyState, program: MachineProgram) -> bool {
+    for index: cast(s64)0..program.types.count - 1 {
+        if !Spend(state, 1) { return false }
+        type := program.types[index]
+        if type.kind == .Invalid || !ClassValid(type.class) || type.bits < 0 || type.size < 0 ||
+            type.alignment < 1 || type.alignment > 4096 ||
+            (type.alignment & (type.alignment - 1)) != 0 ||
+            !Range(type.fields_begin, type.fields_count, program.type_ids.count) ||
+            !Range(type.parameters_begin, type.parameters_count, program.type_ids.count) ||
+            !Optional(type.element, program.types.count) || !Optional(type.result, program.types.count) {
+            return Fail(state, .Virtual)
+        }
+        for at: type.fields_begin..type.fields_begin + type.fields_count - 1 {
+            if !Spend(state, 1) || program.type_ids[at] < 0 || program.type_ids[at] >= program.types.count {
+                return Fail(state, .Virtual)
+            }
+        }
+        for at: type.parameters_begin..type.parameters_begin + type.parameters_count - 1 {
+            if !Spend(state, 1) || program.type_ids[at] < 0 || program.type_ids[at] >= program.types.count {
+                return Fail(state, .Virtual)
+            }
+        }
+    }
+    for index: cast(s64)0..program.stack_objects.count - 1 {
+        if !Spend(state, 1) { return false }
+        object := program.stack_objects[index]
+        if object.function < 0 || object.function >= program.functions.count ||
+            object.kind == .Invalid || object.size < 0 || object.alignment < 1 ||
+            object.alignment > 4096 || (object.alignment & (object.alignment - 1)) != 0 ||
+            object.type < 0 || object.type >= program.types.count ||
+            !Optional(object.origin, program.origins.count) { return Fail(state, .Stack, object.function) }
+    }
+    for global: program.globals {
+        if !Spend(state, 1) || global.type < 0 || global.type >= program.types.count {
+            return Fail(state, .Operand)
+        }
+    }
+    for index: cast(s64)0..program.virtuals.count - 1 {
+        if !Spend(state, 1) { return false }
+        value := program.virtuals[index]
+        if !ClassValid(value.class) || !Optional(value.origin, program.origins.count) {
+            return Fail(state, .Virtual, virtual = cast(s32)index)
+        }
+        if value.fixed_register != MachineNoId &&
+            !MachineAbiPhysicalClass(program.target, value.class, value.fixed_register) {
+            return Fail(state, .Constraint, virtual = cast(s32)index)
+        }
+        if value.type < 0 || value.type >= program.types.count {
+            return Fail(state, .Virtual, virtual = cast(s32)index)
+        }
+        if value.class == .Stack {
+            if value.stack_object < 0 || value.stack_object >= program.stack_objects.count {
+                return Fail(state, .Stack, virtual = cast(s32)index)
+            }
+        } else if value.stack_object != MachineNoId {
+            if value.stack_object < 0 || value.stack_object >= program.stack_objects.count ||
+                program.stack_objects[value.stack_object].kind != .IncomingArgument {
+                return Fail(state, .Stack, virtual = cast(s32)index)
+            }
+        }
+    }
+    return true
+}
+
+Operand :: (state: *VerifyState, program: MachineProgram, function: MachineFunction,
+    instruction_id: s32, local: s32, operand_id: s32) -> bool {
+    if !Spend(state, 1) { return false }
+    operand := program.operands[operand_id]
+    if operand.kind == .Invalid || operand.role == .Invalid || !ClassValid(operand.class) ||
+        operand.tied_to < MachineNoId || operand.tied_to >= program.instructions[instruction_id].operand_count {
+        return Fail(state, .Operand, function.lir_function, instruction = instruction_id, operand = operand_id)
+    }
+    if operand.kind == .Virtual {
+        if operand.id < function.virtual_begin || operand.id >= function.virtual_begin + function.virtual_count ||
+            program.virtuals[operand.id].class != operand.class {
+            return Fail(state, .Virtual, function.lir_function, instruction = instruction_id,
+                operand = operand_id, virtual = operand.id)
+        }
+    } else if operand.kind == .Physical {
+        if !MachineAbiPhysicalClass(program.target, operand.class, operand.id) {
+            return Fail(state, .Constraint, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    } else if operand.kind == .Block {
+        if operand.id < function.block_begin || operand.id >= function.block_begin + function.block_count {
+            return Fail(state, .Block, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    } else if operand.kind == .Function {
+        if operand.id < 0 || operand.id >= program.functions.count {
+            return Fail(state, .Function, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    } else if operand.kind == .StackObject {
+        if operand.id < function.stack_begin || operand.id >= function.stack_begin + function.stack_count {
+            return Fail(state, .Stack, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    } else if operand.kind == .Global {
+        if operand.id < 0 || operand.id >= program.globals.count {
+            return Fail(state, .Operand, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    } else if operand.kind != .Immediate {
+        return Fail(state, .Operand, function.lir_function, instruction = instruction_id, operand = operand_id)
+    }
+    if operand.fixed_register != MachineNoId &&
+        !MachineAbiPhysicalClass(program.target, operand.class, operand.fixed_register) {
+        return Fail(state, .Constraint, function.lir_function, instruction = instruction_id, operand = operand_id)
+    }
+    if operand.tied_to != MachineNoId {
+        tied := program.operands[program.instructions[instruction_id].operand_begin + operand.tied_to]
+        if tied.class != operand.class || operand.tied_to == local {
+            return Fail(state, .Constraint, function.lir_function, instruction = instruction_id, operand = operand_id)
+        }
+    }
+    return true
+}
+
+Edges :: (state: *VerifyState, program: MachineProgram, function: MachineFunction,
+    instruction: MachineInstruction, instruction_id: s32) -> bool {
+    for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+        if !Spend(state, 1) { return false }
+        edge := program.edges[edge_id]
+        if edge.target < function.block_begin || edge.target >= function.block_begin + function.block_count ||
+            !Range(edge.copy_begin, edge.copy_count, program.copies.count) {
+            return Fail(state, .Edge, function.lir_function, instruction = instruction_id)
+        }
+        for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+            if !Spend(state, 1) { return false }
+            copy := program.copies[copy_id]
+            if copy.source < function.virtual_begin || copy.source >= function.virtual_begin + function.virtual_count ||
+                copy.destination < function.virtual_begin || copy.destination >= function.virtual_begin + function.virtual_count ||
+                !ClassValid(copy.class) || program.virtuals[copy.source].class != copy.class ||
+                program.virtuals[copy.destination].class != copy.class {
+                return Fail(state, .Copy, function.lir_function, instruction = instruction_id)
+            }
+            for earlier: edge.copy_begin..copy_id - 1 {
+                if !Spend(state, 1) { return false }
+                if program.copies[earlier].destination == copy.destination {
+                    return Fail(state, .Copy, function.lir_function, instruction = instruction_id)
+                }
+            }
+        }
+    }
+    return true
+}
+
+Instructions :: (state: *VerifyState, program: MachineProgram, limits: MachineLimits) -> bool {
+    definitions: Vec(u8)
+    defer VecFree(definitions)
+    if !VecResizeBounded(definitions, program.virtuals.count, limits.bytes) { return Fail(state, .Allocation) }
+    for index: cast(s64)0..definitions.count - 1 { definitions[index] = 0 }
+    for function_id: cast(s64)0..program.functions.count - 1 {
+        function := program.functions[function_id]
+        if !Spend(state, 1) || function.lir_function != function_id ||
+            !Range(function.name_offset, function.name_length, program.text.count) || function.name_length < 1 ||
+            !Range(function.block_begin, function.block_count, program.blocks.count) || function.block_count < 1 ||
+            !Range(function.virtual_begin, function.virtual_count, program.virtuals.count) ||
+            !Range(function.stack_begin, function.stack_count, program.stack_objects.count) ||
+            function.parameter_count < 0 || function.parameter_count > function.virtual_count ||
+            function.calling != .Internal ||
+            function.entry < function.block_begin || function.entry >= function.block_begin + function.block_count ||
+            !Optional(function.origin, program.origins.count) {
+            return Fail(state, .Function, cast(s32)function_id)
+        }
+        for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+            block := program.blocks[block_id]
+            if !Spend(state, 1) || block.function != function_id || block.lir_block < 0 ||
+                !Range(block.instruction_begin, block.instruction_count, program.instructions.count) ||
+                block.instruction_count < 1 {
+                return Fail(state, .Block, cast(s32)function_id, block_id)
+            }
+            for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                if !Spend(state, 1) { return false }
+                instruction := program.instructions[instruction_id]
+                if instruction.opcode == .Invalid ||
+                    !Range(instruction.operand_begin, instruction.operand_count, program.operands.count) ||
+                    !Range(instruction.edge_begin, instruction.edge_count, program.edges.count) ||
+                    !Optional(instruction.flags_use, program.virtuals.count) ||
+                    !Optional(instruction.flags_def, program.virtuals.count) ||
+                    !Optional(instruction.call, program.calls.count) ||
+                    !Optional(instruction.origin, program.origins.count) {
+                    return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                }
+                for local: 0..instruction.operand_count - 1 {
+                    operand_id := instruction.operand_begin + local
+                    if !Operand(state, program, function, instruction_id, local, operand_id) { return false }
+                    operand := program.operands[operand_id]
+                    if operand.kind == .Virtual &&
+                        (operand.role == .Define || operand.role == .UseDefine) {
+                        if definitions[operand.id] != 0 {
+                            return Fail(state, .Virtual, cast(s32)function_id, block_id,
+                                instruction_id, operand_id, operand.id)
+                        }
+                        definitions[operand.id] = 1
+                    }
+                }
+                if instruction.opcode == .Allocate {
+                    if instruction.operand_count < 1 || instruction.operand_count > 2 {
+                        return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                    }
+                    result := program.operands[instruction.operand_begin]
+                    if result.kind != .Virtual || result.role != .Define || result.type < 0 ||
+                        result.type >= program.types.count || program.types[result.type].kind != .Pointer {
+                        return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                    }
+                    if instruction.operand_count == 2 {
+                        initial := program.operands[instruction.operand_begin + 1]
+                        if initial.kind != .Virtual || initial.role != .Use ||
+                            initial.type != program.types[result.type].element {
+                            return Fail(state, .Instruction, cast(s32)function_id, block_id, instruction_id)
+                        }
+                    }
+                }
+                if instruction.flags_def != MachineNoId {
+                    if program.virtuals[instruction.flags_def].class != .Flags || definitions[instruction.flags_def] != 0 {
+                        return Fail(state, .Flags, cast(s32)function_id, block_id, instruction_id,
+                            virtual = instruction.flags_def)
+                    }
+                    definitions[instruction.flags_def] = 1
+                }
+                if instruction.flags_use != MachineNoId {
+                    if program.virtuals[instruction.flags_use].class != .Flags || instruction_id == block.instruction_begin ||
+                        program.instructions[instruction_id - 1].flags_def != instruction.flags_use {
+                        return Fail(state, .Flags, cast(s32)function_id, block_id, instruction_id,
+                            virtual = instruction.flags_use)
+                    }
+                }
+                if instruction.opcode == .Compare && instruction.flags_def == MachineNoId ||
+                    instruction.opcode == .SetCondition && instruction.flags_use == MachineNoId {
+                    return Fail(state, .Flags, cast(s32)function_id, block_id, instruction_id)
+                }
+                is_call := instruction.opcode == .CallDirect || instruction.opcode == .CallIndirect
+                if is_call != (instruction.call != MachineNoId) {
+                    return Fail(state, .Call, cast(s32)function_id, block_id, instruction_id)
+                }
+                if instruction.opcode == .Jump && instruction.edge_count != 1 ||
+                    instruction.opcode == .Branch && instruction.edge_count != 2 ||
+                    instruction.opcode != .Jump && instruction.opcode != .Branch && instruction.edge_count != 0 {
+                    return Fail(state, .Edge, cast(s32)function_id, block_id, instruction_id)
+                }
+                if !Edges(state, program, function, instruction, instruction_id) { return false }
+            }
+        }
+    }
+    return true
+}
+
+CallsAndRelocations :: (state: *VerifyState, program: MachineProgram) -> bool {
+    for call_id: cast(s64)0..program.calls.count - 1 {
+        if !Spend(state, 1) { return false }
+        call := program.calls[call_id]
+        if call.instruction < 0 || call.instruction >= program.instructions.count ||
+            call.calling == .Invalid || !Range(call.argument_begin, call.argument_count, program.operands.count) ||
+            !Optional(call.result_operand, program.operands.count) || call.stack_argument_bytes < 0 ||
+            (call.clobber_general >> cast(u64)program.target.general_registers) != 0 ||
+            (call.clobber_float >> cast(u64)program.target.float_registers) != 0 ||
+            (call.clobber_vector >> cast(u64)program.target.vector_registers) != 0 {
+            return Fail(state, .Call, instruction = call.instruction)
+        }
+        instruction := program.instructions[call.instruction]
+        if instruction.call != call_id ||
+            call.indirect != (instruction.opcode == .CallIndirect) ||
+            call.argument_begin < instruction.operand_begin ||
+            call.argument_begin + call.argument_count > instruction.operand_begin + instruction.operand_count ||
+            (call.result_operand != MachineNoId &&
+             (call.result_operand < instruction.operand_begin ||
+              call.result_operand >= instruction.operand_begin + instruction.operand_count)) {
+            return Fail(state, .Call, instruction = call.instruction)
+        }
+    }
+    for relocation_id: cast(s64)0..program.relocations.count - 1 {
+        if !Spend(state, 1) { return false }
+        relocation := program.relocations[relocation_id]
+        if relocation.instruction < 0 || relocation.instruction >= program.instructions.count ||
+            relocation.operand < 0 || relocation.operand >= program.operands.count ||
+            relocation.kind == .Invalid || relocation.symbol < 0 {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+        instruction := program.instructions[relocation.instruction]
+        if relocation.operand < instruction.operand_begin ||
+            relocation.operand >= instruction.operand_begin + instruction.operand_count ||
+            (relocation.kind == .FunctionAddress || relocation.kind == .FunctionCall) &&
+            relocation.symbol >= program.functions.count {
+            return Fail(state, .Relocation, instruction = relocation.instruction, operand = relocation.operand)
+        }
+    }
+    return true
+}
+
+#scope_export
+
+MachineVerify :: (program: MachineProgram, limits: MachineLimits) -> MachineDiagnostic {
+    state := VerifyState.{.diagnostic = NoDiagnostic(), .remaining = limits.work}
+    if program.version != MachineVersion { Fail(*state, .Version); return state.diagnostic }
+    if !TargetValid(program.target) { Fail(*state, .Target); return state.diagnostic }
+    if !TargetMachineLoweringSupported(program.target) {
+        Fail(*state, .UnsupportedTarget)
+        return state.diagnostic
+    }
+    if !Counts(*state, program, limits) || !Metadata(*state, program) ||
+        !VirtualsAndStack(*state, program) || !Instructions(*state, program, limits) ||
+        !CallsAndRelocations(*state, program) { return state.diagnostic }
+    if !Optional(program.entry, program.functions.count) { Fail(*state, .Function) }
+    return state.diagnostic
+}

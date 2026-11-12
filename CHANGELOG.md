@@ -4,6 +4,20 @@
 
 - Go output compiles `VecSlice` and slice bounds of mixed integer widths, such as `s16` and `s32` indices.
 
+- Add an opt-in revision-28 ZX executable container to the experimental
+  direct backend. `zi2asm --emit zx` stores verified lowered instructions;
+  `--input zx` inspects, re-emits or runs stripped files through the
+  portable engine without source or `.zir`. Versions 26/27 are rejected
+  with a rebuild diagnostic there; default `ziran`/`zi2zx` output is
+  unchanged. Address-taken local scalars lower to fresh checked frame
+  storage in the portable engine and native x86-64, and a verified
+  target-neutral machine IR now precedes register allocation.
+
+- Lower dynamic local fixed-array reads and assignments to checked executable
+  instructions, including nested fields and indices evaluated once before
+  the right side. The portable engine and direct x86-64 backend share the
+  bounds and value-copy semantics.
+
 - Extend the experimental direct assembly backend with checked global and
   fixed-array addressing, source-range inspection filters and executable
   identities. Saved lowered instructions now preserve source end positions.

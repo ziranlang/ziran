@@ -1,0 +1,302 @@
+using ABI :: #import "compiler_abi"
+using Lir :: #import "compiler_lowered_ir"
+using Lower :: #import "compiler_machine_lower"
+using Machine :: #import "compiler_machine_ir"
+using Verify :: #import "compiler_machine_verify"
+using Target :: #import "compiler_target"
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("machine IR local test failed: %\n", message)
+    return false
+}
+
+BytesEqualText :: (bytes: []u8, text: string) -> bool {
+    if bytes.count != text.count { return false }
+    for index: cast(s64)0..bytes.count - 1 {
+        if bytes[index] != text[index] { return false }
+    }
+    return true
+}
+
+Instruction :: (op: Lir.LirOp, result: s32 = -1) -> Lir.LirInstruction {
+    return .{op = op, result = result, symbol = -1, origin = 1}
+}
+
+LowerFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription,
+    limits: Machine.MachineLimits, foreign: bool = false,
+    mutate_after: bool = false) -> Machine.MachineResult {
+    modules: [1]string = .["machine"]
+    sources: [1]string = .["machine_fixture.zi"]
+    origins: [2]Lir.LirOrigin = .[
+        .{file = 0, line = 1, column = 1, end_line = 1, end_column = 8,
+            begin = 0, end = 7, parent = -1},
+        .{file = 0, line = 2, column = 1, end_line = 2, end_column = 4,
+            begin = 8, end = 11, parent = 0}]
+    record_fields: [2]s32 = .[2, 4]
+    procedure_parameters: [1]s32 = .[2]
+    types: [8]Lir.LirType = .[
+        .{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Integer, bits = 64}, .{kind = .Float, bits = 32},
+        .{kind = .Float, bits = 64}, .{kind = .Record, fields = record_fields[:]},
+        .{kind = .Function, parameters = procedure_parameters[:], result = 2}]
+    constants: [4]Lir.LirConstant = .[
+        .{type = 2, bits = 7}, .{type = 2, bits = 2},
+        .{type = 4, bits = 0x3f800000}, .{type = 4, bits = 0x40000000}]
+    globals: [1]Lir.LirGlobal = .[.{module = 0, name = "state", type = 6,
+        constant = -1, writable = true}]
+
+    callee_values: [3]s32 = .[2, 2, 2]
+    callee_parameters: [1]s32 = .[2]
+    callee_block_parameters: [1]s32 = .[0]
+    callee_constant := Instruction(.Constant, 1); callee_constant.symbol = 1
+    multiply_operands: [2]s32 = .[0, 1]
+    callee_multiply := Instruction(.Multiply, 2); callee_multiply.operands = multiply_operands[:]
+    callee_return_operands: [1]s32 = .[2]
+    callee_return := Instruction(.Return); callee_return.operands = callee_return_operands[:]
+    callee_instructions: [3]Lir.LirInstruction = .[callee_constant, callee_multiply, callee_return]
+    callee_blocks: [1]Lir.LirBlock = .[.{parameters = callee_block_parameters[:],
+        instructions = callee_instructions[:]}]
+
+    entry_values: [13]s32 = .[2, 7, 2, 2, 4, 4, 4, 6, 2, 1, 2, 2, 2]
+    entry_instructions: [11]Lir.LirInstruction
+    entry_instructions[0] = Instruction(.Constant, 0); entry_instructions[0].symbol = 0
+    entry_instructions[1] = Instruction(.FunctionAddress, 1); entry_instructions[1].symbol = 0
+    indirect_operands: [2]s32 = .[1, 0]
+    entry_instructions[2] = Instruction(.CallIndirect, 2)
+    entry_instructions[2].operands = indirect_operands[:]; entry_instructions[2].effect = 1
+    direct_operands: [1]s32 = .[0]
+    entry_instructions[3] = Instruction(.Call, 3); entry_instructions[3].symbol = 0
+    entry_instructions[3].operands = direct_operands[:]; entry_instructions[3].effect = 2
+    entry_instructions[4] = Instruction(.Constant, 4); entry_instructions[4].symbol = 2
+    entry_instructions[5] = Instruction(.Constant, 5); entry_instructions[5].symbol = 3
+    float_operands: [2]s32 = .[4, 5]
+    entry_instructions[6] = Instruction(.Add, 6); entry_instructions[6].operands = float_operands[:]
+    aggregate_operands: [2]s32 = .[3, 6]
+    entry_instructions[7] = Instruction(.Aggregate, 7); entry_instructions[7].operands = aggregate_operands[:]
+    extract_operands: [1]s32 = .[7]
+    entry_instructions[8] = Instruction(.Extract, 8); entry_instructions[8].operands = extract_operands[:]
+    compare_operands: [2]s32 = .[2, 3]
+    entry_instructions[9] = Instruction(.Less, 9); entry_instructions[9].operands = compare_operands[:]
+    branch_operand: [1]s32 = .[9]
+    true_arguments: [1]s32 = .[8]
+    false_arguments: [1]s32 = .[8]
+    branch_edges: [2]Lir.LirEdge = .[.{block = 1, arguments = true_arguments[:]},
+        .{block = 2, arguments = false_arguments[:]}]
+    entry_instructions[10] = Instruction(.Branch)
+    entry_instructions[10].operands = branch_operand[:]; entry_instructions[10].edges = branch_edges[:]
+    true_parameter: [1]s32 = .[10]
+    true_return_operand: [1]s32 = .[10]
+    true_return := Instruction(.Return); true_return.operands = true_return_operand[:]
+    true_instructions: [1]Lir.LirInstruction = .[true_return]
+    false_parameter: [1]s32 = .[11]
+    false_add_operands: [2]s32 = .[11, 0]
+    false_add := Instruction(.Add, 12); false_add.operands = false_add_operands[:]
+    false_return_operand: [1]s32 = .[12]
+    false_return := Instruction(.Return); false_return.operands = false_return_operand[:]
+    false_instructions: [2]Lir.LirInstruction = .[false_add, false_return]
+    entry_blocks: [3]Lir.LirBlock = .[
+        .{instructions = entry_instructions[:]},
+        .{parameters = true_parameter[:], instructions = true_instructions[:]},
+        .{parameters = false_parameter[:], instructions = false_instructions[:]}]
+
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "double", parameters = callee_parameters[:], result = 2,
+            values = callee_values[:], blocks = callee_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "answer", result = 2, values = entry_values[:],
+            blocks = entry_blocks[:], entry = 0, origin = 0}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], globals = globals[:], functions = functions[:],
+        origins = origins[:], entry = 1}
+    if foreign { functions[0].calling = .C }
+    result := Lower.MachineLower(owner, program, target, Machine.MachineDefaultOptions(), limits)
+    if mutate_after {
+        types[2].bits = 16
+        functions[1].name = "changed"
+    }
+    return result
+}
+
+LowerAllocateFixture :: (owner: *Machine.MachineOwner, target: Target.TargetDescription,
+    limits: Machine.MachineLimits) -> Machine.MachineResult {
+    modules: [1]string = .["machine-allocate"]
+    types: [3]Lir.LirType = .[.{kind = .Void},
+        .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 1}]
+    constants: [1]Lir.LirConstant = .[.{type = 1, bits = 7}]
+    initial: [1]s32 = .[0]
+    empty: [0]s32
+    instructions: [3]Lir.LirInstruction = .[
+        Instruction(.Constant, 0), Instruction(.Allocate, 1), Instruction(.Return)]
+    instructions[0].symbol = 0
+    instructions[0].origin = -1
+    instructions[1].operands = initial[:]
+    instructions[1].effect = 1
+    instructions[1].origin = -1
+    instructions[2].operands = empty[:]
+    instructions[2].origin = -1
+    values: [2]s32 = .[1, 2]
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "allocate-each-execution",
+        result = 0, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    return Lower.MachineLower(owner, program, target, Machine.MachineDefaultOptions(), limits)
+}
+
+Fingerprint :: (program: Machine.MachineProgram) -> u64 {
+    hash: u64 = 1469598103934665603
+    for byte: program.text { hash = (hash ^ byte) * 1099511628211 }
+    for type: program.types {
+        hash = (hash ^ cast(u64)type.kind) * 1099511628211
+        hash = (hash ^ cast(u64)type.class ^ cast(u64)type.bits ^ cast(u64)type.size) * 1099511628211
+    }
+    for instruction: program.instructions {
+        hash = (hash ^ cast(u64)instruction.opcode ^ cast(u64)instruction.operand_count) * 1099511628211
+        hash = (hash ^ cast(u64)(instruction.flags_use + 1) ^ cast(u64)(instruction.flags_def + 1)) * 1099511628211
+    }
+    for operand: program.operands {
+        hash = (hash ^ cast(u64)operand.kind ^ cast(u64)(operand.id + 1) ^ operand.immediate) * 1099511628211
+    }
+    for edge: program.edges { hash = (hash ^ cast(u64)edge.target ^ cast(u64)edge.copy_count) * 1099511628211 }
+    for copy: program.copies { hash = (hash ^ cast(u64)copy.source ^ cast(u64)copy.destination) * 1099511628211 }
+    return hash
+}
+
+FindOpcode :: (program: Machine.MachineProgram, opcode: Machine.MachineOpcode) -> s32 {
+    for index: cast(s64)0..program.instructions.count - 1 {
+        if program.instructions[index].opcode == opcode { return cast(s32)index }
+    }
+    return -1
+}
+
+main :: () -> s32 {
+    target := Target.TargetLinuxX64()
+    if !Check(Target.TargetValid(target), "Linux x86-64 target is valid") ||
+        !Check(target.allocatable_general == 0xffcf && target.reserved_general == 0x30,
+            "x86-64 allocation and reserved masks are explicit") ||
+        !Check(target.float_vector_overlap, "x86-64 float/vector bank overlap is explicit") { return 1 }
+    maintained: [6]Target.TargetResult = .[
+        Target.TargetDescribe(.X86_64, .Windows), Target.TargetDescribe(.X86_64, .MacOS),
+        Target.TargetDescribe(.ArmV7, .Android), Target.TargetDescribe(.AArch64, .Linux),
+        Target.TargetDescribe(.AArch64, .MacOS), Target.TargetDescribe(.Wasm32, .Browser)]
+    for result: maintained { if !Check(result.problem == .None && Target.TargetValid(result.target),
+        "maintained target description") { return 1 } }
+
+    owner: Machine.MachineOwner
+    limits := Machine.MachineDefaultLimits()
+    lowered := LowerFixture(*owner, target, limits, mutate_after = true)
+    if lowered.problem != .None {
+        print("machine IR lowering failed: problem % lir % at %/%/% operand % virtual %\n",
+            cast(s32)lowered.problem, lowered.lir_diagnostic_problem,
+            lowered.diagnostic.function, lowered.diagnostic.block,
+            lowered.diagnostic.instruction, lowered.diagnostic.operand,
+            lowered.diagnostic.virtual)
+        return 1
+    }
+    program := Lower.MachineProgramView(*owner)
+    if !Check(Verify.MachineVerify(program, limits).problem == .None, "lowered MIR verifies") ||
+        !Check(program.functions.count == 2 && program.blocks.count == 4, "function/block identity") ||
+        !Check(program.calls.count == 2 && program.calls[0].indirect && !program.calls[1].indirect,
+            "direct and indirect call constraints") ||
+        !Check(program.relocations.count == 2, "function address and direct call relocations") ||
+        !Check(program.edges.count == 2 && program.copies.count == 2, "parallel block transfers") ||
+        !Check(FindOpcode(program, .FloatAdd) >= 0 && FindOpcode(program, .AggregateBuild) >= 0,
+            "float and aggregate selection") ||
+        !Check(FindOpcode(program, .Compare) >= 0 && FindOpcode(program, .SetCondition) >= 0,
+            "explicit flags lifetime") ||
+        !Check(program.types[2].kind == .Integer && program.types[2].is_signed && program.types[2].bits == 32 &&
+            program.types[4].kind == .Float && program.types[4].bits == 32 &&
+            program.types[6].fields_count == 2 && program.types[7].parameters_count == 1,
+            "owned scalar, aggregate and indirect-signature metadata") ||
+        !Check(program.globals.count == 1 && program.globals[0].type == 6,
+            "owned global layout") { return 1 }
+    fingerprint := Fingerprint(program)
+
+    second: Machine.MachineOwner
+    repeated := LowerFixture(*second, target, limits)
+    if !Check(repeated.problem == .None && Fingerprint(Lower.MachineProgramView(*second)) == fingerprint,
+        "deterministic lowering") { return 1 }
+
+    if !Check(program.types[2].bits == 32 &&
+        BytesEqualText(program.text[program.functions[1].name_offset:
+            program.functions[1].name_offset + program.functions[1].name_length], "answer"),
+        "MIR owns types and names") { return 1 }
+
+    allocate_owner: Machine.MachineOwner
+    allocated := LowerAllocateFixture(*allocate_owner, target, limits)
+    if allocated.problem != .None {
+        print("machine IR allocate lowering failed: problem % lir % at %/%/% operand % virtual %\n",
+            cast(s32)allocated.problem, allocated.lir_diagnostic_problem,
+            allocated.diagnostic.function, allocated.diagnostic.block,
+            allocated.diagnostic.instruction, allocated.diagnostic.operand,
+            allocated.diagnostic.virtual)
+    }
+    allocate_program := Lower.MachineProgramView(*allocate_owner)
+    allocate_id := FindOpcode(allocate_program, .Allocate)
+    if !Check(allocated.problem == .None && allocate_id >= 0,
+            "dynamic allocation remains an explicit machine operation") ||
+        !Check(FindOpcode(allocate_program, .StackAddress) < 0 &&
+            allocate_program.stack_objects.count == 0,
+            "dynamic allocation is not collapsed to a static stack object") ||
+        !Check(allocate_program.instructions[allocate_id].operand_count == 2 &&
+            allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin].role == .Define &&
+            allocate_program.operands[allocate_program.instructions[allocate_id].operand_begin + 1].role == .Use,
+            "dynamic allocation preserves result and initializer operands") { return 1 }
+    allocate_result := allocate_program.instructions[allocate_id].operand_begin
+    allocate_program.operands[allocate_result].role = .Use
+    if !Check(Verify.MachineVerify(allocate_program, limits).problem == .Instruction,
+        "malformed dynamic allocation is rejected") { return 1 }
+    allocate_program.operands[allocate_result].role = .Define
+
+    instruction_limit := limits; instruction_limit.instructions = 1
+    limited: Machine.MachineOwner
+    if !Check(LowerFixture(*limited, target, instruction_limit).problem == .Limit,
+        "instruction limit") { return 1 }
+    unsupported := Target.TargetDescribe(.AArch64, .Linux).target
+    if !Check(LowerFixture(*limited, unsupported, limits).problem == .UnsupportedTarget,
+        "unsupported target is explicit") { return 1 }
+    invalid := target; invalid.pointer_bits = 32
+    if !Check(LowerFixture(*limited, invalid, limits).problem == .Target,
+        "malformed target is rejected") { return 1 }
+    foreign_result := LowerFixture(*limited, target, limits, foreign = true)
+    if !Check(foreign_result.problem == .Unsupported && foreign_result.lir_diagnostic_problem != 0,
+        "external ABI lowering is not confused with internal packed ABI") { return 1 }
+
+    bad_virtual := program.virtuals[0]
+    program.virtuals[0].class = .Invalid
+    if !Check(Verify.MachineVerify(program, limits).problem == .Virtual, "bad register class") { return 1 }
+    program.virtuals[0] = bad_virtual
+    add_id := FindOpcode(program, .IntegerMultiply)
+    operand_id := program.instructions[add_id].operand_begin
+    saved_operand := program.operands[operand_id]
+    program.operands[operand_id].tied_to = 99
+    if !Check(Verify.MachineVerify(program, limits).problem == .Operand, "bad tied operand") { return 1 }
+    program.operands[operand_id] = saved_operand
+    set_id := FindOpcode(program, .SetCondition)
+    flags := program.instructions[set_id].flags_use
+    program.instructions[set_id].flags_use = -1
+    if !Check(Verify.MachineVerify(program, limits).problem == .Flags, "broken flags lifetime") { return 1 }
+    program.instructions[set_id].flags_use = flags
+    saved_begin := program.calls[0].argument_begin
+    program.calls[0].argument_begin = cast(s32)program.operands.count
+    if !Check(Verify.MachineVerify(program, limits).problem == .Call, "bad call operand range") { return 1 }
+    program.calls[0].argument_begin = saved_begin
+    saved_class := program.copies[0].class
+    program.copies[0].class = .Float
+    if !Check(Verify.MachineVerify(program, limits).problem == .Copy, "bad parallel copy class") { return 1 }
+    program.copies[0].class = saved_class
+    saved_relocation := program.relocations[0].operand
+    program.relocations[0].operand = cast(s32)program.operands.count
+    if !Check(Verify.MachineVerify(program, limits).problem == .Relocation, "bad relocation") { return 1 }
+    program.relocations[0].operand = saved_relocation
+
+    Lower.MachineFree(*owner)
+    Lower.MachineFree(*owner)
+    Lower.MachineFree(*second)
+    Lower.MachineFree(*allocate_owner)
+    Lower.MachineFree(*limited)
+    if !Check(Lower.MachineProgramView(*owner).entry == -1, "repeated cleanup") { return 1 }
+    print("machine IR: target, lowering, constraints, verifier and ownership local tests passed\n")
+    return 0
+}

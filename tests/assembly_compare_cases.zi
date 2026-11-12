@@ -1,4 +1,5 @@
 Compare :: #import "assembly_compare"
+Collect :: #import "assembly_collect"
 #import "check_support"
 #import "native_test"
 #import "std/file_tree_linux"
@@ -124,6 +125,133 @@ Fixture :: (test: *NativeTest, path: string, issue: string) -> bool {
     return NativeWrite(test, path, JsonWrite(*document, root, JsonPythonStyle(2)))
 }
 
+CollectionPlan :: (issue: string) -> string {
+    document: JsonDocument
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    PutText(*document, root, "campaign", "synthetic-collector-validation")
+    PutText(*document, root, "physical_host", "alpha")
+    PutText(*document, root, "hostname", "alpha-physical")
+    PutText(*document, root, "cpu", "synthetic-alpha-cpu")
+    PutText(*document, root, "os", "synthetic-alpha-os")
+    PutText(*document, root, "working_directory", "/alpha/ziran")
+    PutText(*document, root, "collector_work", "/alpha/ziran/build/assembly-collect")
+    required := JsonNewArray(*document)
+    Required(*document, required, "warmthroughput", "throughput", "ops/s")
+    JsonSet(*document, root, "required_cells", required)
+    jobs := JsonNewArray(*document)
+    job := JsonNewObject(*document)
+    engine := "new-portable"
+    selector := "lowered-portable"
+    tool := "/synthetic/zi2asm"
+    artifact := "-"
+    if issue == "old-vm" {
+        engine = "old-portable-vm"; selector = "zx-vm"; tool = "/synthetic/ziran"
+    } else if issue == "direct-aot" {
+        engine = "direct-aot"; selector = "direct-aot"
+        tool = "/alpha/ziran/build/assembly-collect/app"; artifact = tool
+    } else if issue == "old-native" {
+        engine = "old-c-tinycc-native"; selector = "zx-tinycc-native"; tool = "/synthetic/ziran"
+    } else if issue == "new-native" {
+        engine = "new-native"; selector = "new-native"
+    } else if issue == "selector" { selector = "direct-aot" }
+    PutText(*document, job, "receipt_id", "synthetic-new-portable")
+    PutText(*document, job, "case", "zx-kernel")
+    PutText(*document, job, "engine", engine)
+    PutText(*document, job, "selector", selector)
+    PutText(*document, job, "phase", "warmthroughput")
+    PutText(*document, job, "metric", "throughput")
+    PutText(*document, job, "unit", "ops/s")
+    command := JsonNewArray(*document)
+    JsonAppend(*document, command, JsonNewStringCopy(*document, tool))
+    if issue == "old-vm" || issue == "old-native" {
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "run"))
+        if issue == "old-vm" { JsonAppend(*document, command, JsonNewStringCopy(*document, "--vm")) }
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "/alpha/workload.zx"))
+    } else if issue != "direct-aot" {
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "--run"))
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "--input"))
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "exec"))
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "/alpha/workload.lirb"))
+    }
+    JsonSet(*document, job, "command", command)
+    verification := JsonNewArray(*document)
+    JsonAppend(*document, verification, JsonNewStringCopy(*document, tool))
+    if issue == "old-vm" || issue == "old-native" {
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "run"))
+        if issue == "old-vm" { JsonAppend(*document, verification, JsonNewStringCopy(*document, "--vm")) }
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "/alpha/workload.zx"))
+    } else if issue != "direct-aot" {
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "--run"))
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "--input"))
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "exec"))
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "/alpha/workload.lirb"))
+    }
+    JsonSet(*document, job, "verification", verification)
+    closure := JsonNewArray(*document)
+    item := JsonNewObject(*document)
+    PutText(*document, item, "path", ifx issue == "closure" then "/synthetic/other" else tool)
+    PutText(*document, item, "sha256",
+        "sha256:0000000000000000000000000000000000000000000000000000000000000000")
+    JsonAppend(*document, closure, item)
+    JsonSet(*document, job, "runtime_closure", closure)
+    PutText(*document, job, "workload", "synthetic-zx-kernel")
+    PutText(*document, job, "input_path",
+        ifx issue == "old-vm" then "/alpha/workload.zx" else "/alpha/workload.lirb")
+    PutText(*document, job, "input_checksum",
+        "sha256:1111111111111111111111111111111111111111111111111111111111111111")
+    PutText(*document, job, "semantic_settings",
+        "overflow=checked;process=fresh-child-per-sample;cache=immutable;timing=internal-kernel-ns")
+    PutText(*document, job, "correctness_expected",
+        "sha256:2222222222222222222222222222222222222222222222222222222222222222")
+    JsonSet(*document, job, "iterations", JsonNewInteger(*document, 1000))
+    JsonSet(*document, job, "repeats", JsonNewInteger(*document, 3))
+    JsonSet(*document, job, "warmups", JsonNewInteger(*document,
+        ifx issue == "warmups" then 0 else 1))
+    JsonSet(*document, job, "timeout_ms", JsonNewInteger(*document, 1000))
+    PutText(*document, job, "cache_policy", "immutable-artifact-no-engine-cache")
+    PutText(*document, job, "cache_directory", "-")
+    JsonSet(*document, job, "environment", JsonNewArray(*document))
+    PutText(*document, job, "artifact", artifact)
+    PutText(*document, job, "rss_tool", "-")
+    JsonAppend(*document, jobs, job)
+    JsonSet(*document, root, "jobs", jobs)
+    return TextDetach(JsonWrite(*document, root, JsonPythonStyle(2)))
+}
+
+CollectorValidation :: (test: *NativeTest) -> bool {
+    valid := CollectionPlan("")
+    if !NativeAssert(test, Collect.ValidatePlanText(valid),
+        "supported lowered-portable collector plan was rejected") ||
+    !NativeAssert(test, Collect.ValidatePlanText(CollectionPlan("old-vm")),
+        "explicit old portable VM collector plan was rejected") ||
+    !NativeAssert(test, Collect.ValidatePlanText(CollectionPlan("direct-aot")),
+        "exact direct-AOT collector plan was rejected") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("new-native")),
+        "unavailable new-native engine was accepted") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("old-native")),
+        "default ZX run was accepted as proven old TinyCC native") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("selector")),
+        "engine selector mismatch was accepted") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("closure")),
+        "command outside the declared runtime closure was accepted") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("warmups")),
+        "warm phase without a warmup was accepted") { return false }
+    input := CheckPath(test.work, "collector-plan.json")
+    output := CheckPath(test.work, "collector-output.json")
+    if !NativeWrite(test, input, valid) || !NativeWrite(test, output, "preserve\n") {
+        return false
+    }
+    collector := CheckPath(test.repo, "bench/assembly_collect.zi")
+    validate := string.[test.ziran, "run", "--target=c", "--root",
+        CheckPath(test.repo, "bench"), "--module-path", test.repo, collector,
+        "--", "--validate", input]
+    unused NativeRun(test, validate[:])
+    return NativeAssert(test, !Collect.ProcessCollection(input, output) &&
+        NativeRead(test, output) == "preserve\n",
+        "non-Alpha collection ran a job or replaced an output")
+}
+
 PreservedFailure :: (test: *NativeTest, issue: string, name: string) -> bool {
     input := CheckPath(test.work, CheckConcat(name, ".json"))
     output := CheckPath(test.work, CheckConcat(name, ".md"))
@@ -138,6 +266,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "assembly-compare-")
     defer NativeCleanup(*test)
     if test.failed { return 1 }
+    if !CollectorValidation(*test) { return 1 }
     input := CheckPath(test.work, "valid.json")
     output := CheckPath(test.work, "valid.md")
     second := CheckPath(test.work, "valid-second.md")
@@ -151,6 +280,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     !NativeAssert(*test, TextContains(report, "complete required comparison matrix"), "complete matrix status missing") ||
     !NativeAssert(*test, TextContains(report, "[1.0, 125.0, 125.0, 125.0, 125.0, 125.0, 125.0, 125.0, 1000.0]"),
         "raw outlier samples changed") ||
+    !NativeAssert(*test, TextContains(report, "Sample count: `9`; raw samples"),
+        "explicit sample count missing") ||
     !NativeAssert(*test, TextContains(report, "Excluded indices: `[0, 8]`"), "symmetric outlier indices missing") ||
     !NativeAssert(*test, TextContains(report,
         "1.25x favorable factor; improvement; candidate metric change +25%"),

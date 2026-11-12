@@ -1,0 +1,112 @@
+Set32 :: (target: *s32, value: s32) { target.* = value }
+
+Mutate :: (target: *s32) -> s32 {
+    target.* = 20
+    return 2
+}
+
+CompoundOrder :: () -> s32 {
+    value: s32 = 3
+    alias := *value
+    value += Mutate(alias)
+    return value
+}
+
+AssignmentOrder :: () -> s32 {
+    value: s32 = 3
+    alias := *value
+    alias.* = Mutate(alias)
+    return value
+}
+
+ParameterAddress :: (value: s32) -> s32 {
+    alias := *value
+    alias.* += 1
+    return value
+}
+
+RecursiveAddress :: (depth: s32) -> s32 {
+    value: s32 = depth
+    alias := *value
+    if depth > 0 { alias.* += RecursiveAddress(depth - 1) }
+    return value
+}
+
+LoopAddress :: () -> s32 {
+    saved: *s32
+    total: s32
+    index: s32
+    while index < 3 {
+        value: s32 = index
+        saved = *value
+        value += 1
+        total += saved.*
+        index += 1
+    }
+    return total
+}
+
+#program_export
+Answer :: () -> s32 {
+    zero: s64
+    zero_alias := *zero
+    if zero != 0 { return 1 }
+    zero_alias.* = 11
+    if zero != 11 { return 2 }
+
+    byte: u8 = 255
+    byte_alias := *byte
+    byte_alias.* += 1
+    if byte != cast(u8)0 { return 3 }
+
+    truth: bool
+    truth_alias := *truth
+    truth_alias.* = true
+    if !truth { return 4 }
+
+    narrow: float32 = 1.5
+    narrow_alias := *narrow
+    narrow_alias.* += 0.5
+    wide: float64
+    wide_alias := *wide
+    wide_alias.* = 4.25
+    if narrow != 2.0 || wide != 4.25 { return 5 }
+
+    pointee: s32 = 7
+    pointer: *s32 = *pointee
+    pointer_alias := *pointer
+    other: s32 = 9
+    pointer_alias.* = *other
+    pointer.* = 10
+    if pointee != 7 || other != 10 { return 6 }
+
+    shadowed: s32 = 4
+    outer_alias := *shadowed
+    {
+        shadowed: s32 = 8
+        inner_alias := *shadowed
+        inner_alias.* = 9
+        if shadowed != 9 { return 7 }
+    }
+    outer_alias.* = 5
+    if shadowed != 5 { return 8 }
+
+    direct: s32 = 1
+    direct_alias := *direct
+    direct = 6
+    Set32(direct_alias, 8)
+    if direct != 8 { return 9 }
+
+    shared: s32 = 1
+    first_alias := *shared
+    second_alias := *shared
+    first_alias.* = 12
+    if shared != 12 || second_alias.* != 12 { return 11 }
+    second_alias.* = 13
+    if first_alias.* != 13 { return 12 }
+
+    if CompoundOrder() != 5 || AssignmentOrder() != 2 ||
+        ParameterAddress(6) != 7 || RecursiveAddress(3) != 6 ||
+        LoopAddress() != 6 { return 10 }
+    return 42
+}

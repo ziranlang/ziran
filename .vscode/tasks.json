@@ -1,0 +1,93 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Ziran: Inspect assembly (scalar fixture)",
+            "type": "process",
+            "command": "env",
+            "args": [
+                "-u",
+                "DISPLAY",
+                "-u",
+                "WAYLAND_DISPLAY",
+                "-u",
+                "XAUTHORITY",
+                "-u",
+                "DBUS_SESSION_BUS_ADDRESS",
+                "HARMONY_DESKTOP_RECOVERY=0",
+                "build-queue",
+                "--",
+                "python3",
+                "scripts/inspect_assembly.py"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true,
+                "panel": "dedicated",
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "Ziran: Inspect assembly (choose source and entry)",
+            "type": "process",
+            "command": "env",
+            "args": [
+                "-u",
+                "DISPLAY",
+                "-u",
+                "WAYLAND_DISPLAY",
+                "-u",
+                "XAUTHORITY",
+                "-u",
+                "DBUS_SESSION_BUS_ADDRESS",
+                "HARMONY_DESKTOP_RECOVERY=0",
+                "build-queue",
+                "--",
+                "python3",
+                "scripts/inspect_assembly.py",
+                "--source",
+                "${input:assemblySource}",
+                "--entry",
+                "${input:assemblyEntry}",
+                "--root",
+                "${input:assemblyRoot}"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "problemMatcher": [],
+            "presentation": {
+                "clear": true,
+                "panel": "dedicated",
+                "reveal": "always"
+            }
+        }
+    ],
+    "inputs": [
+        {
+            "id": "assemblySource",
+            "type": "promptString",
+            "description": "Ziran source file, relative to the repository",
+            "default": "tests/spec/assembly_scalar.zi"
+        },
+        {
+            "id": "assemblyEntry",
+            "type": "promptString",
+            "description": "Direct-backend entry (MODULE:FUNCTION)",
+            "default": "assembly_scalar:Answer"
+        },
+        {
+            "id": "assemblyRoot",
+            "type": "promptString",
+            "description": "Module root, relative to the repository",
+            "default": "tests/spec"
+        }
+    ]
+}

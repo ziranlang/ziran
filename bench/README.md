@@ -48,6 +48,30 @@ the source fixtures, generated C/Go/ZX and raw samples are downloadable.
 These desktop cases measure public widget behavior and recorded paint commands,
 excluding pixel rasterization and OS I/O.
 
+## ZX assembly comparison receipts
+
+`assembly_collect.zi` validates an exact campaign plan and, only after fresh
+Alpha physical-host attestation, executes explicitly selected modes into the
+strict raw schema consumed by `assembly_compare.zi`. Local plan validation is
+measurement-free:
+
+```sh
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+  build/bin/ziran run --target=c --root bench --module-path . \
+  bench/assembly_collect.zi -- --validate PLAN.json
+```
+
+Run `PLAN.json OUTPUT.json` instead only in the canonical checkout on Alpha's
+physical host. The collector hashes the workload and complete declared runtime
+closure before and after collection, enforces private cache/process boundaries,
+checks every sample's stdout oracle, and atomically emits raw samples. It
+supports explicit old VM, lowered portable, direct-AOT and control selectors.
+The current default ZX runtime is not native-only proof, so
+`old-c-tinycc-native` remains missing; no `new-native` ZX selector exists.
+Direct AOT is never relabeled as that engine. The exact plan schema, phase
+units, invocation, and remaining gates are in
+[`../ASSEMBLY/performance-report.md`](../ASSEMBLY/performance-report.md).
+
 ## Fresh compiler rebuild
 
 ```sh

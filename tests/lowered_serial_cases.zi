@@ -177,6 +177,9 @@ CodecCases :: () -> s32 {
     mutation[8] = 1
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Version || owner.valid { return Fail(30, cast(s32)read.problem) }
+    mutation[8] = 2
+    read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
+    if read.problem != .Version || owner.valid { return Fail(31, cast(s32)read.problem) }
     VecFree(mutation)
     mutation = CopyBytes(canonical[:])
     mutation[17] = 1
@@ -256,6 +259,46 @@ CodecCases :: () -> s32 {
     read = Serial.LirRead(*owner, TextView(plain_bytes[:]), limits)
     if read.problem != .None || Serial.LirReadProgram(*owner).sources.count != 0 ||
         Serial.LirReadProgram(*owner).origins.count != 0 { return Fail(29, cast(s32)read.problem) }
+
+    allocate_types: [3]Lir.LirType = .{.{kind = .Void},
+        .{kind = .Integer, bits = 32, is_signed = true}, .{kind = .Pointer, element = 1}}
+    allocate_modules: [1]string = .{"allocation"}
+    allocate_constants: [1]Lir.LirConstant = .{.{type = 1, bits = 9}}
+    allocate_values: [3]s32 = .{2, 1, 1}
+    allocate_initial: [1]s32 = .{1}
+    allocate_pointer: [1]s32 = .{0}
+    allocate_return: [1]s32 = .{2}
+    allocate_instructions: [4]Lir.LirInstruction
+    allocate_instructions[0] = Instruction(.Constant, 1)
+    allocate_instructions[0].symbol = 0
+    allocate_instructions[1] = Instruction(.Allocate, 0)
+    allocate_instructions[1].operands = allocate_initial[:]
+    allocate_instructions[1].effect = 1
+    allocate_instructions[2] = Instruction(.Load, 2)
+    allocate_instructions[2].operands = allocate_pointer[:]
+    allocate_instructions[2].effect = 2
+    allocate_instructions[3] = Instruction(.Return, -1)
+    allocate_instructions[3].operands = allocate_return[:]
+    allocate_blocks: [1]Lir.LirBlock = .{.{instructions = allocate_instructions[:]}}
+    allocate_functions: [1]Lir.LirFunction = .{
+        .{module = 0, name = "allocate", result = 1, values = allocate_values[:],
+            blocks = allocate_blocks[:], entry = 0, origin = -1}}
+    allocate := Lir.LirProgram.{version = Lir.LirVersion, modules = allocate_modules[:],
+        types = allocate_types[:], constants = allocate_constants[:],
+        functions = allocate_functions[:], entry = 0}
+    allocate_measure := Serial.LirWrite(allocate, empty)
+    allocate_bytes: Vec(u8)
+    if allocate_measure.problem != .None ||
+        !VecResizeBounded(allocate_bytes, allocate_measure.size, allocate_measure.size) { return Fail(32) }
+    if Serial.LirWrite(allocate, allocate_bytes[:]).problem != .None { return Fail(33) }
+    read = Serial.LirRead(*owner, TextView(allocate_bytes[:]), limits)
+    if read.problem != .None { return Fail(34, cast(s32)read.problem) }
+    decoded_allocate := Serial.LirReadProgram(*owner)
+    if decoded_allocate.functions.count != 1 ||
+        decoded_allocate.functions[0].blocks[0].instructions.count != 4 ||
+        decoded_allocate.functions[0].blocks[0].instructions[1].op != .Allocate ||
+        decoded_allocate.functions[0].blocks[0].instructions[1].operands.count != 1 ||
+        decoded_allocate.functions[0].blocks[0].instructions[2].op != .Load { return Fail(35) }
     Serial.LirReadFree(*owner)
 
     return 0

@@ -91,8 +91,10 @@ are retained.
 
 Dead-instruction elimination reaches a fixed point for unused `Constant`,
 `Null`, add/subtract/multiply, integer bit operations, negate, comparisons,
-`Bitcast`, `Aggregate`, `Extract`, and `Insert` results. These operations are
-pure and nontrapping under the current verifier and portable engine.
+`Bitcast`, `Aggregate`, and immediate-index `Extract` and `Insert` results.
+These operations are pure and nontrapping under the current verifier and
+portable engine. Dynamic-index `Extract` and `Insert` stay in the program
+because their bounds checks can trap, including when their result is unused.
 
 ## Preserved behavior
 

@@ -1,4 +1,4 @@
-LirVersion :: 2
+LirVersion :: 3
 LirNoId :: -1
 
 LirTypeKind :: enum s32 {

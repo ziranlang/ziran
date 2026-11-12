@@ -1,0 +1,9 @@
+Operation :: #type (value: s32) -> s32;
+Twice :: (value: s32) -> s32 { return value * 2 }
+
+#program_export
+Answer :: () -> s32 {
+    operation: Operation = Twice
+    alias := *operation
+    return alias.*(21)
+}

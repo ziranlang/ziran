@@ -23,9 +23,9 @@ Only `LirCalling.Portable`, non-variadic, defined functions are accepted.
 `C`, `System`, `Host`, external and variadic functions remain explicitly
 unsupported. This ABI does not accept untyped host callbacks or claim that its
 function values are C or System V function pointers. Dynamic global
-initializers, allocation, copies over runtime-selected byte ranges,
-and zeroing over runtime-selected byte ranges remain outside this native
-surface. The source lowering currently emits static scalar initializers and
+initializers, copies over runtime-selected byte ranges, and zeroing over
+runtime-selected byte ranges remain outside this native surface. The source
+lowering currently emits static scalar initializers and
 recursively zero-initialized aggregates; it does not expose initialized
 aggregate literals or standalone global function slots.
 
@@ -85,15 +85,63 @@ exact pointee type before accessing data. Null, forged, table-out-of-range, and
 wrong-type values branch to `_zir_trap` and exit with status 125. A successful
 operation uses only the fixed data address and extent attached to that entry,
 so a pointer value can neither select bytes outside the global image nor write
-generated code. Allocation and arbitrary pointer arithmetic remain
-unsupported.
+generated code. Arbitrary pointer arithmetic remains unsupported.
 
-The checked dispatch is deliberately simple: each memory operation scans the
-matching address slots, just as each typed indirect call scans matching
-functions. It is not claimed as an optimized dispatch. Planning caps canonical
-address slots at 1,048,576 and both address canonicalization work and each
-program's memory-, element-address-, or indirect-dispatch comparison product
-at 16,000,000. Exceeding a cap returns `LirProblem.Limit`.
+## Checked frame allocation
+
+Programs with `Allocate` map one private, anonymous 256 MiB RW region at
+startup with Linux `mmap`. Mapping failure branches to `_zir_trap` and exits
+with status 125. The initializer has its own text-relative native range;
+`_start` and `_zir_trap` retain their exact 21-byte and 14-byte extents. `rbx`
+keeps the region base throughout this internal ABI. The region is never
+executable and is reclaimed when the process exits.
+
+Every executed `Allocate` appends a fresh eight-byte-aligned record to that
+region. Its 32-byte descriptor contains the previous record for the same static
+site, the allocating frame's `rbp`, the complete pointer token, and that frame's
+generation marker, at offsets 0, 8, 16, and 24. Pointee-sized storage follows at
+offset 32; the next record starts after rounding the complete size up to eight
+bytes. The optional initializer has the exact pointee type and is copied into
+the new storage; otherwise the scalar storage is set to zero. Accepted pointees
+are bool, fixed-width integer, `f32`, `f64`, and pointer values. Aggregate and
+function pointees remain rejected by the verifier.
+
+The checked 64-bit pointer is `generation << 24 | slot`. Its low 24-bit slot
+identifies one static allocation site numbered after the canonical global
+address slots. Site planning and global slots share 16,777,215 nonzero values.
+The RW ELF data extent appends one eight-byte newest-record pointer per site,
+then a shared eight-byte generation counter and eight-byte region bump offset.
+Allocation programs retain the six-section ELF layout even without globals.
+The counter, heads and bump offset start at zero. Frame entry and every executed
+allocation increment the counter, trapping before an increment would exceed
+`2^40 - 1`. Each frame stores its own generation marker at `[rbp-8]`.
+
+`Load` and `Store` first select sites of the exact pointee type, then scan that
+site's persistent records newest first. Each record address is checked against
+the mapped region bounds before reading its metadata. A complete token match
+must name an owner on the active saved-`rbp` chain, which startup terminates with
+zero, and its saved marker must match the owner's current marker. Only after
+these checks can the operation access the record's scalar payload. A null,
+forged, wrong-type or stale token traps with status 125; returned-frame memory
+is never dereferenced while searching for an owner.
+
+Returning or reusing a frame invalidates its earlier pointers, while aliases
+remain valid in the allocating frame and active callees. Re-executing a static
+site, including in loops and recursion, creates distinct storage and tokens.
+Records remain in the region after their owners return so later traversal never
+follows metadata on reclaimed stacks. Space is not reused within an execution;
+a request that would exceed the region traps with status 125 before its record
+or payload is written. This explicit capacity is a native implementation limit,
+not a portable engine storage guarantee. Allocation pointers are not stable
+across executions and must not be compared across processes, engines, or runs.
+
+The checked dispatch is deliberately simple: memory operations scan matching
+static address slots and then the persistent allocation descriptors when that pointee
+type has allocation sites, just as typed indirect calls scan matching functions.
+It is not claimed as an optimized dispatch. Planning caps canonical address
+slots at 1,048,576 and both address canonicalization work and each program's
+static memory-, element-address-, or indirect-dispatch comparison product at
+16,000,000. Exceeding a cap returns `LirProblem.Limit`.
 
 `FunctionAddress` stores the target function index plus one. The same target
 therefore compares equal across repeated addresses of the same verified
@@ -179,7 +227,7 @@ only real text bytes.
 `LirX64ElfLayout(program) -> LirX64ImageLayout` verifies and measures without
 writing output. It returns `problem`, `file_size`, `text_offset`,
 `text_address`, `text_size`, `data_offset`, `data_address`, and `data_size`.
-The data fields are zero for a no-global program. `LirX64Ranges` remains
+The data fields are zero for a program with neither globals nor allocations. `LirX64Ranges` remains
 text-relative; consumers add `text_offset` for file positions or
 `text_address` for virtual addresses. Raw `LirX64Encode` bytes use the same
 planned data virtual address as the paired ELF image.
@@ -202,7 +250,10 @@ traps. Static-global fixtures add narrow signed and unsigned integers, bool and
 `f64` initializers, recursively zeroed aggregates, mutation across calls,
 nested field addresses, pointer call/result and block-copy cycles, RX/RW
 segment permissions, object symbols and extents, and null, forged,
-table-out-of-range, and wrong-type pointer traps. Dynamic-element fixtures add
+table-out-of-range, and wrong-type pointer traps. Allocation fixtures add
+per-site heads, generation counter and bump offset in six-section ELF data, initialized and zero-default scalar values,
+same-site loops, recursion and active aliases, structured stale/reused-frame and
+generation-overflow and region-capacity traps, including their last valid boundaries. Dynamic-element fixtures add
 nested arrays, array-pointer parameters and results, zero-sized element
 aliases, signed and unsigned bounds traps, patched wrong-parent tokens, and
 bounded slot planning. Separately compiled C oracles check the aggregate,

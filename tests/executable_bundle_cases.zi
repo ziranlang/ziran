@@ -1,0 +1,263 @@
+using Bundle :: #import "compiler_bundle"
+using Exec :: #import "compiler_exec"
+using Link :: #import "compiler_exec_link"
+using Lir :: #import "compiler_lowered_ir"
+using Vectors :: #import "std/vec"
+
+Fail :: (code: s32, detail: s32 = 0) -> s32 {
+    print("executable bundle failure %:%\n", code, detail)
+    return code
+}
+
+CopyBytes :: (source: []u8) -> Vec(u8) {
+    result: Vec(u8)
+    if !VecResizeBounded(result, source.count, source.count) { return .{} }
+    for index: 0..source.count - 1 { result[index] = source[index] }
+    return result
+}
+
+SameBytes :: (left: []u8, right: []u8) -> bool {
+    if left.count != right.count { return false }
+    for index: 0..left.count - 1 { if left[index] != right[index] { return false } }
+    return true
+}
+
+ReadU64 :: (bytes: []u8, at: s64) -> u64 {
+    value: u64
+    for index: 0..7 { value |= cast(u64)bytes[at + index] << cast(u64)(index * 8) }
+    return value
+}
+
+BudgetContainer :: (program: Lir.LirProgram, code: s32) -> s32 {
+    empty: []u8
+    no_assets: []Bundle.Asset
+    measured := Link.ZxExecWrite(program, no_assets, empty)
+    if measured.problem != .None || measured.size < 1 { return Fail(code, cast(s32)measured.problem) }
+    first: Vec(u8)
+    second: Vec(u8)
+    if !VecResizeBounded(first, measured.size, measured.size) ||
+        !VecResizeBounded(second, measured.size, measured.size) { return Fail(code + 1) }
+    written := Link.ZxExecWrite(program, no_assets, first[:])
+    repeated := Link.ZxExecWrite(program, no_assets, second[:])
+    if written.problem != .None || repeated.problem != .None || !SameBytes(first[:], second[:]) {
+        VecFree(first); VecFree(second)
+        return Fail(code + 2)
+    }
+
+    owner: Link.ZxExecOwner
+    read := Link.ZxExecRead(*owner, TextView(first[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || !owner.valid ||
+        Link.ZxExecReadProgram(*owner).functions.count != program.functions.count {
+        Link.ZxExecReadFree(*owner); VecFree(first); VecFree(second)
+        return Fail(code + 3, cast(s32)read.problem)
+    }
+    limited := Lir.LirDefaultLimits()
+    limited.work = first.count
+    read = Link.ZxExecRead(*owner, TextView(first[:]), limited)
+    if read.problem != .Limit || read.diagnostic.problem != .Limit || owner.valid {
+        VecFree(first); VecFree(second)
+        return Fail(code + 4, cast(s32)read.problem)
+    }
+    limited = Lir.LirDefaultLimits()
+    limited.bytes = first.count - 1
+    read = Link.ZxExecRead(*owner, TextView(first[:]), limited)
+    if read.problem != .Limit || owner.valid {
+        VecFree(first); VecFree(second)
+        return Fail(code + 5, cast(s32)read.problem)
+    }
+    read = Link.ZxExecRead(*owner, TextView(first[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || !owner.valid ||
+        Link.ZxExecReadProgram(*owner).functions.count != program.functions.count {
+        Link.ZxExecReadFree(*owner); VecFree(first); VecFree(second)
+        return Fail(code + 6, cast(s32)read.problem)
+    }
+    read = Link.ZxExecRead(*owner, TextView(second[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || !owner.valid { return Fail(code + 7, cast(s32)read.problem) }
+    Link.ZxExecReadFree(*owner)
+    VecFree(first)
+    VecFree(second)
+    return 0
+}
+
+BudgetManySymbols :: () -> s32 {
+    // Prefix names maximize compared name bytes while remaining unique.
+    types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
+    modules: [1]string = .{"budget-symbols"}
+    constants: [1]Lir.LirConstant = .{.{type = 1, bits = 42}}
+    values: [1]s32 = .{1}
+    returned: [1]s32 = .{0}
+    instructions: [2]Lir.LirInstruction
+    instructions[0] = .{op = .Constant, result = 0, symbol = 0, origin = Lir.LirNoId}
+    instructions[1] = .{op = .Return, result = Lir.LirNoId, operands = returned[:],
+        symbol = Lir.LirNoId, origin = Lir.LirNoId}
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    names := "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    functions: Vec(Lir.LirFunction)
+    if !VecResizeBounded(functions, names.count, names.count) { return Fail(30) }
+    for index: 0..functions.count - 1 {
+        functions[index] = .{module = 0, name = names[0:index + 1], result = 1,
+            values = values[:], blocks = blocks[:], entry = 0, origin = Lir.LirNoId}
+    }
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    result := BudgetContainer(program, 31)
+    VecFree(functions)
+    return result
+}
+
+BudgetRepeatedIndirect :: () -> s32 {
+    // Every indirect call is reachable. Validation must add the conservative
+    // all-functions set once instead of rescanning it for every instruction.
+    types: [3]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Function, result = 1}}
+    modules: [1]string = .{"budget-indirect"}
+    constants: [1]Lir.LirConstant = .{.{type = 1, bits = 42}}
+    simple_values: [1]s32 = .{1}
+    simple_returned: [1]s32 = .{0}
+    simple_instructions: [2]Lir.LirInstruction
+    simple_instructions[0] = .{op = .Constant, result = 0, symbol = 0, origin = Lir.LirNoId}
+    simple_instructions[1] = .{op = .Return, result = Lir.LirNoId, operands = simple_returned[:],
+        symbol = Lir.LirNoId, origin = Lir.LirNoId}
+    simple_blocks: [1]Lir.LirBlock = .{.{instructions = simple_instructions[:]}}
+
+    repeats: s64 = 128
+    entry_values: Vec(s32)
+    entry_instructions: Vec(Lir.LirInstruction)
+    if !VecResizeBounded(entry_values, repeats + 1, repeats + 1) ||
+        !VecResizeBounded(entry_instructions, repeats + 2, repeats + 2) { return Fail(40) }
+    entry_values[0] = 2
+    entry_instructions[0] = .{op = .FunctionAddress, result = 0, symbol = 1, origin = Lir.LirNoId}
+    indirect_operands: [1]s32 = .{0}
+    for index: 0..repeats - 1 {
+        entry_values[index + 1] = 1
+        entry_instructions[index + 1] = .{op = .CallIndirect, result = cast(s32)index + 1,
+            operands = indirect_operands[:], effect = cast(s32)index + 1,
+            symbol = Lir.LirNoId, origin = Lir.LirNoId}
+    }
+    entry_returned: [1]s32 = .{cast(s32)repeats}
+    entry_instructions[repeats + 1] = .{op = .Return, result = Lir.LirNoId,
+        operands = entry_returned[:], symbol = Lir.LirNoId, origin = Lir.LirNoId}
+    entry_blocks: [1]Lir.LirBlock = .{.{instructions = entry_instructions[:]}}
+
+    names := "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+    functions: Vec(Lir.LirFunction)
+    if !VecResizeBounded(functions, names.count, names.count) { return Fail(41) }
+    functions[0] = .{module = 0, name = names[0:1], result = 1, values = entry_values[:],
+        blocks = entry_blocks[:], entry = 0, origin = Lir.LirNoId}
+    for index: 1..functions.count - 1 {
+        functions[index] = .{module = 0, name = names[0:index + 1], result = 1,
+            values = simple_values[:], blocks = simple_blocks[:], entry = 0, origin = Lir.LirNoId}
+    }
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions[:], entry = 0}
+    result := BudgetContainer(program, 42)
+    VecFree(functions)
+    VecFree(entry_values)
+    VecFree(entry_instructions)
+    return result
+}
+
+main :: () -> s32 {
+    types: [2]Lir.LirType = .{.{kind = .Void}, .{kind = .Integer, bits = 32, is_signed = true}}
+    modules: [1]string = .{"executable"}
+    sources: [1]string = .{"executable_bundle_cases.zi"}
+    origins: [1]Lir.LirOrigin = .{.{file = 0, line = 1, column = 1,
+        end_line = 1, end_column = 2, begin = 0, end = 1, parent = -1}}
+    constants: [1]Lir.LirConstant = .{.{type = 1, bits = 42}}
+    values: [1]s32 = .{1}
+    returned: [1]s32 = .{0}
+    instructions: [2]Lir.LirInstruction
+    instructions[0] = .{op = .Constant, result = 0, symbol = 0, origin = 0}
+    instructions[1] = .{op = .Return, result = -1, operands = returned[:], symbol = -1, origin = 0}
+    blocks: [1]Lir.LirBlock = .{.{instructions = instructions[:]}}
+    functions: [1]Lir.LirFunction = .{.{module = 0, name = "main", result = 1,
+        values = values[:], blocks = blocks[:], entry = 0, origin = 0}}
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], functions = functions[:], origins = origins[:], entry = 0}
+
+    asset_bytes: [5]u8 = .{1, 0, 2, 0, 255}
+    assets: [1]Bundle.Asset = .{.{name = "data/binary.bin", data = TextView(asset_bytes[:])}}
+    empty: []u8
+    measured := Link.ZxExecWrite(program, assets[:], empty)
+    if measured.problem != .None || measured.size < 256 { return Fail(1, cast(s32)measured.problem) }
+    short: [64]u8
+    for index: 0..short.count - 1 { short[index] = 165 }
+    short_result := Link.ZxExecWrite(program, assets[:], short[:])
+    if short_result.problem != .Output || short_result.size != measured.size { return Fail(2) }
+    for byte: short { if byte != 165 { return Fail(3) } }
+
+    first: Vec(u8)
+    second: Vec(u8)
+    if !VecResizeBounded(first, measured.size, measured.size) ||
+        !VecResizeBounded(second, measured.size, measured.size) { return Fail(4) }
+    written := Link.ZxExecWrite(program, assets[:], first[:])
+    repeated := Link.ZxExecWrite(program, assets[:], second[:])
+    if written.problem != .None || repeated.problem != .None || !SameBytes(first[:], second[:]) { return Fail(5) }
+
+    owner: Link.ZxExecOwner
+    read := Link.ZxExecRead(*owner, TextView(first[:]), Lir.LirDefaultLimits())
+    if read.problem != .None || !owner.valid || owner.assets != 1 { return Fail(6, cast(s32)read.problem) }
+    decoded := Link.ZxExecReadProgram(*owner)
+    if decoded.entry != 0 || decoded.sources.count != 0 || decoded.origins.count != 0 ||
+        decoded.functions[0].origin != -1 || decoded.functions[0].blocks[0].instructions[0].origin != -1 {
+        return Fail(7)
+    }
+    // The decoded program owns its storage; changing the input after the read
+    // cannot change execution.
+    first[0] = 0
+    plan: Exec.LirExecPlan
+    instance: Exec.LirExecInstance
+    execution := Exec.LirExecPlanBuild(decoded, Lir.LirDefaultLimits(), *plan)
+    if execution.problem == .None {
+        execution = Exec.LirExecInstanceOpen(*plan, Exec.LirExecDefaultLimits(), 1, *instance)
+    }
+    if execution.problem == .None { execution = Exec.LirExecRun(*instance) }
+    if execution.problem != .None || execution.value.bits != 42 { return Fail(8, cast(s32)execution.problem) }
+    Exec.LirExecInstanceClose(*instance)
+    Exec.LirExecPlanFree(*plan)
+    Link.ZxExecReadFree(*owner)
+    Link.ZxExecReadFree(*owner)
+
+    mutation := CopyBytes(second[:])
+    mutation[4] = 26
+    read = Link.ZxExecRead(*owner, TextView(mutation[:]), Lir.LirDefaultLimits())
+    if read.problem != .Container || read.container != .Legacy || owner.valid { return Fail(9) }
+    VecFree(mutation)
+    mutation = CopyBytes(second[:])
+    mutation[16] = 2
+    read = Link.ZxExecRead(*owner, TextView(mutation[:]), Lir.LirDefaultLimits())
+    if read.problem != .Container || read.container != .Feature { return Fail(10) }
+    VecFree(mutation)
+    mutation = CopyBytes(second[:])
+    // Header 64 + three directory entries 96 places the manifest at 160;
+    // its first identity starts after eight u32 fields.
+    mutation[192] ^= 1
+    read = Link.ZxExecRead(*owner, TextView(mutation[:]), Lir.LirDefaultLimits())
+    if read.problem != .Identity { return Fail(11, cast(s32)read.problem) }
+    VecFree(mutation)
+    mutation = CopyBytes(second[:])
+    asset_offset := cast(s64)ReadU64(mutation[:], 64 + 2 * 32 + 8)
+    mutation[mutation.count - 1] ^= 1
+    if asset_offset < 0 || asset_offset >= mutation.count ||
+        Link.ZxExecRead(*owner, TextView(mutation[:]), Lir.LirDefaultLimits()).problem != .Identity {
+        return Fail(12)
+    }
+    VecFree(mutation)
+    read = Link.ZxExecRead(*owner, TextView(VecSlice(second, 0, second.count - 1)), Lir.LirDefaultLimits())
+    if read.problem != .Container || read.container != .Truncated { return Fail(13) }
+    mutation = CopyBytes(second[:])
+    if !VecResizeBounded(mutation, mutation.count + 1, mutation.count + 1) { return Fail(14) }
+    mutation[mutation.count - 1] = 0
+    read = Link.ZxExecRead(*owner, TextView(mutation[:]), Lir.LirDefaultLimits())
+    if read.problem != .Container || read.container != .Trailing { return Fail(15) }
+    Link.ZxExecReadFree(*owner)
+    VecFree(mutation)
+    VecFree(first)
+    VecFree(second)
+    budget_result := BudgetManySymbols()
+    if budget_result != 0 { return budget_result }
+    budget_result = BudgetRepeatedIndirect()
+    if budget_result != 0 { return budget_result }
+    print("executable bundle: deterministic stripped execution, bounded hostile symbols/indirect calls and mutation local tests passed\n")
+    return 0
+}

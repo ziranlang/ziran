@@ -5,8 +5,10 @@
 The ten-step plan is **not finished**. There is now an opt-in `zi2asm` tool
 that lowers checked source or saved `.zir` to verified, typed SSA and
 directly encodes a Linux x86-64 ELF executable. The existing C, Go, wasm and
-ZX paths are unchanged. In particular, `.zx` has **not** been replaced by the
-new instruction format.
+ZX paths are unchanged. `zi2asm --emit zx` also writes an opt-in
+[revision-28 executable container](zx-executable-format.md), but the default
+`.zx` selection has **not** been replaced by the new instruction format.
+Delivery order and the plan review are in [milestones](milestones.md).
 
 The prototype's actual path is:
 
@@ -33,8 +35,10 @@ assembler, C compiler, or system linker to produce this executable.
   eight floating-point register arguments, independently.
 - Record and fixed-array construction, extraction, local field/index mutation,
   record-returning direct calls, nested value copies and simultaneous aggregate
-  block transfers in lowered IR and native ELF output. Array indices currently
-  must be literals. Aggregate programs use the explicitly documented
+  block transfers in lowered IR and native ELF output. Local fixed arrays accept
+  dynamic integer indices with signedness-aware bounds checks. Assignment
+  destinations and every nested index are evaluated once before the right side.
+  Aggregate programs use the explicitly documented
   [packed internal ABI](native-aggregate-abi.md), not the external System V
   aggregate ABI; mixed direct calls are not limited to argument registers.
 - Portable and native procedure values, arguments/results and indirect calls
@@ -49,8 +53,10 @@ assembler, C compiler, or system linker to produce this executable.
   Global/record-field addresses, pointer arguments/results and dereference
   reads/writes also lower to checked address operations. Assignments evaluate
   the destination once before the right-hand side; compound assignments retain
-  the preceding value even when a call mutates an alias. Address-taking of local
-  storage still requires further lowering. Dynamic fixed-array element addresses
+  the preceding value even when a call mutates an alias. Local bool, integer, float and
+  pointer bindings can have their address taken; such locals become checked
+  frame allocations. Address-taking of local records, arrays and procedure
+  values is rejected explicitly. Dynamic fixed-array element addresses
   rooted in globals or checked pointers are bounds-checked, including nested
   records/arrays and addresses returned across procedure calls.
   Retained tests compare C, Go and explicit old-VM execution where the old VM
@@ -70,12 +76,21 @@ assembler, C compiler, or system linker to produce this executable.
   parameters/results and separate RX text/RW data segments. Native dispatch
   validates tokens and exact pointee types; it is currently a bounded linear
   scan, not an optimized pointer-access path. No generated-C bridge is used.
+- Verified lowered IR supports frame-local allocation of bool, fixed-width
+  integer/float, and pointer values in both the portable engine and native ELF.
+  Every execution receives fresh zero-default or explicitly initialized storage.
+  Native active-frame descriptors preserve aliases through calls and recursion;
+  stale, wrong-type, forged, and exhausted-generation tokens trap with status 125.
+- A verified, target-neutral [machine IR](machine-ir.md) boundary lowers the
+  current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
+  constraints, explicit flags, call clobbers and parallel copies. It is not yet
+  register-allocated or encoded; native ELF output still uses the direct encoder.
 - `--emit lir` and `--emit map` inspection views. Map ranges are half-open,
   relative to `.text`, and identify function, block, instruction and source.
   The map also records actual function extents, total text size and the complete
   source-position/origin-parent table, including checked end-line/end-column
   coordinates. Unavailable end positions are `0/0`; unavailable source byte
-  offsets are `-1/-1`, not fabricated zero-length spans. LIR schema 2 rejects
+  offsets are `-1/-1`, not fabricated zero-length spans. LIR schema 3 rejects
   older `.lirb` artifacts at a rebuild boundary. Textual names are quoted and escaped rather
   than allowed to inject extra lines into the instruction listing. Metadata
   names and paths must be nonempty, NUL-free valid UTF-8; malformed wire metadata
@@ -201,9 +216,9 @@ encoding and inspection data, without claiming target execution.
 
 No full-plan completion gate is closed by this prototype. Outstanding work
 includes complete language lowering (full global initialization, pointers, dynamic aggregates,
-strings, cleanup, allocation, collection loops, foreign/host services and concurrency), the
-complete portable runtime and new ZX decoder/container, optimization,
-machine IR and register allocation, relocatable objects and a real linker,
+strings, cleanup, heap allocation, collection loops, foreign/host services and concurrency), the
+complete portable runtime, host capabilities and library composition in the
+new ZX container, optimization, register allocation and machine-IR encoding, relocatable objects and a real linker,
 other architectures and OS ABIs, shared native-ZX execution, runtime integration,
 source/unwind debug information, profiler/JIT mapping and the final compatibility cutover.
 
@@ -222,6 +237,9 @@ not close the full upgrade's feature or validation gates.
   [encoder](../cmd/compiler_lowered_x64.zi).
 - [Instruction codec](../cmd/compiler_exec_serial.zi),
   [wire format](lowered-format.md), [portable engine](../cmd/compiler_exec.zi).
+- [Executable container binding](../cmd/compiler_exec_link.zi) and
+  [format](zx-executable-format.md); [machine IR](../cmd/compiler_machine_ir.zi),
+  [lowering](../cmd/compiler_machine_lower.zi) and [verifier](../cmd/compiler_machine_verify.zi).
 - [Checked-language adapter](../cmd/zir-asm/zir_asm_lower.c),
   [CLI](../cmd/zir-asm/main.c), [build integration](../assembly.mk).
 - [Source/saved-IR integration tests](../tests/assembly_cases.zi),
@@ -257,6 +275,9 @@ oracle tests explicitly select `--vm`; automatic/native ZX execution is not
 evidence that the portable VM ran.
 
 ## Ten-step completion plan
+
+The steps define completion; [milestones](milestones.md) define the delivery
+order, per-row cutover and interim measurement points.
 
 1. [Execution contract and completion matrix](01-contract-and-completion-matrix.md)
 2. [Lowered IR and verifier](02-lowered-ir-and-verifier.md)

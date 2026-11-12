@@ -181,6 +181,31 @@ and field values, then lets the authoritative verifier accept or reject the
 result. Enum values beyond the current declared range and flag bits outside
 the masks above are noncanonical format errors before verification.
 
+## Checked array value operations
+
+LIR schema 3 extends `extract` and `insert` with dynamic fixed-array indices.
+Their existing immediate-index forms remain: `extract` takes one aggregate
+operand, and `insert` takes an aggregate followed by the replacement value.
+The member ordinal is in `immediate`.
+
+Dynamic `extract` takes an array and an integer index. Dynamic `insert` takes
+an array, a replacement element and an integer index. Their `immediate` is zero.
+The verifier requires an actual array type, a fixed integer index and an exact
+element/result type match; a record cannot use either dynamic form.
+
+Execution rejects negative signed indices and indices greater than or equal
+to the count, including zero-sized elements and zero-length arrays. Narrow
+signed values are interpreted at their declared width. An accepted index
+selects the packed element interval; extraction copies that element, and
+insertion copies the array before replacing the selected interval. Array
+values retain value semantics.
+
+Dynamic operations can trap even when their result is unused. Optimization
+must retain that check and its source/effect ordering. Source lowering captures
+every destination index and checks it before evaluating the right-hand side.
+The native encoder performs a bounds check followed by direct indexed frame
+addressing rather than an element-by-element dispatch scan.
+
 ## Debug section
 
 ```text
@@ -204,15 +229,16 @@ Source strings are copied like all other strings. Origin parent chains and
 file references are checked by `LirVerify`; hostile depth is handled by its
 bounded iterative validation.
 
-LIR schema version 2 preserves checked source end-line/end-column coordinates.
+LIR schema version 3 retains the checked source end-line/end-column coordinates
+introduced in schema 2.
 Coordinates are one-based; `end_line = end_column = 0` explicitly means the
 end position is unavailable. A known end cannot precede the start. Byte offsets
 are either an ordered nonnegative pair or `begin = end = -1` when unavailable.
 The source/saved-IR adapter preserves the checked graph's line/column positions
 and emits unknown byte offsets: that graph does not contain byte coordinates.
 It never rereads source text to invent offsets. Format framing remains version
-1, but readers reject the previous LIR schema with `Version`; rebuild `.lirb`
-artifacts rather than interpreting old debug records as the new layout.
+1, but readers reject previous LIR schemas with `Version`; rebuild `.lirb`
+artifacts rather than mixing different instruction or debug contracts.
 
 ## Validation and error boundary
 

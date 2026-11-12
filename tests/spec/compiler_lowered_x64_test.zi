@@ -43,9 +43,16 @@ GlobalOffset :: (program: LirProgram, global: s64) -> s64 {
     return offset
 }
 
+HasAllocations :: (program: LirProgram) -> bool {
+    for function: program.functions { for block: function.blocks { for instruction: block.instructions {
+        if instruction.op == .Allocate { return true }
+    } } }
+    return false
+}
+
 Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNativeRange,
     image: LirX64ImageLayout) -> bool {
-    globals := program.globals.count != 0
+    globals := program.globals.count != 0 || HasAllocations(program)
     section_count := ifx globals then 6 else 5
     names_index := ifx globals then 3 else 2
     section_bits := Little(bytes, 40, 8)
@@ -278,6 +285,47 @@ Scalar :: (test: *NativeTest, types: []LirType, type: s64, op: LirOp, left_bits:
         .constants = constants[:], .functions = functions[:], .entry = 0}
     label := CheckConcat(LirOpName(op), CheckConcat(" type ", CheckNumber(type)))
     Execute(test, program, expected, label)
+}
+
+DynamicArrayValues :: (test: *NativeTest) {
+    for mode: 0..8 {
+        types: [7]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+            .{.kind = .Integer, .bits = 8}, .{.kind = .Integer, .bits = 8, .is_signed = true},
+            .{.kind = .Array, .element = 1, .count = 300}, .{.kind = .Pointer, .element = 4},
+            .{.kind = .Integer, .bits = 64}]
+        constants: [3]LirConstant = .[.{.type = 2, .bits = 255}, .{.type = 1, .bits = 42},
+            .{.type = 2, .bits = 255}]
+        values: [7]s32 = .[5, 4, 2, 1, 4, 2, 1]
+        if mode == 1 { types[4].count = 3; constants[0].bits = 2; constants[2].bits = 2 }
+        if mode == 2 { types[4].count = 0; constants[0].bits = 0; constants[2].bits = 0 }
+        if mode == 3 { constants[0].type = 3; values[2] = 3 }
+        if mode == 4 || mode == 5 {
+            constants[0].type = 6; values[2] = 6; constants[2].type = 6; values[5] = 6
+            constants[0].bits = ifx mode == 4 then cast(u64)4294967296 else cast(u64)299
+            constants[2].bits = constants[0].bits
+        }
+        if mode == 6 { constants[2].type = 3; values[5] = 3 }
+        if mode == 7 { constants[2].type = 6; values[5] = 6; constants[2].bits = 300 }
+        if mode == 8 { constants[2].bits = 0 }
+        empty: [0]s32; loaded: [1]s32 = .[0]
+        inserted: [3]s32 = .[1, 3, 2]; extracted: [2]s32 = .[4, 5]; returned: [1]s32 = .[6]
+        instructions: [8]LirInstruction = .[
+            Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Load, 1, loaded[:]),
+            Instruction(.Constant, 2, empty[:], 0), Instruction(.Constant, 3, empty[:], 1),
+            Instruction(.Insert, 4, inserted[:]), Instruction(.Constant, 5, empty[:], 2),
+            Instruction(.Extract, 6, extracted[:]), Instruction(.Return, -1, returned[:])]
+        instructions[1].effect = 1
+        blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+        modules := string.["dynamic-array"]
+        globals: [1]LirGlobal = .[.{.module = 0, .name = "zero-array", .type = 4, .constant = -1, .writable = true}]
+        functions: [1]LirFunction = .[.{.module = 0, .name = "replace", .result = 1,
+            .values = values[:], .blocks = blocks[:], .origin = -1}]
+        program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+            .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+        trapping := mode >= 2 && mode <= 4 || mode == 6 || mode == 7
+        Execute(test, program, ifx trapping then 125 else ifx mode == 8 then 0 else 42, "dynamic-array")
+        if test.failed { return }
+    }
 }
 
 NestedAggregates :: (test: *NativeTest) {
@@ -1745,6 +1793,360 @@ Markers :: (test: *NativeTest, types: []LirType) {
     }
 }
 
+AllocationMetadata :: (test: *NativeTest, program: LirProgram, word: s64,
+    value: u64, expected: s32, label: string) {
+    if test.failed { return }
+    no_bytes: [0]u8
+    measured := LirX64Elf(program, no_bytes[:])
+    image := LirX64ElfLayout(program)
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, measured.problem == .None && image.problem == .None &&
+        image.data_size >= 8 && VecResize(bytes, measured.size), "allocate counter fixture") { return }
+    written := LirX64Elf(program, bytes[:])
+    if !NativeAssert(test, written.problem == .None && written.size == measured.size,
+        "encode allocate counter fixture") { return }
+    counter_at := image.data_offset
+    for global: program.globals { counter_at += PackedSize(program, global.type) }
+    for function: program.functions { for block: function.blocks { for instruction: block.instructions {
+        if instruction.op == .Allocate { counter_at += 8 }
+    } } }
+    counter_at += word * 8
+    if !NativeAssert(test, counter_at >= image.data_offset && counter_at + 8 <=
+        image.data_offset + image.data_size, "allocation metadata word extent") { return }
+    for index: cast(s64)0..7 {
+        bytes[counter_at + index] = cast(u8)(value >> cast(u64)(index * 8))
+    }
+    path := CheckPath(test.work, label)
+    if !NativeWrite(test, path, TextFromBytes(bytes[:])) { return }
+    chmod: [3]string = .["/usr/bin/chmod", "700", path]
+    unused NativeRun(test, chmod[:])
+    command: [1]string = .[path]
+    if native_execution { unused NativeRun(test, command[:], "", expected) }
+}
+
+Allocations :: (test: *NativeTest) {
+    types: [3]LirType = .[.{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [2]LirConstant = .[.{.type = 1, .bits = 9}, .{.type = 1, .bits = 7}]
+    empty: [0]s32
+    initialized: [1]s32 = .[1]
+    pointer: [1]s32 = .[0]
+    returned: [1]s32 = .[2]
+    values: [3]s32 = .[2, 1, 1]
+    instructions: [4]LirInstruction = .[
+        Instruction(.Constant, 1, empty[:], 0), Instruction(.Allocate, 0, initialized[:]),
+        Instruction(.Load, 2, pointer[:]), Instruction(.Return, -1, returned[:])]
+    instructions[1].effect = 1
+    instructions[2].effect = 2
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "allocate", .module = 0, .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 9, "descriptors-only six-section ELF allocation")
+    if test.failed { return }
+    no_bytes: [0]u8
+    image := LirX64ElfLayout(program)
+    measured := LirX64Elf(program, no_bytes[:])
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !NativeAssert(test, image.problem == .None && image.text_offset == 176 &&
+        image.data_size == 24 && measured.problem == .None && VecResize(bytes, measured.size),
+        "descriptor image layout query") { return }
+    written := LirX64Elf(program, bytes[:])
+    if !NativeAssert(test, written.problem == .None &&
+        Little(bytes[:], 60, 2) == 6 && Little(bytes[:], 62, 2) == 3,
+        "descriptors-only programs use six ELF sections") { return }
+    escape_values: [1]s32 = .[2]
+    escape_returned: [1]s32 = .[0]
+    escape_instructions: [2]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]), Instruction(.Return, -1, escape_returned[:])]
+    escape_instructions[0].effect = 1
+    escape_blocks: [1]LirBlock = .[.{.instructions = escape_instructions[:]}]
+    caller_values: [3]s32 = .[1, 2, 1]
+    store: [2]s32 = .[1, 0]
+    caller_load: [1]s32 = .[1]
+    caller_instructions: [5]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Call, 1, empty[:], 1),
+        Instruction(.Store, -1, store[:]), Instruction(.Load, 2, caller_load[:]),
+        Instruction(.Return, -1, returned[:])]
+    caller_instructions[1].effect = 1
+    caller_instructions[2].effect = 2
+    caller_instructions[3].effect = 3
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller_instructions[:]}]
+    stale_functions: [2]LirFunction = .[
+        .{.name = "stale-entry", .module = 0, .result = 1, .values = caller_values[:],
+            .blocks = caller_blocks[:], .origin = -1},
+        .{.name = "escape", .module = 0, .result = 2, .values = escape_values[:],
+            .blocks = escape_blocks[:], .origin = -1}]
+    stale := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = stale_functions[:], .entry = 0}
+    Execute(test, stale, 125, "stale allocation pointer traps")
+
+    scalar_types: [8]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}, .{.kind = .Bool, .bits = 1},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Float, .bits = 32},
+        .{.kind = .Pointer, .element = 5}, .{.kind = .Pointer, .element = 2}]
+    scalar_constants: [3]LirConstant = .[.{.type = 1, .bits = 39},
+        .{.type = 3, .bits = 1}, .{.type = 5, .bits = 0x3f800000}]
+    int_initial: [1]s32 = .[0]; int_pointer: [1]s32 = .[1]
+    bool_initial: [1]s32 = .[3]; bool_pointer: [1]s32 = .[4]; bool_value: [1]s32 = .[5]
+    float_initial: [1]s32 = .[7]; float_pointer: [1]s32 = .[8]; float_value: [1]s32 = .[9]
+    pointer_initial: [1]s32 = .[11]; pointer_pointer: [1]s32 = .[12]
+    pointer_equal: [2]s32 = .[11, 13]; pointer_bool: [1]s32 = .[14]
+    zero_pointer: [1]s32 = .[16]
+    sum_a: [2]s32 = .[2, 6]; sum_b: [2]s32 = .[18, 10]
+    sum_c: [2]s32 = .[19, 15]; sum_d: [2]s32 = .[20, 17]
+    scalar_returned: [1]s32 = .[21]
+    scalar_values: [22]s32 = .[1, 2, 1, 3, 4, 3, 1, 5, 6, 5, 1,
+        2, 7, 2, 3, 1, 2, 1, 1, 1, 1, 1]
+    scalar_instructions: [23]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Allocate, 1, int_initial[:]),
+        Instruction(.Load, 2, int_pointer[:]), Instruction(.Constant, 3, empty[:], 1),
+        Instruction(.Allocate, 4, bool_initial[:]), Instruction(.Load, 5, bool_pointer[:]),
+        Instruction(.Convert, 6, bool_value[:]), Instruction(.Constant, 7, empty[:], 2),
+        Instruction(.Allocate, 8, float_initial[:]), Instruction(.Load, 9, float_pointer[:]),
+        Instruction(.Convert, 10, float_value[:]), Instruction(.Null, 11, empty[:]),
+        Instruction(.Allocate, 12, pointer_initial[:]), Instruction(.Load, 13, pointer_pointer[:]),
+        Instruction(.Equal, 14, pointer_equal[:]), Instruction(.Convert, 15, pointer_bool[:]),
+        Instruction(.Allocate, 16, empty[:]), Instruction(.Load, 17, zero_pointer[:]),
+        Instruction(.Add, 18, sum_a[:]), Instruction(.Add, 19, sum_b[:]),
+        Instruction(.Add, 20, sum_c[:]), Instruction(.Add, 21, sum_d[:]),
+        Instruction(.Return, -1, scalar_returned[:])]
+    scalar_instructions[1].effect = 1; scalar_instructions[2].effect = 2
+    scalar_instructions[4].effect = 3; scalar_instructions[5].effect = 4
+    scalar_instructions[8].effect = 5; scalar_instructions[9].effect = 6
+    scalar_instructions[12].effect = 7; scalar_instructions[13].effect = 8
+    scalar_instructions[16].effect = 9; scalar_instructions[17].effect = 10
+    scalar_blocks: [1]LirBlock = .[.{.instructions = scalar_instructions[:]}]
+    scalar_functions: [1]LirFunction = .[.{.name = "allocation-scalars", .module = 0, .result = 1,
+        .values = scalar_values[:], .blocks = scalar_blocks[:], .origin = -1}]
+    scalars := LirProgram.{.version = LirVersion, .modules = modules[:], .types = scalar_types[:],
+        .constants = scalar_constants[:], .functions = scalar_functions[:], .entry = 0}
+    Execute(test, scalars, 42, "zero and initialized scalar allocations")
+
+    zero_entry_returned: [1]s32 = .[1]
+    zero_entry_instructions: [3]LirInstruction = .[
+        Instruction(.Call, 0, empty[:], 1), Instruction(.Call, 1, empty[:], 2),
+        Instruction(.Return, -1, zero_entry_returned[:])]
+    zero_entry_instructions[0].effect = 1; zero_entry_instructions[1].effect = 2
+    zero_entry_values: [2]s32 = .[1, 1]
+    zero_entry_blocks: [1]LirBlock = .[.{.instructions = zero_entry_instructions[:]}]
+    poison_initial: [1]s32 = .[0]
+    poison_returned: [1]s32 = .[0]
+    poison_instructions: [3]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 1), Instruction(.Allocate, 1, poison_initial[:]),
+        Instruction(.Return, -1, poison_returned[:])]
+    poison_instructions[1].effect = 1
+    poison_values: [2]s32 = .[1, 2]
+    poison_blocks: [1]LirBlock = .[.{.instructions = poison_instructions[:]}]
+    uninitialized_pointer: [1]s32 = .[0]
+    uninitialized_returned: [1]s32 = .[1]
+    uninitialized_instructions: [3]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]), Instruction(.Load, 1, uninitialized_pointer[:]),
+        Instruction(.Return, -1, uninitialized_returned[:])]
+    uninitialized_instructions[0].effect = 1; uninitialized_instructions[1].effect = 2
+    uninitialized_values: [2]s32 = .[2, 1]
+    uninitialized_blocks: [1]LirBlock = .[.{.instructions = uninitialized_instructions[:]}]
+    zero_functions: [3]LirFunction = .[
+        .{.name = "zero-entry", .module = 0, .result = 1, .values = zero_entry_values[:],
+            .blocks = zero_entry_blocks[:], .origin = -1},
+        .{.name = "poison-stack", .module = 0, .result = 1, .values = poison_values[:],
+            .blocks = poison_blocks[:], .origin = -1},
+        .{.name = "uninitialized-zero", .module = 0, .result = 1, .values = uninitialized_values[:],
+            .blocks = uninitialized_blocks[:], .origin = -1}]
+    zeroed := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = zero_functions[:], .entry = 0}
+    Execute(test, zeroed, 0, "uninitialized allocation clears reused stack storage")
+
+    AllocationMetadata(test, program, 0, 1099511627775, 125, "allocation-counter-max")
+    AllocationMetadata(test, program, 0, 1099511627774, 125, "allocation-counter-max-minus-one")
+    AllocationMetadata(test, program, 0, 1099511627773, 9, "allocation-counter-last-valid")
+    AllocationMetadata(test, program, 1, 268435416, 9, "allocation-region-last-valid")
+    AllocationMetadata(test, program, 1, 268435417, 125, "allocation-region-record-overflow")
+    AllocationMetadata(test, program, 1, 268435456, 125, "allocation-region-full")
+    AllocationMetadata(test, program, 1, 18446744073709551615, 125, "allocation-region-bump-overflow")
+
+    no_parameters: [0]s32
+    function_types: [4]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Function, .parameters = no_parameters[:], .result = 1},
+        .{.kind = .Pointer, .element = 2}]
+    function_values: [1]s32 = .[3]
+    function_instructions: [2]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]), Instruction(.Return, -1, empty[:])]
+    function_instructions[0].effect = 1
+    function_blocks: [1]LirBlock = .[.{.instructions = function_instructions[:]}]
+    function_functions: [1]LirFunction = .[.{.name = "function-allocation-rejected", .module = 0,
+        .result = 0, .values = function_values[:], .blocks = function_blocks[:], .origin = -1}]
+    function_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .types = function_types[:], .functions = function_functions[:], .entry = 0}
+    rejected := LirX64Elf(function_program, no_bytes[:])
+    unused NativeAssert(test, rejected.problem == .Type && rejected.size == 0,
+        "function pointee allocation remains outside verifier boundary")
+}
+
+AllocationLoop :: (test: *NativeTest) {
+    types: [4]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
+    constants: [4]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 7},
+        .{.type = 1, .bits = 1}, .{.type = 1, .bits = 11}]
+    empty: [0]s32
+    entry_arguments: [2]s32 = .[0, 1]
+    entry_edges: [1]LirEdge = .[.{.block = 1, .arguments = entry_arguments[:]}]
+    entry: [3]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Null, 1, empty[:]),
+        Instruction(.Jump, -1, empty[:])]
+    entry[2].edges = entry_edges[:]
+    loop_parameters: [2]s32 = .[2, 3]
+    comparison: [2]s32 = .[2, 0]
+    condition: [1]s32 = .[5]
+    branch_edges: [2]LirEdge = .[.{.block = 2}, .{.block = 3}]
+    loop: [3]LirInstruction = .[
+        Instruction(.Allocate, 4, empty[:]), Instruction(.Equal, 5, comparison[:]),
+        Instruction(.Branch, -1, condition[:])]
+    loop[0].effect = 1; loop[2].edges = branch_edges[:]
+    first_store: [2]s32 = .[4, 6]
+    next_arguments: [2]s32 = .[7, 4]
+    next_edges: [1]LirEdge = .[.{.block = 1, .arguments = next_arguments[:]}]
+    first: [4]LirInstruction = .[
+        Instruction(.Constant, 6, empty[:], 1), Instruction(.Store, -1, first_store[:]),
+        Instruction(.Constant, 7, empty[:], 2), Instruction(.Jump, -1, empty[:])]
+    first[1].effect = 1; first[3].edges = next_edges[:]
+    second_store: [2]s32 = .[4, 8]
+    first_pointer: [1]s32 = .[3]; second_pointer: [1]s32 = .[4]
+    sum: [2]s32 = .[9, 10]; returned: [1]s32 = .[11]
+    second: [6]LirInstruction = .[
+        Instruction(.Constant, 8, empty[:], 3), Instruction(.Store, -1, second_store[:]),
+        Instruction(.Load, 9, first_pointer[:]), Instruction(.Load, 10, second_pointer[:]),
+        Instruction(.Add, 11, sum[:]), Instruction(.Return, -1, returned[:])]
+    second[1].effect = 1; second[2].effect = 2; second[3].effect = 3
+    values: [12]s32 = .[1, 3, 1, 3, 3, 2, 1, 1, 1, 1, 1, 1]
+    blocks: [4]LirBlock = .[.{.instructions = entry[:]},
+        .{.parameters = loop_parameters[:], .instructions = loop[:]},
+        .{.instructions = first[:]}, .{.instructions = second[:]}]
+    modules: [1]string = .["native-test"]
+    functions: [1]LirFunction = .[.{.name = "allocation-loop", .module = 0, .result = 1,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 18, "same allocation site stays distinct across loop iterations")
+}
+
+AllocationRecursive :: (test: *NativeTest) {
+    types: [4]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Bool, .bits = 1}, .{.kind = .Pointer, .element = 1}]
+    constants: [2]LirConstant = .[.{.type = 1, .bits = 0}, .{.type = 1, .bits = 1}]
+    empty: [0]s32
+    entry_call: [1]s32 = .[0]; entry_return: [1]s32 = .[1]
+    entry_instructions: [3]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 1), Instruction(.Call, 1, entry_call[:], 1),
+        Instruction(.Return, -1, entry_return[:])]
+    entry_instructions[1].effect = 1
+    entry_values: [2]s32 = .[1, 1]
+    entry_blocks: [1]LirBlock = .[.{.instructions = entry_instructions[:]}]
+    parameters: [1]s32 = .[1]; parameter_values: [1]s32 = .[0]
+    initialized: [1]s32 = .[0]
+    comparison: [2]s32 = .[0, 2]; condition: [1]s32 = .[3]
+    recursive_edges: [2]LirEdge = .[.{.block = 1}, .{.block = 2}]
+    recursive_entry: [4]LirInstruction = .[
+        Instruction(.Allocate, 1, initialized[:]), Instruction(.Constant, 2, empty[:], 0),
+        Instruction(.Equal, 3, comparison[:]), Instruction(.Branch, -1, condition[:])]
+    recursive_entry[0].effect = 1; recursive_entry[3].edges = recursive_edges[:]
+    own_pointer: [1]s32 = .[1]; base_return: [1]s32 = .[4]
+    base: [2]LirInstruction = .[
+        Instruction(.Load, 4, own_pointer[:]), Instruction(.Return, -1, base_return[:])]
+    base[0].effect = 1
+    inner_argument: [1]s32 = .[2]; outer_return: [1]s32 = .[6]
+    recurse: [3]LirInstruction = .[
+        Instruction(.Call, 5, inner_argument[:], 1), Instruction(.Load, 6, own_pointer[:]),
+        Instruction(.Return, -1, outer_return[:])]
+    recurse[0].effect = 1; recurse[1].effect = 2
+    recursive_values: [7]s32 = .[1, 3, 1, 2, 1, 1, 1]
+    recursive_blocks: [3]LirBlock = .[
+        .{.parameters = parameter_values[:], .instructions = recursive_entry[:]},
+        .{.instructions = base[:]}, .{.instructions = recurse[:]}]
+    modules: [1]string = .["native-test"]
+    functions: [2]LirFunction = .[
+        .{.name = "allocation-recursive-entry", .module = 0, .result = 1,
+            .values = entry_values[:], .blocks = entry_blocks[:], .origin = -1},
+        .{.name = "allocation-recursive-site", .module = 0, .parameters = parameters[:],
+            .result = 1, .values = recursive_values[:], .blocks = recursive_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 1, "recursive allocation retains the outer live address")
+}
+
+AllocationAlias :: (test: *NativeTest) {
+    types: [3]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [1]LirConstant = .[.{.type = 1, .bits = 42}]
+    empty: [0]s32
+    initialized: [1]s32 = .[0]; arguments: [1]s32 = .[1]
+    pointer: [1]s32 = .[1]; sum: [2]s32 = .[2, 3]; returned: [1]s32 = .[4]
+    caller: [6]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Allocate, 1, initialized[:]),
+        Instruction(.Call, 2, arguments[:], 1), Instruction(.Load, 3, pointer[:]),
+        Instruction(.Add, 4, sum[:]), Instruction(.Return, -1, returned[:])]
+    caller[1].effect = 1; caller[2].effect = 2; caller[3].effect = 3
+    caller_values: [5]s32 = .[1, 2, 1, 1, 1]
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller[:]}]
+    parameters: [1]s32 = .[2]; parameter_values: [1]s32 = .[0]
+    callee_pointer: [1]s32 = .[0]; callee_returned: [1]s32 = .[1]
+    callee: [2]LirInstruction = .[
+        Instruction(.Load, 1, callee_pointer[:]), Instruction(.Return, -1, callee_returned[:])]
+    callee[0].effect = 1
+    callee_values: [2]s32 = .[2, 1]
+    callee_blocks: [1]LirBlock = .[.{.parameters = parameter_values[:], .instructions = callee[:]}]
+    modules: [1]string = .["native-test"]
+    functions: [2]LirFunction = .[
+        .{.name = "allocation-alias-entry", .module = 0, .result = 1,
+            .values = caller_values[:], .blocks = caller_blocks[:], .origin = -1},
+        .{.name = "allocation-alias-read", .module = 0, .parameters = parameters[:],
+            .result = 1, .values = callee_values[:], .blocks = callee_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 84, "active allocation aliases across calls")
+}
+
+AllocationReusedFrame :: (test: *NativeTest) {
+    types: [3]LirType = .[.{.kind = .Void},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}]
+    constants: [1]LirConstant = .[.{.type = 1, .bits = 9}]
+    empty: [0]s32
+    argument: [1]s32 = .[0]; stale_pointer: [1]s32 = .[1]; returned: [1]s32 = .[3]
+    caller: [5]LirInstruction = .[
+        Instruction(.Constant, 0, empty[:], 0), Instruction(.Call, 1, argument[:], 1),
+        Instruction(.Call, 2, argument[:], 1), Instruction(.Load, 3, stale_pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    caller[1].effect = 1; caller[2].effect = 2; caller[3].effect = 3
+    caller_values: [4]s32 = .[1, 2, 2, 1]
+    caller_blocks: [1]LirBlock = .[.{.instructions = caller[:]}]
+    parameters: [1]s32 = .[1]; parameter_values: [1]s32 = .[0]
+    initialized: [1]s32 = .[0]; pointer_return: [1]s32 = .[1]
+    callee: [2]LirInstruction = .[
+        Instruction(.Allocate, 1, initialized[:]), Instruction(.Return, -1, pointer_return[:])]
+    callee[0].effect = 1
+    callee_values: [2]s32 = .[1, 2]
+    callee_blocks: [1]LirBlock = .[.{.parameters = parameter_values[:], .instructions = callee[:]}]
+    modules: [1]string = .["native-test"]
+    functions: [2]LirFunction = .[
+        .{.name = "allocation-reused-frame-entry", .module = 0, .result = 1,
+            .values = caller_values[:], .blocks = caller_blocks[:], .origin = -1},
+        .{.name = "allocation-reused-frame", .module = 0, .parameters = parameters[:],
+            .result = 2, .values = callee_values[:], .blocks = callee_blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 125, "stale allocation traps after frame-address reuse")
+}
+
 main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "lowered-x64")
     defer NativeCleanup(*test)
@@ -1758,6 +2160,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     Scalar(*test, types[:], 1, .Equal, 0, 1, 0, 1)
     Scalar(*test, types[:], 1, .NotEqual, 0, 1, 1, 1)
     NestedAggregates(*test)
+    DynamicArrayValues(*test)
     AggregateCalls(*test)
     AggregateRecursive(*test)
     AggregateFlow(*test)
@@ -1767,6 +2170,11 @@ main :: (argc: s32, argv: **u8) -> s32 {
     GlobalOracle(*test)
     GlobalValues(*test)
     GlobalPointerTraps(*test)
+    Allocations(*test)
+    AllocationLoop(*test)
+    AllocationRecursive(*test)
+    AllocationAlias(*test)
+    AllocationReusedFrame(*test)
     GlobalLimits(*test)
     ElementOracle(*test)
     ElementValues(*test)

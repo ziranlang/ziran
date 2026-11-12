@@ -6,21 +6,103 @@ physical host and atomically writes a Markdown report with absolute medians,
 per-case ratios, regressions, missing cells, raw samples, and audited outlier
 indices.
 
-This is reporting infrastructure, not a benchmark result. The full ASSEMBLY
-implementation is incomplete, the existing collectors do not yet emit this
-schema, and the physical-host Alpha campaign has not run. Therefore there is no
-measured ZX speedup to report yet.
+This is reporting and collection infrastructure, not a benchmark result. The
+full ASSEMBLY implementation is incomplete and the physical-host Alpha campaign
+has not run. Therefore there is no measured ZX speedup to report yet.
 
 ## Invocation
 
 ```sh
-build/bin/ziran run --target=c --root bench --module-path . \
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+    build/bin/ziran run --target=c --root bench --module-path . \
     bench/assembly_compare.zi -- INPUT.json OUTPUT.md
 ```
 
 The processor does not invoke a compiler, VM, workload, timer, or remote host.
-Benchmark compilation and measurement remain an Alpha physical-host integration
-task.
+`bench/assembly_collect.zi` is the separate collector. Its measurement-free plan
+validation may run locally:
+
+```sh
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+    build/bin/ziran run --target=c --root bench --module-path . \
+    bench/assembly_collect.zi -- --validate PLAN.json
+```
+
+Actual collection must run only in the canonical checkout on Alpha's physical
+host:
+
+```sh
+build-queue -- env -u DISPLAY -u WAYLAND_DISPLAY \
+    build/bin/ziran run --target=c --root bench --module-path . \
+    bench/assembly_collect.zi -- PLAN.json bench/results/CAMPAIGN/raw.json
+```
+
+The collector checks its plan completely before execution, then attests the
+fresh hostname, exact `lscpu` model name, `uname -srmo` result, and
+`systemd-detect-virt` result `none`. The plan must name physical host `alpha`
+and an `alpha...` hostname. A failed attestation occurs before input hashing,
+cache changes, or workload commands. This is a host guard, not permission to
+run the command from another machine with copied or edited provenance.
+
+### Collector plan, version 1
+
+The plan root has exactly ten members: `schema_version` (exactly `1`),
+`campaign`, `physical_host`, `hostname`, `cpu`, `os`, absolute
+`working_directory`, absolute `collector_work`, `required_cells`, and `jobs`.
+`collector_work` must be a child of the working directory. Required cells use
+the same four-member schema documented below and may include modes that have no
+job; those remain visible as missing cells in the generated report.
+
+Each job has exactly these 24 members:
+
+| Member | Contract |
+| --- | --- |
+| `receipt_id`, `case`, `engine`, `selector` | Unique receipt/cell identity and an exact supported engine/selector pair. |
+| `phase`, `metric`, `unit` | One documented phase triple: duration in `ns`, throughput in `ops/s`, memory in `KiB`, or size in `bytes`. |
+| `command` | Nonempty argv array. The absolute executable must be in `runtime_closure`; no shell parses it. |
+| `verification` | Optional argv array run outside the measured interval. Compile and size jobs require it. |
+| `runtime_closure` | Nonempty ordered list of `{path, sha256}` objects. It must contain every executable, runtime, header/module manifest, linked dependency, and helper needed to reproduce the selected baseline; every listed digest is checked before and after collection. |
+| `workload`, `input_path`, `input_checksum` | Exact workload identity, regular input/artifact path, and `sha256:` digest. |
+| `semantic_settings`, `correctness_expected` | Canonical common semantics including `process=fresh-child-per-sample`, and the exact `sha256:` of expected stdout. |
+| `iterations`, `repeats`, `warmups`, `timeout_ms` | Positive work per sample, 3–4096 raw samples, phase-checked warmups, and a bounded child timeout. |
+| `cache_policy`, `cache_directory` | `private-cold-each-sample`, `private-warm-across-samples`, or `immutable-artifact-no-engine-cache`. Private cache paths must be children of `collector_work`; only those paths are reset. |
+| `environment` | Ordered explicit `NAME=value` settings or bare names to remove. Display variables are always removed and desktop recovery is disabled. |
+| `artifact` | Measured build/size artifact under `collector_work`, or `-` when the phase does not produce one. |
+| `rss_tool` | Absolute GNU/BusyBox time executable for memory jobs, declared in the closure, or `-` for every other phase. |
+
+Every sample starts a fresh child process. Warm phases require at least one
+discarded warmup and preserve their private cache across warmups and samples.
+Cold private caches are reset before every measured sample. Compile and size
+jobs remove only their declared artifact before each sample, then run their
+separate correctness command. Duration uses monotonic nanoseconds; throughput
+requires `timing=internal-kernel-ns`, reads a positive kernel-nanosecond value
+from the measured command, and divides exact iterations by that internal
+interval, so process startup is not mislabeled as sustained work. Throughput
+also requires a separate untimed correctness command. Memory uses the child
+launcher's peak-RSS KiB; size uses the freshly produced regular file. Correctness
+stdout must match the expected digest for every sample. Any command, timeout,
+checksum, correctness, or post-run closure failure aborts without replacing the
+raw receipt file.
+
+The receipt's `toolchain` preserves the selector, cache/process policy, complete
+ordered runtime-closure identities, verification argv, and explicit environment;
+`flags` preserves the measured command argv after its executable. The collector
+emits only the strict version-1 four-member document accepted by the processor.
+
+Current honest selectors are:
+
+| Engine | Selector | Status |
+| --- | --- | --- |
+| `old-portable-vm` | `zx-vm` | Supported only with explicit `run --vm`. |
+| `new-portable` | `lowered-portable` | Supported only with explicit `zi2asm --run`; this is the lowered reference engine, not a replacement ZX format claim. |
+| `direct-aot` | `direct-aot` | Supported only by executing the exact hashed ELF artifact. It is never relabeled as native ZX. |
+| `control-c`, `control-go`, `control-wasm` | matching selector | Supported with an exact absolute command and complete hashed closure. |
+| `old-c-tinycc-native` | — | Missing: the current CLI default does not provide native-only selection proof. |
+| `new-native` | — | Missing: there is no selectable real new-native ZX engine. |
+
+Requests for either missing execution mode fail plan validation. They may and
+should remain in `required_cells`, where the processor reports them as missing
+rather than manufacturing fallback receipts.
 
 ## Exact input schema, version 1
 
@@ -171,7 +253,8 @@ The Markdown output contains:
 - every missing required engine/phase cell;
 - per-receipt workload, checksum, iterations, semantics, toolchain, flags, and
   correctness identities;
-- raw samples in original order, excluded indices, and retained medians.
+- explicit sample counts, raw samples in original order, excluded indices, and
+  retained medians.
 
 All receipt-controlled Markdown and HTML metacharacters are encoded before
 rendering, including pipes, backticks, backslashes, angle brackets, ampersands,
@@ -228,8 +311,10 @@ until the implementation and its local correctness gates are complete.
 ## Current limitation and next integration step
 
 `bench/zx_compare.py` and `bench/zx_execution.zi` are older collectors and were
-not changed. A future collector integration must emit the schema above and must
-run the actual before/after workloads only on Alpha's physical host. After the
-full ASSEMBLY engines are ready, that campaign can supply real receipts to this
-processor. Until then, tests use synthetic statistical fixtures only, and this
-document makes no performance claim.
+not changed. `bench/assembly_collect.zi` now supplies the strict collector
+prerequisite for genuinely selectable modes, but cannot complete the five-core
+matrix: both native cells described above remain unavailable. After native-only
+baseline proof and a real new-native ZX integration exist, the same plan format
+can add those jobs. Until then, tests use synthetic validation/statistical
+fixtures only, no Alpha campaign has run, and this document makes no performance
+claim.

@@ -428,12 +428,15 @@ CopyPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
     return VerifyPass(state, program, limits)
 }
 
-DeadOperation :: (op: LirOp) -> bool {
+DeadOperation :: (instruction: LirInstruction) -> bool {
+    op := instruction.op
+    if op == .Extract { return instruction.operands.count == 1 }
+    if op == .Insert { return instruction.operands.count == 2 }
     return op == .Constant || op == .Null || op == .Add || op == .Subtract ||
         op == .Multiply || op == .Negate || op == .BitAnd || op == .BitOr ||
         op == .BitXor || op == .BitNot || op == .Equal || op == .NotEqual ||
         op == .Less || op == .LessEqual || op == .Greater || op == .GreaterEqual ||
-        op == .Bitcast || op == .Aggregate || op == .Extract || op == .Insert
+        op == .Bitcast || op == .Aggregate
 }
 
 CompactValues :: (state: *OptState, function: *LirFunction, keep: []u8,
@@ -508,7 +511,7 @@ DeadPass :: (state: *OptState, program: LirProgram, limits: LirLimits) -> bool {
                     if !Spend(state, 1) { VecFree(uses); VecFree(removed); return false }
                     result := instruction.result
                     if result == LirNoId || removed[result] != 0 || uses[result] != 0 ||
-                        !DeadOperation(instruction.op) { continue }
+                        !DeadOperation(instruction) { continue }
                     removed[result] = 1
                     for operand: instruction.operands {
                         if uses[operand] <= 0 { VecFree(uses); VecFree(removed); return Fail(state, .VerifyPass) }

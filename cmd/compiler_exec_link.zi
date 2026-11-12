@@ -1,0 +1,719 @@
+using Bundle :: #import "compiler_bundle"
+using IR :: #import "compiler_lowered_ir"
+using Verify :: #import "compiler_lowered_verify"
+using Serial :: #import "compiler_exec_serial"
+using Vectors :: #import "std/vec"
+
+// The revision-28 executable bridge. Bundle owns the outer section contract;
+// Serial owns the pointer-free LIR encoding and verified allocation. This
+// module binds both without making the legacy bundle reader guess a format.
+
+ZxExecProblem :: enum s32 {
+    None; Container; Codec; Verify; Allocation; Output; Identity; Entry
+    Capability; Variant; External; Symbol; DebugDependency; Limit
+}
+
+ZxExecResult :: struct {
+    problem: ZxExecProblem
+    container: Bundle.ExecutableProblem
+    codec: Serial.LirCodecProblem
+    diagnostic: LirDiagnostic
+    size: s64
+    offset: s64
+}
+
+ZxExecOwner :: struct {
+    read: Serial.LirReadOwner
+    valid: bool
+    entry: s32
+    assets: s64
+    optional_sections: s64
+}
+
+#scope_file
+
+ZxExecBudget :: struct {
+    work: s64
+    bytes: s64
+    maximum_bytes: s64
+}
+
+BudgetDigest :: struct { valid: bool; bytes: [32]u8 }
+
+LimitsValid :: (limits: LirLimits) -> bool {
+    return limits.work >= 0 && limits.types >= 0 && limits.functions >= 0 &&
+        limits.blocks >= 0 && limits.values >= 0 && limits.instructions >= 0 && limits.bytes >= 0
+}
+
+BudgetBegin :: (limits: LirLimits) -> ZxExecBudget {
+    return .{work = limits.work, bytes = limits.bytes, maximum_bytes = limits.bytes}
+}
+
+BudgetSpend :: (budget: *ZxExecBudget, count: s64) -> bool {
+    if count < 0 || count > budget.work { return false }
+    budget.work -= count
+    return true
+}
+
+BudgetStorage :: (budget: *ZxExecBudget, count: s64, width: s64) -> bool {
+    if count < 0 || width < 1 || count > budget.bytes / width { return false }
+    budget.bytes -= count * width
+    return true
+}
+
+BudgetFitsBytes :: (budget: *ZxExecBudget, count: s64) -> bool {
+    return count >= 0 && count <= budget.maximum_bytes
+}
+
+Sha256State :: struct {
+    state: [8]u32
+    block: [64]u8
+    used: s64
+    total: u64
+}
+
+ShaRotate :: (value: u32, count: u32) -> u32 {
+    return (value >> count) | (value << (32 - count))
+}
+
+ShaBegin :: (state: *Sha256State) {
+    state.state[0] = 0x6a09e667
+    state.state[1] = 0xbb67ae85
+    state.state[2] = 0x3c6ef372
+    state.state[3] = 0xa54ff53a
+    state.state[4] = 0x510e527f
+    state.state[5] = 0x9b05688c
+    state.state[6] = 0x1f83d9ab
+    state.state[7] = 0x5be0cd19
+    state.used = 0
+    state.total = 0
+}
+
+ShaBlock :: (state: *Sha256State) {
+    constants: [64]u32 = .{
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
+        0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+        0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
+        0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+        0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
+        0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+        0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+        0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
+        0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+        0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
+        0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+        0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
+        0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
+        0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2}
+    words: [64]u32
+    for index: 0..15 {
+        at := index * 4
+        words[index] = (cast(u32)state.block[at] << 24) |
+            (cast(u32)state.block[at + 1] << 16) |
+            (cast(u32)state.block[at + 2] << 8) | cast(u32)state.block[at + 3]
+    }
+    for index: 16..63 {
+        left := words[index - 15]
+        right := words[index - 2]
+        small0 := ShaRotate(left, 7) ^ ShaRotate(left, 18) ^ (left >> 3)
+        small1 := ShaRotate(right, 17) ^ ShaRotate(right, 19) ^ (right >> 10)
+        words[index] = words[index - 16] + small0 + words[index - 7] + small1
+    }
+    a := state.state[0]
+    b := state.state[1]
+    c := state.state[2]
+    d := state.state[3]
+    e := state.state[4]
+    f := state.state[5]
+    g := state.state[6]
+    h := state.state[7]
+    for index: 0..63 {
+        choice := (e & f) ^ (~e & g)
+        majority := (a & b) ^ (a & c) ^ (b & c)
+        large0 := ShaRotate(a, 2) ^ ShaRotate(a, 13) ^ ShaRotate(a, 22)
+        large1 := ShaRotate(e, 6) ^ ShaRotate(e, 11) ^ ShaRotate(e, 25)
+        first := h + large1 + choice + constants[index] + words[index]
+        second := large0 + majority
+        h = g; g = f; f = e; e = d + first
+        d = c; c = b; b = a; a = first + second
+    }
+    state.state[0] += a
+    state.state[1] += b
+    state.state[2] += c
+    state.state[3] += d
+    state.state[4] += e
+    state.state[5] += f
+    state.state[6] += g
+    state.state[7] += h
+    state.used = 0
+}
+
+ShaByte :: (state: *Sha256State, byte: u8) {
+    state.block[state.used] = byte
+    state.used += 1
+    state.total += 1
+    if state.used == 64 { ShaBlock(state) }
+}
+
+ShaText :: (state: *Sha256State, text: string) {
+    for byte: text { ShaByte(state, byte) }
+}
+
+ShaU32 :: (state: *Sha256State, value: u32) {
+    for byte: 0..3 { ShaByte(state, cast(u8)(value >> cast(u32)(byte * 8))) }
+}
+
+ShaU64 :: (state: *Sha256State, value: u64) {
+    for byte: 0..7 { ShaByte(state, cast(u8)(value >> cast(u64)(byte * 8))) }
+}
+
+ShaEnd :: (state: *Sha256State) -> [32]u8 {
+    bit_count := state.total * 8
+    ShaByte(state, 0x80)
+    while state.used != 56 { ShaByte(state, 0) }
+    for index: 0..7 {
+        shift := cast(u64)((7 - index) * 8)
+        ShaByte(state, cast(u8)(bit_count >> shift))
+    }
+    result: [32]u8
+    for index: 0..7 {
+        value := state.state[index]
+        result[index * 4] = cast(u8)(value >> 24)
+        result[index * 4 + 1] = cast(u8)(value >> 16)
+        result[index * 4 + 2] = cast(u8)(value >> 8)
+        result[index * 4 + 3] = cast(u8)value
+    }
+    return result
+}
+
+ProgramDigest :: (budget: *ZxExecBudget, program: string) -> BudgetDigest {
+    if !BudgetFitsBytes(budget, program.count) || !BudgetSpend(budget, program.count) ||
+        !BudgetSpend(budget, 16) { return .{} }
+    state: Sha256State
+    ShaBegin(*state)
+    ShaText(*state, "ZX28-PROGRAM\x00")
+    ShaText(*state, program)
+    return .{valid = true, bytes = ShaEnd(*state)}
+}
+
+AssetsDigest :: (budget: *ZxExecBudget, assets: []Bundle.Asset) -> BudgetDigest {
+    total: s64 = 4
+    if assets.count < 0 || assets.count > budget.maximum_bytes / 8 ||
+        !BudgetSpend(budget, assets.count) { return .{} }
+    for asset: assets {
+        if asset.name.count < 0 || asset.data.count < 0 || asset.name.count > budget.maximum_bytes - total {
+            return .{}
+        }
+        total += asset.name.count
+        if budget.maximum_bytes - total < 8 || asset.data.count > budget.maximum_bytes - total - 8 {
+            return .{}
+        }
+        total += asset.data.count + 8
+    }
+    if !BudgetFitsBytes(budget, total) || !BudgetSpend(budget, total) || !BudgetSpend(budget, 16) {
+        return .{}
+    }
+    state: Sha256State
+    ShaBegin(*state)
+    ShaText(*state, "ZX28-ASSETS\x00")
+    ShaU32(*state, cast(u32)assets.count)
+    for asset: assets {
+        ShaU32(*state, cast(u32)asset.name.count)
+        ShaText(*state, asset.name)
+        ShaU32(*state, cast(u32)asset.data.count)
+        ShaText(*state, asset.data)
+    }
+    return .{valid = true, bytes = ShaEnd(*state)}
+}
+
+ContentDigest :: (budget: *ZxExecBudget, entry: s32, program: [32]u8,
+    assets: [32]u8) -> BudgetDigest {
+    if !BudgetSpend(budget, 96) { return .{} }
+    state: Sha256State
+    ShaBegin(*state)
+    ShaText(*state, "ZX28-CONTENT\x00")
+    ShaU32(*state, cast(u32)entry)
+    ShaU64(*state, 1)
+    for byte: program { ShaByte(*state, byte) }
+    for byte: assets { ShaByte(*state, byte) }
+    return .{valid = true, bytes = ShaEnd(*state)}
+}
+
+SameDigest :: (found: string, expected: [32]u8) -> bool {
+    if found.count != 32 { return false }
+    different: u8
+    for index: 0..31 { different |= found[index] ^ expected[index] }
+    return different == 0
+}
+
+StripOwner :: struct {
+    program: LirProgram
+    functions: Vec(LirFunction)
+    blocks: Vec(LirBlock)
+    instructions: Vec(LirInstruction)
+}
+
+StripFree :: (owner: *StripOwner) {
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.instructions)
+    owner.program = .{}
+}
+
+StripProgram :: (program: LirProgram, owner: *StripOwner, budget: *ZxExecBudget) -> ZxExecProblem {
+    blocks: s64
+    instructions: s64
+    for function: program.functions {
+        if !BudgetSpend(budget, 1) || function.blocks.count > 2147483647 - blocks {
+            return .Limit
+        }
+        blocks += function.blocks.count
+        for block: function.blocks {
+            if !BudgetSpend(budget, 1) || block.instructions.count > 2147483647 - instructions {
+                return .Limit
+            }
+            instructions += block.instructions.count
+        }
+    }
+    if !BudgetStorage(budget, program.functions.count, 160) || !BudgetStorage(budget, blocks, 40) ||
+        !BudgetStorage(budget, instructions, 104) ||
+        !BudgetSpend(budget, program.functions.count) || !BudgetSpend(budget, blocks) ||
+        !BudgetSpend(budget, instructions) {
+        return .Limit
+    }
+    if !VecResizeBounded(owner.functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(owner.blocks, blocks, blocks) ||
+        !VecResizeBounded(owner.instructions, instructions, instructions) {
+        StripFree(owner)
+        return .Allocation
+    }
+    block_at: s64
+    instruction_at: s64
+    for function, function_index: program.functions {
+        if !BudgetSpend(budget, 1) { StripFree(owner); return .Limit }
+        copy := function
+        copy.origin = LirNoId
+        begin := block_at
+        for block: function.blocks {
+            if !BudgetSpend(budget, 1) { StripFree(owner); return .Limit }
+            block_copy := block
+            instruction_begin := instruction_at
+            for instruction: block.instructions {
+                if !BudgetSpend(budget, 1) { StripFree(owner); return .Limit }
+                instruction_copy := instruction
+                instruction_copy.origin = LirNoId
+                owner.instructions[instruction_at] = instruction_copy
+                instruction_at += 1
+            }
+            block_copy.instructions = VecSlice(owner.instructions, instruction_begin, instruction_at)
+            owner.blocks[block_at] = block_copy
+            block_at += 1
+        }
+        copy.blocks = VecSlice(owner.blocks, begin, block_at)
+        owner.functions[function_index] = copy
+    }
+    stripped := program
+    empty_text: []string
+    empty_origins: []LirOrigin
+    stripped.sources = empty_text
+    stripped.origins = empty_origins
+    stripped.functions = owner.functions[:]
+    owner.program = stripped
+    return .None
+}
+
+StripView :: (owner: *StripOwner) -> LirProgram { return owner.program }
+
+HashName :: (budget: *ZxExecBudget, module: s32, name: string, result: *u64) -> bool {
+    if !BudgetSpend(budget, name.count) || !BudgetSpend(budget, 1) { return false }
+    hash: u64 = 14695981039346656037
+    module_bits := cast(u32)module
+    for byte: 0..3 {
+        hash = (hash ^ cast(u64)cast(u8)(module_bits >> cast(u32)(byte * 8))) * 1099511628211
+    }
+    for byte: name { hash = (hash ^ cast(u64)byte) * 1099511628211 }
+    <<result = hash
+    return true
+}
+
+SameText :: (budget: *ZxExecBudget, left: string, right: string, same: *bool) -> bool {
+    if !BudgetSpend(budget, 1) { return false }
+    if left.count != right.count { <<same = false; return true }
+    if !BudgetSpend(budget, left.count) { return false }
+    <<same = left == right
+    return true
+}
+
+OpenSymbolTable :: (count: s64, budget: *ZxExecBudget, table: *Vec(s32)) -> ZxExecProblem {
+    if count < 0 { return .Limit }
+    if count == 0 { return .None }
+    capacity: s64 = 1
+    while capacity < count {
+        if !BudgetSpend(budget, 1) || capacity > 4611686018427387903 { return .Limit }
+        capacity *= 2
+    }
+    if capacity > 4611686018427387903 { return .Limit }
+    capacity *= 2
+    if !BudgetStorage(budget, capacity, 4) || !BudgetSpend(budget, capacity) { return .Limit }
+    if !VecResizeBounded(<<table, capacity, capacity) { return .Allocation }
+    return .None
+}
+
+ValidateSymbols :: (program: LirProgram, budget: *ZxExecBudget) -> ZxExecProblem {
+    modules: Vec(s32)
+    problem := OpenSymbolTable(program.modules.count, budget, *modules)
+    if problem != .None { return problem }
+    for module, index: program.modules {
+        hash: u64
+        if !HashName(budget, LirNoId, module, *hash) { VecFree(modules); return .Limit }
+        at := cast(s64)(hash & cast(u64)(modules.count - 1))
+        while modules[at] != 0 {
+            if !BudgetSpend(budget, 1) { VecFree(modules); return .Limit }
+            same := false
+            if !SameText(budget, module, program.modules[modules[at] - 1], *same) {
+                VecFree(modules); return .Limit
+            }
+            if same { VecFree(modules); return .Symbol }
+            at = (at + 1) & (modules.count - 1)
+        }
+        modules[at] = cast(s32)index + 1
+    }
+    VecFree(modules)
+
+    functions: Vec(s32)
+    problem = OpenSymbolTable(program.functions.count, budget, *functions)
+    if problem != .None { return problem }
+    for function, index: program.functions {
+        hash: u64
+        if !HashName(budget, function.module, function.name, *hash) { VecFree(functions); return .Limit }
+        at := cast(s64)(hash & cast(u64)(functions.count - 1))
+        while functions[at] != 0 {
+            if !BudgetSpend(budget, 1) { VecFree(functions); return .Limit }
+            candidate := program.functions[functions[at] - 1]
+            if candidate.module == function.module {
+                same := false
+                if !SameText(budget, function.name, candidate.name, *same) {
+                    VecFree(functions); return .Limit
+                }
+                if same { VecFree(functions); return .Symbol }
+            }
+            at = (at + 1) & (functions.count - 1)
+        }
+        functions[at] = cast(s32)index + 1
+    }
+    VecFree(functions)
+
+    globals: Vec(s32)
+    problem = OpenSymbolTable(program.globals.count, budget, *globals)
+    if problem != .None { return problem }
+    for global, index: program.globals {
+        hash: u64
+        if !HashName(budget, global.module, global.name, *hash) { VecFree(globals); return .Limit }
+        at := cast(s64)(hash & cast(u64)(globals.count - 1))
+        while globals[at] != 0 {
+            if !BudgetSpend(budget, 1) { VecFree(globals); return .Limit }
+            candidate := program.globals[globals[at] - 1]
+            if candidate.module == global.module {
+                same := false
+                if !SameText(budget, global.name, candidate.name, *same) {
+                    VecFree(globals); return .Limit
+                }
+                if same { VecFree(globals); return .Symbol }
+            }
+            at = (at + 1) & (globals.count - 1)
+        }
+        globals[at] = cast(s32)index + 1
+    }
+    VecFree(globals)
+    return .None
+}
+
+Reach :: (reachable: *Vec(u8), queue: *Vec(s32), queued: *s64, function: s32,
+    budget: *ZxExecBudget) -> ZxExecProblem {
+    if !BudgetSpend(budget, 1) { return .Limit }
+    if function < 0 || function >= (<<reachable).count { return .Symbol }
+    if (<<reachable)[function] != 0 { return .None }
+    if <<queued >= (<<queue).count { return .Symbol }
+    (<<reachable)[function] = 1
+    (<<queue)[<<queued] = function
+    <<queued += 1
+    return .None
+}
+
+ValidateReachable :: (program: LirProgram, budget: *ZxExecBudget) -> ZxExecProblem {
+    if program.entry < 0 || program.entry >= program.functions.count { return .Entry }
+    symbol_problem := ValidateSymbols(program, budget)
+    if symbol_problem != .None { return symbol_problem }
+    reachable: Vec(u8)
+    queue: Vec(s32)
+    if !BudgetStorage(budget, program.functions.count, 5) ||
+        !BudgetSpend(budget, program.functions.count) ||
+        !BudgetSpend(budget, program.functions.count) {
+        return .Limit
+    }
+    if !VecResizeBounded(reachable, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(queue, program.functions.count, program.functions.count) {
+        VecFree(reachable); VecFree(queue)
+        return .Allocation
+    }
+    queued: s64
+    problem := Reach(*reachable, *queue, *queued, program.entry, budget)
+    if problem != .None { VecFree(reachable); VecFree(queue); return problem }
+    at: s64
+    all_reachable := false
+    while at < queued {
+        if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
+        function := program.functions[queue[at]]
+        at += 1
+        if function.external || function.calling != .Portable {
+            VecFree(reachable); VecFree(queue)
+            return .External
+        }
+        for block: function.blocks {
+            if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
+            for instruction: block.instructions {
+                if !BudgetSpend(budget, 1) { VecFree(reachable); VecFree(queue); return .Limit }
+                if instruction.op == .HostCall {
+                    VecFree(reachable); VecFree(queue)
+                    return .Capability
+                }
+                if instruction.op == .Call || instruction.op == .FunctionAddress {
+                    problem = Reach(*reachable, *queue, *queued, instruction.symbol, budget)
+                    if problem != .None { VecFree(reachable); VecFree(queue); return problem }
+                }
+                if instruction.op == .CallIndirect && !all_reachable {
+                    all_reachable = true
+                    for target: cast(s32)0..cast(s32)program.functions.count - 1 {
+                        problem = Reach(*reachable, *queue, *queued, target, budget)
+                        if problem != .None { VecFree(reachable); VecFree(queue); return problem }
+                    }
+                }
+            }
+        }
+    }
+    VecFree(reachable)
+    VecFree(queue)
+    return .None
+}
+
+Result :: (problem: ZxExecProblem) -> ZxExecResult {
+    diagnostic := LirDiagnostic.{problem = .None, function = LirNoId, block = LirNoId,
+        instruction = LirNoId, value = LirNoId, origin = LirNoId}
+    if problem == .Limit { diagnostic.problem = .Limit }
+    return .{problem = problem, diagnostic = diagnostic}
+}
+
+#scope_export
+
+// Writes a deterministic stripped executable. Debug/source records and opaque
+// proof metadata are not copied into the required instruction section.
+ZxExecWrite :: (program: LirProgram, assets: []Bundle.Asset, output: []u8) -> ZxExecResult {
+    limits := IR.LirDefaultLimits()
+    budget := BudgetBegin(limits)
+    diagnostic := Verify.LirVerify(program, limits)
+    if diagnostic.problem != .None {
+        result := Result(ifx diagnostic.problem == .Limit then .Limit else .Verify)
+        result.diagnostic = diagnostic
+        return result
+    }
+    problem := ValidateReachable(program, *budget)
+    if problem != .None { return Result(problem) }
+    strip: StripOwner
+    problem = StripProgram(program, *strip, *budget)
+    if problem != .None { return Result(problem) }
+    stripped := StripView(*strip)
+    empty: []u8
+    measured := Serial.LirWrite(stripped, empty)
+    if measured.problem != .None || measured.size < 1 {
+        StripFree(*strip)
+        result := Result(.Codec)
+        result.codec = measured.problem
+        result.diagnostic = measured.diagnostic
+        return result
+    }
+    if !BudgetFitsBytes(*budget, measured.size) || !BudgetStorage(*budget, measured.size, 1) ||
+        !BudgetSpend(*budget, measured.size) {
+        StripFree(*strip)
+        return Result(.Limit)
+    }
+    encoded: Vec(u8)
+    if !VecResizeBounded(encoded, measured.size, measured.size) {
+        StripFree(*strip)
+        return Result(.Allocation)
+    }
+    written := Serial.LirWrite(stripped, encoded[:])
+    StripFree(*strip)
+    if written.problem != .None || written.size != measured.size {
+        VecFree(encoded)
+        result := Result(.Codec)
+        result.codec = written.problem
+        result.diagnostic = written.diagnostic
+        return result
+    }
+    program_digest := ProgramDigest(*budget, TextView(encoded[:]))
+    if !program_digest.valid { VecFree(encoded); return Result(.Limit) }
+    assets_digest := AssetsDigest(*budget, assets)
+    if !assets_digest.valid { VecFree(encoded); return Result(.Limit) }
+    content_digest := ContentDigest(*budget, program.entry, program_digest.bytes, assets_digest.bytes)
+    if !content_digest.valid { VecFree(encoded); return Result(.Limit) }
+    program_identity := program_digest.bytes
+    assets_identity := assets_digest.bytes
+    content_identity := content_digest.bytes
+    no_attachments: []Bundle.ExecutableAttachment
+    header := Bundle.ExecutableHeader.{entry = program.entry, program = TextView(encoded[:]), assets = assets,
+        program_identity = TextView(program_identity[:]), assets_identity = TextView(assets_identity[:]),
+        content_identity = TextView(content_identity[:]), attachments = no_attachments}
+    measured_bundle := Bundle.ExecutableEncode(empty, header)
+    if measured_bundle.problem != .None {
+        VecFree(encoded)
+        result := Result(.Container)
+        result.container = measured_bundle.problem
+        result.size = measured_bundle.size
+        result.offset = measured_bundle.offset
+        return result
+    }
+    if !BudgetFitsBytes(*budget, measured_bundle.size) {
+        VecFree(encoded)
+        return Result(.Limit)
+    }
+    if output.count == 0 {
+        VecFree(encoded)
+        result := Result(.None)
+        result.size = measured_bundle.size
+        return result
+    }
+    if output.count < measured_bundle.size {
+        VecFree(encoded)
+        result := Result(.Output)
+        result.container = .Output
+        result.size = measured_bundle.size
+        return result
+    }
+    encoded_bundle := Bundle.ExecutableEncode(output, header)
+    VecFree(encoded)
+    if encoded_bundle.problem != .None {
+        result := Result(ifx encoded_bundle.problem == .Output then .Output else .Container)
+        result.container = encoded_bundle.problem
+        result.size = encoded_bundle.size
+        result.offset = encoded_bundle.offset
+        return result
+    }
+    result := Result(.None)
+    result.size = encoded_bundle.size
+    return result
+}
+
+ZxExecReadFree :: (owner: *ZxExecOwner) {
+    if owner == null { return }
+    Serial.LirReadFree(*owner.read)
+    owner.valid = false
+    owner.entry = LirNoId
+    owner.assets = 0
+    owner.optional_sections = 0
+}
+
+// Copies and verifies the required LIR before returning. The input container
+// may be released immediately after this function succeeds.
+ZxExecRead :: (owner: *ZxExecOwner, input: string, limits: LirLimits) -> ZxExecResult {
+    if owner == null { return Result(.Allocation) }
+    ZxExecReadFree(owner)
+    if !LimitsValid(limits) { return Result(.Limit) }
+    budget := BudgetBegin(limits)
+    if !BudgetFitsBytes(*budget, input.count) || !BudgetSpend(*budget, input.count) {
+        return Result(.Limit)
+    }
+    no_assets: []Bundle.Asset
+    layout := Bundle.ExecutableDecode(input, no_assets)
+    if layout.problem != .None {
+        result := Result(ifx layout.problem == .Variant then .Variant else .Container)
+        result.container = layout.problem
+        return result
+    }
+    assets: Vec(Bundle.Asset)
+    if !BudgetStorage(*budget, layout.assets, 32) || !BudgetSpend(*budget, layout.assets) {
+        return Result(.Limit)
+    }
+    if !VecResizeBounded(assets, layout.assets, layout.assets) {
+        return Result(.Allocation)
+    }
+    layout = Bundle.ExecutableDecode(input, assets[:])
+    if layout.problem != .None {
+        VecFree(assets)
+        result := Result(ifx layout.problem == .Variant then .Variant else .Container)
+        result.container = layout.problem
+        return result
+    }
+    program_digest := ProgramDigest(*budget, layout.program)
+    if !program_digest.valid { VecFree(assets); return Result(.Limit) }
+    assets_digest := AssetsDigest(*budget, assets[:])
+    if !assets_digest.valid { VecFree(assets); return Result(.Limit) }
+    content_digest := ContentDigest(*budget, layout.entry, program_digest.bytes, assets_digest.bytes)
+    if !content_digest.valid || !BudgetSpend(*budget, 96) {
+        VecFree(assets); return Result(.Limit)
+    }
+    program_identity := program_digest.bytes
+    assets_identity := assets_digest.bytes
+    content_identity := content_digest.bytes
+    VecFree(assets)
+    if !SameDigest(layout.program_identity, program_identity) ||
+        !SameDigest(layout.assets_identity, assets_identity) ||
+        !SameDigest(layout.content_identity, content_identity) {
+        return Result(.Identity)
+    }
+    decoded := Serial.LirRead(*owner.read, layout.program, limits)
+    if decoded.problem != .None {
+        ZxExecReadFree(owner)
+        limited := decoded.problem == .Limit || decoded.diagnostic.problem == .Limit
+        result := Result(ifx limited then .Limit else .Codec)
+        result.codec = decoded.problem
+        result.diagnostic = decoded.diagnostic
+        result.size = decoded.size
+        result.offset = decoded.offset
+        return result
+    }
+    program := Serial.LirReadProgram(*owner.read)
+    if program.entry != layout.entry {
+        ZxExecReadFree(owner)
+        return Result(.Entry)
+    }
+    if program.sources.count != 0 || program.origins.count != 0 {
+        ZxExecReadFree(owner)
+        return Result(.DebugDependency)
+    }
+    problem := ValidateReachable(program, *budget)
+    if problem != .None {
+        ZxExecReadFree(owner)
+        return Result(problem)
+    }
+    owner.valid = true
+    owner.entry = layout.entry
+    owner.assets = layout.assets
+    owner.optional_sections = layout.optional_sections
+    result := Result(.None)
+    result.size = input.count
+    return result
+}
+
+ZxExecReadProgram :: (owner: *ZxExecOwner) -> LirProgram {
+    if owner == null || !owner.valid { return .{version = LirVersion, entry = LirNoId} }
+    return Serial.LirReadProgram(*owner.read)
+}
+
+ZxExecProblemName :: (problem: ZxExecProblem) -> string {
+    if problem == .None { return "none" }
+    if problem == .Container { return "container" }
+    if problem == .Codec { return "instruction-codec" }
+    if problem == .Verify { return "verification" }
+    if problem == .Allocation { return "allocation" }
+    if problem == .Output { return "output" }
+    if problem == .Identity { return "content-identity" }
+    if problem == .Entry { return "entry" }
+    if problem == .Capability { return "unsupported-capability" }
+    if problem == .Variant { return "unsupported-native-variant" }
+    if problem == .External { return "unresolved-external" }
+    if problem == .Symbol { return "symbol-identity" }
+    if problem == .Limit { return "limit" }
+    return "debug-execution-dependency"
+}

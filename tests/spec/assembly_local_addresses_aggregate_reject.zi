@@ -1,0 +1,8 @@
+Pair :: struct { left: s32; right: s32; }
+
+#program_export
+Answer :: () -> s32 {
+    pair := Pair.{left = 20, right = 22}
+    alias := *pair
+    return alias.*.left + alias.*.right
+}

@@ -1,0 +1,106 @@
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+
+// Register numbers follow the x86-64 encoding order. Register classes keep
+// general and XMM numbers in separate namespaces.
+X64Register :: enum s32 {
+    Rax; Rcx; Rdx; Rbx; Rsp; Rbp; Rsi; Rdi; R8; R9; R10; R11; R12; R13; R14; R15
+}
+
+AbiClass :: (program: LirProgram, type_id: s32) -> MachineRegisterClass {
+    if type_id < 0 || type_id >= program.types.count { return .Invalid }
+    type := program.types[type_id]
+    if type.kind == .Float { return .Float }
+    if type.kind == .Bool || type.kind == .Integer || type.kind == .Pointer ||
+        type.kind == .Function { return .General }
+    if type.kind == .Array || type.kind == .Record { return .Stack }
+    if type.kind == .Vector { return .Vector }
+    return .Invalid
+}
+
+AbiSize :: (program: LirProgram, type_id: s32, depth: s32) -> s64 {
+    if depth > 256 || type_id < 0 || type_id >= program.types.count { return -1 }
+    type := program.types[type_id]
+    if type.kind == .Void { return 0 }
+    if type.kind == .Bool { return 1 }
+    if type.kind == .Integer || type.kind == .Float {
+        if type.bits <= 0 || type.bits > 64 { return -1 }
+        return (type.bits + 7) / 8
+    }
+    if type.kind == .Pointer || type.kind == .Function { return 8 }
+    if type.kind == .Array {
+        element := AbiSize(program, type.element, depth + 1)
+        if element < 0 || type.count < 0 || type.count > 9223372036854775807 / ifx element > 0 then element else 1 {
+            return -1
+        }
+        return element * type.count
+    }
+    if type.kind == .Record {
+        size: s64
+        for field: type.fields {
+            part := AbiSize(program, field, depth + 1)
+            if part < 0 || size > 9223372036854775807 - part { return -1 }
+            size += part
+        }
+        return size
+    }
+    return -1
+}
+
+#scope_export
+
+MachineAbiClass :: (program: LirProgram, type_id: s32) -> MachineRegisterClass {
+    return AbiClass(program, type_id)
+}
+
+MachineAbiTypeSize :: (program: LirProgram, type_id: s32) -> s64 {
+    return AbiSize(program, type_id, 0)
+}
+
+MachineAbiArgumentRegister :: (target: TargetDescription, class: MachineRegisterClass,
+    ordinal: s32) -> s32 {
+    if !TargetMachineLoweringSupported(target) || ordinal < 0 { return -1 }
+    if class == .General {
+        registers: [6]s32 = .[cast(s32)X64Register.Rdi, cast(s32)X64Register.Rsi,
+            cast(s32)X64Register.Rdx, cast(s32)X64Register.Rcx,
+            cast(s32)X64Register.R8, cast(s32)X64Register.R9]
+        if ordinal < registers.count { return registers[ordinal] }
+    }
+    if class == .Float && ordinal < 8 { return ordinal }
+    return -1
+}
+
+MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterClass) -> s32 {
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    if class == .General { return cast(s32)X64Register.Rax }
+    if class == .Float { return 0 }
+    return -1
+}
+
+MachineAbiCallGeneralClobbers :: (target: TargetDescription) -> u64 {
+    if !TargetMachineLoweringSupported(target) { return 0 }
+    return (cast(u64)1 << cast(u64)X64Register.Rax) |
+        (cast(u64)1 << cast(u64)X64Register.Rcx) |
+        (cast(u64)1 << cast(u64)X64Register.Rdx) |
+        (cast(u64)1 << cast(u64)X64Register.Rsi) |
+        (cast(u64)1 << cast(u64)X64Register.Rdi) |
+        (cast(u64)1 << cast(u64)X64Register.R8) |
+        (cast(u64)1 << cast(u64)X64Register.R9) |
+        (cast(u64)1 << cast(u64)X64Register.R10) |
+        (cast(u64)1 << cast(u64)X64Register.R11)
+}
+
+MachineAbiCallFloatClobbers :: (target: TargetDescription) -> u64 {
+    if !TargetMachineLoweringSupported(target) { return 0 }
+    return 0xffff
+}
+
+MachineAbiPhysicalClass :: (target: TargetDescription, class: MachineRegisterClass,
+    physical: s32) -> bool {
+    if physical < 0 { return false }
+    if class == .General { return physical < target.general_registers }
+    if class == .Float { return physical < target.float_registers }
+    if class == .Vector { return physical < target.vector_registers }
+    return false
+}

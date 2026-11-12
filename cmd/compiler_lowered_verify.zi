@@ -269,7 +269,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if !symbolic && instruction.symbol != LirNoId || !indexed && instruction.immediate != 0 { return Fail(state, .Instruction) }
     if !memory && instruction.alignment != 0 { return Fail(state, .Alignment) }
     if memory && instruction.alignment != 0 && instruction.alignment != 1 { return Fail(state, .Alignment) }
-    if op == .Allocate || op == .Copy || op == .Zero || op == .HostCall {
+    if op == .Copy || op == .Zero || op == .HostCall {
         return Fail(state, .Unsupported)
     }
     if op == .Constant {
@@ -291,6 +291,16 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         if operand_count != 0 || !Id(instruction.symbol, program.functions.count) || result == LirNoId { return Fail(state, .Calling) }
         target := program.functions[instruction.symbol]
         return Signature(state, program.types[result], target.parameters, target.result)
+    }
+    if op == .Allocate {
+        if operand_count > 1 || result == LirNoId || program.types[result].kind != .Pointer { return Fail(state, .Operand) }
+        pointee := program.types[result].element
+        type := program.types[pointee]
+        scalar := type.kind == .Bool || type.kind == .Integer || type.kind == .Float ||
+            type.kind == .Pointer
+        if !scalar { return Fail(state, .Operand) }
+        if operand_count == 1 && first_type != pointee { return Fail(state, .Operand) }
+        return true
     }
     code := cast(s32)op
     if op == .ShiftLeft || op == .ShiftRight {
@@ -341,6 +351,17 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     }
     if op == .Extract || op == .Insert {
         expected := ifx op == .Extract then 1 else 2
+        if operand_count == expected + 1 {
+            if instruction.immediate != 0 { return Fail(state, .Instruction) }
+            aggregate := program.types[first_type]
+            index_type := function.values[instruction.operands[expected]]
+            if aggregate.kind != .Array || program.types[index_type].kind != .Integer ||
+                op == .Extract && result != aggregate.element ||
+                op == .Insert && (result != first_type || second_type != aggregate.element) {
+                return Fail(state, .Operand)
+            }
+            return true
+        }
         if operand_count != expected { return Fail(state, .Operand) }
         member := Member(program.types[first_type], instruction.immediate)
         if member == LirNoId || op == .Extract && result != member ||
@@ -362,9 +383,13 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     }
     if op == .Load || op == .Store {
         expected := ifx op == .Load then 1 else 2
-        if operand_count != expected || program.types[first_type].kind != .Pointer { return Fail(state, .Operand) }
+        if operand_count != expected || program.types[first_type].kind != .Pointer {
+            return Fail(state, .Operand)
+        }
         element := program.types[first_type].element
-        if !ValueType(program, element) || op == .Load && element != result || op == .Store && element != second_type { return Fail(state, .Operand) }
+        if !ValueType(program, element) || op == .Load && element != result || op == .Store && element != second_type {
+            return Fail(state, .Operand)
+        }
         return true
     }
     if op == .Call || op == .CallIndirect {

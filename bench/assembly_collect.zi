@@ -1,0 +1,758 @@
+#!/usr/bin/env ziran
+// Collect strict assembly comparison receipts on Alpha's physical host.
+// Validation is measurement-free; collection never substitutes the unavailable
+// new-native ZX engine.
+#import "benchmark_statistics"
+#import "std/byte_text_linux"
+#import "std/file"
+#import "std/file_tree_linux"
+#import "std/float_text"
+#import "std/json_document"
+#import "std/math"
+#import "std/number_text"
+#import "std/process_run_linux"
+#import "std/text_tools"
+#import "std/timer_linux"
+using Vectors :: #import "std/vec"
+
+#scope_file
+MAX_PLAN_BYTES :: 4194304;
+MAX_JOBS :: 2048;
+MAX_REQUIRED_CELLS :: 512;
+MAX_REPEATS :: 4096;
+MAX_TOTAL_SAMPLES :: 65536;
+MAX_TEXT :: 1024;
+
+RequiredCell :: struct {
+    case_id: string
+    phase: string
+    metric: string
+    unit: string
+}
+
+ClosureItem :: struct {
+    path: string
+    digest: string
+}
+
+CollectJob :: struct {
+    receipt_id: string
+    case_id: string
+    engine: string
+    selector: string
+    phase: string
+    metric: string
+    unit: string
+    command: Vec(string)
+    verification: Vec(string)
+    closure: Vec(ClosureItem)
+    workload: string
+    input_path: string
+    input_checksum: string
+    semantic_settings: string
+    correctness_expected: string
+    iterations: s64
+    repeats: s64
+    warmups: s64
+    timeout_ms: s64
+    cache_policy: string
+    cache_directory: string
+    environment: Vec(string)
+    artifact: string
+    rss_tool: string
+}
+
+CollectPlan :: struct {
+    campaign: string
+    physical_host: string
+    hostname: string
+    cpu: string
+    os: string
+    working_directory: string
+    collector_work: string
+    required: Vec(RequiredCell)
+    jobs: Vec(CollectJob)
+}
+
+Observation :: struct {
+    sample: float64
+    correctness: string
+    valid: bool
+}
+
+Cat :: (left: string, right: string) -> string {
+    parts: [2]string = .[left, right]
+    return TextDetach(TextJoin(parts[:], ""))
+}
+
+SafeText :: (value: string, limit: s64 = MAX_TEXT) -> bool {
+    if value.count == 0 || value.count > limit { return false }
+    for byte: value { if byte < 32 || byte == 127 { return false } }
+    return true
+}
+
+SafeName :: (value: string) -> bool {
+    if !SafeText(value, 256) { return false }
+    for byte: value {
+        if !(byte >= #char "a" && byte <= #char "z") &&
+        !(byte >= #char "A" && byte <= #char "Z") &&
+        !(byte >= #char "0" && byte <= #char "9") &&
+        byte != #char "-" && byte != #char "_" && byte != #char "." { return false }
+    }
+    return value != "." && value != ".."
+}
+
+CleanAbsolutePath :: (value: string) -> bool {
+    if value.count < 2 || value[0] != #char "/" || value[value.count - 1] == #char "/" ||
+    TextContains(value, "//") || TextContains(value, "/../") ||
+    TextContains(value, "/./") || TextHasSuffix(value, "/..") ||
+    TextHasSuffix(value, "/.") { return false }
+    return true
+}
+
+FieldInto :: (document: *JsonDocument, object: s32, name: string,
+    output: *string, limit: s64 = MAX_TEXT) -> bool {
+    node := JsonMember(document, object, name)
+    if JsonKindOf(document, node) != .String { return false }
+    value := TextDetach(JsonString(document, node))
+    if !SafeText(value, limit) { return false }
+    <<output = value
+    return true
+}
+
+IntegerField :: (document: *JsonDocument, object: s32, name: string,
+    minimum: s64, maximum: s64, output: *s64) -> bool {
+    value, valid := JsonInteger(document, JsonMember(document, object, name))
+    if !valid || value < minimum || value > maximum { return false }
+    <<output = value
+    return true
+}
+
+StringArray :: (document: *JsonDocument, object: s32, name: string,
+    output: *Vec(string), maximum: s32, empty_ok: bool = true) -> bool {
+    node := JsonMember(document, object, name)
+    if JsonKindOf(document, node) != .Array || JsonCount(document, node) > maximum ||
+    (!empty_ok && JsonCount(document, node) == 0) { return false }
+    for index: cast(s32)0..JsonCount(document, node) - 1 {
+        item := JsonElement(document, node, index)
+        if JsonKindOf(document, item) != .String { return false }
+        value := TextDetach(JsonString(document, item))
+        if !SafeText(value, 4095) { return false }
+        VecPush(<<output, value)
+    }
+    return true
+}
+
+ValidDigest :: (value: string) -> bool {
+    if value.count != 71 || value[0:7] != "sha256:" { return false }
+    for byte: value[7:] {
+        if !(byte >= #char "0" && byte <= #char "9") &&
+        !(byte >= #char "a" && byte <= #char "f") { return false }
+    }
+    return true
+}
+
+ParseRequired :: (document: *JsonDocument, node: s32, output: *RequiredCell) -> bool {
+    return JsonKindOf(document, node) == .Object && JsonCount(document, node) == 4 &&
+        FieldInto(document, node, "case", *output.case_id, 256) &&
+        FieldInto(document, node, "phase", *output.phase, 128) &&
+        FieldInto(document, node, "metric", *output.metric, 128) &&
+        FieldInto(document, node, "unit", *output.unit, 128)
+}
+
+ParseClosure :: (document: *JsonDocument, object: s32, output: *Vec(ClosureItem)) -> bool {
+    node := JsonMember(document, object, "runtime_closure")
+    if JsonKindOf(document, node) != .Array || JsonCount(document, node) == 0 ||
+    JsonCount(document, node) > 32 { return false }
+    for index: cast(s32)0..JsonCount(document, node) - 1 {
+        item_node := JsonElement(document, node, index)
+        item: ClosureItem
+        if JsonKindOf(document, item_node) != .Object || JsonCount(document, item_node) != 2 ||
+        !FieldInto(document, item_node, "path", *item.path, 4095) ||
+        !FieldInto(document, item_node, "sha256", *item.digest, 71) ||
+        !ValidDigest(item.digest) || !CleanAbsolutePath(item.path) { return false }
+        for other_index: cast(s64)0..(<<output).count - 1 {
+            if (<<output)[other_index].path == item.path { return false }
+        }
+        VecPush(<<output, item)
+    }
+    return true
+}
+
+Contains :: (values: []string, wanted: string) -> bool {
+    for value: values { if value == wanted { return true } }
+    return false
+}
+
+ContainsPair :: (values: []string, first: string, second: string) -> bool {
+    for index: cast(s64)0..values.count - 2 {
+        if values[index] == first && values[index + 1] == second { return true }
+    }
+    return false
+}
+
+EnvironmentValue :: (values: []string, name: string) -> string {
+    prefix := Cat(name, "=")
+    for value: values {
+        if TextHasPrefix(value, prefix) { return value[prefix.count:] }
+    }
+    return ""
+}
+
+ClosureContains :: (job: *CollectJob, path: string) -> bool {
+    for item: job.closure { if item.path == path { return true } }
+    return false
+}
+
+ValidCellShape :: (phase: string, metric: string, unit: string) -> bool {
+    if phase == "coldcompile" || phase == "coldstartup" || phase == "warmstartup" {
+        return metric == "duration" && unit == "ns"
+    }
+    if phase == "warmthroughput" { return metric == "throughput" && unit == "ops/s" }
+    if phase == "memory" { return metric == "memory" && unit == "KiB" }
+    if phase == "code-size" { return metric == "code-size" && unit == "bytes" }
+    if phase == "bundle-size" { return metric == "bundle-size" && unit == "bytes" }
+    return false
+}
+
+ValidSelector :: (job: *CollectJob) -> bool {
+    if job.engine == "new-native" {
+        print("assembly collector: new-native ZX is unavailable; keep that required cell missing\n")
+        return false
+    }
+    expected := ""
+    if job.engine == "old-portable-vm" { expected = "zx-vm" }
+    else if job.engine == "new-portable" { expected = "lowered-portable" }
+    else if job.engine == "old-c-tinycc-native" {
+        print("assembly collector: old C/TinyCC native has no native-only CLI proof; keep that cell missing\n")
+        return false
+    }
+    else if job.engine == "direct-aot" { expected = "direct-aot" }
+    else if job.engine == "control-c" || job.engine == "control-go" ||
+    job.engine == "control-wasm" { expected = job.engine }
+    else {
+        print("assembly collector: unsupported engine %\n", job.engine)
+        return false
+    }
+    if job.selector != expected {
+        print("assembly collector: engine % requires selector %, not %\n",
+            job.engine, expected, job.selector)
+        return false
+    }
+    if job.command.count == 0 || job.command[0].count == 0 ||
+    job.command[0][0] != #char "/" || !ClosureContains(job, job.command[0]) { return false }
+    if job.verification.count > 0 &&
+    (job.verification[0][0] != #char "/" || !ClosureContains(job, job.verification[0])) {
+        return false
+    }
+    if job.rss_tool != "-" &&
+    (job.rss_tool[0] != #char "/" || !ClosureContains(job, job.rss_tool)) { return false }
+    selection := job.command[:]
+    if (job.phase == "coldcompile" || job.phase == "code-size" ||
+        job.phase == "bundle-size") && job.verification.count > 0 {
+        selection = job.verification[:]
+    }
+    flags := selection[1:]
+    if job.selector == "zx-vm" {
+        return flags.count == 3 && flags[0] == "run" && flags[1] == "--vm" &&
+            flags[2] == job.input_path
+    }
+    if job.selector == "lowered-portable" {
+        expected_input := ifx job.phase == "coldcompile" ||
+            job.phase == "bundle-size" then job.artifact else job.input_path
+        return PathName(selection[0]) == "zi2asm" && Contains(flags, "--run") &&
+            ContainsPair(flags, "--input", "exec") &&
+            flags[flags.count - 1] == expected_input
+    }
+    if job.selector == "direct-aot" {
+        return job.artifact != "-" && selection[0] == job.artifact
+    }
+    if job.selector == "control-c" || job.selector == "control-go" {
+        return job.artifact != "-" && selection[0] == job.artifact
+    }
+    if job.selector == "control-wasm" {
+        return job.artifact != "-" && Contains(flags, job.artifact)
+    }
+    return true
+}
+
+PathInside :: (parent: string, child: string) -> bool {
+    if !CleanAbsolutePath(parent) || !CleanAbsolutePath(child) { return false }
+    prefix := Cat(parent, "/")
+    return child != parent && TextHasPrefix(child, prefix)
+}
+
+ValidateJob :: (plan: *CollectPlan, job: *CollectJob) -> bool {
+    if !SafeName(job.receipt_id) || !ValidCellShape(job.phase, job.metric, job.unit) ||
+    !ValidDigest(job.input_checksum) || !ValidDigest(job.correctness_expected) ||
+    !TextContains(job.semantic_settings, "process=fresh-child-per-sample") ||
+    job.command.count == 0 || job.repeats < 3 || job.repeats > MAX_REPEATS ||
+    job.iterations < 1 || job.timeout_ms < 1 ||
+    !CleanAbsolutePath(job.input_path) { return false }
+    if job.phase == "warmstartup" || job.phase == "warmthroughput" {
+        if job.warmups < 1 { return false }
+    } else if job.warmups != 0 { return false }
+    if job.phase == "warmthroughput" &&
+    (job.verification.count == 0 ||
+    !TextContains(job.semantic_settings, "timing=internal-kernel-ns")) { return false }
+    private_cache := job.cache_policy == "private-cold-each-sample" ||
+        job.cache_policy == "private-warm-across-samples"
+    if private_cache {
+        if job.cache_directory == "-" || !PathInside(plan.collector_work, job.cache_directory) {
+            return false
+        }
+    } else if job.cache_policy != "immutable-artifact-no-engine-cache" ||
+    job.cache_directory != "-" { return false }
+    if job.phase == "coldcompile" || job.phase == "code-size" ||
+    job.phase == "bundle-size" {
+        if job.verification.count == 0 || job.artifact == "-" ||
+        !PathInside(plan.collector_work, job.artifact) { return false }
+    }
+    if job.phase == "memory" && job.rss_tool == "-" { return false }
+    if job.phase != "memory" && job.rss_tool != "-" { return false }
+    return ValidSelector(job) && ToolchainIdentity(job) != ""
+}
+
+ParseJob :: (document: *JsonDocument, node: s32, output: *CollectJob) -> bool {
+    if JsonKindOf(document, node) != .Object || JsonCount(document, node) != 24 ||
+    !FieldInto(document, node, "receipt_id", *output.receipt_id, 256) ||
+    !FieldInto(document, node, "case", *output.case_id, 256) ||
+    !FieldInto(document, node, "engine", *output.engine, 128) ||
+    !FieldInto(document, node, "selector", *output.selector, 128) ||
+    !FieldInto(document, node, "phase", *output.phase, 128) ||
+    !FieldInto(document, node, "metric", *output.metric, 128) ||
+    !FieldInto(document, node, "unit", *output.unit, 128) ||
+    !StringArray(document, node, "command", *output.command, 64, false) ||
+    !StringArray(document, node, "verification", *output.verification, 64) ||
+    !ParseClosure(document, node, *output.closure) ||
+    !FieldInto(document, node, "workload", *output.workload) ||
+    !FieldInto(document, node, "input_path", *output.input_path, 4095) ||
+    !FieldInto(document, node, "input_checksum", *output.input_checksum, 71) ||
+    !FieldInto(document, node, "semantic_settings", *output.semantic_settings) ||
+    !FieldInto(document, node, "correctness_expected", *output.correctness_expected, 71) ||
+    !IntegerField(document, node, "iterations", 1, 9223372036854775807, *output.iterations) ||
+    !IntegerField(document, node, "repeats", 3, MAX_REPEATS, *output.repeats) ||
+    !IntegerField(document, node, "warmups", 0, MAX_REPEATS, *output.warmups) ||
+    !IntegerField(document, node, "timeout_ms", 1, 86400000, *output.timeout_ms) ||
+    !FieldInto(document, node, "cache_policy", *output.cache_policy, 128) ||
+    !FieldInto(document, node, "cache_directory", *output.cache_directory, 4095) ||
+    !StringArray(document, node, "environment", *output.environment, 64) ||
+    !FieldInto(document, node, "artifact", *output.artifact, 4095) ||
+    !FieldInto(document, node, "rss_tool", *output.rss_tool, 4095) { return false }
+    return true
+}
+
+ParsePlan :: (text: string, plan: *CollectPlan) -> bool {
+    document: JsonDocument
+    if !JsonRead(*document, text) || JsonKindOf(*document, document.root) != .Object ||
+    JsonCount(*document, document.root) != 10 { return false }
+    schema, schema_valid := JsonInteger(*document,
+        JsonMember(*document, document.root, "schema_version"))
+    if !schema_valid || schema != 1 ||
+    !FieldInto(*document, document.root, "campaign", *plan.campaign, 256) ||
+    !FieldInto(*document, document.root, "physical_host", *plan.physical_host, 256) ||
+    !FieldInto(*document, document.root, "hostname", *plan.hostname, 256) ||
+    !FieldInto(*document, document.root, "cpu", *plan.cpu) ||
+    !FieldInto(*document, document.root, "os", *plan.os) ||
+    !FieldInto(*document, document.root, "working_directory", *plan.working_directory, 4095) ||
+    !FieldInto(*document, document.root, "collector_work", *plan.collector_work, 4095) {
+        return false
+    }
+    required := JsonMember(*document, document.root, "required_cells")
+    jobs := JsonMember(*document, document.root, "jobs")
+    if JsonKindOf(*document, required) != .Array || JsonCount(*document, required) == 0 ||
+    JsonCount(*document, required) > MAX_REQUIRED_CELLS ||
+    JsonKindOf(*document, jobs) != .Array || JsonCount(*document, jobs) == 0 ||
+    JsonCount(*document, jobs) > MAX_JOBS { return false }
+    for index: cast(s32)0..JsonCount(*document, required) - 1 {
+        cell: RequiredCell
+        if !ParseRequired(*document, JsonElement(*document, required, index), *cell) {
+            return false
+        }
+        VecPush(plan.required, cell)
+    }
+    total_samples: s64
+    for index: cast(s32)0..JsonCount(*document, jobs) - 1 {
+        job: CollectJob
+        if !ParseJob(*document, JsonElement(*document, jobs, index), *job) { return false }
+        total_samples += job.repeats
+        if total_samples > MAX_TOTAL_SAMPLES { return false }
+        VecPush(plan.jobs, job)
+    }
+    return true
+}
+
+ValidatePlan :: (plan: *CollectPlan) -> bool {
+    if plan.physical_host != "alpha" || !TextHasPrefix(plan.hostname, "alpha") ||
+    !CleanAbsolutePath(plan.working_directory) ||
+    !CleanAbsolutePath(plan.collector_work) ||
+    !PathInside(plan.working_directory, plan.collector_work) { return false }
+    for index: cast(s64)0..plan.required.count - 1 {
+        if !ValidCellShape(plan.required[index].phase, plan.required[index].metric,
+            plan.required[index].unit) { return false }
+        for other: index + 1..plan.required.count - 1 {
+            if plan.required[index].case_id == plan.required[other].case_id &&
+            plan.required[index].phase == plan.required[other].phase &&
+            plan.required[index].metric == plan.required[other].metric &&
+            plan.required[index].unit == plan.required[other].unit { return false }
+        }
+    }
+    for index: cast(s64)0..plan.jobs.count - 1 {
+        if !ValidateJob(plan, *plan.jobs[index]) { return false }
+        for other: index + 1..plan.jobs.count - 1 {
+            if plan.jobs[index].receipt_id == plan.jobs[other].receipt_id { return false }
+            if plan.jobs[index].case_id == plan.jobs[other].case_id &&
+            plan.jobs[index].phase == plan.jobs[other].phase &&
+            plan.jobs[index].metric == plan.jobs[other].metric &&
+            plan.jobs[index].engine == plan.jobs[other].engine { return false }
+            if plan.jobs[index].case_id == plan.jobs[other].case_id &&
+            plan.jobs[index].phase == plan.jobs[other].phase &&
+            plan.jobs[index].metric == plan.jobs[other].metric &&
+            (plan.jobs[index].workload != plan.jobs[other].workload ||
+            plan.jobs[index].input_checksum != plan.jobs[other].input_checksum ||
+            plan.jobs[index].iterations != plan.jobs[other].iterations ||
+            plan.jobs[index].unit != plan.jobs[other].unit ||
+            plan.jobs[index].semantic_settings != plan.jobs[other].semantic_settings ||
+            plan.jobs[index].correctness_expected != plan.jobs[other].correctness_expected) {
+                return false
+            }
+        }
+    }
+    return true
+}
+
+#scope_export
+ValidatePlanText :: (text: string) -> bool {
+    plan: CollectPlan
+    return ParsePlan(text, *plan) && ValidatePlan(*plan)
+}
+
+#scope_file
+Capture :: (arguments: []string) -> (text: string, code: s32) {
+    options: ProcessOptions = .{.arguments = arguments, .capture_output = true}
+    run: ProcessRun
+    if !RunProcess(options, *run) { return "", 127 }
+    return TextDetach(BuilderFinish(run.output)), run.code
+}
+
+HashFile :: (path: string) -> string {
+    arguments := string.["sha256sum", "--", path]
+    output, code := Capture(arguments[:])
+    if code != 0 || output.count < 64 { return "" }
+    result := Cat("sha256:", output[0:64])
+    return ifx ValidDigest(result) then result else ""
+}
+
+CpuIdentity :: () -> string {
+    arguments := string.["/usr/bin/lscpu"]
+    output, code := Capture(arguments[:])
+    if code != 0 { return "" }
+    lines := TextLines(output)
+    for line: lines {
+        if TextHasPrefix(line, "Model name:") {
+            return TextDetach(TextCopy(TextTrim(line[11:])))
+        }
+    }
+    return ""
+}
+
+VerifyPhysicalHost :: (plan: *CollectPlan) -> bool {
+    host_command := string.["/usr/bin/hostname"]
+    os_command := string.["/usr/bin/uname", "-srmo"]
+    virt_command := string.["/usr/bin/systemd-detect-virt"]
+    hostname, host_code := Capture(host_command[:])
+    os, os_code := Capture(os_command[:])
+    virtualization, virt_code := Capture(virt_command[:])
+    actual_host := TextTrim(hostname)
+    actual_os := TextTrim(os)
+    actual_virt := TextTrim(virtualization)
+    actual_cpu := CpuIdentity()
+    if host_code != 0 || os_code != 0 || virt_code != 1 || actual_virt != "none" ||
+    actual_host != plan.hostname || actual_cpu != plan.cpu || actual_os != plan.os {
+        print("assembly collector: Alpha physical-host attestation failed; no commands were run\n")
+        return false
+    }
+    return true
+}
+
+VerifyInputs :: (job: *CollectJob) -> bool {
+    if HashFile(job.input_path) != job.input_checksum { return false }
+    for item: job.closure {
+        if HashFile(item.path) != item.digest { return false }
+    }
+    return true
+}
+
+ResetPrivateCache :: (plan: *CollectPlan, job: *CollectJob) -> bool {
+    if job.cache_directory == "-" { return true }
+    if !PathInside(plan.collector_work, job.cache_directory) { return false }
+    if PathStatus(job.cache_directory, false).kind != .Missing &&
+    !RemoveTree(job.cache_directory) { return false }
+    return CreateDirectories(job.cache_directory)
+}
+
+CommandOutputPath :: (plan: *CollectPlan, job: *CollectJob, label: string) -> string {
+    prefix := Cat(plan.collector_work, Cat("/", Cat(job.receipt_id, Cat("-", label))))
+    return Cat(prefix, ".stdout")
+}
+
+RunCommand :: (plan: *CollectPlan, job: *CollectJob, arguments: []string,
+    label: string, measured: bool) -> (elapsed: s64, output_digest: string, valid: bool) {
+    stdout_path := CommandOutputPath(plan, job, label)
+    prefix := stdout_path[0:stdout_path.count - 7]
+    stderr_path := Cat(prefix, ".stderr")
+    environment: Vec(string)
+    for value: job.environment { VecPush(environment, value) }
+    removals := string.["DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY",
+        "DBUS_SESSION_BUS_ADDRESS", "GDK_DISPLAY"]
+    for value: removals { VecPush(environment, value) }
+    VecPush(environment, "HARMONY_DESKTOP_RECOVERY=0")
+    options: ProcessOptions = .{.arguments = arguments, .directory = plan.working_directory,
+        .environment = environment[:], .output_path = stdout_path,
+        .error_path = stderr_path, .new_session = true}
+    run: ProcessRun
+    started := MonotonicNanoseconds()
+    if started < 0 || !StartProcess(options, *run) { return 0, "", false }
+    deadline := MonotonicMilliseconds() + job.timeout_ms
+    while !PollProcess(*run) {
+        if MonotonicMilliseconds() >= deadline {
+            unused SignalProcess(*run, 15, true)
+            unused SleepMilliseconds(100)
+            if !PollProcess(*run) { unused SignalProcess(*run, 9, true) }
+            unused WaitProcess(*run)
+            print("assembly collector: command timed out for %\n", job.receipt_id)
+            return 0, "", false
+        }
+        unused SleepMilliseconds(2)
+    }
+    finished := MonotonicNanoseconds()
+    if run.code != 0 || finished <= started { return 0, "", false }
+    digest := HashFile(stdout_path)
+    return ifx measured then finished - started else cast(s64)1, digest, digest != ""
+}
+
+RunVerification :: (plan: *CollectPlan, job: *CollectJob, fallback: string,
+    label: string) -> (identity: string, valid: bool) {
+    if job.verification.count == 0 { return fallback, fallback == job.correctness_expected }
+    unused_elapsed, identity, ok := RunCommand(plan, job, job.verification[:], label, false)
+    return identity, ok && identity == job.correctness_expected
+}
+
+MeasureOnce :: (plan: *CollectPlan, job: *CollectJob, index: s64,
+    warmup: bool = false) -> Observation {
+    result: Observation
+    suffix_buffer: [32]u8
+    suffix := TextDetach(TextCopy(FormatInteger(index, suffix_buffer[:])))
+    label := Cat(ifx warmup then "warmup-" else "sample-", suffix)
+    if !warmup && (job.phase == "coldcompile" || job.phase == "code-size" ||
+        job.phase == "bundle-size") {
+        info := PathStatus(job.artifact, false)
+        if info.kind != .Missing && (info.kind != .File || !RemoveFile(job.artifact)) {
+            return result
+        }
+    }
+    command: Vec(string)
+    rss_path := ""
+    if job.phase == "memory" {
+        rss_path = Cat(plan.collector_work, Cat("/", Cat(job.receipt_id, Cat("-rss-", suffix))))
+        VecPush(command, job.rss_tool)
+        VecPush(command, "-f")
+        VecPush(command, "%M")
+        VecPush(command, "-o")
+        VecPush(command, rss_path)
+        VecPush(command, "--")
+        for value: job.command { VecPush(command, value) }
+    } else {
+        for value: job.command { VecPush(command, value) }
+    }
+    elapsed, command_identity, ok := RunCommand(plan, job, command[:], label, true)
+    if !ok { return result }
+    identity, correct := RunVerification(plan, job, command_identity, Cat(label, "-verify"))
+    if !correct { return result }
+    result.correctness = identity
+    if warmup { result.sample = 1.0; result.valid = true; return result }
+    if job.metric == "duration" { result.sample = cast(float64)elapsed }
+    else if job.metric == "throughput" {
+        text, readable := ReadEntireFile(CommandOutputPath(plan, job, label))
+        timing := ifx readable then TextTrim(text) else ""
+        kernel_ns, count := IntegerPrefix(timing)
+        if count != timing.count || kernel_ns <= 0 { return .{} }
+        result.sample = cast(float64)job.iterations * 1000000000.0 /
+            cast(float64)kernel_ns
+    } else if job.metric == "memory" {
+        text, readable := ReadEntireFile(rss_path)
+        value, count := IntegerPrefix(ifx readable then TextTrim(text) else "")
+        if count == 0 || value <= 0 { return .{} }
+        result.sample = cast(float64)value
+    } else {
+        info := PathStatus(job.artifact)
+        if info.kind != .File || info.size <= 0 { return .{} }
+        result.sample = cast(float64)info.size
+    }
+    result.valid = result.sample > 0.0 && Finite64(result.sample)
+    return result
+}
+
+ToolchainIdentity :: (job: *CollectJob) -> string {
+    output: Vec(u8)
+    unused BuilderAppend(output, "selector=")
+    unused BuilderAppend(output, job.selector)
+    unused BuilderAppend(output, ";command=")
+    unused BuilderAppend(output, job.command[0])
+    unused BuilderAppend(output, ";cache=")
+    unused BuilderAppend(output, job.cache_policy)
+    unused BuilderAppend(output, "@")
+    unused BuilderAppend(output, job.cache_directory)
+    unused BuilderAppend(output, ";process=fresh-child-per-sample")
+    if job.verification.count > 0 {
+        unused BuilderAppend(output, ";verify=")
+        for index: cast(s64)0..job.verification.count - 1 {
+            if index > 0 { unused BuilderAppend(output, ",") }
+            unused BuilderAppend(output, job.verification[index])
+        }
+    }
+    if job.environment.count > 0 {
+        unused BuilderAppend(output, ";environment=")
+        for index: cast(s64)0..job.environment.count - 1 {
+            if index > 0 { unused BuilderAppend(output, ",") }
+            unused BuilderAppend(output, job.environment[index])
+        }
+    }
+    unused BuilderAppend(output,
+        ";collector-environment=DISPLAY-,WAYLAND_DISPLAY-,XAUTHORITY-,DBUS_SESSION_BUS_ADDRESS-,GDK_DISPLAY-,HARMONY_DESKTOP_RECOVERY=0")
+    unused BuilderAppend(output, ";closure=")
+    for index: cast(s64)0..job.closure.count - 1 {
+        if index > 0 { unused BuilderAppend(output, ",") }
+        unused BuilderAppend(output, job.closure[index].path)
+        unused BuilderAppend(output, "@")
+        unused BuilderAppend(output, job.closure[index].digest)
+    }
+    result := TextDetach(BuilderFinish(output))
+    return ifx SafeText(result) then result else ""
+}
+
+PutText :: (document: *JsonDocument, object: s32, name: string, value: string) {
+    JsonSet(document, object, name, JsonNewStringCopy(document, value))
+}
+
+AppendRequired :: (document: *JsonDocument, array: s32, cell: *RequiredCell) {
+    object := JsonNewObject(document)
+    PutText(document, object, "case", cell.case_id)
+    PutText(document, object, "phase", cell.phase)
+    PutText(document, object, "metric", cell.metric)
+    PutText(document, object, "unit", cell.unit)
+    JsonAppend(document, array, object)
+}
+
+AppendReceipt :: (document: *JsonDocument, array: s32, plan: *CollectPlan,
+    job: *CollectJob, samples: []float64, correctness: string) -> bool {
+    toolchain := ToolchainIdentity(job)
+    if toolchain == "" { return false }
+    object := JsonNewObject(document)
+    PutText(document, object, "receipt_id", job.receipt_id)
+    PutText(document, object, "case", job.case_id)
+    PutText(document, object, "physical_host", plan.physical_host)
+    PutText(document, object, "host_mode", "physical")
+    PutText(document, object, "vm", "none")
+    PutText(document, object, "cpu", plan.cpu)
+    PutText(document, object, "os", plan.os)
+    PutText(document, object, "toolchain", toolchain)
+    flags := JsonNewArray(document)
+    for index: cast(s64)1..job.command.count - 1 {
+        JsonAppend(document, flags, JsonNewStringCopy(document, job.command[index]))
+    }
+    JsonSet(document, object, "flags", flags)
+    PutText(document, object, "workload", job.workload)
+    PutText(document, object, "input_checksum", job.input_checksum)
+    PutText(document, object, "engine", job.engine)
+    PutText(document, object, "phase", job.phase)
+    PutText(document, object, "metric", job.metric)
+    PutText(document, object, "unit", job.unit)
+    PutText(document, object, "semantic_settings", job.semantic_settings)
+    PutText(document, object, "correctness_expected", job.correctness_expected)
+    PutText(document, object, "correctness_actual", correctness)
+    JsonSet(document, object, "iterations", JsonNewInteger(document, job.iterations))
+    JsonSet(document, object, "repeats", JsonNewInteger(document, job.repeats))
+    values := JsonNewArray(document)
+    for sample: samples {
+        JsonAppend(document, values, JsonNewNumber(document, Float64Repr(sample)))
+    }
+    JsonSet(document, object, "samples", values)
+    JsonAppend(document, array, object)
+    return true
+}
+
+#scope_export
+ProcessCollection :: (input: string, output: string) -> bool {
+    if input == output { return false }
+    query := PathQuery(input)
+    if !query.valid || query.info.kind != .File || query.info.size < 2 ||
+    query.info.size > MAX_PLAN_BYTES { return false }
+    text, readable := ReadEntireFile(input)
+    if !readable || text.count != query.info.size { return false }
+    plan: CollectPlan
+    if !ParsePlan(text, *plan) || !ValidatePlan(*plan) {
+        print("assembly collector: invalid collection plan\n")
+        return false
+    }
+    // This guard precedes filesystem verification, cache reset, and every job.
+    if !VerifyPhysicalHost(*plan) { return false }
+    if !CreateDirectories(plan.collector_work) { return false }
+    document: JsonDocument
+    root := JsonNewObject(*document)
+    JsonSet(*document, root, "schema_version", JsonNewInteger(*document, 1))
+    PutText(*document, root, "campaign", plan.campaign)
+    required := JsonNewArray(*document)
+    for * cell: plan.required { AppendRequired(*document, required, cell) }
+    JsonSet(*document, root, "required_cells", required)
+    receipts := JsonNewArray(*document)
+    for * job: plan.jobs {
+        if !VerifyInputs(job) { return false }
+        if job.cache_policy == "private-warm-across-samples" &&
+        !ResetPrivateCache(*plan, job) { return false }
+        for warmup: cast(s64)0..job.warmups - 1 {
+            observation := MeasureOnce(*plan, job, warmup, true)
+            if !observation.valid { return false }
+        }
+        samples: Vec(float64)
+        correctness := ""
+        for index: cast(s64)0..job.repeats - 1 {
+            if job.cache_policy == "private-cold-each-sample" &&
+            !ResetPrivateCache(*plan, job) { return false }
+            observation := MeasureOnce(*plan, job, index)
+            if !observation.valid || observation.correctness != job.correctness_expected {
+                return false
+            }
+            correctness = observation.correctness
+            VecPush(samples, observation.sample)
+        }
+        statistics := BenchmarkAnalyze(samples[:])
+        if !statistics.valid || !VerifyInputs(job) ||
+        !AppendReceipt(*document, receipts, *plan, job,
+            samples[:], correctness) { return false }
+    }
+    JsonSet(*document, root, "receipts", receipts)
+    result := JsonWrite(*document, root, JsonPythonStyle(2))
+    return CreateDirectories(PathParent(output)) && ReplaceFile(output, result)
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 3 && TextFromCString(argv[1]) == "--validate" {
+        input := TextDetach(TextCopy(TextFromCString(argv[2])))
+        query := PathQuery(input)
+        text, readable := ReadEntireFile(input)
+        if !query.valid || query.info.kind != .File || query.info.size < 2 ||
+        query.info.size > MAX_PLAN_BYTES || !readable || text.count != query.info.size ||
+        !ValidatePlanText(text) { return 1 }
+        print("assembly collector: plan is valid; no commands were run\n")
+        return 0
+    }
+    if argc != 3 {
+        print("usage: assembly_collect.zi [--validate] PLAN.json [OUTPUT.json]\n")
+        return 2
+    }
+    input := TextDetach(TextCopy(TextFromCString(argv[1])))
+    output := TextDetach(TextCopy(TextFromCString(argv[2])))
+    return ifx ProcessCollection(input, output) then 0 else 1
+}

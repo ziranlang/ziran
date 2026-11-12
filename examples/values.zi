@@ -1,0 +1,9 @@
+// Values: integers, floats, booleans, and text.
+main :: () {
+    print("text: %\n", "ziran");
+    print("1 + 1 = %\n", 1 + 1);
+    print("7.0 / 3.0 = %\n", 7.0 / 3.0);
+    print("true and false: %\n", true && false);
+    print("true or false: %\n", true || false);
+    print("not true: %\n", !true);
+}

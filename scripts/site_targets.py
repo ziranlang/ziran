@@ -58,11 +58,11 @@ OUTPUT_ORACLES = {
 
 def fixtures():
     return [
-        ('score', 'Records & calls', 'site/examples/score.zi', 42),
-        ('text_demo', 'Text & imports', 'site/examples/text_demo.zi', 1),
-        ('arrays', 'Arrays & slices', 'site/examples/arrays.zi', 0),
-        ('enums', 'Enums & branches', 'site/examples/enums.zi', 0),
-        ('loops', 'Loops & collections', 'site/examples/loops.zi', 0),
+        ('score', 'Records & calls', 'examples/score.zi', 42),
+        ('text_demo', 'Text & imports', 'examples/text_demo.zi', 1),
+        ('arrays', 'Arrays & slices', 'examples/arrays.zi', 0),
+        ('enums', 'Enums & branches', 'examples/enums.zi', 0),
+        ('loops', 'Loops & collections', 'examples/loops.zi', 0),
     ]
 
 

@@ -24,7 +24,7 @@ async function main() {
     ['functions', null]
   ];
   for (const [name, expected] of examples) {
-    const result = run(fs.readFileSync(path.join(__dirname, '../site/examples', name + '.zi'), 'utf8'));
+    const result = run(fs.readFileSync(path.join(__dirname, '../examples', name + '.zi'), 'utf8'));
     assert.equal(result.status, 0, name + ': ' + result.diagnostics);
     if (expected !== null) assert.equal(result.output, expected, name);
     assert.deepEqual(result.stages, ['check', 'build', 'run']);

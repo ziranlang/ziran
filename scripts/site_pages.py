@@ -4,7 +4,7 @@
 Everything listed here is produced from source, so a new module, package or
 guide document appears on the next run without editing HTML by hand:
 
-  site/examples.html       every program in site/examples with the output the
+  site/examples.html       every program in examples/ with the output the
                            portable runner prints for it;
   site/modules.html        the index of every standard module and every
                            public ziranlang package, with summary and status;
@@ -45,7 +45,7 @@ except ImportError:  # pragma: no cover - reported at run time
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(REPO, 'site')
-EXAMPLES = os.path.join(SITE, 'examples')
+EXAMPLES = os.path.join(REPO, 'examples')
 STD = os.path.join(REPO, 'std')
 DOCS = os.path.join(REPO, 'docs')
 ORIGIN = 'https://ziran-lang.org'
@@ -163,9 +163,9 @@ def example_sections(ziran):
         summary = EXAMPLE_TITLES.get(name, comment)
         title, _, description = summary.partition(': ')
         if not description:
-            sys.exit(f'site/examples/{name}.zi needs a "// Title: description" first comment')
+            sys.exit(f'examples/{name}.zi needs a "// Title: description" first comment')
         entry = 'main' if re.search(r'^main :: \(\)', source, re.M) else 'Answer'
-        path = f'site/examples/{name}.zi'
+        path = f'examples/{name}.zi'
         options = ['--entry', f'{name}:{entry}'] if entry != 'main' else []
         output = run([ziran, 'run', *options, path])
         entry_option = f' --entry {name}:{entry}' if options else ''

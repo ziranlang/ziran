@@ -1,0 +1,6 @@
+// One portable native-thread API. POSIX targets use pthreads; native Win64
+#if #defined(_WIN32) {
+    using Platform :: #import "thread_windows"
+} else {
+    using Platform :: #import "thread_linux"
+}

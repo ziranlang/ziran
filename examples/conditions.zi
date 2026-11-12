@@ -1,0 +1,32 @@
+// if/else and switch.
+Describe :: (number: s32) -> string {
+    if number < 0 {
+        return "negative";
+    } else if number == 0 {
+        return "zero";
+    }
+    return "positive";
+}
+
+DayKind :: (day: s32) -> string {
+    if day == {
+        case 6; return "weekend";
+        case 7; return "weekend";
+    }
+    return "weekday";
+}
+
+main :: () {
+    print("-4 is %\n", Describe(-4));
+    print("0 is %\n", Describe(0));
+    print("9 is %\n", Describe(9));
+
+    if 7 % 2 == 0 {
+        print("7 is even\n");
+    } else {
+        print("7 is odd\n");
+    }
+
+    print("day 3 is a %\n", DayKind(3));
+    print("day 6 is a %\n", DayKind(6));
+}

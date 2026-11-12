@@ -1,0 +1,21 @@
+// Arrays and slices: a fixed array, a view into part of it, and a sum.
+Sum :: (numbers: []s32) -> s32 {
+    total: s32 = 0;
+    for numbers { total += it; }
+    return total;
+}
+
+main :: () {
+    empty: [5]s32;
+    print("empty: % % % % %\n", empty[0], empty[1], empty[2], empty[3], empty[4]);
+
+    numbers := s32.[1, 2, 3, 4, 5];
+    numbers[4] = 100;
+    print("set: %, count: %\n", numbers[4], numbers.count);
+
+    middle := numbers[1:4];
+    print("middle has % items starting with %\n", middle.count, middle[0]);
+
+    print("sum of all: %\n", Sum(numbers[:]));
+    print("sum of middle: %\n", Sum(middle));
+}

@@ -1,0 +1,26 @@
+// Functions: plain calls, default and named arguments, and recursion.
+Add :: (a: s32, b: s32) -> s32 {
+    return a + b;
+}
+
+Greet :: (name: string, greeting: string = "Hello") {
+    print("%, %!\n", greeting, name);
+}
+
+Factorial :: (n: s64) -> s64 {
+    if n <= 1 { return 1; }
+    return n * Factorial(n - 1);
+}
+
+Fibonacci :: (n: s32) -> s32 {
+    if n < 2 { return n; }
+    return Fibonacci(n - 1) + Fibonacci(n - 2);
+}
+
+main :: () {
+    print("1 + 2 = %\n", Add(1, 2));
+    Greet("Ziran");
+    Greet("world", greeting = "Goodbye");
+    print("10! = %\n", Factorial(10));
+    print("fibonacci(20) = %\n", Fibonacci(20));
+}

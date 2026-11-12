@@ -23,6 +23,10 @@ AppendScalar :: (output: *Vec(u8), point: u32) {
 }
 
 AppendMapping :: (output: *Vec(u8), point: u32, mode: s32) {
+    if mode == 1 && point >= cast(u32)65 && point <= cast(u32)90 {
+        AppendScalar(output, point + cast(u32)32)
+        return
+    }
     record := D.Mapping(point, mode)
     if record.count == 0 { AppendScalar(output, point); return }
     count := cast(s32)record[3]
@@ -110,6 +114,13 @@ LowerInto :: (text: string, output: *Vec(u8)) -> bool {
         if point == 931 && preceded && !FollowedByCased(text,after) {
             if !CheckedScalar(output,962) { VecClear(<<output); return false }
         } else {
+            if point >= cast(u32)65 && point <= cast(u32)90 {
+                if !CheckedScalar(output, point + cast(u32)32) { VecClear(<<output); return false }
+                flags := D.Property(point)
+                if (flags & 8) == 0 { preceded = (flags & 4) != 0 }
+                at = after
+                continue
+            }
             record := D.Mapping(point,1)
             if record.count == 0 {
                 if !CheckedScalar(output,point) { VecClear(<<output); return false }

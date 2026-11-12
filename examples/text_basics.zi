@@ -1,0 +1,18 @@
+// Strings: length, bytes, slices, and comparison.
+CountByte :: (text: string, wanted: u8) -> s32 {
+    found: s32 = 0;
+    for byte: text {
+        if byte == wanted { found += 1; }
+    }
+    return found;
+}
+
+main :: () {
+    word := "banana";
+    print("% has % bytes\n", word, word.count);
+    print("the first byte is %\n", word[0]);
+    print("it contains % a's\n", CountByte(word, #char "a"));
+    print("its middle is %\n", word[1:5]);
+    print("equal to \"banana\": %\n", word == "banana");
+    print("equal to \"apple\": %\n", word == "apple");
+}

@@ -4,6 +4,10 @@
 
 - Go output compiles `VecSlice` and slice bounds of mixed integer widths, such as `s16` and `s32` indices.
 
+- Fix full lowercase for ASCII A-Z in `std/unicode`; both allocating and caller-owned paths now preserve the existing Unicode conformance contract.
+
+- Add portable native standard facades for byte text, environment access, timers, secure randomness, mapped files, standard streams, worker pools, directory trees and threads. Platform backends remain private implementation seams behind one import.
+
 - Add an opt-in revision-28 ZX executable container to the experimental
   direct backend. `zi2asm --emit zx` stores verified lowered instructions;
   `--input zx` inspects, re-emits or runs stripped files through the

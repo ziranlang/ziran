@@ -24,7 +24,7 @@ You need Make, a C11 compiler, and GNU binutils. From the repository root:
 
 ```sh
 make
-build/bin/ziran run site/examples/hello.zi
+build/bin/ziran run examples/hello.zi
 ```
 
 This prints `Hello, World!`. To install the `ziran` command for your user, run

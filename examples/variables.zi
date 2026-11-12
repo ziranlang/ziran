@@ -1,0 +1,21 @@
+// Variables and constants: a declared type, an inferred type, a default
+// zero value, and a compile-time constant.
+LIMIT :: 100;
+
+main :: () {
+    greeting: string = "initial";
+    print("%\n", greeting);
+
+    first: s32 = 1;
+    second: s32 = 2;
+    print("% %\n", first, second);
+
+    ready := true;
+    print("%\n", ready);
+
+    count: s32;
+    print("% (a variable starts at zero)\n", count);
+
+    fruit := "apple";
+    print("% and the limit is %\n", fruit, LIMIT);
+}

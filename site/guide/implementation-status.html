@@ -12,6 +12,13 @@ removed redundant scripts; those fixtures remain in Git history. Run
 <h2 id="working-now">Working now</h2>
 <ul>
 <li>
+<p>Native C programs can import portable standard facades for common platform
+  services. <code>std/thread</code> selects pthreads or native Windows threads while
+  preserving one <code>Thread</code> API; <code>std/byte_text</code>, <code>std/environment</code>,
+  <code>std/timer</code>, <code>std/random</code>, <code>std/mapped_file</code>, <code>std/stdio</code>,
+  <code>std/parallel</code> and <code>std/file_tree</code> similarly hide native-backend modules.</p>
+</li>
+<li>
 <p><code>std/simd</code> vector types and operations run with identical bits in native
   C (GCC and Clang vectors with SSE2, SSSE3, SSE4.1, AVX2 and NEON
   intrinsics, or the lane loops TinyCC and other compilers use), Go lane

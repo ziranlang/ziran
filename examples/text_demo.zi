@@ -1,0 +1,8 @@
+#import "text"
+
+Answer :: () -> s32 {
+    if StartsWithFoldASCII("Ziran", "zi") {
+        return 1;
+    }
+    return 0;
+}

@@ -30,7 +30,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if !NativeAssert(*test, CheckField(*document, root, "summary") == "Loader module." && JsonCount(*document, entries) == 1 &&
         JsonString(*document, JsonElement(*document, entry, 1)) == "Double :: (n: s32) -> s32" &&
         JsonString(*document, JsonElement(*document, entry, 2)) == "Doubles a number.", "loaded declaration documentation came from the wrong file or line") { return 1 }
-    hello := NativeRead(*test, CheckPath(test.repo, "site/examples/hello.zi"))
+    hello := NativeRead(*test, CheckPath(test.repo, "examples/hello.zi"))
     if !NativeWrite(*test, CheckPath(test.work, "hello.zi"), hello) { return 1 }
     run := string.[test.ziran, "run", "hello.zi"]
     direct := string.[CheckPath(PathParent(test.ziran), "zi2zx"), "hello.zi"]

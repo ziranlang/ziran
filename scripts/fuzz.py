@@ -61,7 +61,7 @@ def main():
     args = parser.parse_args()
 
     repo = Path(__file__).resolve().parent.parent
-    seeds = [path.read_bytes() for pattern in ("site/examples/*.zi", "cmd/*.zi", "std/*.zi",
+    seeds = [path.read_bytes() for pattern in ("examples/*.zi", "cmd/*.zi", "std/*.zi",
                                                "tests/fuzz/*.zi")
              for path in sorted(repo.glob(pattern)) if path.stat().st_size < 20000]
     seed = args.seed if args.seed is not None else time.time_ns()

@@ -5,7 +5,7 @@ set -eu
 # and as C and Go.
 ziran=$1
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-examples=$repo/site/examples
+examples=$repo/examples
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT HUP INT TERM
 

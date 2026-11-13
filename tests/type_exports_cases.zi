@@ -84,7 +84,18 @@ main :: (argc: s32, argv: **u8) -> s32 {
     reject := string.[test.ziran, "check", "--root", ambiguous, CheckPath(ambiguous, "app.zi")]
     result := NativeInvoke(*test, reject[:])
     if !NativeAssert(*test, result.code != 0, "ambiguous re-export ignored in favor of a direct import") { return 1 }
+    // A facade spells a re-exported type through its own alias. A caller
+    // whose same alias names another module still passes Facade.Props.
+    facade := CheckPath(test.work, "facade-alias")
+    if !NativeWrite(*test, CheckPath(facade, "button_props.zi"), "Props :: struct { width: s64 }\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(facade, "own_props.zi"), "Props :: struct { label: string }\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(facade, "button.zi"), "using PropsModule :: #import \"button_props\";\nDraw :: (props: PropsModule.Props) -> s64 { return props.width }\nMake :: (width: s64) -> PropsModule.Props { props: PropsModule.Props; props.width = width; return props }\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(facade, "app.zi"), "using PropsModule :: #import \"own_props\";\nButton :: #import \"button\";\n#program_export\nAnswer :: () -> s64 {\nown: PropsModule.Props\nown.label = \"ok\"\nif own.label.count != 2 { return 0 }\nprops: Button.Props = Button.Make(42)\nreturn Button.Draw(props)\n}\n") { return 1 }
+    facade_bundle := string.[test.ziran, "bundle", "--root", facade, "--entry", "app:Answer", "-o", CheckPath(facade, "app.zx"), CheckPath(facade, "app.zi")]
+    unused NativeRun(*test, facade_bundle[:])
+    facade_run := string.[test.ziran, "run", CheckPath(facade, "app.zx")]
+    unused NativeExpect(*test, facade_run[:], "42\n")
     if test.failed { return 1 }
-    print("Public re-exports preserve source/saved VM/C/Go values, private boundaries and nested ambiguity\n")
+    print("Public re-exports preserve source/saved VM/C/Go values, private boundaries, nested ambiguity and facade alias identity\n")
     return 0
 }

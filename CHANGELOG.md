@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Calls through a module alias accept types that module re-exports with `using`. `Button.Draw` declared with `PropsModule.Props` takes a caller's `Button.Props` even when the caller's own `PropsModule` names another module; results map the same way.
+
 - Go output compiles `VecSlice` and slice bounds of mixed integer widths, such as `s16` and `s32` indices.
 
 - Fix full lowercase for ASCII A-Z in `std/unicode`; both allocating and caller-owned paths now preserve the existing Unicode conformance contract.

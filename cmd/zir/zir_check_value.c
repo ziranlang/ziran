@@ -714,9 +714,17 @@ compound_type_at_use(const ZirModule *module,
         copy_text(target, size, source);
         return strlen(source) < size;
     }
-    if(declaring == compound->owner && compound->qualifier[0]) {
-        int written = snprintf(target, size, "%s.%s",
-                               compound->qualifier, source);
+    /* A qualified use site names the owner's types through its alias. That
+     * covers types the owner publicly re-exports with `using`, which the
+     * owner may spell through its own alias: PropsModule.Props in Button is
+     * Button.Props to a caller whose own PropsModule names another module.
+     * The spelling must resolve to the same declaration. */
+    if(compound->qualifier[0] &&
+       (declaring == compound->owner ||
+        (declaring != NULL && !declared->is_synthetic_application))) {
+        int written = snprintf(target, size, "%s.%s", compound->qualifier,
+                               declaring == compound->owner ? source :
+                               declared->name);
         if(written >= 0 && (size_t)written < size &&
            FindType(module, target, NULL) == declared)
             return 1;

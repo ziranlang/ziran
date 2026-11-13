@@ -164,14 +164,20 @@ revision-28 interpreter, and native ELF either matches or stops at a named `asse
 Order from here: heap collections; global initializers; indirect calls; the remaining literal and
 expression forms; then the `ziran bundle`/`zi2zx` cutover and removal of revisions 26/27.
 
-### Wasm from revision-28 ZX (parked, not in the tree)
+### Wasm from revision-28 ZX
 
-A ZX-to-wasm32 lowering (2,349 lines, hello.wasm 287 bytes) exists in
-`backup/takeover-2026-11-13/wasm/`. It replaced the ZIR-based lowerer in one step, which broke
-`zx_wasm`, `wasm_enums`, `zx_web_lifecycle`, `zx_linked_web` and the Windows runtime build:
-their programs use global initializers and literals that LIR lowering rejects, and the change
-pulled the LIR compiler into `libziran`. It comes back after lowering coverage reaches those
-programs, first as `zi2wasm --input zx` beside the current lowerer, then as its replacement.
+Landed as `zi2asm --emit wasm` (`cmd/zir-wasm/zx_wasm_lower.c`): the verified ZX payload lowers
+to one wasm32 module. Source and saved-ZX input give identical bytes; hello is 287 bytes.
+`tests/zx_lowered_parity.sh` emits each program twice, compares the bytes, runs the module in
+node and compares its output with the interpreter: 36 of its 37 programs run as wasm, one names a
+`wasm.gap`.
+
+Not done: `zi2wasm` and the bundle Wasm tier (`zir_zx_wasm`) still use the ZIR-based
+`zir_wasm_lower`. A first attempt replaced it in one step and broke `zx_wasm`, `wasm_enums`,
+`zx_web_lifecycle`, `zx_linked_web` and the Windows runtime build: their programs use global
+initializers and literals that LIR lowering rejects, and the change pulled the LIR compiler into
+`libziran`. That replacement (kept in `backup/takeover-2026-11-13/wasm/tracked.patch`) waits for
+lowering coverage; then `zir_wasm_lower` is removed.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx

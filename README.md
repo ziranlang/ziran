@@ -69,8 +69,9 @@ Generated C and generated Go are separate routes that also produce platform
 binaries after their own downstream toolchains run. “Native” in the assembly
 documentation means verified ZX instructions lowered directly to machine code,
 not a C- or Go-generated binary.
-Default `ziran`/`zi2zx` semantic bundles and the semantic-ZIR Wasm route have
-not yet cut over to this instruction pipeline; see [ZX status](docs/ZX.md).
+`zi2asm --emit wasm` lowers the same verified ZX to a wasm32 module. Default
+`ziran`/`zi2zx` semantic bundles, `zi2wasm` and the bundle Wasm tier have not
+yet cut over to this instruction pipeline; see [ZX status](docs/ZX.md).
 
 The opt-in Linux x86-64 `zi2asm` path now has a first console veneer: its static
 ELF owns `_start`, retries partial or interrupted `write` syscalls, and exits

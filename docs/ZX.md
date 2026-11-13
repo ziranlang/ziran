@@ -53,6 +53,7 @@ zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
 zi2asm --input zx --emit elf -o app app.zx
 zi2asm --input zx --run app.zx
 zi2asm --input zx --emit lir -o - app.zx
+zi2asm --input zx --emit wasm -o app.wasm app.zx
 ```
 
 Revision 28 stores deterministic verified lowered instructions, not `.zir`.
@@ -74,10 +75,21 @@ engine with no source or semantic-IR parser.
 
 Native maps retain instruction IDs and final byte extents, but no source
 origins from this stripped payload; executable debug attachments remain a gap.
-The current `zir_zx_wasm` route still calls `zir_wasm_lower` on semantic
-`ZirProgram`. It does not lower revision-28 ZX and does not satisfy the shared
-instruction-to-Wasm cutover. Default semantic bundles, generated C/Go binaries,
-and that Wasm route are separate current implementations, never native fallback.
+`zi2asm --emit wasm` lowers the same verified ZX to one wasm32 module
+(`cmd/zir-wasm/zx_wasm_lower.c`). It reads only the decoded payload, so source
+input and saved-ZX input give identical bytes; `examples/hello.zi` is a
+287-byte module. It takes no `--target`. The module imports `zx.overrun`, the
+mutable `zx.budget` global that every `fuel` instruction charges and, when the
+program calls the host, `zx.host_i64`; it exports `zx_entry`, `memory` and the
+`zx_state_arena` cursor. Records and arrays use the interpreter's packed
+layout in linear memory. A form it has no code for stops at a named
+`wasm.gap.*` diagnostic, and no other engine is selected.
+
+`zi2wasm` and the bundle Wasm tier (`zir_zx_wasm`) still call
+`zir_wasm_lower` on semantic `ZirProgram`. They move to the ZX lowering when
+LIR lowering covers the programs they run. Default semantic bundles, generated
+C/Go binaries and that tier are separate current implementations, never native
+fallback.
 
 The fixed 64-byte header uses little-endian fields: `ZX\0\0`, version 28,
 header size 64, directory-entry size 32, required and optional feature masks,

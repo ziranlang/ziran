@@ -60,9 +60,11 @@ own compilers and linkers; they are not native-backend fallback paths.
 
 This is implemented in the experimental `zi2asm` route: source-native output
 also serializes and reads ZX first. Default semantic `ziran`/`zi2zx` bundles
-remain separate until cutover. `zir_zx_wasm` still lowers semantic `ZirProgram`
-through `zir_wasm_lower`, not revision-28 ZX; the shared instruction-to-Wasm
-route remains a hard gap. Native source maps currently lose source origins at
+remain separate until cutover. `zi2asm --emit wasm` lowers the same verified
+revision-28 payload to a wasm32 module (`cmd/zir-wasm/zx_wasm_lower.c`), so one
+`.zx` gives one `.wasm`; `zi2wasm` and `zir_zx_wasm` still lower semantic
+`ZirProgram` through `zir_wasm_lower` until LIR lowering covers their programs.
+Native source maps currently lose source origins at
 the stripped ZX boundary, while source LIR inspection retains them.
 
 The first implemented direct console veneer is the opt-in Linux x86-64 static

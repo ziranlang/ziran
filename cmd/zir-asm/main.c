@@ -1,4 +1,5 @@
 #include "zir_asm_lower.h"
+#include "zx_wasm_lower.h"
 #include "zir_check.h"
 #include "compiler_lowered_verify.h"
 #include "compiler_lowered_x64.h"
@@ -24,12 +25,13 @@
 static int
 assembly_usage(void)
 {
-    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [--target ARCH-OS] [--opt] [--machine] [--emit lir|map|zx|elf|opt-report] -o FILE INPUT...\n"
-          "       zi2asm --input zx [--target ARCH-OS] [--machine] [--emit lir|map|zx|elf] -o FILE INPUT\n"
+    fputs("usage: zi2asm --root DIR --entry MODULE:FUNCTION [-I DIR] [--bind CALLER:CAPABILITY=PROVIDER:FUNCTION] [--target ARCH-OS] [--opt] [--machine] [--emit lir|map|zx|elf|wasm|opt-report] -o FILE INPUT...\n"
+          "       zi2asm --input zx [--target ARCH-OS] [--machine] [--emit lir|map|zx|elf|wasm] -o FILE INPUT\n"
           "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] INPUT...\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--machine requires --emit elf and selects the no-fallback machine-IR Linux x86-64 path\n"
-          "pipeline: source -> ZIR -> verified LIR -> optimization -> portable ZX -> interpreter OR direct machine code/ELF\n"
+          "pipeline: source -> ZIR -> verified LIR -> optimization -> portable ZX -> interpreter OR direct machine code/ELF OR wasm32 module\n"
+          "--emit wasm lowers the same verified ZX to one wasm32 module; it takes no --target, and unsupported forms are named wasm.gap errors\n"
           "native always reads verified ZX; C/Go generated binaries are separate routes, never native\n"
           "--opt selects optimized source LIR inspection; ZX production always optimizes; opt-report requires source and --opt\n"
           "experimental direct backend; native target: Linux x86-64 ELF; host capabilities are platform bindings\n"
@@ -649,7 +651,7 @@ main(int argc, char **argv)
     const char *output = NULL;
     const char *emit = "elf";
     const char *input_kind = "source";
-    const char *target = "x86_64-linux";
+    const char *target = NULL;
     const char *fuel = NULL;
     const char *work = NULL;
     const char *frames = NULL;
@@ -704,8 +706,11 @@ main(int argc, char **argv)
         module_path_count != 0 || binding_count != 0)) ||
        (machine && (run || strcmp(emit, "elf"))) ||
        (!strcmp(emit, "opt-report") && (!optimize || serialized)) ||
-       (strcmp(emit, "lir") && strcmp(emit, "map") && strcmp(emit, "zx") && strcmp(emit, "elf") && strcmp(emit, "opt-report"))) return assembly_usage();
-    if(!assembly_target_supported(target)) return 1;
+       (!strcmp(emit, "wasm") && (target != NULL || optimize)) ||
+       (strcmp(emit, "lir") && strcmp(emit, "map") && strcmp(emit, "zx") && strcmp(emit, "elf") && strcmp(emit, "wasm") && strcmp(emit, "opt-report"))) return assembly_usage();
+    /* Wasm is its own lowering of portable ZX, not a native ARCH-OS row. */
+    int wasm = !strcmp(emit, "wasm");
+    if(!wasm && !assembly_target_supported(target != NULL ? target : "x86_64-linux")) return 1;
     int status = 1;
     ProgramSet sources = {0};
     ZirProgram merged = {0};
@@ -824,6 +829,15 @@ main(int argc, char **argv)
         bytes = zx_bytes;
         zx_bytes = NULL;
         size = zx_size;
+    } else if(wasm) {
+        /* The module comes from the verified ZX bytes alone, so source and
+         * saved-ZX input give identical modules. */
+        ZxWasmImage image = {0};
+        if(!ZxWasmLowerExecutable(zx_bytes, (size_t)zx_size, &image)) goto done;
+        size = (int64_t)image.size;
+        bytes = image.bytes;
+        image.bytes = NULL;
+        ZxWasmImageFree(&image);
     } else if(executable || mapping) {
         if(machine) {
             if(assembly_machine_gap(view)) goto done;

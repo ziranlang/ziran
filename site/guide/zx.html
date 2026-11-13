@@ -47,6 +47,7 @@ gates pass. The two paths never guess or fall back between formats.</p>
 zi2asm --input zx --emit elf -o app app.zx
 zi2asm --input zx --run app.zx
 zi2asm --input zx --emit lir -o - app.zx
+zi2asm --input zx --emit wasm -o app.wasm app.zx
 </code></pre>
 <p>Revision 28 stores deterministic verified lowered instructions, not <code>.zir</code>.
 Source is checked and lowered to LIR, verified, then optimized before ZX is
@@ -65,10 +66,20 @@ read. A stripped file therefore runs through the bounded portable instruction
 engine with no source or semantic-IR parser.</p>
 <p>Native maps retain instruction IDs and final byte extents, but no source
 origins from this stripped payload; executable debug attachments remain a gap.
-The current <code>zir_zx_wasm</code> route still calls <code>zir_wasm_lower</code> on semantic
-<code>ZirProgram</code>. It does not lower revision-28 ZX and does not satisfy the shared
-instruction-to-Wasm cutover. Default semantic bundles, generated C/Go binaries,
-and that Wasm route are separate current implementations, never native fallback.</p>
+<code>zi2asm --emit wasm</code> lowers the same verified ZX to one wasm32 module
+(<code>cmd/zir-wasm/zx_wasm_lower.c</code>). It reads only the decoded payload, so source
+input and saved-ZX input give identical bytes; <code>examples/hello.zi</code> is a
+287-byte module. It takes no <code>--target</code>. The module imports <code>zx.overrun</code>, the
+mutable <code>zx.budget</code> global that every <code>fuel</code> instruction charges and, when the
+program calls the host, <code>zx.host_i64</code>; it exports <code>zx_entry</code>, <code>memory</code> and the
+<code>zx_state_arena</code> cursor. Records and arrays use the interpreter's packed
+layout in linear memory. A form it has no code for stops at a named
+<code>wasm.gap.*</code> diagnostic, and no other engine is selected.</p>
+<p><code>zi2wasm</code> and the bundle Wasm tier (<code>zir_zx_wasm</code>) still call
+<code>zir_wasm_lower</code> on semantic <code>ZirProgram</code>. They move to the ZX lowering when
+LIR lowering covers the programs they run. Default semantic bundles, generated
+C/Go binaries and that tier are separate current implementations, never native
+fallback.</p>
 <p>The fixed 64-byte header uses little-endian fields: <code>ZX\0\0</code>, version 28,
 header size 64, directory-entry size 32, required and optional feature masks,
 section count, flags, total byte length, directory offset 64, identity algorithm

@@ -69,9 +69,11 @@ Go can also become binaries, but those are generated-code routes through their
 own compilers and linkers; they are not native-backend fallback paths.</p>
 <p>This is implemented in the experimental <code>zi2asm</code> route: source-native output
 also serializes and reads ZX first. Default semantic <code>ziran</code>/<code>zi2zx</code> bundles
-remain separate until cutover. <code>zir_zx_wasm</code> still lowers semantic <code>ZirProgram</code>
-through <code>zir_wasm_lower</code>, not revision-28 ZX; the shared instruction-to-Wasm
-route remains a hard gap. Native source maps currently lose source origins at
+remain separate until cutover. <code>zi2asm --emit wasm</code> lowers the same verified
+revision-28 payload to a wasm32 module (<code>cmd/zir-wasm/zx_wasm_lower.c</code>), so one
+<code>.zx</code> gives one <code>.wasm</code>; <code>zi2wasm</code> and <code>zir_zx_wasm</code> still lower semantic
+<code>ZirProgram</code> through <code>zir_wasm_lower</code> until LIR lowering covers their programs.
+Native source maps currently lose source origins at
 the stripped ZX boundary, while source LIR inspection retains them.</p>
 <p>The first implemented direct console veneer is the opt-in Linux x86-64 static
 ELF path. It owns <code>_start</code>, calls Linux <code>write</code> syscall 1 through a retrying

@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- A saved ZIR file from another toolchain is no longer a bare "unsupported ZIR version". The reader names the file's version, its own path and the version it reads, and the `ziran` driver that started it (`ZIRAN_DRIVER`), and says to rebuild or reinstall the Ziran toolchain so every tool agrees.
+
 - `ziran inspect` shows each statement's source once, as a trailing `//` comment, and each expression by what it means: a literal's value (`%0 string "Hello, World!\n"`) and a call's callee and arguments (`%1 call print(%0) -> void`). Expression text is printed only when no statement holds it.
 
 - Docs, the website and `zi2asm` help call the saved checked program just ZIR, since ZIR is always written after type checking.

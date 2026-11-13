@@ -242,10 +242,14 @@ PkgDispatch :: (command: string, arguments: []string, project: bool,
     values: [8]string
     names[0] = "ZIRAN_PACKAGE_MAP"
     values[0] = ""
-    environment: s32 = 1
-    while environment - 1 < cast(s32)extra_names.count && environment < 8 {
-        names[environment] = extra_names[environment - 1]
-        values[environment] = extra_values[environment - 1]
+    // The tool names the driver that chose it when it rejects a file another
+    // toolchain wrote.
+    names[1] = "ZIRAN_DRIVER"
+    values[1] = PkgCanonical(launcher)
+    environment: s32 = 2
+    while environment - 2 < cast(s32)extra_names.count && environment < 8 {
+        names[environment] = extra_names[environment - 2]
+        values[environment] = extra_values[environment - 2]
         environment += 1
     }
     if project {

@@ -7,9 +7,11 @@
 #include "zir_diagnostic.h"
 #include "zir_parse.h"
 #include "zir_text.h"
+#include "zir_files.h"
 
 #include <ctype.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1837,7 +1839,18 @@ ProgramRead_in_context(FILE *in, const char *path)
     if(!read_version(&reader, &version))
         goto failed;
     if(version != ZIR_FORMAT_VERSION) {
-        reader.problem = "unsupported ZIR version";
+        /* A different toolchain wrote this file. Name the reading tool and
+         * the driver that chose it, so a mixed install is never silent. */
+        static char mismatch[2 * ZIR_PATH_MAX + 512];
+        char reader_path[ZIR_PATH_MAX];
+        if(!ExecutablePath(reader_path, sizeof(reader_path))) copy_text(reader_path, sizeof(reader_path), "this tool");
+        const char *driver = getenv("ZIRAN_DRIVER");
+        snprintf(mismatch, sizeof(mismatch),
+                 "unsupported ZIR version %u: %s reads ZIR %u%s%s, so a different Ziran toolchain wrote this file; "
+                 "rebuild it with this toolchain, or rebuild or reinstall the Ziran toolchain so every tool agrees",
+                 (unsigned)version, reader_path, (unsigned)ZIR_FORMAT_VERSION,
+                 driver && *driver ? " and was started by " : "", driver && *driver ? driver : "");
+        reader.problem = mismatch;
         goto failed;
     }
     if(!read_u32(&reader, &count))

@@ -798,6 +798,11 @@ expect_rejection 'unsupported IR version unexpectedly passed' "$work/version.err
     "$ziran" build --target=c --root "$work" -o "$work/version-out" \
     "$work/version.zir"
 grep -Fq 'unsupported ZIR version' "$work/version.err"
+# A file from another toolchain names the reading tool and the driver that
+# chose it, so a mixed install is never silent.
+grep -Fq "zi2c reads ZIR " "$work/version.err"
+grep -Fq "started by $(realpath -e "$ziran")" "$work/version.err"
+grep -Fq 'rebuild or reinstall the Ziran toolchain' "$work/version.err"
 
 cat > "$work/bad.zi" <<'EOF'
 #assert 0, "expected failure"

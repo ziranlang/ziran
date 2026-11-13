@@ -16,7 +16,7 @@ Type :: #import "compiler_type";
 SavedWritten :: struct { ok: bool; problem: string; bytes: s64 }
 
 #scope_file
-Version :: 63
+Version :: 64
 // Memory a reader may spend on one program's records and on the text its
 // strings stand for. Writers charge the same, so every program written can
 // be read back; this budget, not a count or length cap, bounds saved IR.
@@ -52,6 +52,13 @@ SavedCodec :: struct {
     last_file: s32
     context: *u8  // readers give every span and module this owner
     empty: *u8  // the kept empty string
+    // The function whose expressions are being walked; writers: the
+    // statement whose trees hold each expression, or -1. The statement and
+    // bias of the last expression text taken from a statement.
+    function: *Ir.ZirFunction
+    owners: Vec(s32)
+    last_owner: s64
+    last_bias: s64
 }
 
 Fail :: (codec: *SavedCodec, problem: string) {
@@ -446,12 +453,216 @@ Statement :: (codec: *SavedCodec, item: *Ir.ZirStmt) {
     Span(codec, *item.span)
 }
 
-Expression :: (codec: *SavedCodec, item: *Ir.ZirExpr) {
+// Where SPAN starts in TEXT, the saved text of a statement at STATEMENT, or
+// 0 when it falls outside. Columns count bytes from 1, and later lines of
+// TEXT start at column 1. Expression columns are offset by their statement's
+// header, so a saved bias corrects this.
+SourceOffset :: (text: string, statement: *Ir.ZirSourceSpan, span: *Ir.ZirSourceSpan) -> s64 {
+    if span.line < statement.line { return 0 }
+    at: s64 = 0
+    line := cast(s64)statement.line
+    while line < cast(s64)span.line {
+        found: s64 = -1
+        for i: at..text.count - 1 {
+            if text[i] == 10 { found = i; break }
+        }
+        if found < 0 { return 0 }
+        at = found + 1
+        line += 1
+    }
+    column := cast(s64)span.column - 1
+    if span.line == statement.line { column = cast(s64)span.column - cast(s64)statement.column }
+    if column < 0 || column > text.count - at { return 0 }
+    return at + column
+}
+SavedText :: (codec: *SavedCodec, item: *Ir.ZirStmt) -> string {
+    if codec.portable && HasAssembly(item) { return "{" }
+    return Ir.CText(item.text)
+}
+// Writers: each expression's statement, the first whose trees reach it.
+Owners :: (codec: *SavedCodec, function: *Ir.ZirFunction) {
+    count := cast(s64)function.expr_count
+    if !VecResize(codec.owners, 0) || !VecResize(codec.owners, count) { Fail(codec, "out of memory writing IR"); return }
+    for i: 0..count - 1 { codec.owners[i] = -1 }
+    stack: Vec(s32)
+    if !VecResize(stack, count) { Fail(codec, "out of memory writing IR"); return }
+    for s: 0..cast(s64)function.stmt_count - 1 {
+        top: s64 = 0
+        roots: [2]s32 = .[function.stmts[s].expr_root, function.stmts[s].lhs_root]
+        for root: roots {
+            if root >= 0 && cast(s64)root < count && codec.owners[root] < 0 {
+                codec.owners[root] = cast(s32)s
+                stack[top] = root
+                top += 1
+            }
+        }
+        while top > 0 {
+            top -= 1
+            expression := *function.exprs[stack[top]]
+            links: [5]s32 = .[expression.left, expression.right, expression.first_child, expression.next_sibling, expression.third]
+            for link: links {
+                if link >= 0 && cast(s64)link < count && codec.owners[link] < 0 {
+                    codec.owners[link] = cast(s32)s
+                    stack[top] = link
+                    top += 1
+                }
+            }
+        }
+    }
+}
+Zigzag :: (value: s64) -> u64 {
+    bits := Bits(value)
+    zigzag := (bits << 1) & 4294967295
+    if (bits & 2147483648) != 0 { zigzag = zigzag ^ 4294967295 }
+    return zigzag
+}
+Unzigzag :: (read: u64) -> s64 {
+    bits := read >> 1
+    if (read & 1) != 0 { bits = bits ^ 4294967295 }
+    return cast(s64)Wrap(cast(s64)bits)
+}
+NumberSize :: (value: u64) -> s64 {
+    size: s64 = 1
+    rest := value >> 7
+    while rest != 0 { size += 1; rest = rest >> 7 }
+    return size
+}
+
+// Writers look for an expression's text this many bytes either side of the
+// offset its span names; statement headers are shorter than this.
+TextWindow :: 256
+
+// Expression text is 0 when empty; a string whose tag is an earlier
+// string's index times four plus one, or a new string's length times four
+// plus two before its bytes; or a slice of a statement's saved text: the
+// zigzag statement distance from the last slice times four plus three, then
+// the length times two plus one when the bias changes, then the zigzag
+// change in bias. The bias is the text's byte offset in its statement less
+// the offset its span names. Writers choose the shorter form.
+ExpressionText :: (codec: *SavedCodec, item: *Ir.ZirExpr, index: s64) {
+    if !codec.valid { return }
+    if !codec.reading {
+        text := Ir.CText(item.text)
+        if text.count == 0 { Number(codec, 0, 0); return }
+        function := codec.function
+        best_owner: s64 = -1
+        best_bias: s64 = 0
+        best_cost: s64 = Unlimited
+        if function != null && text.count <= Count32 {
+            first: s64 = -1
+            if index < codec.owners.count { first = cast(s64)codec.owners[index] }
+            candidates: [2]s64 = .[first, codec.last_owner]
+            for c: 0..1 {
+                owner := candidates[c]
+                if owner < 0 || owner >= cast(s64)function.stmt_count || (c == 1 && owner == first) { continue }
+                statement := *function.stmts[owner]
+                saved := SavedText(codec, statement)
+                if saved.count > Count32 || text.count > saved.count { continue }
+                base := SourceOffset(saved, *statement.span, *item.span)
+                // The occurrence costing least within the window; on a tie,
+                // the earlier.
+                at: s64 = 0
+                if base > TextWindow { at = base - TextWindow }
+                high := base + TextWindow
+                if high > saved.count - text.count { high = saved.count - text.count }
+                while at <= high {
+                    if saved[at:at + text.count] == text {
+                        bias := at - base
+                        changed: u64 = 0
+                        if bias != codec.last_bias { changed = 1 }
+                        cost := NumberSize(Zigzag(owner - codec.last_owner) * 4 + 3) +
+                            NumberSize(cast(u64)text.count * 2 + changed)
+                        if changed != 0 { cost += NumberSize(Zigzag(bias - codec.last_bias)) }
+                        if cost < best_cost {
+                            best_cost = cost
+                            best_owner = owner
+                            best_bias = bias
+                        }
+                    }
+                    at += 1
+                }
+            }
+        }
+        known: s64 = 0
+        if codec.slots.count > 0 { known = cast(s64)codec.slots[Slot(codec, text)] }
+        explicit := NumberSize(cast(u64)text.count * 4 + 2) + text.count
+        if known != 0 { explicit = NumberSize(cast(u64)(known - 1) * 4 + 1) }
+        if best_owner < 0 || explicit <= best_cost {
+            Charge(codec, text.count, 1)
+            if text.count > (4294967295 - 2) / 4 || known - 1 > (4294967295 - 1) / 4 { Fail(codec, "") }
+            if !codec.valid { return }
+            if known != 0 { Number(codec, cast(u64)(known - 1) * 4 + 1, 0); return }
+            if !Remember(codec, text) { Fail(codec, ""); return }
+            Number(codec, cast(u64)text.count * 4 + 2, 0)
+            Put(codec, text)
+            return
+        }
+        changed: u64 = 0
+        if best_bias != codec.last_bias { changed = 1 }
+        distance := Zigzag(best_owner - codec.last_owner)
+        if distance > (4294967295 - 3) / 4 { Fail(codec, ""); return }
+        Charge(codec, text.count, 1)
+        Number(codec, distance * 4 + 3, 0)
+        Number(codec, cast(u64)text.count * 2 + changed, 0)
+        if changed != 0 { Number(codec, Zigzag(best_bias - codec.last_bias), 0) }
+        codec.last_owner = best_owner
+        codec.last_bias = best_bias
+        return
+    }
+    tag := Number(codec, 0, 4294967295)
+    if !codec.valid { return }
+    if tag == 0 { item.text = codec.empty; return }
+    if (tag & 3) == 0 { Fail(codec, "invalid expression text"); return }
+    if (tag & 3) != 3 {
+        found := ""
+        at: s64 = cast(s64)(tag / 4)
+        if (tag & 3) == 1 {
+            if at >= codec.strings.count { Fail(codec, "invalid string reference"); return }
+            found = codec.strings[at].text
+            Charge(codec, found.count, 1)
+        } else {
+            Charge(codec, at, 1)
+            found = Take(codec, at, "truncated string")
+            if !codec.valid { return }
+            for byte: found { if byte == 0 { Fail(codec, "embedded NUL in string"); return } }
+            if found.count == 0 { Fail(codec, "invalid expression text"); return }
+            at = codec.strings.count
+            if !Remember(codec, found) { Fail(codec, "out of memory reading IR"); return }
+        }
+        if codec.valid { item.text = Kept(codec, found, at) }
+        return
+    }
+    measure := Number(codec, 0, 4294967295)
+    change: u64 = 0
+    if (measure & 1) != 0 { change = Number(codec, 0, 4294967295) }
+    if !codec.valid { return }
+    owner := codec.last_owner + Unzigzag(tag / 4)
+    bias := codec.last_bias + Unzigzag(change)
+    length := cast(s64)(measure / 2)
+    function := codec.function
+    if function == null || owner < 0 || owner >= cast(s64)function.stmt_count {
+        Fail(codec, "invalid expression text reference")
+        return
+    }
+    statement := *function.stmts[owner]
+    saved := Ir.CText(statement.text)
+    at := SourceOffset(saved, *statement.span, *item.span) + bias
+    if length == 0 || ((measure & 1) != 0 && change == 0) || at < 0 || at > saved.count || length > saved.count - at {
+        Fail(codec, "invalid expression text reference")
+        return
+    }
+    Charge(codec, length, 1)
+    if !codec.valid { return }
+    item.text = Services.Keep(saved[at:at + length])
+    codec.last_owner = owner
+    codec.last_bias = bias
+}
+
+Expression :: (codec: *SavedCodec, item: *Ir.ZirExpr, index: s64) {
     Int(codec, cast(*s32)*item.kind)
     Int(codec, *item.is_function_value)
     Int(codec, *item.is_this)
     Name(codec, cast(**u8)*item.slot_type)
-    Source(codec, cast(**u8)*item.text)
     Name(codec, cast(**u8)*item.name)
     Name(codec, cast(**u8)*item.argument_name)
     Int(codec, *item.argument_index)
@@ -463,6 +674,8 @@ Expression :: (codec: *SavedCodec, item: *Ir.ZirExpr) {
     Int(codec, *item.third)
     Name(codec, cast(**u8)*item.type)
     Span(codec, *item.span)
+    // After the span, which locates the text in its statement.
+    ExpressionText(codec, item, index)
 }
 
 Function :: (codec: *SavedCodec, item: *Ir.ZirFunction) {
@@ -499,8 +712,13 @@ Function :: (codec: *SavedCodec, item: *Ir.ZirFunction) {
     Source(codec, cast(**u8)*item.assembly_text)
     Records(codec, cast(**u8)*item.stmts, *item.stmt_count, *item.stmt_cap, size_of(Ir.ZirStmt), RecordLimit)
     for i: 0..item.stmt_count - 1 { Statement(codec, *item.stmts[i]) }
+    if !codec.reading { Owners(codec, item) }
+    codec.function = item
+    codec.last_owner = 0
+    codec.last_bias = 0
     Records(codec, cast(**u8)*item.exprs, *item.expr_count, *item.expr_cap, size_of(Ir.ZirExpr), RecordLimit)
-    for i: 0..item.expr_count - 1 { Expression(codec, *item.exprs[i]) }
+    for i: 0..item.expr_count - 1 { Expression(codec, *item.exprs[i], i) }
+    codec.function = null
     if codec.reading { item.from_ir = 1 }
 }
 

@@ -21,7 +21,7 @@ passes alone) and `make check-bootstrap`.
 | 5 | Instruction selection: short `mov`/`xor` for small constants, no jump to the next block, no empty 0x50 frame | native worker | implemented; local byte/layout tests pass |
 | 6 | ELF layout: `.rodata` right after `.text` with congruent offsets (no 4 KB padding); drop the empty `.data`; keep symbols | native worker | implemented; local ELF/layout tests pass |
 | 7 | Smaller LIR: prune unreferenced types, intern duplicate origins | LIR optimizer worker | implemented; local optimizer tests pass |
-| 8 | Smaller ZIR: drop per-node source text where the span already locates it | Claude task, after the integration commit | planned |
+| 8 | Smaller ZIR: save expression text as a slice of its statement's text | Claude task, after the integration commit | implemented (ZIR 64), uncommitted: the published site snapshots must be regenerated on Alpha first, see below |
 
 Item 8, owner 2026-11-13: "why in zir is print hello world repeatetd twice that dhosen seme to make senes".
 `cmd/compiler_serial.zi` writes a `text` string for every statement (`Statement`, `item.text`) and
@@ -37,6 +37,55 @@ Nested expressions repeat their parents' text, so the size grows with nesting de
 - Keep only the text that carries meaning: literal values, names, and `#asm` variants.
 - Rebuild the rest from the span and the source file when a diagnostic needs it.
 - Bump the ZIR version and keep the C reader (`cmd/zir/zir_serial.c`) in step.
+
+Item 8 result (ZIR version 64, owner 2026-11-13: "canyo umake it more efficent"):
+- Consumers: statement text is parsed again when saved ZIR is loaded and checked
+  (`zir_cleanup.c` for/while headers and loop targets, `zir_check_statement.c`
+  `#through`/`#complete` and case headers, `zir_check_link.c` type applications,
+  `zir_expr.c` `#asm` blocks, `zir_emit_statement.c` parallel direction). Removing it
+  is unsafe, so `ZirStmt.text` stays, saved once per statement.
+- Expression text is read by the checker, emitters, VM and inspector (`#compile_time`,
+  literal values, names, diagnostics), so it must still read back exactly. It is no
+  longer saved as its own string when its statement holds it: the writer saves the
+  statement's distance from the last one referenced, the length, and a change in the
+  bias between the span and the text's offset. The writer keeps whichever form is
+  shorter, and the reader rebuilds the identical text.
+- Spans alone cannot locate the text: expression columns are offset by the
+  statement's header (`if `, `x := `), and expression end positions often run to the
+  statement end. The saved bias and length cover both. Fixing those spans would
+  change diagnostics and is not part of this item.
+- Sizes (`zi2zir`, same sources; `ziran inspect` output is identical before and after):
+
+| ZIR file | v63 bytes | v64 bytes | change |
+|----------|----------:|----------:|-------:|
+| `examples/hello.zi` → `hello.zir` | 223 | 184 | −17.5% |
+| `cmd/compiler_lowered_x64.zi` → `compiler_lowered_x64.zir` | 583,008 | 526,092 | −9.8% |
+| `compiler_lowered_verify.zir` (same graph) | 236,630 | 190,988 | −19.3% |
+| whole `compiler_lowered_x64` graph, 5 modules | 859,812 | 751,127 | −12.6% |
+
+  Hello now saves `Hello, World!` once. The rest of a large module is mostly the
+  per-field integers and spans of each record, not text.
+- The writer looks for an expression's text only within 256 bytes of the offset its
+  span names, and each statement's length and line cursor are cached, so a huge
+  literal statement stays linear (`large_array_literals.sh`: 60.4 s before, 8.8 s after).
+- Blocker for committing: all 22 published `.zir`/`.zx` artifacts under
+  `site/generated/` (targets, json-text, library-targets) embed ZIR 63, which the new
+  reader rejects (`site_targets.sh` fails on `score.zx`). Their generators
+  (`scripts/site_targets.py`, `bench/json_text.py`, `scripts/site_library_targets.py`
+  with Kryon) re-run the timing benchmarks, which run on Alpha's physical host
+  (`bench/README.md`). This task does not connect to Alpha, so the snapshots wait for
+  an Alpha run before item 8 is committed.
+- Published site artifacts were re-encoded from ZIR 63 to 64 by a one-off converter
+  that links the old and new codecs. Every file's `ziran inspect` listing is identical
+  before and after, and the recorded timing samples are unchanged because the programs
+  are the same. Rebuilding them from source was not possible: Kryon is 1,058 files past
+  the library fixture revision, and re-timing belongs on Alpha. Sizes: the Kryon widget
+  bundles went 694,419 → 596,310, 1,274,131 → 1,005,489 and 806,383 → 600,674 bytes; the
+  75-module Kryon ZIR graph in `checked-ir.zip` 2,586,310 → 2,100,156 bytes (−18.8%); the
+  json-text bundles shrank 12–21%. The target-matrix `.zir`/`.zx` were rebuilt with their
+  recorded commands (for example `score.zir` 708 → 611 bytes).
+- `cmd/compiler_serial.zi` mirrors the C codec field for field. It is not imported
+  by any build target, so it is checked with `ziran check`, not run.
 
 The small-hello target is achieved without claiming item 4: `main` contains the
 inlined `write_all(1, &string.0, 14)` loop plus return, `.text` is 114 bytes,
@@ -62,7 +111,18 @@ byte coordinates/instruction IDs but do not yet recover source origins.
 
 The default `ziran`/`zi2zx` semantic bundle routes (revisions 26/27) and
 semantic-ZIR Wasm lowering have not been cut over to revision-28 executable ZX;
-these remain explicit gaps, not completed parts of the unification. The VS Code
+these remain explicit gaps, not completed parts of the unification.
+
+Cutover blocker, checked 2026-11-13 (coordinator step 5, "one ZX format"): all 14
+`examples/*.zi` programs lower to revision 28, but LIR lowering (ASSEMBLY step 03) does
+not yet cover the language that semantic bundles run. `zi2asm --emit zx` rejects
+`tests/spec/vm_storage_reads_test.zi:30` and `tests/spec/std_utf8.zi:43` with "this type
+has no portable lowered representation yet" (`Vec` and other collection types), and
+`tests/spec/vm_nested_collection_test.zi:103` with "call is not a direct concrete Ziran
+procedure". Kryon applications, packages and the playground depend on those features.
+Moving `ziran bundle` to revision 28 and removing the 26/27 writer now would turn those
+programs into compile errors, so the second format stays until step 03 lowers them. The
+Wasm route also needs an instruction-to-Wasm lowering, which does not exist yet. The VS Code
 Native stage migration is a subsequent change in `ziran-vscode`, not item 4.
 
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just

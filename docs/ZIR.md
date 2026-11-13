@@ -1,6 +1,6 @@
 # Ziran intermediate representation (`.zir`)
 
-This is the target contract. An experimental binary version 63 now exists for
+This is the target contract. An experimental binary version 64 now exists for
 the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
@@ -110,7 +110,13 @@ Runtime-dependent global initializers lower to private checked startup
 functions. Their startup flag is serialized and validated; the linker retains
 them with reachable modules and their call dependencies.
 For checked functions, statement text is source metadata; the expression graph
-and explicit branch flags and loop target IDs determine behavior. The checker
+and explicit branch flags and loop target IDs determine behavior. Version 64
+saves each statement's text once. An expression whose text appears in a
+statement of the same function saves only that statement's distance from the
+last one referenced, the text's length, and a change in the byte bias between
+its span and its offset in that text, which the statement's header sets;
+other expression text is saved as a string. Writers choose the shorter form,
+so a call and its literal arguments no longer repeat the statement's text. The checker
 requires each named loop exit to point to a unique enclosing loop. Exhaustive
 enum `if #complete value == { ... }` is lowered to typed branches and an
 `unreachable` guard before writing IR, so saved modules contain no case selection

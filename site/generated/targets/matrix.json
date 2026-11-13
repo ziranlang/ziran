@@ -3243,8 +3243,8 @@
           "files": [
             {
               "path": "generated/targets/score/zx/score.zx",
-              "bytes": 755,
-              "sha256": "890ea734925e15205850453a788c93840381d3a76e854a573a66f0bec2f6b3d0",
+              "bytes": 658,
+              "sha256": "fce1ba5fd34b71c40adcb5d9ac31c18c325bdda4309af6e88f3f3bd0f9df0b3a",
               "inspection": {
                 "path": "generated/targets/score/zx/score.zx.txt",
                 "bytes": 1223,
@@ -3260,7 +3260,7 @@
             4837.597376
           ],
           "status": "ok",
-          "bytes": 755,
+          "bytes": 658,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": -5292.191735,
@@ -3386,8 +3386,8 @@
           "files": [
             {
               "path": "generated/targets/score/zir/score.zir",
-              "bytes": 708,
-              "sha256": "a592405d9f67ac6d7397846784f99b3d003574a688a0cccbe3264707b74bb31c",
+              "bytes": 611,
+              "sha256": "53a5d5bfdfede4acf56eaa5b13246c10c8738f3b35bbf6255b8dc41a5bd50714",
               "inspection": {
                 "path": "generated/targets/score/zir/score.zir.txt",
                 "bytes": 1171,
@@ -3403,7 +3403,7 @@
             1.347153
           ],
           "status": "ok",
-          "bytes": 708,
+          "bytes": 611,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 0.8777764999999997,
@@ -3627,8 +3627,8 @@
           "files": [
             {
               "path": "generated/targets/text_demo/zx/text_demo.zx",
-              "bytes": 2529,
-              "sha256": "af72031404497fc6b443bab49fcdaa7619fa6883f168bb725476dcb5c886343d",
+              "bytes": 2111,
+              "sha256": "1bc1d6a69fbf936872d2462c16c7174f5a01fa90ca2e826a7ba2c319f9ef9b2b",
               "inspection": {
                 "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
                 "bytes": 4258,
@@ -3644,7 +3644,7 @@
             1.496094
           ],
           "status": "ok",
-          "bytes": 2529,
+          "bytes": 2111,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 1.3079440000000002,
@@ -3769,8 +3769,8 @@
           "files": [
             {
               "path": "generated/targets/text_demo/zir/text_demo.zir",
-              "bytes": 482,
-              "sha256": "ed2a8d2e383f6fe9d72ea1e87f4b439470d2223205fd43c4f5e8b8ffe07e18c7",
+              "bytes": 441,
+              "sha256": "a5fc082536043c362027052c722d59bdfe20dd17735e61ce11b2bc26c6d864dd",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
                 "bytes": 684,
@@ -3779,8 +3779,8 @@
             },
             {
               "path": "generated/targets/text_demo/zir/text.zir",
-              "bytes": 2054,
-              "sha256": "abd9e7b9cc1c8705c6424a0517b1a1875b190e505f7f09b56ef79345c164cc7d",
+              "bytes": 1676,
+              "sha256": "d8b26799dd7cab174337c4d1f9444a6f895e72fc02e13ea7ff56d53fb6b074f7",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text.zir.txt",
                 "bytes": 3565,
@@ -3796,7 +3796,7 @@
             469.970517
           ],
           "status": "ok",
-          "bytes": 2536,
+          "bytes": 2117,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": -696.5767804999999,
@@ -3999,8 +3999,8 @@
           "files": [
             {
               "path": "generated/targets/arrays/zx/arrays.zx",
-              "bytes": 3129,
-              "sha256": "9172e8c6ac9095a2e78091e283b8fb626d0a45cef98a1504e0278263bc2091df",
+              "bytes": 2590,
+              "sha256": "04d06d21f83a3430bfc0ab0d11e84a5e4b0269e4a12da1c77c47a27c1a698915",
               "inspection": {
                 "path": "generated/targets/arrays/zx/arrays.zx.txt",
                 "bytes": 5620,
@@ -4016,7 +4016,7 @@
             3.775159
           ],
           "status": "ok",
-          "bytes": 3129,
+          "bytes": 2590,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": -2303.2464389999996,
@@ -4142,8 +4142,8 @@
           "files": [
             {
               "path": "generated/targets/arrays/zir/arrays.zir",
-              "bytes": 3083,
-              "sha256": "810d17c4579c81fe245bfe4898d5bbd116c06fbc5f2e8f9407dd9e4e982025d4",
+              "bytes": 2544,
+              "sha256": "39637a64db3012f82e7d768e8a0d21a2df29e06eb21a5f718e6769f52657d054",
               "inspection": {
                 "path": "generated/targets/arrays/zir/arrays.zir.txt",
                 "bytes": 5569,
@@ -4159,7 +4159,7 @@
             2.258605
           ],
           "status": "ok",
-          "bytes": 3083,
+          "bytes": 2544,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": -511.77528200000006,
@@ -4357,8 +4357,8 @@
           "files": [
             {
               "path": "generated/targets/enums/zx/enums.zx",
-              "bytes": 2054,
-              "sha256": "1a21f651dac5ac07c9c1a997ce1b94b37f6ff102b5b0923cf85948879c8accd4",
+              "bytes": 1558,
+              "sha256": "4a8b84ee370f97e41e1366ac3c1189a62740514375bf6051ae27e6a227c800a5",
               "inspection": {
                 "path": "generated/targets/enums/zx/enums.zx.txt",
                 "bytes": 3094,
@@ -4374,7 +4374,7 @@
             3.035007
           ],
           "status": "ok",
-          "bytes": 2054,
+          "bytes": 1558,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 0.6236860000000004,
@@ -4498,8 +4498,8 @@
           "files": [
             {
               "path": "generated/targets/enums/zir/enums.zir",
-              "bytes": 2009,
-              "sha256": "6ba781d70d5ebdcf251c5496fb0ed348918ee216dd163cb3420fc0ff2daac816",
+              "bytes": 1513,
+              "sha256": "c9890b2566227256ad452372c55f23222c9eaefa483ad3f7512658b96a9356e0",
               "inspection": {
                 "path": "generated/targets/enums/zir/enums.zir.txt",
                 "bytes": 3044,
@@ -4515,7 +4515,7 @@
             2.657626
           ],
           "status": "ok",
-          "bytes": 2009,
+          "bytes": 1513,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 0.6362124999999998,
@@ -4719,8 +4719,8 @@
           "files": [
             {
               "path": "generated/targets/loops/zx/loops.zx",
-              "bytes": 2749,
-              "sha256": "ad2b2fd0e8259fb83c68182a434d217abf6c3d13ebc4ac8f4fb00ffa7ddecdac",
+              "bytes": 2470,
+              "sha256": "1bff38f78f4b260e402ad2be8f6d1857635e711fac3aa5e01660fad1ac4cb2dd",
               "inspection": {
                 "path": "generated/targets/loops/zx/loops.zx.txt",
                 "bytes": 5059,
@@ -4736,7 +4736,7 @@
             1.255093
           ],
           "status": "ok",
-          "bytes": 2749,
+          "bytes": 2470,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 0.8884279999999999,
@@ -4862,8 +4862,8 @@
           "files": [
             {
               "path": "generated/targets/loops/zir/loops.zir",
-              "bytes": 2704,
-              "sha256": "2aca6010b7b0e3c2cafd105d75bb11ffd2c03194045a30b5b2e9b60d99847c77",
+              "bytes": 2425,
+              "sha256": "c9f6b1ca4a74a6231d9e56c945990905024225d76168ba25c8f949340e632c3b",
               "inspection": {
                 "path": "generated/targets/loops/zir/loops.zir.txt",
                 "bytes": 5009,
@@ -4879,7 +4879,7 @@
             1.189543
           ],
           "status": "ok",
-          "bytes": 2704,
+          "bytes": 2425,
           "emission_statistics": {
             "rule": "Tukey 1.5\u00d7IQR fences; linearly interpolated inclusive quartiles; both tails; raw samples retained",
             "lower_ms": 1.054258,

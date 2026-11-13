@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Saved ZIR version 64 no longer repeats source text in every expression. An expression whose text appears in its statement saves the statement's distance, the length and a bias change instead, and reads back byte for byte; the writer keeps whichever form is shorter. `examples/hello.zi` saves its literal once (223 to 184 bytes), and `compiler_lowered_x64.zir` shrinks from 583,008 to 526,092 bytes. Kryon's 75-module widget graph shrinks by 18.8% and its widget bundles by 14–21%. Version 63 files are rejected; regenerate saved `.zir`. The published site artifacts were re-encoded to version 64 with identical listings and unchanged timings.
+
 - The LIR optimizer folds `element.address` at constant index 0, `extract` of a freshly built aggregate and conversions of constants, removes dead values, prunes unreferenced types and interns duplicate source origins before ZX is written, so the portable interpreter and native lowering both receive the smaller program.
 
 - Native regression tests remove their temporary `build/tests` work folders after failing runs as well as passing ones, and the private Chromium profile under `build/t` is removed when the browser closes. Pass an explicit work folder to keep test outputs.

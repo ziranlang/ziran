@@ -19,8 +19,8 @@
   },
   "checked_ir": {
     "path": "generated/library-targets/checked-ir.zip",
-    "bytes": 666964,
-    "sha256": "727e49674de1e2cc8b0c9d498a1d84dcc31c1d49b79db6683f33bb58596d19e6"
+    "bytes": 629653,
+    "sha256": "51e043a11100789072183fb4a72952a0a150fde70caa7d5d3dfa576af06f07f9"
   },
   "compiler": {
     "library_sha256": "337c272140a0ed486a4b64fc3db4b01bb1e6b20039793e04cdd4442c8bbc1f54",
@@ -1062,8 +1062,8 @@
           "files": [
             {
               "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
-              "bytes": 694419,
-              "sha256": "0246e628505b4eaa0f6fa6314414da97b76f21b71c659b4e81a8dbe383881feb"
+              "bytes": 596310,
+              "sha256": "dc7db170e1e6d3f570877f51046fb1a0369183029b8244b3897524c852870352"
             }
           ],
           "measurement": {
@@ -1119,8 +1119,8 @@
           },
           "download": {
             "path": "generated/library-targets/button/zx/widget_benchmarks.zx",
-            "bytes": 694419,
-            "sha256": "0246e628505b4eaa0f6fa6314414da97b76f21b71c659b4e81a8dbe383881feb"
+            "bytes": 596310,
+            "sha256": "dc7db170e1e6d3f570877f51046fb1a0369183029b8244b3897524c852870352"
           }
         }
       }
@@ -2017,8 +2017,8 @@
           "files": [
             {
               "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-              "bytes": 806383,
-              "sha256": "57f3e996825036ca372ad2eaa7b3ee2a207354a96c8909fb54d13ec8505e509c"
+              "bytes": 600674,
+              "sha256": "095441170fdaaacf659fce66ae7404171c359fa523e12a45a21f908639c1b6b2"
             }
           ],
           "measurement": {
@@ -2075,8 +2075,8 @@
           },
           "download": {
             "path": "generated/library-targets/text/zx/widget_benchmarks.zx",
-            "bytes": 806383,
-            "sha256": "57f3e996825036ca372ad2eaa7b3ee2a207354a96c8909fb54d13ec8505e509c"
+            "bytes": 600674,
+            "sha256": "095441170fdaaacf659fce66ae7404171c359fa523e12a45a21f908639c1b6b2"
           }
         }
       }
@@ -3138,8 +3138,8 @@
           "files": [
             {
               "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-              "bytes": 1274131,
-              "sha256": "02abaf32293e50fbe61470df0edbfee11029cdd6cf4ee1039bd0d6cab16100a5"
+              "bytes": 1005489,
+              "sha256": "19d4355981e491a67f7767ba618a88fa54ca15367747ec3b7542d7bde34ca310"
             }
           ],
           "measurement": {
@@ -3196,8 +3196,8 @@
           },
           "download": {
             "path": "generated/library-targets/input/zx/widget_benchmarks.zx",
-            "bytes": 1274131,
-            "sha256": "02abaf32293e50fbe61470df0edbfee11029cdd6cf4ee1039bd0d6cab16100a5"
+            "bytes": 1005489,
+            "sha256": "19d4355981e491a67f7767ba618a88fa54ca15367747ec3b7542d7bde34ca310"
           }
         }
       }

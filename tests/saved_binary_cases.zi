@@ -55,6 +55,26 @@ SavedBinaryHeader :: (test: *NativeTest) -> bool {
     return true
 }
 
+// Each expression's text is a slice of its statement's saved text, so the
+// literal of examples/hello.zi is saved once and still reads back whole.
+SavedBinaryExpressionText :: (test: *NativeTest) -> bool {
+    output := CheckPath(test.work, "example-ir"); path := CheckPath(output, "hello.zir")
+    build := string.[test.ziran, "ir", "--root", CheckPath(test.repo, "examples"), "--entry", "hello:main", "-o", output, CheckPath(test.repo, "examples/hello.zi")]
+    unused NativeRun(test, build[:])
+    if test.failed { return false }
+    if !NativeAssert(test, BinaryOccurrences(NativeRead(test, path), "Hello, World!") == 1, "the hello literal must be saved once") { return false }
+    inspect := string.[test.ziran, "inspect", path]
+    listing := NativeRun(test, inspect[:])
+    if test.failed { return false }
+    expected := string.["stmt 0 expr expr=%1 text=\"print(\\\"Hello, World!\\\\n\\\");\"",
+        "%0 string type=string text=\"\\\"Hello, World!\\\\n\\\"\"",
+        "%1 call type=void name=print child=%0 text=\"print(\\\"Hello, World!\\\\n\\\")\""]
+    for line: expected {
+        if !NativeAssert(test, TextContains(listing.output, line), CheckConcat("saved expression text did not read back: ", line)) { return false }
+    }
+    return true
+}
+
 SavedBinaryFlow :: (test: *NativeTest, input: string, output: string, typed: bool) -> bool {
     data := NativeRead(test, CheckPath(test.work, input)); changed := ""
     if typed {
@@ -91,6 +111,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     else if mode == "pointer" { valid = SavedBinaryPointer(*test) }
     else if mode == "assembly" { valid = SavedBinaryAssembly(*test) }
     else if mode == "header" { valid = SavedBinaryHeader(*test) }
+    else if mode == "expression-text" { valid = SavedBinaryExpressionText(*test) }
     else if (mode == "flow-text" || mode == "flow-typed") && argc == 6 { valid = SavedBinaryFlow(*test, TextFromCString(argv[4]), TextFromCString(argv[5]), mode == "flow-typed") }
     else if mode == "bundle-errors" { valid = SavedBinaryBundleErrors(*test) }
     else if mode == "ir-errors" { valid = SavedBinaryIrErrors(*test) }

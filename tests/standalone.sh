@@ -37,6 +37,7 @@ EOF
 cmp "$work/ir/hello.zir" "$work/ir-again/hello.zir"
 test -s "$work/ir/hello.zir"
 "$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" header
+"$ziran" run --target=c --root "$repo/tests" "$repo/tests/saved_binary_cases.zi" -- "$ziran" "$work" expression-text
 "$ziran" build --target=c --root "$work" -o "$work/c" "$work/hello.zi"
 test -s "$work/c/hello.c"
 grep -Fqx "#ifndef ZIRAN_HELLO_H" "$work/c/hello.h"

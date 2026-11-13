@@ -355,8 +355,8 @@
           "files": [
             {
               "path": "generated/json-text/json_string_scan/zx/json_string_scan.zx",
-              "bytes": 6506,
-              "sha256": "fd54c97fb42e0e21d992dfdcb817ff14bb11c054e6ebbe2553c429f44371d1fb"
+              "bytes": 5450,
+              "sha256": "12c3fcec0675a2adeec3eb2fbadd53942098d19022d84faacee64f486e4dd2ef"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry json_string_scan:Answer -o build/benchmarks/json-text/json_string_scan/zx/json_string_scan.zx bench/json_text/json_string_scan.zi",
@@ -701,8 +701,8 @@
           "files": [
             {
               "path": "generated/json-text/json_parse/zx/json_parse.zx",
-              "bytes": 75736,
-              "sha256": "8fd4842e0c97b49f1b0b5ec7248e7f4749cfcf9f2ed9ff4d18d917e20d35e4ad"
+              "bytes": 64630,
+              "sha256": "4ec673c933874b25ee0c1c93948c2a1349948794c11d2c12bc038f863146641b"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry json_parse:Answer -o build/benchmarks/json-text/json_parse/zx/json_parse.zx bench/json_text/json_parse.zi",
@@ -1045,8 +1045,8 @@
           "files": [
             {
               "path": "generated/json-text/json_escaped/zx/json_escaped.zx",
-              "bytes": 78743,
-              "sha256": "08ab05d7677d8b4b7e8683ee7369636c682740cfc2e252388b09bf4334b17881"
+              "bytes": 67271,
+              "sha256": "4352779e7c7bdfa7c7b554b7cb58572abd61161130f5068aedc08fecf835e1d4"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry json_escaped:Answer -o build/benchmarks/json-text/json_escaped/zx/json_escaped.zx bench/json_text/json_escaped.zi",
@@ -1359,8 +1359,8 @@
           "files": [
             {
               "path": "generated/json-text/json_write/zx/json_write.zx",
-              "bytes": 27261,
-              "sha256": "8860995c7de4db67b5fd5b786139db2d7bfcc3a6a980a09040a9a76ca115d561"
+              "bytes": 21524,
+              "sha256": "863025353d2d476586af3ec11adf834090d25c2d9342bb9c35659c75345ab518"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry json_write:Answer -o build/benchmarks/json-text/json_write/zx/json_write.zx bench/json_text/json_write.zi",
@@ -1674,8 +1674,8 @@
           "files": [
             {
               "path": "generated/json-text/json_quote_plain/zx/json_quote_plain.zx",
-              "bytes": 26744,
-              "sha256": "9ba9b1d59b31211ba63b9904c2d40f4fd6902a7b639f93d2ab4832b673aa2bed"
+              "bytes": 21139,
+              "sha256": "01a339648b66e55ef31c36fd79265e1c220f056724a2eae1e06163e7d859e092"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry json_quote_plain:Answer -o build/benchmarks/json-text/json_quote_plain/zx/json_quote_plain.zx bench/json_text/json_quote_plain.zi",
@@ -1975,8 +1975,8 @@
           "files": [
             {
               "path": "generated/json-text/text_processing/zx/text_processing.zx",
-              "bytes": 18959,
-              "sha256": "d5e4c53454df96a0347ea0665eeb6a7d86c084a0d150b57a12a52b5691c73824"
+              "bytes": 16181,
+              "sha256": "5aba18bae1bfd6fc69e3f805fc8c754bfd66acbbc2e9363407c917474ab4c0df"
             }
           ],
           "command": "build/bin/zi2zx bundle --root bench/json_text --module-path std --entry text_processing:Answer -o build/benchmarks/json-text/text_processing/zx/text_processing.zx bench/json_text/text_processing.zi",

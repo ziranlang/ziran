@@ -25,6 +25,9 @@ typedef enum FieldKind {
     FIELD_STATEMENT_TEXT, /* portable output normalizes native blocks to { */
     FIELD_FUNCTION_ASSEMBLY, /* procedure variants; hosts decide whether they run */
     FIELD_ASSEMBLY_TEXT,
+    /* An expression's text: a slice of one of its function's statements,
+     * found from the two spans, or the text itself when no statement has it. */
+    FIELD_EXPRESSION_TEXT,
     FIELD_U64,
     FIELD_SPAN
 } FieldKind;
@@ -48,6 +51,16 @@ typedef struct SerialString {
     const char *kept;
 } SerialString;
 
+/* The statement text an expression was last located in: its length and the
+ * last line reached, so a long statement is measured and walked once. */
+typedef struct StatementCursor {
+    const char *text;
+    size_t length;
+    int base_line;
+    int line;
+    size_t at;
+} StatementCursor;
+
 typedef struct Reader {
     FILE *in;
     const char *path;
@@ -65,6 +78,12 @@ typedef struct Reader {
     int has_span;
     /* The context selected for the whole read; spans and modules record it. */
     CompilerContext *context;
+    /* The function whose expressions are being read, and the statement the
+     * last expression's text came from. */
+    const ZirFunction *function;
+    int last_owner;
+    int64_t last_bias;
+    StatementCursor cursor;
 } Reader;
 
 typedef struct Writer {
@@ -92,6 +111,13 @@ typedef struct Writer {
     int last_line;
     const char *last_path;
     int has_span;
+    /* The function whose expressions are being written, the statement whose
+     * tree holds each expression, or -1, and the last statement referenced. */
+    const ZirFunction *function;
+    const int *owners;
+    int last_owner;
+    int64_t last_bias;
+    StatementCursor cursor;
 } Writer;
 
 static int
@@ -183,7 +209,7 @@ write_bytes(Writer *writer, const void *data, size_t count)
 #define SPAN_FIELD(type, name) \
     {offsetof(type, name), sizeof(((type *)0)->name), FIELD_SPAN}
 #define FIELD_COUNT(fields) (sizeof(fields) / sizeof((fields)[0]))
-#define ZIR_FORMAT_VERSION 63u
+#define ZIR_FORMAT_VERSION 64u
 /* Memory a reader may spend on one program's records and on the text its
  * strings stand for. Writers charge the same, so every program written can
  * be read back; this budget, not a count or length cap, bounds saved IR. */
@@ -226,13 +252,15 @@ static const Field statement_fields[] = {
 static const Field expression_fields[] = {
     INTEGER_FIELD(ZirExpr, kind), INTEGER_FIELD(ZirExpr, is_function_value),
     INTEGER_FIELD(ZirExpr, is_this),
-    NAME_FIELD(ZirExpr, slot_type), TEXT_FIELD(ZirExpr, text),
+    NAME_FIELD(ZirExpr, slot_type),
     NAME_FIELD(ZirExpr, name), NAME_FIELD(ZirExpr, argument_name),
     INTEGER_FIELD(ZirExpr, argument_index), STRING_FIELD(ZirExpr, op),
     INTEGER_FIELD(ZirExpr, left), INTEGER_FIELD(ZirExpr, right),
     INTEGER_FIELD(ZirExpr, first_child), INTEGER_FIELD(ZirExpr, next_sibling),
     INTEGER_FIELD(ZirExpr, third), NAME_FIELD(ZirExpr, type),
-    SPAN_FIELD(ZirExpr, span)
+    SPAN_FIELD(ZirExpr, span),
+    /* After the span, which locates the text in its statement. */
+    {offsetof(ZirExpr, text), ZIR_TEXT_MAX, FIELD_EXPRESSION_TEXT}
 };
 static const Field function_fields[] = {
     STRING_FIELD(ZirFunction, name), PARAMETERS_FIELD(ZirFunction, args_text),
@@ -642,11 +670,14 @@ writer_charge(Writer *out, size_t count, size_t size)
     return 1;
 }
 
-/* Empty is 0; a string seen before is its index times two plus one; a new
- * string is its length times two, then its bytes. The written program
- * stays alive and unchanged while it is written, so the table borrows it. */
+/* Empty is 0; a string seen before is its index times SCALE plus one; a
+ * new string is its length times SCALE plus NEW_TAG, then its bytes. Names
+ * and text use a scale of two; expression text keeps a third form, so its
+ * scale is four. The written program stays alive and unchanged while it is
+ * written, so the table borrows it. */
 static int
-write_string(Writer *out, const char *value, size_t capacity)
+write_tagged_string(Writer *out, const char *value, size_t capacity,
+                    uint32_t scale, uint32_t new_tag)
 {
     if(capacity == 0)
         return 0;
@@ -655,14 +686,15 @@ write_string(Writer *out, const char *value, size_t capacity)
     uint32_t known = writer_address_string(out, value);
     if(known != 0) {
         size_t length = out->strings[known - 1].length;
-        if(length >= capacity || !writer_charge(out, length, 1))
+        if(length >= capacity || !writer_charge(out, length, 1) ||
+           known - 1 > (UINT32_MAX - 1) / scale)
             return 0;
-        return write_u32(out, (known - 1) * 2 + 1);
+        return write_u32(out, (known - 1) * scale + 1);
     }
     size_t length = strnlen(value, capacity);
     if(length == capacity)
         return 0;
-    if(!writer_charge(out, length, 1) || length > UINT32_MAX / 2)
+    if(!writer_charge(out, length, 1) || length > (UINT32_MAX - new_tag) / scale)
         return 0;
     if(!writer_grow_strings(out))
         return 0;
@@ -671,33 +703,45 @@ write_string(Writer *out, const char *value, size_t capacity)
     if(known == 0) {
         out->strings[out->string_count] = (SerialString){value, (uint32_t)length, NULL};
         out->slots[slot] = ++out->string_count;
-        if(!write_u32(out, (uint32_t)length * 2) || !write_bytes(out, value, length))
+        if(!write_u32(out, (uint32_t)length * scale + new_tag) || !write_bytes(out, value, length))
             return 0;
         known = out->string_count;
-    } else if(!write_u32(out, (known - 1) * 2 + 1)) {
+    } else if(known - 1 > (UINT32_MAX - 1) / scale ||
+              !write_u32(out, (known - 1) * scale + 1)) {
         return 0;
     }
     return writer_remember_address(out, value, known);
 }
 
+static int
+write_string(Writer *out, const char *value, size_t capacity)
+{
+    return write_tagged_string(out, value, capacity, 2, 0);
+}
+
+/* The table index plus one of a nonempty VALUE written before, or 0. */
+static uint32_t
+writer_known_string(const Writer *out, const char *value, size_t length)
+{
+    uint32_t known = writer_address_string(out, value);
+    if(known != 0 || out->slot_count == 0) return known;
+    uint32_t slot;
+    return writer_string_slot(out, value, length, &slot);
+}
+
 /* Reads one string into the table and returns it through TEXT and LENGTH;
  * the table owns the bytes. */
+/* A string after its tag: an earlier string's INDEX when REFERENCE is set,
+ * otherwise SIZE new bytes. */
 static int
-read_serial_string_at(Reader *reader, const char **text, uint32_t *length, uint32_t *index_out)
+read_tagged_string(Reader *reader, int reference, uint32_t value,
+                   const char **text, uint32_t *length, uint32_t *index_out)
 {
-    uint32_t tag;
     *index_out = UINT32_MAX;
-    if(!read_u32(reader, &tag))
-        return 0;
-    if(tag == 0) {
-        *text = "";
-        *length = 0;
-        return 1;
-    }
     /* Every string costs the bytes it stands for, so references to a long
      * string cannot expand a short input into an unbounded amount of text. */
-    if(tag & 1) {
-        uint32_t index = tag / 2;
+    if(reference) {
+        uint32_t index = value;
         if(index >= reader->string_count) {
             reader->problem = "invalid string reference";
             return 0;
@@ -712,7 +756,7 @@ read_serial_string_at(Reader *reader, const char **text, uint32_t *length, uint3
         *index_out = index;
         return 1;
     }
-    uint32_t size = tag / 2;
+    uint32_t size = value;
     if(size > reader->budget) {
         reader->problem = ZIR_READ_BUDGET_PROBLEM;
         return 0;
@@ -749,6 +793,21 @@ read_serial_string_at(Reader *reader, const char **text, uint32_t *length, uint3
     *text = bytes;
     *length = size;
     return 1;
+}
+
+static int
+read_serial_string_at(Reader *reader, const char **text, uint32_t *length, uint32_t *index_out)
+{
+    uint32_t tag;
+    *index_out = UINT32_MAX;
+    if(!read_u32(reader, &tag))
+        return 0;
+    if(tag == 0) {
+        *text = "";
+        *length = 0;
+        return 1;
+    }
+    return read_tagged_string(reader, (tag & 1) != 0, tag / 2, text, length, index_out);
 }
 
 static int
@@ -863,6 +922,234 @@ read_span(Reader *reader, ZirSourceSpan *span)
     return 1;
 }
 
+/* Where LINE:COLUMN falls in TEXT, the saved text of a statement that starts
+ * at BASE_LINE:BASE_COLUMN, or 0 when it falls outside. Columns count bytes
+ * from 1, and later lines of TEXT start at column 1. Expression columns are
+ * offset by their statement's header, so a saved bias corrects this. */
+static size_t
+cursor_length(StatementCursor *cursor, const char *text, int base_line)
+{
+    if(cursor->text != text || cursor->base_line != base_line) {
+        cursor->text = text;
+        cursor->length = strlen(text);
+        cursor->base_line = base_line;
+        cursor->line = base_line;
+        cursor->at = 0;
+    }
+    return cursor->length;
+}
+
+static int64_t
+source_offset(StatementCursor *cursor, const char *text, const ZirSourceSpan *statement,
+              const ZirSourceSpan *span)
+{
+    size_t length = cursor_length(cursor, text, statement->line);
+    if(span->line < statement->line) return 0;
+    if(cursor->line > span->line) {
+        cursor->line = statement->line;
+        cursor->at = 0;
+    }
+    while(cursor->line < span->line) {
+        const char *newline = memchr(text + cursor->at, '\n', length - cursor->at);
+        if(newline == NULL) return 0;
+        cursor->at = (size_t)(newline - text) + 1;
+        cursor->line++;
+    }
+    size_t at = cursor->at;
+    int64_t column = span->line == statement->line ? (int64_t)span->column - statement->column
+                                                   : (int64_t)span->column - 1;
+    if(column < 0 || (uint64_t)column > length - at) return 0;
+    return (int64_t)at + column;
+}
+
+static const char *
+saved_statement_text(const Writer *out, const ZirStmt *statement)
+{
+    if(out->portable && StatementHasAssembly(statement)) return "{";
+    return statement->text ? statement->text : "";
+}
+
+/* Each expression's statement: the first whose expression trees reach it. */
+static int *
+expression_owners(const ZirFunction *function)
+{
+    int count = function->expr_count;
+    if(count <= 0) return NULL;
+    int *owners = malloc((size_t)count * sizeof(*owners));
+    int *stack = malloc((size_t)count * sizeof(*stack));
+    if(owners == NULL || stack == NULL) {
+        free(owners);
+        free(stack);
+        return NULL;
+    }
+    for(int i = 0; i < count; i++) owners[i] = -1;
+    for(int s = 0; s < function->stmt_count; s++) {
+        int top = 0;
+        int roots[2] = {function->stmts[s].expr_root, function->stmts[s].lhs_root};
+        for(int r = 0; r < 2; r++)
+            if(roots[r] >= 0 && roots[r] < count && owners[roots[r]] < 0) {
+                owners[roots[r]] = s;
+                stack[top++] = roots[r];
+            }
+        while(top > 0) {
+            const ZirExpr *expression = &function->exprs[stack[--top]];
+            int links[5] = {expression->left, expression->right, expression->first_child,
+                            expression->next_sibling, expression->third};
+            for(int l = 0; l < 5; l++)
+                if(links[l] >= 0 && links[l] < count && owners[links[l]] < 0) {
+                    owners[links[l]] = s;
+                    stack[top++] = links[l];
+                }
+        }
+    }
+    free(stack);
+    return owners;
+}
+
+static uint32_t
+zigzag32(int64_t value)
+{
+    uint32_t bits = (uint32_t)(int32_t)value;
+    return (bits << 1) ^ (value < 0 ? UINT32_MAX : 0);
+}
+
+static int32_t
+unzigzag32(uint32_t bits)
+{
+    return (int32_t)((bits >> 1) ^ (0u - (bits & 1u)));
+}
+
+static size_t
+number_size(uint64_t value)
+{
+    size_t size = 1;
+    while(value >>= 7) size++;
+    return size;
+}
+
+/* Writers look for an expression's text this many bytes either side of the
+ * offset its span names; statement headers are shorter than this. */
+enum { EXPRESSION_TEXT_WINDOW = 256 };
+
+/* Expression text is 0 when empty, a string as write_tagged_string writes it
+ * with scale four, or a slice of a statement's saved text: one tag of the
+ * zigzag statement distance from the last slice times four plus three, then
+ * the length times two plus one when the bias changes, then the zigzag change
+ * in bias. The bias is the byte offset of the text in its statement less
+ * the offset its span names. Writers choose the shorter form. */
+static int
+write_expression_text(Writer *out, const ZirExpr *expression)
+{
+    const char *text = expression->text ? expression->text : "";
+    if(*text == '\0') return write_u32(out, 0);
+    size_t size = strlen(text);
+    const ZirFunction *function = out->function;
+    int best_owner = -1;
+    int64_t best_bias = 0;
+    size_t best_cost = SIZE_MAX;
+    if(function != NULL && size <= INT32_MAX) {
+        int index = (int)(expression - function->exprs);
+        int candidates[2] = {out->owners ? out->owners[index] : -1, out->last_owner};
+        for(int c = 0; c < 2; c++) {
+            int owner = candidates[c];
+            if(owner < 0 || owner >= function->stmt_count || (c == 1 && owner == candidates[0])) continue;
+            const ZirStmt *statement = &function->stmts[owner];
+            const char *saved = saved_statement_text(out, statement);
+            size_t saved_size = cursor_length(&out->cursor, saved, statement->span.line);
+            if(saved_size > INT32_MAX || size > saved_size) continue;
+            int64_t base = source_offset(&out->cursor, saved, &statement->span, &expression->span);
+            int64_t low = base > EXPRESSION_TEXT_WINDOW ? base - EXPRESSION_TEXT_WINDOW : 0;
+            int64_t high = base + EXPRESSION_TEXT_WINDOW;
+            if(high > (int64_t)(saved_size - size)) high = (int64_t)(saved_size - size);
+            /* The cheapest occurrence in the window; on a tie, the earlier. */
+            for(int64_t at = low; at <= high; at++) {
+                if(saved[at] != text[0] || memcmp(saved + at, text, size) != 0) continue;
+                int64_t bias = at - base;
+                size_t cost = number_size((uint64_t)zigzag32(owner - out->last_owner) * 4 + 3) +
+                              number_size((uint64_t)size * 2 + (bias != out->last_bias)) +
+                              (bias != out->last_bias ? number_size(zigzag32(bias - out->last_bias)) : 0);
+                if(cost < best_cost) {
+                    best_cost = cost;
+                    best_owner = owner;
+                    best_bias = bias;
+                }
+            }
+        }
+    }
+    uint32_t known = writer_known_string(out, text, size);
+    size_t explicit_cost = known != 0 ? number_size((uint64_t)(known - 1) * 4 + 1)
+                                      : number_size((uint64_t)size * 4 + 2) + size;
+    if(best_owner < 0 || explicit_cost <= best_cost)
+        return write_tagged_string(out, text, SIZE_MAX, 4, 2);
+    int changed = best_bias != out->last_bias;
+    uint32_t distance = zigzag32(best_owner - out->last_owner);
+    uint32_t change = zigzag32(best_bias - out->last_bias);
+    if(distance > (UINT32_MAX - 3) / 4 || !writer_charge(out, size, 1) ||
+       !write_u32(out, distance * 4 + 3) ||
+       !write_u32(out, (uint32_t)size * 2 + (uint32_t)changed) ||
+       (changed && !write_u32(out, change)))
+        return 0;
+    out->last_owner = best_owner;
+    out->last_bias = best_bias;
+    return 1;
+}
+
+static int
+read_expression_text(Reader *reader, ZirExpr *expression)
+{
+    uint32_t tag;
+    if(!read_u32(reader, &tag)) return 0;
+    if(tag == 0 || (tag & 3) != 3) {
+        const char *text = "";
+        uint32_t length = 0, index = UINT32_MAX;
+        if(tag != 0 && ((tag & 3) == 0 ||
+           !read_tagged_string(reader, (tag & 3) == 1, tag / 4, &text, &length, &index))) {
+            if(reader->problem == NULL) reader->problem = "invalid expression text";
+            return 0;
+        }
+        if(tag != 0 && length == 0) {
+            reader->problem = "invalid expression text";
+            return 0;
+        }
+        expression->text = reader_kept(reader, text, index);
+        return 1;
+    }
+    uint32_t measure, change = 0;
+    if(!read_u32(reader, &measure) || ((measure & 1) && !read_u32(reader, &change)))
+        return 0;
+    int64_t owner = (int64_t)reader->last_owner + unzigzag32(tag / 4);
+    int64_t bias = reader->last_bias + unzigzag32(change);
+    uint32_t length = measure / 2;
+    const ZirFunction *function = reader->function;
+    const char *saved = function != NULL && owner >= 0 && owner < function->stmt_count
+                            ? function->stmts[owner].text : NULL;
+    size_t saved_size = saved ? cursor_length(&reader->cursor, saved, function->stmts[owner].span.line) : 0;
+    int64_t at = saved ? source_offset(&reader->cursor, saved, &function->stmts[owner].span,
+                                       &expression->span) + bias : -1;
+    if(saved == NULL || length == 0 || ((measure & 1) && change == 0) ||
+       at < 0 || (uint64_t)at > saved_size || length > saved_size - (size_t)at) {
+        reader->problem = "invalid expression text reference";
+        return 0;
+    }
+    if(length > reader->budget) {
+        reader->problem = ZIR_READ_BUDGET_PROBLEM;
+        return 0;
+    }
+    reader->budget -= length;
+    char *copy = malloc((size_t)length + 1);
+    if(copy == NULL) {
+        reader->problem = "out of memory reading IR";
+        return 0;
+    }
+    memcpy(copy, saved + at, length);
+    copy[length] = '\0';
+    expression->text = KeepText(copy);
+    free(copy);
+    reader->last_owner = (int)owner;
+    reader->last_bias = bias;
+    return 1;
+}
+
 static int
 write_fields(Writer *out, const void *record, const Field *fields, size_t count)
 {
@@ -895,6 +1182,8 @@ write_fields(Writer *out, const void *record, const Field *fields, size_t count)
                 kind |= ASSEMBLY_BLOCK_FLAG;
             }
             if(!write_u32(out, kind)) return 0;
+        } else if(fields[i].kind == FIELD_EXPRESSION_TEXT) {
+            if(!write_expression_text(out, record)) return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
             if(!write_s32(out, (int32_t)*(const int *)value))
                 return 0;
@@ -956,6 +1245,8 @@ read_fields(Reader *reader, void *record, const Field *fields, size_t count)
                 return 0;
             }
             *(int *)value = (int)(int32_t)kind;
+        } else if(fields[i].kind == FIELD_EXPRESSION_TEXT) {
+            if(!read_expression_text(reader, record)) return 0;
         } else if(fields[i].kind == FIELD_INTEGER) {
             int32_t number;
             if(!read_s32(reader, &number))
@@ -1036,10 +1327,23 @@ read_records(Reader *reader, int *count, size_t size,
 static int
 write_function(Writer *out, const ZirFunction *function)
 {
-    if(!write_fields(out, function, function_fields, FIELD_COUNT(function_fields)))
+    if(!write_fields(out, function, function_fields, FIELD_COUNT(function_fields)) ||
+       !WRITE_ARRAY(out, function, stmts, stmt_count, statement_fields))
         return 0;
-    return WRITE_ARRAY(out, function, stmts, stmt_count, statement_fields) &&
-           WRITE_ARRAY(out, function, exprs, expr_count, expression_fields);
+    int *owners = expression_owners(function);
+    if(function->expr_count > 0 && owners == NULL) {
+        out->problem = "out of memory writing IR";
+        return 0;
+    }
+    out->function = function;
+    out->owners = owners;
+    out->last_owner = 0;
+    out->last_bias = 0;
+    int ok = WRITE_ARRAY(out, function, exprs, expr_count, expression_fields);
+    out->function = NULL;
+    out->owners = NULL;
+    free(owners);
+    return ok;
 }
 
 static int
@@ -1048,7 +1352,11 @@ read_function(Reader *reader, ZirFunction *function)
     if(!read_fields(reader, function, function_fields, FIELD_COUNT(function_fields)))
         return 0;
     READ_ARRAY(reader, function, stmts, stmt_count, statement_fields);
+    reader->function = function;
+    reader->last_owner = 0;
+    reader->last_bias = 0;
     READ_ARRAY(reader, function, exprs, expr_count, expression_fields);
+    reader->function = NULL;
     function->stmt_cap = function->stmt_count;
     function->expr_cap = function->expr_count;
     function->from_ir = 1;

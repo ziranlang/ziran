@@ -1,0 +1,2152 @@
+using ABI :: #import "compiler_abi"
+using Machine :: #import "compiler_machine_ir"
+using MachineVerifyModule :: #import "compiler_machine_verify"
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+// Deterministic register allocation for verified Virtual-stage machine IR.
+//
+// Pipeline per function: fuel placement is checked first; fixed and tied
+// operand constraints are normalized into explicit physical transfers;
+// block liveness is solved; each SSA virtual gets one hull interval over the
+// linear item order; linear scan assigns registers bank by bank, splitting at
+// call clobbers, fixed registers and pressure; split boundaries, fixed
+// transfers and block-parameter copies are rewritten into Move, Spill and
+// Reload instructions with cycle temporaries; and the frame is laid out.
+// Every published program passes MachineVerifyAllocated. Any unsupported
+// class, constraint, clobber, copy or missing fuel check fails; nothing is
+// routed to another engine.
+
+#scope_file
+
+Infinity :: 2147483647
+
+ItemKind :: enum s32 { Invalid; BlockStart; Original; FixedUse; FixedDef; TieCopy; Parameter }
+
+Item :: struct {
+    kind: ItemKind
+    block: s32
+    instruction: s32
+    operand: s32
+    value: s32
+    physical: s32
+    bank: s32
+    interval: s32
+}
+
+UsePos :: struct { position: s32; required: bool }
+
+Interval :: struct {
+    value: s32
+    root: s32
+    bank: s32
+    class: MachineRegisterClass
+    start: s32
+    end: s32
+    register: s32
+    use_begin: s32
+    use_count: s32
+    root_use_begin: s32
+    root_use_count: s32
+    next: s32
+    prev: s32
+    tie_from: s32
+    hint: s32
+    hint_value: s32
+    hint_position: s32
+    reason: MachineSpillReason
+    slot: s32
+    incoming: bool
+    internal: bool
+}
+
+FixedRange :: struct { register: s32; start: s32; end: s32; cause: MachineSpillReason }
+
+Boundary :: struct { item: s32; interval: s32 }
+
+CopyMove :: struct {
+    bank: s32
+    class: MachineRegisterClass
+    destination_register: s32
+    destination_slot: s32
+    source_register: s32
+    source_slot: s32
+    destination_value: s32
+    source_value: s32
+    type: s32
+    reason: MachineSpillReason
+    done: bool
+}
+
+PendingEdge :: struct { block: s32; edge: s32; out_block: s32 }
+
+Alloc :: struct {
+    input: MachineProgram
+    target: TargetDescription
+    limits: MachineLimits
+    out: *MachineOwner
+    diagnostic: MachineDiagnostic
+    remaining: s64
+    bytes: s64
+    scratch: [3]s32
+    masks: [3]u64
+    callee_saved: [3]u64
+    instruction_map: Vec(s32)
+    item_of_instruction: Vec(s32)
+    function_id: s32
+    function: MachineFunction
+    block_out_begin: s32
+    stack_out_begin: s32
+    words: s64
+    items: Vec(Item)
+    block_start: Vec(s32)
+    block_end: Vec(s32)
+    block_incoming: Vec(s32)
+    param_block: Vec(s32)
+    param_edges: Vec(s32)
+    param_source: Vec(s32)
+    param_pred: Vec(s32)
+    param_begin: Vec(s32)
+    param_list: Vec(s32)
+    def_item: Vec(s32)
+    used: Vec(u8)
+    live_in: Vec(u64)
+    live_out: Vec(u64)
+    gen: Vec(u64)
+    kill: Vec(u64)
+    root_of: Vec(s32)
+    intervals: Vec(Interval)
+    uses: Vec(UsePos)
+    use_fill: Vec(s32)
+    fixed: Vec(FixedRange)
+    fixed_sorted: Vec(FixedRange)
+    fixed_begin: Vec(s32)
+    fixed_cursor: [192]s32
+    heap: Vec(s32)
+    active: Vec(s32)
+    free_until: [64]s32
+    free_cause: [64]MachineSpillReason
+    next_use: [64]s32
+    block_pos: [64]s32
+    block_cause: [64]MachineSpillReason
+    boundaries: Vec(Boundary)
+    boundary_begin: Vec(s32)
+    copies: Vec(CopyMove)
+    temps: Vec(s32)
+    pending: Vec(PendingEdge)
+    origin: s32
+}
+
+Fail :: (state: *Alloc, problem: MachineProblem, block: s32 = MachineNoId, instruction: s32 = MachineNoId,
+    operand: s32 = MachineNoId, virtual: s32 = MachineNoId) -> bool {
+    if state.diagnostic.problem == .None {
+        state.diagnostic = .{problem = problem, function = state.function_id, block = block,
+            instruction = instruction, operand = operand, virtual = virtual}
+    }
+    return false
+}
+
+Spend :: (state: *Alloc, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    return true
+}
+
+Reserve :: (state: *Alloc, count: s64, width: s64) -> bool {
+    if count < 0 || width < 1 || state.bytes > state.limits.bytes ||
+        count > (state.limits.bytes - state.bytes) / width { return Fail(state, .Limit) }
+    state.bytes += count * width
+    return true
+}
+
+Grow :: (state: *Alloc, current: s64, limit: s64) -> bool {
+    if current >= limit || current >= 2147483647 { return Fail(state, .Limit) }
+    return true
+}
+
+RegisterClass :: (class: MachineRegisterClass) -> bool {
+    return class == .General || class == .Float || class == .Vector
+}
+
+Bit :: (mask: u64, register: s32) -> bool {
+    return register >= 0 && register < 64 && ((mask >> cast(u64)register) & 1) != 0
+}
+
+// ---------------------------------------------------------------------------
+// Output tables
+
+OutOperand :: (state: *Alloc, operand: MachineOperand) -> s32 {
+    if !Grow(state, state.out.operands.count, state.limits.operands) ||
+        !Reserve(state, 1, size_of(MachineOperand)) { return MachineNoId }
+    index := cast(s32)state.out.operands.count
+    if !VecPush(state.out.operands, operand) { unused Fail(state, .Allocation); return MachineNoId }
+    return index
+}
+
+OutInstruction :: (state: *Alloc, instruction: MachineInstruction) -> s32 {
+    if !Grow(state, state.out.instructions.count, state.limits.instructions) ||
+        !Reserve(state, 1, size_of(MachineInstruction)) { return MachineNoId }
+    index := cast(s32)state.out.instructions.count
+    if !VecPush(state.out.instructions, instruction) { unused Fail(state, .Allocation); return MachineNoId }
+    return index
+}
+
+OutEdge :: (state: *Alloc, edge: MachineEdge) -> bool {
+    if !Grow(state, state.out.edges.count, state.limits.edges) || !Reserve(state, 1, size_of(MachineEdge)) { return false }
+    if !VecPush(state.out.edges, edge) { return Fail(state, .Allocation) }
+    return true
+}
+
+OutStack :: (state: *Alloc, object: MachineStackObject) -> s32 {
+    if !Grow(state, state.out.stack_objects.count, state.limits.stack_objects) ||
+        !Reserve(state, 1, size_of(MachineStackObject)) { return MachineNoId }
+    index := cast(s32)state.out.stack_objects.count
+    if !VecPush(state.out.stack_objects, object) { unused Fail(state, .Allocation); return MachineNoId }
+    return index
+}
+
+OutSpill :: (state: *Alloc, spill: MachineSpill) -> bool {
+    if !Reserve(state, 1, size_of(MachineSpill)) { return false }
+    if !VecPush(state.out.spills, spill) { return Fail(state, .Allocation) }
+    return true
+}
+
+OutCall :: (state: *Alloc, call: MachineCall) -> s32 {
+    if !Grow(state, state.out.calls.count, state.limits.calls) || !Reserve(state, 1, size_of(MachineCall)) {
+        return MachineNoId
+    }
+    index := cast(s32)state.out.calls.count
+    if !VecPush(state.out.calls, call) { unused Fail(state, .Allocation); return MachineNoId }
+    return index
+}
+
+BeginOut :: (state: *Alloc, opcode: MachineOpcode) -> MachineInstruction {
+    return .{opcode = opcode, operand_begin = cast(s32)state.out.operands.count,
+        edge_begin = cast(s32)state.out.edges.count, flags_use = MachineNoId,
+        flags_def = MachineNoId, call = MachineNoId, origin = state.origin}
+}
+
+FinishOut :: (state: *Alloc, instruction: MachineInstruction) -> s32 {
+    instruction.operand_count = cast(s32)state.out.operands.count - instruction.operand_begin
+    instruction.edge_count = cast(s32)state.out.edges.count - instruction.edge_begin
+    return OutInstruction(state, instruction)
+}
+
+PhysicalOperand :: (state: *Alloc, role: MachineOperandRole, class: MachineRegisterClass,
+    register: s32, value: s32, fixed: s32 = MachineNoId) -> s32 {
+    type: s32 = MachineNoId
+    if value >= 0 { type = state.input.virtuals[value].type }
+    return OutOperand(state, .{kind = .Physical, role = role, class = class, id = register,
+        type = type, fixed_register = fixed, tied_to = MachineNoId, value = value})
+}
+
+StackOperand :: (state: *Alloc, role: MachineOperandRole, class: MachineRegisterClass,
+    object: s32, value: s32) -> s32 {
+    type: s32 = MachineNoId
+    if value >= 0 { type = state.input.virtuals[value].type }
+    return OutOperand(state, .{kind = .StackObject, role = role, class = class, id = object,
+        type = type, fixed_register = MachineNoId, tied_to = MachineNoId, value = value})
+}
+
+// A register-to-register, register-to-memory or memory-to-register transfer.
+// Memory-to-memory transfers go through the bank scratch register.
+EmitTransfer :: (state: *Alloc, class: MachineRegisterClass, destination_register: s32,
+    destination_slot: s32, destination_value: s32, source_register: s32, source_slot: s32,
+    source_value: s32, reason: MachineSpillReason) -> bool {
+    if destination_register >= 0 && source_register >= 0 {
+        if destination_register == source_register && destination_value == source_value { return true }
+        instruction := BeginOut(state, .Move)
+        if PhysicalOperand(state, .Define, class, destination_register, destination_value) == MachineNoId ||
+            PhysicalOperand(state, .Use, class, source_register, source_value) == MachineNoId { return false }
+        return FinishOut(state, instruction) != MachineNoId
+    }
+    if destination_register >= 0 {
+        instruction := BeginOut(state, .Reload)
+        if PhysicalOperand(state, .Define, class, destination_register, destination_value) == MachineNoId ||
+            StackOperand(state, .Use, class, source_slot, source_value) == MachineNoId { return false }
+        id := FinishOut(state, instruction)
+        return id != MachineNoId && OutSpill(state, .{function = state.function_id, instruction = id,
+            virtual = source_value, stack_object = source_slot, register = destination_register,
+            reason = reason, origin = state.origin})
+    }
+    if source_register >= 0 {
+        instruction := BeginOut(state, .Spill)
+        if StackOperand(state, .Define, class, destination_slot, destination_value) == MachineNoId ||
+            PhysicalOperand(state, .Use, class, source_register, source_value) == MachineNoId { return false }
+        id := FinishOut(state, instruction)
+        return id != MachineNoId && OutSpill(state, .{function = state.function_id, instruction = id,
+            virtual = destination_value, stack_object = destination_slot, register = source_register,
+            reason = reason, origin = state.origin})
+    }
+    if destination_slot == source_slot && destination_value == source_value { return true }
+    bank := MachineRegisterBank(state.target, class)
+    scratch := state.scratch[bank]
+    if scratch < 0 { return Fail(state, .Pressure) }
+    return EmitTransfer(state, class, scratch, MachineNoId, source_value, MachineNoId, source_slot,
+            source_value, reason) &&
+        EmitTransfer(state, class, MachineNoId, destination_slot, destination_value, scratch, MachineNoId,
+            source_value, reason)
+}
+
+EmitAggregateMove :: (state: *Alloc, destination: s32, destination_value: s32, source: s32,
+    source_value: s32) -> bool {
+    if destination == source { return true }
+    // Cycle temporaries are not a value's own object, so they carry no tag.
+    if state.out.stack_objects[destination].kind == .Temporary { destination_value = MachineNoId }
+    if state.out.stack_objects[source].kind == .Temporary { source_value = MachineNoId }
+    instruction := BeginOut(state, .Move)
+    if StackOperand(state, .Define, .Stack, destination, destination_value) == MachineNoId ||
+        StackOperand(state, .Use, .Stack, source, source_value) == MachineNoId { return false }
+    return FinishOut(state, instruction) != MachineNoId
+}
+
+MapStack :: (state: *Alloc, object: s32) -> s32 {
+    if object < 0 { return MachineNoId }
+    return state.stack_out_begin + (object - state.function.stack_begin)
+}
+
+MapBlock :: (state: *Alloc, block: s32) -> s32 {
+    return state.block_out_begin + (block - state.function.block_begin)
+}
+
+// ---------------------------------------------------------------------------
+// Validation of unsupported forms
+
+EffectiveFixed :: (program: MachineProgram, instruction: MachineInstruction, local: s32) -> s32 {
+    operand := program.operands[instruction.operand_begin + local]
+    if operand.fixed_register != MachineNoId { return operand.fixed_register }
+    if operand.tied_to != MachineNoId {
+        return program.operands[instruction.operand_begin + operand.tied_to].fixed_register
+    }
+    return MachineNoId
+}
+
+CallArgument :: (program: MachineProgram, instruction: MachineInstruction, operand_id: s32) -> bool {
+    if instruction.call == MachineNoId { return false }
+    call := program.calls[instruction.call]
+    return operand_id >= call.argument_begin && operand_id < call.argument_begin + call.argument_count
+}
+
+CheckInstruction :: (state: *Alloc, block_id: s32, instruction_id: s32) -> bool {
+    program := state.input
+    instruction := program.instructions[instruction_id]
+    if instruction.opcode == .Spill || instruction.opcode == .Reload {
+        return Fail(state, .Stage, block_id, instruction_id)
+    }
+    use_masks: [3]u64
+    def_masks: [3]u64
+    for local: 0..instruction.operand_count - 1 {
+        if !Spend(state, 1) { return false }
+        operand_id := instruction.operand_begin + local
+        operand := program.operands[operand_id]
+        if operand.class == .Flags { return Fail(state, .Unsupported, block_id, instruction_id, operand_id, operand.value) }
+        if operand.kind == .Virtual && operand.role == .UseDefine {
+            return Fail(state, .Constraint, block_id, instruction_id, operand_id, operand.id)
+        }
+        if operand.kind == .Virtual && RegisterClass(operand.class) {
+            bank := MachineRegisterBank(state.target, operand.class)
+            if bank < 0 || state.masks[bank] == 0 {
+                return Fail(state, .Unsupported, block_id, instruction_id, operand_id, operand.id)
+            }
+        }
+        if operand.tied_to != MachineNoId {
+            partner := program.operands[instruction.operand_begin + operand.tied_to]
+            if operand.class == .Stack || !RegisterClass(operand.class) ||
+                (operand.role == .Define) == (partner.role == .Define) ||
+                partner.role == .UseDefine || operand.role == .UseDefine ||
+                partner.tied_to != MachineNoId && partner.tied_to != local ||
+                operand.kind != .Virtual && operand.kind != .Physical ||
+                operand.fixed_register != MachineNoId && partner.fixed_register != MachineNoId &&
+                operand.fixed_register != partner.fixed_register {
+                return Fail(state, .Tie, block_id, instruction_id, operand_id, operand.value)
+            }
+        }
+        register: s32 = MachineNoId
+        if operand.kind == .Physical { register = operand.id }
+        else if operand.kind == .Virtual { register = EffectiveFixed(program, instruction, local) }
+        if register == MachineNoId { continue }
+        bank := MachineRegisterBank(state.target, operand.class)
+        if bank < 0 || register < 0 || register >= 64 {
+            return Fail(state, .Constraint, block_id, instruction_id, operand_id, operand.value)
+        }
+        if operand.kind == .Virtual && !Bit(state.masks[bank], register) && register != state.scratch[bank] &&
+            !Bit(MachineBankAllocatable(state.target, bank), register) {
+            return Fail(state, .Constraint, block_id, instruction_id, operand_id, operand.value)
+        }
+        bit := cast(u64)1 << cast(u64)register
+        reads := operand.role == .Use || operand.role == .UseDefine
+        writes := operand.role == .Define || operand.role == .UseDefine
+        if reads {
+            if (use_masks[bank] & bit) != 0 { return Fail(state, .Constraint, block_id, instruction_id, operand_id, operand.value) }
+            use_masks[bank] = use_masks[bank] | bit
+        }
+        if writes {
+            if (def_masks[bank] & bit) != 0 { return Fail(state, .Constraint, block_id, instruction_id, operand_id, operand.value) }
+            def_masks[bank] = def_masks[bank] | bit
+        }
+    }
+    // A fixed input may not share a register with a physical early clobber.
+    for local: 0..instruction.operand_count - 1 {
+        operand := program.operands[instruction.operand_begin + local]
+        if operand.kind != .Physical || operand.role != .UseDefine { continue }
+        bank := MachineRegisterBank(state.target, operand.class)
+        for other: 0..instruction.operand_count - 1 {
+            candidate := program.operands[instruction.operand_begin + other]
+            if candidate.kind == .Virtual && candidate.role == .Define &&
+                MachineRegisterBank(state.target, candidate.class) == bank &&
+                EffectiveFixed(program, instruction, other) == operand.id {
+                return Fail(state, .Constraint, block_id, instruction_id, instruction.operand_begin + other, candidate.id)
+            }
+        }
+    }
+    if instruction.call != MachineNoId {
+        call := program.calls[instruction.call]
+        if call.calling != .Internal { return Fail(state, .Call, block_id, instruction_id) }
+        general := Allocated.MachineBankCallerSaved(state.target, 0)
+        float := Allocated.MachineBankCallerSaved(state.target, 1)
+        if (call.clobber_general & general) != general || (call.clobber_general & state.target.reserved_general) != 0 ||
+            (call.clobber_float & float) != float {
+            return Fail(state, .Clobber, block_id, instruction_id)
+        }
+    }
+    for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+        edge := program.edges[edge_id]
+        for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+            if !Spend(state, 1) { return false }
+            copy := program.copies[copy_id]
+            if copy.class == .Flags || copy.class == .Invalid {
+                return Fail(state, .Unsupported, block_id, instruction_id, virtual = copy.destination)
+            }
+            if RegisterClass(copy.class) && state.masks[MachineRegisterBank(state.target, copy.class)] == 0 {
+                return Fail(state, .Unsupported, block_id, instruction_id, virtual = copy.destination)
+            }
+        }
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Per-function scratch
+
+ResetFunction :: (state: *Alloc) -> bool {
+    function := state.function
+    count := cast(s64)function.virtual_count
+    blocks := cast(s64)function.block_count
+    state.words = (count + 63) / 64
+    if state.words > 0 && blocks > (state.limits.bytes / 8) / state.words { return Fail(state, .Limit) }
+    bound := state.limits.bytes
+    if !VecResize(state.items, 0) || !VecResize(state.intervals, 0) || !VecResize(state.uses, 0) ||
+        !VecResize(state.fixed, 0) || !VecResize(state.fixed_sorted, 0) || !VecResize(state.heap, 0) ||
+        !VecResize(state.active, 0) || !VecResize(state.boundaries, 0) || !VecResize(state.copies, 0) ||
+        !VecResize(state.temps, 0) || !VecResize(state.pending, 0) || !VecResize(state.param_list, 0) ||
+        !VecResizeBounded(state.block_start, blocks, bound) || !VecResizeBounded(state.block_end, blocks, bound) ||
+        !VecResizeBounded(state.block_incoming, blocks, bound) ||
+        !VecResizeBounded(state.param_begin, blocks + 1, bound) ||
+        !VecResizeBounded(state.param_block, count, bound) || !VecResizeBounded(state.param_edges, count, bound) ||
+        !VecResizeBounded(state.param_source, count, bound) || !VecResizeBounded(state.param_pred, count, bound) ||
+        !VecResizeBounded(state.def_item, count, bound) || !VecResizeBounded(state.used, count, bound) ||
+        !VecResizeBounded(state.root_of, count, bound) ||
+        !VecResizeBounded(state.live_in, blocks * state.words, bound) ||
+        !VecResizeBounded(state.live_out, blocks * state.words, bound) ||
+        !VecResizeBounded(state.gen, blocks * state.words, bound) ||
+        !VecResizeBounded(state.kill, blocks * state.words, bound) ||
+        !VecResizeBounded(state.fixed_begin, 193, bound) { return Fail(state, .Allocation) }
+    if !Spend(state, count + blocks * state.words * 4 + blocks) { return false }
+    for index: cast(s64)0..blocks - 1 { state.block_start[index] = MachineNoId; state.block_end[index] = MachineNoId; state.block_incoming[index] = 0 }
+    for index: cast(s64)0..count - 1 {
+        state.param_block[index] = MachineNoId
+        state.param_edges[index] = 0
+        state.param_source[index] = MachineNoId
+        state.param_pred[index] = MachineNoId
+        state.def_item[index] = MachineNoId
+        state.used[index] = 0
+        state.root_of[index] = MachineNoId
+    }
+    for index: cast(s64)0..state.live_in.count - 1 {
+        state.live_in[index] = 0; state.live_out[index] = 0; state.gen[index] = 0; state.kill[index] = 0
+    }
+    return true
+}
+
+Local :: (state: *Alloc, value: s32) -> s32 { return value - state.function.virtual_begin }
+
+AllocatedValue :: (state: *Alloc, value: s32) -> bool {
+    return value >= state.function.virtual_begin && value < state.function.virtual_begin + state.function.virtual_count &&
+        RegisterClass(state.input.virtuals[value].class)
+}
+
+// Block parameters are the destinations of incoming edge copies; every edge
+// into a block must define the same parameters.
+CollectParameters :: (state: *Alloc) -> bool {
+    program := state.input
+    function := state.function
+    for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+        block := program.blocks[block_id]
+        for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            instruction := program.instructions[instruction_id]
+            for local: 0..instruction.operand_count - 1 {
+                operand := program.operands[instruction.operand_begin + local]
+                if operand.kind == .Virtual && operand.role == .Use { state.used[Local(state, operand.id)] = 1 }
+            }
+            for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+                if !Spend(state, 1) { return false }
+                edge := program.edges[edge_id]
+                target := edge.target - function.block_begin
+                if edge.target == function.entry { return Fail(state, .Edge, block_id, instruction_id) }
+                state.block_incoming[target] += 1
+                for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+                    copy := program.copies[copy_id]
+                    destination := Local(state, copy.destination)
+                    state.used[Local(state, copy.source)] = 1
+                    if state.param_block[destination] != MachineNoId && state.param_block[destination] != target {
+                        return Fail(state, .Copy, block_id, instruction_id, virtual = copy.destination)
+                    }
+                    state.param_block[destination] = target
+                    if state.param_edges[destination] == 0 {
+                        state.param_source[destination] = copy.source
+                        state.param_pred[destination] = block_id - function.block_begin
+                    }
+                    state.param_edges[destination] += 1
+                }
+            }
+        }
+    }
+    blocks := cast(s64)function.block_count
+    for index: cast(s64)0..blocks { state.param_begin[index] = 0 }
+    for value: 0..function.virtual_count - 1 {
+        block := state.param_block[value]
+        if block == MachineNoId { continue }
+        if state.param_edges[value] != state.block_incoming[block] {
+            return Fail(state, .Copy, function.block_begin + block, virtual = function.virtual_begin + value)
+        }
+        state.param_begin[block + 1] += 1
+    }
+    for index: cast(s64)1..blocks { state.param_begin[index] += state.param_begin[index - 1] }
+    if !VecResizeBounded(state.param_list, cast(s64)state.param_begin[blocks], state.limits.bytes) {
+        return Fail(state, .Allocation)
+    }
+    fill: Vec(s32)
+    defer VecFree(fill)
+    if !VecResizeBounded(fill, blocks, state.limits.bytes) { return Fail(state, .Allocation) }
+    for index: cast(s64)0..blocks - 1 { fill[index] = state.param_begin[index] }
+    for value: 0..function.virtual_count - 1 {
+        block := state.param_block[value]
+        if block == MachineNoId { continue }
+        state.param_list[fill[block]] = value
+        fill[block] += 1
+    }
+    return true
+}
+
+PushItem :: (state: *Alloc, item: Item) -> s32 {
+    if state.items.count >= 268435455 { unused Fail(state, .Limit); return MachineNoId }
+    if !VecPush(state.items, item) { unused Fail(state, .Allocation); return MachineNoId }
+    return cast(s32)state.items.count - 1
+}
+
+SetDefinition :: (state: *Alloc, value: s32, item: s32, block: s32, instruction: s32) -> bool {
+    local := Local(state, value)
+    if state.def_item[local] != MachineNoId || state.param_block[local] != MachineNoId {
+        return Fail(state, .Virtual, block, instruction, virtual = value)
+    }
+    state.def_item[local] = item
+    return true
+}
+
+// Normalizes constraints into explicit items. A fixed input gets a FixedUse
+// transfer into its register immediately before the instruction; a fixed
+// result gets a FixedDef transfer out of its register immediately after; a
+// tied input without a fixed register gets a TieCopy into a fresh interval
+// the result must reuse; register parameters get Parameter transfers.
+BuildItems :: (state: *Alloc) -> bool {
+    program := state.input
+    function := state.function
+    for local_block: 0..function.block_count - 1 {
+        block_id := function.block_begin + local_block
+        block := program.blocks[block_id]
+        start := PushItem(state, .{kind = .BlockStart, block = local_block, instruction = MachineNoId,
+            operand = MachineNoId, value = MachineNoId, physical = MachineNoId, bank = MachineNoId, interval = MachineNoId})
+        if start == MachineNoId { return false }
+        state.block_start[local_block] = start
+        for at: state.param_begin[local_block]..state.param_begin[local_block + 1] - 1 {
+            value := function.virtual_begin + state.param_list[at]
+            if AllocatedValue(state, value) { state.def_item[state.param_list[at]] = start }
+        }
+        if block_id == function.entry {
+            for parameter: 0..function.parameter_count - 1 {
+                value_id := function.virtual_begin + parameter
+                value := program.virtuals[value_id]
+                if !RegisterClass(value.class) || state.used[parameter] == 0 { continue }
+                bank := MachineRegisterBank(state.target, value.class)
+                if value.fixed_register != MachineNoId {
+                    item := PushItem(state, .{kind = .Parameter, block = local_block, instruction = MachineNoId,
+                        operand = MachineNoId, value = value_id, physical = value.fixed_register, bank = bank,
+                        interval = MachineNoId})
+                    if item == MachineNoId || !SetDefinition(state, value_id, item, block_id, MachineNoId) { return false }
+                } else if value.stack_object != MachineNoId {
+                    if !SetDefinition(state, value_id, start, block_id, MachineNoId) { return false }
+                } else {
+                    return Fail(state, .Stack, block_id, virtual = value_id)
+                }
+            }
+        }
+        for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+            if !CheckInstruction(state, block_id, instruction_id) { return false }
+            instruction := program.instructions[instruction_id]
+            for local: 0..instruction.operand_count - 1 {
+                operand_id := instruction.operand_begin + local
+                operand := program.operands[operand_id]
+                if operand.kind != .Virtual || operand.role != .Use || !RegisterClass(operand.class) { continue }
+                fixed := EffectiveFixed(program, instruction, local)
+                bank := MachineRegisterBank(state.target, operand.class)
+                kind := ItemKind.FixedUse
+                if fixed == MachineNoId {
+                    if operand.tied_to == MachineNoId { continue }
+                    kind = .TieCopy
+                }
+                if PushItem(state, .{kind = kind, block = local_block, instruction = instruction_id,
+                    operand = operand_id, value = operand.id, physical = fixed, bank = bank,
+                    interval = MachineNoId}) == MachineNoId { return false }
+            }
+            original := PushItem(state, .{kind = .Original, block = local_block, instruction = instruction_id,
+                operand = MachineNoId, value = MachineNoId, physical = MachineNoId, bank = MachineNoId,
+                interval = MachineNoId})
+            if original == MachineNoId { return false }
+            state.item_of_instruction[instruction_id] = original
+            for local: 0..instruction.operand_count - 1 {
+                operand_id := instruction.operand_begin + local
+                operand := program.operands[operand_id]
+                if operand.kind != .Virtual || operand.role != .Define || !RegisterClass(operand.class) { continue }
+                fixed := EffectiveFixed(program, instruction, local)
+                if fixed == MachineNoId {
+                    if !SetDefinition(state, operand.id, original, block_id, instruction_id) { return false }
+                    continue
+                }
+                if state.used[Local(state, operand.id)] == 0 { continue }
+                item := PushItem(state, .{kind = .FixedDef, block = local_block, instruction = instruction_id,
+                    operand = operand_id, value = operand.id, physical = fixed,
+                    bank = MachineRegisterBank(state.target, operand.class), interval = MachineNoId})
+                if item == MachineNoId || !SetDefinition(state, operand.id, item, block_id, instruction_id) { return false }
+            }
+            if instruction_id == block.instruction_begin + block.instruction_count - 1 {
+                if !MachineIsTerminator(instruction.opcode) { return Fail(state, .Block, block_id, instruction_id) }
+                state.block_end[local_block] = original
+            } else if MachineIsTerminator(instruction.opcode) {
+                return Fail(state, .Block, block_id, instruction_id)
+            }
+        }
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Liveness
+
+BitIndex :: (state: *Alloc, block: s32, value: s32) -> s64 {
+    return cast(s64)block * state.words + cast(s64)(value >> 6)
+}
+
+BitMask :: (value: s32) -> u64 { return cast(u64)1 << cast(u64)(value & 63) }
+
+UseValue :: (state: *Alloc, block: s32, value: s32) {
+    if !AllocatedValue(state, value) { return }
+    local := Local(state, value)
+    at := BitIndex(state, block, local)
+    if (state.kill[at] & BitMask(local)) == 0 { state.gen[at] = state.gen[at] | BitMask(local) }
+}
+
+DefineValue :: (state: *Alloc, block: s32, value: s32) {
+    if !AllocatedValue(state, value) { return }
+    local := Local(state, value)
+    at := BitIndex(state, block, local)
+    state.kill[at] = state.kill[at] | BitMask(local)
+}
+
+Liveness :: (state: *Alloc) -> bool {
+    program := state.input
+    function := state.function
+    for index: cast(s64)0..state.items.count - 1 {
+        if !Spend(state, 1) { return false }
+        item := state.items[index]
+        if item.kind == .BlockStart {
+            for at: state.param_begin[item.block]..state.param_begin[item.block + 1] - 1 {
+                DefineValue(state, item.block, function.virtual_begin + state.param_list[at])
+            }
+            if function.block_begin + item.block == function.entry {
+                for parameter: 0..function.parameter_count - 1 {
+                    if state.def_item[parameter] == cast(s32)index {
+                        DefineValue(state, item.block, function.virtual_begin + parameter)
+                    }
+                }
+            }
+        } else if item.kind == .Parameter || item.kind == .FixedDef {
+            DefineValue(state, item.block, item.value)
+        } else if item.kind == .Original {
+            instruction := program.instructions[item.instruction]
+            for local: 0..instruction.operand_count - 1 {
+                operand := program.operands[instruction.operand_begin + local]
+                if operand.kind == .Virtual && operand.role == .Use { UseValue(state, item.block, operand.id) }
+            }
+            for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+                edge := program.edges[edge_id]
+                for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+                    UseValue(state, item.block, program.copies[copy_id].source)
+                }
+            }
+            for local: 0..instruction.operand_count - 1 {
+                operand := program.operands[instruction.operand_begin + local]
+                if operand.kind == .Virtual && operand.role == .Define &&
+                    EffectiveFixed(program, instruction, local) == MachineNoId {
+                    DefineValue(state, item.block, operand.id)
+                }
+            }
+        }
+    }
+    blocks := function.block_count
+    changed := true
+    while changed {
+        changed = false
+        local_block := blocks - 1
+        while local_block >= 0 {
+            if !Spend(state, state.words + 1) { return false }
+            terminator := program.instructions[program.blocks[function.block_begin + local_block].instruction_begin +
+                program.blocks[function.block_begin + local_block].instruction_count - 1]
+            for word: cast(s64)0..state.words - 1 {
+                out: u64 = 0
+                for edge_id: terminator.edge_begin..terminator.edge_begin + terminator.edge_count - 1 {
+                    successor := program.edges[edge_id].target - function.block_begin
+                    out = out | state.live_in[cast(s64)successor * state.words + word]
+                }
+                at := cast(s64)local_block * state.words + word
+                live := state.gen[at] | (out & ~state.kill[at])
+                if out != state.live_out[at] || live != state.live_in[at] {
+                    state.live_out[at] = out
+                    state.live_in[at] = live
+                    changed = true
+                }
+            }
+            local_block -= 1
+        }
+    }
+    entry := function.entry - function.block_begin
+    for word: cast(s64)0..state.words - 1 {
+        bits := state.live_in[cast(s64)entry * state.words + word]
+        if bits == 0 { continue }
+        bit: s32 = 0
+        while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
+        return Fail(state, .Undefined, function.entry, virtual = function.virtual_begin + cast(s32)(word * 64) + bit)
+    }
+    return true
+}
+
+LiveIn :: (state: *Alloc, block: s32, value: s32) -> bool {
+    local := Local(state, value)
+    return (state.live_in[BitIndex(state, block, local)] & BitMask(local)) != 0
+}
+
+LiveOut :: (state: *Alloc, block: s32, value: s32) -> bool {
+    local := Local(state, value)
+    return (state.live_out[BitIndex(state, block, local)] & BitMask(local)) != 0
+}
+
+// ---------------------------------------------------------------------------
+// Intervals
+
+NewInterval :: (state: *Alloc, value: s32, bank: s32, class: MachineRegisterClass, start: s32, end: s32) -> s32 {
+    if state.intervals.count >= 1073741823 { unused Fail(state, .Limit); return MachineNoId }
+    id := cast(s32)state.intervals.count
+    if !VecPush(state.intervals, .{value = value, root = id, bank = bank, class = class, start = start, end = end,
+        register = MachineNoId, use_begin = 0, use_count = 0, root_use_begin = 0, root_use_count = 0,
+        next = MachineNoId, prev = MachineNoId, tie_from = MachineNoId, hint = MachineNoId,
+        hint_value = MachineNoId, hint_position = MachineNoId, reason = .Pressure, slot = MachineNoId}) {
+        unused Fail(state, .Allocation)
+        return MachineNoId
+    }
+    return id
+}
+
+ItemDefinitionPosition :: (state: *Alloc, item: s32) -> s32 {
+    if state.items[item].kind == .BlockStart { return item * 2 }
+    return item * 2 + 1
+}
+
+Extend :: (state: *Alloc, root: s32, position: s32) {
+    if position < state.intervals[root].start { state.intervals[root].start = position }
+    if position > state.intervals[root].end { state.intervals[root].end = position }
+}
+
+// Occurrences of root intervals in position order, counted (fill == false)
+// or written (fill == true).
+Occurrences :: (state: *Alloc, fill: bool) -> bool {
+    program := state.input
+    function := state.function
+    for index: cast(s64)0..state.items.count - 1 {
+        if !Spend(state, 1) { return false }
+        item := state.items[index]
+        position := cast(s32)index * 2
+        if item.kind == .BlockStart {
+            for at: state.param_begin[item.block]..state.param_begin[item.block + 1] - 1 {
+                value := function.virtual_begin + state.param_list[at]
+                if !Occur(state, value, position, false, fill) { return false }
+            }
+            if function.block_begin + item.block == function.entry {
+                for parameter: 0..function.parameter_count - 1 {
+                    if state.def_item[parameter] == cast(s32)index &&
+                        !Occur(state, function.virtual_begin + parameter, position, false, fill) { return false }
+                }
+            }
+        } else if item.kind == .Parameter || item.kind == .FixedDef {
+            if !Occur(state, item.value, position + 1, false, fill) { return false }
+        } else if item.kind == .FixedUse || item.kind == .TieCopy {
+            if !Occur(state, item.value, position, false, fill) { return false }
+        } else if item.kind == .Original {
+            instruction := program.instructions[item.instruction]
+            for local: 0..instruction.operand_count - 1 {
+                operand_id := instruction.operand_begin + local
+                operand := program.operands[operand_id]
+                if operand.kind != .Virtual || operand.role != .Use || !RegisterClass(operand.class) ||
+                    EffectiveFixed(program, instruction, local) != MachineNoId || operand.tied_to != MachineNoId { continue }
+                required := !CallArgument(program, instruction, operand_id)
+                if !Occur(state, operand.id, position, required, fill) { return false }
+            }
+            for edge_id: instruction.edge_begin..instruction.edge_begin + instruction.edge_count - 1 {
+                edge := program.edges[edge_id]
+                for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+                    if !Occur(state, program.copies[copy_id].source, position, false, fill) { return false }
+                }
+            }
+            for local: 0..instruction.operand_count - 1 {
+                operand := program.operands[instruction.operand_begin + local]
+                if operand.kind != .Virtual || operand.role != .Define || !RegisterClass(operand.class) ||
+                    EffectiveFixed(program, instruction, local) != MachineNoId { continue }
+                if !Occur(state, operand.id, position + 1, true, fill) { return false }
+            }
+        }
+    }
+    return true
+}
+
+Occur :: (state: *Alloc, value: s32, position: s32, required: bool, fill: bool) -> bool {
+    if !AllocatedValue(state, value) { return true }
+    root := state.root_of[Local(state, value)]
+    if root == MachineNoId { return Fail(state, .Undefined, virtual = value) }
+    if !fill {
+        state.intervals[root].use_count += 1
+        Extend(state, root, position)
+        return true
+    }
+    at := state.use_fill[root]
+    state.uses[at] = .{position = position, required = required}
+    state.use_fill[root] = at + 1
+    return true
+}
+
+BuildIntervals :: (state: *Alloc) -> bool {
+    program := state.input
+    function := state.function
+    for local: 0..function.virtual_count - 1 {
+        value_id := function.virtual_begin + local
+        value := program.virtuals[value_id]
+        if !RegisterClass(value.class) { continue }
+        definition := state.def_item[local]
+        if definition == MachineNoId {
+            if state.used[local] != 0 { return Fail(state, .Undefined, virtual = value_id) }
+            continue
+        }
+        position := ItemDefinitionPosition(state, definition)
+        root := NewInterval(state, value_id, MachineRegisterBank(state.target, value.class), value.class, position, position)
+        if root == MachineNoId { return false }
+        state.root_of[local] = root
+        if local < function.parameter_count && value.fixed_register == MachineNoId && definition == state.block_start[function.entry - function.block_begin] {
+            state.intervals[root].incoming = true
+            state.intervals[root].slot = MapStack(state, value.stack_object)
+        }
+    }
+    if !Occurrences(state, false) { return false }
+    for local_block: 0..function.block_count - 1 {
+        from := state.block_start[local_block] * 2
+        to := state.block_end[local_block] * 2 + 1
+        for word: cast(s64)0..state.words - 1 {
+            if !Spend(state, 1) { return false }
+            at := cast(s64)local_block * state.words + word
+            live_in := state.live_in[at]
+            live_out := state.live_out[at]
+            bits := live_in | live_out
+            while bits != 0 {
+                bit: s32 = 0
+                while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
+                bits = bits & ~(cast(u64)1 << cast(u64)bit)
+                local := cast(s32)(word * 64) + bit
+                root := state.root_of[local]
+                if root == MachineNoId { return Fail(state, .Undefined, virtual = function.virtual_begin + local) }
+                if ((live_in >> cast(u64)bit) & 1) != 0 { Extend(state, root, from) }
+                if ((live_out >> cast(u64)bit) & 1) != 0 { Extend(state, root, to) }
+            }
+        }
+    }
+    roots := state.intervals.count
+    if !VecResizeBounded(state.use_fill, roots, state.limits.bytes) { return Fail(state, .Allocation) }
+    total: s64 = 0
+    for root: cast(s64)0..roots - 1 {
+        state.intervals[root].use_begin = cast(s32)total
+        state.intervals[root].root_use_begin = cast(s32)total
+        state.intervals[root].root_use_count = state.intervals[root].use_count
+        state.use_fill[root] = cast(s32)total
+        total += state.intervals[root].use_count
+    }
+    if !VecResizeBounded(state.uses, total, state.limits.bytes) { return Fail(state, .Allocation) }
+    if !Occurrences(state, true) { return false }
+    // Tied-input copies become short internal intervals whose register the
+    // tied result must reuse.
+    for index: cast(s64)0..state.items.count - 1 {
+        item := state.items[index]
+        if item.kind != .TieCopy { continue }
+        original := state.item_of_instruction[item.instruction]
+        instruction := program.instructions[item.instruction]
+        tie := NewInterval(state, item.value, item.bank, program.virtuals[item.value].class,
+            cast(s32)index * 2 + 1, original * 2)
+        if tie == MachineNoId { return false }
+        begin := cast(s32)state.uses.count
+        if !VecPush(state.uses, .{position = cast(s32)index * 2 + 1, required = true}) ||
+            !VecPush(state.uses, .{position = original * 2, required = true}) { return Fail(state, .Allocation) }
+        state.intervals[tie].use_begin = begin
+        state.intervals[tie].use_count = 2
+        state.intervals[tie].root_use_begin = begin
+        state.intervals[tie].root_use_count = 2
+        state.intervals[tie].internal = true
+        state.intervals[tie].hint_value = item.value
+        state.intervals[tie].hint_position = cast(s32)index * 2
+        state.items[index].interval = tie
+        local := program.operands[item.operand].tied_to
+        result := program.operands[instruction.operand_begin + local]
+        if result.kind == .Virtual {
+            result_root := state.root_of[Local(state, result.id)]
+            if result_root == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, virtual = result.id) }
+            state.intervals[result_root].tie_from = tie
+        }
+    }
+    // A block parameter prefers its first incoming copy source's register.
+    for local: 0..function.virtual_count - 1 {
+        root := state.root_of[local]
+        source := state.param_source[local]
+        if root == MachineNoId || source == MachineNoId || !AllocatedValue(state, source) { continue }
+        state.intervals[root].hint_value = source
+        state.intervals[root].hint_position = state.block_end[state.param_pred[local]] * 2
+    }
+    // Static hints from fixed transfers.
+    for index: cast(s64)0..state.items.count - 1 {
+        item := state.items[index]
+        if item.kind != .FixedUse && item.kind != .FixedDef && item.kind != .Parameter { continue }
+        root := state.root_of[Local(state, item.value)]
+        if root != MachineNoId && state.intervals[root].hint == MachineNoId { state.intervals[root].hint = item.physical }
+    }
+    return true
+}
+
+AddFixed :: (state: *Alloc, bank: s32, register: s32, start: s32, end: s32, cause: MachineSpillReason) -> bool {
+    if bank < 0 || register < 0 || register >= 64 { return true }
+    if !VecPush(state.fixed, .{register = bank * 64 + register, start = start, end = end, cause = cause}) {
+        return Fail(state, .Allocation)
+    }
+    return true
+}
+
+AddClobbers :: (state: *Alloc, bank: s32, mask: u64, position: s32) -> bool {
+    for register: cast(s32)0..63 {
+        if Bit(mask, register) && !AddFixed(state, bank, register, position, position, .Call) { return false }
+    }
+    return true
+}
+
+BuildFixed :: (state: *Alloc) -> bool {
+    program := state.input
+    function := state.function
+    entry_from := state.block_start[function.entry - function.block_begin] * 2
+    float_bank := MachineRegisterBank(state.target, .Float)
+    vector_bank := MachineRegisterBank(state.target, .Vector)
+    for index: cast(s64)0..state.items.count - 1 {
+        if !Spend(state, 1) { return false }
+        item := state.items[index]
+        position := cast(s32)index * 2
+        if item.kind == .Parameter {
+            if !AddFixed(state, item.bank, item.physical, entry_from, position, .Fixed) { return false }
+        } else if item.kind == .FixedUse {
+            original := state.item_of_instruction[item.instruction]
+            if !AddFixed(state, item.bank, item.physical, position + 1, original * 2, .Fixed) { return false }
+        } else if item.kind == .FixedDef {
+            original := state.item_of_instruction[item.instruction]
+            if !AddFixed(state, item.bank, item.physical, original * 2 + 1, position, .Fixed) { return false }
+        } else if item.kind == .Original {
+            instruction := program.instructions[item.instruction]
+            for local: 0..instruction.operand_count - 1 {
+                operand := program.operands[instruction.operand_begin + local]
+                if operand.kind != .Physical { continue }
+                bank := MachineRegisterBank(state.target, operand.class)
+                start := ifx operand.role == .Define then position + 1 else position
+                end := ifx operand.role == .Use then position else position + 1
+                if !AddFixed(state, bank, operand.id, start, end, .Fixed) { return false }
+            }
+            if instruction.call != MachineNoId {
+                call := program.calls[instruction.call]
+                if !AddClobbers(state, 0, call.clobber_general, position + 1) { return false }
+                if float_bank == vector_bank {
+                    if !AddClobbers(state, float_bank, call.clobber_float | call.clobber_vector, position + 1) { return false }
+                } else if !AddClobbers(state, float_bank, call.clobber_float, position + 1) ||
+                    !AddClobbers(state, vector_bank, call.clobber_vector, position + 1) { return false }
+            }
+        }
+    }
+    // Stable counting sort by register keeps each register's ranges ordered.
+    for index: 0..192 { state.fixed_begin[index] = 0 }
+    for range: state.fixed { state.fixed_begin[range.register + 1] += 1 }
+    for index: 1..192 { state.fixed_begin[index] += state.fixed_begin[index - 1] }
+    if !VecResizeBounded(state.fixed_sorted, state.fixed.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    for index: 0..191 { state.fixed_cursor[index] = state.fixed_begin[index] }
+    for range: state.fixed {
+        at := state.fixed_cursor[range.register]
+        state.fixed_sorted[at] = range
+        state.fixed_cursor[range.register] = at + 1
+    }
+    for index: 0..191 { state.fixed_cursor[index] = state.fixed_begin[index] }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Linear scan
+
+HeapKey :: (state: *Alloc, interval: s32) -> s64 {
+    it := state.intervals[interval]
+    priority: s64 = ifx it.tie_from != MachineNoId then 0 else 1
+    return (cast(s64)it.start * 2 + priority) * 2147483648 + cast(s64)interval
+}
+
+HeapPush :: (state: *Alloc, interval: s32) -> bool {
+    if !VecPush(state.heap, interval) { return Fail(state, .Allocation) }
+    at := state.heap.count - 1
+    while at > 0 {
+        parent := (at - 1) / 2
+        if HeapKey(state, state.heap[parent]) <= HeapKey(state, state.heap[at]) { break }
+        swap := state.heap[parent]; state.heap[parent] = state.heap[at]; state.heap[at] = swap
+        at = parent
+    }
+    return true
+}
+
+HeapPop :: (state: *Alloc) -> s32 {
+    top := state.heap[0]
+    last := state.heap.count - 1
+    state.heap[0] = state.heap[last]
+    unused VecResize(state.heap, last)
+    at: s64 = 0
+    while at * 2 + 1 < state.heap.count {
+        child := at * 2 + 1
+        if child + 1 < state.heap.count && HeapKey(state, state.heap[child + 1]) < HeapKey(state, state.heap[child]) {
+            child += 1
+        }
+        if HeapKey(state, state.heap[at]) <= HeapKey(state, state.heap[child]) { break }
+        swap := state.heap[at]; state.heap[at] = state.heap[child]; state.heap[child] = swap
+        at = child
+    }
+    return top
+}
+
+// First use at or after `from` that requires a register, or Infinity.
+FirstRequired :: (state: *Alloc, interval: s32, from: s32) -> s32 {
+    it := state.intervals[interval]
+    for at: it.use_begin..it.use_begin + it.use_count - 1 {
+        use := state.uses[at]
+        if use.position >= from && use.required { return use.position }
+    }
+    return Infinity
+}
+
+// Splits `interval` so the child covers [position, end]. Uses move with it.
+SplitAt :: (state: *Alloc, interval: s32, position: s32, reason: MachineSpillReason) -> s32 {
+    it := state.intervals[interval]
+    if position <= it.start || position > it.end { unused Fail(state, .Pressure, virtual = it.value); return MachineNoId }
+    split := it.use_begin
+    while split < it.use_begin + it.use_count && state.uses[split].position < position { split += 1 }
+    child := NewInterval(state, it.value, it.bank, it.class, position, it.end)
+    if child == MachineNoId { return MachineNoId }
+    old_next := state.intervals[interval].next
+    state.intervals[child].root = it.root
+    state.intervals[child].use_begin = split
+    state.intervals[child].use_count = it.use_begin + it.use_count - split
+    state.intervals[child].next = old_next
+    state.intervals[child].prev = interval
+    state.intervals[child].reason = reason
+    state.intervals[child].internal = it.internal
+    state.intervals[child].hint_value = MachineNoId
+    if old_next != MachineNoId { state.intervals[old_next].prev = child }
+    state.intervals[interval].next = child
+    state.intervals[interval].end = position - 1
+    state.intervals[interval].use_count = split - it.use_begin
+    return child
+}
+
+// Keeps `interval` in memory until its next required use; the remainder
+// returns to the unhandled queue.
+MemoryUntilNextUse :: (state: *Alloc, interval: s32, reason: MachineSpillReason) -> bool {
+    state.intervals[interval].register = MachineNoId
+    state.intervals[interval].reason = reason
+    first := FirstRequired(state, interval, state.intervals[interval].start)
+    if first == Infinity { return true }
+    gap := first & ~cast(s32)1
+    if gap <= state.intervals[interval].start {
+        return Fail(state, .Pressure, virtual = state.intervals[interval].value)
+    }
+    child := SplitAt(state, interval, gap, reason)
+    return child != MachineNoId && HeapPush(state, child)
+}
+
+// The interval loses its register at `position`: an even boundary returns
+// the remainder to the queue; an odd one moves it to memory (the store is
+// placed before the instruction, while the register still holds the value).
+LoseRegister :: (state: *Alloc, interval: s32, position: s32, reason: MachineSpillReason) -> bool {
+    child := SplitAt(state, interval, position, reason)
+    if child == MachineNoId { return false }
+    if (position & 1) != 0 { return MemoryUntilNextUse(state, child, reason) }
+    return HeapPush(state, child)
+}
+
+FixedBlocked :: (state: *Alloc, bank: s32, register: s32, position: s32) -> s32 {
+    key := bank * 64 + register
+    cursor := state.fixed_cursor[key]
+    finish := state.fixed_begin[key + 1]
+    while cursor < finish && state.fixed_sorted[cursor].end < position { cursor += 1 }
+    state.fixed_cursor[key] = cursor
+    if cursor >= finish { return Infinity }
+    return cursor
+}
+
+HintRegister :: (state: *Alloc, interval: s32) -> s32 {
+    it := state.intervals[interval]
+    if it.hint != MachineNoId { return it.hint }
+    if it.hint_value == MachineNoId { return MachineNoId }
+    root := state.root_of[Local(state, it.hint_value)]
+    if root == MachineNoId { return MachineNoId }
+    child := Covering(state, root, it.hint_position)
+    if child == MachineNoId { return MachineNoId }
+    return state.intervals[child].register
+}
+
+Covering :: (state: *Alloc, root: s32, position: s32) -> s32 {
+    at := root
+    while at != MachineNoId {
+        it := state.intervals[at]
+        if position >= it.start && position <= it.end { return at }
+        at = it.next
+    }
+    return MachineNoId
+}
+
+Assign :: (state: *Alloc, interval: s32, register: s32) -> bool {
+    state.intervals[interval].register = register
+    if !VecPush(state.active, interval) { return Fail(state, .Allocation) }
+    return true
+}
+
+ScanBank :: (state: *Alloc, bank: s32) -> bool {
+    mask := state.masks[bank]
+    if !VecResize(state.heap, 0) || !VecResize(state.active, 0) { return Fail(state, .Allocation) }
+    for index: 0..63 {
+        key := bank * 64 + index
+        state.fixed_cursor[key] = state.fixed_begin[key]
+    }
+    roots := state.intervals.count
+    for interval: cast(s64)0..roots - 1 {
+        it := state.intervals[interval]
+        if it.bank != bank { continue }
+        if it.incoming {
+            if !MemoryUntilNextUse(state, cast(s32)interval, .Parameter) { return false }
+            continue
+        }
+        if !HeapPush(state, cast(s32)interval) { return false }
+    }
+    callee := state.callee_saved[bank]
+    while state.heap.count > 0 {
+        if !Spend(state, 64 + state.active.count) { return false }
+        current := HeapPop(state)
+        it := state.intervals[current]
+        start := it.start
+        kept: s64 = 0
+        for index: cast(s64)0..state.active.count - 1 {
+            active := state.active[index]
+            if state.intervals[active].end >= start { state.active[kept] = active; kept += 1 }
+        }
+        unused VecResize(state.active, kept)
+        for register: cast(s32)0..63 {
+            state.free_until[register] = 0
+            state.free_cause[register] = .Pressure
+            state.block_pos[register] = 0
+            state.block_cause[register] = .Pressure
+            if !Bit(mask, register) { continue }
+            at := FixedBlocked(state, bank, register, start)
+            if at == Infinity {
+                state.free_until[register] = Infinity
+                state.block_pos[register] = Infinity
+            } else {
+                range := state.fixed_sorted[at]
+                if range.start > start {
+                    state.free_until[register] = range.start
+                    state.block_pos[register] = range.start
+                }
+                state.free_cause[register] = range.cause
+                state.block_cause[register] = range.cause
+            }
+        }
+        for index: cast(s64)0..state.active.count - 1 {
+            state.free_until[state.intervals[state.active[index]].register] = 0
+        }
+        if it.tie_from != MachineNoId {
+            tie := Covering(state, state.intervals[it.tie_from].root, start - 1)
+            register := ifx tie == MachineNoId then MachineNoId else state.intervals[tie].register
+            if register == MachineNoId || state.free_until[register] <= start {
+                return Fail(state, .Tie, virtual = it.value)
+            }
+            if !Assign(state, current, register) { return false }
+            if state.free_until[register] <= it.end &&
+                !LoseRegister(state, current, state.free_until[register], state.free_cause[register]) { return false }
+            continue
+        }
+        hint := HintRegister(state, current)
+        best: s32 = MachineNoId
+        best_full := false
+        for register: cast(s32)0..63 {
+            if !Bit(mask, register) || state.free_until[register] <= start { continue }
+            full := state.free_until[register] > it.end
+            if best == MachineNoId { best = register; best_full = full; continue }
+            if full != best_full {
+                if full { best = register; best_full = true }
+                continue
+            }
+            if full {
+                if best == hint { continue }
+                if register == hint { best = register; continue }
+                if Bit(callee, best) && !Bit(callee, register) { best = register }
+            } else if state.free_until[register] > state.free_until[best] {
+                best = register
+            }
+        }
+        if best != MachineNoId && best_full {
+            if !Assign(state, current, best) { return false }
+            continue
+        }
+        if best != MachineNoId {
+            limit := state.free_until[best]
+            first := FirstRequired(state, current, start)
+            // A partial register is useful only when it covers the next use.
+            if limit > start + 1 && (first == Infinity || first < limit) {
+                if !Assign(state, current, best) { return false }
+                if !LoseRegister(state, current, limit, state.free_cause[best]) { return false }
+                continue
+            }
+        }
+        if !AllocateBlocked(state, current, bank) { return false }
+    }
+    return true
+}
+
+AllocateBlocked :: (state: *Alloc, current: s32, bank: s32) -> bool {
+    it := state.intervals[current]
+    start := it.start
+    mask := state.masks[bank]
+    first := FirstRequired(state, current, start)
+    if first == Infinity { return MemoryUntilNextUse(state, current, .Pressure) }
+    for register: cast(s32)0..63 { state.next_use[register] = ifx Bit(mask, register) then state.block_pos[register] else 0 }
+    for index: cast(s64)0..state.active.count - 1 {
+        active := state.active[index]
+        register := state.intervals[active].register
+        next := FirstRequired(state, active, start)
+        if next < state.next_use[register] { state.next_use[register] = next }
+    }
+    best: s32 = MachineNoId
+    for register: cast(s32)0..63 {
+        if !Bit(mask, register) { continue }
+        if best == MachineNoId || state.next_use[register] > state.next_use[best] { best = register }
+    }
+    if best == MachineNoId { return Fail(state, .Pressure, virtual = it.value) }
+    if first > state.next_use[best] {
+        // Every register is needed sooner: keep this value in memory.
+        if first <= start + 1 { return Fail(state, .Pressure, virtual = it.value) }
+        return MemoryUntilNextUse(state, current, .Pressure)
+    }
+    if state.next_use[best] <= start { return Fail(state, .Pressure, virtual = it.value) }
+    kept: s64 = 0
+    for index: cast(s64)0..state.active.count - 1 {
+        active := state.active[index]
+        if state.intervals[active].register != best { state.active[kept] = active; kept += 1; continue }
+        if state.intervals[active].start >= start {
+            if !MemoryUntilNextUse(state, active, .Pressure) { return false }
+        } else {
+            child := SplitAt(state, active, start, .Pressure)
+            if child == MachineNoId || !MemoryUntilNextUse(state, child, .Pressure) { return false }
+        }
+    }
+    unused VecResize(state.active, kept)
+    if !Assign(state, current, best) { return false }
+    if state.block_pos[best] <= it.end {
+        return LoseRegister(state, current, state.block_pos[best], state.block_cause[best])
+    }
+    return true
+}
+
+AssignSlots :: (state: *Alloc) -> bool {
+    program := state.input
+    roots := state.intervals.count
+    for index: cast(s64)0..roots - 1 {
+        it := state.intervals[index]
+        if it.root != cast(s32)index || it.slot != MachineNoId { continue }
+        memory := false
+        at := cast(s32)index
+        while at != MachineNoId {
+            if state.intervals[at].register == MachineNoId { memory = true }
+            at = state.intervals[at].next
+        }
+        if !memory { continue }
+        value := program.virtuals[it.value]
+        size: s64 = 8
+        alignment: s32 = 8
+        if it.class == .Vector {
+            size = ifx program.types[value.type].size > 16 then program.types[value.type].size else 16
+            size = (size + 15) & ~cast(s64)15
+            alignment = 16
+        }
+        slot := OutStack(state, .{function = state.function_id, kind = .Spill, size = size, alignment = alignment,
+            type = value.type, origin = value.origin, offset = 0, value = it.value})
+        if slot == MachineNoId { return false }
+        state.intervals[index].slot = slot
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Rewriting
+
+LocationRegister :: (state: *Alloc, root: s32, position: s32) -> s32 {
+    child := Covering(state, root, position)
+    if child == MachineNoId { return MachineNoId }
+    return state.intervals[child].register
+}
+
+ValueRoot :: (state: *Alloc, value: s32) -> s32 { return state.root_of[Local(state, value)] }
+
+LiveAtGap :: (state: *Alloc, interval: s32, item: s32) -> bool {
+    it := state.intervals[interval]
+    if it.internal { return true }
+    block := state.items[item].block
+    local := Local(state, it.value)
+    root := state.intervals[it.root]
+    defined := LiveIn(state, block, it.value) ||
+        state.def_item[local] != MachineNoId && state.items[state.def_item[local]].block == block &&
+        state.def_item[local] < item
+    if !defined { return false }
+    if LiveOut(state, block, it.value) { return true }
+    limit := state.block_end[block] * 2 + 1
+    for at: root.root_use_begin..root.root_use_begin + root.root_use_count - 1 {
+        position := state.uses[at].position
+        if position >= item * 2 && position <= limit { return true }
+    }
+    return false
+}
+
+CollectBoundaries :: (state: *Alloc) -> bool {
+    items := state.items.count
+    if !VecResizeBounded(state.boundary_begin, items + 1, state.limits.bytes) { return Fail(state, .Allocation) }
+    for index: cast(s64)0..items { state.boundary_begin[index] = 0 }
+    scratch: Vec(Boundary)
+    defer VecFree(scratch)
+    for index: cast(s64)0..state.intervals.count - 1 {
+        it := state.intervals[index]
+        if it.prev == MachineNoId { continue }
+        item := it.start / 2
+        if state.items[item].kind == .BlockStart {
+            // An even block-start boundary is resolved on the incoming edges;
+            // an odd one is stored before the block's first instruction.
+            if (it.start & 1) == 0 { continue }
+            item += 1
+        }
+        if !VecPush(scratch, .{item = item, interval = cast(s32)index}) { return Fail(state, .Allocation) }
+        state.boundary_begin[item + 1] += 1
+    }
+    for index: cast(s64)1..items { state.boundary_begin[index] += state.boundary_begin[index - 1] }
+    if !VecResizeBounded(state.boundaries, scratch.count, state.limits.bytes) { return Fail(state, .Allocation) }
+    fill: Vec(s32)
+    defer VecFree(fill)
+    if !VecResizeBounded(fill, items, state.limits.bytes) { return Fail(state, .Allocation) }
+    for index: cast(s64)0..items - 1 { fill[index] = state.boundary_begin[index] }
+    for boundary: scratch {
+        state.boundaries[fill[boundary.item]] = boundary
+        fill[boundary.item] += 1
+    }
+    return true
+}
+
+Temporary :: (state: *Alloc, index: s64, type: s32, size: s64, alignment: s32) -> s32 {
+    while state.temps.count <= index {
+        slot := OutStack(state, .{function = state.function_id, kind = .Temporary, size = 16, alignment = 16,
+            type = type, origin = MachineNoId, offset = 0, value = MachineNoId})
+        if slot == MachineNoId || !VecPush(state.temps, slot) { unused Fail(state, .Allocation); return MachineNoId }
+    }
+    if size > 16 || alignment > 16 {
+        return OutStack(state, .{function = state.function_id, kind = .Temporary, size = size,
+            alignment = alignment, type = type, origin = MachineNoId, offset = 0, value = MachineNoId})
+    }
+    return state.temps[index]
+}
+
+SameSource :: (move: CopyMove, register: s32, slot: s32) -> bool {
+    if register >= 0 { return move.source_register == register }
+    return move.source_register < 0 && move.source_slot == slot
+}
+
+// Sequentializes the pending simultaneous copies. A copy is emitted once no
+// other pending copy still reads its destination; a cycle saves one
+// destination in a frame temporary first.
+ResolveCopies :: (state: *Alloc) -> bool {
+    temporaries: s64 = 0
+    remaining := state.copies.count
+    // A bank's scratch register can park one cycle value when no copy in
+    // this set needs it for a memory-to-memory transfer.
+    scratch_free: [3]bool
+    for bank: cast(s32)0..2 { scratch_free[bank] = state.scratch[bank] >= 0 }
+    for move: state.copies {
+        if move.class != .Stack && move.source_register < 0 && move.destination_register < 0 {
+            scratch_free[move.bank] = false
+        }
+    }
+    while remaining > 0 {
+        if !Spend(state, state.copies.count + 1) { return false }
+        progress := false
+        for index: cast(s64)0..state.copies.count - 1 {
+            move := state.copies[index]
+            if move.done { continue }
+            blocked := false
+            for other: cast(s64)0..state.copies.count - 1 {
+                candidate := state.copies[other]
+                if other == index || candidate.done { continue }
+                if move.class == .Stack {
+                    if candidate.class == .Stack && candidate.source_slot == move.destination_slot { blocked = true; break }
+                } else if candidate.class != .Stack && candidate.bank == move.bank &&
+                    SameSource(candidate, move.destination_register, move.destination_slot) {
+                    blocked = true
+                    break
+                }
+            }
+            if blocked { continue }
+            if !EmitCopy(state, move) { return false }
+            state.copies[index].done = true
+            remaining -= 1
+            progress = true
+        }
+        if progress || remaining == 0 { continue }
+        // Break a cycle: park the first pending destination's value.
+        cycle: s64 = 0
+        while state.copies[cycle].done { cycle += 1 }
+        move := state.copies[cycle]
+        size: s64 = 16
+        alignment: s32 = 16
+        if move.class == .Stack {
+            object := state.out.stack_objects[move.destination_slot]
+            size = object.size
+            alignment = object.alignment
+        }
+        parked_value: s32 = MachineNoId
+        for other: cast(s64)0..state.copies.count - 1 {
+            candidate := state.copies[other]
+            if candidate.done { continue }
+            if move.class == .Stack {
+                if candidate.class == .Stack && candidate.source_slot == move.destination_slot { parked_value = candidate.source_value }
+            } else if candidate.class != .Stack && candidate.bank == move.bank &&
+                SameSource(candidate, move.destination_register, move.destination_slot) {
+                parked_value = candidate.source_value
+            }
+        }
+        if parked_value == MachineNoId { return Fail(state, .Cycle) }
+        if move.class != .Stack && scratch_free[move.bank] {
+            scratch := state.scratch[move.bank]
+            scratch_free[move.bank] = false
+            if !EmitTransfer(state, move.class, scratch, MachineNoId, parked_value,
+                move.destination_register, move.destination_slot, parked_value, .Cycle) { return false }
+            for other: cast(s64)0..state.copies.count - 1 {
+                candidate := state.copies[other]
+                if candidate.done || candidate.class == .Stack || candidate.bank != move.bank ||
+                    !SameSource(candidate, move.destination_register, move.destination_slot) { continue }
+                state.copies[other].source_register = scratch
+                state.copies[other].source_slot = MachineNoId
+                state.copies[other].reason = .Cycle
+            }
+            continue
+        }
+        temporary := Temporary(state, temporaries, move.type, size, alignment)
+        if temporary == MachineNoId { return false }
+        temporaries += 1
+        if move.class == .Stack {
+            if !EmitAggregateMove(state, temporary, parked_value, move.destination_slot, parked_value) { return false }
+        } else if !EmitTransfer(state, move.class, MachineNoId, temporary, parked_value,
+            move.destination_register, move.destination_slot, parked_value, .Cycle) { return false }
+        for other: cast(s64)0..state.copies.count - 1 {
+            candidate := state.copies[other]
+            if candidate.done { continue }
+            if move.class == .Stack {
+                if candidate.class == .Stack && candidate.source_slot == move.destination_slot {
+                    state.copies[other].source_slot = temporary
+                }
+            } else if candidate.class != .Stack && candidate.bank == move.bank &&
+                SameSource(candidate, move.destination_register, move.destination_slot) {
+                state.copies[other].source_register = MachineNoId
+                state.copies[other].source_slot = temporary
+                state.copies[other].reason = .Cycle
+            }
+        }
+    }
+    return VecResize(state.copies, 0) || Fail(state, .Allocation)
+}
+
+EmitCopy :: (state: *Alloc, move: CopyMove) -> bool {
+    if move.class == .Stack {
+        return EmitAggregateMove(state, move.destination_slot, move.destination_value, move.source_slot, move.source_value)
+    }
+    return EmitTransfer(state, move.class, move.destination_register, move.destination_slot, move.destination_value,
+        move.source_register, move.source_slot, move.source_value, move.reason)
+}
+
+AddCopy :: (state: *Alloc, move: CopyMove) -> bool {
+    if move.class != .Stack && move.destination_register == move.source_register &&
+        (move.destination_register >= 0 || move.destination_slot == move.source_slot) &&
+        move.destination_value == move.source_value { return true }
+    if move.class == .Stack && move.destination_slot == move.source_slot { return true }
+    for existing: state.copies {
+        if existing.class == .Stack || move.class == .Stack {
+            if existing.class == .Stack && move.class == .Stack && existing.destination_slot == move.destination_slot {
+                return Fail(state, .Copy, virtual = move.destination_value)
+            }
+        } else if existing.bank == move.bank && existing.destination_register == move.destination_register &&
+            (move.destination_register >= 0 || existing.destination_slot == move.destination_slot) {
+            return Fail(state, .Copy, virtual = move.destination_value)
+        }
+    }
+    if !VecPush(state.copies, move) { return Fail(state, .Allocation) }
+    return true
+}
+
+ValueCopy :: (state: *Alloc, destination_value: s32, destination_position: s32, source_value: s32,
+    source_position: s32) -> bool {
+    destination_root := ValueRoot(state, destination_value)
+    source_root := ValueRoot(state, source_value)
+    if destination_root == MachineNoId || source_root == MachineNoId { return true }
+    destination := Covering(state, destination_root, destination_position)
+    source := Covering(state, source_root, source_position)
+    if destination == MachineNoId || source == MachineNoId { return Fail(state, .Copy, virtual = destination_value) }
+    to := state.intervals[destination]
+    from := state.intervals[source]
+    reason := ifx to.register == MachineNoId then to.reason else from.reason
+    return AddCopy(state, .{bank = to.bank, class = to.class, destination_register = to.register,
+        destination_slot = ifx to.register == MachineNoId then state.intervals[destination_root].slot else MachineNoId,
+        source_register = from.register,
+        source_slot = ifx from.register == MachineNoId then state.intervals[source_root].slot else MachineNoId,
+        destination_value = destination_value, source_value = source_value,
+        type = state.input.virtuals[destination_value].type, reason = reason})
+}
+
+// Block-parameter copies and split-location fixes for one CFG edge.
+EdgeCopies :: (state: *Alloc, block: s32, edge_id: s32) -> bool {
+    program := state.input
+    function := state.function
+    edge := program.edges[edge_id]
+    target := edge.target - function.block_begin
+    from := state.block_end[block] * 2
+    to := state.block_start[target] * 2
+    for copy_id: edge.copy_begin..edge.copy_begin + edge.copy_count - 1 {
+        if !Spend(state, 1) { return false }
+        copy := program.copies[copy_id]
+        if copy.class == .Stack {
+            destination := MapStack(state, program.virtuals[copy.destination].stack_object)
+            source := MapStack(state, program.virtuals[copy.source].stack_object)
+            if !AddCopy(state, .{bank = MachineNoId, class = .Stack, destination_register = MachineNoId,
+                destination_slot = destination, source_register = MachineNoId, source_slot = source,
+                destination_value = copy.destination, source_value = copy.source,
+                type = program.virtuals[copy.destination].type, reason = .Pressure}) { return false }
+        } else if !ValueCopy(state, copy.destination, to, copy.source, from) { return false }
+    }
+    for word: cast(s64)0..state.words - 1 {
+        if !Spend(state, 1) { return false }
+        bits := state.live_in[cast(s64)target * state.words + word]
+        while bits != 0 {
+            bit: s32 = 0
+            while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
+            bits = bits & ~(cast(u64)1 << cast(u64)bit)
+            value := function.virtual_begin + cast(s32)(word * 64) + bit
+            if !ValueCopy(state, value, to, value, from) { return false }
+        }
+    }
+    return ResolveCopies(state)
+}
+
+GapMoves :: (state: *Alloc, item: s32) -> bool {
+    for at: state.boundary_begin[item]..state.boundary_begin[item + 1] - 1 {
+        if !Spend(state, 1) { return false }
+        child := state.boundaries[at].interval
+        to := state.intervals[child]
+        from := state.intervals[to.prev]
+        if to.register == from.register || !LiveAtGap(state, child, item) { continue }
+        slot := state.intervals[to.root].slot
+        if !AddCopy(state, .{bank = to.bank, class = to.class, destination_register = to.register,
+            destination_slot = ifx to.register == MachineNoId then slot else MachineNoId,
+            source_register = from.register, source_slot = ifx from.register == MachineNoId then slot else MachineNoId,
+            destination_value = to.value, source_value = to.value, type = state.input.virtuals[to.value].type,
+            reason = ifx to.register == MachineNoId then to.reason else from.reason}) { return false }
+    }
+    return ResolveCopies(state)
+}
+
+// Location of `value` at `position` as an output operand.
+ValueOperand :: (state: *Alloc, role: MachineOperandRole, value: s32, position: s32, required: bool,
+    tied: s32) -> s32 {
+    root := ValueRoot(state, value)
+    child := ifx root == MachineNoId then MachineNoId else Covering(state, root, position)
+    if child == MachineNoId { unused Fail(state, .Allocation, virtual = value); return MachineNoId }
+    it := state.intervals[child]
+    class := state.input.virtuals[value].class
+    if it.register == MachineNoId {
+        if required { unused Fail(state, .Pressure, virtual = value); return MachineNoId }
+        return StackOperand(state, role, class, state.intervals[root].slot, value)
+    }
+    type := state.input.virtuals[value].type
+    return OutOperand(state, .{kind = .Physical, role = role, class = class, id = it.register, type = type,
+        fixed_register = MachineNoId, tied_to = tied, value = value})
+}
+
+RewriteOriginal :: (state: *Alloc, item_index: s32) -> bool {
+    program := state.input
+    item := state.items[item_index]
+    source := program.instructions[item.instruction]
+    position := item_index * 2
+    block := item.block
+    // Edge moves for a single-successor transfer run just before the jump.
+    if source.opcode == .Jump && !EdgeCopies(state, block, source.edge_begin) { return false }
+    instruction := BeginOut(state, source.opcode)
+    instruction.flags_use = source.flags_use
+    instruction.flags_def = source.flags_def
+    instruction.condition = source.condition
+    for local: 0..source.operand_count - 1 {
+        operand_id := source.operand_begin + local
+        operand := program.operands[operand_id]
+        rewritten := operand
+        rewritten.value = MachineNoId
+        if operand.kind == .Virtual {
+            rewritten.value = operand.id
+            if operand.class == .Stack {
+                rewritten.kind = .StackObject
+                rewritten.id = MapStack(state, program.virtuals[operand.id].stack_object)
+                if OutOperand(state, rewritten) == MachineNoId { return false }
+                continue
+            }
+            fixed := EffectiveFixed(program, source, local)
+            if fixed != MachineNoId {
+                rewritten.kind = .Physical
+                rewritten.id = fixed
+                rewritten.fixed_register = fixed
+                if OutOperand(state, rewritten) == MachineNoId { return false }
+                continue
+            }
+            if operand.role == .Use && operand.tied_to != MachineNoId {
+                tie: s32 = MachineNoId
+                at := item_index - 1
+                while at >= 0 && state.items[at].instruction == item.instruction && state.items[at].kind != .Original {
+                    if state.items[at].kind == .TieCopy && state.items[at].operand == operand_id { tie = state.items[at].interval }
+                    at -= 1
+                }
+                register := ifx tie == MachineNoId then MachineNoId else LocationRegister(state, tie, position)
+                if register == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, operand = operand_id) }
+                rewritten.kind = .Physical
+                rewritten.id = register
+                if OutOperand(state, rewritten) == MachineNoId { return false }
+                continue
+            }
+            required := operand.role == .Define || !CallArgument(program, source, operand_id)
+            at_position := ifx operand.role == .Define then position + 1 else position
+            if ValueOperand(state, operand.role, operand.id, at_position, required, operand.tied_to) == MachineNoId {
+                return false
+            }
+            continue
+        }
+        if operand.kind == .StackObject { rewritten.id = MapStack(state, operand.id) }
+        if operand.kind == .Block { rewritten.id = MapBlock(state, operand.id) }
+        if OutOperand(state, rewritten) == MachineNoId { return false }
+    }
+    if source.call != MachineNoId {
+        call := program.calls[source.call]
+        call.instruction = cast(s32)state.out.instructions.count
+        call.argument_begin = instruction.operand_begin + (call.argument_begin - source.operand_begin)
+        if call.result_operand != MachineNoId {
+            call.result_operand = instruction.operand_begin + (call.result_operand - source.operand_begin)
+        }
+        instruction.call = OutCall(state, call)
+        if instruction.call == MachineNoId { return false }
+    }
+    for edge_id: source.edge_begin..source.edge_begin + source.edge_count - 1 {
+        target := MapBlock(state, program.edges[edge_id].target)
+        if source.opcode == .Branch && EdgeNeedsMoves(state, block, edge_id) {
+            target = state.block_out_begin + state.function.block_count + cast(s32)state.pending.count
+            if !VecPush(state.pending, .{block = block, edge = edge_id, out_block = target}) { return Fail(state, .Allocation) }
+        }
+        if !OutEdge(state, .{target = target, copy_begin = 0, copy_count = 0}) { return false }
+    }
+    id := FinishOut(state, instruction)
+    if id == MachineNoId { return false }
+    state.instruction_map[item.instruction] = id
+    return true
+}
+
+EdgeNeedsMoves :: (state: *Alloc, block: s32, edge_id: s32) -> bool {
+    // Whether resolving this edge needs any transfer, without emitting one.
+    program := state.input
+    function := state.function
+    edge := program.edges[edge_id]
+    if edge.copy_count > 0 { return true }
+    target := edge.target - function.block_begin
+    from := state.block_end[block] * 2
+    to := state.block_start[target] * 2
+    for word: cast(s64)0..state.words - 1 {
+        bits := state.live_in[cast(s64)target * state.words + word]
+        while bits != 0 {
+            bit: s32 = 0
+            while ((bits >> cast(u64)bit) & 1) == 0 { bit += 1 }
+            bits = bits & ~(cast(u64)1 << cast(u64)bit)
+            value := function.virtual_begin + cast(s32)(word * 64) + bit
+            root := ValueRoot(state, value)
+            if root == MachineNoId { continue }
+            if LocationRegister(state, root, to) != LocationRegister(state, root, from) { return true }
+        }
+    }
+    return false
+}
+
+RewriteItem :: (state: *Alloc, index: s32) -> bool {
+    item := state.items[index]
+    position := index * 2
+    if item.kind == .BlockStart { return true }
+    if item.instruction != MachineNoId { state.origin = state.input.instructions[item.instruction].origin }
+    if !GapMoves(state, index) { return false }
+    if item.kind == .Original { return RewriteOriginal(state, index) }
+    class := state.input.virtuals[item.value].class
+    root := ValueRoot(state, item.value)
+    if item.kind == .Parameter || item.kind == .FixedDef {
+        child := Covering(state, root, position + 1)
+        if child == MachineNoId { return Fail(state, .Allocation, virtual = item.value) }
+        register := state.intervals[child].register
+        return EmitTransfer(state, class, register, ifx register == MachineNoId then state.intervals[root].slot else MachineNoId,
+            item.value, item.physical, MachineNoId, item.value, ifx item.kind == .Parameter then .Parameter else state.intervals[child].reason)
+    }
+    child := Covering(state, root, position)
+    if child == MachineNoId { return Fail(state, .Allocation, virtual = item.value) }
+    source := state.intervals[child].register
+    destination := item.physical
+    if item.kind == .TieCopy {
+        destination = LocationRegister(state, item.interval, position + 1)
+        if destination == MachineNoId { return Fail(state, .Tie, instruction = item.instruction, virtual = item.value) }
+    }
+    return EmitTransfer(state, class, destination, MachineNoId, item.value, source,
+        ifx source == MachineNoId then state.intervals[root].slot else MachineNoId, item.value, state.intervals[child].reason)
+}
+
+EmitBlock :: (state: *Alloc, block_local: s32) -> bool {
+    program := state.input
+    source := program.blocks[state.function.block_begin + block_local]
+    begin := cast(s32)state.out.instructions.count
+    state.origin = MachineNoId
+    first := state.block_start[block_local]
+    last := state.block_end[block_local]
+    for index: first..last {
+        if !Spend(state, 1) || !RewriteItem(state, index) { return false }
+    }
+    return AddOutBlock(state, .{function = state.function_id, lir_block = source.lir_block,
+        instruction_begin = begin, instruction_count = cast(s32)state.out.instructions.count - begin})
+}
+
+AddOutBlock :: (state: *Alloc, block: MachineBlock) -> bool {
+    if !Grow(state, state.out.blocks.count, state.limits.blocks) || !Reserve(state, 1, size_of(MachineBlock)) { return false }
+    if !VecPush(state.out.blocks, block) { return Fail(state, .Allocation) }
+    return true
+}
+
+EmitEdgeBlocks :: (state: *Alloc) -> bool {
+    program := state.input
+    for index: cast(s64)0..state.pending.count - 1 {
+        pending := state.pending[index]
+        begin := cast(s32)state.out.instructions.count
+        source := program.instructions[program.blocks[state.function.block_begin + pending.block].instruction_begin +
+            program.blocks[state.function.block_begin + pending.block].instruction_count - 1]
+        state.origin = source.origin
+        if !EdgeCopies(state, pending.block, pending.edge) { return false }
+        jump := BeginOut(state, .Jump)
+        if !OutEdge(state, .{target = MapBlock(state, program.edges[pending.edge].target), copy_begin = 0, copy_count = 0}) ||
+            FinishOut(state, jump) == MachineNoId { return false }
+        if !AddOutBlock(state, .{function = state.function_id, lir_block = MachineNoId,
+            instruction_begin = begin, instruction_count = cast(s32)state.out.instructions.count - begin}) { return false }
+    }
+    return true
+}
+
+// ---------------------------------------------------------------------------
+// Frame layout
+
+AlignUp :: (value: s64, alignment: s64) -> s64 {
+    return (value + alignment - 1) & ~(alignment - 1)
+}
+
+LayoutFrame :: (state: *Alloc, function: *MachineFunction) -> bool {
+    program := state.input
+    begin := state.stack_out_begin
+    // Callee-saved registers written by this function get frame homes.
+    saved: [3]u64
+    instructions_begin := state.out.blocks[state.block_out_begin].instruction_begin
+    for instruction_id: instructions_begin..cast(s32)state.out.instructions.count - 1 {
+        instruction := state.out.instructions[instruction_id]
+        for local: 0..instruction.operand_count - 1 {
+            operand := state.out.operands[instruction.operand_begin + local]
+            if operand.kind != .Physical || operand.role == .Use { continue }
+            bank := MachineRegisterBank(state.target, operand.class)
+            if bank < 0 { continue }
+            if Bit(state.callee_saved[bank], operand.id) { saved[bank] = saved[bank] | (cast(u64)1 << cast(u64)operand.id) }
+        }
+    }
+    float_bank := MachineRegisterBank(state.target, .Float)
+    for bank: cast(s32)0..1 {
+        for register: cast(s32)0..63 {
+            if !Bit(saved[bank], register) { continue }
+            if OutStack(state, .{function = state.function_id, kind = .CalleeSave, size = 8, alignment = 8, type = 0,
+                origin = MachineNoId, offset = 0, value = bank * 64 + register}) == MachineNoId { return false }
+        }
+    }
+    finish := cast(s32)state.out.stack_objects.count
+    cursor: s64 = 0
+    for pass: 0..1 {
+        for object_id: begin..finish - 1 {
+            object := state.out.stack_objects[object_id]
+            if (pass == 0) != (object.kind == .CalleeSave) || !MachineFrameResident(object.kind) { continue }
+            if object.alignment > 16 { return Fail(state, .Frame, virtual = object.value) }
+            size := ifx object.size > 0 then object.size else 1
+            cursor = AlignUp(cursor + size, cast(s64)object.alignment)
+            state.out.stack_objects[object_id].offset = -cursor
+        }
+    }
+    outgoing: s64 = 0
+    dynamic := false
+    for instruction_id: instructions_begin..cast(s32)state.out.instructions.count - 1 {
+        instruction := state.out.instructions[instruction_id]
+        if instruction.opcode == .Allocate { dynamic = true }
+        if instruction.call != MachineNoId && state.out.calls[instruction.call].stack_argument_bytes > outgoing {
+            outgoing = state.out.calls[instruction.call].stack_argument_bytes
+        }
+    }
+    outgoing = AlignUp(outgoing, 16)
+    incoming: s64 = 16
+    for parameter: 0..function.parameter_count - 1 {
+        value_id := function.virtual_begin + parameter
+        value := state.out.virtuals[value_id]
+        if value.class != .Stack && value.fixed_register != MachineNoId { continue }
+        if value.stack_object == MachineNoId { return Fail(state, .Frame, virtual = value_id) }
+        state.out.stack_objects[value.stack_object].offset = incoming
+        state.out.stack_objects[value.stack_object].value = value_id
+        incoming += (state.out.stack_objects[value.stack_object].size + 7) & ~cast(s64)7
+    }
+    for object_id: begin..finish - 1 {
+        if state.out.stack_objects[object_id].kind == .OutgoingArgument { state.out.stack_objects[object_id].offset = 0 }
+    }
+    frame := MachineFrame.{function = state.function_id, size = AlignUp(cursor, 16) + outgoing, alignment = 16,
+        outgoing_size = outgoing, incoming_size = incoming - 16, callee_saved_general = saved[0],
+        callee_saved_float = saved[float_bank], dynamic_allocation = dynamic}
+    if !Reserve(state, 1, size_of(MachineFrame)) { return false }
+    if !VecPush(state.out.frames, frame) { return Fail(state, .Allocation) }
+    function.stack_begin = begin
+    function.stack_count = finish - begin
+    return true
+}
+
+AllocateFunction :: (state: *Alloc, function_id: s32) -> bool {
+    program := state.input
+    state.function_id = function_id
+    state.function = program.functions[function_id]
+    function := state.function
+    state.block_out_begin = cast(s32)state.out.blocks.count
+    state.stack_out_begin = cast(s32)state.out.stack_objects.count
+    if !ResetFunction(state) { return false }
+    // Copy this function's stack objects, then remap its virtuals onto them.
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := program.stack_objects[object_id]
+        object.offset = 0
+        object.value = MachineNoId
+        if OutStack(state, object) == MachineNoId { return false }
+    }
+    for value_id: function.virtual_begin..function.virtual_begin + function.virtual_count - 1 {
+        value := program.virtuals[value_id]
+        value.stack_object = MapStack(state, value.stack_object)
+        state.out.virtuals[value_id] = value
+        if value.class == .Stack && value.stack_object != MachineNoId &&
+            state.out.stack_objects[value.stack_object].kind == .Value {
+            state.out.stack_objects[value.stack_object].value = value_id
+        }
+    }
+    if !CollectParameters(state) || !BuildItems(state) || !Liveness(state) || !BuildIntervals(state) ||
+        !BuildFixed(state) { return false }
+    for bank: cast(s32)0..MachineBankCount - 1 {
+        if !ScanBank(state, bank) { return false }
+    }
+    if !AssignSlots(state) || !CollectBoundaries(state) { return false }
+    output := function
+    output.block_begin = state.block_out_begin
+    output.entry = MapBlock(state, function.entry)
+    for local: 0..function.block_count - 1 {
+        if !EmitBlock(state, local) { return false }
+    }
+    if !EmitEdgeBlocks(state) { return false }
+    output.block_count = cast(s32)state.out.blocks.count - state.block_out_begin
+    if !LayoutFrame(state, *output) { return false }
+    if !Reserve(state, 1, size_of(MachineFunction)) { return false }
+    if !VecPush(state.out.functions, output) { return Fail(state, .Allocation) }
+    return true
+}
+
+CopyTables :: (state: *Alloc) -> bool {
+    program := state.input
+    for byte: program.text { if !VecPush(state.out.text, byte) { return Fail(state, .Allocation) } }
+    for source: program.sources { if !VecPush(state.out.sources, source) { return Fail(state, .Allocation) } }
+    for origin: program.origins { if !VecPush(state.out.origins, origin) { return Fail(state, .Allocation) } }
+    for type: program.types { if !VecPush(state.out.types, type) { return Fail(state, .Allocation) } }
+    for id: program.type_ids { if !VecPush(state.out.type_ids, id) { return Fail(state, .Allocation) } }
+    for global: program.globals { if !VecPush(state.out.globals, global) { return Fail(state, .Allocation) } }
+    for value: program.virtuals { if !VecPush(state.out.virtuals, value) { return Fail(state, .Allocation) } }
+    return Reserve(state, program.text.count, 1) &&
+        Reserve(state, program.sources.count, size_of(MachineSource)) &&
+        Reserve(state, program.origins.count, size_of(MachineOrigin)) &&
+        Reserve(state, program.types.count, size_of(MachineType)) &&
+        Reserve(state, program.type_ids.count, size_of(s32)) &&
+        Reserve(state, program.globals.count, size_of(MachineGlobal)) &&
+        Reserve(state, program.virtuals.count, size_of(MachineVirtual))
+}
+
+Relocations :: (state: *Alloc) -> bool {
+    program := state.input
+    for relocation: program.relocations {
+        if !Spend(state, 1) { return false }
+        instruction := state.instruction_map[relocation.instruction]
+        if instruction == MachineNoId { return Fail(state, .Relocation, instruction = relocation.instruction) }
+        mapped := relocation
+        mapped.instruction = instruction
+        mapped.operand = state.out.instructions[instruction].operand_begin +
+            (relocation.operand - program.instructions[relocation.instruction].operand_begin)
+        if !Reserve(state, 1, size_of(MachineRelocation)) { return false }
+        if !VecPush(state.out.relocations, mapped) { return Fail(state, .Allocation) }
+    }
+    return true
+}
+
+Release :: (owner: *MachineOwner) {
+    owner.valid = false
+    owner.program = .{version = MachineVersion, entry = MachineNoId}
+    VecFree(owner.text)
+    VecFree(owner.sources)
+    VecFree(owner.origins)
+    VecFree(owner.types)
+    VecFree(owner.type_ids)
+    VecFree(owner.globals)
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.virtuals)
+    VecFree(owner.instructions)
+    VecFree(owner.operands)
+    VecFree(owner.edges)
+    VecFree(owner.copies)
+    VecFree(owner.stack_objects)
+    VecFree(owner.relocations)
+    VecFree(owner.calls)
+    VecFree(owner.frames)
+    VecFree(owner.spills)
+}
+
+Publish :: (owner: *MachineOwner, target: TargetDescription, entry: s32, scratch_general: s32, scratch_float: s32) {
+    owner.program = .{version = MachineVersion, target = target,
+        text = owner.text[:], sources = owner.sources[:], origins = owner.origins[:],
+        types = owner.types[:], type_ids = owner.type_ids[:], globals = owner.globals[:],
+        functions = owner.functions[:], blocks = owner.blocks[:], virtuals = owner.virtuals[:],
+        instructions = owner.instructions[:], operands = owner.operands[:], edges = owner.edges[:],
+        copies = owner.copies[:], stack_objects = owner.stack_objects[:], relocations = owner.relocations[:],
+        calls = owner.calls[:], entry = entry, stage = .Allocated, frames = owner.frames[:],
+        spills = owner.spills[:], scratch_general = scratch_general, scratch_float = scratch_float}
+    owner.valid = true
+}
+
+// Exchanges every table of OWNER and BUILT. VecSwap moves storage without
+// allocating, so replacing the owner's program cannot fail: once it starts,
+// the owner holds the built program and BUILT holds the original tables.
+Exchange :: (owner: *MachineOwner, built: *MachineOwner) {
+    owner.valid = false
+    owner.program = .{version = MachineVersion, entry = MachineNoId}
+    built.valid = false
+    built.program = .{version = MachineVersion, entry = MachineNoId}
+    VecSwap(owner.text, built.text)
+    VecSwap(owner.sources, built.sources)
+    VecSwap(owner.origins, built.origins)
+    VecSwap(owner.types, built.types)
+    VecSwap(owner.type_ids, built.type_ids)
+    VecSwap(owner.globals, built.globals)
+    VecSwap(owner.functions, built.functions)
+    VecSwap(owner.blocks, built.blocks)
+    VecSwap(owner.virtuals, built.virtuals)
+    VecSwap(owner.instructions, built.instructions)
+    VecSwap(owner.operands, built.operands)
+    VecSwap(owner.edges, built.edges)
+    VecSwap(owner.copies, built.copies)
+    VecSwap(owner.stack_objects, built.stack_objects)
+    VecSwap(owner.relocations, built.relocations)
+    VecSwap(owner.calls, built.calls)
+    VecSwap(owner.frames, built.frames)
+    VecSwap(owner.spills, built.spills)
+}
+
+// Names a diagnostic of the built program by the input program. Functions
+// and virtuals keep their numbering. An allocated instruction maps back to
+// the input instruction it rewrote, whose operands keep their positions; a
+// transfer the allocator inserted has no input instruction, so only the
+// function and virtual remain.
+InputLocation :: (state: *Alloc, found: MachineDiagnostic) -> MachineDiagnostic {
+    program := state.input
+    located := found
+    located.block = MachineNoId
+    located.instruction = MachineNoId
+    located.operand = MachineNoId
+    if found.instruction < 0 || found.instruction >= state.out.instructions.count { return located }
+    for index: cast(s64)0..state.instruction_map.count - 1 {
+        if state.instruction_map[index] != found.instruction { continue }
+        source := program.instructions[index]
+        rewritten := state.out.instructions[found.instruction]
+        located.instruction = cast(s32)index
+        offset := found.operand - rewritten.operand_begin
+        if found.operand >= 0 && offset >= 0 && offset < source.operand_count {
+            located.operand = source.operand_begin + offset
+        }
+        for block_id: cast(s64)0..program.blocks.count - 1 {
+            block := program.blocks[block_id]
+            if located.instruction >= block.instruction_begin &&
+                located.instruction < block.instruction_begin + block.instruction_count {
+                located.block = cast(s32)block_id
+                located.function = block.function
+            }
+        }
+        return located
+    }
+    return located
+}
+
+FreeScratch :: (state: *Alloc) {
+    VecFree(state.instruction_map)
+    VecFree(state.item_of_instruction)
+    VecFree(state.items)
+    VecFree(state.block_start)
+    VecFree(state.block_end)
+    VecFree(state.block_incoming)
+    VecFree(state.param_block)
+    VecFree(state.param_edges)
+    VecFree(state.param_source)
+    VecFree(state.param_pred)
+    VecFree(state.param_begin)
+    VecFree(state.param_list)
+    VecFree(state.def_item)
+    VecFree(state.used)
+    VecFree(state.live_in)
+    VecFree(state.live_out)
+    VecFree(state.gen)
+    VecFree(state.kill)
+    VecFree(state.root_of)
+    VecFree(state.intervals)
+    VecFree(state.uses)
+    VecFree(state.use_fill)
+    VecFree(state.fixed)
+    VecFree(state.fixed_sorted)
+    VecFree(state.fixed_begin)
+    VecFree(state.heap)
+    VecFree(state.active)
+    VecFree(state.boundaries)
+    VecFree(state.boundary_begin)
+    VecFree(state.copies)
+    VecFree(state.temps)
+    VecFree(state.pending)
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Run :: (state: *Alloc) -> bool {
+    program := state.input
+    for bank: cast(s32)0..2 {
+        state.scratch[bank] = MachineBankScratch(state.target, bank)
+        allocatable := MachineBankAllocatable(state.target, bank)
+        if state.scratch[bank] >= 0 { allocatable = allocatable & ~(cast(u64)1 << cast(u64)state.scratch[bank]) }
+        state.masks[bank] = allocatable
+        state.callee_saved[bank] = MachineBankCalleeSaved(state.target, bank)
+    }
+    if !VecResizeBounded(state.instruction_map, program.instructions.count, state.limits.bytes) ||
+        !VecResizeBounded(state.item_of_instruction, program.instructions.count, state.limits.bytes) {
+        return Fail(state, .Allocation)
+    }
+    for index: cast(s64)0..program.instructions.count - 1 {
+        state.instruction_map[index] = MachineNoId
+        state.item_of_instruction[index] = MachineNoId
+    }
+    if !CopyTables(state) { return false }
+    for function_id: cast(s64)0..program.functions.count - 1 {
+        if !AllocateFunction(state, cast(s32)function_id) { return false }
+    }
+    state.function_id = MachineNoId
+    return Relocations(state)
+}
+
+#scope_export
+
+// Allocates every function of the owner's verified Virtual-stage program for
+// `target` and replaces it with the verified Allocated-stage program. On any
+// failure, including one MachineVerifyAllocated finds in the built program,
+// the owner keeps its original program and the diagnostic names the input
+// function, block, instruction, operand and virtual. The replacement itself
+// only exchanges storage, so nothing can fail after the owner changes.
+RegAllocAllocate :: (owner: *MachineOwner, target: TargetDescription, limits: MachineLimits) -> MachineDiagnostic {
+    diagnostic := NoDiagnostic()
+    if owner == null || !owner.valid { diagnostic.problem = .Owner; return diagnostic }
+    program := owner.program
+    if program.stage != .Virtual { diagnostic.problem = .Stage; return diagnostic }
+    if !TargetValid(target) { diagnostic.problem = .Target; return diagnostic }
+    if !TargetMachineLoweringSupported(target) { diagnostic.problem = .UnsupportedTarget; return diagnostic }
+    if !TargetValid(program.target) || program.target.arch != target.arch || program.target.os != target.os ||
+        program.target.abi != target.abi { diagnostic.problem = .Target; return diagnostic }
+    if limits.work < 0 || limits.bytes < 0 { diagnostic.problem = .Limit; return diagnostic }
+    input := MachineVerify(program, limits)
+    if input.problem != .None { return input }
+    fuel := MachineVerifyFuel(program, limits)
+    if fuel.problem != .None { return fuel }
+    built: MachineOwner
+    state := Alloc.{input = program, target = target, limits = limits, out = *built,
+        diagnostic = NoDiagnostic(), remaining = limits.work, function_id = MachineNoId, origin = MachineNoId}
+    if !Run(*state) {
+        FreeScratch(*state)
+        Release(*built)
+        return state.diagnostic
+    }
+    Publish(*built, target, program.entry, state.scratch[0], state.scratch[1])
+    verified := MachineVerifyAllocated(built.program, limits)
+    if verified.problem != .None {
+        located := InputLocation(*state, verified)
+        FreeScratch(*state)
+        Release(*built)
+        return located
+    }
+    FreeScratch(*state)
+    Exchange(owner, *built)
+    Publish(owner, target, program.entry, state.scratch[0], state.scratch[1])
+    Release(*built)
+    return diagnostic
+}

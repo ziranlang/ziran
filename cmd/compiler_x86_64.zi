@@ -1,0 +1,891 @@
+using ABI :: #import "compiler_abi"
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Bytes :: #import "compiler_x86_bytes"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+
+// Direct x86-64 encoder for allocated machine IR on Linux SysV. It consumes
+// only a program that passes MachineVerifyAllocated, which already rejects
+// unimplemented call forms (float or vector arguments and results, stack
+// arguments) and relocation addends the target cannot hold, then checks
+// every instruction form it encodes; anything else is a hard diagnostic
+// reported before the output owner is touched. One pass emits each function: a
+// measuring run records function, block and instruction offsets and counts
+// relocations, and the writing run repeats the same calls into an exactly
+// sized buffer and must reproduce every recorded offset.
+//
+// Frame: push rbp; mov rbp, rsp; sub rsp, frame.size; callee-saved general
+// registers stored to their CalleeSave homes. Return restores them, then
+// leave; ret. Stack objects are addressed from rbp at their allocated
+// offsets, except outgoing arguments, which are addressed from rsp.
+//
+// Values live in general registers normalized to 64 bits: signed integers
+// sign-extended, unsigned integers zero-extended, bool 0 or 1. Direct calls
+// and function addresses inside the image are resolved here; global
+// addresses, the fuel counter and the trap handler are PC-relative 32-bit
+// relocations that the loader resolves as symbol + addend - field.
+// Every trap is `mov edi, code; call trap_handler; ud2`.
+
+MachineX64TrapReserved :: 0xffff0000
+MachineX64TrapUnreachable :: 0xffff0001
+MachineX64TrapDivideByZero :: 0xffff0002
+MachineX64TrapShift :: 0xffff0003
+MachineX64TrapFuel :: 0xffff0004
+MachineX64TrapSize :: 12
+
+MachineX64RelocationKind :: enum s32 { Invalid; GlobalAddress; FuelCounter; TrapHandler }
+
+MachineX64Relocation :: struct {
+    offset: s64
+    kind: MachineX64RelocationKind
+    symbol: s32
+    addend: s64
+    instruction: s32
+}
+
+// Byte offsets of a function, the first byte after its prologue, and its end.
+MachineX64Function :: struct { begin: s64; body: s64; end: s64 }
+MachineX64Range :: struct { begin: s64; end: s64 }
+
+MachineX64Image :: struct {
+    code: []u8
+    functions: []MachineX64Function
+    blocks: []s64
+    instructions: []MachineX64Range
+    relocations: []MachineX64Relocation
+    entry: s32
+}
+
+MachineX64Result :: struct {
+    diagnostic: MachineDiagnostic
+    code_bytes: s64
+    relocations: s64
+    work: s64
+}
+
+MachineX64Owner :: struct {
+    valid: bool
+    image: MachineX64Image
+    code: Vec(u8)
+    functions: Vec(MachineX64Function)
+    blocks: Vec(s64)
+    instructions: Vec(MachineX64Range)
+    relocations: Vec(MachineX64Relocation)
+}
+
+#scope_file
+
+CodeLimit :: 2147483647
+
+Layout :: struct {
+    function_begin: Vec(s64)
+    function_body: Vec(s64)
+    function_end: Vec(s64)
+    block_begin: Vec(s64)
+    instruction_begin: Vec(s64)
+    instruction_end: Vec(s64)
+    relocation_of: Vec(s32)
+}
+
+State :: struct {
+    program: MachineProgram
+    writer: X86Writer
+    diagnostic: MachineDiagnostic
+    remaining: s64
+    used: s64
+    emit: bool
+    function_begin: []s64
+    function_body: []s64
+    function_end: []s64
+    block_begin: []s64
+    instruction_begin: []s64
+    instruction_end: []s64
+    relocation_of: []s32
+    relocations: []MachineX64Relocation
+    relocation_count: s64
+    consumed: s64
+    function: s32
+    block: s32
+    instruction: s32
+    flags_value: s32
+    flags_signed: bool
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Fail :: (state: *State, problem: MachineProblem, operand: s32 = MachineNoId) -> bool {
+    if state.diagnostic.problem == .None {
+        value: s32 = MachineNoId
+        if operand >= 0 && operand < state.program.operands.count { value = state.program.operands[operand].value }
+        state.diagnostic = .{problem = problem, function = state.function, block = state.block,
+            instruction = state.instruction, operand = operand, virtual = value}
+    }
+    return false
+}
+
+Spend :: (state: *State, count: s64) -> bool {
+    if count < 0 || count > state.remaining { return Fail(state, .Limit) }
+    state.remaining -= count
+    state.used += count
+    return true
+}
+
+LayoutFree :: (layout: *Layout) {
+    VecFree(layout.function_begin)
+    VecFree(layout.function_body)
+    VecFree(layout.function_end)
+    VecFree(layout.block_begin)
+    VecFree(layout.instruction_begin)
+    VecFree(layout.instruction_end)
+    VecFree(layout.relocation_of)
+}
+
+Filled :: (values: *Vec(s64), count: s64) -> bool {
+    if !VecResizeBounded(<<values, count, count) { return false }
+    for index: cast(s64)0..count - 1 { (<<values)[index] = -1 }
+    return true
+}
+
+// Records the current offset while measuring; while writing, requires it.
+Place :: (state: *State, slots: []s64, index: s64) -> bool {
+    if state.emit {
+        if slots[index] != state.writer.at { return Fail(state, .Instruction) }
+        return true
+    }
+    slots[index] = state.writer.at
+    return true
+}
+
+Relocate :: (state: *State, kind: MachineX64RelocationKind, symbol: s32, addend: s64, field: s64) {
+    if state.emit && state.relocation_count < state.relocations.count {
+        state.relocations[state.relocation_count] = .{offset = field, kind = kind, symbol = symbol,
+            addend = addend, instruction = state.instruction}
+    }
+    state.relocation_count += 1
+}
+
+Current :: (state: *State) -> MachineInstruction {
+    return state.program.instructions[state.instruction]
+}
+
+OperandId :: (state: *State, local: s32) -> s32 {
+    return Current(state).operand_begin + local
+}
+
+OperandAt :: (state: *State, local: s32) -> MachineOperand {
+    return state.program.operands[OperandId(state, local)]
+}
+
+TypeOf :: (state: *State, operand: MachineOperand) -> MachineType {
+    return state.program.types[state.program.virtuals[operand.value].type]
+}
+
+// Byte size of a general scalar the encoder can hold in a register, or -1.
+ScalarSize :: (type: MachineType) -> s64 {
+    if type.class != .General { return -1 }
+    if type.kind == .Bool { return ifx type.size == 1 then cast(s64)1 else -1 }
+    if type.kind == .Pointer || type.kind == .Function { return ifx type.size == 8 then cast(s64)8 else -1 }
+    if type.kind == .Integer && (type.bits == 8 || type.bits == 16 || type.bits == 32 || type.bits == 64) &&
+        type.size == cast(s64)(type.bits / 8) { return type.size }
+    return -1
+}
+
+Signed :: (type: MachineType) -> bool { return type.kind == .Integer && type.is_signed }
+
+Integer :: (type: MachineType) -> bool { return type.kind == .Integer && ScalarSize(type) > 0 }
+
+// A general physical register holding a typed value, or MachineNoId.
+Register :: (state: *State, local: s32, role: MachineOperandRole) -> s32 {
+    if local < 0 || local >= Current(state).operand_count { unused Fail(state, .Unsupported); return MachineNoId }
+    id := OperandId(state, local)
+    operand := state.program.operands[id]
+    if operand.kind != .Physical || operand.class != .General || operand.role != role ||
+        operand.value == MachineNoId || ScalarSize(TypeOf(state, operand)) < 0 ||
+        !X86Register(operand.id) {
+        unused Fail(state, .Unsupported, id)
+        return MachineNoId
+    }
+    return operand.id
+}
+
+Count :: (state: *State, count: s32) -> bool {
+    if Current(state).operand_count != count { return Fail(state, .Unsupported) }
+    return true
+}
+
+StackMemory :: (state: *State, object_id: s32, operand: s32) -> X86Operand {
+    object := state.program.stack_objects[object_id]
+    if !X86Fits32(object.offset) || !X86Fits32(object.offset + object.size) {
+        unused Fail(state, .Frame, operand)
+        return X86At(X86Rbp, 0)
+    }
+    return X86At(ifx object.kind == .OutgoingArgument then X86Rsp else X86Rbp, object.offset)
+}
+
+// Re-establishes the register representation of TYPE after an operation
+// that produced a full 64-bit result.
+Normalize :: (state: *State, register: s32, type: MachineType) {
+    size := ScalarSize(type)
+    if type.kind != .Integer || size == 8 { return }
+    X86Load(*state.writer, register, X86Direct(register), size, type.is_signed)
+}
+
+NormalizeConstant :: (value: u64, type: MachineType) -> u64 {
+    size := ScalarSize(type)
+    if type.kind != .Integer || size == 8 { return value }
+    bits := cast(u64)(size * 8)
+    mask := (cast(u64)1 << bits) - 1
+    low := value & mask
+    if type.is_signed && ((low >> (bits - 1)) & 1) != 0 { return low | ~mask }
+    return low
+}
+
+ConditionCode :: (condition: MachineCondition, signed: bool) -> s32 {
+    if condition == .Equal { return X86Equal }
+    if condition == .NotEqual { return X86NotEqual }
+    if condition == .Less { return ifx signed then X86Less else X86Below }
+    if condition == .LessEqual { return ifx signed then X86LessEqual else X86BelowEqual }
+    if condition == .Greater { return ifx signed then X86Greater else X86Above }
+    if condition == .GreaterEqual { return ifx signed then X86GreaterEqual else X86AboveEqual }
+    return MachineNoId
+}
+
+TrapSequence :: (state: *State, code: u64) {
+    X86MoveImmediate32(*state.writer, X86Rdi, code)
+    X86Byte(*state.writer, 232)
+    Relocate(state, .TrapHandler, 0, -4, state.writer.at)
+    X86Little(*state.writer, 0, 4)
+    X86Undefined(*state.writer)
+}
+
+// Continues past an inline trap when CONDITION holds.
+TrapUnless :: (state: *State, condition: s32, code: u64) {
+    X86JumpCondition8(*state.writer, condition, MachineX64TrapSize)
+    TrapSequence(state, code)
+}
+
+NextBlock :: (state: *State) -> s32 {
+    function := state.program.functions[state.function]
+    if state.block + 1 < function.block_begin + function.block_count { return state.block + 1 }
+    return MachineNoId
+}
+
+BlockTarget :: (state: *State, block: s32) -> s64 {
+    return state.block_begin[block]
+}
+
+FunctionTarget :: (state: *State, function: s32) -> s64 {
+    return state.function_begin[function]
+}
+
+// The relocation attached to the current instruction, or MachineNoId after a
+// diagnostic when it is missing, of another kind or carries an addend the
+// form cannot hold.
+Relocation :: (state: *State, kind: MachineRelocationKind, operand: s32, zero_addend: bool) -> s32 {
+    id := state.relocation_of[state.instruction]
+    if id < 0 { unused Fail(state, .Relocation, operand); return MachineNoId }
+    relocation := state.program.relocations[id]
+    if relocation.kind != kind || relocation.operand != operand || zero_addend && relocation.addend != 0 {
+        unused Fail(state, .Relocation, operand)
+        return MachineNoId
+    }
+    state.consumed += 1
+    return id
+}
+
+Transfer :: (state: *State, instruction: MachineInstruction) -> bool {
+    destination_id := instruction.operand_begin
+    source_id := destination_id + 1
+    destination := state.program.operands[destination_id]
+    source := state.program.operands[source_id]
+    if destination.class != .General { return Fail(state, .Unsupported, destination_id) }
+    if ScalarSize(TypeOf(state, destination)) < 0 { return Fail(state, .Unsupported, destination_id) }
+    if ScalarSize(TypeOf(state, source)) < 0 { return Fail(state, .Unsupported, source_id) }
+    if instruction.opcode == .Move {
+        if destination.id != source.id { X86Move(*state.writer, destination.id, source.id) }
+        return true
+    }
+    if instruction.opcode == .Spill {
+        size := ScalarSize(TypeOf(state, source))
+        if state.program.stack_objects[destination.id].size < size { return Fail(state, .Stack, destination_id) }
+        memory := StackMemory(state, destination.id, destination_id)
+        if state.diagnostic.problem != .None { return false }
+        X86Store(*state.writer, memory, source.id, size)
+        return true
+    }
+    type := TypeOf(state, destination)
+    size := ScalarSize(type)
+    if state.program.stack_objects[source.id].size < size { return Fail(state, .Stack, source_id) }
+    memory := StackMemory(state, source.id, source_id)
+    if state.diagnostic.problem != .None { return false }
+    X86Load(*state.writer, destination.id, memory, size, Signed(type))
+    return true
+}
+
+MoveImmediate :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    immediate := OperandAt(state, 1)
+    if immediate.kind != .Immediate || immediate.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    if type.kind == .Bool && immediate.immediate > 1 { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    X86MoveImmediate(*state.writer, destination, NormalizeConstant(immediate.immediate, type))
+    return true
+}
+
+Binary :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    logical := opcode == .IntegerAnd || opcode == .IntegerOr || opcode == .IntegerXor
+    if type.kind == .Bool && !logical || type.kind == .Function { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    if opcode == .IntegerMultiply { X86Multiply(*state.writer, destination, right) }
+    else {
+        code: u32 = X86Add
+        if opcode == .IntegerSubtract { code = X86Subtract }
+        if opcode == .IntegerAnd { code = X86And }
+        if opcode == .IntegerOr { code = X86Or }
+        if opcode == .IntegerXor { code = X86Xor }
+        X86Arithmetic(*state.writer, code, destination, right)
+    }
+    Normalize(state, destination, type)
+    return true
+}
+
+Unary :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    source := Register(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    if destination != source { return Fail(state, .Tie, OperandId(state, 0)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    X86Group3(*state.writer, ifx opcode == .IntegerNegate then 3 else 2, destination)
+    Normalize(state, destination, type)
+    return true
+}
+
+// Divide and remainder: result and dividend in rax, rdx named as a clobber.
+// Zero divisors trap; a signed divisor of -1 negates (or yields zero)
+// without idiv, so the most negative dividend cannot fault.
+Divide :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 4) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != X86Rax || left != X86Rax { return Fail(state, .Constraint, OperandId(state, 0)) }
+    clobber := OperandAt(state, 3)
+    if clobber.kind != .Physical || clobber.class != .General || clobber.id != X86Rdx ||
+        clobber.value != MachineNoId || clobber.role == .Use { return Fail(state, .Constraint, OperandId(state, 3)) }
+    type := TypeOf(state, OperandAt(state, 1))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    remainder := opcode == .IntegerRemainder
+    divisor := right
+    if divisor == X86Rax || divisor == X86Rdx {
+        X86Move(*state.writer, X86R11, divisor)
+        divisor = X86R11
+    }
+    X86Arithmetic(*state.writer, X86Test, divisor, divisor)
+    TrapUnless(state, X86NotEqual, MachineX64TrapDivideByZero)
+    tail: s64 = ifx remainder then 3 else 0
+    if Signed(type) {
+        X86CompareByte(*state.writer, divisor, -1)
+        X86JumpCondition8(*state.writer, X86NotEqual, ifx remainder then cast(s64)4 else 5)
+        if remainder { X86Encode(*state.writer, 0, false, X86Xor, 1, X86Rax, X86Direct(X86Rax)) }
+        else { X86Group3(*state.writer, 3, X86Rax) }
+        X86Jump8(*state.writer, 5 + tail)
+        X86SignExtendRax(*state.writer)
+        X86Group3(*state.writer, 7, divisor)
+    } else {
+        X86Encode(*state.writer, 0, false, X86Xor, 1, X86Rdx, X86Direct(X86Rdx))
+        X86Group3(*state.writer, 6, divisor)
+    }
+    if remainder { X86Move(*state.writer, X86Rax, X86Rdx) }
+    Normalize(state, X86Rax, type)
+    return true
+}
+
+// Shifts by cl. A count outside [0, bits) traps.
+Shift :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 3) { return false }
+    destination := Register(state, 0, .Define)
+    left := Register(state, 1, .Use)
+    right := Register(state, 2, .Use)
+    if destination == MachineNoId || left == MachineNoId || right == MachineNoId { return false }
+    if destination != left { return Fail(state, .Tie, OperandId(state, 0)) }
+    if right != X86Rcx { return Fail(state, .Constraint, OperandId(state, 2)) }
+    type := TypeOf(state, OperandAt(state, 1))
+    count_type := TypeOf(state, OperandAt(state, 2))
+    if !Integer(type) { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    if !Integer(count_type) { return Fail(state, .Unsupported, OperandId(state, 2)) }
+    X86CompareByte(*state.writer, X86Rcx, ScalarSize(type) * 8)
+    TrapUnless(state, X86Below, MachineX64TrapShift)
+    extension: s32 = 4
+    if opcode == .ShiftRight { extension = ifx Signed(type) then 7 else 5 }
+    X86ShiftCl(*state.writer, extension, destination)
+    Normalize(state, destination, type)
+    return true
+}
+
+Compare :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    left := Register(state, 0, .Use)
+    right := Register(state, 1, .Use)
+    if left == MachineNoId || right == MachineNoId { return false }
+    X86Arithmetic(*state.writer, X86Compare, left, right)
+    state.flags_value = Current(state).flags_def
+    state.flags_signed = Signed(TypeOf(state, OperandAt(state, 0)))
+    return true
+}
+
+// The condition code for a flags use, which must read the flags of the
+// latest Compare in this block with only transfers since.
+FlagsCondition :: (state: *State) -> s32 {
+    instruction := Current(state)
+    if instruction.flags_use == MachineNoId || instruction.flags_use != state.flags_value {
+        unused Fail(state, .Flags)
+        return MachineNoId
+    }
+    code := ConditionCode(instruction.condition, state.flags_signed)
+    if code == MachineNoId { unused Fail(state, .Unsupported) }
+    return code
+}
+
+SetCondition :: (state: *State) -> bool {
+    if !Count(state, 1) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    code := FlagsCondition(state)
+    if code == MachineNoId { return false }
+    X86SetCondition(*state.writer, code, destination)
+    X86Load(*state.writer, destination, X86Direct(destination), 1, false)
+    return true
+}
+
+Convert :: (state: *State, opcode: MachineOpcode) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    source := Register(state, 1, .Use)
+    if destination == MachineNoId || source == MachineNoId { return false }
+    target := TypeOf(state, OperandAt(state, 0))
+    origin := TypeOf(state, OperandAt(state, 1))
+    if target.kind == .Bool || opcode == .Bitcast && ScalarSize(target) != ScalarSize(origin) {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    if destination != source { X86Move(*state.writer, destination, source) }
+    Normalize(state, destination, target)
+    return true
+}
+
+Load :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    address := Register(state, 1, .Use)
+    if destination == MachineNoId || address == MachineNoId { return false }
+    if TypeOf(state, OperandAt(state, 1)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    type := TypeOf(state, OperandAt(state, 0))
+    X86Load(*state.writer, destination, X86At(address, 0), ScalarSize(type), Signed(type))
+    return true
+}
+
+Store :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    address := Register(state, 0, .Use)
+    value := Register(state, 1, .Use)
+    if address == MachineNoId || value == MachineNoId { return false }
+    if TypeOf(state, OperandAt(state, 0)).kind != .Pointer { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    X86Store(*state.writer, X86At(address, 0), value, ScalarSize(TypeOf(state, OperandAt(state, 1))))
+    return true
+}
+
+StackAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    object := OperandAt(state, 1)
+    if object.kind != .StackObject || object.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    memory := StackMemory(state, object.id, OperandId(state, 1))
+    if state.diagnostic.problem != .None { return false }
+    X86Lea(*state.writer, destination, memory)
+    return true
+}
+
+FunctionAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    symbol := OperandAt(state, 1)
+    if symbol.kind != .Function || symbol.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    if Relocation(state, .FunctionAddress, OperandId(state, 1), true) == MachineNoId { return false }
+    X86Lea(*state.writer, destination, X86RipTarget(FunctionTarget(state, symbol.id)))
+    return true
+}
+
+GlobalAddress :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    destination := Register(state, 0, .Define)
+    if destination == MachineNoId { return false }
+    symbol := OperandAt(state, 1)
+    if symbol.kind != .Global || symbol.role != .Use { return Fail(state, .Unsupported, OperandId(state, 1)) }
+    id := Relocation(state, .GlobalAddress, OperandId(state, 1), false)
+    if id == MachineNoId { return false }
+    addend := state.program.relocations[id].addend
+    if addend < -2147483648 || addend > 2147483647 { return Fail(state, .Relocation, OperandId(state, 1)) }
+    X86Lea(*state.writer, destination, X86RipRelocated())
+    Relocate(state, .GlobalAddress, symbol.id, addend - 4, state.writer.at - 4)
+    return true
+}
+
+// sub qword [rip + counter], amount; continue unless it borrowed.
+Fuel :: (state: *State) -> bool {
+    if !Count(state, 2) { return false }
+    amount := OperandAt(state, 0)
+    counter := OperandAt(state, 1)
+    if amount.kind != .Immediate || counter.kind != .Immediate || amount.immediate == 0 ||
+        amount.immediate > 9223372036854775807 { return Fail(state, .Unsupported, OperandId(state, 0)) }
+    id := Relocation(state, .FuelCounter, OperandId(state, 1), true)
+    if id == MachineNoId { return false }
+    symbol := state.program.relocations[id].symbol
+    value := cast(s64)amount.immediate
+    trailing: s64 = 0
+    if value <= 2147483647 {
+        trailing = ifx X86Fits8(value) then cast(s64)1 else 4
+        X86SubtractImmediate(*state.writer, X86RipRelocated(), value)
+    } else {
+        X86MoveImmediate(*state.writer, X86R11, amount.immediate)
+        X86SubtractRegister(*state.writer, X86RipRelocated(), X86R11)
+    }
+    Relocate(state, .FuelCounter, symbol, -4 - trailing, state.writer.at - 4 - trailing)
+    TrapUnless(state, X86AboveEqual, MachineX64TrapFuel)
+    return true
+}
+
+Call :: (state: *State) -> bool {
+    instruction := Current(state)
+    call := state.program.calls[instruction.call]
+    if call.stack_argument_bytes != 0 { return Fail(state, .Unsupported) }
+    indirect := instruction.opcode == .CallIndirect
+    target: s32 = MachineNoId
+    for local: 0..instruction.operand_count - 1 {
+        id := instruction.operand_begin + local
+        operand := state.program.operands[id]
+        if id == call.result_operand {
+            result := Register(state, local, .Define)
+            if result == MachineNoId { return false }
+            if result != X86Rax { return Fail(state, .Constraint, id) }
+        } else if id >= call.argument_begin && id < call.argument_begin + call.argument_count {
+            argument := Register(state, local, .Use)
+            if argument == MachineNoId { return false }
+            expected := MachineAbiArgumentRegister(state.program.target, .General, id - call.argument_begin)
+            if expected < 0 { return Fail(state, .Call, id) }
+            if argument != expected { return Fail(state, .Constraint, id) }
+        } else {
+            if target != MachineNoId { return Fail(state, .Unsupported, id) }
+            target = id
+            if indirect {
+                if Register(state, local, .Use) == MachineNoId { return false }
+            } else if operand.kind != .Function || operand.role != .Use {
+                return Fail(state, .Unsupported, id)
+            }
+        }
+    }
+    if target == MachineNoId { return Fail(state, .Call) }
+    if indirect {
+        X86CallRegister(*state.writer, state.program.operands[target].id)
+        return true
+    }
+    if Relocation(state, .FunctionCall, target, true) == MachineNoId { return false }
+    X86Call32(*state.writer, FunctionTarget(state, state.program.operands[target].id))
+    return true
+}
+
+JumpTo :: (state: *State, target: s32) {
+    if target != NextBlock(state) { X86Jump32(*state.writer, BlockTarget(state, target)) }
+}
+
+Branch :: (state: *State) -> bool {
+    instruction := Current(state)
+    condition: s32 = MachineNoId
+    if instruction.operand_count == 1 && instruction.flags_use == MachineNoId {
+        value := Register(state, 0, .Use)
+        if value == MachineNoId { return false }
+        X86Arithmetic(*state.writer, X86Test, value, value)
+        condition = X86NotEqual
+    } else if instruction.operand_count == 0 {
+        condition = FlagsCondition(state)
+        if condition == MachineNoId { return false }
+    } else {
+        return Fail(state, .Unsupported)
+    }
+    taken := state.program.edges[instruction.edge_begin].target
+    other := state.program.edges[instruction.edge_begin + 1].target
+    next := NextBlock(state)
+    if other == next {
+        X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
+    } else if taken == next {
+        X86JumpCondition32(*state.writer, condition ^ 1, BlockTarget(state, other))
+    } else {
+        X86JumpCondition32(*state.writer, condition, BlockTarget(state, taken))
+        X86Jump32(*state.writer, BlockTarget(state, other))
+    }
+    return true
+}
+
+CalleeSaves :: (state: *State, restore: bool) -> bool {
+    function := state.program.functions[state.function]
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := state.program.stack_objects[object_id]
+        if object.kind != .CalleeSave { continue }
+        if !Spend(state, 1) { return false }
+        register := object.value % MachineBankWidth
+        if object.value / MachineBankWidth != 0 || !X86Register(register) { return Fail(state, .Frame) }
+        memory := StackMemory(state, object_id, MachineNoId)
+        if state.diagnostic.problem != .None { return false }
+        if restore { X86Load(*state.writer, register, memory, 8, false) }
+        else { X86Store(*state.writer, memory, register, 8) }
+    }
+    return true
+}
+
+Return :: (state: *State) -> bool {
+    instruction := Current(state)
+    if instruction.operand_count > 1 { return Fail(state, .Unsupported) }
+    if instruction.operand_count == 1 {
+        value := Register(state, 0, .Use)
+        if value == MachineNoId { return false }
+        if value != X86Rax { return Fail(state, .Constraint, OperandId(state, 0)) }
+    }
+    if !CalleeSaves(state, true) { return false }
+    X86Leave(*state.writer)
+    X86Return(*state.writer)
+    return true
+}
+
+Trap :: (state: *State) -> bool {
+    if !Count(state, 1) { return false }
+    code := OperandAt(state, 0)
+    if code.kind != .Immediate || code.immediate >= MachineX64TrapReserved {
+        return Fail(state, .Unsupported, OperandId(state, 0))
+    }
+    TrapSequence(state, code.immediate)
+    return true
+}
+
+Instruction :: (state: *State) -> bool {
+    instruction := Current(state)
+    op := instruction.opcode
+    if !Spend(state, 1 + cast(s64)instruction.operand_count) { return false }
+    if op == .Move || op == .Spill || op == .Reload { return Transfer(state, instruction) }
+    ok := false
+    if op == .MoveImmediate { ok = MoveImmediate(state) }
+    else if op == .IntegerAdd || op == .IntegerSubtract || op == .IntegerMultiply ||
+        op == .IntegerAnd || op == .IntegerOr || op == .IntegerXor { ok = Binary(state, op) }
+    else if op == .IntegerNegate || op == .IntegerNot { ok = Unary(state, op) }
+    else if op == .IntegerDivide || op == .IntegerRemainder { ok = Divide(state, op) }
+    else if op == .ShiftLeft || op == .ShiftRight { ok = Shift(state, op) }
+    else if op == .Compare { ok = Compare(state) }
+    else if op == .SetCondition { ok = SetCondition(state) }
+    else if op == .Convert || op == .Bitcast { ok = Convert(state, op) }
+    else if op == .Load { ok = Load(state) }
+    else if op == .Store { ok = Store(state) }
+    else if op == .StackAddress { ok = StackAddress(state) }
+    else if op == .FunctionAddress { ok = FunctionAddress(state) }
+    else if op == .GlobalAddress { ok = GlobalAddress(state) }
+    else if op == .Fuel { ok = Fuel(state) }
+    else if op == .CallDirect || op == .CallIndirect { ok = Call(state) }
+    else if op == .Jump {
+        ok = Count(state, 0)
+        if ok { JumpTo(state, state.program.edges[instruction.edge_begin].target) }
+    }
+    else if op == .Branch { ok = Branch(state) }
+    else if op == .Return { ok = Return(state) }
+    else if op == .Trap { ok = Trap(state) }
+    else if op == .Unreachable {
+        ok = Count(state, 0)
+        if ok { TrapSequence(state, MachineX64TrapUnreachable) }
+    }
+    else { return Fail(state, .Unsupported) }
+    if op != .Compare { state.flags_value = MachineNoId }
+    return ok
+}
+
+Prologue :: (state: *State) -> bool {
+    frame := state.program.frames[state.function]
+    function := state.program.functions[state.function]
+    if frame.dynamic_allocation || frame.callee_saved_float != 0 { return Fail(state, .Frame) }
+    if frame.size < 0 || frame.size > 2147483647 { return Fail(state, .Frame) }
+    X86Push(*state.writer, X86Rbp)
+    X86Move(*state.writer, X86Rbp, X86Rsp)
+    if frame.size > 0 { X86SubtractStack(*state.writer, frame.size) }
+    if !CalleeSaves(state, false) { return false }
+    if !Place(state, state.function_body, state.function) { return false }
+    if function.entry != function.block_begin { X86Jump32(*state.writer, BlockTarget(state, function.entry)) }
+    return true
+}
+
+Pass :: (state: *State) -> bool {
+    program := state.program
+    for function_index: cast(s64)0..program.functions.count - 1 {
+        state.function = cast(s32)function_index
+        state.block = MachineNoId
+        state.instruction = MachineNoId
+        if !Spend(state, 1) || !Place(state, state.function_begin, function_index) || !Prologue(state) { return false }
+        if state.writer.failed { return Fail(state, .Limit) }
+        function := program.functions[function_index]
+        for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+            state.block = block_id
+            state.instruction = MachineNoId
+            state.flags_value = MachineNoId
+            if !Spend(state, 1) || !Place(state, state.block_begin, block_id) { return false }
+            block := program.blocks[block_id]
+            for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                state.instruction = instruction_id
+                if !Place(state, state.instruction_begin, instruction_id) || !Instruction(state) { return false }
+                if state.writer.failed { return Fail(state, .Limit) }
+                if !Place(state, state.instruction_end, instruction_id) { return false }
+            }
+        }
+        state.block = MachineNoId
+        state.instruction = MachineNoId
+        if !Place(state, state.function_end, function_index) { return false }
+    }
+    if state.consumed != program.relocations.count { return Fail(state, .Relocation) }
+    return true
+}
+
+Failure :: (problem: MachineProblem) -> MachineX64Result {
+    result := MachineX64Result.{diagnostic = NoDiagnostic()}
+    result.diagnostic.problem = problem
+    return result
+}
+
+Copy :: (destination: *Vec(s64), source: []s64) -> bool {
+    if !VecResizeBounded(<<destination, source.count, source.count) { return false }
+    for index: cast(s64)0..source.count - 1 { (<<destination)[index] = source[index] }
+    return true
+}
+
+// Verifies and measures PROGRAM; with an OUTPUT, writes and publishes the
+// image there. Every diagnostic from verification, form checks or measuring
+// returns before OUTPUT is touched.
+Process :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineX64Result {
+    verified := MachineVerifyAllocated(program, limits)
+    if verified.problem != .None { return .{diagnostic = verified} }
+    if program.target.arch != .X86_64 || program.target.os != .Linux || program.target.abi != .SysV {
+        return Failure(.UnsupportedTarget)
+    }
+    layout: Layout
+    defer LayoutFree(*layout)
+    if !Filled(*layout.function_begin, program.functions.count) ||
+        !Filled(*layout.function_body, program.functions.count) ||
+        !Filled(*layout.function_end, program.functions.count) ||
+        !Filled(*layout.block_begin, program.blocks.count) ||
+        !Filled(*layout.instruction_begin, program.instructions.count) ||
+        !Filled(*layout.instruction_end, program.instructions.count) ||
+        !VecResizeBounded(layout.relocation_of, program.instructions.count, program.instructions.count) {
+        return Failure(.Allocation)
+    }
+    for index: cast(s64)0..program.instructions.count - 1 { layout.relocation_of[index] = MachineNoId }
+    for relocation_id: cast(s64)0..program.relocations.count - 1 {
+        relocation := program.relocations[relocation_id]
+        if layout.relocation_of[relocation.instruction] != MachineNoId {
+            result := Failure(.Relocation)
+            result.diagnostic.instruction = relocation.instruction
+            result.diagnostic.operand = relocation.operand
+            return result
+        }
+        layout.relocation_of[relocation.instruction] = cast(s32)relocation_id
+    }
+    limit := limits.bytes
+    if limit > CodeLimit { limit = CodeLimit }
+    state := State.{program = program, writer = .{limit = limit}, diagnostic = NoDiagnostic(),
+        remaining = limits.work,
+        function_begin = layout.function_begin[:], function_body = layout.function_body[:],
+        function_end = layout.function_end[:], block_begin = layout.block_begin[:],
+        instruction_begin = layout.instruction_begin[:], instruction_end = layout.instruction_end[:],
+        relocation_of = layout.relocation_of[:],
+        function = MachineNoId, block = MachineNoId, instruction = MachineNoId,
+        flags_value = MachineNoId}
+    if !Pass(*state) { return .{diagnostic = state.diagnostic, work = state.used} }
+    measured := MachineX64Result.{diagnostic = state.diagnostic, code_bytes = state.writer.at,
+        relocations = state.relocation_count, work = state.used}
+    if output == null { return measured }
+
+    MachineX64Free(output)
+    if !VecResizeBounded(output.code, measured.code_bytes, measured.code_bytes) ||
+        !VecResizeBounded(output.relocations, measured.relocations, measured.relocations) ||
+        !VecResizeBounded(output.functions, program.functions.count, program.functions.count) ||
+        !VecResizeBounded(output.instructions, program.instructions.count, program.instructions.count) ||
+        !Copy(*output.blocks, layout.block_begin[:]) {
+        MachineX64Free(output)
+        return Failure(.Allocation)
+    }
+    state.emit = true
+    state.writer = .{output = output.code[:], limit = limit}
+    state.relocations = output.relocations[:]
+    state.relocation_count = 0
+    state.consumed = 0
+    state.remaining = limits.work
+    state.used = 0
+    if !Pass(*state) || state.writer.at != measured.code_bytes || state.relocation_count != measured.relocations {
+        result := MachineX64Result.{diagnostic = state.diagnostic}
+        if result.diagnostic.problem == .None { result = Failure(.Instruction) }
+        MachineX64Free(output)
+        return result
+    }
+    for index: cast(s64)0..program.functions.count - 1 {
+        output.functions[index] = .{begin = layout.function_begin[index], body = layout.function_body[index],
+            end = layout.function_end[index]}
+    }
+    for index: cast(s64)0..program.instructions.count - 1 {
+        output.instructions[index] = .{begin = layout.instruction_begin[index], end = layout.instruction_end[index]}
+    }
+    output.image = .{code = output.code[:], functions = output.functions[:], blocks = output.blocks[:],
+        instructions = output.instructions[:], relocations = output.relocations[:], entry = program.entry}
+    output.valid = true
+    return measured
+}
+
+#scope_export
+
+MachineX64Free :: (owner: *MachineX64Owner) {
+    if owner == null { return }
+    owner.valid = false
+    owner.image = .{entry = MachineNoId}
+    VecFree(owner.code)
+    VecFree(owner.functions)
+    VecFree(owner.blocks)
+    VecFree(owner.instructions)
+    VecFree(owner.relocations)
+}
+
+// A borrowed view of a published image, valid until the next Encode or Free.
+MachineX64View :: (owner: *MachineX64Owner) -> MachineX64Image {
+    if owner == null || !owner.valid { return .{entry = MachineNoId} }
+    return owner.image
+}
+
+MachineX64Validate :: (program: MachineProgram, limits: MachineLimits) -> MachineDiagnostic {
+    return Process(program, limits, null).diagnostic
+}
+
+MachineX64Measure :: (program: MachineProgram, limits: MachineLimits) -> MachineX64Result {
+    return Process(program, limits, null)
+}
+
+// Publishes the encoded image in OUTPUT. A diagnostic from verification,
+// form checks or measuring leaves OUTPUT exactly as it was.
+MachineX64Encode :: (program: MachineProgram, limits: MachineLimits, output: *MachineX64Owner) -> MachineDiagnostic {
+    if output == null { return Failure(.Owner).diagnostic }
+    return Process(program, limits, output).diagnostic
+}

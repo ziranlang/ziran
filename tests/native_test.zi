@@ -86,8 +86,10 @@ NativeStart :: (argc: s32, argv: **u8, prefix: string) -> NativeTest {
     return result
 }
 
+// Temporary work is removed after passing and failing runs alike; failures
+// print their diagnostics, and an explicit work argument keeps outputs.
 NativeCleanup :: (test: *NativeTest) {
-    if test.temporary && !test.failed { unused RemoveTree(test.work) }
+    if test.temporary && test.work != "" { unused RemoveTree(test.work) }
 }
 
 NativeStop :: (run: *ProcessRun, grace: s64 = 1000) {

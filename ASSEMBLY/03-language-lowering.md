@@ -32,6 +32,10 @@ Proposed modules: `cmd/compiler_lower.zi`, `cmd/compiler_lower_expr.zi`, `cmd/co
   address-taking, heap-derived pointers, slices, dynamic aggregates, remaining
   string operations and enum storage. Preserve zero initialization and copy
   behavior.
+  M1 now lowers local aggregate/procedure address-taking, borrowed fixed-array
+  and byte-view slices, checked string indexing/comparison and ordered runtime
+  initializers. Resizable owned aggregates, generated cleanup/moves, unions and
+  remaining enum-storage coverage keep this broader item open.
 - [ ] Make alias-sensitive assignments and in-place aggregate results correct when a later argument mutates the destination or a global aliases an argument. Optimizations must not change old-value reads.
 - [ ] Emit explicit bounds/trap operations before optimization. Carry enough range and effect information for later verified check elimination; do not copy C-only proof shortcuts without their preconditions.
 - [ ] Lower direct/indirect calls, procedure values, callbacks, foreign C calls, varargs, startup functions, and function-address equality. Record ABI intent without assigning physical argument registers yet.

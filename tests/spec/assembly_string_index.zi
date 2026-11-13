@@ -1,0 +1,4 @@
+Answer :: () -> s32 {
+    text := ")*"
+    return cast(s32)text[1]
+}

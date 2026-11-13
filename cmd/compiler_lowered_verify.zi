@@ -48,6 +48,7 @@ Inventory :: (state: *State, program: LirProgram) -> bool {
         !Charge(state, program.types.count, 128) || !Charge(state, program.functions.count, 160) ||
         !Charge(state, program.modules.count, 16) || !Charge(state, program.sources.count, 16) ||
         !Charge(state, program.constants.count, 40) || !Charge(state, program.globals.count, 48) ||
+        !Charge(state, program.initializers.count, 4) ||
         !Charge(state, program.origins.count, 40) { return Fail(state, .Limit) }
     for name: program.modules { if !Text(state, name) { return false } }
     for name: program.sources { if !Text(state, name) { return false } }
@@ -95,7 +96,7 @@ Types :: (state: *State, program: LirProgram) -> bool {
             if type.bits != 1 { return Fail(state, .Type) }
         } else if type.bits != 0 { return Fail(state, .Type) }
         if type.kind == .Pointer {
-            if !Id(type.element, program.types.count) || program.types[type.element].kind == .Function { return Fail(state, .Type) }
+            if !Id(type.element, program.types.count) { return Fail(state, .Type) }
         }
         if type.kind == .Array {
             if !ValueType(program, type.element) || type.count < 0 { return Fail(state, .Type) }
@@ -227,13 +228,15 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
             !Optional(function.origin, program.origins.count) { return Fail(state, .Function) }
         if function.variadic { return Fail(state, .Unsupported) }
         if function.external {
-            // Host capabilities are bodiless scalar signatures supplied by the embedder.
+            // Host capabilities are bodiless typed signatures supplied by the embedder.
             if function.calling != .Host { return Fail(state, .Unsupported) }
             if function.blocks.count != 0 || function.values.count != 0 || function.entry != LirNoId { return Fail(state, .Function) }
-            if !HostScalar(program, function.result, true) { return Fail(state, .Unsupported) }
-            for parameter: function.parameters {
+            if !HostType(program, function.result, true) { return Fail(state, .Unsupported) }
+            for parameter_index: cast(s64)0..function.parameters.count - 1 {
                 if !Spend(state, 1) { return false }
-                if !HostScalar(program, parameter, false) { return Fail(state, .Unsupported) }
+                parameter := function.parameters[parameter_index]
+                if !HostType(program, parameter, false) &&
+                    !PlatformWritePointer(program, function, parameter_index) { return Fail(state, .Unsupported) }
             }
         } else if function.calling != .Portable { return Fail(state, .Unsupported) }
         for parameter: function.parameters {
@@ -250,6 +253,18 @@ Declarations :: (state: *State, program: LirProgram) -> bool {
     if !Optional(program.entry, program.functions.count) { return Fail(state, .Function) }
     if program.entry != LirNoId && (program.functions[program.entry].parameters.count != 0 ||
         program.functions[program.entry].external) { return Fail(state, .Calling) }
+    for at: cast(s64)0..program.initializers.count - 1 {
+        if !Spend(state, 1) { return false }
+        initializer := program.initializers[at]
+        if !Id(initializer, program.functions.count) { return Fail(state, .Function) }
+        function := program.functions[initializer]
+        if function.external || function.calling != .Portable || function.parameters.count != 0 ||
+            program.types[function.result].kind != .Void { return Fail(state, .Calling) }
+        for before: cast(s64)0..at - 1 {
+            if !Spend(state, 1) { return false }
+            if program.initializers[before] == initializer { return Fail(state, .Function) }
+        }
+    }
     return true
 }
 
@@ -264,6 +279,54 @@ HostScalar :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
     if !Id(type, program.types.count) { return false }
     kind := program.types[type].kind
     return kind == .Bool || kind == .Integer || kind == .Float || allow_void && kind == .Void
+}
+
+HostByteView :: (program: LirProgram, type: s32) -> bool {
+    if !Id(type, program.types.count) { return false }
+    value := program.types[type]
+    if value.kind != .Record || value.fields.count != 2 { return false }
+    pointer_id := value.fields[0]
+    count_id := value.fields[1]
+    if !Id(pointer_id, program.types.count) || !Id(count_id, program.types.count) { return false }
+    pointer := program.types[pointer_id]
+    count := program.types[count_id]
+    if pointer.kind != .Pointer || !Id(pointer.element, program.types.count) ||
+        count.kind != .Integer || count.bits != 64 || !count.is_signed { return false }
+    element := program.types[pointer.element]
+    return element.kind == .Integer && element.bits == 8 && !element.is_signed
+}
+
+HostPlain :: (program: LirProgram, type: s32, depth: s64 = 0) -> bool {
+    if depth > program.types.count || !Id(type, program.types.count) { return false }
+    if HostScalar(program, type, false) { return true }
+    value := program.types[type]
+    if value.kind == .Record {
+        if HostByteView(program, type) { return false }
+        for field: value.fields {
+            if !HostPlain(program, field, depth + 1) { return false }
+        }
+        return true
+    }
+    return value.kind == .Array && HostPlain(program, value.element, depth + 1)
+}
+
+HostType :: (program: LirProgram, type: s32, allow_void: bool) -> bool {
+    return HostScalar(program, type, allow_void) || HostByteView(program, type) || HostPlain(program, type)
+}
+
+PlatformWritePointer :: (program: LirProgram, function: LirFunction, parameter: s64) -> bool {
+    if function.name != "ziran.platform.write_all" || parameter != 1 ||
+        !Id(function.module, program.modules.count) || program.modules[function.module] != "ziran.platform" ||
+        !Id(function.result, program.types.count) || program.types[function.result].kind != .Void ||
+        function.parameters.count != 3 || !Id(function.parameters[0], program.types.count) ||
+        !Id(function.parameters[1], program.types.count) || !Id(function.parameters[2], program.types.count) { return false }
+    descriptor := program.types[function.parameters[0]]
+    pointer := program.types[function.parameters[1]]
+    count := program.types[function.parameters[2]]
+    return descriptor.kind == .Integer && descriptor.bits == 64 && !descriptor.is_signed &&
+        pointer.kind == .Pointer && Id(pointer.element, program.types.count) &&
+        program.types[pointer.element].kind == .Integer && program.types[pointer.element].bits == 8 &&
+        !program.types[pointer.element].is_signed && count.kind == .Integer && count.bits == 64 && !count.is_signed
 }
 
 Signature :: (state: *State, type: LirType, parameters: []s32, result: s32) -> bool {
@@ -330,10 +393,7 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
     if op == .Allocate {
         if operand_count > 1 || result == LirNoId || program.types[result].kind != .Pointer { return Fail(state, .Operand) }
         pointee := program.types[result].element
-        type := program.types[pointee]
-        scalar := type.kind == .Bool || type.kind == .Integer || type.kind == .Float ||
-            type.kind == .Pointer
-        if !scalar { return Fail(state, .Operand) }
+        if !ValueType(program, pointee) { return Fail(state, .Operand) }
         if operand_count == 1 && first_type != pointee { return Fail(state, .Operand) }
         return true
     }
@@ -410,10 +470,35 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         return true
     }
     if op == .ElementAddress {
-        if operand_count != 2 || result == LirNoId || program.types[first_type].kind != .Pointer ||
+        if operand_count != 2 && operand_count != 3 && operand_count != 4 || result == LirNoId || program.types[first_type].kind != .Pointer ||
             program.types[result].kind != .Pointer || program.types[second_type].kind != .Integer { return Fail(state, .Operand) }
         target := program.types[program.types[first_type].element]
-        if target.kind != .Array || target.element != program.types[result].element { return Fail(state, .Operand) }
+        if operand_count >= 3 {
+            count_type := function.values[instruction.operands[2]]
+            if target.kind == .Array || target.kind == .Record ||
+                target.kind == .Void || target.kind == .Function ||
+                target.kind == .Capability || target.kind == .Vector ||
+                program.types[count_type].kind != .Integer ||
+                program.types[first_type].element != program.types[result].element { return Fail(state, .Operand) }
+            if operand_count == 4 &&
+                program.types[function.values[instruction.operands[3]]].kind != .Integer { return Fail(state, .Operand) }
+        } else if target.kind != .Array || target.element != program.types[result].element { return Fail(state, .Operand) }
+        return true
+    }
+    if op == .BytesEqual {
+        if operand_count != 4 || result == LirNoId || program.types[result].kind != .Bool ||
+            program.types[first_type].kind != .Pointer || program.types[second_type].kind != .Integer ||
+            program.types[function.values[instruction.operands[2]]].kind != .Pointer ||
+            program.types[function.values[instruction.operands[3]]].kind != .Integer {
+            return Fail(state, .Operand)
+        }
+        left := program.types[program.types[first_type].element]
+        right_pointer := program.types[function.values[instruction.operands[2]]]
+        right := program.types[right_pointer.element]
+        if left.kind != .Integer || left.bits != 8 || left.is_signed ||
+            right.kind != .Integer || right.bits != 8 || right.is_signed {
+            return Fail(state, .Operand)
+        }
         return true
     }
     if op == .Load || op == .Store {

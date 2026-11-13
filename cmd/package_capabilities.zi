@@ -1,4 +1,5 @@
 #import "package_common"
+Target :: #import "compiler_target"
 
 #scope_file
 NUMERIC_CONFORMANCE_IDS: string = "numeric.compile.div_min.s32\nnumeric.compile.div_min.s64\nnumeric.compile.cast_wrap.u8\nnumeric.compile.wrap_add.u8\nnumeric.compile.wrap_add.s8\nnumeric.shift.left.u8\nnumeric.shift.left.u16\nnumeric.shift.right.arithmetic.s8\nnumeric.shift.right.arithmetic.s16\nnumeric.float.cast.u16\nnumeric.float.cast.s8\nnumeric.float.divide.zero.f64\nnumeric.float.compare.nan\nnumeric.float.divide.zero.f32\nnumeric.wrap.add.u8\nnumeric.wrap.add.s8\nnumeric.wrap.sub.u8\nnumeric.wrap.mul.s8\nnumeric.wrap.add.s32\nnumeric.div_min.s32\nnumeric.rem_min.s32\nnumeric.div_min.s64\nnumeric.rem_min.s64\nnumeric.cast.width_pairs.all\nnumeric.mixed.add.u16_to_u8\nnumeric.mixed.add.u8_to_u16\nnumeric.bitwise.and.u8\nnumeric.bitwise.or.u8\nnumeric.bitwise.xor.u8\nnumeric.float.literal.f32\nnumeric.shift.reject.width\nnumeric.shift.reject.negative";
@@ -38,15 +39,236 @@ PkgPrintNumericConformance :: (target: string) -> void {
     PkgPrint("}", false)
 }
 
+AssemblyRowId :: (row: Target.TargetRow) -> string {
+    return PkgJoin3(Target.TargetArchName(row.arch), "-", Target.TargetOSName(row.os))
+}
+
+PkgPrintFeatureNames :: (mask: u64) -> void {
+    PkgPrint("[", false)
+    first: bool = true
+    index: s32 = 1
+    while index <= Target.TARGET_FEATURE_COUNT {
+        feature := cast(Target.TargetFeature)index
+        if (mask & Target.TargetFeatureBit(feature)) != 0 {
+            if !first { PkgPrint(",", false) }
+            PkgJsonString(Target.TargetFeatureName(feature))
+            first = false
+        }
+        index += 1
+    }
+    PkgPrint("]", false)
+}
+
+PkgPrintServiceNames :: (mask: u64) -> void {
+    PkgPrint("[", false)
+    first: bool = true
+    index: s32 = 1
+    while index <= Target.TARGET_SERVICE_COUNT {
+        service := cast(Target.TargetService)index
+        if (mask & Target.TargetServiceBit(service)) != 0 {
+            if !first { PkgPrint(",", false) }
+            PkgJsonString(Target.TargetServiceName(service))
+            first = false
+        }
+        index += 1
+    }
+    PkgPrint("]", false)
+}
+
+PkgPrintAssemblyRow :: (row: Target.TargetRow) -> void {
+    described := Target.TargetDescribe(row.arch, row.os).target
+    PkgPrint("{\"id\":", false)
+    PkgJsonString(AssemblyRowId(row))
+    PkgPrint(",\"arch\":", false)
+    PkgJsonString(Target.TargetArchName(row.arch))
+    PkgPrint(",\"os\":", false)
+    PkgJsonString(Target.TargetOSName(row.os))
+    PkgPrint(",\"abi\":", false)
+    PkgJsonString(Target.TargetABIName(described.abi))
+    PkgPrint(",\"pointer_bits\":", false)
+    if described.pointer_bits == 64 { PkgPrint("64", false) } else { PkgPrint("32", false) }
+    PkgPrint(",\"state\":", false)
+    PkgJsonString(Target.TargetStateName(row.state))
+    PkgPrint(",\"diagnostic\":", false)
+    if row.state == .Implemented { PkgPrint("null", false) }
+    else { PkgJsonString(Target.TargetPreflightCode(.TargetUnimplemented)) }
+    PkgPrint(",\"cpu_baseline\":", false)
+    PkgPrintFeatureNames(described.feature_mask)
+    PkgPrint(",\"features\":", false)
+    PkgPrintFeatureNames(row.features)
+    PkgPrint(",\"services\":", false)
+    PkgPrintServiceNames(row.services)
+    PkgPrint(",\"milestone\":", false)
+    if row.milestone.count == 0 { PkgPrint("null", false) } else { PkgJsonString(row.milestone) }
+    PkgPrint(",\"note\":", false)
+    PkgJsonString(row.note)
+    PkgPrint("}", false)
+}
+
+// The direct assembly target's registry: every described row with its
+// gap-policy state. Only implemented rows pass preflight.
+PkgPrintAssemblyTargets :: () -> void {
+    PkgPrint("\"assembly_targets\":{\"schema_version\":1,\"engine\":\"assembly\",\"stability\":\"stable-id\",", false)
+    PkgPrint("\"states\":[\"implemented\",\"gap\",\"excluded\",\"unknown\"],\"preflight_passes\":[\"implemented\"],", false)
+    PkgPrint("\"gap_codes\":{\"target\":", false)
+    PkgJsonString(Target.TargetPreflightCode(.TargetUnimplemented))
+    PkgPrint(",\"cpu_feature\":", false)
+    PkgJsonString(Target.TargetPreflightCode(.CpuFeature))
+    PkgPrint(",\"os_service\":", false)
+    PkgJsonString(Target.TargetPreflightCode(.OsService))
+    PkgPrint("},\"features\":", false)
+    PkgPrintFeatureNames((cast(u64)1 << cast(u64)Target.TARGET_FEATURE_COUNT) - 1)
+    PkgPrint(",\"services\":", false)
+    PkgPrintServiceNames((cast(u64)1 << cast(u64)Target.TARGET_SERVICE_COUNT) - 1)
+    PkgPrint(",\"rows\":[", false)
+    index: s32 = 0
+    while index < Target.TARGET_ROW_COUNT {
+        if index > 0 { PkgPrint(",", false) }
+        PkgPrintAssemblyRow(Target.TargetRowAt(index))
+        index += 1
+    }
+    PkgPrint("]}", false)
+}
+
+PkgMaskNames :: (mask: u64, features: bool) -> string {
+    text: string = ""
+    count: s32 = Target.TARGET_SERVICE_COUNT
+    if features { count = Target.TARGET_FEATURE_COUNT }
+    index: s32 = 1
+    while index <= count {
+        bit: u64 = Target.TargetServiceBit(cast(Target.TargetService)index)
+        name: string = Target.TargetServiceName(cast(Target.TargetService)index)
+        if features {
+            bit = Target.TargetFeatureBit(cast(Target.TargetFeature)index)
+            name = Target.TargetFeatureName(cast(Target.TargetFeature)index)
+        }
+        if (mask & bit) != 0 {
+            if text.count > 0 { text = PkgJoin(text, ",") }
+            text = PkgJoin(text, name)
+        }
+        index += 1
+    }
+    return text
+}
+
+ASSEMBLY_USAGE: string = "usage: ziran capabilities --assembly-target=ARCH-OS[+FEATURE...] [--os-service=NAME]... [--json] [INPUT.zi|INPUT.zir ...]";
+
+// Target preflight for the direct assembly target. It runs before any input
+// is opened: a rejected row reads no input, writes no output, runs no
+// initializer, host call or entry, and selects no other engine, so source
+// and saved IR report the same gap.
+AssemblyPreflight :: (spec: string, services: []string, inputs: []string) -> s32 {
+    plus: s32 = 0
+    while plus < cast(s32)spec.count && spec[plus] != cast(u8)43 { plus += 1 }
+    row_name: string = spec[0:plus]
+    dash: s32 = 0
+    while dash < cast(s32)row_name.count && row_name[dash] != cast(u8)45 { dash += 1 }
+    if dash == 0 || dash >= cast(s32)row_name.count - 1 { return PkgFail(ASSEMBLY_USAGE) }
+    arch := Target.TargetArchFromName(row_name[0:dash])
+    os := Target.TargetOSFromName(row_name[dash + 1:row_name.count])
+    described := Target.TargetDescribe(arch, os)
+    if arch == .Invalid || described.problem != .None {
+        return PkgFail(PkgJoin3("unknown assembly target row: ", row_name,
+            "\nRun ziran capabilities --json for the assembly_targets registry."))
+    }
+    requirements: Target.TargetRequirements
+    at: s32 = plus
+    while at < cast(s32)spec.count {
+        end: s32 = at + 1
+        while end < cast(s32)spec.count && spec[end] != cast(u8)43 { end += 1 }
+        feature := Target.TargetFeatureFromName(spec[at + 1:end])
+        if feature == .Invalid {
+            return PkgFail(PkgJoin3("unknown CPU feature: ", spec[at + 1:end], PkgJoin("\n", ASSEMBLY_USAGE)))
+        }
+        requirements.features |= Target.TargetFeatureBit(feature)
+        at = end
+    }
+    for name: services {
+        service := Target.TargetServiceFromName(name)
+        if service == .Invalid {
+            return PkgFail(PkgJoin3("unknown OS service: ", name, PkgJoin("\n", ASSEMBLY_USAGE)))
+        }
+        requirements.services |= Target.TargetServiceBit(service)
+    }
+    for input: inputs {
+        if !PkgEndsWith(input, ".zi") && !PkgEndsWith(input, ".zir") { return PkgFail(ASSEMBLY_USAGE) }
+    }
+    row := Target.TargetRowFor(arch, os)
+    result := Target.TargetPreflight(described.target, requirements)
+    if result.problem != .None {
+        named: string = "No input was named"
+        if inputs.count > 0 {
+            kind: string = " (source)"
+            if PkgEndsWith(inputs[0], ".zir") { kind = " (saved IR)" }
+            named = PkgJoin3("Input ", inputs[0], PkgJoin(kind, " was not read"))
+        }
+        selected: string = PkgJoin3("selected target ", row_name,
+            PkgJoin3(" engine assembly state ", Target.TargetStateName(row.state), ": "))
+        after: string = PkgJoin3(" ", named,
+            "; no output, initializer, host call or entry ran and no other engine was selected.")
+        if result.problem == .CpuFeature {
+            return PkgFailCode("assembly.gap.cpu-feature", PkgJoin3(selected,
+                PkgJoin3("missing CPU feature ", PkgMaskNames(result.missing_features, true), "."), after))
+        }
+        if result.problem == .OsService {
+            return PkgFailCode("assembly.gap.os-service", PkgJoin3(selected,
+                PkgJoin3("missing OS service ", PkgMaskNames(result.missing_services, false), "."), after))
+        }
+        return PkgFailCode("assembly.gap.target-unimplemented", PkgJoin3(selected,
+            PkgJoin("the direct assembly target does not implement this row. ", row.note), after))
+    }
+    PkgPrint("{\"schema_version\":1,\"engine\":\"assembly\",\"preflight\":\"pass\",\"required_features\":", false)
+    PkgPrintFeatureNames(requirements.features)
+    PkgPrint(",\"required_services\":", false)
+    PkgPrintServiceNames(requirements.services)
+    PkgPrint(",\"inputs\":", false)
+    PkgPrint("[", false)
+    for input, position: inputs {
+        if position > 0 { PkgPrint(",", false) }
+        PkgJsonString(input)
+    }
+    PkgPrint("]", false)
+    PkgPrint(",\"row\":", false)
+    PkgPrintAssemblyRow(row)
+    PkgPrint("}\n", false)
+    return 0
+}
+
 #scope_export
 Capabilities :: (arguments: []string) -> s32 {
     target: string = ""
+    assembly: string = ""
+    services := PkgStrings(arguments.count)
+    service_count: s64 = 0
+    inputs := PkgStrings(arguments.count)
+    input_count: s64 = 0
     index: s32 = 0
     while index < cast(s32)arguments.count {
         part: string = arguments[index]
-        if part == "--json" {
+        if part == "--json" || part == "--diagnostics=json" || part == "--diagnostics=text" {
             index += 1
             continue
+        }
+        if part.count > 18 && part[0:18] == "--assembly-target=" {
+            if assembly.count > 0 || target.count > 0 { return PkgFail("capabilities accepts one target") }
+            assembly = part[18:part.count]
+            index += 1
+            continue
+        }
+        if part.count > 13 && part[0:13] == "--os-service=" {
+            services[service_count] = part[13:part.count]
+            service_count += 1
+            index += 1
+            continue
+        }
+        if part.count > 0 && part[0] != cast(u8)45 {
+            inputs[input_count] = part
+            input_count += 1
+            index += 1
+            continue
+        }
+        if assembly.count > 0 {
+            return PkgFail("capabilities accepts one target")
         }
         if target.count > 0 {
             return PkgFail("capabilities accepts one target")
@@ -56,16 +278,22 @@ Capabilities :: (arguments: []string) -> s32 {
         else if part == "--target=zx" { target = "zx" }
         else {
             return PkgFail(
-                "usage: ziran capabilities [--target=c|go|zx] [--json]")
+                "usage: ziran capabilities [--target=c|go|zx] [--json] | ziran capabilities --assembly-target=ARCH-OS[+FEATURE...] [--os-service=NAME]... [INPUT...]")
         }
         index += 1
     }
+    if assembly.count > 0 {
+        return AssemblyPreflight(assembly, services[0:service_count], inputs[0:input_count])
+    }
+    if service_count > 0 || input_count > 0 { return PkgFail(ASSEMBLY_USAGE) }
     PkgPrint("{\"schema_version\":1,", false)
     if target.count == 0 {
         PkgPrint("\"targets\":[\"c\",\"go\",\"zx\"],", false)
         PkgPrint("\"parallel_execution\":{\"c\":\"threads\",\"go\":\"serial\",\"zx\":\"serial\"},", false)
         PkgPrint("\"text_view_mutable_bytes\":{\"c\":\"borrowed\",\"go\":\"snapshot\",\"zx\":\"snapshot\"},", false)
         PkgPrint("\"tier\":{\"c\":\"primary\",\"go\":\"secondary\",\"zx\":\"primary\"},", false)
+        PkgPrintAssemblyTargets()
+        PkgPrint(",", false)
     } else {
         PkgPrint("\"target\":\"", false)
         PkgPrint(target, false)

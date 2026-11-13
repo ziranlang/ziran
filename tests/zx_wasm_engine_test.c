@@ -1,7 +1,7 @@
-/* The wasm execution tier's seam: with no provider installed every bundle
- * runs on the portable VM; with a provider, a scalar bundle's lowered
+/* The wasm execution tier's seam: with no provider installed this host is
+ * configured for the portable VM; with a provider, a scalar bundle's lowered
  * module reaches the provider and its result comes back through
- * BundleInstanceRun, while a rejected module falls back to the VM.
+ * BundleInstanceRun, while a rejected module fails instantiation.
  * The provider here is a recording mock, so the test runs anywhere
  * libziran builds; real providers execute the module under WebAssembly. */
 #include "ziran_host.h"
@@ -250,23 +250,21 @@ main(void)
         return 1;
     }
 
-    /* A provider may reject a valid module. Exercise that fallback directly
-     * so expanding the wasm subset cannot invalidate this seam test. */
+    /* A provider may reject a valid module. It must fail without running the
+     * portable VM or releasing a handle the provider never returned. */
     reject_module = 1;
     instance = BundleInstantiate(scalar, NULL, 0);
-    if(instance == NULL || instantiate_calls != 2) {
-        fprintf(stderr, "provider fallback: instance=%p provider calls=%d\n",
+    if(instance != NULL || instantiate_calls != 2) {
+        fprintf(stderr, "provider rejection: instance=%p provider calls=%d\n",
                 (void *)instance, instantiate_calls);
         return 1;
     }
-    if(!BundleInstanceRun(instance, &result, &has_result) || !has_result ||
-       result != 42 || call_calls != 1 || release_calls != 1) {
-        fprintf(stderr, "provider fallback gave %lld\n", result);
+    if(call_calls != 1 || release_calls != 1) {
+        fprintf(stderr, "provider rejection started another engine or released an invalid handle\n");
         return 1;
     }
-    BundleInstanceClose(instance);
 
-    /* Removing the provider restores pure VM behavior. */
+    /* Removing the provider explicitly restores this host's VM mode. */
     ZxWasmSetPlatform(NULL);
     instance = BundleInstantiate(scalar, NULL, 0);
     if(instance == NULL || !BundleInstanceRun(instance, &result, &has_result) ||
@@ -276,6 +274,6 @@ main(void)
     }
     BundleInstanceClose(instance);
     BundleClose(scalar);
-    fprintf(stdout, "zx-wasm-engine-test: seam, provider handoff and fallback verified\n");
+    fprintf(stdout, "zx-wasm-engine-test: seam and hard provider rejection verified\n");
     return 0;
 }

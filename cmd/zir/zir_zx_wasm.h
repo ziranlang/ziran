@@ -7,9 +7,9 @@
 /* A bundle instance running as WebAssembly: the verified program lowered
  * to a wasm32 module by cmd/zir-wasm/zir_wasm_lower.c and instantiated
  * through the installed provider (zir_zx_wasm_platform.h). The current
- * tier lowers the scalar subset and typed s64 -> s64 host capabilities;
- * other out-of-subset constructs fail here and the caller falls back to
- * the portable VM, so the engine never guesses. */
+ * tier lowers the scalar subset and typed s64 -> s64 host capabilities.
+ * Other constructs and provider rejection fail the selected engine; the
+ * caller never starts a different engine. */
 typedef struct ZxWasm ZxWasm;
 struct Capability;
 

@@ -1,4 +1,4 @@
-LirVersion :: 3
+LirVersion :: 4
 LirNoId :: -1
 
 LirTypeKind :: enum s32 {
@@ -27,7 +27,7 @@ LirOp :: enum s32 {
     Equal; NotEqual; Less; LessEqual; Greater; GreaterEqual
     Convert; Bitcast
     Aggregate; Extract; Insert
-    Allocate; Load; Store; Copy; Zero; FieldAddress; ElementAddress
+    Allocate; Load; Store; Copy; Zero; FieldAddress; ElementAddress; BytesEqual
     Call; CallIndirect; HostCall
     Fuel; Trap
     Jump; Branch; Return; Unreachable
@@ -85,6 +85,7 @@ LirProgram :: struct {
     globals: []LirGlobal
     functions: []LirFunction
     origins: []LirOrigin
+    initializers: []s32
     entry: s32
 }
 
@@ -128,7 +129,7 @@ LirEffectful :: (op: LirOp) -> bool {
 }
 
 LirProducesValue :: (op: LirOp) -> bool {
-    return cast(s32)op >= cast(s32)LirOp.Constant && cast(s32)op <= cast(s32)LirOp.Load || op == .FieldAddress || op == .ElementAddress ||
+    return cast(s32)op >= cast(s32)LirOp.Constant && cast(s32)op <= cast(s32)LirOp.Load || op == .FieldAddress || op == .ElementAddress || op == .BytesEqual ||
         op == .Call || op == .CallIndirect || op == .HostCall
 }
 
@@ -167,6 +168,7 @@ LirOpName :: (op: LirOp) -> string {
     if op == .Zero { return "zero" }
     if op == .FieldAddress { return "field.address" }
     if op == .ElementAddress { return "element.address" }
+    if op == .BytesEqual { return "bytes.equal" }
     if op == .Call { return "call" }
     if op == .CallIndirect { return "call.indirect" }
     if op == .HostCall { return "host.call" }

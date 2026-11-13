@@ -110,14 +110,19 @@ rejected.</p>
 <p>A dependency's exported modules are imported by the dependency name and the
 module name, so every import says where it comes from:</p>
 <pre><code class="language-zi">#import &quot;plot/Plot&quot;
-using Widgets :: #import &quot;kryon/Widgets&quot;;
+Text :: #import &quot;kryon/text&quot;;
+Desktop :: #import &quot;kryon/host/desktop&quot;;
 #import &quot;std/text&quot;;
 </code></pre>
 <p><code>std/NAME</code> is the pinned standard library. Modules in your own package use
 their short names. A package can also import its own public exports as
-<code>PACKAGE/EXPORT</code>, where <code>PACKAGE</code> is its <code>[package] name</code> and <code>EXPORT</code> is a
-key in its <code>[exports]</code> table. For example, a package named <code>plot</code> exporting
-<code>Plot = "src/module.zi"</code> can import <code>plot/Plot</code> internally. This works both
+<code>PACKAGE/EXPORT</code>, where <code>PACKAGE</code> is its <code>[package]</code> name and <code>EXPORT</code> is an
+identifier or slash-separated identifier namespace used as a quoted key in
+its <code>[exports]</code> table. For example, a package named <code>plot</code> exporting
+<code>Plot = "src/module.zi"</code> can import <code>plot/Plot</code> internally. A quoted export
+<code>"host/desktop" = "src/desktop.zi"</code> is imported as
+<code>plot/host/desktop</code>. Slashes organize the public namespace; they do not expose
+the package's directory tree. This works both
 when building that package directly and when it is a dependency, even if a
 consumer gives it a different dependency alias. Private modules still use
 short names inside their package; self qualification exposes only public
@@ -180,6 +185,7 @@ ref = &quot;master&quot;
 
 [exports]
 Plot = &quot;src/module.zi&quot;
+&quot;host/desktop&quot; = &quot;src/host/desktop.zi&quot;
 </code></pre>
 <p>Push the repository anywhere Git can reach. Prefer HTTPS URLs in published
 manifests so fresh clones and CI can fetch without an SSH key.</p>

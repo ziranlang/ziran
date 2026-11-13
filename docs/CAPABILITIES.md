@@ -10,6 +10,18 @@ for C, Go, and `.zx`; they are described by [numeric_conformance.json](../tests/
 The [width matrix](../tests/numeric_width_matrix.sh) adds 592 independently
 generated boundary conversions across all 64 integer type pairs, from source
 and saved IR on those three targets.
+`assembly_targets` (in the full report) is the direct assembly target's
+registry: every described CPU/OS row with its `abi`, `pointer_bits`,
+`state` (`implemented`, `gap`, `excluded` or `unknown`), the stable
+`diagnostic` selecting it produces, its `cpu_baseline`, and the CPU
+`features` and OS `services` it implements. Only `implemented` rows pass
+preflight; no row is implemented yet, so every row reports
+`assembly.gap.target-unimplemented`. `ziran capabilities --assembly-target=ROW[+FEATURE...]
+[--os-service=NAME]... [INPUT.zi|INPUT.zir ...]` runs that preflight before
+reading any input: it prints the row with `"preflight":"pass"`, or fails
+before any output, initializer, host call or entry with
+`assembly.gap.target-unimplemented`, `assembly.gap.cpu-feature` or
+`assembly.gap.os-service` (JSON with `--diagnostics=json`).
 `schema_version` starts at 1; consumers should reject schema
 versions they do not understand and ignore unknown fields within a version.
 

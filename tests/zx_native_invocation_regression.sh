@@ -263,7 +263,7 @@ int main(int argc, char **argv) {
 }
 C
 
-${CC:-cc} -O2 -std=c11 -I"$repo/include" -o "$work/host" "$work/host.c" \
+${CC:-cc} ${VM_CFLAGS:-} -O2 -std=c11 -I"$repo/include" -o "$work/host" "$work/host.c" \
     "$library" -lm -pthread -ldl
 
 ZIRAN_NATIVE_CACHE=0 ZIRAN_NATIVE_TIMING=1 "$work/host" answer 1 "$work/answer.zx" \

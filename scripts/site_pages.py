@@ -22,7 +22,7 @@ left out. The standard-library release inventory records shipped modules, includ
 source archives and shallow checkouts. Package status follows each package's
 v* release tags; modules added between releases remain in progress.
 
-    python3 scripts/site_pages.py --ziran build/bin/ziran [--check]
+    python3 scripts/site_pages.py --ziran build/bin/ziran [--site DIR] [--check]
 
 With --check, report pages that differ from what the sources produce now.
 Package pages are checked only when the packages directory is present.
@@ -35,8 +35,6 @@ import re
 import subprocess
 import sys
 import tomllib
-import urllib.error
-import urllib.request
 
 try:
     import markdown
@@ -48,6 +46,7 @@ SITE = os.path.join(REPO, 'site')
 EXAMPLES = os.path.join(REPO, 'examples')
 STD = os.path.join(REPO, 'std')
 DOCS = os.path.join(REPO, 'docs')
+PACKAGE_INVENTORY = os.path.join(SITE, 'package-inventory.json')
 ORIGIN = 'https://ziran-lang.org'
 GITHUB = 'https://github.com/ziranlang/ziran'
 # Guide pages start from these documents and follow their links inside docs/.
@@ -352,22 +351,6 @@ def github_url(remote):
     return f'https://github.com/{match.group(1)}' if match else ''
 
 
-def public(url, cache={}):
-    """Whether an anonymous visitor can open the GitHub repository."""
-    if url not in cache:
-        request = urllib.request.Request(url, method='HEAD', headers={'User-Agent': 'ziran-site-pages'})
-        try:
-            with urllib.request.urlopen(request, timeout=20) as response:
-                cache[url] = response.status == 200
-        except urllib.error.HTTPError as error:
-            if error.code != 404:
-                sys.exit(f'cannot tell whether {url} is public: HTTP {error.code}')
-            cache[url] = False
-        except OSError as error:
-            sys.exit(f'cannot tell whether {url} is public: {error}')
-    return cache[url]
-
-
 def render_markdown(text, link):
     """Markdown to HTML with GitHub-style heading ids; LINK rewrites each
     relative href and returns None to drop the link but keep its text."""
@@ -419,17 +402,27 @@ def package_modules(ziran, directory, manifest, packages):
     roots = [os.path.join(directory, r) for r in manifest['package'].get('module_roots', ['.'])]
     paths = list(roots)
     for name, dependency in manifest.get('dependencies', {}).items():
+        if dependency.get('source', False):
+            continue
         requested = dependency.get('git', '')
         repo = requested.rstrip('/').removesuffix('.git').rsplit('/', 1)[-1]
         package_directory = os.path.join(packages, repo)
         other = os.path.join(package_directory, 'ziran.toml')
-        if os.path.exists(other):
-            origin = git(package_directory, 'remote', 'get-url', 'origin')
-            requested_identity = github_url(requested) or requested.rstrip('/').removesuffix('.git')
-            origin_identity = github_url(origin) or origin.rstrip('/').removesuffix('.git')
-        if os.path.exists(other) and requested_identity and requested_identity == origin_identity:
-            other_roots = tomllib.load(open(other, 'rb'))['package'].get('module_roots', ['.'])
-            paths.append(f'{name}={os.path.join(package_directory, other_roots[0])}')
+        if not requested:
+            sys.exit(f'{directory}: dependency {name} has no repository URL')
+        # The site checkout may contain only the packages needed by an API.
+        # A referenced missing dependency is still rejected later by ziran api.
+        if not os.path.isfile(other):
+            continue
+        origin = git(package_directory, 'remote', 'get-url', 'origin')
+        requested_identity = github_url(requested) or requested.rstrip('/').removesuffix('.git')
+        origin_identity = github_url(origin) or origin.rstrip('/').removesuffix('.git')
+        if not origin_identity:
+            sys.exit(f'{package_directory}: dependency {name} has no origin remote; cannot verify {requested}')
+        if not requested_identity or requested_identity != origin_identity:
+            sys.exit(f'{package_directory}: dependency {name} origin {origin or "<missing>"} does not match {requested}')
+        other_roots = tomllib.load(open(other, 'rb'))['package'].get('module_roots', ['.'])
+        paths.append(f'{name}={os.path.join(package_directory, other_roots[0])}')
     modules = []
     for export, file in manifest.get('exports', {}).items():
         path = os.path.join(directory, file)
@@ -440,6 +433,19 @@ def package_modules(ziran, directory, manifest, packages):
 
 
 def read_packages(ziran, packages):
+    inventory = json.load(open(PACKAGE_INVENTORY))
+    if inventory.get('format') != 1 or not isinstance(inventory.get('packages'), dict):
+        sys.exit(f'{PACKAGE_INVENTORY}: invalid package inventory')
+    entries = inventory['packages']
+    local = {name for name in os.listdir(packages)
+             if os.path.isfile(os.path.join(packages, name, 'ziran.toml'))}
+    missing = sorted(set(entries) - local)
+    unknown = sorted(local - set(entries))
+    if missing or unknown:
+        details = ((f'missing {", ".join(missing)}' if missing else '')
+                   + ('; ' if missing and unknown else '')
+                   + (f'unclassified {", ".join(unknown)}' if unknown else ''))
+        sys.exit(f'{packages}: package inventory mismatch: {details}')
     found, skipped = [], []
     for name in sorted(os.listdir(packages)):
         directory = os.path.join(packages, name)
@@ -447,8 +453,16 @@ def read_packages(ziran, packages):
         if not os.path.isfile(manifest_path):
             continue
         manifest = tomllib.load(open(manifest_path, 'rb'))
-        url = github_url(git(directory, 'remote', 'get-url', 'origin'))
-        if url and not public(url):
+        origin = git(directory, 'remote', 'get-url', 'origin')
+        url = github_url(origin)
+        expected = entries[name]
+        if (not isinstance(expected, dict) or
+                not isinstance(expected.get('url'), str) or
+                not isinstance(expected.get('public'), bool)):
+            sys.exit(f'{PACKAGE_INVENTORY}: invalid entry for {name}')
+        if not url or url != expected['url']:
+            sys.exit(f'{directory}: origin {origin or "<missing>"} does not match {expected["url"]}')
+        if not expected['public']:
             skipped.append(f'{name} (private repository)')
             continue
         readme_path = os.path.join(directory, 'README.md')
@@ -652,16 +666,20 @@ def shared_navigation(path, text):
 
 
 def main():
-    global REPO, SITE, STD
+    global REPO, SITE, STD, PACKAGE_INVENTORY
     parser = argparse.ArgumentParser()
     parser.add_argument('--ziran', required=True)
     parser.add_argument('--module-api', metavar='SOURCE', help='print a module\'s documentation data as JSON')
     parser.add_argument('--module-root', metavar='DIR')
     parser.add_argument('--stdlib-inventory', metavar='REPOSITORY', help='print a repository\'s standard-module release inventory as JSON')
     parser.add_argument('--packages', default=os.path.join(os.path.dirname(REPO), 'packages'))
+    parser.add_argument('--site', metavar='DIR', help='read and write site files under DIR instead of site/')
     parser.add_argument('--check', action='store_true')
     args = parser.parse_args()
     ziran = os.path.abspath(args.ziran)
+    if args.site:
+        SITE = os.path.abspath(args.site)
+        PACKAGE_INVENTORY = os.path.join(SITE, 'package-inventory.json')
     if args.stdlib_inventory:
         # The same release-inventory path is used for normal site generation.
         REPO = os.path.abspath(args.stdlib_inventory)

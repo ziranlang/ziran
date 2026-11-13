@@ -1,0 +1,1121 @@
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Machine :: #import "compiler_machine_ir"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+using X64 :: #import "compiler_x86_64"
+
+// Local tests for the direct x86-64 machine-IR encoder. Programs are built
+// in the Allocated stage by hand, checked against MachineVerifyAllocated, and
+// compared with exact instruction bytes, displacements and relocations.
+
+RAX :: 0
+RCX :: 1
+RDX :: 2
+RSI :: 6
+RDI :: 7
+R8 :: 8
+R9 :: 9
+R10 :: 10
+R12 :: 12
+R13 :: 13
+R15 :: 15
+
+VOID :: 0
+BOOL :: 1
+S64 :: 2
+U64 :: 3
+S32 :: 4
+U32 :: 5
+S16 :: 6
+U16 :: 7
+S8 :: 8
+U8 :: 9
+POINTER :: 10
+FUNCTION :: 11
+F64 :: 12
+
+Builder :: struct {
+    text: Vec(u8)
+    types: Vec(MachineType)
+    globals: Vec(MachineGlobal)
+    functions: Vec(MachineFunction)
+    blocks: Vec(MachineBlock)
+    virtuals: Vec(MachineVirtual)
+    instructions: Vec(MachineInstruction)
+    operands: Vec(MachineOperand)
+    edges: Vec(MachineEdge)
+    stack_objects: Vec(MachineStackObject)
+    relocations: Vec(MachineRelocation)
+    calls: Vec(MachineCall)
+    frames: Vec(MachineFrame)
+    spills: Vec(MachineSpill)
+    function: s32
+    block: s32
+    flags: s32
+    entry: s32
+    stage: MachineStage
+    target: TargetDescription
+}
+
+Mode :: enum s32 { Verify; Validate; Measure; Encode }
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("x86 encoder local test failed: %\n", message)
+    return false
+}
+
+BuilderFree :: (b: *Builder) {
+    VecFree(b.text)
+    VecFree(b.types)
+    VecFree(b.globals)
+    VecFree(b.functions)
+    VecFree(b.blocks)
+    VecFree(b.virtuals)
+    VecFree(b.instructions)
+    VecFree(b.operands)
+    VecFree(b.edges)
+    VecFree(b.stack_objects)
+    VecFree(b.relocations)
+    VecFree(b.calls)
+    VecFree(b.frames)
+    VecFree(b.spills)
+}
+
+AddType :: (b: *Builder, kind: MachineTypeKind, class: MachineRegisterClass, bits: s32, signed: bool, size: s64) {
+    alignment: s32 = 1
+    if size >= 8 { alignment = 8 } else if size >= 1 { alignment = cast(s32)size }
+    unused VecPush(b.types, .{kind = kind, class = class, bits = bits, is_signed = signed, size = size,
+        alignment = alignment, element = -1, result = -1})
+}
+
+Setup :: (b: *Builder) {
+    b.function = -1
+    b.block = -1
+    b.flags = -1
+    b.entry = -1
+    b.stage = .Allocated
+    b.target = TargetLinuxX64()
+    AddType(b, .Void, .Stack, 0, false, 0)
+    AddType(b, .Bool, .General, 1, false, 1)
+    AddType(b, .Integer, .General, 64, true, 8)
+    AddType(b, .Integer, .General, 64, false, 8)
+    AddType(b, .Integer, .General, 32, true, 4)
+    AddType(b, .Integer, .General, 32, false, 4)
+    AddType(b, .Integer, .General, 16, true, 2)
+    AddType(b, .Integer, .General, 16, false, 2)
+    AddType(b, .Integer, .General, 8, true, 1)
+    AddType(b, .Integer, .General, 8, false, 1)
+    AddType(b, .Pointer, .General, 64, false, 8)
+    AddType(b, .Function, .General, 64, false, 8)
+    AddType(b, .Float, .Float, 64, false, 8)
+    unused VecPush(b.globals, .{type = S64, writable = true})
+}
+
+Begin :: (b: *Builder, name: string) -> s32 {
+    id := cast(s32)b.functions.count
+    offset := cast(s32)b.text.count
+    for byte: name { unused VecPush(b.text, byte) }
+    unused VecPush(b.functions, .{lir_function = id, name_offset = offset, name_length = cast(s32)name.count,
+        block_begin = cast(s32)b.blocks.count, virtual_begin = cast(s32)b.virtuals.count,
+        stack_begin = cast(s32)b.stack_objects.count, result_type = S64, calling = .Internal,
+        entry = cast(s32)b.blocks.count, origin = -1})
+    b.function = id
+    return id
+}
+
+Parameter :: (b: *Builder, type: s32, register: s32) -> s32 {
+    id := cast(s32)b.virtuals.count
+    class := b.types[type].class
+    unused VecPush(b.virtuals, .{class = class, type = type, fixed_register = register, stack_object = -1, origin = -1})
+    function := b.functions[b.function]
+    function.parameter_count += 1
+    b.functions[b.function] = function
+    return id
+}
+
+Value :: (b: *Builder, type: s32) -> s32 {
+    id := cast(s32)b.virtuals.count
+    unused VecPush(b.virtuals, .{class = b.types[type].class, type = type, fixed_register = -1,
+        stack_object = -1, origin = -1})
+    return id
+}
+
+FlagsValue :: (b: *Builder) -> s32 {
+    id := cast(s32)b.virtuals.count
+    unused VecPush(b.virtuals, .{class = .Flags, type = VOID, fixed_register = -1, stack_object = -1, origin = -1})
+    return id
+}
+
+Object :: (b: *Builder, kind: MachineStackKind, size: s64, offset: s64, value: s32, type: s32) -> s32 {
+    id := cast(s32)b.stack_objects.count
+    alignment: s32 = 1
+    if size >= 8 { alignment = 8 } else if size >= 1 { alignment = cast(s32)size }
+    unused VecPush(b.stack_objects, .{function = b.function, kind = kind, size = size, alignment = alignment,
+        type = type, origin = -1, offset = offset, value = value})
+    return id
+}
+
+Save :: (b: *Builder, register: s32, offset: s64) -> s32 {
+    return Object(b, .CalleeSave, 8, offset, register, U64)
+}
+
+Blocks :: (b: *Builder, count: s32) -> s32 {
+    first := cast(s32)b.blocks.count
+    for index: 0..count - 1 {
+        unused VecPush(b.blocks, .{function = b.function, lir_block = -1,
+            instruction_begin = cast(s32)b.instructions.count})
+    }
+    return first
+}
+
+Enter :: (b: *Builder, block: s32) {
+    record := b.blocks[block]
+    record.instruction_begin = cast(s32)b.instructions.count
+    b.blocks[block] = record
+    b.block = block
+    b.flags = -1
+}
+
+End :: (b: *Builder, size: s64, outgoing: s64 = 0) {
+    function := b.functions[b.function]
+    function.block_count = cast(s32)b.blocks.count - function.block_begin
+    function.virtual_count = cast(s32)b.virtuals.count - function.virtual_begin
+    function.stack_count = cast(s32)b.stack_objects.count - function.stack_begin
+    b.functions[b.function] = function
+    saved: u64 = 0
+    for object_id: function.stack_begin..function.stack_begin + function.stack_count - 1 {
+        object := b.stack_objects[object_id]
+        if object.kind == .CalleeSave { saved = saved | (cast(u64)1 << cast(u64)object.value) }
+    }
+    unused VecPush(b.frames, .{function = b.function, size = size, alignment = 16, outgoing_size = outgoing,
+        callee_saved_general = saved})
+}
+
+Open :: (b: *Builder, opcode: MachineOpcode) -> MachineInstruction {
+    return .{opcode = opcode, operand_begin = cast(s32)b.operands.count, edge_begin = cast(s32)b.edges.count,
+        flags_use = -1, flags_def = -1, call = -1, origin = -1}
+}
+
+Close :: (b: *Builder, instruction: MachineInstruction) -> s32 {
+    instruction.operand_count = cast(s32)b.operands.count - instruction.operand_begin
+    instruction.edge_count = cast(s32)b.edges.count - instruction.edge_begin
+    id := cast(s32)b.instructions.count
+    unused VecPush(b.instructions, instruction)
+    block := b.blocks[b.block]
+    block.instruction_count += 1
+    b.blocks[b.block] = block
+    return id
+}
+
+Operand :: (b: *Builder, operand: MachineOperand) -> s32 {
+    id := cast(s32)b.operands.count
+    unused VecPush(b.operands, operand)
+    return id
+}
+
+Physical :: (b: *Builder, register: s32, role: MachineOperandRole, value: s32) -> s32 {
+    class := MachineRegisterClass.General
+    type: s32 = -1
+    if value >= 0 { class = b.virtuals[value].class; type = b.virtuals[value].type }
+    return Operand(b, .{kind = .Physical, role = role, class = class, id = register, type = type,
+        fixed_register = -1, tied_to = -1, value = value})
+}
+
+Immediate :: (b: *Builder, value: u64) -> s32 {
+    return Operand(b, .{kind = .Immediate, role = .Use, class = .General, id = -1, type = -1,
+        fixed_register = -1, tied_to = -1, immediate = value, value = -1})
+}
+
+Symbol :: (b: *Builder, kind: MachineOperandKind, id: s32) -> s32 {
+    return Operand(b, .{kind = kind, role = .Use, class = .General, id = id, type = -1,
+        fixed_register = -1, tied_to = -1, value = -1})
+}
+
+Slot :: (b: *Builder, object: s32, role: MachineOperandRole, value: s32) -> s32 {
+    class := MachineRegisterClass.Stack
+    if value >= 0 { class = b.virtuals[value].class }
+    return Operand(b, .{kind = .StackObject, role = role, class = class, id = object, type = -1,
+        fixed_register = -1, tied_to = -1, value = value})
+}
+
+Edge :: (b: *Builder, target: s32) {
+    unused VecPush(b.edges, .{target = target})
+}
+
+Constant :: (b: *Builder, register: s32, value: s32, bits: u64) -> s32 {
+    instruction := Open(b, .MoveImmediate)
+    unused Physical(b, register, .Define, value)
+    unused Immediate(b, bits)
+    return Close(b, instruction)
+}
+
+Two :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32, source: s32, input: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    unused Physical(b, source, .Use, input)
+    return Close(b, instruction)
+}
+
+Three :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32,
+    left: s32, left_value: s32, right: s32, right_value: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    unused Physical(b, left, .Use, left_value)
+    unused Physical(b, right, .Use, right_value)
+    return Close(b, instruction)
+}
+
+Divide :: (b: *Builder, opcode: MachineOpcode, result: s32, dividend: s32, divisor: s32, divisor_value: s32) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, RAX, .Define, result)
+    unused Physical(b, RAX, .Use, dividend)
+    unused Physical(b, divisor, .Use, divisor_value)
+    unused Physical(b, RDX, .UseDefine, -1)
+    return Close(b, instruction)
+}
+
+Store :: (b: *Builder, address: s32, pointer: s32, source: s32, value: s32) -> s32 {
+    instruction := Open(b, .Store)
+    unused Physical(b, address, .Use, pointer)
+    unused Physical(b, source, .Use, value)
+    return Close(b, instruction)
+}
+
+Compare :: (b: *Builder, left: s32, left_value: s32, right: s32, right_value: s32, condition: MachineCondition) -> s32 {
+    instruction := Open(b, .Compare)
+    b.flags = FlagsValue(b)
+    instruction.flags_def = b.flags
+    instruction.condition = condition
+    unused Physical(b, left, .Use, left_value)
+    unused Physical(b, right, .Use, right_value)
+    return Close(b, instruction)
+}
+
+SetCondition :: (b: *Builder, destination: s32, result: s32, condition: MachineCondition) -> s32 {
+    instruction := Open(b, .SetCondition)
+    instruction.flags_use = b.flags
+    instruction.condition = condition
+    unused Physical(b, destination, .Define, result)
+    return Close(b, instruction)
+}
+
+Return :: (b: *Builder, register: s32, value: s32) -> s32 {
+    instruction := Open(b, .Return)
+    if register >= 0 { unused Physical(b, register, .Use, value) }
+    return Close(b, instruction)
+}
+
+Jump :: (b: *Builder, target: s32) -> s32 {
+    instruction := Open(b, .Jump)
+    Edge(b, target)
+    return Close(b, instruction)
+}
+
+BranchOn :: (b: *Builder, register: s32, value: s32, taken: s32, other: s32) -> s32 {
+    instruction := Open(b, .Branch)
+    unused Physical(b, register, .Use, value)
+    Edge(b, taken)
+    Edge(b, other)
+    return Close(b, instruction)
+}
+
+BranchFlags :: (b: *Builder, condition: MachineCondition, taken: s32, other: s32) -> s32 {
+    instruction := Open(b, .Branch)
+    instruction.flags_use = b.flags
+    instruction.condition = condition
+    Edge(b, taken)
+    Edge(b, other)
+    return Close(b, instruction)
+}
+
+Fuel :: (b: *Builder, amount: u64) -> s32 {
+    instruction := Open(b, .Fuel)
+    b.flags = FlagsValue(b)
+    instruction.flags_def = b.flags
+    unused Immediate(b, amount)
+    counter := Immediate(b, 0)
+    id := Close(b, instruction)
+    unused VecPush(b.relocations, .{instruction = id, operand = counter, kind = .FuelCounter, symbol = 0})
+    return id
+}
+
+Trap :: (b: *Builder, code: u64) -> s32 {
+    instruction := Open(b, .Trap)
+    unused Immediate(b, code)
+    return Close(b, instruction)
+}
+
+Unreachable :: (b: *Builder) -> s32 {
+    return Close(b, Open(b, .Unreachable))
+}
+
+SpillTo :: (b: *Builder, object: s32, register: s32, value: s32) -> s32 {
+    instruction := Open(b, .Spill)
+    unused Slot(b, object, .Define, value)
+    unused Physical(b, register, .Use, value)
+    id := Close(b, instruction)
+    unused VecPush(b.spills, .{function = b.function, instruction = id, virtual = value, stack_object = object,
+        register = register, reason = .Pressure, origin = -1})
+    return id
+}
+
+ReloadFrom :: (b: *Builder, register: s32, object: s32, value: s32) -> s32 {
+    instruction := Open(b, .Reload)
+    unused Physical(b, register, .Define, value)
+    unused Slot(b, object, .Use, value)
+    id := Close(b, instruction)
+    unused VecPush(b.spills, .{function = b.function, instruction = id, virtual = value, stack_object = object,
+        register = register, reason = .Pressure, origin = -1})
+    return id
+}
+
+StackAddress :: (b: *Builder, destination: s32, result: s32, object: s32) -> s32 {
+    instruction := Open(b, .StackAddress)
+    unused Physical(b, destination, .Define, result)
+    unused Slot(b, object, .Use, -1)
+    return Close(b, instruction)
+}
+
+AddressOf :: (b: *Builder, opcode: MachineOpcode, destination: s32, result: s32, symbol: s32, addend: s64) -> s32 {
+    instruction := Open(b, opcode)
+    unused Physical(b, destination, .Define, result)
+    operand := Symbol(b, ifx opcode == .GlobalAddress then MachineOperandKind.Global else .Function, symbol)
+    id := Close(b, instruction)
+    kind := ifx opcode == .GlobalAddress then MachineRelocationKind.GlobalAddress else MachineRelocationKind.FunctionAddress
+    unused VecPush(b.relocations, .{instruction = id, operand = operand, kind = kind, symbol = symbol, addend = addend})
+    return id
+}
+
+// A call with at most one general argument in ARGUMENT_REGISTER.
+CallTo :: (b: *Builder, callee: s32, callable: s32, callable_value: s32, result: s32,
+    argument_register: s32, argument: s32, relocated: bool = true, stack_bytes: s64 = 0) -> s32 {
+    indirect := callee < 0
+    instruction := Open(b, ifx indirect then MachineOpcode.CallIndirect else .CallDirect)
+    instruction.call = cast(s32)b.calls.count
+    result_operand: s32 = -1
+    if result >= 0 { result_operand = Physical(b, RAX, .Define, result) }
+    target: s32 = -1
+    if indirect { target = Physical(b, callable, .Use, callable_value) }
+    else { target = Symbol(b, .Function, callee) }
+    argument_begin := cast(s32)b.operands.count
+    count: s32 = 0
+    if argument >= 0 { unused Physical(b, argument_register, .Use, argument); count = 1 }
+    id := Close(b, instruction)
+    unused VecPush(b.calls, .{instruction = id, calling = .Internal, argument_begin = argument_begin,
+        argument_count = count, result_operand = result_operand, stack_argument_bytes = stack_bytes,
+        clobber_general = 0x0fc7, clobber_float = 0xffff, clobber_vector = 0xffff, indirect = indirect})
+    if !indirect && relocated {
+        unused VecPush(b.relocations, .{instruction = id, operand = target, kind = .FunctionCall, symbol = callee})
+    }
+    return id
+}
+
+Apply :: (b: *Builder, mode: Mode, owner: *X64.MachineX64Owner, limits: MachineLimits) -> X64.MachineX64Result {
+    program := MachineProgram.{version = MachineVersion, target = b.target, text = b.text[:], types = b.types[:],
+        globals = b.globals[:], functions = b.functions[:], blocks = b.blocks[:], virtuals = b.virtuals[:],
+        instructions = b.instructions[:], operands = b.operands[:], edges = b.edges[:],
+        stack_objects = b.stack_objects[:], relocations = b.relocations[:], calls = b.calls[:],
+        entry = b.entry, stage = b.stage, frames = b.frames[:], spills = b.spills[:],
+        scratch_general = 11, scratch_float = 15}
+    if mode == .Verify { return .{diagnostic = MachineVerifyAllocated(program, limits)} }
+    if mode == .Validate { return .{diagnostic = X64.MachineX64Validate(program, limits)} }
+    if mode == .Measure { return X64.MachineX64Measure(program, limits) }
+    return .{diagnostic = X64.MachineX64Encode(program, limits, owner)}
+}
+
+Report :: (label: string, diagnostic: MachineDiagnostic) {
+    print("%: problem % function % block % instruction % operand % virtual %\n", label,
+        cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+        diagnostic.operand, diagnostic.virtual)
+}
+
+Nibble :: (byte: u8) -> s32 {
+    if byte >= 48 && byte <= 57 { return cast(s32)byte - 48 }
+    if byte >= 97 && byte <= 102 { return cast(s32)byte - 87 }
+    return -1
+}
+
+// Compares CODE[BEGIN:END] with space-separated lowercase hex bytes.
+Bytes :: (code: []u8, begin: s64, end: s64, hex: string, message: string) -> bool {
+    at := begin
+    index: s64 = 0
+    ok := begin >= 0 && end <= code.count && begin <= end
+    while ok && index < hex.count {
+        if hex[index] == 32 { index += 1; continue }
+        high := Nibble(hex[index])
+        low := ifx index + 1 < hex.count then Nibble(hex[index + 1]) else -1
+        if high < 0 || low < 0 || at >= end || cast(s32)code[at] != high * 16 + low { ok = false; break }
+        at += 1
+        index += 2
+    }
+    if ok && at == end { return true }
+    print("x86 encoder local test failed: % bytes (expected %, encoded", message, hex)
+    if begin >= 0 && end <= code.count {
+        for position: begin..end - 1 { print(" %", cast(s32)code[position]) }
+    }
+    print(")\n")
+    return false
+}
+
+Instruction :: (image: X64.MachineX64Image, id: s32, hex: string, message: string) -> bool {
+    range := image.instructions[id]
+    return Bytes(image.code, range.begin, range.end, hex, message)
+}
+
+Displacement :: (code: []u8, at: s64) -> s64 {
+    value: u64 = 0
+    for index: 0..3 { value = value | (cast(u64)code[at + index] << cast(u64)(index * 8)) }
+    if value >= 0x80000000 { return cast(s64)value - 4294967296 }
+    return cast(s64)value
+}
+
+Fingerprint :: (image: X64.MachineX64Image) -> u64 {
+    hash: u64 = 1469598103934665603
+    for byte: image.code { hash = (hash ^ byte) * 1099511628211 }
+    for relocation: image.relocations {
+        hash = (hash ^ cast(u64)relocation.offset ^ cast(u64)relocation.kind) * 1099511628211
+        hash = (hash ^ cast(u64)relocation.addend ^ cast(u64)(relocation.symbol + 1)) * 1099511628211
+    }
+    return hash
+}
+
+// Every function, block and instruction range is contiguous and the last
+// function ends at the image end: the byte accounting is exact.
+Accounted :: (b: *Builder, image: X64.MachineX64Image) -> bool {
+    at: s64 = 0
+    for function_id: cast(s64)0..b.functions.count - 1 {
+        function := b.functions[function_id]
+        record := image.functions[function_id]
+        if record.begin != at || record.body < record.begin { return false }
+        at = record.body
+        if function.entry != function.block_begin { at += 5 }
+        for block_id: function.block_begin..function.block_begin + function.block_count - 1 {
+            block := b.blocks[block_id]
+            if image.blocks[block_id] != at { return false }
+            for instruction_id: block.instruction_begin..block.instruction_begin + block.instruction_count - 1 {
+                range := image.instructions[instruction_id]
+                if range.begin != at || range.end < range.begin { return false }
+                at = range.end
+            }
+        }
+        if record.end != at { return false }
+    }
+    return at == image.code.count
+}
+
+TRAP_UNREACHABLE :: "bf 01 00 ff ff e8 00 00 00 00 0f 0b"
+TRAP_DIVIDE :: "bf 02 00 ff ff e8 00 00 00 00 0f 0b"
+TRAP_SHIFT :: "bf 03 00 ff ff e8 00 00 00 00 0f 0b"
+TRAP_FUEL :: "bf 04 00 ff ff e8 00 00 00 00 0f 0b"
+
+Ids :: struct {
+    answer: s32
+    arithmetic: [10]s32
+    narrow: [7]s32
+    immediates: s32
+    constants: [11]s32
+    immediates_return: s32
+    stack: s32
+    stack_ops: [8]s32
+    memory: [11]s32
+    branch: s32
+    branch_ops: [6]s32
+    branch2: s32
+    branch2_ops: [3]s32
+    loop: s32
+    loop_ops: [6]s32
+    fuel: s32
+    fuel_ops: [2]s32
+    divide: [4]s32
+    unsigned_divide: [2]s32
+    shift: [3]s32
+}
+
+BuildBasics :: (b: *Builder, ids: *Ids) {
+    Setup(b)
+
+    ids.answer = Begin(b, "answer")
+    answer := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    unused Constant(b, RAX, answer, 42)
+    unused Return(b, RAX, answer)
+    End(b, 0)
+
+    unused Begin(b, "arithmetic")
+    a := Parameter(b, S64, RDI); c := Parameter(b, S64, RSI); d := Parameter(b, S64, RDX)
+    e := Parameter(b, S64, RCX); f := Parameter(b, S64, R8); g := Parameter(b, S64, R9)
+    sum := Value(b, S64); difference := Value(b, S64); product := Value(b, S64); masked := Value(b, S64)
+    joined := Value(b, S64); mixed := Value(b, S64); negated := Value(b, S64); inverted := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.arithmetic[0] = Three(b, .IntegerAdd, RDI, sum, RDI, a, RSI, c)
+    ids.arithmetic[1] = Three(b, .IntegerSubtract, R8, difference, R8, f, R9, g)
+    ids.arithmetic[2] = Three(b, .IntegerMultiply, R8, product, R8, difference, RDI, sum)
+    ids.arithmetic[3] = Three(b, .IntegerAnd, RDI, masked, RDI, sum, R8, product)
+    ids.arithmetic[4] = Three(b, .IntegerOr, RDX, joined, RDX, d, RCX, e)
+    ids.arithmetic[5] = Three(b, .IntegerXor, RDI, mixed, RDI, masked, RDX, joined)
+    ids.arithmetic[6] = Two(b, .IntegerNegate, RDI, negated, RDI, mixed)
+    ids.arithmetic[7] = Two(b, .IntegerNot, R9, inverted, R9, g)
+    ids.arithmetic[8] = Two(b, .Move, R10, inverted, R9, inverted)
+    ids.arithmetic[9] = Two(b, .Move, RAX, negated, RDI, negated)
+    unused Return(b, RAX, negated)
+    End(b, 0)
+
+    unused Begin(b, "narrow")
+    na := Parameter(b, S32, RDI); nb := Parameter(b, S32, RSI); nc := Parameter(b, U8, RDX)
+    nd := Parameter(b, U8, RCX); ne := Parameter(b, U16, R8); nf := Parameter(b, U16, R9)
+    wide_sum := Value(b, S32); byte_sum := Value(b, U8); byte_copy := Value(b, U8); half := Value(b, U16)
+    small := Value(b, S8); signed_half := Value(b, S16); unsigned_word := Value(b, U32)
+    Enter(b, Blocks(b, 1))
+    ids.narrow[0] = Three(b, .IntegerAdd, RDI, wide_sum, RDI, na, RSI, nb)
+    ids.narrow[1] = Three(b, .IntegerAdd, RDX, byte_sum, RDX, nc, RCX, nd)
+    ids.narrow[2] = Two(b, .Convert, RSI, byte_copy, RDX, byte_sum)
+    ids.narrow[3] = Three(b, .IntegerMultiply, R8, half, R8, ne, R9, nf)
+    ids.narrow[4] = Two(b, .Convert, RAX, small, RDI, wide_sum)
+    ids.narrow[5] = Two(b, .Convert, R10, signed_half, RSI, byte_copy)
+    ids.narrow[6] = Two(b, .Bitcast, RCX, unsigned_word, RDI, wide_sum)
+    unused Return(b, RAX, small)
+    End(b, 0)
+
+    ids.immediates = Begin(b, "immediates")
+    values: [11]s32
+    types: [11]s32 = .[S64, S64, U32, S64, S64, U64, U64, S32, U8, S64, BOOL]
+    for index: 0..10 { values[index] = Value(b, types[index]) }
+    unused Save(b, R12, -8)
+    unused Save(b, R15, -16)
+    Enter(b, Blocks(b, 1))
+    registers: [11]s32 = .[RAX, R9, RAX, R12, RCX, RDX, R15, RSI, RDI, RAX, R8]
+    bits: [11]u64 = .[0, 0, 0x7fffffff, 1, 0xffffffffffffffff, 0x123456789, 0x100000000, 0xffffffff, 0x1ff,
+        0xffffffff80000000, 1]
+    for index: 0..10 { ids.constants[index] = Constant(b, registers[index], values[index], bits[index]) }
+    ids.immediates_return = Return(b, RAX, values[9])
+    End(b, 16)
+
+    ids.stack = Begin(b, "stack")
+    sa := Parameter(b, S64, RDI); sb := Parameter(b, S32, RSI); sc := Parameter(b, U8, RDX)
+    address := Value(b, POINTER); outgoing_address := Value(b, POINTER)
+    wide_slot := Object(b, .Spill, 8, -128, sa, S64)
+    word_slot := Object(b, .Spill, 4, -136, sb, S32)
+    byte_slot := Object(b, .Spill, 1, -137, sc, U8)
+    outgoing := Object(b, .OutgoingArgument, 16, 0, -1, VOID)
+    Enter(b, Blocks(b, 1))
+    ids.stack_ops[0] = SpillTo(b, wide_slot, RDI, sa)
+    ids.stack_ops[1] = SpillTo(b, word_slot, RSI, sb)
+    ids.stack_ops[2] = SpillTo(b, byte_slot, RDX, sc)
+    ids.stack_ops[3] = ReloadFrom(b, RAX, wide_slot, sa)
+    ids.stack_ops[4] = ReloadFrom(b, RCX, word_slot, sb)
+    ids.stack_ops[5] = ReloadFrom(b, RSI, byte_slot, sc)
+    ids.stack_ops[6] = StackAddress(b, RDI, address, wide_slot)
+    ids.stack_ops[7] = StackAddress(b, R9, outgoing_address, outgoing)
+    unused Return(b, RAX, sa)
+    End(b, 160, 16)
+
+    unused Begin(b, "memory")
+    pointer := Parameter(b, POINTER, RDI); byte := Parameter(b, U8, RSI); word := Parameter(b, U16, RDX)
+    loaded := Value(b, S64); loaded_word := Value(b, S32); loaded_half := Value(b, U16); loaded_byte := Value(b, S8)
+    unused Save(b, R12, -8)
+    unused Save(b, R13, -16)
+    Enter(b, Blocks(b, 1))
+    ids.memory[0] = Two(b, .Move, R12, pointer, RDI, pointer)
+    ids.memory[1] = Two(b, .Move, R13, pointer, RDI, pointer)
+    ids.memory[2] = Two(b, .Load, RAX, loaded, R12, pointer)
+    ids.memory[3] = Two(b, .Load, RCX, loaded_word, R13, pointer)
+    ids.memory[4] = Two(b, .Load, R8, loaded_half, RDI, pointer)
+    ids.memory[5] = Two(b, .Load, R9, loaded_byte, R12, pointer)
+    ids.memory[6] = Store(b, R12, pointer, RSI, byte)
+    ids.memory[7] = Store(b, RDI, pointer, RSI, byte)
+    ids.memory[8] = Store(b, R13, pointer, RDX, word)
+    ids.memory[9] = Store(b, RDI, pointer, RCX, loaded_word)
+    ids.memory[10] = Store(b, RDI, pointer, RAX, loaded)
+    unused Return(b, RAX, loaded)
+    End(b, 16)
+
+    ids.branch = Begin(b, "branch")
+    x := Parameter(b, U64, RDI); y := Parameter(b, U64, RSI)
+    less := Value(b, BOOL); one := Value(b, S64); two := Value(b, S64); merged := Value(b, S64)
+    first := Blocks(b, 4)
+    Enter(b, first)
+    ids.branch_ops[0] = Compare(b, RDI, x, RSI, y, .Less)
+    ids.branch_ops[1] = SetCondition(b, RAX, less, .Less)
+    ids.branch_ops[2] = BranchOn(b, RAX, less, first + 2, first + 1)
+    Enter(b, first + 1)
+    unused Constant(b, RAX, one, 1)
+    unused Two(b, .Move, RAX, merged, RAX, one)
+    ids.branch_ops[3] = Jump(b, first + 3)
+    Enter(b, first + 2)
+    unused Constant(b, RAX, two, 2)
+    ids.branch_ops[4] = Two(b, .Move, RAX, merged, RAX, two)
+    ids.branch_ops[5] = Jump(b, first + 3)
+    Enter(b, first + 3)
+    unused Return(b, RAX, merged)
+    End(b, 0)
+
+    ids.branch2 = Begin(b, "branch-both")
+    flag := Parameter(b, BOOL, RDI)
+    second := Blocks(b, 3)
+    Enter(b, second)
+    ids.branch2_ops[0] = BranchOn(b, RDI, flag, second + 2, second + 2)
+    Enter(b, second + 1)
+    ids.branch2_ops[1] = Unreachable(b)
+    Enter(b, second + 2)
+    ids.branch2_ops[2] = Return(b, -1, -1)
+    End(b, 0)
+
+    ids.loop = Begin(b, "loop")
+    limit := Parameter(b, S64, RDI)
+    count := Value(b, S64); step := Value(b, S64); next := Value(b, S64)
+    head := Blocks(b, 4)
+    Enter(b, head)
+    unused Constant(b, RAX, count, 0)
+    ids.loop_ops[0] = Jump(b, head + 1)
+    Enter(b, head + 1)
+    ids.loop_ops[1] = Fuel(b, 1)
+    ids.loop_ops[2] = Compare(b, RAX, count, RDI, limit, .Less)
+    ids.loop_ops[3] = BranchFlags(b, .Less, head + 2, head + 3)
+    Enter(b, head + 2)
+    unused Constant(b, RCX, step, 1)
+    ids.loop_ops[4] = Three(b, .IntegerAdd, RAX, next, RAX, count, RCX, step)
+    unused Two(b, .Move, RAX, count, RAX, next)
+    ids.loop_ops[5] = Jump(b, head + 1)
+    Enter(b, head + 3)
+    unused Return(b, RAX, count)
+    End(b, 0)
+
+    ids.fuel = Begin(b, "fuel")
+    Enter(b, Blocks(b, 1))
+    ids.fuel_ops[0] = Fuel(b, 1000)
+    ids.fuel_ops[1] = Fuel(b, 0x100000000)
+    unused Return(b, -1, -1)
+    End(b, 0)
+
+    unused Begin(b, "divide")
+    dividend := Parameter(b, S64, RDI); divisor := Parameter(b, S64, RSI)
+    quotient := Value(b, S64); remainder := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    ids.divide[0] = Two(b, .Move, RAX, dividend, RDI, dividend)
+    ids.divide[1] = Divide(b, .IntegerDivide, quotient, dividend, RSI, divisor)
+    ids.divide[2] = Two(b, .Move, RAX, dividend, RDI, dividend)
+    ids.divide[3] = Divide(b, .IntegerRemainder, remainder, dividend, RSI, divisor)
+    unused Return(b, RAX, remainder)
+    End(b, 0)
+
+    unused Begin(b, "unsigned-divide")
+    ua := Parameter(b, U32, RDI); unused Parameter(b, U32, RSI); uc := Parameter(b, U32, RDX)
+    modulo := Value(b, U32)
+    Enter(b, Blocks(b, 1))
+    ids.unsigned_divide[0] = Two(b, .Move, RAX, ua, RDI, ua)
+    ids.unsigned_divide[1] = Divide(b, .IntegerRemainder, modulo, ua, RDX, uc)
+    unused Return(b, RAX, modulo)
+    End(b, 0)
+
+    unused Begin(b, "shift")
+    sh_a := Parameter(b, S32, RDI); sh_b := Parameter(b, U64, RSI); sh_c := Parameter(b, S32, RDX)
+    sh_n := Parameter(b, S32, RCX)
+    arithmetic := Value(b, S32); logical := Value(b, U64); left := Value(b, S32)
+    Enter(b, Blocks(b, 1))
+    ids.shift[0] = Three(b, .ShiftRight, RDI, arithmetic, RDI, sh_a, RCX, sh_n)
+    ids.shift[1] = Three(b, .ShiftRight, RSI, logical, RSI, sh_b, RCX, sh_n)
+    ids.shift[2] = Three(b, .ShiftLeft, RDX, left, RDX, sh_c, RCX, sh_n)
+    unused Two(b, .Move, RAX, arithmetic, RDI, arithmetic)
+    unused Return(b, RAX, arithmetic)
+    End(b, 0)
+    b.entry = ids.answer
+}
+
+Basics :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    ids: Ids
+    BuildBasics(*b, *ids)
+    limits := MachineDefaultLimits()
+    verified := Apply(*b, .Verify, null, limits).diagnostic
+    if verified.problem != .None { Report("basics allocated verifier", verified); return false }
+    measured := Apply(*b, .Measure, null, limits)
+    if measured.diagnostic.problem != .None { Report("basics measure", measured.diagnostic); return false }
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    encoded := Apply(*b, .Encode, *owner, limits).diagnostic
+    if encoded.problem != .None { Report("basics encode", encoded); return false }
+    image := X64.MachineX64View(*owner)
+    if !Check(owner.valid && image.code.count == measured.code_bytes &&
+            image.relocations.count == measured.relocations, "measured size equals encoded size") ||
+        !Check(Apply(*b, .Validate, null, limits).diagnostic.problem == .None, "valid program validates") ||
+        !Check(Accounted(*b, image), "contiguous exact byte accounting") ||
+        !Check(image.entry == ids.answer, "image entry") { return false }
+
+    answer := image.functions[ids.answer]
+    if !Bytes(image.code, answer.begin, answer.end, "55 48 89 e5 b8 2a 00 00 00 c9 c3", "whole answer function") ||
+        !Check(answer.body == answer.begin + 4, "frameless prologue") { return false }
+
+    expected_arithmetic: [10]string = .["48 01 f7", "4d 29 c8", "4c 0f af c7", "4c 21 c7", "48 09 ca",
+        "48 31 d7", "48 f7 df", "49 f7 d1", "4d 89 ca", "48 89 f8"]
+    for index: 0..9 {
+        if !Instruction(image, ids.arithmetic[index], expected_arithmetic[index], "integer and REX.R/REX.B") { return false }
+    }
+    expected_narrow: [7]string = .["48 01 f7 48 63 ff", "48 01 ca 0f b6 d2", "48 89 d6 40 0f b6 f6",
+        "4d 0f af c1 45 0f b7 c0", "48 89 f8 48 0f be c0", "49 89 f2 4d 0f bf d2", "48 89 f9 8b c9"]
+    for index: 0..6 {
+        if !Instruction(image, ids.narrow[index], expected_narrow[index], "narrow normalization") { return false }
+    }
+
+    expected_constants: [11]string = .["31 c0", "45 31 c9", "b8 ff ff ff 7f", "41 bc 01 00 00 00",
+        "48 c7 c1 ff ff ff ff", "48 ba 89 67 45 23 01 00 00 00", "49 bf 00 00 00 00 01 00 00 00",
+        "48 c7 c6 ff ff ff ff", "bf ff 00 00 00", "48 c7 c0 00 00 00 80", "41 b8 01 00 00 00"]
+    for index: 0..10 {
+        if !Instruction(image, ids.constants[index], expected_constants[index], "immediate forms") { return false }
+    }
+    immediates := image.functions[ids.immediates]
+    if !Bytes(image.code, immediates.begin, immediates.body, "55 48 89 e5 48 83 ec 10 4c 89 65 f8 4c 89 7d f0",
+            "prologue with callee saves") ||
+        !Instruction(image, ids.immediates_return, "4c 8b 65 f8 4c 8b 7d f0 c9 c3", "epilogue restores callee saves") {
+        return false
+    }
+
+    stack := image.functions[ids.stack]
+    if !Bytes(image.code, stack.begin, stack.body, "55 48 89 e5 48 81 ec a0 00 00 00", "imm32 frame") { return false }
+    expected_stack: [8]string = .["48 89 7d 80", "89 b5 78 ff ff ff", "88 95 77 ff ff ff", "48 8b 45 80",
+        "48 63 8d 78 ff ff ff", "0f b6 b5 77 ff ff ff", "48 8d 7d 80", "4c 8d 0c 24"]
+    for index: 0..7 {
+        if !Instruction(image, ids.stack_ops[index], expected_stack[index], "stack offsets") { return false }
+    }
+    expected_memory: [11]string = .["49 89 fc", "49 89 fd", "49 8b 04 24", "49 63 4d 00", "44 0f b7 07",
+        "4d 0f be 0c 24", "41 88 34 24", "40 88 37", "66 41 89 55 00", "89 0f", "48 89 07"]
+    for index: 0..10 {
+        if !Instruction(image, ids.memory[index], expected_memory[index], "SIB and memory edges") { return false }
+    }
+
+    branch := image.functions[ids.branch]
+    if !Instruction(image, ids.branch_ops[0], "48 39 f7", "compare") ||
+        !Instruction(image, ids.branch_ops[1], "0f 92 c0 0f b6 c0", "unsigned set condition") ||
+        !Instruction(image, ids.branch_ops[2], "48 85 c0 0f 85 0a 00 00 00", "branch over fallthrough") ||
+        !Instruction(image, ids.branch_ops[3], "e9 05 00 00 00", "forward jump") ||
+        !Instruction(image, ids.branch_ops[4], "", "same-register move") ||
+        !Instruction(image, ids.branch_ops[5], "", "jump to next block") ||
+        !Check(branch.end - branch.begin == 39, "branch function size") { return false }
+    if !Instruction(image, ids.branch2_ops[0], "48 85 ff 0f 85 11 00 00 00 e9 0c 00 00 00", "two-way branch") ||
+        !Instruction(image, ids.branch2_ops[1], TRAP_UNREACHABLE, "unreachable trap") ||
+        !Instruction(image, ids.branch2_ops[2], "c9 c3", "void return") { return false }
+
+    loop := image.functions[ids.loop]
+    fuel_range := image.instructions[ids.loop_ops[1]]
+    if !Instruction(image, ids.loop_ops[0], "", "fallthrough into loop") ||
+        !Bytes(image.code, fuel_range.begin, fuel_range.end, "48 83 2d 00 00 00 00 01 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b", "fuel imm8") ||
+        !Instruction(image, ids.loop_ops[2], "48 39 f8", "loop compare") ||
+        !Instruction(image, ids.loop_ops[3], "0f 8d 0d 00 00 00", "signed inverse branch") ||
+        !Instruction(image, ids.loop_ops[4], "48 01 c8", "loop add") ||
+        !Instruction(image, ids.loop_ops[5], "e9 d4 ff ff ff", "backward jump") ||
+        !Check(Displacement(image.code, image.instructions[ids.loop_ops[5]].begin + 1) ==
+            image.blocks[b.functions[ids.loop].block_begin + 1] - image.instructions[ids.loop_ops[5]].end,
+            "backward jump reaches the loop head") ||
+        !Check(loop.end - loop.begin == 52, "loop function size") { return false }
+    if !Instruction(image, ids.fuel_ops[0], "48 81 2d 00 00 00 00 e8 03 00 00 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b", "fuel imm32") ||
+        !Instruction(image, ids.fuel_ops[1], "49 bb 00 00 00 00 01 00 00 00 4c 29 1d 00 00 00 00 73 0c bf 04 00 ff ff e8 00 00 00 00 0f 0b",
+            "fuel through scratch") { return false }
+
+    if !Instruction(image, ids.divide[0], "48 89 f8", "dividend move") ||
+        !Instruction(image, ids.divide[1], "48 85 f6 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 48 83 fe ff 75 05 48 f7 d8 eb 05 48 99 48 f7 fe", "signed divide") ||
+        !Instruction(image, ids.divide[3], "48 85 f6 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 48 83 fe ff 75 04 31 c0 eb 08 48 99 48 f7 fe 48 89 d0", "signed remainder") ||
+        !Instruction(image, ids.unsigned_divide[1], "49 89 d3 4d 85 db 75 0c bf 02 00 ff ff e8 00 00 00 00 0f 0b 31 d2 49 f7 f3 48 89 d0 8b c0", "unsigned remainder with divisor in rdx") ||
+        !Instruction(image, ids.shift[0], "48 83 f9 20 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 ff 48 63 ff", "sar s32") ||
+        !Instruction(image, ids.shift[1], "48 83 f9 40 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 ee", "shr u64") ||
+        !Instruction(image, ids.shift[2], "48 83 f9 20 72 0c bf 03 00 ff ff e8 00 00 00 00 0f 0b 48 d3 e2 48 63 d2", "shl s32") {
+        return false
+    }
+
+    // Relocations: every inline trap calls the handler and every fuel check
+    // names the counter, at the exact field offsets.
+    fuel_counters: s64 = 0
+    traps: s64 = 0
+    for relocation: image.relocations {
+        if relocation.kind == .FuelCounter { fuel_counters += 1 }
+        if relocation.kind == .TrapHandler {
+            traps += 1
+            if !Check(relocation.addend == -4 && image.code[relocation.offset - 1] == 232, "trap handler call field") {
+                return false
+            }
+        }
+    }
+    if !Check(fuel_counters == 3 && traps == 10, "relocation counts") ||
+        !Check(image.relocations[0].kind == .TrapHandler && image.relocations[0].instruction == ids.branch2_ops[1],
+            "unreachable trap relocation first") { return false }
+    found := false
+    for index: cast(s64)0..image.relocations.count - 1 {
+        relocation := image.relocations[index]
+        if relocation.kind == .FuelCounter && relocation.instruction == ids.loop_ops[1] {
+            trap := image.relocations[index + 1]
+            found = Check(relocation.offset == fuel_range.begin + 3 && relocation.addend == -5 &&
+                trap.kind == .TrapHandler && trap.offset == fuel_range.begin + 16 && trap.instruction == ids.loop_ops[1],
+                "fuel counter and fuel trap relocation offsets")
+            if !found { return false }
+        }
+        if relocation.kind == .FuelCounter && relocation.instruction == ids.fuel_ops[0] &&
+            !Check(relocation.offset == image.instructions[ids.fuel_ops[0]].begin + 3 && relocation.addend == -8,
+                "imm32 fuel relocation") { return false }
+        if relocation.kind == .FuelCounter && relocation.instruction == ids.fuel_ops[1] &&
+            !Check(relocation.offset == image.instructions[ids.fuel_ops[1]].begin + 13 && relocation.addend == -4,
+                "register fuel relocation") { return false }
+    }
+    if !Check(found, "loop fuel relocation present") { return false }
+
+    second: X64.MachineX64Owner
+    defer X64.MachineX64Free(*second)
+    if !Check(Apply(*b, .Encode, *second, limits).diagnostic.problem == .None &&
+        Fingerprint(X64.MachineX64View(*second)) == Fingerprint(image), "deterministic encoding") { return false }
+    return true
+}
+
+Calls :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    Setup(*b)
+    callee := Begin(*b, "callee")
+    ca := Parameter(*b, S64, RDI)
+    Enter(*b, Blocks(*b, 1))
+    unused Fuel(*b, 1)
+    unused Two(*b, .Move, RAX, ca, RDI, ca)
+    unused Return(*b, RAX, ca)
+    End(*b, 0)
+
+    caller := Begin(*b, "caller")
+    values: [8]s32
+    types: [8]s32 = .[S64, S64, S64, S64, FUNCTION, S64, S64, POINTER]
+    for index: 0..7 { values[index] = Value(*b, types[index]) }
+    Enter(*b, Blocks(*b, 1))
+    unused Constant(*b, RDI, values[0], 5)
+    backward := CallTo(*b, callee, -1, -1, values[1], RDI, values[0])
+    unused Constant(*b, RDI, values[2], 6)
+    forward := CallTo(*b, callee + 2, -1, -1, values[3], RDI, values[2])
+    address := AddressOf(*b, .FunctionAddress, RCX, values[4], callee, 0)
+    unused Constant(*b, RDI, values[5], 7)
+    indirect := CallTo(*b, -1, RCX, values[4], values[6], RDI, values[5])
+    global := AddressOf(*b, .GlobalAddress, RDX, values[7], 0, 8)
+    unused Return(*b, RAX, values[6])
+    End(*b, 0)
+
+    later := Begin(*b, "later")
+    la := Parameter(*b, S64, RDI)
+    Enter(*b, Blocks(*b, 1))
+    unused Fuel(*b, 1)
+    unused Two(*b, .Move, RAX, la, RDI, la)
+    unused Return(*b, RAX, la)
+    End(*b, 0)
+
+    failing := Begin(*b, "failing")
+    Enter(*b, Blocks(*b, 1))
+    explicit := Trap(*b, 9)
+    End(*b, 0)
+    b.entry = caller
+
+    limits := MachineDefaultLimits()
+    verified := Apply(*b, .Verify, null, limits).diagnostic
+    if verified.problem != .None { Report("calls allocated verifier", verified); return false }
+    owner: X64.MachineX64Owner
+    defer X64.MachineX64Free(*owner)
+    encoded := Apply(*b, .Encode, *owner, limits).diagnostic
+    if encoded.problem != .None { Report("calls encode", encoded); return false }
+    image := X64.MachineX64View(*owner)
+    measured := Apply(*b, .Measure, null, limits)
+    if !Check(measured.code_bytes == 125 && image.code.count == 125 && measured.relocations == 6,
+            "call image size") ||
+        !Check(Accounted(*b, image), "call image accounting") ||
+        !Check(image.functions[caller].begin == 31 && image.functions[later].begin == 78 &&
+            image.functions[failing].begin == 109, "function offsets") ||
+        !Instruction(image, backward, "e8 d3 ff ff ff", "backward direct call") ||
+        !Instruction(image, forward, "e8 17 00 00 00", "forward direct call") ||
+        !Check(Displacement(image.code, image.instructions[forward].begin + 1) ==
+            image.functions[later].begin - image.instructions[forward].end, "forward call reaches callee") ||
+        !Instruction(image, address, "48 8d 0d c2 ff ff ff", "rip-relative function address") ||
+        !Instruction(image, indirect, "ff d1", "indirect call") ||
+        !Instruction(image, global, "48 8d 15 00 00 00 00", "relocated global address") ||
+        !Instruction(image, explicit, "bf 09 00 00 00 e8 00 00 00 00 0f 0b", "explicit trap") { return false }
+    kinds: [6]X64.MachineX64RelocationKind = .[.FuelCounter, .TrapHandler, .GlobalAddress,
+        .FuelCounter, .TrapHandler, .TrapHandler]
+    offsets: [6]s64 = .[7, 20, 72, 85, 98, 119]
+    addends: [6]s64 = .[-5, -4, 4, -5, -4, -4]
+    for index: 0..5 {
+        relocation := image.relocations[index]
+        if !Check(relocation.kind == kinds[index] && relocation.offset == offsets[index] &&
+            relocation.addend == addends[index], "call image relocation") {
+            print("relocation %: kind % offset % addend %\n", index, cast(s32)relocation.kind,
+                relocation.offset, relocation.addend)
+            return false
+        }
+    }
+    return Check(image.relocations[2].symbol == 0 && image.relocations[2].instruction == global,
+        "global relocation symbol")
+}
+
+NegativeKind :: enum s32 {
+    Tie; ShiftCount; DivideRegister; DivideClobber; FloatValue; CallRegister; StackArguments
+    MissingRelocation; DuplicateRelocation; ReservedTrap; FuelFlags; DynamicFrame; HugeFrame; Opcode; Stage; Target
+    FloatArgument; FloatResult; GlobalAddendHigh; GlobalAddendLow
+}
+
+// Defects MachineVerifyAllocated itself rejects, so no encoder pass runs:
+// unimplemented call forms, relocation addends the target cannot hold, the
+// stage and the target.
+Early :: (kind: NegativeKind) -> bool {
+    return kind == .StackArguments || kind == .FloatArgument || kind == .FloatResult ||
+        kind == .GlobalAddendHigh || kind == .GlobalAddendLow || kind == .Stage || kind == .Target
+}
+
+// A small allocated program with one defect. Early kinds fail the allocated
+// verifier; every other kind passes it and the encoder must reject it.
+BuildNegative :: (b: *Builder, kind: NegativeKind) -> s32 {
+    Setup(b)
+    if kind == .CallRegister || kind == .StackArguments || kind == .MissingRelocation || kind == .DuplicateRelocation ||
+        kind == .FloatArgument || kind == .FloatResult {
+        callee := Begin(b, "callee")
+        Enter(b, Blocks(b, 1))
+        unused Fuel(b, 1)
+        unused Return(b, -1, -1)
+        End(b, 0)
+        unused Begin(b, "caller")
+        register: s32 = ifx kind == .CallRegister then cast(s32)RSI else RDI
+        if kind == .FloatArgument { register = 0 }
+        argument := Parameter(b, ifx kind == .FloatArgument then F64 else S64, register)
+        result: s32 = -1
+        if kind == .FloatResult { result = Value(b, F64) }
+        if kind == .StackArguments { unused Object(b, .OutgoingArgument, 16, 0, -1, VOID) }
+        Enter(b, Blocks(b, 1))
+        id := CallTo(b, callee, -1, -1, result, register, ifx kind == .StackArguments then -1 else argument,
+            relocated = kind != .MissingRelocation, stack_bytes = ifx kind == .StackArguments then 16 else 0)
+        if kind == .DuplicateRelocation { unused VecPush(b.relocations, b.relocations[b.relocations.count - 1]) }
+        unused Return(b, -1, -1)
+        End(b, ifx kind == .StackArguments then cast(s64)16 else 0, ifx kind == .StackArguments then cast(s64)16 else 0)
+        return id
+    }
+    unused Begin(b, "negative")
+    first := Parameter(b, ifx kind == .FloatValue then F64 else S64, ifx kind == .FloatValue then 0 else RDI)
+    second := Parameter(b, S64, RSI)
+    result := Value(b, S64)
+    Enter(b, Blocks(b, 1))
+    id: s32 = -1
+    if kind == .Tie || kind == .Opcode || kind == .Stage || kind == .Target {
+        id = Three(b, ifx kind == .Opcode then MachineOpcode.FloatAdd else .IntegerAdd, RAX, result, RDI, first, RSI, second)
+    } else if kind == .ShiftCount {
+        id = Three(b, .ShiftLeft, RDI, result, RDI, first, RSI, second)
+        unused Two(b, .Move, RAX, result, RDI, result)
+    } else if kind == .DivideRegister {
+        id = Divide(b, .IntegerDivide, result, first, RSI, second)
+        b.operands[b.instructions[id].operand_begin + 1].id = RDI
+    } else if kind == .DivideClobber {
+        unused Two(b, .Move, RAX, first, RDI, first)
+        id = Three(b, .IntegerDivide, RAX, result, RAX, first, RSI, second)
+    } else if kind == .FloatValue {
+        id = Return(b, 0, first)
+        End(b, 0)
+        return id
+    } else if kind == .ReservedTrap {
+        id = Trap(b, X64.MachineX64TrapFuel)
+        End(b, 0)
+        return id
+    } else if kind == .FuelFlags {
+        unused Fuel(b, 1)
+        id = SetCondition(b, RAX, result, .Equal)
+    } else if kind == .DynamicFrame || kind == .HugeFrame {
+        id = Constant(b, RAX, result, 1)
+    } else if kind == .GlobalAddendHigh || kind == .GlobalAddendLow {
+        id = AddressOf(b, .GlobalAddress, RAX, result, 0,
+            ifx kind == .GlobalAddendHigh then cast(s64)2147483648 else -2147483649)
+    }
+    unused Return(b, RAX, result)
+    End(b, ifx kind == .HugeFrame then cast(s64)2147483648 else 0)
+    if kind == .DynamicFrame {
+        frame := b.frames[0]
+        frame.dynamic_allocation = true
+        b.frames[0] = frame
+        instruction := b.instructions[id]
+        instruction.opcode = .Allocate
+        b.instructions[id] = instruction
+    }
+    if kind == .Stage { b.stage = .Virtual }
+    if kind == .Target { b.target = TargetDescribe(.AArch64, .Linux).target }
+    return id
+}
+
+Negative :: (kept: *X64.MachineX64Owner, kind: NegativeKind, problem: MachineProblem, at_instruction: bool,
+    label: string) -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    id := BuildNegative(*b, kind)
+    limits := MachineDefaultLimits()
+    before := Fingerprint(X64.MachineX64View(kept))
+    count := X64.MachineX64View(kept).code.count
+    verified := Apply(*b, .Verify, null, limits).diagnostic
+    if Early(kind) {
+        if verified.problem != problem || at_instruction && verified.instruction != id {
+            Report(label, verified)
+            return Check(false, "unsupported form is rejected by the allocated verifier")
+        }
+        if kind == .FloatArgument && verified.operand != b.calls[0].argument_begin ||
+            kind == .FloatResult && verified.operand != b.calls[0].result_operand ||
+            (kind == .GlobalAddendHigh || kind == .GlobalAddendLow) &&
+                verified.operand != b.relocations[b.relocations.count - 1].operand {
+            Report(label, verified)
+            return Check(false, "unsupported form names its operand")
+        }
+    } else if verified.problem != .None {
+        Report(label, verified)
+        return Check(false, "negative fixture passes the allocated verifier")
+    }
+    validated := Apply(*b, .Validate, null, limits).diagnostic
+    measured := Apply(*b, .Measure, null, limits)
+    encoded := Apply(*b, .Encode, kept, limits).diagnostic
+    if validated.problem != problem || measured.diagnostic.problem != problem || encoded.problem != problem ||
+        at_instruction && (validated.instruction != id || encoded.instruction != id) {
+        Report(label, validated)
+        return Check(false, label)
+    }
+    return Check(kept.valid && X64.MachineX64View(kept).code.count == count &&
+        Fingerprint(X64.MachineX64View(kept)) == before, "rejected program leaves the output unchanged")
+}
+
+Negatives :: () -> bool {
+    b: Builder
+    defer BuilderFree(*b)
+    ids: Ids
+    BuildBasics(*b, *ids)
+    limits := MachineDefaultLimits()
+    kept: X64.MachineX64Owner
+    defer X64.MachineX64Free(*kept)
+    if !Check(Apply(*b, .Encode, *kept, limits).diagnostic.problem == .None, "kept image encodes") { return false }
+    if !Negative(*kept, .Tie, .Tie, true, "two-address result in another register") ||
+        !Negative(*kept, .ShiftCount, .Constraint, true, "shift count outside cl") ||
+        !Negative(*kept, .DivideRegister, .Constraint, true, "dividend outside rax") ||
+        !Negative(*kept, .DivideClobber, .Unsupported, true, "divide without rdx clobber") ||
+        !Negative(*kept, .FloatValue, .Unsupported, true, "float register value") ||
+        !Negative(*kept, .CallRegister, .Constraint, true, "call argument outside its ABI register") ||
+        !Negative(*kept, .StackArguments, .Unsupported, true, "stack call arguments") ||
+        !Negative(*kept, .FloatArgument, .Unsupported, true, "float call argument") ||
+        !Negative(*kept, .FloatResult, .Unsupported, true, "float call result") ||
+        !Negative(*kept, .GlobalAddendHigh, .Relocation, true, "global address addend above i32") ||
+        !Negative(*kept, .GlobalAddendLow, .Relocation, true, "global address addend below i32") ||
+        !Negative(*kept, .MissingRelocation, .Relocation, true, "direct call without relocation") ||
+        !Negative(*kept, .DuplicateRelocation, .Relocation, true, "two relocations for one call") ||
+        !Negative(*kept, .ReservedTrap, .Unsupported, true, "reserved trap code") ||
+        !Negative(*kept, .FuelFlags, .Flags, true, "condition read from fuel flags") ||
+        !Negative(*kept, .DynamicFrame, .Frame, false, "dynamic frame allocation") ||
+        !Negative(*kept, .HugeFrame, .Frame, false, "frame beyond imm32") ||
+        !Negative(*kept, .Opcode, .Unsupported, true, "unsupported opcode") ||
+        !Negative(*kept, .Stage, .Stage, false, "virtual stage") ||
+        !Negative(*kept, .Target, .UnsupportedTarget, false, "unsupported target") { return false }
+
+    // Limits: a code budget smaller than the image, and too little work.
+    small := limits; small.work = 10
+    before := Fingerprint(X64.MachineX64View(*kept))
+    if !Check(Apply(*b, .Encode, *kept, small).diagnostic.problem == .Limit &&
+        Fingerprint(X64.MachineX64View(*kept)) == before, "work limit leaves the output unchanged") { return false }
+    if !Check(Apply(*b, .Encode, null, limits).diagnostic.problem == .Owner, "missing owner") { return false }
+
+    X64.MachineX64Free(*kept)
+    X64.MachineX64Free(*kept)
+    view := X64.MachineX64View(*kept)
+    return Check(!kept.valid && view.code.count == 0 && view.entry == -1, "repeated cleanup")
+}
+
+main :: () -> s32 {
+    if !Basics() || !Calls() || !Negatives() { return 1 }
+    print("x86 encoder: exact bytes, REX/ModRM/SIB, immediates, frames, displacements, relocations, fuel, traps, pre-encoding rejection of unsupported call forms and addends, no-output diagnostics and ownership local tests passed\n")
+    return 0
+}

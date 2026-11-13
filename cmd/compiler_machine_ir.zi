@@ -1,7 +1,7 @@
 using Target :: #import "compiler_target"
 using Vectors :: #import "std/vec"
 
-MachineVersion :: 1
+MachineVersion :: 2
 MachineNoId :: -1
 
 MachineRegisterClass :: enum s32 {
@@ -13,6 +13,11 @@ MachineOperandKind :: enum s32 {
 }
 
 MachineOperandRole :: enum s32 { Invalid; Use; Define; UseDefine }
+
+// A program starts in the Virtual stage. RegAllocAllocate publishes the
+// Allocated stage: no Virtual operands, resolved edge copies, one frame per
+// function and explicit spill/reload records.
+MachineStage :: enum s32 { Virtual; Allocated }
 
 MachineOpcode :: enum s32 {
     Invalid
@@ -26,6 +31,9 @@ MachineOpcode :: enum s32 {
     Load; Store; FieldAddress; ElementAddress
     CallDirect; CallIndirect
     Fuel; Trap; Jump; Branch; Return; Unreachable
+    // Allocator-inserted, flag-preserving transfers. Spill stores a register
+    // into a stack object; Reload loads one into a register.
+    Spill; Reload
 }
 
 MachineCondition :: enum s32 {
@@ -34,11 +42,18 @@ MachineCondition :: enum s32 {
 
 MachineRelocationKind :: enum s32 {
     Invalid; FunctionAddress; FunctionCall; GlobalAddress
+    // The instance fuel counter read and decremented by a Fuel check.
+    FuelCounter
 }
 
 MachineStackKind :: enum s32 {
     Invalid; Value; Local; IncomingArgument; OutgoingArgument; Spill
+    // Allocation frame storage: callee-saved register homes and the
+    // temporaries that break parallel-copy cycles.
+    CalleeSave; Temporary
 }
+
+MachineSpillReason :: enum s32 { Invalid; Pressure; Call; Fixed; Parameter; Cycle }
 
 MachineCalling :: enum s32 { Invalid; Internal; C; System; Host }
 
@@ -51,6 +66,10 @@ MachineOperand :: struct {
     fixed_register: s32
     tied_to: s32
     immediate: u64
+    // The SSA virtual this operand reads or writes, or MachineNoId. Allocation
+    // keeps it on the physical and stack-object operands that replace a
+    // virtual so the allocated verifier can check every value location.
+    value: s32
 }
 
 MachineInstruction :: struct {
@@ -92,6 +111,39 @@ MachineStackObject :: struct {
     size: s64
     alignment: s32
     type: s32
+    origin: s32
+    // Allocated stage: IncomingArgument offsets are from the frame pointer
+    // (at least 16), OutgoingArgument offsets are from the stack pointer at
+    // the call (0), and every other object is at a negative frame-pointer
+    // offset inside the frame.
+    offset: s64
+    // Spill: the virtual it holds. CalleeSave: the saved physical register.
+    value: s32
+}
+
+// One frame per function in the Allocated stage. The frame pointer is pushed
+// on entry; `size` bytes below it hold callee-save homes, values, spills and
+// temporaries, with `outgoing_size` bytes of stack arguments at the bottom.
+MachineFrame :: struct {
+    function: s32
+    size: s64
+    alignment: s32
+    outgoing_size: s64
+    incoming_size: s64
+    callee_saved_general: u64
+    callee_saved_float: u64
+    dynamic_allocation: bool
+}
+
+// Every Spill and Reload instruction with the value, slot, register, reason
+// and nearest source origin that caused it.
+MachineSpill :: struct {
+    function: s32
+    instruction: s32
+    virtual: s32
+    stack_object: s32
+    register: s32
+    reason: MachineSpillReason
     origin: s32
 }
 
@@ -198,6 +250,12 @@ MachineProgram :: struct {
     relocations: []MachineRelocation
     calls: []MachineCall
     entry: s32
+    stage: MachineStage
+    frames: []MachineFrame
+    spills: []MachineSpill
+    // Allocated stage: registers reserved for transfers through memory.
+    scratch_general: s32
+    scratch_float: s32
 }
 
 MachineLimits :: struct {
@@ -222,6 +280,8 @@ MachineProblem :: enum s32 {
     None; Owner; Target; UnsupportedTarget; VerifyInput; Limit; Allocation
     Version; Source; Origin; Function; Block; Virtual; Instruction; Operand
     Constraint; Flags; Call; Stack; Edge; Copy; Relocation; Unsupported
+    // Allocation and allocated-program failures.
+    Stage; Fuel; Undefined; Interference; Clobber; Tie; Frame; Pressure; Cycle; Spill
 }
 
 MachineDiagnostic :: struct {
@@ -264,6 +324,8 @@ MachineOwner :: struct {
     stack_objects: Vec(MachineStackObject)
     relocations: Vec(MachineRelocation)
     calls: Vec(MachineCall)
+    frames: Vec(MachineFrame)
+    spills: Vec(MachineSpill)
 }
 
 #scope_export

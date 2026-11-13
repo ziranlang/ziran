@@ -111,7 +111,7 @@
   "harnesses": {
     "bench/json_text.py": "6770ad977f75c00f0d599151daa4ffb1ae0a3e1d99e629d0545be916ee09c2c8",
     "scripts/site_target_platforms.py": "a3c73c8f7a2f11bc9729321c765fc6f3ef224559fd9a9ee90f78922d70b99a7c",
-    "scripts/site_targets.py": "17c94cbd9ea73e6027260a4c1066fb627169f41ce555d6d9295175b631ab6ded",
+    "scripts/site_targets.py": "2b05b2bb130606efc0801b9b73dac41631920c851f455ce6c86faba4162fe2be",
     "scripts/benchmark_samples.py": "28f53003eb06fae7180a3ecc65c35ea56e9e76a48aa316bf957fa5f99897cc66",
     "scripts/site_target_node.cjs": "b500e2b406e6a05bde8056f8c657fb0e34c2c5997ba20fdbfbc8e1a020294202",
     "bench/site_target_host.c": "f9655f005582f8ffb6c95561884f8aaa96ca47fefd5426d7c3293f9146457c8e",

@@ -605,8 +605,8 @@ struct BundleInstance {
     ZxNative *native;
 #endif
     VmInstance *vm;
-    /* Present when a wasm provider is installed and the bundle lowered;
-     * otherwise the instance runs on the portable VM above. */
+    /* Present when the host selected its installed wasm provider. Provider
+     * rejection is an instantiation error; it never selects the VM. */
     ZxWasm *wasm;
 };
 
@@ -805,16 +805,19 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
         return NULL;
     }
 #endif
-    /* With a wasm provider installed, the wasm tier takes the bundles it
-     * can lower and the portable VM takes the rest; without one, every
-     * bundle runs on the VM exactly as before. */
+    /* A host that installs the wasm provider selects that engine. Lowering
+     * or provider rejection is an error and must not start another engine.
+     * Hosts configured without the provider use their VM mode below. */
     if(ZxWasmPlatformActive() != NULL) {
         instance->wasm = ZxWasmOpen(bundle->program, bundle->entry_owner,
                                     bundle->entry, bundle->capabilities,
                                     bundle->capability_count, dispatch,
                                     &instance->set);
-        if(instance->wasm != NULL)
-            return instance;
+        if(instance->wasm == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        return instance;
     }
     instance->vm = VmInstanceOpenVerified(bundle->program, bundle->entry_owner,
                                            bundle->entry, dispatch, &instance->set);

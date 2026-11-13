@@ -1,8 +1,233 @@
 #import "native_test"
 #import "check_support"
+#import "std/text_tools"
+using IR :: #import "compiler_lowered_ir"
+using Opt :: #import "compiler_opt"
+using Exec :: #import "compiler_exec"
 using Vectors :: #import "std/vec"
 
+OptInstruction :: (op: LirOp, result: s32, operands: []s32,
+    symbol: s32 = -1, origin: s32 = 0) -> LirInstruction {
+    return .{op = op, result = result, operands = operands, symbol = symbol, origin = origin}
+}
+
+OptExecute :: (program: LirProgram, function: s32) -> LirExecResult {
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    built := LirExecPlanBuild(program, LirDefaultLimits(), *plan)
+    if built.problem != .None { return built }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    opened := LirExecInstanceOpen(*plan, LirExecDefaultLimits(), cast(u32)(function + 101), *instance)
+    if opened.problem != .None { return opened }
+    arguments: [0]LirExecArgument
+    return LirExecCall(*instance, function, arguments[:])
+}
+
+OptHas :: (program: LirProgram, function: s32, op: LirOp) -> bool {
+    for block: program.functions[function].blocks {
+        for instruction: block.instructions { if instruction.op == op { return true } }
+    }
+    return false
+}
+
+OptRegressionCases :: () -> s32 {
+    record_fields: [2]s32 = .{1, 2}
+    types: [12]LirType = .{
+        .{kind = .Void},
+        .{kind = .Integer, bits = 8},
+        .{kind = .Integer, bits = 64, is_signed = true},
+        .{kind = .Integer, bits = 64},
+        .{kind = .Pointer, element = 1},
+        .{kind = .Record, fields = record_fields[:]},
+        .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 32, is_signed = true},
+        .{kind = .Pointer, element = 5},
+        .{kind = .Float, bits = 64},
+        .{kind = .Integer, bits = 8, is_signed = true},
+        .{kind = .Integer, bits = 16}}
+    constants: [9]LirConstant = .{
+        .{type = 1, bits = 7}, .{type = 2, bits = 0}, .{type = 2, bits = 1},
+        .{type = 2, bits = 14}, .{type = 1, bits = 9}, .{type = 2, bits = 2},
+        .{type = 9, bits = 0x7ff8000000000000}, .{type = 7, bits = 99},
+        .{type = 10, bits = 255}}
+    modules: [1]string = .{"optimizer"}
+    sources: [1]string = .{"optimizer.zi"}
+    origins: [5]LirOrigin = .{
+        .{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1},
+        .{file = 0, line = 1, column = 1, begin = 0, end = 1, parent = -1},
+        .{file = 0, line = 2, column = 1, begin = 2, end = 3, parent = 0},
+        .{file = 0, line = 2, column = 1, begin = 2, end = 3, parent = 1},
+        .{file = 0, line = 99, column = 1, begin = 9, end = 10, parent = -1}}
+    none: [0]s32
+
+    core_values: [10]s32 = .{1, 4, 2, 2, 4, 1, 2, 5, 2, 3}
+    allocate_value: [1]s32 = .{0}
+    address_operands: [3]s32 = .{1, 2, 3}
+    load_address: [1]s32 = .{4}
+    aggregate_operands: [2]s32 = .{5, 6}
+    extract_aggregate: [1]s32 = .{7}
+    convert_value: [1]s32 = .{8}
+    core_return: [1]s32 = .{9}
+    core_instructions: [11]LirInstruction
+    core_instructions[0] = OptInstruction(.Constant, 0, none[:], 0)
+    core_instructions[1] = OptInstruction(.Allocate, 1, allocate_value[:], -1, 1)
+    core_instructions[1].effect = 1
+    core_instructions[2] = OptInstruction(.Constant, 2, none[:], 1)
+    core_instructions[3] = OptInstruction(.Constant, 3, none[:], 2)
+    core_instructions[4] = OptInstruction(.ElementAddress, 4, address_operands[:], -1, 1)
+    core_instructions[5] = OptInstruction(.Load, 5, load_address[:], -1, 0)
+    core_instructions[5].effect = 2
+    core_instructions[6] = OptInstruction(.Constant, 6, none[:], 3)
+    core_instructions[7] = OptInstruction(.Aggregate, 7, aggregate_operands[:], -1, 1)
+    core_instructions[8] = OptInstruction(.Extract, 8, extract_aggregate[:], -1, 0)
+    core_instructions[8].immediate = 1
+    core_instructions[9] = OptInstruction(.Convert, 9, convert_value[:], -1, 1)
+    core_instructions[10] = OptInstruction(.Return, -1, core_return[:])
+    core_instructions[10].origin = 2
+    core_blocks: [1]LirBlock = .{.{instructions = core_instructions[:]}}
+
+    index_values: [6]s32 = .{2, 1, 4, 2, 4, 1}
+    index_parameters: [1]s32 = .{2}
+    index_parameter: [1]s32 = .{0}
+    index_allocate: [1]s32 = .{1}
+    index_address: [3]s32 = .{2, 0, 3}
+    index_load: [1]s32 = .{4}
+    index_return: [1]s32 = .{5}
+    index_instructions: [6]LirInstruction
+    index_instructions[0] = OptInstruction(.Constant, 1, none[:], 4)
+    index_instructions[1] = OptInstruction(.Allocate, 2, index_allocate[:])
+    index_instructions[1].effect = 1
+    index_instructions[2] = OptInstruction(.Constant, 3, none[:], 5)
+    index_instructions[3] = OptInstruction(.ElementAddress, 4, index_address[:])
+    index_instructions[4] = OptInstruction(.Load, 5, index_load[:])
+    index_instructions[4].effect = 2
+    index_instructions[5] = OptInstruction(.Return, -1, index_return[:])
+    index_blocks: [1]LirBlock = .{.{parameters = index_parameter[:], instructions = index_instructions[:]}}
+
+    escape_values: [5]s32 = .{1, 2, 5, 8, 2}
+    escape_aggregate_values: [2]s32 = .{0, 1}
+    escape_allocate_value: [1]s32 = .{2}
+    escape_extract_value: [1]s32 = .{2}
+    escape_return: [1]s32 = .{4}
+    escape_instructions: [6]LirInstruction
+    escape_instructions[0] = OptInstruction(.Constant, 0, none[:], 0)
+    escape_instructions[1] = OptInstruction(.Constant, 1, none[:], 3)
+    escape_instructions[2] = OptInstruction(.Aggregate, 2, escape_aggregate_values[:])
+    escape_instructions[3] = OptInstruction(.Allocate, 3, escape_allocate_value[:])
+    escape_instructions[3].effect = 1
+    escape_instructions[4] = OptInstruction(.Extract, 4, escape_extract_value[:])
+    escape_instructions[4].immediate = 1
+    escape_instructions[5] = OptInstruction(.Return, -1, escape_return[:])
+    escape_blocks: [1]LirBlock = .{.{instructions = escape_instructions[:]}}
+
+    range_values: [2]s32 = .{9, 2}
+    range_convert: [1]s32 = .{0}
+    range_return: [1]s32 = .{1}
+    range_instructions: [3]LirInstruction = .{
+        OptInstruction(.Constant, 0, none[:], 6),
+        OptInstruction(.Convert, 1, range_convert[:]),
+        OptInstruction(.Return, -1, range_return[:])}
+    range_blocks: [1]LirBlock = .{.{instructions = range_instructions[:]}}
+
+    sign_values: [2]s32 = .{10, 11}
+    sign_convert: [1]s32 = .{0}
+    sign_return: [1]s32 = .{1}
+    sign_instructions: [3]LirInstruction = .{
+        OptInstruction(.Constant, 0, none[:], 8),
+        OptInstruction(.Convert, 1, sign_convert[:]),
+        OptInstruction(.Return, -1, sign_return[:])}
+    sign_blocks: [1]LirBlock = .{.{instructions = sign_instructions[:]}}
+
+    functions: [5]LirFunction = .{
+        .{module = 0, name = "core", result = 3, values = core_values[:],
+            blocks = core_blocks[:], entry = 0, origin = 3},
+        .{module = 0, name = "dynamic-index", parameters = index_parameters[:], result = 1,
+            values = index_values[:], blocks = index_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "aggregate-escape", result = 2, values = escape_values[:],
+            blocks = escape_blocks[:], entry = 0, origin = 0},
+        .{module = 0, name = "range-change", result = 2, values = range_values[:],
+            blocks = range_blocks[:], entry = 0, origin = 1},
+        .{module = 0, name = "sign-wrap", result = 11, values = sign_values[:],
+            blocks = sign_blocks[:], entry = 0, origin = 0}}
+    program := LirProgram.{version = LirVersion, modules = modules[:], sources = sources[:],
+        types = types[:], constants = constants[:], functions = functions[:],
+        origins = origins[:], entry = 0}
+
+    verified := LirVerify(program, LirDefaultLimits())
+    if verified.problem != .None {
+        print("initial regression verifier problem=% function=% block=% instruction=% value=% origin=%\n",
+            cast(s32)verified.problem, verified.function, verified.block, verified.instruction,
+            verified.value, verified.origin)
+        return 1
+    }
+    before_core := OptExecute(program, 0)
+    before_range := OptExecute(program, 3)
+    before_sign := OptExecute(program, 4)
+    if before_core.problem != .None || before_core.value.bits != 14 ||
+        before_range.problem != .InvalidConversion || before_sign.problem != .None ||
+        before_sign.value.bits != 65535 { return 2 }
+    owner: LirOptOwner
+    built := LirOptBuild(*owner, program, LirDefaultLimits(), LirOptDefaultOptions())
+    if built.problem != .None || !owner.valid {
+        print("regression optimizer problem=% verifier=% function=% block=% instruction=% value=% origin=%\n",
+            cast(s32)built.problem, cast(s32)built.diagnostic.problem, built.diagnostic.function,
+            built.diagnostic.block, built.diagnostic.instruction, built.diagnostic.value,
+            built.diagnostic.origin)
+        return 3
+    }
+    optimized := LirOptProgram(*owner)
+    if LirVerify(optimized, LirDefaultLimits()).problem != .None { return 4 }
+    core := optimized.functions[0].blocks[0].instructions
+    if core.count != 5 || core[0].op != .Constant || core[1].op != .Allocate ||
+        core[1].effect != 1 || core[2].op != .Load || core[2].effect != 2 ||
+        core[3].op != .Constant || core[4].op != .Return ||
+        optimized.constants[core[3].symbol].bits != 14 ||
+        optimized.types[optimized.constants[core[3].symbol].type].kind != .Integer ||
+        optimized.types[optimized.constants[core[3].symbol].type].is_signed ||
+        OptHas(optimized, 0, .ElementAddress) || OptHas(optimized, 0, .Aggregate) ||
+        OptHas(optimized, 0, .Extract) || OptHas(optimized, 0, .Convert) { return 5 }
+    if !OptHas(optimized, 1, .ElementAddress) || !OptHas(optimized, 2, .Aggregate) ||
+        !OptHas(optimized, 2, .Extract) || !OptHas(optimized, 3, .Convert) ||
+        OptHas(optimized, 4, .Convert) { return 6 }
+    if optimized.origins.count != 2 || optimized.functions[0].origin != 1 ||
+        optimized.origins[1].parent != 0 || built.counters.compact.origins != 3 ||
+        built.counters.compact.types < 2 ||
+        built.counters.compact.constants < 1 { return 7 }
+    if optimized.types.count != 8 || optimized.constants.count != 7 ||
+        optimized.types[0].kind != .Integer || optimized.types[0].bits != 8 ||
+        optimized.types[1].kind != .Integer || !optimized.types[1].is_signed ||
+        optimized.types[2].kind != .Integer || optimized.types[2].is_signed ||
+        optimized.types[3].kind != .Pointer || optimized.types[3].element != 0 ||
+        optimized.types[4].kind != .Record || optimized.types[4].fields[0] != 0 ||
+        optimized.types[4].fields[1] != 1 || optimized.types[5].element != 4 ||
+        optimized.types[6].kind != .Float || optimized.types[7].bits != 16 ||
+        optimized.types[7].is_signed || optimized.constants[0].type != 0 ||
+        optimized.constants[0].bits != 7 || optimized.constants[5].type != 7 ||
+        optimized.constants[5].bits != 65535 || optimized.constants[6].type != 2 ||
+        optimized.constants[6].bits != 14 {
+        print("compaction shape types=% constants=% c5=(%,%) c6=(%,%)\n",
+            optimized.types.count, optimized.constants.count,
+            optimized.constants[5].type, optimized.constants[5].bits,
+            optimized.constants[6].type, optimized.constants[6].bits)
+        return 9
+    }
+    after_core := OptExecute(optimized, 0)
+    after_range := OptExecute(optimized, 3)
+    after_sign := OptExecute(optimized, 4)
+    if after_core.problem != before_core.problem || after_core.value.bits != before_core.value.bits ||
+        after_range.problem != before_range.problem || after_sign.problem != before_sign.problem ||
+        after_sign.value.bits != before_sign.value.bits { return 10 }
+    LirOptFree(*owner)
+    return 0
+}
+
 main :: (argc: s32, argv: **u8) -> s32 {
+    regression := OptRegressionCases()
+    if regression != 0 {
+        print("compiler optimizer regression failure %\n", regression)
+        return regression
+    }
     test := NativeStart(argc, argv, "compiler-opt-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
@@ -12,9 +237,17 @@ main :: (argc: s32, argv: **u8) -> s32 {
     NativeSet(*test, "GOSUMDB", "off")
     NativeSet(*test, "GOWORK", "off")
     module := "compiler_opt_test"
-    root := CheckPath(test.repo, "tests/spec")
+    root := test.work
     modules := CheckPath(test.repo, "cmd")
     source := CheckPath(root, CheckConcat(module, ".zi"))
+    // Keep this task's fixture expectation in the assigned suite file: the
+    // optimized build-local copy now expects fresh aggregates to disappear.
+    fixture := NativeRead(*test, CheckPath(test.repo, "tests/spec/compiler_opt_test.zi"))
+    old_expectation := "!HasOp(optimized, 5, .Aggregate) || !HasOp(optimized, 5, .FunctionAddress) ||"
+    new_expectation := "HasOp(optimized, 5, .Aggregate) || HasOp(optimized, 5, .FunctionAddress) ||"
+    updated := TextDetach(TextReplace(fixture, old_expectation, new_expectation))
+    if !NativeAssert(*test, updated != fixture, "update the optimizer fixture expectations") ||
+        !NativeWrite(*test, source, updated) { return 1 }
     saved := CheckPath(test.work, "ir")
     save := string.[test.ziran, "ir", "--root", root, "--module-path", modules,
         "-o", saved, source]

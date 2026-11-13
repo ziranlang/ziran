@@ -2,6 +2,12 @@ using Lir :: #import "compiler_lowered_ir"
 using Machine :: #import "compiler_machine_ir"
 using Target :: #import "compiler_target"
 
+// Target facts for machine lowering, allocation and verification. Callers
+// ask for registers and supported forms through the exported queries below
+// and never name a target's registers themselves.
+
+#scope_file
+
 // Register numbers follow the x86-64 encoding order. Register classes keep
 // general and XMM numbers in separate namespaces.
 X64Register :: enum s32 {
@@ -50,6 +56,9 @@ AbiSize :: (program: LirProgram, type_id: s32, depth: s32) -> s64 {
 
 #scope_export
 
+// Operands that an instruction form fixes to one register on the target.
+MachineAbiFixedUse :: enum s32 { Invalid; DivideDividend; DivideResult; DivideClobber; ShiftCount }
+
 MachineAbiClass :: (program: LirProgram, type_id: s32) -> MachineRegisterClass {
     return AbiClass(program, type_id)
 }
@@ -76,6 +85,35 @@ MachineAbiResultRegister :: (target: TargetDescription, class: MachineRegisterCl
     if class == .General { return cast(s32)X64Register.Rax }
     if class == .Float { return 0 }
     return -1
+}
+
+// The register the target requires for USE, or -1 when the form places no
+// fixed-register constraint there. Linux x86-64 divides RDX:RAX by the
+// divisor, leaving the quotient in RAX and clobbering RDX, and shifts by CL.
+MachineAbiFixedRegister :: (target: TargetDescription, use: MachineAbiFixedUse) -> s32 {
+    if !TargetMachineLoweringSupported(target) { return -1 }
+    if use == .DivideDividend || use == .DivideResult { return cast(s32)X64Register.Rax }
+    if use == .DivideClobber { return cast(s32)X64Register.Rdx }
+    if use == .ShiftCount { return cast(s32)X64Register.Rcx }
+    return -1
+}
+
+// Whether the implemented native call ABI passes and returns CLASS in
+// registers. Only general registers are implemented; float and vector
+// arguments and results, and arguments passed on the stack, are not, and a
+// call using them is an unsupported form rather than a call lowered some
+// other way.
+MachineAbiCallRegisterClass :: (target: TargetDescription, class: MachineRegisterClass) -> bool {
+    return TargetMachineLoweringSupported(target) && class == .General
+}
+
+// Whether the target's relocation of KIND can carry ADDEND. A Linux x86-64
+// global address is a rip-relative 32-bit field; direct calls, function
+// addresses and the fuel counter carry no addend.
+MachineAbiRelocationAddend :: (target: TargetDescription, kind: MachineRelocationKind, addend: s64) -> bool {
+    if !TargetMachineLoweringSupported(target) { return false }
+    if kind == .GlobalAddress { return addend >= -2147483648 && addend <= 2147483647 }
+    return addend == 0
 }
 
 MachineAbiCallGeneralClobbers :: (target: TargetDescription) -> u64 {

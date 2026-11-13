@@ -2,7 +2,7 @@
 
 This is the implemented, opt-in ASSEMBLY step-05 foundation. The format owner
 is `cmd/compiler_bundle.zi`; `cmd/compiler_exec_link.zi` binds it to the
-deterministic schema-3 LIR codec and verifier. `zi2asm --emit zx` produces it,
+deterministic LIR codec and verifier (current payload schema 4). `zi2asm --emit zx` produces it,
 and `zi2asm --input zx` reads, inspects, re-emits or runs it. Default `ziran`
 and `zi2zx` selection remains on versions 26/27 until the full cutover.
 
@@ -37,7 +37,9 @@ truncation, and trailing bytes. There is no recovery scan or legacy fallback.
 | 56 | 4 | identity algorithm; `1` means SHA-256 |
 | 60 | 4 | reserved; zero |
 
-Required feature bit 0 is `portable-lir-schema-3`. A reader rejects any missing
+Required feature bit 0 retains the manifest contract name `portable-lir-schema-3`;
+the internal payload independently carries and verifies current LIR schema 4.
+A reader rejects any missing
 or additional required feature. Optional bits are non-executable hints and may
 be ignored. Versions 26 and 27 produce the explicit diagnostic “legacy ZX
 version contains semantic IR; rebuild with zi2asm --emit zx”. Other revisions
@@ -59,7 +61,7 @@ Implemented kinds are:
 | Kind | Required | Meaning |
 | ---: | --- | --- |
 | 1 | yes | fixed executable manifest |
-| 2 | yes | deterministic stripped `.lirb` instruction program |
+| 2 | yes | deterministic stripped internal instruction payload |
 | 3 | yes | canonical assets, including an empty table |
 | 4 | not accepted as required | reserved native variants |
 | `0x80000001` | no | opaque debug attachment |
@@ -100,8 +102,10 @@ hashed.
 
 ## Required instruction program (kind 2)
 
-The payload is the public deterministic `.lirb` codec from
+The payload uses the internal deterministic instruction codec from
 `compiler_exec_serial.zi`: header, required core section, and no debug section.
+It is not a standalone executable artifact: `.lirb`, `--emit exec` and
+`--input exec` have been removed. ZX is the portable program boundary.
 It contains LIR version, module identities, type graph, constants and binary
 constant bytes, globals and initializers, functions, parameter/value type IDs,
 blocks, instructions, operands, edges, symbol IDs, effect ordering, alignments

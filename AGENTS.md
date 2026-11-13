@@ -43,8 +43,8 @@ do not import a UI library.
   retained benchmark reports and logs under tracked `bench/results/` paths.
   Temporary compiler and test outputs belong in the existing `build/` layout.
 
-- Owner instruction, 2026-11-11: run all benchmarks on Alpha's physical host
-  directly, without the personal VM.
+- Owner instruction, 2026-11-11: run all benchmarks directly on Alpha's
+  physical host and reject virtualized execution.
   Keep benchmark compilation and measurement off the current desktop; if
   Alpha is unavailable, report that instead of falling back locally. Record
   the actual execution host and keep before/after comparisons on that host.

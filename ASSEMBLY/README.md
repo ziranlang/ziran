@@ -13,16 +13,16 @@ The [gap policy](gap-policy.md) is normative: unsupported direct-target work
 fails with a stable diagnostic and remains visible in the completion matrix;
 portable, legacy and alternate backends are never fallback success paths.
 
-The prototype's actual path is:
+The experimental direct pipeline is:
 
 ```text
-.zi or .zir -> canonical checker -> lowered IR -> verifier -> .lirb
-                                        |                      |
-                                  --emit lir          --input exec
-                                        |                      |
-                                        +---- x86-64 encoder ---+
-                                                    |
-                                           ELF + native range map
+.zi -> checked .zir -> lowered LIR -> verifier -> LIR optimizations -> .zx
+                         |                                          |
+                    --emit lir                            verified ZX reader
+                                                                    |
+                                          portable interpreter OR target lowering
+                                                                    |
+                                                       ELF + native range map
 ```
 
 The compiler tool still uses the normal compiler bootstrap. Once built,
@@ -56,18 +56,19 @@ assembler, C compiler, or system linker to produce this executable.
   Global/record-field addresses, pointer arguments/results and dereference
   reads/writes also lower to checked address operations. Assignments evaluate
   the destination once before the right-hand side; compound assignments retain
-  the preceding value even when a call mutates an alias. Local bool, integer, float and
-  pointer bindings can have their address taken; such locals become checked
-  frame allocations. Address-taking of local records, arrays and procedure
-  values is rejected explicitly. Dynamic fixed-array element addresses
+  the preceding value even when a call mutates an alias. Local bool, integer,
+  float, pointer, record, fixed-array and procedure-value bindings can have
+  their address taken; such locals become checked frame allocations. Dynamic
+  fixed-array element addresses
   rooted in globals or checked pointers are bounds-checked, including nested
   records/arrays and addresses returned across procedure calls.
   Retained tests compare C, Go and explicit old-VM execution where the old VM
   supports the construct. A call-valued dereference assignment has C/Go/new-engine
-  parity, but is outside the old VM's portable subset. Native global data is
-  supported; source aggregate/float initializers and runtime module initializers
-  still require lowering. Runtime initializers are rejected even when their value is
-  unused, rather than silently dropping their effects.
+  parity, but is outside the old VM's portable subset. Dependency-ordered
+  runtime module initializers execute once per portable instance before entry;
+  a failed initializer is sticky and entry is not started. Native ELF runs the
+  same ordered initializer list before entry. Mutable global state, readonly
+  constant storage and initializer state are owned by the execution instance.
 - Block-parameter SSA with simultaneous edge copies, explicit ordered effects,
   copied source origins, and a bounded verifier that rejects invalid definitions,
   dominance, CFG edges, types, and effect order.
@@ -76,54 +77,81 @@ assembler, C compiler, or system linker to produce this executable.
   actual linked function bytes, so final disassembly has meaningful labels.
 - Static globals and checked global/record-field pointer slots in direct ELF,
   with zero/scalar initialization, packed aggregate loads/stores, pointer
-  parameters/results and separate RX text/RW data segments. Native dispatch
+  parameters/results and separate RX text, read-only data and RW data segments.
+  Writes through read-only data tokens trap. Native dispatch
   validates tokens and exact pointee types; it is currently a bounded linear
   scan, not an optimized pointer-access path. No generated-C bridge is used.
-- Verified lowered IR supports frame-local allocation of bool, fixed-width
-  integer/float, and pointer values in both the portable engine and native ELF.
+- Verified lowered IR supports frame-local allocation of every current scalar,
+  record, fixed-array and procedure-value type in both the portable engine and
+  native ELF.
   Every execution receives fresh zero-default or explicitly initialized storage.
   Native active-frame descriptors preserve aliases through calls and recursion;
   stale, wrong-type, forged, and exhausted-generation tokens trap with status 125.
-- `#foreign host_api` calls with bool, integer and float signatures lower to
+- `#foreign host_api` calls with bool, integer, float, structural byte-view and
+  pointer-free record/fixed-array signatures lower to
   bodiless `Host` functions and explicit `host.call` instructions from source
   and saved IR. The revision-28 container records the recomputed capability
-  count. Embedders bind capabilities with `LirExecBindHost`; arguments and
-  results use canonical scalar bits, and malformed host results stop the run.
-  Native output rejects host calls until the native host ABI exists.
+  count. Embedders use `LirExecBindHost` for the scalar ABI or
+  `LirExecBindHostTyped` for the typed ABI. Typed arguments are validated and
+  copied; returned byte views become instance-owned read-only storage that
+  remains valid for globals and later calls. Raw host pointers, procedure
+  values, malformed shapes and nested pointer-bearing aggregates are rejected.
+  A `--bind` provider already present in the checked Ziran program lowers to a
+  direct portable call. Native output accepts only the exact typed
+  target-owned console services described below; arbitrary host capabilities
+  still fail until native host trampolines exist.
 - `string` lowers to the record `{data: *u8, count: s64}`. Literals become
   deduplicated read-only byte-array globals (empty literals use a null data
-  pointer); copies, reassignment, returns, `.count` and `.data` work in source,
-  saved IR and the portable engine. Stores through read-only bytes trap.
-  Indexing, comparison and concatenation are rejected explicitly, and native
-  output rejects read-only data until it has a read-only section.
+  pointer); copies, reassignment, returns, `.count`, `.data`, checked indexing,
+  slicing and equality/inequality work in source, saved IR and the portable
+  engine. Slices use checked `{data, count}` views over fixed arrays or other
+  byte views, including empty/null views. Stores through read-only bytes trap.
+  Direct native output supports the read-only data section and checked indexing.
+  Its console formatter also accepts checked text views over frame-allocated
+  fixed byte arrays, including nonzero and nested slices, with allocation
+  generation, owner-frame, extent and lifetime validation. Byte comparison
+  retains the stable `assembly.gap.native-string-compare` gap; slice shapes
+  outside the verified checked-token forms remain outside this implemented subset.
+  String concatenation is not a current checked-language string operation.
 - A verified, target-neutral [machine IR](machine-ir.md) boundary lowers the
   current LIR subset for Linux x86-64 SysV with virtual registers, fixed-register
-  constraints, explicit flags, call clobbers and parallel copies. It is not yet
-  register-allocated or encoded; native ELF output still uses the direct encoder.
+  constraints, explicit flags, call clobbers and parallel copies. Deterministic
+  allocation, an allocated-program verifier and x86-64 encoding feed the
+  internal ELF writer through `zi2asm --machine --emit elf`. Native ELF still
+  retains a separate direct-LIR prototype while M2 is open.
+- The direct Linux x86-64 console veneer emits a static ELF with its own
+  `_start`, Linux `write` syscall 1 through a partial-write/`EINTR` retry loop,
+  and `exit_group` syscall 231. It has no libc, CRT, `PT_INTERP` or `PT_DYNAMIC`.
+  Literal formatting covers strings/text views by byte length, bools, every
+  fixed signed/unsigned integer width and `%%`; floats and other platform
+  services are named hard gaps.
 - `--emit lir` and `--emit map` inspection views. Map ranges are half-open,
-  relative to `.text`, and identify function, block, instruction and source.
-  The map also records actual function extents, total text size and the complete
-  source-position/origin-parent table, including checked end-line/end-column
-  coordinates. Unavailable end positions are `0/0`; unavailable source byte
-  offsets are `-1/-1`, not fabricated zero-length spans. LIR schema 3 rejects
-  older `.lirb` artifacts at a rebuild boundary. Textual names are quoted and escaped rather
+  relative to `.text`, and identify function, block and instruction.
+  Native always reads the verified, optimized ZX image, even for source input;
+  the current required ZX payload strips source origins, so native map origins
+  are empty. Source LIR inspection retains origins. Debug attachments and full
+  source-to-native mapping remain a hard gap. LIR schema 4 rejects older ZX
+  payloads at a rebuild boundary. Textual names are quoted and escaped rather
   than allowed to inject extra lines into the instruction listing. Metadata
   names and paths must be nonempty, NUL-free valid UTF-8; malformed wire metadata
   is rejected before reaching JSON output, while valid Unicode is preserved.
-- `--emit exec` writes deterministic `.lirb` instructions; `--input exec` verifies
-  and consumes them without loading source or checked `.zir`. The same decoded
-  instructions produce listings, native maps and ELF bytes. This standalone
-  instruction format is not the replacement ZX container yet.
+- `--emit zx` always optimizes and writes the deterministic portable executable;
+  `--input zx` verifies and consumes it without source or checked `.zir`.
+  Source ELF output serializes and reads that same ZX boundary first, so a ZX
+  image gives byte-identical native output through either entry route. No
+  standalone `.lirb`, `--emit exec` or `--input exec` route remains. The internal
+  instruction codec is only a ZX payload; default `ziran`/`zi2zx` container
+  cutover is still pending.
 - `--run` executes the same verified instructions in a bounded portable engine,
   with independent fuel, work and frame limits. Its explicit frames and parallel
   block transfers also handle the currently lowered records and fixed arrays.
   This is an opt-in reference path, not a completed ZX runtime replacement.
 - Recoverable errors for unsupported constructs and atomic file replacement;
   rejected programs do not overwrite an existing output.
-- Opt-in `--opt` transforms a separately owned copy of the verified instructions
+- ZX production always transforms a separately owned copy of verified instructions
   with exact scalar constant folding, identity-copy propagation, constant-branch
   CFG simplification and nontrapping dead-instruction removal. Each enabled pass
-  is verified. `--emit lir` exposes the selected transformed program, while
+  is verified. Source `--opt --emit lir` exposes the transformed program, while
   `--opt --emit opt-report` emits deterministic JSON transformation counters.
   Trapping operations, ordered effects and executed fuel checkpoints remain
   observable. This is not the complete optimization pipeline or register allocator.
@@ -159,7 +187,7 @@ The address adjustment makes disassembly addresses match the map's text-relative
 offsets for this ELF layout. These offsets are neither source line numbers nor
 addresses from a running process. `--emit lir -o -` and `--emit map -o -`
 write inspection data to standard output; ELF output requires a file path.
-`--emit exec -o -` writes binary instruction bytes to standard output.
+`--emit zx -o -` writes portable executable ZX bytes to standard output.
 `--diagnostics=json` includes structured diagnostic codes.
 
 Maps report actual ELF file/text/data sizes, file offsets and virtual addresses
@@ -171,18 +199,18 @@ not an observed running process or a future relocatable/JIT code allocation.
 `identity` is SHA-256 of the complete actual ELF, including initialized data
 and symbol metadata, so a sidecar can be checked against the exact executable.
 `variant` and `abi` label the baseline x86-64/internal-ABI implementation.
-`optimization_request` records this invocation's `--opt` policy; `none` does
-not prove that an input `.lirb` was never optimized by its producer. Maps now
+`optimization_request` identifies the canonical verified-basic optimization
+boundary. `--opt` on ZX input does not rerun passes. Maps
 encode the image to obtain this identity; they are inspection work, not a
 cheap source-only preview or a runtime performance measurement.
 
 Native maps support bounded output without renumbering identities:
 
 ```sh
-build/bin/zi2asm --input exec --emit map --function-id 0 --block-id 0 \
-    -o build/assembly_scalar.block.map.json build/assembly_scalar.lirb
-build/bin/zi2asm --input exec --emit map --address-begin 35 --address-end 80 \
-    -o build/assembly_scalar.address.map.json build/assembly_scalar.lirb
+build/bin/zi2asm --input zx --emit map --function-id 0 --block-id 0 \
+    -o build/assembly_scalar.block.map.json build/assembly_scalar.zx
+build/bin/zi2asm --input zx --emit map --address-begin 35 --address-end 80 \
+    -o build/assembly_scalar.address.map.json build/assembly_scalar.zx
 ```
 
 Function/block IDs refer to the selected lowered program (after `--opt`, if
@@ -199,20 +227,20 @@ encoder still verifies and lays out the complete program.
 
 ```sh
 build/bin/zi2asm --root tests/spec --entry assembly_scalar:Answer \
-    --emit exec -o build/assembly_scalar.lirb tests/spec/assembly_scalar.zi
-build/bin/zi2asm --input exec --emit lir -o - build/assembly_scalar.lirb
-build/bin/zi2asm --input exec -o build/assembly_scalar build/assembly_scalar.lirb
-build/bin/zi2asm --input exec --run --fuel 10000 --work 100000 \
-    build/assembly_scalar.lirb
-build/bin/zi2asm --opt --input exec --emit lir -o build/assembly_scalar.optimized.lir \
-    build/assembly_scalar.lirb
-build/bin/zi2asm --opt --input exec --emit opt-report -o build/assembly_scalar.opt.json \
-    build/assembly_scalar.lirb
+    --emit zx -o build/assembly_scalar.zx tests/spec/assembly_scalar.zi
+build/bin/zi2asm --input zx --emit lir -o - build/assembly_scalar.zx
+build/bin/zi2asm --input zx -o build/assembly_scalar build/assembly_scalar.zx
+build/bin/zi2asm --input zx --run --fuel 10000 --work 100000 \
+    build/assembly_scalar.zx
+build/bin/zi2asm --opt --input zx --emit lir -o build/assembly_scalar.optimized.lir \
+    build/assembly_scalar.zx
+build/bin/zi2asm --opt --root tests/spec --entry assembly_scalar:Answer \
+    --emit opt-report -o build/assembly_scalar.opt.json tests/spec/assembly_scalar.zi
 ```
 
-Without `--opt`, the existing unoptimized output remains the default. Optimization
-can precede portable execution or any output kind, including standalone native
-ELF encoding. Reports require `--opt` explicitly and can also use `-o -`.
+Only source `--emit lir` is unoptimized by default. All ZX, portable execution,
+native map and ELF production goes through optimization and verified ZX bytes.
+Reports require source input and `--opt` explicitly and can also use `-o -`.
 Their `work` and `scratch_bytes` fields are bounded compiler-accounting counters,
 not elapsed time, process RSS or a performance measurement. A shorter listing or
 smaller executable is not evidence of faster execution.
@@ -229,20 +257,23 @@ encoding and inspection data, without claiming target execution.
 
 ## Still required
 
-No full-plan completion gate is closed by this prototype. Outstanding work
-includes remaining global/runtime initialization, local aggregate and
-procedure-value address-taking, dynamic/heap aggregates, remaining string
-operations, cleanup, heap allocation, collection loops, foreign services and
-concurrency; complete portable-runtime lifecycle and library composition in the
-new ZX container; register allocation and machine-IR encoding; relocatable
-objects and a real linker; other architectures and OS ABIs; shared native-ZX
-execution and host ABI integration; source/unwind debug information,
-profiler/JIT mapping and the final compatibility cutover.
+No M2–M6 completion gate is closed by this M0/M1 work. Outstanding language and
+runtime work includes resizable owned vectors and other dynamic collections,
+their generated cleanup/move paths, nested or reentrant host-to-bundle calls,
+foreign C/system services, concurrency and the remaining matrix operations.
+The new ZX container still needs complete library composition and capability
+metadata cross-checking; native string-comparison instructions, slice shapes
+outside the checked-token subset, and arbitrary host trampolines remain gaps.
+The remaining M2 integration,
+relocatable objects and a general linker, other architectures and OS ABIs,
+source/unwind information, profiler/JIT mapping and final cutover remain M2–M6.
 
-Unsupported constructs fail explicitly; there is no silent fallback to C or
-TinyCC inside `zi2asm`. Mixed signedness comparisons currently require explicit
-casts. The bounded `.lirb` decoder validates the current instruction schema;
-it is not the future ZX container verifier, linker or capability boundary.
+Unsupported constructs fail explicitly; there is no silent fallback to C, Go,
+TinyCC or another engine inside the portable/native assembly route. The C and
+Go backends remain separate source-output routes that can compile platform
+binaries when explicitly selected. Mixed signedness comparisons require explicit
+casts. The bounded revision-28 ZX reader validates container identities, the
+instruction schema, entry and declared capabilities before native lowering.
 The labeled physical-Alpha portable-engine follow-up is documented in
 [the benchmark report](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
 It is not the strict full benchmark campaign, cross-platform execution

@@ -1,0 +1,158 @@
+using IR :: #import "compiler_lowered_ir"
+using Native :: #import "compiler_lowered_x64"
+using Vectors :: #import "std/vec"
+using Files :: #import "std/file"
+using Text :: #import "std/byte_text_linux"
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("native service local test failed: %\n", message)
+    return false
+}
+
+Encode :: (functions: []LirFunction, modules: []string, types: []LirType) -> LirProblem {
+    program := LirProgram.{.version = LirVersion, .modules = modules,
+        .types = types, .functions = functions, .entry = 0}
+    empty: [0]u8
+    return Native.LirX64Elf(program, empty[:]).problem
+}
+
+Little :: (bytes: []u8, at: s64, count: s64) -> u64 {
+    value: u64
+    for index: cast(s64)0..count - 1 { value |= cast(u64)bytes[at + index] << cast(u64)(index * 8) }
+    return value
+}
+
+Symbols :: (functions: []LirFunction, modules: []string, types: []LirType) -> bool {
+    constants: [1]LirConstant = .[.{.type = 2, .bits = 65}]
+    globals: [1]LirGlobal = .[.{.module = 0, .name = "byte", .type = 2, .constant = 0, .writable = true}]
+    for mode: 0..1 {
+        program := LirProgram.{.version = LirVersion, .modules = modules,
+            .types = types, .functions = functions, .constants = constants[:],
+            .globals = globals[:mode], .entry = 0}
+        empty: [0]u8
+        result := Native.LirX64Elf(program, empty[:])
+        bytes: Vec(u8)
+        defer VecFree(bytes)
+        if !Check(result.problem == .None && VecResize(bytes, result.size), "measure symbol fixture") { return false }
+        result = Native.LirX64Elf(program, bytes[:])
+        if !Check(result.problem == .None, "encode symbol fixture") { return false }
+        sections := cast(s64)Little(bytes[:], 40, 8)
+        count := cast(s64)Little(bytes[:], 60, 2)
+        symbol_header := sections + (count - 1) * 64
+        symbols := cast(s64)Little(bytes[:], symbol_header + 24, 8)
+        symbol_size := cast(s64)Little(bytes[:], symbol_header + 32, 8)
+        text := Little(bytes[:], sections + 64 + 16, 8)
+        text_size := Little(bytes[:], sections + 64 + 32, 8)
+        concrete: s64 = 2
+        for function: functions { if !function.external { concrete += 1 } }
+        if !Check(symbol_size == (concrete + 1 + mode) * 24,
+            "inlined service declarations are omitted from the symbol table") { return false }
+        for index: cast(s64)1..concrete {
+            symbol := symbols + index * 24
+            section := Little(bytes[:], symbol + 6, 2)
+            address := Little(bytes[:], symbol + 8, 8)
+            size := Little(bytes[:], symbol + 16, 8)
+            if !Check(section == 1 && address >= text && address - text < text_size &&
+                size > 0 && size <= text_size - (address - text),
+                "function symbols have positive extents inside final text") { return false }
+        }
+    }
+    return true
+}
+
+// Retain the actual linked image's size and layout contract, not just the
+// in-memory encoder fixture. This runs against the hello ELF used below.
+HelloImage :: (path: string) -> bool {
+    bytes: Vec(u8)
+    defer VecFree(bytes)
+    if !Check(ReadFileInto(path, *bytes) && bytes.count >= 64 && bytes.count < 1500,
+        "hello ELF is complete and smaller than 1.5 KB") { return false }
+    sections := cast(s64)Little(bytes[:], 40, 8)
+    count := cast(s64)Little(bytes[:], 60, 2)
+    if !Check(count == 6 && sections >= 64 && sections <= bytes.count - count * 64,
+        "hello has six bounded sections and no empty data section") { return false }
+    text_header := sections + 64
+    text_address := Little(bytes[:], text_header + 16, 8)
+    text_offset := Little(bytes[:], text_header + 24, 8)
+    text_size := Little(bytes[:], text_header + 32, 8)
+    ro_header := sections + 128
+    ro_address := Little(bytes[:], ro_header + 16, 8)
+    ro_offset := Little(bytes[:], ro_header + 24, 8)
+    if !Check(text_size > 0 && text_size < 200 && ro_offset == text_offset + text_size &&
+        (ro_offset & 4095) == (ro_address & 4095) && ro_address > text_address + text_size &&
+        Little(bytes[:], ro_header + 32, 8) == 14,
+        "small hello text and adjacent, page-congruent read-only literal") { return false }
+    symbol_header := sections + (count - 1) * 64
+    symbols := cast(s64)Little(bytes[:], symbol_header + 24, 8)
+    symbol_size := cast(s64)Little(bytes[:], symbol_header + 32, 8)
+    if !Check(symbols >= 0 && symbol_size >= 96 && symbol_size % 24 == 0 &&
+        symbols <= bytes.count - symbol_size, "bounded retained symbol table") { return false }
+    concrete: s64
+    trap_address: u64
+    main_address: u64
+    previous_end := text_address
+    for index: cast(s64)1..symbol_size / 24 - 1 {
+        symbol := symbols + index * 24
+        section := Little(bytes[:], symbol + 6, 2)
+        if !Check(section != 0, "static hello has no undefined symbols") { return false }
+        if (bytes[symbol + 4] & 15) != 2 { continue }
+        address := Little(bytes[:], symbol + 8, 8)
+        size := Little(bytes[:], symbol + 16, 8)
+        if !Check(section == 1 && address >= previous_end && address - text_address < text_size &&
+            size > 0 && size <= text_size - (address - text_address),
+            "final hello function extents are positive, bounded and non-overlapping") { return false }
+        concrete += 1
+        previous_end = address + size
+        if concrete == 2 { trap_address = address }
+        if concrete == 3 { main_address = address }
+    }
+    return Check(concrete == 3 && main_address != trap_address,
+        "hello retains distinct start, trap and main symbols")
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc == 2 { return ifx HelloImage(TextFromCString(argv[1])) then 0 else 8 }
+    types: [4]LirType = .[
+        .{.kind = .Void},
+        .{.kind = .Integer, .bits = 64},
+        .{.kind = .Integer, .bits = 8},
+        .{.kind = .Pointer, .element = 2}
+    ]
+    modules: [2]string = .["native_services_cases", "ziran.platform"]
+    returned: [1]LirInstruction = .[.{.op = .Return, .result = -1, .symbol = -1, .origin = -1}]
+    blocks: [1]LirBlock = .[.{.instructions = returned[:]}]
+    good_parameters: [3]s32 = .[1, 3, 1]
+    bad_parameters: [3]s32 = .[1, 1, 1]
+    functions: [2]LirFunction = .[
+        .{.module = 0, .name = "main", .result = 0, .blocks = blocks[:],
+            .entry = 0, .origin = -1},
+        .{.module = 1, .name = "ziran.platform.write_all", .result = 0,
+            .parameters = good_parameters[:], .calling = .Host, .external = true,
+            .entry = -1, .origin = -1}
+    ]
+    if !Check(Encode(functions[:], modules[:], types[:]) == .None,
+        "exact write_all(u64, *u8, u64) signature") { return 1 }
+    if !Symbols(functions[:], modules[:], types[:]) { return 7 }
+    functions[1].parameters = bad_parameters[:]
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Calling,
+        "write_all rejects a non-pointer byte parameter") { return 2 }
+    functions[1].parameters = good_parameters[:]
+    functions[1].module = 0
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+        "write_all rejects a non-platform module") { return 3 }
+    functions[1].module = 1
+    functions[1].name = "ziran.platform.unknown"
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+        "unknown target service is not accepted") { return 4 }
+    functions[1].name = "ziran.platform.write_all"
+    functions[1].calling = .Portable
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+        "write_all rejects a non-host calling convention") { return 5 }
+    functions[1].calling = .Host
+    functions[1].result = 1
+    if !Check(Encode(functions[:], modules[:], types[:]) == .Unsupported,
+        "write_all rejects a non-void result") { return 6 }
+    return 0
+}

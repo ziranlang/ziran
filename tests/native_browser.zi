@@ -91,7 +91,10 @@ BrowserEmptyCommand :: (test: *NativeTest, browser: *NativeBrowser, method: stri
     return BrowserCommand(test, browser, method, *params, reply)
 }
 
-BrowserClose :: (browser: *NativeBrowser) { unused CancelChannel(*browser.channel) }
+BrowserClose :: (browser: *NativeBrowser) {
+    unused CancelChannel(*browser.channel)
+    if browser.profile != "" { unused RemoveTree(browser.profile) }
+}
 
 BrowserStart :: (test: *NativeTest, browser: *NativeBrowser, chromium: string) -> bool {
     scratch := CheckPath(test.repo, "build/t")

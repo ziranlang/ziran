@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+- The LIR optimizer folds `element.address` at constant index 0, `extract` of a freshly built aggregate and conversions of constants, removes dead values, prunes unreferenced types and interns duplicate source origins before ZX is written, so the portable interpreter and native lowering both receive the smaller program.
+
+- Native regression tests remove their temporary `build/tests` work folders after failing runs as well as passing ones, and the private Chromium profile under `build/t` is removed when the browser closes. Pass an explicit work folder to keep test outputs.
+
+- Unify the experimental direct pipeline around verified portable ZX: check and
+  lower source, verify and optimize LIR, encode ZX, then read that same image for
+  portable execution or native ELF generation. Remove standalone `.lirb`,
+  `--emit exec` and `--input exec`; retain source/ZX LIR inspection and source
+  optimization reports. Reduce direct-native hello to short constants and
+  frame-free literal writes, use bounds-checked base/index token dispatch,
+  omit fallthrough jumps, compact adjacent read-only data without file padding
+  or an empty data section, fix function symbol extents, and omit inlined
+  service declarations so static ELF files have no undefined symbols.
+  Default semantic bundles and semantic-ZIR Wasm remain
+  explicit cutover gaps; native debug origins remain absent in stripped ZX.
+
+- Add deterministic register allocation for the experimental machine IR on Linux x86-64. RegAllocAllocate turns fixed and tied constraints into explicit moves, solves liveness, runs linear scan per register bank with splitting at calls, fixed registers and pressure, rewrites spills, reloads and parallel block-parameter copies, and lays out 16-byte-aligned frames. A separate MachineVerifyAllocated checks every value location, constraint, clobber, frame and fuel placement. Fuel checks now name the instance counter and clobber flags; a loop or callee without one fails allocation.
+
+- Implement the experimental direct-native pipeline's first Linux x86-64 console ABI veneer: linked, verified portable ZX instructions lower directly to a static ELF with its own `_start`, Linux `write` syscall 1 through a partial-write/`EINTR` `write_all` loop, and `exit_group` syscall 231, with no libc, CRT or dynamic linker. Ziran-owned literal formatting writes strings and text views by exact byte length and formats booleans, every signed and unsigned integer width, and `%%`; floating-point formatting and unavailable target services fail with stable named gaps. Generated C/Go binary routes and portable host bindings remain separate and are never selected as fallback.
+
+- Add the direct assembly target registry and preflight. `ziran capabilities --json` lists every CPU/OS row under `assembly_targets` as implemented, gap, excluded or unknown. No row is implemented yet: Linux x86-64 stays a gap until its encoder and native runtime cutover pass. `ziran capabilities --assembly-target=ROW[+FEATURE...] [--os-service=NAME]...` rejects an unimplemented row, CPU feature or OS service with `assembly.gap.target-unimplemented`, `assembly.gap.cpu-feature` or `assembly.gap.os-service` before reading source or saved IR.
+
 - Calls through a module alias accept types that module re-exports with `using`. `Button.Draw` declared with `PropsModule.Props` takes a caller's `Button.Props` even when the caller's own `PropsModule` names another module; results map the same way.
 
 - Go output compiles `VecSlice` and slice bounds of mixed integer widths, such as `s16` and `s32` indices.

@@ -71,6 +71,12 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 - [ ] Make engine and target selection explicit. Portable, native, Wasm, C and
   Go are separate contracts; none may rescue another after preflight fails.
 
+The current M0/M1 implementation keeps those routes distinct: portable runs
+verified LIR, native means direct verified-LIR-to-machine-code/platform output,
+and the separately selected C and Go backends generate source that can be
+compiled into platform binaries. Native slice comparison and host ABI gaps stop
+before output replacement; they do not select any of the other routes.
+
 ## Proposed implementation ownership
 
 Implement reusable compiler/runtime modules in Ziran under `cmd/`, following the existing compiler modules. Add only necessary C embedding and OS glue at the existing boundaries. Proposed module names in later steps are implementation targets, not files claimed to exist today. Use the current C backend to bootstrap new Ziran code initially, then verify the new backend can build those modules itself.

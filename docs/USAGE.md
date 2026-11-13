@@ -348,7 +348,43 @@ Portable bundles run with `ziran run app.zx` (or `--vm app.zx`). Graphical
 bundles use installed package-provided platform hosts through the same command;
 see [runtime providers](ZX.md#running-bundles).
 
-## Generate native code
+### Output routes
+
+The experimental `zi2asm` pipeline checks source into `.zir`, links and lowers
+LIR, verifies it, runs LIR optimizations, and writes portable ZX instructions.
+The portable interpreter executes those instructions directly.
+The experimental direct-native route lowers the same verified instructions to
+machine code, applies a target ABI/platform veneer, and writes a platform
+binary; only rows with explicit implementation and execution evidence count as
+supported. It never changes to another engine after a gap.
+
+Native output from source first encodes and reads verified ZX bytes, exactly
+as `zi2asm --input zx --emit elf -o app app.zx` does. `--emit zx` is a first-class
+portable output; `--emit lir` remains a text inspection view. The standalone
+`.lirb`, `--emit exec` and `--input exec` routes are removed. Optimization is
+mandatory before ZX; `--opt` only selects the optimized source LIR view or its
+source-only `--emit opt-report`. ZX input is not reoptimized. Native map source
+origins remain a gap because the required ZX payload is stripped.
+Default `ziran`/`zi2zx` semantic bundles and semantic-ZIR Wasm lowering are not
+yet cut over to revision-28 instructions; see [ZX status](ZX.md).
+
+The C and Go targets are separate generated-code exporters. With `--exe`, their
+downstream C or Go toolchains also produce platform binaries. These outputs are
+not called native by the direct-backend documentation and do not satisfy or
+rescue a direct-native request.
+
+Portable host capabilities and platform bindings are also separate layers. A
+capability gives ZX code a typed service contract; a host binding implements
+it. A direct target's ABI veneer instead implements target-specific entry,
+calling-convention, syscall, and exit details used by direct machine code.
+
+The opt-in `zi2asm --target x86_64-linux` ELF path is the first such veneer. It
+produces a static no-libc executable with target-owned `write_all` and process
+exit. Its literal formatter supports strings/text views, bools, every fixed
+signed and unsigned integer width, and `%%`; floats and unavailable platform
+services fail with stable named diagnostics.
+
+## Generate C and Go binaries
 
 Use `ziran build --target=c` for C99 output. Add `--exe --entry
 module:function` to also compile it into `DIR/module`, a program that runs
@@ -492,7 +528,7 @@ calls and function values. The adapter converts its integer result to a process
 status; a procedure returning nothing exits successfully. This also applies to
 a procedure exported under the symbol `main` through `#program_export "main"`.
 
-Native C executable builds compile source files concurrently on at most half
+C-generated executable builds compile source files concurrently on at most half
 of the available CPUs, with no more workers than free memory holds at 512 MiB
 each; `ZIRAN_JOBS=N` lowers the count. Compiler commands run at niceness 10
 with low disk priority, which their C compilers inherit; `ZIRAN_NICE=N`
@@ -565,7 +601,7 @@ beside the launcher), and `-o FILE` writes elsewhere.
 ## Save and inspect checked modules
 
 `ziran ir --entry module:function` saves that reachable checked graph as
-per-module `.zir` files before native code generation.
+per-module `.zir` files before code generation.
 
 ### Compile-time target facts
 
@@ -1058,9 +1094,9 @@ A `using` field spelled `#c "union"` (or `"struct"`) also lays its record's
 fields out as an anonymous C member over the same storage, so C reads
 `stmt->name` where Ziran reads `stmt.name`.
 
-### Native scripts
+### C-generated scripts
 
-`ziran tool.zi ARGS` runs ordinary Ziran source as a native script. Use `.zi`
+`ziran tool.zi ARGS` runs ordinary Ziran source as a C-generated script. Use `.zi`
 for scripts and compiled programs alike. On Unix, start executable scripts
 with `#!/usr/bin/env ziran`, give them an ordinary `main` procedure, and run
 `chmod +x tool.zi` once. Then `./tool.zi ARGS` works with `ziran` on `PATH`.
@@ -1068,7 +1104,7 @@ Every argument after the filename belongs to the script, including `--help`.
 The caller's working directory and standard streams are preserved.
 
 The explicit form, `ziran run --target=c [--no-cache] tool.zi -- ARGS`,
-also accepts compiler options before the filename. The native runner
+also accepts compiler options before the filename. The C-generated runner
 builds the program once into `$XDG_CACHE_HOME/ziran/native`, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
 entry takes nothing or `(argc: s32, argv: **u8)`. In a project, a tool beside
@@ -2106,8 +2142,8 @@ and saved IR retain the resolved record type; both arms keep their ordinary
 lazy runtime evaluation.
 
 For checked, hash-bound source changes see [source edits](SEMANTIC_EDIT.md).
-For the opt-in scalar direct native compiler, lowered-IR dumps and final-byte
+For the opt-in scalar direct-native compiler, lowered-IR dumps and final-byte
 source maps, see [the ASSEMBLY prototype](../ASSEMBLY/README.md). It is not yet a
-replacement for the supported ZX or native runtime paths.
+replacement for the portable and generated-C runtime paths.
 An optional byte-exact transport with source maps is described in
 [compact transport](TRANSPORT_VIEW.md); `.zi` remains canonical source.

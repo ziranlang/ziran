@@ -141,8 +141,8 @@ CodecCases :: () -> s32 {
         decoded.origins[1].begin != -1 || decoded.origins[1].end != -1 { return Fail(8) }
 
     // The reader owns its copy; changing the encoded module bytes cannot change
-    // a successfully decoded program. The first module begins at byte 132.
-    encoded[132] = #char "X"
+    // a successfully decoded program. The first module begins at byte 136.
+    encoded[136] = #char "X"
     if decoded.modules[0] != "codec" { return Fail(9) }
     remeasure := Serial.LirWrite(decoded, empty)
     reencoded: Vec(u8)
@@ -215,14 +215,14 @@ CodecCases :: () -> s32 {
     // rejects NUL in declaration/source names.
     VecFree(mutation)
     mutation = CopyBytes(canonical[:])
-    mutation[132] = 0
+    mutation[136] = 0
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Verify { return Fail(23, cast(s32)read.problem) }
 
     // A hostile top-level count is bounded before allocation.
     VecFree(mutation)
     mutation = CopyBytes(canonical[:])
-    mutation[120] = 255; mutation[121] = 255; mutation[122] = 255; mutation[123] = 127
+    mutation[124] = 255; mutation[125] = 255; mutation[126] = 255; mutation[127] = 127
     read = Serial.LirRead(*owner, TextView(mutation[:]), limits)
     if read.problem != .Limit && read.problem != .Truncated { return Fail(24, cast(s32)read.problem) }
 

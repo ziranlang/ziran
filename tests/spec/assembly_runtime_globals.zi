@@ -1,0 +1,12 @@
+startup_count: s32;
+
+Initialize :: () -> s32 {
+    startup_count += 1
+    return 41
+}
+
+startup: s32 = Initialize();
+
+Answer :: () -> s32 {
+    return startup + startup_count
+}

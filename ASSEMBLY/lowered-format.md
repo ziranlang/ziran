@@ -237,7 +237,7 @@ are either an ordered nonnegative pair or `begin = end = -1` when unavailable.
 The source/saved-IR adapter preserves the checked graph's line/column positions
 and emits unknown byte offsets: that graph does not contain byte coordinates.
 It never rereads source text to invent offsets. Format framing remains version
-1, but readers reject previous LIR schemas with `Version`; rebuild `.lirb`
+1, but readers reject previous LIR schemas with `Version`; rebuild `.zx`
 artifacts rather than mixing different instruction or debug contracts.
 
 ## Validation and error boundary

@@ -2,10 +2,13 @@
 set -eu
 
 ziran=$1
+zi2asm=${2:-$(dirname -- "$ziran")/zi2asm}
 repo=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 mkdir -p "$repo/build/tests"
 work=$(mktemp -d "$repo/build/tests/print-XXXXXX")
 trap 'rm -rf "$work"' EXIT HUP INT TERM
+unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS SESSION_MANAGER
+export HARMONY_DESKTOP_RECOVERY=0
 
 cat > "$work/greet.zi" <<'EOF'
 Twice :: (value: s32) -> s32 {
@@ -83,6 +86,12 @@ for input in "$work/greet.zi" "$work/ir/greet.zir"; do
         -o "$work/$suffix-binary.zx" "$input"
     "$ziran" run --vm "$work/$suffix-binary.zx" > "$work/$suffix-binary.out"
     cmp "$work/expected-binary" "$work/$suffix-binary.out"
+    native_root=$work
+    if test "$suffix" = saved; then native_root=$work/ir; fi
+    "$zi2asm" --root "$native_root" --entry greet:Binary --emit elf \
+        -o "$work/$suffix-binary.elf" "$input"
+    "$work/$suffix-binary.elf" > "$work/$suffix-binary.native.out"
+    cmp "$work/expected-binary" "$work/$suffix-binary.native.out"
 
     for target in c go; do
         out="$work/$suffix-$target"
@@ -108,6 +117,118 @@ EOF
     done
 
 done
+
+# The direct Linux x86-64 native path owns formatting and write_all. Keep this
+# fixture float-free: float printing has a stable named gap until its exact
+# shortest-round-trip formatter is part of the native image.
+cat > "$work/native_print.zi" <<'EOF'
+TwiceNative :: (value: s32) -> s32 {
+    print("[twice %]", value)
+    return value * 2
+}
+
+LiteralAndReturn :: () -> u64 {
+    print("literal-return: ")
+    value: s8 = -1
+    return cast(u64)value
+}
+
+#program_export
+NativePrint :: () -> s32 {
+    s8_min: s8 = -127 - 1
+    s8_max: s8 = 127
+    s16_min: s16 = -32767 - 1
+    s16_max: s16 = 32767
+    s32_min: s32 = -2147483647 - 1
+    s32_max: s32 = 2147483647
+    s64_min: s64 = -9223372036854775807 - 1
+    s64_max: s64 = 9223372036854775807
+    u8_min: u8 = 0
+    u8_max: u8 = 255
+    u16_min: u16 = 0
+    u16_max: u16 = 65535
+    u32_min: u32 = 0
+    u32_max: u32 = 4294967295
+    u64_min: u64 = 0
+    u64_max: u64 = 18446744073709551615
+    name := "Ziran"
+    bytes: [3]u8 = .[65, 66, 67]
+    tail := bytes[1:3]
+    print("s8: % %\n", s8_min, s8_max)
+    print("s16: % %\n", s16_min, s16_max)
+    print("s32: % %\n", s32_min, s32_max)
+    print("s64: % %\n", s64_min, s64_max)
+    print("u8: % %\n", u8_min, u8_max)
+    print("u16: % %\n", u16_min, u16_max)
+    print("u32: % %\n", u32_min, u32_max)
+    print("u64: % %\n", u64_min, u64_max)
+    print("bool: % %\n", true, false)
+    print("string=% percent=%%\n", name)
+    print("order: % %\n", TwiceNative(1), TwiceNative(2))
+    print("view:<%>\n", TextView(bytes[:]))
+    print("slice:<%> nested:<%>\n", TextView(tail), TextView(tail[1:2]))
+    print("%\n", LiteralAndReturn())
+    return 0
+}
+EOF
+cat > "$work/native.expected" <<'EOF'
+s8: -128 127
+s16: -32768 32767
+s32: -2147483648 2147483647
+s64: -9223372036854775808 9223372036854775807
+u8: 0 255
+u16: 0 65535
+u32: 0 4294967295
+u64: 0 18446744073709551615
+bool: true false
+string=Ziran percent=%
+[twice 1][twice 2]order: 2 4
+EOF
+printf 'view:<ABC>\nslice:<BC> nested:<C>\nliteral-return: 18446744073709551615\n' >> "$work/native.expected"
+"$ziran" ir --root "$work" -o "$work/native-ir" "$work/native_print.zi"
+"$zi2asm" --root "$work/native-ir" --entry native_print:NativePrint --emit zx \
+    -o "$work/native.zx" "$work/native-ir/native_print.zir"
+"$zi2asm" --input zx --opt --emit elf -o "$work/native.elf" "$work/native.zx"
+"$work/native.elf" > "$work/native.out"
+cmp "$work/native.expected" "$work/native.out"
+"$ziran" run --target=c --root "$repo/tests" \
+    "$repo/tests/native_write_all_cases.zi" -- "$work/native.elf" > "$work/native-injected.out"
+cmp "$work/native.expected" "$work/native-injected.out"
+set +e
+"$work/native.elf" 1>&-
+native_closed_status=$?
+set -e
+test "$native_closed_status" -eq 125
+
+"$ziran" bundle --root "$work" --entry native_print:NativePrint \
+    -o "$work/native.zx" "$work/native_print.zi"
+"$ziran" run --vm "$work/native.zx" > "$work/native.vm.out"
+printf '0\n' | cat "$work/native.expected" - | cmp - "$work/native.vm.out"
+"$ziran" build --target=c --root "$work" -o "$work/native-c" "$work/native_print.zi"
+cat > "$work/native-c/main.c" <<'EOF'
+#include "native_print.h"
+int main(void) { return NativePrint(); }
+EOF
+"${CC:-cc}" -std=c99 -pedantic-errors -Iinclude -I"$work/native-c" \
+    "$work/native-c/native_print.c" "$work/native-c/main.c" -o "$work/native-c/program"
+"$work/native-c/program" > "$work/native.c.out"
+cmp "$work/native.expected" "$work/native.c.out"
+
+cat > "$work/native_float.zi" <<'EOF'
+#program_export
+NativeFloat :: () { print("%\n", 0.1) }
+EOF
+"$ziran" ir --root "$work" -o "$work/native-float-ir" "$work/native_float.zi"
+"$zi2asm" --root "$work/native-float-ir" --entry native_float:NativeFloat --emit zx \
+    -o "$work/native-float.zx" "$work/native-float-ir/native_float.zir"
+printf 'preserve-output\n' > "$work/native-float.elf"
+if ZIRAN_DIAGNOSTICS=json "$zi2asm" --input zx --opt --emit elf \
+    -o "$work/native-float.elf" "$work/native-float.zx" > "$work/native-float.log" 2>&1; then
+    echo "native ELF unexpectedly accepted float print formatting" >&2
+    exit 1
+fi
+grep -Fq 'assembly.gap.native-float-format' "$work/native-float.log"
+printf 'preserve-output\n' | cmp - "$work/native-float.elf"
 
 # The classic program: no return value, so `ziran run` prints only the text.
 cat > "$work/hello.zi" <<'EOF'

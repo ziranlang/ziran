@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler and standard library guide: the Ziran guide, rendered from docs/USAGE.md."><title>Compiler and standard library guide · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/usage"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler and standard library guide</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/USAGE.md">docs/USAGE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-native-code">Generate native code</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-c-and-go-binaries">Generate C and Go binaries</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
 <section class="prose"><p><a href="https://github.com/ziranlang/ziran/blob/master/README.md">Back to the README</a> · <a href="implementation-status.html">Implementation status</a></p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
@@ -310,7 +310,37 @@ compiler, downstream toolchains, and validated runtime cases separately.</p>
 <p>Portable bundles run with <code>ziran run app.zx</code> (or <code>--vm app.zx</code>). Graphical
 bundles use installed package-provided platform hosts through the same command;
 see <a href="zx.html#running-bundles">runtime providers</a>.</p>
-<h2 id="generate-native-code">Generate native code</h2>
+<h3 id="output-routes">Output routes</h3>
+<p>The experimental <code>zi2asm</code> pipeline checks source into <code>.zir</code>, links and lowers
+LIR, verifies it, runs LIR optimizations, and writes portable ZX instructions.
+The portable interpreter executes those instructions directly.
+The experimental direct-native route lowers the same verified instructions to
+machine code, applies a target ABI/platform veneer, and writes a platform
+binary; only rows with explicit implementation and execution evidence count as
+supported. It never changes to another engine after a gap.</p>
+<p>Native output from source first encodes and reads verified ZX bytes, exactly
+as <code>zi2asm --input zx --emit elf -o app app.zx</code> does. <code>--emit zx</code> is a first-class
+portable output; <code>--emit lir</code> remains a text inspection view. The standalone
+<code>.lirb</code>, <code>--emit exec</code> and <code>--input exec</code> routes are removed. Optimization is
+mandatory before ZX; <code>--opt</code> only selects the optimized source LIR view or its
+source-only <code>--emit opt-report</code>. ZX input is not reoptimized. Native map source
+origins remain a gap because the required ZX payload is stripped.
+Default <code>ziran</code>/<code>zi2zx</code> semantic bundles and semantic-ZIR Wasm lowering are not
+yet cut over to revision-28 instructions; see <a href="zx.html">ZX status</a>.</p>
+<p>The C and Go targets are separate generated-code exporters. With <code>--exe</code>, their
+downstream C or Go toolchains also produce platform binaries. These outputs are
+not called native by the direct-backend documentation and do not satisfy or
+rescue a direct-native request.</p>
+<p>Portable host capabilities and platform bindings are also separate layers. A
+capability gives ZX code a typed service contract; a host binding implements
+it. A direct target's ABI veneer instead implements target-specific entry,
+calling-convention, syscall, and exit details used by direct machine code.</p>
+<p>The opt-in <code>zi2asm --target x86_64-linux</code> ELF path is the first such veneer. It
+produces a static no-libc executable with target-owned <code>write_all</code> and process
+exit. Its literal formatter supports strings/text views, bools, every fixed
+signed and unsigned integer width, and <code>%%</code>; floats and unavailable platform
+services fail with stable named diagnostics.</p>
+<h2 id="generate-c-and-go-binaries">Generate C and Go binaries</h2>
 <p>Use <code>ziran build --target=c</code> for C99 output. Add <code>--exe --entry
 module:function</code> to also compile it into <code>DIR/module</code>, a program that runs
 that procedure and exits with its integer result; the entry takes nothing or
@@ -441,7 +471,7 @@ The Ziran procedure keeps its declared parameter and result types for ordinary
 calls and function values. The adapter converts its integer result to a process
 status; a procedure returning nothing exits successfully. This also applies to
 a procedure exported under the symbol <code>main</code> through <code>#program_export "main"</code>.</p>
-<p>Native C executable builds compile source files concurrently on at most half
+<p>C-generated executable builds compile source files concurrently on at most half
 of the available CPUs, with no more workers than free memory holds at 512 MiB
 each; <code>ZIRAN_JOBS=N</code> lowers the count. Compiler commands run at niceness 10
 with low disk priority, which their C compilers inherit; <code>ZIRAN_NICE=N</code>
@@ -503,8 +533,32 @@ flags (default <code>$CC</code>, then <code>cc</code>), <code>--include DIR</cod
 beside the launcher), and <code>-o FILE</code> writes elsewhere.</p>
 <h2 id="save-and-inspect-checked-modules">Save and inspect checked modules</h2>
 <p><code>ziran ir --entry module:function</code> saves that reachable checked graph as
-per-module <code>.zir</code> files before native code generation.
-For a portable library, <code>ziran bundle --entry module:function --retain
+per-module <code>.zir</code> files before code generation.</p>
+<h3 id="compile-time-target-facts">Compile-time target facts</h3>
+<p>The typed compile-time values <code>TARGET</code>, <code>OS</code>, and <code>CPU</code> describe the selected
+output, never the machine running the compiler. <code>TARGET</code> is an enum with <code>.C</code>,
+<code>.GO</code>, <code>.WASM</code>, and <code>.ZX</code>; <code>OS</code> has <code>.LINUX</code>, <code>.WINDOWS</code>, <code>.MACOS</code>, <code>.ANDROID</code>,
+<code>.WEB</code>, and <code>.NONE</code>; and <code>CPU</code> has <code>.X64</code>, <code>.ARM64</code>, <code>.WASM32</code>, and <code>.NONE</code>.
+They work in <code>#if</code>, <code>#ifx</code>, <code>#assert</code>, and <code>#run</code>, including compound tests:</p>
+<pre><code class="language-ziran">#if TARGET == .C &amp;&amp; OS == .LINUX {
+    File :: #import &quot;std/file_linux&quot;
+}
+</code></pre>
+<p>Imports in an inactive <code>#if</code> arm are not loaded. Native C and Go compilers use
+the host OS and CPU by default and accept <code>--target-os</code> and <code>--target-cpu</code> for
+cross-target output. WebAssembly selects <code>.WASM</code>/<code>.WEB</code>/<code>.WASM32</code>; portable ZX
+selects <code>.ZX</code>/<code>.NONE</code>/<code>.NONE</code>.</p>
+<p>Metaprograms that actually need compiler-machine information use
+<code>Compiler.HostOS</code> and <code>Compiler.HostCPU</code>. <code>Compiler.Target</code>,
+<code>Compiler.TargetOS</code>, <code>Compiler.TargetCPU</code>, and the string <code>Compiler.Options</code>
+report the selected compilation. Host facts must not select target imports.</p>
+<p>An untargeted <code>ziran ir</code>/<code>zi2zir</code> invocation is deliberately portable: it
+checks with <code>TARGET == .ZX</code>, <code>OS == .NONE</code>, and <code>CPU == .NONE</code>, folds all
+compile-time directives, and saves those results in <code>.zir</code>. Loading that file
+later does not reevaluate compile-time branches for the consuming backend.
+Select an explicit target while creating IR when a native-platform result is
+intended.</p>
+<p>For a portable library, <code>ziran bundle --entry module:function --retain
 other:entry</code> also keeps the named function and its dependencies. Repeat
 <code>--retain</code> for additional entry points consumed by thin <code>--library</code> bundles;
 unrelated functions remain outside the payload. Every retained entry must
@@ -538,9 +592,11 @@ of the supplied paths. <code>check</code>, <code>ir</code>,
 transitively from <code>.zi</code> or saved <code>.zir</code>. For example:</p>
 <pre><code class="language-sh">build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi
 </code></pre>
-<p>A package-qualified import such as <code>#import "kryon/Widgets"</code> resolves
-through the package's dependencies in a <code>--project</code> build. Outside a
-project, name the package's module directory instead:
+<p>A package-qualified import such as <code>#import "kryon/text"</code> resolves
+through the package's dependencies in a <code>--project</code> build. Quoted export keys
+may contain identifier-only namespaces: <code>[exports] "host/desktop" =
+"src/host/desktop.zi"</code> is imported as <code>#import "kryon/host/desktop"</code>.
+Outside a project, name the package's module directory instead:
 <code>--module-path kryon=../kryon/src/ui</code> serves <code>kryon/NAME</code> imports from that
 directory (and only those; repeat it for more directories). A package
 builds the same way in both modes when each export has its module's name.
@@ -868,15 +924,15 @@ Expr :: struct {
 <p>A <code>using</code> field spelled <code>#c "union"</code> (or <code>"struct"</code>) also lays its record's
 fields out as an anonymous C member over the same storage, so C reads
 <code>stmt-&gt;name</code> where Ziran reads <code>stmt.name</code>.</p>
-<h3 id="native-scripts">Native scripts</h3>
-<p><code>ziran tool.zi ARGS</code> runs ordinary Ziran source as a native script. Use <code>.zi</code>
+<h3 id="c-generated-scripts">C-generated scripts</h3>
+<p><code>ziran tool.zi ARGS</code> runs ordinary Ziran source as a C-generated script. Use <code>.zi</code>
 for scripts and compiled programs alike. On Unix, start executable scripts
 with <code>#!/usr/bin/env ziran</code>, give them an ordinary <code>main</code> procedure, and run
 <code>chmod +x tool.zi</code> once. Then <code>./tool.zi ARGS</code> works with <code>ziran</code> on <code>PATH</code>.
 Every argument after the filename belongs to the script, including <code>--help</code>.
 The caller's working directory and standard streams are preserved.</p>
 <p>The explicit form, <code>ziran run --target=c [--no-cache] tool.zi -- ARGS</code>,
-also accepts compiler options before the filename. The native runner
+also accepts compiler options before the filename. The C-generated runner
 builds the program once into <code>$XDG_CACHE_HOME/ziran/native</code>, rebuilds it when
 its sources change, and runs it with the arguments, returning its status. The
 entry takes nothing or <code>(argc: s32, argv: **u8)</code>. In a project, a tool beside
@@ -1613,15 +1669,16 @@ use a subset of the pool instead of becoming serial when more lanes are
 configured. Keep the pool at one address, submit from one owner, and call <code>ParallelClose</code> before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; <code>ZIRAN_PAR_THREADS</code> selects 1–64 lanes.
-Native C source builds define <code>POSIX_THREADS</code> automatically, including
+Native C source builds define the genuine <code>POSIX_THREADS</code> capability
+automatically when pthread-compatible threads are available, including
 Windows. On <code>_WIN32</code>, the pool uses <code>std/thread_windows.zi</code>, native SRW locks
 and condition variables from kernel32; it needs no winpthreads or <code>-pthread</code>.
 <code>tests/native_workers_windows.sh</code> compiles and links source and saved IR
 with MinGW against the native worker pool. MinGW tests accept <code>MCFGTHREADS</code> as the installation
 prefix of an mcfgthread runtime when its <code>lib</code> directory is outside the compiler's
-search path. <code>PLATFORM_WEB</code> opts out;
-untargeted IR stays portable. Explicit C IR freezes the same capability
-selection as source builds. Libraries
+search path. Web selection uses <code>OS == .WEB</code>; <code>PLATFORM_WEB</code> is not a target
+selector. Untargeted IR stays portable. Explicit C IR freezes the same
+capability selection as source builds. Libraries
 can use that capability to parallelize their native adapters by default while
 keeping portable output independent of pthreads. This does not parallelize
 arbitrary program state or make shared mutable data safe.
@@ -1816,9 +1873,9 @@ Ambiguous constructors and mismatched fields remain errors. The checked source
 and saved IR retain the resolved record type; both arms keep their ordinary
 lazy runtime evaluation.</p>
 <p>For checked, hash-bound source changes see <a href="semantic-edit.html">source edits</a>.
-For the opt-in scalar direct native compiler, lowered-IR dumps and final-byte
+For the opt-in scalar direct-native compiler, lowered-IR dumps and final-byte
 source maps, see <a href="https://github.com/ziranlang/ziran/blob/master/ASSEMBLY/README.md">the ASSEMBLY prototype</a>. It is not yet a
-replacement for the supported ZX or native runtime paths.
+replacement for the portable and generated-C runtime paths.
 An optional byte-exact transport with source maps is described in
 <a href="transport-view.html">compact transport</a>; <code>.zi</code> remains canonical source.</p></section>
 </div></div></main>

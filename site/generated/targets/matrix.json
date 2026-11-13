@@ -3061,7 +3061,7 @@
     "std/text.zi": "bbad3d09e2745f497d9493c77a1180d901a56432bebc368a3497c035856cb3ae"
   },
   "harnesses": {
-    "scripts/site_targets.py": "17c94cbd9ea73e6027260a4c1066fb627169f41ce555d6d9295175b631ab6ded",
+    "scripts/site_targets.py": "2b05b2bb130606efc0801b9b73dac41631920c851f455ce6c86faba4162fe2be",
     "scripts/benchmark_samples.py": "28f53003eb06fae7180a3ecc65c35ea56e9e76a48aa316bf957fa5f99897cc66",
     "scripts/site_target_wasm.cjs": "ebeec68e6be0fa9081510ebf50692d991e58abb71d98aaa2d60680a2a64c511f",
     "site/target-abi.js": "944d8d7f6e760e110d3a072c6374a6a81d02c79af3092e2c54f5852c0f8c02eb"

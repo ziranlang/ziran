@@ -1,0 +1,148 @@
+using Elf :: #import "compiler_machine_elf"
+using Lir :: #import "compiler_lowered_ir"
+using Lower :: #import "compiler_machine_lower"
+using Machine :: #import "compiler_machine_ir"
+using RegAlloc :: #import "compiler_regalloc"
+using Target :: #import "compiler_target"
+using Vectors :: #import "std/vec"
+using X64 :: #import "compiler_x86_64"
+
+// Owner for one complete direct machine pipeline. The borrowed ELF view stays
+// valid until the next successful MachineNativeBuild or MachineNativeFree.
+MachineNativeOwner :: struct {
+    valid: bool
+    image: []u8
+    machine: MachineOwner
+    encoded: MachineX64Owner
+    elf: Vec(u8)
+}
+
+#scope_file
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Problem :: (problem: MachineProblem) -> MachineDiagnostic {
+    result := NoDiagnostic()
+    result.problem = problem
+    return result
+}
+
+LowerDiagnostic :: (result: MachineResult) -> MachineDiagnostic {
+    diagnostic := result.diagnostic
+    if diagnostic.problem == .None { diagnostic.problem = result.problem }
+    return diagnostic
+}
+
+// Infallibly exchanges complete owners. Their borrowed program/image views
+// move with the vectors they describe; BUILT receives the prior output and is
+// released only after OUTPUT owns the fully completed native image.
+NativeExchange :: (owner: *MachineNativeOwner, built: *MachineNativeOwner) {
+    valid := owner.valid; owner.valid = built.valid; built.valid = valid
+
+    machine_valid := owner.machine.valid
+    owner.machine.valid = built.machine.valid
+    built.machine.valid = machine_valid
+    program := owner.machine.program
+    owner.machine.program = built.machine.program
+    built.machine.program = program
+    VecSwap(owner.machine.text, built.machine.text)
+    VecSwap(owner.machine.sources, built.machine.sources)
+    VecSwap(owner.machine.origins, built.machine.origins)
+    VecSwap(owner.machine.types, built.machine.types)
+    VecSwap(owner.machine.type_ids, built.machine.type_ids)
+    VecSwap(owner.machine.globals, built.machine.globals)
+    VecSwap(owner.machine.functions, built.machine.functions)
+    VecSwap(owner.machine.blocks, built.machine.blocks)
+    VecSwap(owner.machine.virtuals, built.machine.virtuals)
+    VecSwap(owner.machine.instructions, built.machine.instructions)
+    VecSwap(owner.machine.operands, built.machine.operands)
+    VecSwap(owner.machine.edges, built.machine.edges)
+    VecSwap(owner.machine.copies, built.machine.copies)
+    VecSwap(owner.machine.stack_objects, built.machine.stack_objects)
+    VecSwap(owner.machine.relocations, built.machine.relocations)
+    VecSwap(owner.machine.calls, built.machine.calls)
+    VecSwap(owner.machine.frames, built.machine.frames)
+    VecSwap(owner.machine.spills, built.machine.spills)
+
+    encoded_valid := owner.encoded.valid
+    owner.encoded.valid = built.encoded.valid
+    built.encoded.valid = encoded_valid
+    image := owner.encoded.image
+    owner.encoded.image = built.encoded.image
+    built.encoded.image = image
+    VecSwap(owner.encoded.code, built.encoded.code)
+    VecSwap(owner.encoded.functions, built.encoded.functions)
+    VecSwap(owner.encoded.blocks, built.encoded.blocks)
+    VecSwap(owner.encoded.instructions, built.encoded.instructions)
+    VecSwap(owner.encoded.relocations, built.encoded.relocations)
+
+    VecSwap(owner.elf, built.elf)
+    native_image := owner.image; owner.image = built.image; built.image = native_image
+}
+
+#scope_export
+
+MachineNativeFree :: (owner: *MachineNativeOwner) {
+    if owner == null { return }
+    owner.valid = false
+    empty: []u8
+    owner.image = empty
+    MachineFree(*owner.machine)
+    MachineX64Free(*owner.encoded)
+    VecFree(owner.elf)
+}
+
+MachineNativeView :: (owner: *MachineNativeOwner) -> []u8 {
+    if owner == null || !owner.valid { empty: []u8; return empty }
+    return owner.image
+}
+
+// Transactional MachineLower -> RegAllocAllocate -> MachineX64Encode -> ELF.
+// A failure returns the original stage diagnostic and leaves OUTPUT unchanged.
+MachineNativeBuild :: (lir: LirProgram, target: TargetDescription, limits: MachineLimits,
+    output: *MachineNativeOwner) -> MachineDiagnostic {
+    if output == null { return Problem(.Owner) }
+    // MachineProgram does not carry LIR constant/startup initialization yet.
+    // Reject it here rather than silently publishing zero-initialized data.
+    if lir.initializers.count != 0 { return Problem(.Unsupported) }
+    for global: lir.globals { if global.constant >= 0 { return Problem(.Unsupported) } }
+    built: MachineNativeOwner
+    lowered := MachineLower(*built.machine, lir, target, MachineDefaultOptions(), limits)
+    if lowered.problem != .None {
+        diagnostic := LowerDiagnostic(lowered)
+        MachineNativeFree(*built)
+        return diagnostic
+    }
+    diagnostic := RegAllocAllocate(*built.machine, target, limits)
+    if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
+    program := MachineProgramView(*built.machine)
+    diagnostic = MachineX64Encode(program, limits, *built.encoded)
+    if diagnostic.problem != .None { MachineNativeFree(*built); return diagnostic }
+    image := MachineX64View(*built.encoded)
+    empty: [0]u8
+    measured := MachineElfEncode(program, image, empty[:])
+    if measured.diagnostic.problem != .None {
+        MachineNativeFree(*built)
+        return measured.diagnostic
+    }
+    if measured.size <= 0 || measured.size > limits.bytes ||
+        !VecResizeBounded(built.elf, measured.size, limits.bytes) {
+        MachineNativeFree(*built)
+        return Problem(ifx measured.size > limits.bytes then MachineProblem.Limit else MachineProblem.Allocation)
+    }
+    written := MachineElfEncode(program, image, built.elf[:])
+    if written.diagnostic.problem != .None || written.size != measured.size {
+        diagnostic = written.diagnostic
+        if diagnostic.problem == .None { diagnostic = Problem(.Relocation) }
+        MachineNativeFree(*built)
+        return diagnostic
+    }
+    built.image = built.elf[:]
+    built.valid = true
+    NativeExchange(output, *built)
+    MachineNativeFree(*built)
+    return NoDiagnostic()
+}

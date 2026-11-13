@@ -1,0 +1,925 @@
+using Lir :: #import "compiler_lowered_ir"
+using Lower :: #import "compiler_machine_lower"
+using Machine :: #import "compiler_machine_ir"
+using Verify :: #import "compiler_machine_verify"
+using Allocated :: #import "compiler_machine_verify_allocated"
+using RegAlloc :: #import "compiler_regalloc"
+using Target :: #import "compiler_target"
+
+// Types: 0 void, 1 bool, 2 s64, 3 f64, 4 record {s64, s64}.
+// Constants: 0 = 0, 1 = 1, 2 = 7 (s64); 3 = 1.0, 4 = 2.0 (f64).
+TypeBool :: 1
+TypeInteger :: 2
+TypeFloat :: 3
+TypeRecord :: 4
+
+Rax :: 0
+Rcx :: 1
+Rdx :: 2
+Rsp :: 4
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("register allocation local test failed: %\n", message)
+    return false
+}
+
+Report :: (label: string, diagnostic: Machine.MachineDiagnostic) {
+    print("% diagnostic: problem % function % block % instruction % operand % virtual %\n", label,
+        cast(s32)diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+        diagnostic.operand, diagnostic.virtual)
+}
+
+One :: (storage: []s32, at: *s64, a: s32) -> []s32 {
+    begin := <<at
+    storage[begin] = a
+    <<at = begin + 1
+    return storage[begin:begin + 1]
+}
+
+Two :: (storage: []s32, at: *s64, a: s32, b: s32) -> []s32 {
+    begin := <<at
+    storage[begin] = a; storage[begin + 1] = b
+    <<at = begin + 2
+    return storage[begin:begin + 2]
+}
+
+Three :: (storage: []s32, at: *s64, a: s32, b: s32, c: s32) -> []s32 {
+    begin := <<at
+    storage[begin] = a; storage[begin + 1] = b; storage[begin + 2] = c
+    <<at = begin + 3
+    return storage[begin:begin + 3]
+}
+
+Four :: (storage: []s32, at: *s64, a: s32, b: s32, c: s32, d: s32) -> []s32 {
+    begin := <<at
+    storage[begin] = a; storage[begin + 1] = b; storage[begin + 2] = c; storage[begin + 3] = d
+    <<at = begin + 4
+    return storage[begin:begin + 4]
+}
+
+Op :: (op: Lir.LirOp, result: s32, operands: []s32, effect: s32 = 0) -> Lir.LirInstruction {
+    return .{op = op, result = result, operands = operands, symbol = -1, effect = effect, origin = -1}
+}
+
+Constant :: (result: s32, symbol: s32) -> Lir.LirInstruction {
+    return .{op = .Constant, result = result, symbol = symbol, origin = -1}
+}
+
+Fuel :: (effect: s32) -> Lir.LirInstruction {
+    return .{op = .Fuel, result = -1, immediate = 1, symbol = -1, effect = effect, origin = -1}
+}
+
+Call :: (result: s32, callee: s32, arguments: []s32, effect: s32) -> Lir.LirInstruction {
+    return .{op = .Call, result = result, operands = arguments, symbol = callee, effect = effect, origin = -1}
+}
+
+Jump :: (edges: []Lir.LirEdge) -> Lir.LirInstruction {
+    return .{op = .Jump, result = -1, edges = edges, symbol = -1, origin = -1}
+}
+
+Return :: (operands: []s32) -> Lir.LirInstruction {
+    return .{op = .Return, result = -1, operands = operands, symbol = -1, origin = -1}
+}
+
+LowerProgram :: (owner: *Machine.MachineOwner, functions: []Lir.LirFunction, entry: s32) -> Machine.MachineResult {
+    modules: [1]string = .["regalloc"]
+    record_fields: [2]s32 = .[2, 2]
+    types: [5]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Float, bits = 64},
+        .{kind = .Record, fields = record_fields[:]}]
+    constants: [5]Lir.LirConstant = .[.{type = 2, bits = 0}, .{type = 2, bits = 1}, .{type = 2, bits = 7},
+        .{type = 3, bits = 0x3ff0000000000000}, .{type = 3, bits = 0x4000000000000000}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], functions = functions, entry = entry}
+    return Lower.MachineLower(owner, program, Target.TargetLinuxX64(), Machine.MachineDefaultOptions(),
+        Machine.MachineDefaultLimits())
+}
+
+// `count` simultaneously live constants summed by a dependent chain.
+PressureFixture :: (owner: *Machine.MachineOwner, count: s32, float: bool) -> Machine.MachineResult {
+    type: s32 = ifx float then TypeFloat else TypeInteger
+    values: [64]s32
+    storage: [128]s32
+    at: s64 = 0
+    instructions: [64]Lir.LirInstruction
+    n: s64 = 0
+    instructions[n] = Fuel(1); n += 1
+    for index: 0..count - 1 {
+        values[index] = type
+        instructions[n] = Constant(index, ifx float then 3 else 2); n += 1
+    }
+    accumulator: s32 = 0
+    for index: 1..count - 1 {
+        result := count + index - 1
+        values[result] = type
+        instructions[n] = Op(.Add, result, Two(storage[:], *at, accumulator, index)); n += 1
+        accumulator = result
+    }
+    instructions[n] = Return(One(storage[:], *at, accumulator)); n += 1
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[0:n]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "pressure", result = type,
+        values = values[0:count * 2 - 1], blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], 0)
+}
+
+// Seven integers and two floats live across a call to `identity`.
+CallsFixture :: (owner: *Machine.MachineOwner, callee_fuel: bool) -> Machine.MachineResult {
+    storage: [64]s32
+    at: s64 = 0
+    identity_values: [1]s32 = .[TypeInteger]
+    identity_parameters: [1]s32 = .[TypeInteger]
+    identity_block_parameters: [1]s32 = .[0]
+    identity_instructions: [2]Lir.LirInstruction
+    identity_count: s64 = 0
+    if callee_fuel { identity_instructions[identity_count] = Fuel(1); identity_count += 1 }
+    identity_instructions[identity_count] = Return(One(storage[:], *at, 0)); identity_count += 1
+    identity_blocks: [1]Lir.LirBlock = .[.{parameters = identity_block_parameters[:],
+        instructions = identity_instructions[0:identity_count]}]
+
+    values: [20]s32
+    for index: 0..19 { values[index] = TypeInteger }
+    values[7] = TypeFloat; values[8] = TypeFloat; values[17] = TypeFloat
+    instructions: [24]Lir.LirInstruction
+    n: s64 = 0
+    instructions[n] = Fuel(1); n += 1
+    for index: cast(s32)0..6 { instructions[n] = Constant(index, 2); n += 1 }
+    instructions[n] = Constant(7, 3); n += 1
+    instructions[n] = Constant(8, 4); n += 1
+    instructions[n] = Call(9, 0, One(storage[:], *at, 0), 2); n += 1
+    accumulator: s32 = 0
+    for index: cast(s32)1..6 {
+        instructions[n] = Op(.Add, 9 + index, Two(storage[:], *at, accumulator, index)); n += 1
+        accumulator = 9 + index
+    }
+    instructions[n] = Op(.Add, 16, Two(storage[:], *at, accumulator, 9)); n += 1
+    instructions[n] = Op(.Add, 17, Two(storage[:], *at, 7, 8)); n += 1
+    instructions[n] = Op(.Convert, 18, One(storage[:], *at, 17)); n += 1
+    instructions[n] = Op(.Add, 19, Two(storage[:], *at, 16, 18)); n += 1
+    instructions[n] = Return(One(storage[:], *at, 19)); n += 1
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[0:n]}]
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "identity", parameters = identity_parameters[:], result = TypeInteger,
+            values = identity_values[:], blocks = identity_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "main", result = TypeInteger, values = values[:], blocks = blocks[:],
+            entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], 1)
+}
+
+// Division, remainder, shift and a compare feeding a branch with arguments.
+ArithmeticFixture :: (owner: *Machine.MachineOwner) -> Machine.MachineResult {
+    storage: [32]s32
+    at: s64 = 0
+    values: [9]s32 = .[TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger,
+        TypeBool, TypeInteger, TypeInteger]
+    parameters: [2]s32 = .[TypeInteger, TypeInteger]
+    entry_parameters: [2]s32 = .[0, 1]
+    entry: [7]Lir.LirInstruction
+    entry[0] = Fuel(1)
+    entry[1] = Op(.Divide, 2, Two(storage[:], *at, 0, 1))
+    entry[2] = Op(.Remainder, 3, Two(storage[:], *at, 0, 1))
+    entry[3] = Op(.ShiftLeft, 4, Two(storage[:], *at, 2, 1))
+    entry[4] = Op(.Add, 5, Two(storage[:], *at, 4, 3))
+    entry[5] = Op(.Less, 6, Two(storage[:], *at, 5, 0))
+    edges: [2]Lir.LirEdge = .[.{block = 1, arguments = One(storage[:], *at, 5)},
+        .{block = 2, arguments = One(storage[:], *at, 4)}]
+    entry[6] = .{op = .Branch, result = -1, operands = One(storage[:], *at, 6), edges = edges[:], symbol = -1, origin = -1}
+    yes_parameters: [1]s32 = .[7]
+    yes: [1]Lir.LirInstruction = .[Return(One(storage[:], *at, 7))]
+    no_parameters: [1]s32 = .[8]
+    no: [1]Lir.LirInstruction = .[Return(One(storage[:], *at, 8))]
+    blocks: [3]Lir.LirBlock = .[.{parameters = entry_parameters[:], instructions = entry[:]},
+        .{parameters = yes_parameters[:], instructions = yes[:]},
+        .{parameters = no_parameters[:], instructions = no[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "arith", parameters = parameters[:],
+        result = TypeInteger, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+// A loop whose back-edge rotates `width` header parameters one place,
+// (a0, a1, ..., a[w-1]) -> (a1, ..., a[w-1], a0), or with `swap_tail` keeps
+// all but the last two and swaps those, with a counter.
+RotateFixture :: (owner: *Machine.MachineOwner, width: s32, header_fuel: bool,
+    swap_tail: bool = false) -> Machine.MachineResult {
+    storage: [256]s32
+    at: s64 = 0
+    m := width
+    counter := 2 * m + 1
+    zero := 2 * m + 2
+    condition := 2 * m + 3
+    one := 2 * m + 4
+    next := 2 * m + 5
+    values: [64]s32
+    for index: cast(s32)0..3 * m + 4 { values[index] = TypeInteger }
+    values[condition] = TypeBool
+    parameters: [1]s32 = .[TypeInteger]
+    entry_parameters: [1]s32 = .[0]
+    entry_begin := at
+    for index: cast(s32)0..m - 1 { storage[at] = 1 + index; at += 1 }
+    storage[at] = 0; at += 1
+    entry_edges: [1]Lir.LirEdge = .[.{block = 1, arguments = storage[entry_begin:at]}]
+    entry: [24]Lir.LirInstruction
+    entry_count: s64 = 0
+    entry[entry_count] = Fuel(1); entry_count += 1
+    for index: cast(s32)0..m - 1 { entry[entry_count] = Constant(1 + index, 2); entry_count += 1 }
+    entry[entry_count] = Jump(entry_edges[:]); entry_count += 1
+    header_begin := at
+    for index: cast(s32)0..m - 1 { storage[at] = m + 1 + index; at += 1 }
+    storage[at] = counter; at += 1
+    header_parameters := storage[header_begin:at]
+    header: [4]Lir.LirInstruction
+    header_count: s64 = 0
+    if header_fuel { header[header_count] = Fuel(1); header_count += 1 }
+    header[header_count] = Constant(zero, 0); header_count += 1
+    header[header_count] = Op(.Greater, condition, Two(storage[:], *at, counter, zero)); header_count += 1
+    branch_edges: [2]Lir.LirEdge = .[.{block = 2}, .{block = 3}]
+    header[header_count] = .{op = .Branch, result = -1, operands = One(storage[:], *at, condition), edges = branch_edges[:],
+        symbol = -1, origin = -1}
+    header_count += 1
+    body_begin := at
+    for index: cast(s32)0..m - 1 {
+        source := (index + 1) % m
+        if swap_tail { source = ifx index < m - 2 then index else ifx index == m - 2 then m - 1 else m - 2 }
+        storage[at] = m + 1 + source
+        at += 1
+    }
+    storage[at] = next; at += 1
+    body_edges: [1]Lir.LirEdge = .[.{block = 1, arguments = storage[body_begin:at]}]
+    body: [3]Lir.LirInstruction = .[Constant(one, 1), Op(.Subtract, next, Two(storage[:], *at, counter, one)),
+        Jump(body_edges[:])]
+    exit: [24]Lir.LirInstruction
+    exit_count: s64 = 0
+    accumulator := m + 1
+    for index: cast(s32)1..m - 1 {
+        result := 2 * m + 5 + index
+        exit[exit_count] = Op(.Add, result, Two(storage[:], *at, accumulator, m + 1 + index)); exit_count += 1
+        accumulator = result
+    }
+    exit[exit_count] = Return(One(storage[:], *at, accumulator)); exit_count += 1
+    blocks: [4]Lir.LirBlock = .[.{parameters = entry_parameters[:], instructions = entry[0:entry_count]},
+        .{parameters = header_parameters, instructions = header[0:header_count]},
+        .{instructions = body[:]}, .{instructions = exit[0:exit_count]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "rotate", parameters = parameters[:],
+        result = TypeInteger, values = values[0:3 * m + 5], blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+// Two record block parameters swapped on every back-edge.
+SwapRecordsFixture :: (owner: *Machine.MachineOwner) -> Machine.MachineResult {
+    storage: [48]s32
+    at: s64 = 0
+    values: [13]s32 = .[TypeInteger, TypeRecord, TypeRecord, TypeRecord, TypeRecord, TypeInteger, TypeInteger,
+        TypeBool, TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger]
+    parameters: [1]s32 = .[TypeInteger]
+    entry_parameters: [1]s32 = .[0]
+    entry_edges: [1]Lir.LirEdge = .[.{block = 1, arguments = Three(storage[:], *at, 1, 2, 0)}]
+    entry: [4]Lir.LirInstruction = .[Fuel(1), Op(.Aggregate, 1, Two(storage[:], *at, 0, 0)),
+        Op(.Aggregate, 2, Two(storage[:], *at, 0, 0)), Jump(entry_edges[:])]
+    header_parameters: [3]s32 = .[3, 4, 5]
+    branch_edges: [2]Lir.LirEdge = .[.{block = 2}, .{block = 3}]
+    header: [4]Lir.LirInstruction = .[Fuel(1), Constant(6, 0), Op(.Greater, 7, Two(storage[:], *at, 5, 6)),
+        .{op = .Branch, result = -1, operands = One(storage[:], *at, 7), edges = branch_edges[:], symbol = -1, origin = -1}]
+    body_edges: [1]Lir.LirEdge = .[.{block = 1, arguments = Three(storage[:], *at, 4, 3, 9)}]
+    body: [3]Lir.LirInstruction = .[Constant(8, 1), Op(.Subtract, 9, Two(storage[:], *at, 5, 8)), Jump(body_edges[:])]
+    first := Op(.Extract, 10, One(storage[:], *at, 3)); first.immediate = 0
+    second := Op(.Extract, 11, One(storage[:], *at, 4)); second.immediate = 1
+    exit: [4]Lir.LirInstruction = .[first, second, Op(.Add, 12, Two(storage[:], *at, 10, 11)),
+        Return(One(storage[:], *at, 12))]
+    blocks: [4]Lir.LirBlock = .[.{parameters = entry_parameters[:], instructions = entry[:]},
+        .{parameters = header_parameters[:], instructions = header[:]},
+        .{instructions = body[:]}, .{instructions = exit[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "swap", parameters = parameters[:],
+        result = TypeInteger, values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+// Aggregate and eighth-integer stack arguments, incoming and outgoing.
+// `take` receives an aggregate and `many` eight integers, so both have
+// incoming stack arguments. With STACK_CALLS, `outer` calls them, passing an
+// aggregate and two integers on the stack; otherwise it only builds and reads
+// its own aggregate value.
+FrameFixture :: (owner: *Machine.MachineOwner, stack_calls: bool) -> Machine.MachineResult {
+    storage: [48]s32
+    at: s64 = 0
+    take_values: [2]s32 = .[TypeRecord, TypeInteger]
+    take_parameters: [1]s32 = .[TypeRecord]
+    take_entry: [1]s32 = .[0]
+    take_extract := Op(.Extract, 1, One(storage[:], *at, 0)); take_extract.immediate = 1
+    take: [3]Lir.LirInstruction = .[Fuel(1), take_extract, Return(One(storage[:], *at, 1))]
+    take_blocks: [1]Lir.LirBlock = .[.{parameters = take_entry[:], instructions = take[:]}]
+
+    many_values: [9]s32
+    many_parameters: [8]s32
+    many_entry: [8]s32
+    for index: 0..8 { many_values[index] = TypeInteger }
+    for index: cast(s32)0..7 { many_parameters[index] = TypeInteger; many_entry[index] = index }
+    many: [3]Lir.LirInstruction = .[Fuel(1), Op(.Add, 8, Two(storage[:], *at, 0, 7)), Return(One(storage[:], *at, 8))]
+    many_blocks: [1]Lir.LirBlock = .[.{parameters = many_entry[:], instructions = many[:]}]
+
+    outer_values: [7]s32 = .[TypeInteger, TypeRecord, TypeInteger, TypeInteger, TypeInteger, TypeInteger, TypeInteger]
+    outer_parameters: [1]s32 = .[TypeInteger]
+    outer_entry: [1]s32 = .[0]
+    eight: [8]s32 = .[0, 0, 0, 0, 0, 0, 0, 2]
+    extract := Op(.Extract, 4, One(storage[:], *at, 1)); extract.immediate = 0
+    first := Call(2, 0, One(storage[:], *at, 1), 2)
+    second := Call(3, 1, eight[:], 3)
+    if !stack_calls {
+        first = Op(.Add, 2, Two(storage[:], *at, 0, 0))
+        second = Op(.Add, 3, Two(storage[:], *at, 0, 0))
+    }
+    outer: [8]Lir.LirInstruction = .[Fuel(1), Op(.Aggregate, 1, Two(storage[:], *at, 0, 0)),
+        first, second, extract,
+        Op(.Add, 5, Two(storage[:], *at, 2, 3)), Op(.Add, 6, Two(storage[:], *at, 5, 4)),
+        Return(One(storage[:], *at, 6))]
+    outer_blocks: [1]Lir.LirBlock = .[.{parameters = outer_entry[:], instructions = outer[:]}]
+    functions: [3]Lir.LirFunction = .[
+        .{module = 0, name = "take", parameters = take_parameters[:], result = TypeInteger,
+            values = take_values[:], blocks = take_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "many", parameters = many_parameters[:], result = TypeInteger,
+            values = many_values[:], blocks = many_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "outer", parameters = outer_parameters[:], result = TypeInteger,
+            values = outer_values[:], blocks = outer_blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], -1)
+}
+
+// `scale` takes an f64 and, with FLOAT_RESULT, returns it; otherwise it
+// returns it converted to s64. `main` calls it with an f64 constant.
+FloatCallFixture :: (owner: *Machine.MachineOwner, float_result: bool) -> Machine.MachineResult {
+    storage: [16]s32
+    at: s64 = 0
+    result_type: s32 = TypeInteger
+    callee_count: s64 = 3
+    callee_value_count: s64 = 2
+    if float_result { result_type = TypeFloat; callee_count = 2; callee_value_count = 1 }
+    callee_values: [2]s32 = .[TypeFloat, TypeInteger]
+    callee_parameters: [1]s32 = .[TypeFloat]
+    callee_entry: [1]s32 = .[0]
+    callee: [3]Lir.LirInstruction = .[Fuel(1), Op(.Convert, 1, One(storage[:], *at, 0)),
+        Return(One(storage[:], *at, 1))]
+    if float_result { callee[1] = Return(One(storage[:], *at, 0)) }
+    callee_blocks: [1]Lir.LirBlock = .[.{parameters = callee_entry[:], instructions = callee[0:callee_count]}]
+    main_values: [3]s32 = .[TypeFloat, result_type, TypeInteger]
+    body: [5]Lir.LirInstruction
+    n: s64 = 0
+    body[n] = Fuel(1); n += 1
+    body[n] = Constant(0, 3); n += 1
+    body[n] = Call(1, 0, One(storage[:], *at, 0), 2); n += 1
+    last: s32 = 1
+    main_value_count: s64 = 2
+    if float_result {
+        body[n] = Op(.Convert, 2, One(storage[:], *at, 1)); n += 1
+        last = 2
+        main_value_count = 3
+    }
+    body[n] = Return(One(storage[:], *at, last)); n += 1
+    main_blocks: [1]Lir.LirBlock = .[.{instructions = body[0:n]}]
+    functions: [2]Lir.LirFunction = .[
+        .{module = 0, name = "scale", parameters = callee_parameters[:], result = result_type,
+            values = callee_values[0:callee_value_count], blocks = callee_blocks[:], entry = 0, origin = -1},
+        .{module = 0, name = "main", result = TypeInteger, values = main_values[0:main_value_count],
+            blocks = main_blocks[:], entry = 0, origin = -1}]
+    return LowerProgram(owner, functions[:], 1)
+}
+
+Lowered :: (label: string, result: Machine.MachineResult) -> bool {
+    if result.problem == .None { return true }
+    print("% lowering failed: problem % lir %\n", label, cast(s32)result.problem, result.lir_diagnostic_problem)
+    Report(label, result.diagnostic)
+    return false
+}
+
+Allocate :: (label: string, owner: *Machine.MachineOwner) -> bool {
+    diagnostic := RegAlloc.RegAllocAllocate(owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if diagnostic.problem == .None { return true }
+    Report(label, diagnostic)
+    return false
+}
+
+// Invariants every allocated program must satisfy.
+Allocated :: (program: Machine.MachineProgram, label: string) -> bool {
+    if !Check(program.stage == .Allocated && program.copies.count == 0, label) ||
+        !Check(Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits()).problem == .None, label) ||
+        !Check(program.frames.count == program.functions.count, label) { return false }
+    for operand: program.operands {
+        if !Check(operand.kind != .Virtual, "no virtual operands remain after allocation") { return false }
+    }
+    for edge: program.edges { if !Check(edge.copy_count == 0, "edge copies are resolved") { return false } }
+    for frame: program.frames {
+        if !Check(frame.size % 16 == 0 && frame.alignment == 16 && frame.outgoing_size % 16 == 0,
+            "frames keep 16-byte stack alignment") { return false }
+    }
+    for object: program.stack_objects {
+        if object.kind == .IncomingArgument || object.kind == .OutgoingArgument { continue }
+        if !Check(object.offset < 0 && object.offset % cast(s64)object.alignment == 0,
+            "frame objects sit at aligned frame-pointer offsets") { return false }
+    }
+    return true
+}
+
+FindOpcode :: (program: Machine.MachineProgram, opcode: Machine.MachineOpcode, from: s32 = 0) -> s32 {
+    for index: cast(s64)from..program.instructions.count - 1 {
+        if program.instructions[index].opcode == opcode { return cast(s32)index }
+    }
+    return -1
+}
+
+Operand :: (program: Machine.MachineProgram, instruction: s32, local: s32) -> Machine.MachineOperand {
+    return program.operands[program.instructions[instruction].operand_begin + local]
+}
+
+CountSpills :: (program: Machine.MachineProgram, reason: Machine.MachineSpillReason) -> s32 {
+    count: s32 = 0
+    for spill: program.spills { if spill.reason == reason { count += 1 } }
+    return count
+}
+
+Fingerprint :: (program: Machine.MachineProgram) -> u64 {
+    hash: u64 = 1469598103934665603
+    for instruction: program.instructions {
+        hash = (hash ^ cast(u64)instruction.opcode ^ cast(u64)instruction.operand_count) * 1099511628211
+    }
+    for operand: program.operands {
+        hash = (hash ^ cast(u64)operand.kind ^ cast(u64)(operand.id + 1) ^ cast(u64)(operand.value + 1)) * 1099511628211
+    }
+    for object: program.stack_objects {
+        hash = (hash ^ cast(u64)object.kind ^ cast(u64)object.offset ^ cast(u64)object.size) * 1099511628211
+    }
+    for frame: program.frames { hash = (hash ^ cast(u64)frame.size ^ frame.callee_saved_general) * 1099511628211 }
+    for spill: program.spills {
+        hash = (hash ^ cast(u64)spill.instruction ^ cast(u64)spill.reason ^ cast(u64)spill.register) * 1099511628211
+    }
+    return hash
+}
+
+Rejects :: (program: Machine.MachineProgram, problem: Machine.MachineProblem, message: string) -> bool {
+    diagnostic := Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits())
+    if diagnostic.problem == problem { return true }
+    Report(message, diagnostic)
+    return Check(false, message)
+}
+
+// The owner still publishes its verified Virtual program, unchanged.
+Intact :: (owner: *Machine.MachineOwner, before: u64, message: string) -> bool {
+    view := Lower.MachineProgramView(owner)
+    return Check(owner.valid && view.stage == .Virtual && Fingerprint(view) == before &&
+        Verify.MachineVerify(view, Machine.MachineDefaultLimits()).problem == .None, message)
+}
+
+// Allocation succeeds for these inputs, so the allocated verifier is what
+// rejects them: the late failure path. The owner keeps its program and the
+// diagnostic names the input call operand.
+LateCallForm :: (float_result: bool, message: string) -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered(message, FloatCallFixture(*owner, float_result)) { return false }
+    input := Lower.MachineProgramView(*owner)
+    before := Fingerprint(input)
+    call := input.calls[0]
+    operand := ifx float_result then call.result_operand else call.argument_begin
+    late := RegAlloc.RegAllocAllocate(*owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(late.problem == .Unsupported && late.function == 1 && late.instruction == call.instruction &&
+        late.block == input.functions[1].block_begin && late.operand == operand, message) {
+        Report(message, late)
+        return false
+    }
+    return Intact(*owner, before, "a late allocation failure leaves the owner's program intact")
+}
+
+PressureCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("pressure", PressureFixture(*owner, 20, false)) || !Allocate("pressure", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "pressure allocation verifies") ||
+        !Check(CountSpills(program, .Pressure) > 0 && FindOpcode(program, .Spill) >= 0 && FindOpcode(program, .Reload) >= 0,
+            "register pressure spills and reloads with a recorded reason") { return false }
+    for spill: program.spills {
+        object := program.stack_objects[spill.stack_object]
+        if !Check(object.kind == .Spill && object.value == spill.virtual && spill.function == 0,
+            "every spill record names its slot and value") { return false }
+    }
+    // Determinism: a second allocation of the same input is identical.
+    second: Machine.MachineOwner
+    defer Lower.MachineFree(*second)
+    if !Lowered("pressure repeat", PressureFixture(*second, 20, false)) || !Allocate("pressure repeat", *second) ||
+        !Check(Fingerprint(Lower.MachineProgramView(*second)) == Fingerprint(program), "deterministic allocation") {
+        return false
+    }
+    // Malformed allocated IR is rejected with a location.
+    spill := program.spills[0]
+    program.spills[0].register = spill.register + 1
+    if !Rejects(program, .Spill, "spill record must match its instruction") { return false }
+    program.spills[0] = spill
+    reload := FindOpcode(program, .Reload)
+    slot_operand := program.instructions[reload].operand_begin + 1
+    saved_slot := program.operands[slot_operand]
+    program.operands[slot_operand].id = cast(s32)program.stack_objects.count
+    if !Rejects(program, .Stack, "reload from a missing slot") { return false }
+    program.operands[slot_operand] = saved_slot
+    frame_object: s64 = -1
+    for index: cast(s64)0..program.stack_objects.count - 1 {
+        if program.stack_objects[index].kind == .Spill { frame_object = index; break }
+    }
+    saved_offset := program.stack_objects[frame_object].offset
+    program.stack_objects[frame_object].offset = saved_offset + 4
+    if !Rejects(program, .Frame, "misaligned spill slot") { return false }
+    program.stack_objects[frame_object].offset = saved_offset
+    program.frames[0].size += 8
+    if !Rejects(program, .Frame, "frame size keeps 16-byte alignment") { return false }
+    program.frames[0].size -= 8
+    program.stage = .Virtual
+    if !Rejects(program, .Stage, "allocated verifier requires the Allocated stage") { return false }
+    program.stage = .Allocated
+    if !Check(Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits()).problem == .None,
+        "restored program verifies again") { return false }
+    // An allocated program cannot be allocated again.
+    again := RegAlloc.RegAllocAllocate(*owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    return Check(again.problem == .Stage, "allocation requires the Virtual stage")
+}
+
+CallCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("calls", CallsFixture(*owner, true)) || !Allocate("calls", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "call allocation verifies") ||
+        !Check(CountSpills(program, .Call) > 0, "values live across a call are split with a call reason") ||
+        !Check(program.frames[1].callee_saved_general != 0, "live-across values use callee-saved registers") { return false }
+    float_spill := false
+    for spill: program.spills {
+        if program.virtuals[spill.virtual].class == .Float && spill.reason == .Call { float_spill = true }
+    }
+    if !Check(float_spill, "float values live across a call are spilled (no callee-saved XMM)") { return false }
+    call := FindOpcode(program, .CallDirect)
+    argument := Operand(program, call, 2)
+    if !Check(argument.kind == .Physical && argument.id == 7 && argument.fixed_register == 7,
+        "first integer argument is in RDI") { return false }
+    float_add := FindOpcode(program, .FloatAdd)
+    if !Check(float_add >= 0 && Operand(program, float_add, 0).class == .Float &&
+        Operand(program, float_add, 0).kind == .Physical, "float values use the XMM bank") { return false }
+    // A call that also clobbers callee-saved registers exposes the live values.
+    saved_clobber := program.calls[0].clobber_general
+    program.calls[0].clobber_general = saved_clobber | Allocated.MachineBankCalleeSaved(program.target, 0)
+    if !Rejects(program, .Clobber, "clobbered live value") { return false }
+    program.calls[0].clobber_general = saved_clobber
+    saved_mask := program.frames[1].callee_saved_general
+    program.frames[1].callee_saved_general = 0
+    if !Rejects(program, .Frame, "written callee-saved registers need frame homes") { return false }
+    program.frames[1].callee_saved_general = saved_mask
+
+    // Unsupported call clobbers and missing fuel hard-fail before allocation.
+    narrow: Machine.MachineOwner
+    defer Lower.MachineFree(*narrow)
+    if !Lowered("narrow", CallsFixture(*narrow, true)) { return false }
+    view := Lower.MachineProgramView(*narrow)
+    view.calls[0].clobber_general = 0
+    narrow_result := RegAlloc.RegAllocAllocate(*narrow, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(narrow_result.problem == .Clobber && narrow_result.instruction >= 0,
+        "a call that claims to preserve caller-saved registers is rejected") ||
+        !Check(Lower.MachineProgramView(*narrow).stage == .Virtual &&
+            Verify.MachineVerify(Lower.MachineProgramView(*narrow), Machine.MachineDefaultLimits()).problem == .None,
+            "failed allocation leaves the owner's program intact") { return false }
+    unfueled: Machine.MachineOwner
+    defer Lower.MachineFree(*unfueled)
+    if !Lowered("unfueled callee", CallsFixture(*unfueled, false)) { return false }
+    missing := RegAlloc.RegAllocAllocate(*unfueled, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(missing.problem == .Fuel && missing.function == 1 && missing.instruction >= 0,
+        "a call to a function without entry fuel is rejected at the call") { return false }
+
+    // A relocation addend the target cannot encode is found only by the
+    // allocated verifier. That late failure leaves the owner intact, and the
+    // same owner allocates once its input is valid again.
+    addend_owner: Machine.MachineOwner
+    defer Lower.MachineFree(*addend_owner)
+    if !Lowered("call addend", CallsFixture(*addend_owner, true)) { return false }
+    addend_view := Lower.MachineProgramView(*addend_owner)
+    relocation: s64 = -1
+    for index: cast(s64)0..addend_view.relocations.count - 1 {
+        if addend_view.relocations[index].kind == .FunctionCall { relocation = index }
+    }
+    if !Check(relocation >= 0, "the call fixture relocates its direct call") { return false }
+    addend_view.relocations[relocation].addend = 4
+    addend_before := Fingerprint(addend_view)
+    relocated := addend_view.relocations[relocation]
+    late := RegAlloc.RegAllocAllocate(*addend_owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(late.problem == .Relocation && late.function == 1 && late.instruction == relocated.instruction &&
+        late.operand == relocated.operand, "a direct call relocation addend is rejected at the input call") {
+        Report("call addend", late)
+        return false
+    }
+    if !Intact(*addend_owner, addend_before, "a late allocation failure leaves the owner's program intact") { return false }
+    restored := Lower.MachineProgramView(*addend_owner)
+    restored.relocations[relocation].addend = 0
+    if !Allocate("call addend restored", *addend_owner) ||
+        !Allocated(Lower.MachineProgramView(*addend_owner), "the kept owner allocates after a late failure") { return false }
+
+    // Float call arguments and results are not implemented natively.
+    return LateCallForm(false, "a float call argument is unsupported at that argument") &&
+        LateCallForm(true, "a float call result is unsupported at that result")
+}
+
+ArithmeticCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("arithmetic", ArithmeticFixture(*owner)) || !Allocate("arithmetic", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "arithmetic allocation verifies") { return false }
+    divide := FindOpcode(program, .IntegerDivide)
+    remainder := FindOpcode(program, .IntegerRemainder)
+    shift := FindOpcode(program, .ShiftLeft)
+    if !Check(divide >= 0 && Operand(program, divide, 0).id == Rax && Operand(program, divide, 1).id == Rax &&
+            Operand(program, divide, 3).kind == .Physical && Operand(program, divide, 3).id == Rdx,
+            "division uses RAX for dividend and quotient and clobbers RDX") ||
+        !Check(Operand(program, divide, 2).id != Rax && Operand(program, divide, 2).id != Rdx,
+            "divisor avoids RAX and RDX") ||
+        !Check(remainder >= 0 && Operand(program, remainder, 2).id != Rdx, "remainder divisor avoids RDX") ||
+        !Check(shift >= 0 && Operand(program, shift, 2).id == Rcx && Operand(program, shift, 0).id != Rcx &&
+            Operand(program, shift, 0).id == Operand(program, shift, 1).id,
+            "shift count is in RCX and the tied result avoids it") { return false }
+    compare := FindOpcode(program, .Compare)
+    set := FindOpcode(program, .SetCondition)
+    if !Check(compare >= 0 && set > compare && program.instructions[set].flags_use == program.instructions[compare].flags_def,
+        "flags lifetime survives allocation") { return false }
+    for between: compare + 1..set - 1 {
+        if !Check(Allocated.MachineIsTransfer(program.instructions[between].opcode),
+            "only flag-preserving transfers separate a compare from its consumer") { return false }
+    }
+    jump_blocks: s32 = 0
+    for block: program.blocks { if block.lir_block == -1 { jump_blocks += 1 } }
+    if !Check(jump_blocks > 0, "branch edges with copies get resolution blocks") { return false }
+
+    // Malformed allocated IR.
+    add := FindOpcode(program, .IntegerAdd)
+    result := program.instructions[add].operand_begin
+    right := result + 2
+    saved_right := program.operands[right]
+    program.operands[right].id = program.operands[result + 1].id
+    diagnostic := Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits())
+    if !Check(diagnostic.problem == .Interference && diagnostic.function == 0 && diagnostic.block >= 0 &&
+        diagnostic.instruction == add && diagnostic.operand == right && diagnostic.virtual == saved_right.value,
+        "overlapping assignment is rejected with its location") { Report("interference", diagnostic); return false }
+    program.operands[right] = saved_right
+    saved_result := program.operands[result]
+    program.operands[result].id = ifx saved_result.id == 3 then 12 else 3
+    if !Rejects(program, .Tie, "broken tie") { return false }
+    program.operands[result] = saved_result
+    program.operands[right].kind = .Virtual
+    if !Rejects(program, .Virtual, "virtual operand after allocation") { return false }
+    program.operands[right] = saved_right
+    program.operands[right].id = Rsp
+    if !Rejects(program, .Constraint, "reserved stack pointer cannot hold a value") { return false }
+    program.operands[right] = saved_right
+    quotient_at := program.instructions[divide].operand_begin
+    quotient := program.operands[quotient_at]
+    dividend := program.operands[quotient_at + 1]
+    program.operands[quotient_at].id = 3
+    program.operands[quotient_at + 1].id = 3
+    if !Rejects(program, .Constraint, "fixed dividend and quotient registers") { return false }
+    program.operands[quotient_at].id = Rax
+    if !Rejects(program, .Tie, "tied quotient and dividend share a register") { return false }
+    program.operands[quotient_at] = quotient
+    program.operands[quotient_at + 1] = dividend
+    flags := program.instructions[set].flags_use
+    program.instructions[set].flags_use = program.instructions[FindOpcode(program, .Fuel)].flags_def
+    if !Rejects(program, .Flags, "flags consumer reads the wrong flags value") { return false }
+    program.instructions[set].flags_use = flags
+    fuel := FindOpcode(program, .Fuel)
+    fuel_flags := program.instructions[fuel].flags_def
+    program.instructions[fuel].flags_def = -1
+    if !Rejects(program, .Fuel, "fuel check must clobber flags explicitly") { return false }
+    program.instructions[fuel].flags_def = fuel_flags
+    jump := FindOpcode(program, .Jump)
+    edge := program.instructions[jump].edge_begin
+    program.edges[edge].copy_count = 1
+    if !Rejects(program, .Copy, "unresolved parallel copy") { return false }
+    program.edges[edge].copy_count = 0
+    return Check(Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits()).problem == .None,
+        "restored arithmetic program verifies")
+}
+
+RotateCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("rotate", RotateFixture(*owner, 3, true)) || !Allocate("rotate", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "rotating loop verifies") { return false }
+    // The register cycle is broken through the scratch register.
+    park: s32 = -1
+    reader: s32 = -1
+    for index: cast(s32)0..cast(s32)program.instructions.count - 1 {
+        if program.instructions[index].opcode != .Move { continue }
+        if Operand(program, index, 0).id == program.scratch_general && park < 0 { park = index }
+        if Operand(program, index, 1).id == program.scratch_general { reader = index }
+    }
+    if !Check(park >= 0 && reader > park, "cyclic back-edge copies park one value in the scratch register") { return false }
+    // Reading the overwritten register instead of the parked copy is caught.
+    source := program.instructions[reader].operand_begin + 1
+    saved := program.operands[source]
+    program.operands[source].id = Operand(program, park, 1).id
+    copy_error := Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits())
+    if !Check(copy_error.problem == .Copy && copy_error.instruction == reader && copy_error.operand == source,
+        "parallel copy reading a source it already overwrote is rejected at that copy") {
+        Report("copy order", copy_error)
+        return false
+    }
+    program.operands[source] = saved
+
+    wide: Machine.MachineOwner
+    defer Lower.MachineFree(*wide)
+    if !Lowered("wide rotate", RotateFixture(*wide, 16, true)) || !Allocate("wide rotate", *wide) { return false }
+    wide_program := Lower.MachineProgramView(*wide)
+    memory_copy := false
+    for index: cast(s32)0..cast(s32)wide_program.instructions.count - 1 {
+        if wide_program.instructions[index].opcode != .Spill { continue }
+        if Operand(wide_program, index, 1).id == wide_program.scratch_general &&
+            Operand(wide_program, index, 0).value != Operand(wide_program, index, 1).value { memory_copy = true }
+    }
+    if !Allocated(wide_program, "wide rotation under pressure verifies") ||
+        !Check(CountSpills(wide_program, .Pressure) > 0 && memory_copy,
+            "spilled block parameters copy slot to slot through the scratch register") { return false }
+    tail: Machine.MachineOwner
+    defer Lower.MachineFree(*tail)
+    if !Lowered("tail swap", RotateFixture(*tail, 16, true, true)) || !Allocate("tail swap", *tail) { return false }
+    tail_program := Lower.MachineProgramView(*tail)
+    tail_temporary := false
+    for object: tail_program.stack_objects { if object.kind == .Temporary { tail_temporary = true } }
+    if !Allocated(tail_program, "spilled tail swap verifies") ||
+        !Check(tail_temporary && CountSpills(tail_program, .Cycle) >= 2,
+            "a cycle between two spilled parameters parks one through a frame temporary") {
+        print("tail swap: temporary % cycle spills %\n", tail_temporary, CountSpills(tail_program, .Cycle))
+        return false
+    }
+
+    records: Machine.MachineOwner
+    defer Lower.MachineFree(*records)
+    if !Lowered("swap records", SwapRecordsFixture(*records)) || !Allocate("swap records", *records) { return false }
+    records_program := Lower.MachineProgramView(*records)
+    temporary := false
+    aggregate_moves: s32 = 0
+    for object: records_program.stack_objects { if object.kind == .Temporary { temporary = true } }
+    for index: cast(s32)0..cast(s32)records_program.instructions.count - 1 {
+        if records_program.instructions[index].opcode == .Move && Operand(records_program, index, 0).class == .Stack {
+            aggregate_moves += 1
+        }
+    }
+    if !Allocated(records_program, "aggregate swap loop verifies") ||
+        !Check(temporary && aggregate_moves >= 3, "aggregate block-parameter cycles use a frame temporary") { return false }
+
+    unfueled: Machine.MachineOwner
+    defer Lower.MachineFree(*unfueled)
+    if !Lowered("unfueled loop", RotateFixture(*unfueled, 3, false)) { return false }
+    missing := RegAlloc.RegAllocAllocate(*unfueled, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(missing.problem == .Fuel && missing.function == 0 && missing.block >= 0,
+        "a loop without a fuel check is rejected") { Report("loop fuel", missing); return false }
+
+    // Unsupported classes and constraints hard-fail.
+    flags_owner: Machine.MachineOwner
+    defer Lower.MachineFree(*flags_owner)
+    if !Lowered("flags operand", RotateFixture(*flags_owner, 3, true)) { return false }
+    view := Lower.MachineProgramView(*flags_owner)
+    constant := FindOpcode(view, .MoveImmediate, view.blocks[1].instruction_begin)
+    defined := Operand(view, constant, 0).id
+    view.virtuals[defined].class = .Flags
+    for index: cast(s64)0..view.operands.count - 1 {
+        if view.operands[index].kind == .Virtual && view.operands[index].id == defined { view.operands[index].class = .Flags }
+    }
+    if !Check(Verify.MachineVerify(view, Machine.MachineDefaultLimits()).problem == .None, "flags-class fixture is valid MIR") ||
+        !Check(RegAlloc.RegAllocAllocate(*flags_owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits()).problem == .Unsupported,
+            "a flags-class operand is unsupported") { return false }
+    role_owner: Machine.MachineOwner
+    defer Lower.MachineFree(*role_owner)
+    if !Lowered("use-define", RotateFixture(*role_owner, 3, true)) { return false }
+    role_view := Lower.MachineProgramView(*role_owner)
+    role_view.operands[role_view.instructions[FindOpcode(role_view, .MoveImmediate)].operand_begin].role = .UseDefine
+    if !Check(RegAlloc.RegAllocAllocate(*role_owner, Target.TargetLinuxX64(), Machine.MachineDefaultLimits()).problem == .Constraint,
+        "a virtual read-modify-write operand is unsupported") { return false }
+    target_owner: Machine.MachineOwner
+    defer Lower.MachineFree(*target_owner)
+    if !Lowered("target", RotateFixture(*target_owner, 3, true)) { return false }
+    aarch64 := Target.TargetDescribe(.AArch64, .Linux).target
+    if !Check(RegAlloc.RegAllocAllocate(*target_owner, aarch64, Machine.MachineDefaultLimits()).problem == .UnsupportedTarget,
+        "an unsupported target is explicit") { return false }
+    small := Machine.MachineDefaultLimits()
+    small.work = 50
+    if !Check(RegAlloc.RegAllocAllocate(*target_owner, Target.TargetLinuxX64(), small).problem == .Limit,
+        "allocation work is bounded") { return false }
+    return Check(RegAlloc.RegAllocAllocate(null, Target.TargetLinuxX64(), Machine.MachineDefaultLimits()).problem == .Owner,
+        "a missing owner is rejected")
+}
+
+FrameCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("frames", FrameFixture(*owner, false)) || !Allocate("frames", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "frame allocation verifies") ||
+        !Check(program.frames[0].incoming_size == 16 && program.frames[1].incoming_size == 16,
+            "aggregate and eighth-integer incoming arguments sit above the return address") ||
+        !Check(program.frames[2].outgoing_size == 0, "no stack arguments leave no outgoing area") { return false }
+    aggregate := false
+    first: s64 = -1
+    second: s64 = -1
+    for index: cast(s64)0..program.stack_objects.count - 1 {
+        object := program.stack_objects[index]
+        if object.function == 2 && object.kind == .Value && object.size == 16 { aggregate = object.offset < 0 && object.offset % 8 == 0 }
+        if object.function == 1 && object.kind == .IncomingArgument {
+            if !Check(object.offset == 16 || object.offset == 24, "incoming stack arguments follow parameter order") { return false }
+            if first < 0 { first = index } else { second = index }
+        }
+    }
+    if !Check(aggregate, "aggregate value lives in an aligned frame object") ||
+        !Check(first >= 0 && second >= 0, "two integers arrive on the stack") { return false }
+    // Incoming stack homes in another order than the parameters are rejected.
+    first_offset := program.stack_objects[first].offset
+    second_offset := program.stack_objects[second].offset
+    program.stack_objects[first].offset = second_offset
+    program.stack_objects[second].offset = first_offset
+    if !Rejects(program, .Frame, "incoming stack arguments out of parameter order") { return false }
+    program.stack_objects[first].offset = first_offset
+    program.stack_objects[second].offset = second_offset
+    if !Check(Allocated.MachineVerifyAllocated(program, Machine.MachineDefaultLimits()).problem == .None,
+        "restored incoming order verifies again") { return false }
+
+    // Stack-passed call arguments are not implemented natively. Allocation
+    // succeeds, so the allocated verifier finds the aggregate argument late;
+    // the owner keeps its program and the diagnostic names the input call.
+    stacked: Machine.MachineOwner
+    defer Lower.MachineFree(*stacked)
+    if !Lowered("stack calls", FrameFixture(*stacked, true)) { return false }
+    input := Lower.MachineProgramView(*stacked)
+    before := Fingerprint(input)
+    take := input.calls[0]
+    late := RegAlloc.RegAllocAllocate(*stacked, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    if !Check(late.problem == .Unsupported && late.function == 2 && late.instruction == take.instruction &&
+        late.block == input.functions[2].block_begin && late.operand == take.argument_begin,
+        "an aggregate call argument is unsupported at that argument") {
+        Report("stack call", late)
+        return false
+    }
+    if !Intact(*stacked, before, "a late allocation failure leaves the owner's program intact") { return false }
+
+    // Conflicting fixed registers at one instruction hard-fail during allocation.
+    conflict: Machine.MachineOwner
+    defer Lower.MachineFree(*conflict)
+    if !Lowered("conflict", FrameFixture(*conflict, true)) { return false }
+    view := Lower.MachineProgramView(*conflict)
+    many := FindOpcode(view, .CallDirect, view.blocks[view.functions[2].block_begin].instruction_begin)
+    many = FindOpcode(view, .CallDirect, many + 1)
+    view.operands[view.calls[view.instructions[many].call].argument_begin + 1].fixed_register = 7
+    result := RegAlloc.RegAllocAllocate(*conflict, Target.TargetLinuxX64(), Machine.MachineDefaultLimits())
+    return Check(result.problem == .Constraint && result.function == 2, "two values fixed to one register")
+}
+
+VectorCases :: () -> bool {
+    owner: Machine.MachineOwner
+    defer Lower.MachineFree(*owner)
+    if !Lowered("vectors", PressureFixture(*owner, 20, true)) { return false }
+    view := Lower.MachineProgramView(*owner)
+    for index: cast(s64)0..view.virtuals.count - 1 { if view.virtuals[index].class == .Float { view.virtuals[index].class = .Vector } }
+    for index: cast(s64)0..view.operands.count - 1 { if view.operands[index].class == .Float { view.operands[index].class = .Vector } }
+    if !Allocate("vectors", *owner) { return false }
+    program := Lower.MachineProgramView(*owner)
+    if !Allocated(program, "vector allocation verifies") { return false }
+    vector_slot := false
+    for object: program.stack_objects {
+        if object.kind == .Spill {
+            if !Check(object.size == 16 && object.alignment == 16 && object.offset % 16 == 0,
+                "vector spill slots are 16-byte aligned") { return false }
+            vector_slot = true
+        }
+    }
+    if !Check(vector_slot, "vector pressure spills") { return false }
+
+    // Float and vector values share the XMM bank.
+    mixed: Machine.MachineOwner
+    defer Lower.MachineFree(*mixed)
+    if !Lowered("mixed", PressureFixture(*mixed, 20, true)) { return false }
+    mixed_view := Lower.MachineProgramView(*mixed)
+    for index: cast(s32)1..19 {
+        if index % 2 == 0 { continue }
+        mixed_view.virtuals[index].class = .Vector
+        for at: cast(s64)0..mixed_view.operands.count - 1 {
+            if mixed_view.operands[at].kind == .Virtual && mixed_view.operands[at].id == index {
+                mixed_view.operands[at].class = .Vector
+            }
+        }
+    }
+    if !Allocate("mixed", *mixed) { return false }
+    mixed_program := Lower.MachineProgramView(*mixed)
+    if !Allocated(mixed_program, "mixed float/vector allocation verifies") { return false }
+    // Forcing a live vector onto a live float register is interference.
+    add := FindOpcode(mixed_program, .FloatAdd)
+    right := mixed_program.instructions[add].operand_begin + 2
+    saved := mixed_program.operands[right]
+    mixed_program.operands[right].id = mixed_program.operands[right - 1].id
+    if !Rejects(mixed_program, .Interference, "float and vector registers overlap") { return false }
+    mixed_program.operands[right] = saved
+    return true
+}
+
+main :: () -> s32 {
+    if !PressureCases() || !CallCases() || !ArithmeticCases() || !RotateCases() || !FrameCases() ||
+        !VectorCases() { return 1 }
+    print("register allocation: pressure, calls, fixed registers, flags, cycles, frames, vectors, fuel, unsupported call forms, late-failure ownership and allocated-verifier local tests passed\n")
+    return 0
+}

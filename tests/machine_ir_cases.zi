@@ -170,6 +170,124 @@ FindOpcode :: (program: Machine.MachineProgram, opcode: Machine.MachineOpcode) -
     return -1
 }
 
+// Every described target has exactly one registry row with an explicit
+// state, an Implemented row is one the machine lowerer accepts, and
+// preflight passes only Implemented rows with the requested features and
+// services.
+TargetRegistry :: () -> bool {
+    rows: s32 = 0
+    for arch_index: 1..4 {
+        for os_index: 1..6 {
+            arch := cast(Target.TargetArch)arch_index
+            os := cast(Target.TargetOS)os_index
+            described := Target.TargetDescribe(arch, os)
+            row := Target.TargetRowFor(arch, os)
+            if described.problem != .None {
+                if !Check(row.state == .Invalid, "undescribed target has no registry row") { return false }
+                continue
+            }
+            rows += 1
+            if !Check(row.state != .Invalid && Target.TargetStateName(row.state) != "invalid",
+                "described target has an explicit registry state") ||
+                !Check(row.note.count > 0, "registry row explains its state") ||
+                !Check(row.state != .Implemented || Target.TargetMachineLoweringSupported(described.target),
+                    "implemented row is a machine-lowering target") ||
+                !Check(row.state == .Implemented || (row.features == 0 && row.services == 0),
+                    "unimplemented row claims no features or services") ||
+                !Check(row.state == .Excluded || row.milestone.count > 0, "gap row names its milestone") { return false }
+        }
+    }
+    if !Check(rows == Target.TARGET_ROW_COUNT, "registry covers every described target") { return false }
+    for index: 0..Target.TARGET_ROW_COUNT - 1 {
+        row := Target.TargetRowAt(cast(s32)index)
+        if !Check(Target.TargetDescribe(row.arch, row.os).problem == .None, "registry row is described") { return false }
+        for later: index + 1..Target.TARGET_ROW_COUNT - 1 {
+            other := Target.TargetRowAt(cast(s32)later)
+            if !Check(row.arch != other.arch || row.os != other.os, "registry rows are unique") { return false }
+        }
+    }
+    if !Check(Target.TargetRowAt(Target.TARGET_ROW_COUNT).state == .Invalid, "registry ends after its rows") { return false }
+    for index: 1..Target.TARGET_FEATURE_COUNT {
+        feature := cast(Target.TargetFeature)index
+        if !Check(Target.TargetFeatureFromName(Target.TargetFeatureName(feature)) == feature &&
+            Target.TargetFeatureBit(feature) != 0, "CPU feature names round-trip") { return false }
+    }
+    for index: 1..Target.TARGET_SERVICE_COUNT {
+        service := cast(Target.TargetService)index
+        if !Check(Target.TargetServiceFromName(Target.TargetServiceName(service)) == service &&
+            Target.TargetServiceBit(service) != 0, "OS service names round-trip") { return false }
+    }
+    if !Check(Target.TargetFeatureFromName("avx3") == .Invalid &&
+        Target.TargetServiceFromName("gpu") == .Invalid, "unknown feature and service names") { return false }
+
+    x64 := Target.TargetLinuxX64()
+    arm64 := Target.TargetDescribe(.AArch64, .Linux).target
+    sse2 := Target.TargetFeatureBit(.Sse2)
+    avx2 := Target.TargetFeatureBit(.Avx2)
+    neon := Target.TargetFeatureBit(.Neon)
+    entry := Target.TargetServiceBit(.ProcessEntry)
+    threads := Target.TargetServiceBit(.Threads)
+    if !Check(x64.feature_mask == sse2 && arm64.feature_mask == Target.TargetFeatureBit(.Simd),
+            "target descriptions carry their CPU baseline") ||
+        !Check(!Target.TargetFeatureSupported(x64, .Sse2) && !Target.TargetFeatureSupported(arm64, .Simd),
+            "a gap row supplies no CPU feature") { return false }
+    // No full machine row has passed its encoder and runtime cutover yet.
+    for index: 0..Target.TARGET_ROW_COUNT - 1 {
+        row := Target.TargetRowAt(cast(s32)index)
+        described := Target.TargetDescribe(row.arch, row.os).target
+        result := Target.TargetPreflight(described, .{})
+        if !Check(row.state != .Implemented && result.problem == .TargetUnimplemented &&
+            result.state == row.state, "every current row fails preflight as unimplemented") { return false }
+    }
+    if !Check(Target.TargetRowFor(.X86_64, .Linux).state == .Gap &&
+        Target.TargetMachineLoweringSupported(x64), "partial machine lowering does not implement the row") { return false }
+
+    // Feature and service checks on an Implemented row, built here because
+    // the registry has none yet.
+    implemented := Target.TargetRowFor(.X86_64, .Linux)
+    implemented.state = .Implemented
+    implemented.features = sse2
+    implemented.services = entry
+    passed := Target.TargetPreflightRow(implemented, .{features = sse2, services = entry})
+    feature := Target.TargetPreflightRow(implemented, .{features = sse2 | avx2 | neon})
+    foreign_family := implemented; foreign_family.features = sse2 | neon
+    family := Target.TargetPreflightRow(foreign_family, .{features = neon})
+    unnamed := Target.TargetPreflightRow(implemented, .{features = cast(u64)1 << 40})
+    service := Target.TargetPreflightRow(implemented, .{services = entry | threads})
+    gap := Target.TargetPreflight(x64, .{features = sse2, services = entry})
+    excluded_row := implemented
+    excluded_row.state = .Excluded
+    excluded := Target.TargetPreflightRow(excluded_row, .{})
+    unknown_row := implemented
+    unknown_row.state = .Unknown
+    unknown := Target.TargetPreflightRow(unknown_row, .{})
+    invalid := Target.TargetPreflightRow(.{}, .{})
+    malformed_target := x64; malformed_target.feature_mask = avx2
+    malformed := Target.TargetPreflight(malformed_target, .{})
+    if !Check(passed.problem == .None && passed.state == .Implemented, "implemented row passes preflight") ||
+        !Check(feature.problem == .CpuFeature && feature.missing_features == (avx2 | neon),
+            "missing and foreign-family CPU features fail preflight") ||
+        !Check(family.problem == .CpuFeature && family.missing_features == neon,
+            "a row cannot claim another CPU family's feature") ||
+        !Check(unnamed.problem == .CpuFeature && unnamed.missing_features == cast(u64)1 << 40,
+            "unnamed CPU feature bits fail preflight") ||
+        !Check(service.problem == .OsService && service.missing_services == threads,
+            "missing OS service fails preflight") ||
+        !Check(gap.problem == .TargetUnimplemented && gap.state == .Gap,
+            "gap row fails before feature and service checks") ||
+        !Check(excluded.problem == .TargetUnimplemented && excluded.state == .Excluded,
+            "excluded row fails preflight") ||
+        !Check(unknown.problem == .TargetUnimplemented && unknown.state == .Unknown,
+            "unknown row fails preflight") ||
+        !Check(invalid.problem == .TargetUnimplemented && invalid.state == .Invalid,
+            "invalid row fails preflight") ||
+        !Check(malformed.problem == .Target, "malformed target fails preflight") { return false }
+    return Check(Target.TargetPreflightCode(.TargetUnimplemented) == "assembly.gap.target-unimplemented" &&
+        Target.TargetPreflightCode(.CpuFeature) == "assembly.gap.cpu-feature" &&
+        Target.TargetPreflightCode(.OsService) == "assembly.gap.os-service" &&
+        Target.TargetPreflightCode(.None) == "", "stable preflight diagnostic codes")
+}
+
 main :: () -> s32 {
     target := Target.TargetLinuxX64()
     if !Check(Target.TargetValid(target), "Linux x86-64 target is valid") ||
@@ -182,6 +300,7 @@ main :: () -> s32 {
         Target.TargetDescribe(.AArch64, .MacOS), Target.TargetDescribe(.Wasm32, .Browser)]
     for result: maintained { if !Check(result.problem == .None && Target.TargetValid(result.target),
         "maintained target description") { return 1 } }
+    if !TargetRegistry() { return 1 }
 
     owner: Machine.MachineOwner
     limits := Machine.MachineDefaultLimits()
@@ -297,6 +416,6 @@ main :: () -> s32 {
     Lower.MachineFree(*allocate_owner)
     Lower.MachineFree(*limited)
     if !Check(Lower.MachineProgramView(*owner).entry == -1, "repeated cleanup") { return 1 }
-    print("machine IR: target, lowering, constraints, verifier and ownership local tests passed\n")
+    print("machine IR: target registry, preflight, lowering, constraints, verifier and ownership local tests passed\n")
     return 0
 }

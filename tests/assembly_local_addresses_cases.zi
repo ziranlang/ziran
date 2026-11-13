@@ -22,14 +22,16 @@ RunReference :: (test: *NativeTest, input: string, root: string) -> bool {
     return RunLocalAddress(test, command[:], 42)
 }
 
-RejectAtomic :: (test: *NativeTest, compiler: string, fixture: string, diagnostic: string) -> bool {
-    output := CheckPath(test.work, CheckConcat(PathName(fixture), ".preserved"))
-    if !NativeWrite(test, output, "preserved output\n") { return false }
-    command := string.[compiler, "--root", PathParent(fixture), "--entry",
-        CheckConcat(PathStem(fixture), ":Answer"), "--emit", "lir", "-o", output, fixture]
-    return NativeReject(test, command[:], diagnostic) &&
-        NativeAssert(test, NativeRead(test, output) == "preserved output\n",
-            "rejected local address lowering replaced its output")
+RunFocusedFixture :: (test: *NativeTest, compiler: string, fixture: string) -> bool {
+    root := PathParent(fixture)
+    entry := CheckConcat(PathStem(fixture), ":Answer")
+    portable := string.[compiler, "--run", "--root", root, "--entry", entry, fixture]
+    if !RunLocalAddress(test, portable[:], 42) { return false }
+    output := CheckPath(test.work, CheckConcat(PathName(fixture), ".elf"))
+    compile := string.[compiler, "--root", root, "--entry", entry, "--emit", "elf", "-o", output, fixture]
+    if !RunLocalAddress(test, compile[:]) { return false }
+    native := string.[output]
+    return RunLocalAddress(test, native[:], 42)
 }
 
 #program_export
@@ -51,12 +53,12 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     source_lir := CheckPath(test.work, "source.lir")
     saved_lir := CheckPath(test.work, "saved.lir")
-    source_exec := CheckPath(test.work, "source.lirb")
-    saved_exec := CheckPath(test.work, "saved.lirb")
+    source_exec := CheckPath(test.work, "source.zx")
+    saved_exec := CheckPath(test.work, "saved.zx")
     if !CompileLocalAddress(*test, compiler, source, source_root, "lir", source_lir) ||
         !CompileLocalAddress(*test, compiler, saved, saved_root, "lir", saved_lir) ||
-        !CompileLocalAddress(*test, compiler, source, source_root, "exec", source_exec) ||
-        !CompileLocalAddress(*test, compiler, saved, saved_root, "exec", saved_exec) { return 1 }
+        !CompileLocalAddress(*test, compiler, source, source_root, "zx", source_exec) ||
+        !CompileLocalAddress(*test, compiler, saved, saved_root, "zx", saved_exec) { return 1 }
     listing := NativeRead(*test, source_lir)
     if !NativeAssert(*test, listing == NativeRead(*test, saved_lir) &&
         NativeRead(*test, source_exec) == NativeRead(*test, saved_exec),
@@ -68,7 +70,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "assembly_local_addresses:Answer", source]
     saved_portable := string.[compiler, "--run", "--root", saved_root, "--entry",
         "assembly_local_addresses:Answer", saved]
-    wire_portable := string.[compiler, "--input", "exec", "--run", source_exec]
+    wire_portable := string.[compiler, "--input", "zx", "--run", source_exec]
     if !RunLocalAddress(*test, source_portable[:], 42) ||
         !RunLocalAddress(*test, saved_portable[:], 42) ||
         !RunLocalAddress(*test, wire_portable[:], 42) { return 1 }
@@ -85,7 +87,13 @@ main :: (argc: s32, argv: **u8) -> s32 {
 
     aggregate := CheckPath(source_root, "assembly_local_addresses_aggregate_reject.zi")
     procedure := CheckPath(source_root, "assembly_local_addresses_procedure_reject.zi")
-    if !RejectAtomic(*test, compiler, aggregate, "addresses of aggregate locals are not lowered yet") ||
-        !RejectAtomic(*test, compiler, procedure, "this local type cannot use checked frame allocation yet") { return 1 }
+    globals := CheckPath(source_root, "assembly_runtime_globals.zi")
+    string_index := CheckPath(source_root, "assembly_string_index.zi")
+    slices := CheckPath(source_root, "assembly_slices.zi")
+    if !RunFocusedFixture(*test, compiler, aggregate) ||
+        !RunFocusedFixture(*test, compiler, procedure) ||
+        !RunFocusedFixture(*test, compiler, globals) ||
+        !RunFocusedFixture(*test, compiler, string_index) ||
+        !RunFocusedFixture(*test, compiler, slices) { return 1 }
     return ifx test.failed then 1 else 0
 }

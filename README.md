@@ -1,7 +1,8 @@
 # Ziran
 
-Ziran is a general-purpose language that compiles to C and Go. The toolchain checks source, saves checked modules, and builds portable
-programs you can run without a native compiler.
+Ziran is a general-purpose language with generated C and Go targets and a
+portable executable format. The toolchain checks source, saves checked
+modules, and builds portable programs you can run without a platform compiler.
 
 [Website & playground](https://ziran-lang.org/) · [Compiler guide](docs/USAGE.md) · [Implementation status](docs/IMPLEMENTATION_STATUS.md)
 
@@ -49,18 +50,45 @@ Use `build/bin/ziran` from the checkout, or `ziran` after installation.
 | `check` | Validate source and imports. |
 | `build` | Generate C or Go output. |
 | `ir` / `inspect` | Save checked modules and read their contents. |
-| `bundle` / `run` | Build and run portable programs; `run --target=c FILE.zi -- ARGS` runs native scripts. |
+| `bundle` / `run` | Build and run portable programs; `run --target=c FILE.zi -- ARGS` runs C-generated scripts. |
 | `fmt` | Format source files. |
 | `guide` / `features` / `capabilities` | Explore syntax, support, and target limits. |
 | `api` | Query public declarations as JSON. |
 
 Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
-programs use [`.zx`](docs/ZX.md). Native targets and the portable runner have
-different limits.
+programs use [`.zx`](docs/ZX.md). Direct-native targets and the portable runner
+have different limits.
 
-Run source as a native script with `ziran task.zi arguments`. Executable Unix
-scripts can start with `#!/usr/bin/env ziran`; after `chmod +x task.zi`, run
-them as `./task.zi arguments`. See [native scripts](docs/USAGE.md#native-scripts).
+The experimental direct pipeline is source → checked `.zir` → linked LIR →
+verification → LIR optimization → portable `.zx`. Those verified ZX bytes run
+in the portable interpreter
+or, on an explicitly supported direct target, lower to machine code and a
+platform binary. That direct-native route is experimental and incomplete; its
+current gaps are tracked in [the assembly plan](ASSEMBLY/milestones.md).
+Generated C and generated Go are separate routes that also produce platform
+binaries after their own downstream toolchains run. “Native” in the assembly
+documentation means verified ZX instructions lowered directly to machine code,
+not a C- or Go-generated binary.
+Default `ziran`/`zi2zx` semantic bundles and the semantic-ZIR Wasm route have
+not yet cut over to this instruction pipeline; see [ZX status](docs/ZX.md).
+
+The opt-in Linux x86-64 `zi2asm` path now has a first console veneer: its static
+ELF owns `_start`, retries partial or interrupted `write` syscalls, and exits
+the process with `exit_group`. It links no libc or CRT. Literal `print` formats
+cover byte strings/text views, bools, every fixed signed and unsigned integer
+width, and `%%`; floats and unavailable platform services are named hard gaps.
+This implemented slice does not make the wider direct-native target matrix
+complete.
+
+Host capabilities describe portable, typed services a program requires.
+Platform bindings implement those services for a host; they are separate from
+CPU instruction lowering and from each target's calling convention or syscall
+veneer.
+
+Run source as a C-generated script with `ziran task.zi arguments`. Executable
+Unix scripts can start with `#!/usr/bin/env ziran`; after `chmod +x task.zi`,
+run them as `./task.zi arguments`. See
+[C-generated scripts](docs/USAGE.md#c-generated-scripts).
 
 ## Standard library
 

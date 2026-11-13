@@ -39,7 +39,11 @@ PackedSize :: (program: LirProgram, type_id: s32) -> s64 {
 
 GlobalOffset :: (program: LirProgram, global: s64) -> s64 {
     offset: s64
-    for index: cast(s64)0..global - 1 { offset += PackedSize(program, program.globals[index].type) }
+    for index: cast(s64)0..global - 1 {
+        if program.globals[index].writable == program.globals[global].writable {
+            offset += PackedSize(program, program.globals[index].type)
+        }
+    }
     return offset
 }
 
@@ -53,8 +57,8 @@ HasAllocations :: (program: LirProgram) -> bool {
 Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNativeRange,
     image: LirX64ImageLayout) -> bool {
     globals := program.globals.count != 0 || HasAllocations(program)
-    section_count := ifx globals then 6 else 5
-    names_index := ifx globals then 3 else 2
+    section_count := ifx globals then 6 + cast(s64)(image.data_size != 0) else 5
+    names_index := section_count - 3
     section_bits := Little(bytes, 40, 8)
     if !NativeAssert(test, section_bits <= cast(u64)bytes.count &&
         Little(bytes, 60, 2) == cast(u64)section_count &&
@@ -62,14 +66,14 @@ Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNa
     section_at := cast(s64)section_bits
     if !NativeAssert(test, section_at % 8 == 0 && section_at + section_count * 64 == bytes.count,
         "ELF section directory extent") { return false }
-    symbol_header := section_at + (ifx globals then 5 else 4) * 64
-    string_header := section_at + (ifx globals then 4 else 3) * 64
+    symbol_header := section_at + (section_count - 1) * 64
+    string_header := section_at + (section_count - 2) * 64
     symbol_at := Little(bytes, symbol_header + 24, 8)
     symbol_size := Little(bytes, symbol_header + 32, 8)
     string_at := Little(bytes, string_header + 24, 8)
     string_size := Little(bytes, string_header + 32, 8)
     if !NativeAssert(test, Little(bytes, symbol_header + 4, 4) == 2 &&
-        Little(bytes, symbol_header + 40, 4) == cast(u64)(ifx globals then 4 else 3) &&
+        Little(bytes, symbol_header + 40, 4) == cast(u64)(section_count - 2) &&
         Little(bytes, symbol_header + 44, 4) == 1 &&
         Little(bytes, symbol_header + 48, 8) == 8 && Little(bytes, symbol_header + 56, 8) == 24 &&
         symbol_size == cast(u64)(program.functions.count + program.globals.count + 3) * 24 &&
@@ -115,29 +119,35 @@ Symbols :: (test: *NativeTest, program: LirProgram, bytes: []u8, ranges: []LirNa
             if !NativeAssert(test, bytes[cast(s64)(string_at + name) + index] == expected[index],
                 "ELF qualified global names") { return false }
         }
-        if !NativeAssert(test, Little(bytes, symbol + 4, 1) == 17 && Little(bytes, symbol + 6, 2) == 2 &&
-            Little(bytes, symbol + 8, 8) == image.data_address + cast(u64)GlobalOffset(program, global_index) &&
+        section := ifx global.writable then cast(u64)3 else cast(u64)2
+        base := ifx global.writable then image.data_address else image.readonly_address
+        if !NativeAssert(test, Little(bytes, symbol + 4, 1) == 17 && Little(bytes, symbol + 6, 2) == section &&
+            Little(bytes, symbol + 8, 8) == base + cast(u64)GlobalOffset(program, global_index) &&
             Little(bytes, symbol + 16, 8) == cast(u64)PackedSize(program, global.type),
             "ELF object symbols match packed globals") { return false }
         name_at += program.modules[global.module].count + global.name.count + 2
     }
     if globals {
-        data_header := section_at + 128
-        if !NativeAssert(test, Little(bytes, 56, 2) == 2 &&
+        readonly_header := section_at + 128
+        data_header := section_at + 192
+        segments := cast(u64)1 + cast(u64)(image.readonly_size != 0) + cast(u64)(image.data_size != 0)
+        if !NativeAssert(test, Little(bytes, 56, 2) == segments &&
             Little(bytes, 64, 4) == 1 && Little(bytes, 68, 4) == 5 &&
             Little(bytes, 96, 8) == cast(u64)(image.text_offset + image.text_size) &&
             Little(bytes, 104, 8) == cast(u64)(image.text_offset + image.text_size) &&
             Little(bytes, 112, 8) == 4096 &&
-            Little(bytes, 120, 4) == 1 && Little(bytes, 124, 4) == 6 &&
-            Little(bytes, 128, 8) == cast(u64)image.data_offset &&
-            Little(bytes, 136, 8) == image.data_address &&
-            Little(bytes, 152, 8) == cast(u64)image.data_size &&
-            Little(bytes, 160, 8) == cast(u64)image.data_size && Little(bytes, 168, 8) == 4096 &&
+            Little(bytes, readonly_header + 4, 4) == 1 &&
+            Little(bytes, readonly_header + 8, 8) == 2 &&
+            Little(bytes, readonly_header + 16, 8) == image.readonly_address &&
+            Little(bytes, readonly_header + 24, 8) == cast(u64)image.readonly_offset &&
+            Little(bytes, readonly_header + 32, 8) == cast(u64)image.readonly_size,
+            "ELF has distinct RX text and read-only data") { return false }
+        if image.data_size != 0 && !NativeAssert(test,
             Little(bytes, data_header + 4, 4) == 1 && Little(bytes, data_header + 8, 8) == 3 &&
             Little(bytes, data_header + 16, 8) == image.data_address &&
             Little(bytes, data_header + 24, 8) == cast(u64)image.data_offset &&
             Little(bytes, data_header + 32, 8) == cast(u64)image.data_size,
-            "ELF has distinct RX text and RW data") { return false }
+            "ELF emits RW data only when nonempty") { return false }
     } else {
         if !NativeAssert(test, image.text_offset == 120 && Little(bytes, 56, 2) == 1 &&
             Little(bytes, 68, 4) == 5, "legacy no-global ELF layout") { return false }
@@ -1238,18 +1248,6 @@ GlobalPointerTraps :: (test: *NativeTest) {
     program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
         .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
     Execute(test, program, 9, "valid checked global pointer")
-    readonly_globals: [2]LirGlobal = .[
-        .{.module = 0, .name = "number", .type = 7, .constant = 0},
-        .{.module = 0, .name = "flag", .type = 1, .constant = 1, .writable = true}]
-    readonly_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
-        .constants = constants[:], .globals = readonly_globals[:], .functions = functions[:], .entry = 0}
-    rejected: [64]u8
-    for index: 0..63 { rejected[index] = 165 }
-    readonly_result := LirX64Elf(readonly_program, rejected[:])
-    readonly_layout := LirX64ElfLayout(readonly_program)
-    unused NativeAssert(test, readonly_result.problem == .Unsupported &&
-        readonly_layout.problem == .Unsupported, "readonly global address remains rejected")
-    for byte: rejected { unused NativeAssert(test, byte == 165, "readonly rejection is atomic") }
     null_instructions: [3]LirInstruction = .[
         Instruction(.Null, 0, empty[:]), Instruction(.Load, 1, pointer[:]),
         Instruction(.Return, -1, returned[:])]
@@ -1295,6 +1293,65 @@ GlobalPointerTraps :: (test: *NativeTest) {
         command: [1]string = .[path]
         unused NativeRun(test, command[:], "", 125)
     }
+}
+
+ReadOnlyData :: (test: *NativeTest) {
+    types: [6]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Integer, .bits = 8, .is_signed = false},
+        .{.kind = .Array, .element = 2, .count = 2},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Pointer, .element = 2}]
+    bytes: [2]u8 = .[42, 43]
+    constants: [3]LirConstant = .[
+        .{.type = 3, .bytes = bytes[:]}, .{.type = 1, .bits = 0}, .{.type = 2, .bits = 7}]
+    globals: [2]LirGlobal = .[
+        .{.module = 0, .name = "literal", .type = 3, .constant = 0},
+        .{.module = 0, .name = "mutable", .type = 1, .constant = 1, .writable = true}]
+    empty: [0]s32
+    indexed: [2]s32 = .[0, 1]
+    pointer: [1]s32 = .[2]
+    returned: [1]s32 = .[3]
+    instructions: [5]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.ElementAddress, 2, indexed[:]), Instruction(.Load, 3, pointer[:]),
+        Instruction(.Return, -1, returned[:])]
+    instructions[3].effect = 1
+    values: [5]s32 = .[4, 1, 5, 2, 2]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    functions: [1]LirFunction = .[.{.name = "readonly-data", .module = 0, .result = 2,
+        .values = values[:4], .blocks = blocks[:], .origin = -1}]
+    modules: [1]string = .["native-test"]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    Execute(test, program, 42, "read-only bytes execute from a separate load")
+    if test.failed { return }
+    image := LirX64ElfLayout(program)
+    no_bytes: [0]u8
+    measured := LirX64Elf(program, no_bytes[:])
+    encoded: Vec(u8)
+    defer VecFree(encoded)
+    if !NativeAssert(test, image.problem == .None && image.readonly_size == 2 &&
+        image.data_size == 1 && image.readonly_offset == image.text_offset + image.text_size &&
+        image.readonly_address % 4096 == cast(u64)(image.readonly_offset % 4096) && image.data_offset % 4096 == 0 &&
+        measured.problem == .None && VecResize(encoded, measured.size),
+        "split read-only image layout") { return }
+    written := LirX64Elf(program, encoded[:])
+    if !NativeAssert(test, written.problem == .None && Little(encoded[:], 56, 2) == 3 &&
+        Little(encoded[:], 124, 4) == 4 && Little(encoded[:], 180, 4) == 6,
+        "read-only bytes use PF_R while mutable data uses PF_R|PF_W") { return }
+
+    stored: [2]s32 = .[2, 4]
+    store_instructions: [7]LirInstruction
+    for index: 0..3 { store_instructions[index] = instructions[index] }
+    store_instructions[4] = Instruction(.Constant, 4, empty[:], 2)
+    store_instructions[5] = Instruction(.Store, -1, stored[:]); store_instructions[5].effect = 2
+    store_instructions[6] = instructions[4]
+    store_blocks: [1]LirBlock = .[.{.instructions = store_instructions[:]}]
+    store_functions: [1]LirFunction = .[.{.name = "readonly-store", .module = 0, .result = 2,
+        .values = values[:], .blocks = store_blocks[:], .origin = -1}]
+    store_program := program
+    store_program.functions = store_functions[:]
+    Execute(test, store_program, 125, "attempted read-only mutation traps")
 }
 
 GlobalLimits :: (test: *NativeTest) {
@@ -1491,6 +1548,24 @@ ElementTraps :: (test: *NativeTest) {
             .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
         Execute(test, program, 125, CheckConcat("element address trap mode ", CheckNumber(mode)))
     }
+    constants[3].bits = 4
+    root_index: [2]s32 = .[0, 1]
+    dynamic_index: [3]s32 = .[2, 1, 3]
+    dynamic_pointer: [1]s32 = .[4]
+    dynamic_returned: [1]s32 = .[5]
+    dynamic_instructions: [7]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 2),
+        Instruction(.ElementAddress, 2, root_index[:]), Instruction(.Constant, 3, empty[:], 3),
+        Instruction(.ElementAddress, 4, dynamic_index[:]), Instruction(.Load, 5, dynamic_pointer[:]),
+        Instruction(.Return, -1, dynamic_returned[:])]
+    dynamic_instructions[5].effect = 1
+    dynamic_values: [6]s32 = .[22, 7, 10, 7, 10, 7]
+    dynamic_blocks: [1]LirBlock = .[.{.instructions = dynamic_instructions[:]}]
+    dynamic_functions: [1]LirFunction = .[.{.name = "forged-dynamic-count", .module = 0,
+        .result = 7, .values = dynamic_values[:], .blocks = dynamic_blocks[:], .origin = -1}]
+    dynamic_program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = dynamic_functions[:], .entry = 0}
+    Execute(test, dynamic_program, 125, "dynamic element count beyond remaining extent traps")
     valid_instructions: [5]LirInstruction = .[
         Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 2),
         Instruction(.ElementAddress, 2, element_operands[:]), Instruction(.Load, 3, element_pointer[:]),
@@ -1769,16 +1844,16 @@ Markers :: (test: *NativeTest, types: []LirType) {
             .constants = constants[:], .functions = functions[:], .entry = 0}
         Execute(test, program, ifx mode == 0 then 42 else 125, "unbudgeted AOT fuel and traps")
         if mode == 0 {
-            expected: [80]u8 = .[
-                72, 131, 228, 240, 232, 26, 0, 0, 0, 72, 137, 199, 184, 60, 0, 0, 0, 15, 5, 15, 11,
-                191, 125, 0, 0, 0, 184, 60, 0, 0, 0, 15, 5, 15, 11,
-                85, 72, 137, 229, 72, 129, 236, 16, 0, 0, 0, 233, 0, 0, 0, 0,
-                72, 184, 42, 0, 0, 0, 0, 0, 0, 0, 72, 99, 192, 72, 137, 133, 248, 255, 255, 255,
+            expected: [70]u8 = .[
+                72, 131, 228, 240, 232, 26, 0, 0, 0, 72, 137, 199, 184, 231, 0, 0, 0, 15, 5, 15, 11,
+                191, 125, 0, 0, 0, 184, 231, 0, 0, 0, 15, 5, 15, 11,
+                85, 72, 137, 229, 72, 129, 236, 16, 0, 0, 0,
+                184, 42, 0, 0, 0, 72, 99, 192, 72, 137, 133, 248, 255, 255, 255,
                 72, 139, 133, 248, 255, 255, 255, 201, 195]
-            bytes: [80]u8
+            bytes: [70]u8
             result := LirX64Encode(program, bytes[:])
-            unused NativeAssert(test, result.problem == .None && result.size == 80, "known encoding size")
-            for index: 0..79 { unused NativeAssert(test, bytes[index] == expected[index], "known instruction bytes") }
+            unused NativeAssert(test, result.problem == .None && result.size == 70, "known encoding size")
+            for index: 0..69 { unused NativeAssert(test, bytes[index] == expected[index], "known instruction bytes") }
             tool := OpenRead("/usr/bin/objdump")
             if tool.valid { CloseFile(tool) }
             if tool.valid && native_execution {
@@ -1845,7 +1920,7 @@ Allocations :: (test: *NativeTest) {
     modules: [1]string = .["native-test"]
     program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
         .constants = constants[:], .functions = functions[:], .entry = 0}
-    Execute(test, program, 9, "descriptors-only six-section ELF allocation")
+    Execute(test, program, 9, "descriptors-only seven-section ELF allocation")
     if test.failed { return }
     no_bytes: [0]u8
     image := LirX64ElfLayout(program)
@@ -1857,8 +1932,8 @@ Allocations :: (test: *NativeTest) {
         "descriptor image layout query") { return }
     written := LirX64Elf(program, bytes[:])
     if !NativeAssert(test, written.problem == .None &&
-        Little(bytes[:], 60, 2) == 6 && Little(bytes[:], 62, 2) == 3,
-        "descriptors-only programs use six ELF sections") { return }
+        Little(bytes[:], 60, 2) == 7 && Little(bytes[:], 62, 2) == 4,
+        "descriptors-only programs use seven ELF sections") { return }
     escape_values: [1]s32 = .[2]
     escape_returned: [1]s32 = .[0]
     escape_instructions: [2]LirInstruction = .[
@@ -1975,18 +2050,22 @@ Allocations :: (test: *NativeTest) {
         .{.kind = .Integer, .bits = 32, .is_signed = true},
         .{.kind = .Function, .parameters = no_parameters[:], .result = 1},
         .{.kind = .Pointer, .element = 2}]
-    function_values: [1]s32 = .[3]
-    function_instructions: [2]LirInstruction = .[
-        Instruction(.Allocate, 0, empty[:]), Instruction(.Return, -1, empty[:])]
+    function_constants: [1]LirConstant = .[.{.type = 1, .bits = 0}]
+    function_values: [2]s32 = .[3, 1]
+    function_returned: [1]s32 = .[1]
+    function_instructions: [3]LirInstruction = .[
+        Instruction(.Allocate, 0, empty[:]), Instruction(.Constant, 1, empty[:], 0),
+        Instruction(.Return, -1, function_returned[:])]
     function_instructions[0].effect = 1
     function_blocks: [1]LirBlock = .[.{.instructions = function_instructions[:]}]
     function_functions: [1]LirFunction = .[.{.name = "function-allocation-rejected", .module = 0,
-        .result = 0, .values = function_values[:], .blocks = function_blocks[:], .origin = -1}]
+        .result = 1, .values = function_values[:], .blocks = function_blocks[:], .origin = -1}]
     function_program := LirProgram.{.version = LirVersion, .modules = modules[:],
-        .types = function_types[:], .functions = function_functions[:], .entry = 0}
-    rejected := LirX64Elf(function_program, no_bytes[:])
-    unused NativeAssert(test, rejected.problem == .Type && rejected.size == 0,
-        "function pointee allocation remains outside verifier boundary")
+        .types = function_types[:], .constants = function_constants[:],
+        .functions = function_functions[:], .entry = 0}
+    supported := LirX64Elf(function_program, no_bytes[:])
+    unused NativeAssert(test, supported.problem == .None && supported.size > 0,
+        "procedure-value allocation has checked native storage")
 }
 
 AllocationLoop :: (test: *NativeTest) {
@@ -2170,6 +2249,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     GlobalOracle(*test)
     GlobalValues(*test)
     GlobalPointerTraps(*test)
+    ReadOnlyData(*test)
     Allocations(*test)
     AllocationLoop(*test)
     AllocationRecursive(*test)

@@ -38,6 +38,8 @@ item below.
   current logical layouts while preserving checked pointer provenance.
 - [ ] Add dynamic/heap aggregate storage, slices and the remaining memory forms;
   do not replace the language memory model with WebAssembly linear-memory rules.
+  Checked borrowed slices and instance-owned host-returned byte storage are
+  implemented; resizable owned collections and their cleanup remain open.
 - [x] Execute block-parameter transfers as parallel copies, using direct moves
   only when proven safe and scratch storage for overlap, swaps and cycles.
 - [x] Execute direct/indirect calls and recursion with owned frames and bounded
@@ -45,7 +47,12 @@ item below.
 - [ ] Complete owned-storage lifecycle, runtime global initialization, empty/null
   slices, vector cleanup and callback boundaries. Returned fixed aggregates and
   immutable string literal bytes/copies/count/data already execute on this path.
+  Runtime initializers, empty/null slices and host-returned byte ownership are
+  implemented per instance; vector cleanup and callback retirement remain open.
 - [ ] Adapt capability calls using validated typed signatures. Check host result shapes before writing them into execution storage; preserve nested host-to-bundle calls and reentrancy contracts.
+  Scalar, structural byte-view and pointer-free record/fixed-array calls now use
+  validated adapters. Nested host-to-bundle calls, reentrancy and native host
+  trampolines remain open.
 - [ ] Specify and implement fuel at stable semantic checkpoints. Optimizations must preserve when exhaustion becomes observable, especially relative to host side effects and traps. Any batched charging requires a proof that timing is equivalent.
 - [ ] Implement portable SIMD lane behavior and legal parallel runtime operations without assuming native vector instructions or a host thread count.
 - [ ] Keep execution state, host bindings, error state, and mutable globals per instance. Exercise simultaneous instances, nested calls, replacement, and retirement.

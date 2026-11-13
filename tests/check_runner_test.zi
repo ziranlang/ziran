@@ -71,7 +71,11 @@ CheckCacheTest :: (self: string, root: string) -> bool {
     if !WriteEntireFile(CheckPath(root, "tests/check_cache_audits.json"), JsonWrite(*audit, audit.root, JsonCompactStyle())) { return false }
     incremental: [1]string = .["--incremental"]
     empty: [0]string
-    if !CheckTestRun(self, root, incremental[:], 1, 0) || !CheckTestRun(self, root, incremental[:], 0, 1) { return false }
+    cacheable := CheckCacheEnvironmentSafe()
+    cached_executed: s64 = ifx cacheable then 0 else 1
+    cached_reused: s64 = ifx cacheable then 1 else 0
+    if !CheckTestRun(self, root, incremental[:], 1, 0) ||
+        !CheckTestRun(self, root, incremental[:], cached_executed, cached_reused) { return false }
     if !WriteEntireFile(CheckPath(root, "fixture"), "two") || !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
     bypass: [2]string = .["--incremental", "--full"]
     if !CheckTestRun(self, root, bypass[:], 1, 0) { return false }
@@ -82,7 +86,8 @@ CheckCacheTest :: (self: string, root: string) -> bool {
         unused repetition
         if !CheckTestRun(self, root, incremental[:], 1, 0, 1, failure[:]) { return false }
     }
-    if !CheckTestRun(self, root, incremental[:], 1, 0) || !CheckTestRun(self, root, incremental[:], 0, 1) { return false }
+    if !CheckTestRun(self, root, incremental[:], 1, 0) ||
+        !CheckTestRun(self, root, incremental[:], cached_executed, cached_reused) { return false }
     if !CheckTestRun(self, root, bypass[:], 1, 0, 1, failure[:]) || !CheckTestRun(self, root, incremental[:], 1, 0) { return false }
     if !WriteEntireFile(CheckPath(root, "build/check-logs/incremental.json"), "{broken") ||
         !CheckTestRun(self, root, incremental[:], 1, 0) { return false }

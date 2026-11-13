@@ -1,0 +1,354 @@
+using Allocated :: #import "compiler_machine_verify_allocated"
+using Machine :: #import "compiler_machine_ir"
+using X64 :: #import "compiler_x86_64"
+
+// Deterministic, sectionless Linux x86-64 ELF image for allocated machine IR.
+// The first PT_LOAD contains the ELF headers, a Ziran-owned process entry stub,
+// the encoded machine text and the hard-trap stub, and is read/execute only.
+// The second PT_LOAD contains zero-initialized globals, the fuel counter and the
+// last trap code, and is read/write but never executable.
+//
+// Process convention:
+//   * a void entry exits zero; a bool/integer entry exits with its low byte;
+//   * fuel starts at MachineElfInitialFuel and every MachineOpcode.Fuel debits it;
+//   * a hard trap stores its u32 MachineX64Trap* code and exits status 125.
+// No dynamic linker, runtime, assembler or foreign object participates.
+
+MachineElfBase :: 0x400000
+MachineElfPage :: 4096
+MachineElfHeaderSize :: 64
+MachineElfProgramHeaderSize :: 56
+MachineElfProgramHeaders :: 2
+MachineElfTextOffset :: 4096
+MachineElfStartupSize :: 14
+MachineElfTrapSize :: 20
+MachineElfInitialFuel :: 1048576
+MachineElfTrapExitStatus :: 125
+
+MachineElfResult :: struct {
+    diagnostic: MachineDiagnostic
+    size: s64
+    text_offset: s64
+    text_size: s64
+    data_offset: s64
+    data_size: s64
+    fuel_offset: s64
+    trap_status_offset: s64
+}
+
+#scope_file
+
+DataLayout :: struct {
+    globals_size: s64
+    fuel: s64
+    trap_status: s64
+    size: s64
+}
+
+Layout :: struct {
+    text_size: s64
+    data_offset: s64
+    file_size: s64
+    trap_text: s64
+    data: DataLayout
+}
+
+NoDiagnostic :: () -> MachineDiagnostic {
+    return .{problem = .None, function = MachineNoId, block = MachineNoId,
+        instruction = MachineNoId, operand = MachineNoId, virtual = MachineNoId}
+}
+
+Failure :: (problem: MachineProblem, instruction: s32 = MachineNoId) -> MachineElfResult {
+    return .{diagnostic = .{problem = problem, function = MachineNoId, block = MachineNoId,
+        instruction = instruction, operand = MachineNoId, virtual = MachineNoId}}
+}
+
+Align :: (value: s64, alignment: s64) -> s64 {
+    return (value + alignment - 1) & ~(alignment - 1)
+}
+
+ValidAlignment :: (alignment: s32) -> bool {
+    return alignment > 0 && alignment <= MachineElfPage && (alignment & (alignment - 1)) == 0
+}
+
+DataMeasure :: (program: MachineProgram, layout: *DataLayout) -> MachineDiagnostic {
+    at: s64 = 0
+    for global: program.globals {
+        if !global.writable || global.type < 0 || global.type >= program.types.count {
+            result := NoDiagnostic(); result.problem = .Unsupported; return result
+        }
+        type := program.types[global.type]
+        if type.size <= 0 || type.size > 2147483647 || !ValidAlignment(type.alignment) {
+            result := NoDiagnostic(); result.problem = .Unsupported; return result
+        }
+        at = Align(at, type.alignment)
+        if at > 2147483647 - type.size {
+            result := NoDiagnostic(); result.problem = .Limit; return result
+        }
+        at += type.size
+    }
+    layout.globals_size = at
+    layout.fuel = Align(at, 8)
+    if layout.fuel > 2147483647 - 8 {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.trap_status = Align(layout.fuel + 8, 4)
+    if layout.trap_status > 2147483647 - 4 {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.size = Align(layout.trap_status + 4, 8)
+    return NoDiagnostic()
+}
+
+GlobalOffset :: (program: MachineProgram, symbol: s32, offset: *s64) -> bool {
+    if symbol < 0 || symbol >= program.globals.count { return false }
+    at: s64 = 0
+    for index: cast(s64)0..symbol {
+        global := program.globals[index]
+        if global.type < 0 || global.type >= program.types.count { return false }
+        type := program.types[global.type]
+        if type.size <= 0 || !ValidAlignment(type.alignment) { return false }
+        at = Align(at, type.alignment)
+        if index == symbol { <<offset = at; return true }
+        at += type.size
+    }
+    return false
+}
+
+Relative32 :: (target: u64, addend: s64, field: u64, value: *s64) -> bool {
+    // Every address in this image is bounded below 2^32 and relocation addends
+    // are restricted to i32, so this subtraction cannot overflow s64.
+    if target > 0xffffffff || field > 0xffffffff ||
+        addend < -2147483648 || addend > 2147483647 { return false }
+    displacement := cast(s64)target + addend - cast(s64)field
+    if displacement < -2147483648 || displacement > 2147483647 { return false }
+    <<value = displacement
+    return true
+}
+
+TrapOpcode :: (opcode: MachineOpcode) -> bool {
+    return opcode == .IntegerDivide || opcode == .IntegerRemainder ||
+        opcode == .ShiftLeft || opcode == .ShiftRight || opcode == .Fuel ||
+        opcode == .Trap || opcode == .Unreachable
+}
+
+ExpectedRelocations :: (program: MachineProgram) -> s64 {
+    count: s64 = 0
+    for relocation: program.relocations {
+        if relocation.kind == .GlobalAddress || relocation.kind == .FuelCounter { count += 1 }
+    }
+    for instruction: program.instructions { if TrapOpcode(instruction.opcode) { count += 1 } }
+    return count
+}
+
+ImageLayout :: (program: MachineProgram, image: MachineX64Image, layout: *Layout) -> MachineDiagnostic {
+    verified := MachineVerifyAllocated(program, MachineDefaultLimits())
+    if verified.problem != .None { return verified }
+    if program.target.arch != .X86_64 || program.target.os != .Linux || program.target.abi != .SysV {
+        result := NoDiagnostic(); result.problem = .UnsupportedTarget; return result
+    }
+    if program.entry < 0 || program.entry >= program.functions.count || image.entry != program.entry ||
+        image.code.count <= 0 || image.code.count > 2147483647 ||
+        image.functions.count != program.functions.count || image.blocks.count != program.blocks.count ||
+        image.instructions.count != program.instructions.count ||
+        image.relocations.count != ExpectedRelocations(program) {
+        result := NoDiagnostic(); result.problem = .Relocation; return result
+    }
+    entry := program.functions[program.entry]
+    if entry.parameter_count != 0 || entry.result_type < 0 || entry.result_type >= program.types.count {
+        result := NoDiagnostic(); result.problem = .Unsupported; return result
+    }
+    result_type := program.types[entry.result_type]
+    if result_type.kind != .Void && result_type.kind != .Bool && result_type.kind != .Integer {
+        result := NoDiagnostic(); result.problem = .Unsupported; return result
+    }
+    previous: s64 = 0
+    for function: image.functions {
+        if function.begin < previous || function.body < function.begin || function.end < function.body ||
+            function.end > image.code.count {
+            result := NoDiagnostic(); result.problem = .Relocation; return result
+        }
+        previous = function.end
+    }
+    for block: image.blocks {
+        if block < 0 || block > image.code.count {
+            result := NoDiagnostic(); result.problem = .Relocation; return result
+        }
+    }
+    for range: image.instructions {
+        if range.begin < 0 || range.end < range.begin || range.end > image.code.count {
+            result := NoDiagnostic(); result.problem = .Relocation; return result
+        }
+    }
+    data_diagnostic := DataMeasure(program, *layout.data)
+    if data_diagnostic.problem != .None { return data_diagnostic }
+    layout.trap_text = MachineElfStartupSize + image.code.count
+    layout.text_size = layout.trap_text + MachineElfTrapSize
+    if layout.text_size > 2147483647 - MachineElfTextOffset {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.data_offset = Align(MachineElfTextOffset + layout.text_size, MachineElfPage)
+    if layout.data_offset > 2147483647 - layout.data.size {
+        result := NoDiagnostic(); result.problem = .Limit; return result
+    }
+    layout.file_size = layout.data_offset + layout.data.size
+
+    previous = -1
+    for relocation: image.relocations {
+        if relocation.offset <= previous || relocation.offset < 0 ||
+            relocation.offset > image.code.count - 4 || relocation.instruction < 0 ||
+            relocation.instruction >= image.instructions.count ||
+            relocation.offset < image.instructions[relocation.instruction].begin ||
+            relocation.offset + 4 > image.instructions[relocation.instruction].end {
+            result := NoDiagnostic(); result.problem = .Relocation
+            result.instruction = relocation.instruction; return result
+        }
+        previous = relocation.offset
+        target: u64 = 0
+        if relocation.kind == .GlobalAddress {
+            if program.instructions[relocation.instruction].opcode != .GlobalAddress {
+                result := NoDiagnostic(); result.problem = .Relocation
+                result.instruction = relocation.instruction; return result
+            }
+            global_offset: s64 = 0
+            if !GlobalOffset(program, relocation.symbol, *global_offset) {
+                result := NoDiagnostic(); result.problem = .Relocation
+                result.instruction = relocation.instruction; return result
+            }
+            target = cast(u64)(MachineElfBase + layout.data_offset + global_offset)
+        } else if relocation.kind == .FuelCounter && relocation.symbol == 0 {
+            if program.instructions[relocation.instruction].opcode != .Fuel {
+                result := NoDiagnostic(); result.problem = .Relocation
+                result.instruction = relocation.instruction; return result
+            }
+            target = cast(u64)(MachineElfBase + layout.data_offset + layout.data.fuel)
+        } else if relocation.kind == .TrapHandler && relocation.symbol == 0 {
+            if !TrapOpcode(program.instructions[relocation.instruction].opcode) || relocation.addend != -4 {
+                result := NoDiagnostic(); result.problem = .Relocation
+                result.instruction = relocation.instruction; return result
+            }
+            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.trap_text)
+        } else {
+            result := NoDiagnostic(); result.problem = .Relocation
+            result.instruction = relocation.instruction; return result
+        }
+        field := cast(u64)(MachineElfBase + MachineElfTextOffset + MachineElfStartupSize + relocation.offset)
+        displacement: s64 = 0
+        if !Relative32(target, relocation.addend, field, *displacement) {
+            result := NoDiagnostic(); result.problem = .Relocation
+            result.instruction = relocation.instruction; return result
+        }
+    }
+    return NoDiagnostic()
+}
+
+Put8 :: (output: []u8, at: s64, value: u8) { output[at] = value }
+
+PutLittle :: (output: []u8, at: s64, value: u64, count: s32) {
+    for index: 0..count - 1 {
+        output[at + index] = cast(u8)((value >> cast(u64)(index * 8)) & 255)
+    }
+}
+
+PutRelative :: (output: []u8, at: s64, target: u64, addend: s64, field: u64) -> bool {
+    value: s64 = 0
+    if !Relative32(target, addend, field, *value) { return false }
+    PutLittle(output, at, cast(u64)value, 4)
+    return true
+}
+
+Write :: (program: MachineProgram, image: MachineX64Image, layout: Layout, output: []u8) -> bool {
+    for index: cast(s64)0..output.count - 1 { output[index] = 0 }
+
+    // ELF64 little-endian ET_EXEC, x86-64, two program headers, no sections.
+    Put8(output, 0, 0x7f); Put8(output, 1, 69); Put8(output, 2, 76); Put8(output, 3, 70)
+    Put8(output, 4, 2); Put8(output, 5, 1); Put8(output, 6, 1)
+    PutLittle(output, 16, 2, 2); PutLittle(output, 18, 62, 2); PutLittle(output, 20, 1, 4)
+    PutLittle(output, 24, cast(u64)(MachineElfBase + MachineElfTextOffset), 8)
+    PutLittle(output, 32, MachineElfHeaderSize, 8)
+    PutLittle(output, 52, MachineElfHeaderSize, 2)
+    PutLittle(output, 54, MachineElfProgramHeaderSize, 2)
+    PutLittle(output, 56, MachineElfProgramHeaders, 2)
+
+    // RX PT_LOAD includes the headers and text but ends before the RW page.
+    ph := cast(s64)MachineElfHeaderSize
+    PutLittle(output, ph, 1, 4); PutLittle(output, ph + 4, 5, 4)
+    PutLittle(output, ph + 16, MachineElfBase, 8); PutLittle(output, ph + 24, MachineElfBase, 8)
+    PutLittle(output, ph + 32, cast(u64)(MachineElfTextOffset + layout.text_size), 8)
+    PutLittle(output, ph + 40, cast(u64)(MachineElfTextOffset + layout.text_size), 8)
+    PutLittle(output, ph + 48, MachineElfPage, 8)
+
+    // RW PT_LOAD is congruent to its file offset and is never executable.
+    ph += MachineElfProgramHeaderSize
+    PutLittle(output, ph, 1, 4); PutLittle(output, ph + 4, 6, 4)
+    PutLittle(output, ph + 8, cast(u64)layout.data_offset, 8)
+    PutLittle(output, ph + 16, cast(u64)(MachineElfBase + layout.data_offset), 8)
+    PutLittle(output, ph + 24, cast(u64)(MachineElfBase + layout.data_offset), 8)
+    PutLittle(output, ph + 32, cast(u64)layout.data.size, 8)
+    PutLittle(output, ph + 40, cast(u64)layout.data.size, 8)
+    PutLittle(output, ph + 48, MachineElfPage, 8)
+
+    // _start: call machine entry; move (or clear) status; SYS_exit_group.
+    start := cast(s64)MachineElfTextOffset
+    Put8(output, start, 0xe8)
+    entry_target := cast(u64)(MachineElfBase + MachineElfTextOffset + MachineElfStartupSize +
+        image.functions[program.entry].begin)
+    if !PutRelative(output, start + 1, entry_target, -4,
+        cast(u64)(MachineElfBase + start + 1)) { return false }
+    result_type := program.types[program.functions[program.entry].result_type]
+    if result_type.kind == .Void { Put8(output, start + 5, 0x31); Put8(output, start + 6, 0xff) }
+    else { Put8(output, start + 5, 0x89); Put8(output, start + 6, 0xc7) }
+    Put8(output, start + 7, 0xb8); PutLittle(output, start + 8, 231, 4)
+    Put8(output, start + 12, 0x0f); Put8(output, start + 13, 0x05)
+
+    code_at := start + MachineElfStartupSize
+    for index: cast(s64)0..image.code.count - 1 { output[code_at + index] = image.code[index] }
+
+    // trap_handler: store edi; exit_group(125); ud2 if the syscall unexpectedly returns.
+    trap := start + layout.trap_text
+    Put8(output, trap, 0x89); Put8(output, trap + 1, 0x3d)
+    trap_status := cast(u64)(MachineElfBase + layout.data_offset + layout.data.trap_status)
+    if !PutRelative(output, trap + 2, trap_status, -4, cast(u64)(MachineElfBase + trap + 2)) { return false }
+    Put8(output, trap + 6, 0xbf); PutLittle(output, trap + 7, MachineElfTrapExitStatus, 4)
+    Put8(output, trap + 11, 0xb8); PutLittle(output, trap + 12, 231, 4)
+    Put8(output, trap + 16, 0x0f); Put8(output, trap + 17, 0x05)
+    Put8(output, trap + 18, 0x0f); Put8(output, trap + 19, 0x0b)
+
+    for relocation: image.relocations {
+        target: u64 = 0
+        if relocation.kind == .GlobalAddress {
+            global_offset: s64 = 0
+            if !GlobalOffset(program, relocation.symbol, *global_offset) { return false }
+            target = cast(u64)(MachineElfBase + layout.data_offset + global_offset)
+        } else if relocation.kind == .FuelCounter {
+            target = cast(u64)(MachineElfBase + layout.data_offset + layout.data.fuel)
+        } else if relocation.kind == .TrapHandler {
+            target = cast(u64)(MachineElfBase + MachineElfTextOffset + layout.trap_text)
+        } else { return false }
+        field_at := code_at + relocation.offset
+        field := cast(u64)(MachineElfBase + field_at)
+        if !PutRelative(output, field_at, target, relocation.addend, field) { return false }
+    }
+    PutLittle(output, layout.data_offset + layout.data.fuel, cast(u64)MachineElfInitialFuel, 8)
+    return true
+}
+
+#scope_export
+
+// Empty OUTPUT measures. A non-empty OUTPUT must have exactly the measured
+// length. Verification, complete relocation resolution and i32 range checks
+// all finish before the first output byte is changed.
+MachineElfEncode :: (program: MachineProgram, encoded: MachineX64Image, output: []u8) -> MachineElfResult {
+    layout: Layout
+    diagnostic := ImageLayout(program, encoded, *layout)
+    if diagnostic.problem != .None { return .{diagnostic = diagnostic} }
+    result := MachineElfResult.{diagnostic = NoDiagnostic(), size = layout.file_size,
+        text_offset = MachineElfTextOffset, text_size = layout.text_size,
+        data_offset = layout.data_offset, data_size = layout.data.size,
+        fuel_offset = layout.data_offset + layout.data.fuel,
+        trap_status_offset = layout.data_offset + layout.data.trap_status}
+    if output.count == 0 { return result }
+    if output.count != layout.file_size { return Failure(.Limit) }
+    if !Write(program, encoded, layout, output) { return Failure(.Relocation) }
+    return result
+}

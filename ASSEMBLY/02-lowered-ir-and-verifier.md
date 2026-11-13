@@ -20,6 +20,34 @@ Create a structured, serializable representation of executable operations below 
 
 Proposed new modules: `cmd/compiler_lowered_ir.zi`, `cmd/compiler_lowered_verify.zi`, and `cmd/compiler_lowered_text.zi`. Keep binary ZX framing in step 05 rather than coupling instruction records to file offsets.
 
+## Typed console service boundary
+
+The direct console path represents output as effectful `HostCall` instructions,
+not as generated C/Go or an untyped call to a process address. Its reserved
+module is `ziran.platform`. The byte-output signature is exactly
+`ziran.platform.write_all(u64 fd, *u8 bytes, u64 count) -> void`, with Host
+calling convention, no variadic parameters, and no body. Here `*u8` is a
+verified Ziran pointer token, not a raw host address. The native veneer resolves
+that token to permitted byte storage and checks the requested extent before
+issuing an operating-system write.
+
+`compiler_lowered_verify.zi` admits this one pointer parameter only for that
+exact module, name, arity, and type signature. It does not relax the ordinary
+host-capability restriction on pointers or pointer-containing aggregates. The
+native encoder independently validates the service signature; matching a name
+alone cannot authorize a different ABI.
+
+Literal-format `print` evaluates all arguments before its first output call.
+It then emits literal byte writes and Ziran-owned signed-integer,
+unsigned-integer, and boolean formatting services. The scalar formatter names
+are `ziran.print.signed(s64)`, `ziran.print.unsigned(u64)`, and
+`ziran.print.bool(bool)`, all returning void in the same reserved module.
+`HostCall` retains its effect ordering through optimization. Float-format
+service records may be inspected or serialized, but native ELF emission must
+reject them with the named float-format gap until an exact formatter exists.
+This console binding does not claim general foreign-call, host-trampoline, or
+cross-target support; see [the runtime contract](09-native-runtime-and-integration.md).
+
 ## Implementation work
 
 - [ ] Define program, module, type, function, basic-block, value, instruction, constant, global, import, and debug-location records with stable IDs.
@@ -30,6 +58,10 @@ Proposed new modules: `cmd/compiler_lowered_ir.zi`, `cmd/compiler_lowered_verify
   immutable string byte/count representation to heap-derived pointers, slices,
   unions, vectors and the remaining string operations without assuming a fixed
   host pointer width. Keep code, data and capability references distinct.
+  The M1 subset now includes checked frame-local aggregate/procedure storage,
+  bounded derived slice addresses, byte equality, readonly data and typed
+  byte-view/pointer-free aggregate capabilities. Unions, resizable vectors,
+  general ownership and raw host pointers remain open or deliberately rejected.
 - [ ] Separate portable logical type identity from target physical layout. Keep field/element access and layout queries symbolic until target layout is known; explicitly mark native-layout-dependent declarations and required host ABI descriptors.
 - [ ] Define loads, stores, copies, zeroing, address calculations, calls, branches, returns, traps, and unreachable terminators. Specify alignment, access width, alias assumptions, and permitted overlap for each memory operation.
 - [ ] Preserve effect order with an explicit effect dependency or another equally checkable ordering contract. Calls, stores, cleanup, volatile/atomic operations, and fuel checkpoints must not move unsafely.

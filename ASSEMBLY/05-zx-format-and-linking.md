@@ -1,6 +1,6 @@
 # Step 05 — Make ZX a versioned portable executable container
 
-Status: in progress; the [revision-28 executable container](zx-executable-format.md) stores verified LIR, runs stripped through the portable engine, and rejects revisions 26/27 with a rebuild diagnostic. It is opt-in through `zi2asm --emit zx`/`--input zx`; host capabilities, libraries/partial composition, native variants and the default cutover remain pending. Delivery order: [milestones](milestones.md) M1 and M3. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
+Status: in progress; the [revision-28 executable container](zx-executable-format.md) stores verified LIR, runs stripped through the portable engine, and rejects revisions 26/27 with a rebuild diagnostic. It is opt-in through `zi2asm --emit zx`/`--input zx`; typed host binding exists at the engine boundary, while portable capability metadata/cross-checking, libraries/partial composition, native variants and the default cutover remain pending. Delivery order: [milestones](milestones.md) M1 and M3. Depends on [steps 02](02-lowered-ir-and-verifier.md)–[04](04-portable-instruction-engine.md). Next: [native code generation](06-optimization-and-native-backend.md).
 
 ## Objective
 
@@ -19,6 +19,9 @@ Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, an
 
 - [ ] Define a new incompatible ZX revision with explicit section kinds, lengths, alignment, feature requirements, entry IDs, and deterministic ordering. Choose the revision from the live format history at implementation time.
 - [ ] Encode functions, blocks, values, instructions, types, relocatable symbolic constants, imports, exports, global initializers, and data without host pointer values or compiler struct layouts.
+  Revision 28 already serializes ordered initializer IDs and readonly byte data;
+  imports/exports, relocatable symbols and the public linked representation keep
+  this container-wide item open.
 - [ ] Separate required execution sections from optional source maps, origins, optimization remarks, and original source attachments. Optional executable `.zir` must never be a hidden execution dependency.
 - [ ] Preserve asset streaming and binary bytes, deterministic output, write-to-pipe behavior, and existing error semantics. Validate offset/length arithmetic, overlaps, truncation, unsupported required features, and trailing data rules.
 - [ ] Lower then link executable symbols and portable type identities. Handle direct/indirect call roots, callbacks, exported layouts, global initialization, function/data address identity, and dead stripping conservatively.

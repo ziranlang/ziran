@@ -1,6 +1,8 @@
 # Verified lowered-IR optimization pipeline
 
-Status: bounded opt-in scalar pipeline. This module does not select target
+Status: bounded scalar pipeline, mandatory before experimental ZX production.
+Source `--opt` selects optimized LIR inspection and source optimization reports;
+ZX input is never reoptimized. This module does not select target
 instructions, allocate registers, or claim a performance result.
 
 The implementation is

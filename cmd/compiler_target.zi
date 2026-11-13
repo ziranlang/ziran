@@ -1,6 +1,12 @@
 // Native target descriptions shared by machine lowering, allocation and
 // encoding. A described target is not necessarily implemented by the current
 // machine lowerer; callers must check TargetMachineLoweringSupported.
+//
+// The direct assembly target registry below names every described row with
+// one gap-policy state. TargetPreflight rejects an unimplemented row, a CPU
+// feature or an OS service the row does not implement before any input is
+// read, output written, initializer run, host called or entry executed. No
+// other engine, lower-feature variant or portable body satisfies a cell.
 
 TargetArch :: enum s32 { Invalid; X86_64; ArmV7; AArch64; Wasm32 }
 TargetOS :: enum s32 { Invalid; Linux; Android; Windows; MacOS; Browser; Wasi }
@@ -8,6 +14,48 @@ TargetABI :: enum s32 { Invalid; SysV; Aapcs32; Aapcs64; Win64; Apple64; Wasm }
 TargetEndian :: enum s32 { Invalid; Little; Big }
 
 TargetProblem :: enum s32 { None; Architecture; OperatingSystem; Combination }
+
+// CPU features use the names `#asm` variants use. Each has bit
+// TargetFeatureBit(feature) in a feature mask.
+TargetFeature :: enum s32 {
+    Invalid; Popcnt; Sse2; Ssse3; Sse41; Sse42; Avx; Avx2; Avx512f; Bmi; Bmi2
+    Lzcnt; Fma; Aes; Pclmul; Crc32; Pmull; Sha2; Atomics; Simd; Neon; Simd128
+}
+TARGET_FEATURE_COUNT :: 21
+
+// Operating-system facilities the direct target must supply itself. Typed
+// host capabilities have their own gap code and are not services here.
+TargetService :: enum s32 {
+    Invalid; ProcessEntry; ExecutableMemory; Threads; Files; Clock; DynamicLibrary
+}
+TARGET_SERVICE_COUNT :: 6
+
+// Gap-policy states. Only Implemented rows pass preflight; Gap, Excluded,
+// Unknown and Invalid rows hard-fail and never count as support.
+TargetState :: enum s32 { Invalid; Implemented; Gap; Excluded; Unknown }
+
+TargetRequirements :: struct { features: u64; services: u64 }
+
+TargetRow :: struct {
+    arch: TargetArch
+    os: TargetOS
+    state: TargetState
+    features: u64
+    services: u64
+    milestone: string
+    note: string
+}
+
+TargetPreflightProblem :: enum s32 {
+    None; Target; TargetUnimplemented; CpuFeature; OsService
+}
+
+TargetPreflightResult :: struct {
+    problem: TargetPreflightProblem
+    state: TargetState
+    missing_features: u64
+    missing_services: u64
+}
 
 TargetDescription :: struct {
     arch: TargetArch
@@ -42,6 +90,7 @@ Describe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
         target.reserved_general = 0x30
         target.allocatable_float = 0xffff
         target.allocatable_vector = 0xffff
+        target.feature_mask = TargetFeatureBit(.Sse2)
         if os == .Linux || os == .Android { target.abi = .SysV }
         else if os == .Windows { target.abi = .Win64 }
         else if os == .MacOS { target.abi = .Apple64 }
@@ -68,6 +117,7 @@ Describe :: (arch: TargetArch, os: TargetOS) -> TargetResult {
         target.reserved_general = 0xc0000000
         target.allocatable_float = 0xffffffff
         target.allocatable_vector = 0xffffffff
+        target.feature_mask = TargetFeatureBit(.Simd)
         if os == .Linux || os == .Android { target.abi = .Aapcs64 }
         else if os == .Windows { target.abi = .Win64 }
         else if os == .MacOS { target.abi = .Apple64 }
@@ -133,4 +183,245 @@ TargetOSName :: (os: TargetOS) -> string {
     if os == .Browser { return "browser" }
     if os == .Wasi { return "wasi" }
     return "invalid"
+}
+
+TargetABIName :: (abi: TargetABI) -> string {
+    if abi == .SysV { return "sysv" }
+    if abi == .Aapcs32 { return "aapcs32" }
+    if abi == .Aapcs64 { return "aapcs64" }
+    if abi == .Win64 { return "win64" }
+    if abi == .Apple64 { return "apple64" }
+    if abi == .Wasm { return "wasm" }
+    return "invalid"
+}
+
+TargetArchFromName :: (name: string) -> TargetArch {
+    if name == "x86_64" { return .X86_64 }
+    if name == "armv7" { return .ArmV7 }
+    if name == "aarch64" { return .AArch64 }
+    if name == "wasm32" { return .Wasm32 }
+    return .Invalid
+}
+
+TargetOSFromName :: (name: string) -> TargetOS {
+    if name == "linux" { return .Linux }
+    if name == "android" { return .Android }
+    if name == "windows" { return .Windows }
+    if name == "macos" { return .MacOS }
+    if name == "browser" { return .Browser }
+    if name == "wasi" { return .Wasi }
+    return .Invalid
+}
+
+TargetFeatureBit :: (feature: TargetFeature) -> u64 {
+    if cast(s32)feature <= 0 || cast(s32)feature > TARGET_FEATURE_COUNT { return 0 }
+    return cast(u64)1 << cast(u64)(cast(s32)feature - 1)
+}
+
+TargetFeatureName :: (feature: TargetFeature) -> string {
+    if feature == .Popcnt { return "popcnt" }
+    if feature == .Sse2 { return "sse2" }
+    if feature == .Ssse3 { return "ssse3" }
+    if feature == .Sse41 { return "sse4.1" }
+    if feature == .Sse42 { return "sse4.2" }
+    if feature == .Avx { return "avx" }
+    if feature == .Avx2 { return "avx2" }
+    if feature == .Avx512f { return "avx512f" }
+    if feature == .Bmi { return "bmi" }
+    if feature == .Bmi2 { return "bmi2" }
+    if feature == .Lzcnt { return "lzcnt" }
+    if feature == .Fma { return "fma" }
+    if feature == .Aes { return "aes" }
+    if feature == .Pclmul { return "pclmul" }
+    if feature == .Crc32 { return "crc32" }
+    if feature == .Pmull { return "pmull" }
+    if feature == .Sha2 { return "sha2" }
+    if feature == .Atomics { return "atomics" }
+    if feature == .Simd { return "simd" }
+    if feature == .Neon { return "neon" }
+    if feature == .Simd128 { return "simd128" }
+    return "invalid"
+}
+
+TargetFeatureFromName :: (name: string) -> TargetFeature {
+    index: s32 = 1
+    while index <= TARGET_FEATURE_COUNT {
+        if TargetFeatureName(cast(TargetFeature)index) == name { return cast(TargetFeature)index }
+        index += 1
+    }
+    return .Invalid
+}
+
+// The CPU family that defines each feature; a feature of another family is
+// never available on a row.
+TargetFeatureArch :: (feature: TargetFeature) -> u64 {
+    x86: u64 = cast(u64)1 << cast(u64)TargetArch.X86_64
+    arm: u64 = cast(u64)1 << cast(u64)TargetArch.ArmV7
+    arm64: u64 = cast(u64)1 << cast(u64)TargetArch.AArch64
+    wasm: u64 = cast(u64)1 << cast(u64)TargetArch.Wasm32
+    if feature == .Aes { return x86 | arm64 }
+    if feature == .Crc32 || feature == .Pmull || feature == .Sha2 ||
+        feature == .Atomics || feature == .Simd { return arm64 }
+    if feature == .Neon { return arm }
+    if feature == .Simd128 { return wasm }
+    if cast(s32)feature <= 0 || cast(s32)feature > TARGET_FEATURE_COUNT { return 0 }
+    return x86
+}
+
+TargetServiceBit :: (service: TargetService) -> u64 {
+    if cast(s32)service <= 0 || cast(s32)service > TARGET_SERVICE_COUNT { return 0 }
+    return cast(u64)1 << cast(u64)(cast(s32)service - 1)
+}
+
+TargetServiceName :: (service: TargetService) -> string {
+    if service == .ProcessEntry { return "process-entry" }
+    if service == .ExecutableMemory { return "executable-memory" }
+    if service == .Threads { return "threads" }
+    if service == .Files { return "files" }
+    if service == .Clock { return "clock" }
+    if service == .DynamicLibrary { return "dynamic-library" }
+    return "invalid"
+}
+
+TargetServiceFromName :: (name: string) -> TargetService {
+    index: s32 = 1
+    while index <= TARGET_SERVICE_COUNT {
+        if TargetServiceName(cast(TargetService)index) == name { return cast(TargetService)index }
+        index += 1
+    }
+    return .Invalid
+}
+
+TargetStateName :: (state: TargetState) -> string {
+    if state == .Implemented { return "implemented" }
+    if state == .Gap { return "gap" }
+    if state == .Excluded { return "excluded" }
+    if state == .Unknown { return "unknown" }
+    return "invalid"
+}
+
+// Every described target, in registry order. The count matches the rows
+// TargetDescribe accepts; tests/machine_ir_cases.zi enforces that. A row
+// becomes Implemented only when its full encoder and runtime cutover gate
+// passes; partial stages such as TargetMachineLoweringSupported do not count.
+TARGET_ROW_COUNT :: 12
+
+TargetRowAt :: (index: s32) -> TargetRow {
+    if index == 0 {
+        return .{arch = .X86_64, os = .Linux, state = .Gap, milestone = "M2-M3",
+            note = "Machine IR stops before register allocation and encoding; the native ZX loader and runtime cutover are not implemented."}
+    }
+    if index == 1 {
+        return .{arch = .X86_64, os = .Android, state = .Gap, milestone = "M4",
+            note = "No direct Android x86-64 executable, loader or API-level contract."}
+    }
+    if index == 2 {
+        return .{arch = .X86_64, os = .Windows, state = .Gap, milestone = "M5",
+            note = "No Win64 shadow-space, unwind or COFF output."}
+    }
+    if index == 3 {
+        return .{arch = .X86_64, os = .MacOS, state = .Gap, milestone = "M5",
+            note = "No Apple x86-64 Mach-O output or signing."}
+    }
+    if index == 4 {
+        return .{arch = .ArmV7, os = .Linux, state = .Gap, milestone = "M4",
+            note = "No ARMv7 instruction selection or encoding."}
+    }
+    if index == 5 {
+        return .{arch = .ArmV7, os = .Android, state = .Gap, milestone = "M4",
+            note = "No ARMv7 instruction selection or encoding; the USB Moto row needs device evidence."}
+    }
+    if index == 6 {
+        return .{arch = .AArch64, os = .Linux, state = .Gap, milestone = "M4",
+            note = "No AArch64 instruction selection or encoding."}
+    }
+    if index == 7 {
+        return .{arch = .AArch64, os = .Android, state = .Gap, milestone = "M4",
+            note = "No AArch64 instruction selection or encoding; the USB Moto row needs device evidence."}
+    }
+    if index == 8 {
+        return .{arch = .AArch64, os = .Windows, state = .Gap, milestone = "M5",
+            note = "No Windows ARM64 ABI, unwind or COFF output; generated C is a separate target and is not a fallback."}
+    }
+    if index == 9 {
+        return .{arch = .AArch64, os = .MacOS, state = .Gap, milestone = "M5",
+            note = "No Apple ARM64 Mach-O output, signing or executable-memory rules."}
+    }
+    if index == 10 {
+        return .{arch = .Wasm32, os = .Browser, state = .Gap, milestone = "M4",
+            note = "No direct WebAssembly lowering from lowered IR; generated C is not a substitute."}
+    }
+    if index == 11 {
+        return .{arch = .Wasm32, os = .Wasi, state = .Gap, milestone = "M4",
+            note = "No direct WebAssembly lowering from lowered IR; generated C is not a substitute."}
+    }
+    return .{}
+}
+
+TargetRowFor :: (arch: TargetArch, os: TargetOS) -> TargetRow {
+    index: s32 = 0
+    while index < TARGET_ROW_COUNT {
+        row := TargetRowAt(index)
+        if row.arch == arch && row.os == os { return row }
+        index += 1
+    }
+    return .{}
+}
+
+#scope_file
+
+RowSupplies :: (row: TargetRow, feature: TargetFeature) -> bool {
+    if row.state != .Implemented { return false }
+    bit := TargetFeatureBit(feature)
+    arch := cast(u64)1 << cast(u64)row.arch
+    return bit != 0 && (TargetFeatureArch(feature) & arch) != 0 && (row.features & bit) == bit
+}
+
+#scope_export
+
+// Whether the direct assembly implementation of this target's row supplies
+// FEATURE, either as the CPU baseline or as an implemented variant.
+TargetFeatureSupported :: (target: TargetDescription, feature: TargetFeature) -> bool {
+    return TargetValid(target) && RowSupplies(TargetRowFor(target.arch, target.os), feature)
+}
+
+// Checks REQUIREMENTS against one registry row. Only an Implemented row can
+// pass; Gap, Excluded, Unknown and Invalid rows fail as unimplemented first.
+TargetPreflightRow :: (row: TargetRow, requirements: TargetRequirements) -> TargetPreflightResult {
+    result := TargetPreflightResult.{state = row.state}
+    if row.state != .Implemented {
+        result.problem = .TargetUnimplemented
+        return result
+    }
+    index: s32 = 1
+    while index <= TARGET_FEATURE_COUNT {
+        feature := cast(TargetFeature)index
+        bit := TargetFeatureBit(feature)
+        if (requirements.features & bit) != 0 && !RowSupplies(row, feature) {
+            result.missing_features |= bit
+        }
+        index += 1
+    }
+    result.missing_features |= requirements.features & ~((cast(u64)1 << cast(u64)TARGET_FEATURE_COUNT) - 1)
+    if result.missing_features != 0 {
+        result.problem = .CpuFeature
+        return result
+    }
+    result.missing_services = requirements.services & ~row.services
+    if result.missing_services != 0 { result.problem = .OsService }
+    return result
+}
+
+TargetPreflight :: (target: TargetDescription, requirements: TargetRequirements) -> TargetPreflightResult {
+    if !TargetValid(target) { return .{problem = .Target} }
+    return TargetPreflightRow(TargetRowFor(target.arch, target.os), requirements)
+}
+
+// Stable diagnostic code for a preflight problem.
+TargetPreflightCode :: (problem: TargetPreflightProblem) -> string {
+    if problem == .TargetUnimplemented { return "assembly.gap.target-unimplemented" }
+    if problem == .CpuFeature { return "assembly.gap.cpu-feature" }
+    if problem == .OsService { return "assembly.gap.os-service" }
+    if problem == .Target { return "assembly.gap.target-unimplemented" }
+    return ""
 }

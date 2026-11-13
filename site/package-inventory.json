@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "packages": {
+    "audio": {"url": "https://github.com/ziranlang/audio", "public": true},
+    "av1": {"url": "https://github.com/ziranlang/av1", "public": true},
+    "avif": {"url": "https://github.com/ziranlang/avif", "public": true},
+    "browser-automation": {"url": "https://github.com/ziranlang/browser-automation", "public": false},
+    "clip-tokenizer": {"url": "https://github.com/ziranlang/clip-tokenizer", "public": true},
+    "compression": {"url": "https://github.com/ziranlang/compression", "public": true},
+    "crypto": {"url": "https://github.com/ziranlang/crypto", "public": true},
+    "daochi-client": {"url": "https://github.com/ziranlang/daochi-client", "public": true},
+    "image-codec": {"url": "https://github.com/ziranlang/image-codec", "public": true},
+    "lua": {"url": "https://github.com/ziranlang/lua", "public": true},
+    "mermaid": {"url": "https://github.com/ziranlang/mermaid", "public": true},
+    "noise": {"url": "https://github.com/ziranlang/noise", "public": true},
+    "oqs": {"url": "https://github.com/ziranlang/oqs", "public": true},
+    "qrcode": {"url": "https://github.com/ziranlang/qrcode", "public": true},
+    "sqlite": {"url": "https://github.com/ziranlang/sqlite", "public": true},
+    "syntax": {"url": "https://github.com/ziranlang/syntax", "public": true},
+    "telegram": {"url": "https://github.com/ziranlang/telegram", "public": true},
+    "webp": {"url": "https://github.com/ziranlang/webp", "public": true}
+  }
+}

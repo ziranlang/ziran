@@ -171,8 +171,8 @@ CollectionPlan :: (issue: string) -> string {
     } else if issue != "direct-aot" {
         JsonAppend(*document, command, JsonNewStringCopy(*document, "--run"))
         JsonAppend(*document, command, JsonNewStringCopy(*document, "--input"))
-        JsonAppend(*document, command, JsonNewStringCopy(*document, "exec"))
-        JsonAppend(*document, command, JsonNewStringCopy(*document, "/alpha/workload.lirb"))
+        JsonAppend(*document, command, JsonNewStringCopy(*document, ifx issue == "retired-exec" then "exec" else "zx"))
+        JsonAppend(*document, command, JsonNewStringCopy(*document, "/alpha/workload.zx"))
     }
     JsonSet(*document, job, "command", command)
     verification := JsonNewArray(*document)
@@ -184,8 +184,8 @@ CollectionPlan :: (issue: string) -> string {
     } else if issue != "direct-aot" {
         JsonAppend(*document, verification, JsonNewStringCopy(*document, "--run"))
         JsonAppend(*document, verification, JsonNewStringCopy(*document, "--input"))
-        JsonAppend(*document, verification, JsonNewStringCopy(*document, "exec"))
-        JsonAppend(*document, verification, JsonNewStringCopy(*document, "/alpha/workload.lirb"))
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, ifx issue == "retired-exec" then "exec" else "zx"))
+        JsonAppend(*document, verification, JsonNewStringCopy(*document, "/alpha/workload.zx"))
     }
     JsonSet(*document, job, "verification", verification)
     closure := JsonNewArray(*document)
@@ -196,8 +196,7 @@ CollectionPlan :: (issue: string) -> string {
     JsonAppend(*document, closure, item)
     JsonSet(*document, job, "runtime_closure", closure)
     PutText(*document, job, "workload", "synthetic-zx-kernel")
-    PutText(*document, job, "input_path",
-        ifx issue == "old-vm" then "/alpha/workload.zx" else "/alpha/workload.lirb")
+    PutText(*document, job, "input_path", "/alpha/workload.zx")
     PutText(*document, job, "input_checksum",
         "sha256:1111111111111111111111111111111111111111111111111111111111111111")
     PutText(*document, job, "semantic_settings",
@@ -229,6 +228,8 @@ CollectorValidation :: (test: *NativeTest) -> bool {
         "exact direct-AOT collector plan was rejected") ||
     !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("new-native")),
         "unavailable new-native engine was accepted") ||
+    !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("retired-exec")),
+        "removed standalone instruction selector was accepted") ||
     !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("old-native")),
         "default ZX run was accepted as proven old TinyCC native") ||
     !NativeAssert(test, !Collect.ValidatePlanText(CollectionPlan("selector")),

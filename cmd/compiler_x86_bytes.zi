@@ -1,0 +1,313 @@
+// x86-64 byte encoders for the machine-IR encoder. A writer either measures
+// (no output buffer) or writes into a buffer sized by a previous measure. Both
+// modes run the same calls, so measured and written sizes agree exactly; no
+// instruction's length depends on a displacement value.
+
+X86Rax :: 0
+X86Rcx :: 1
+X86Rdx :: 2
+X86Rbx :: 3
+X86Rsp :: 4
+X86Rbp :: 5
+X86Rsi :: 6
+X86Rdi :: 7
+X86R11 :: 11
+X86R12 :: 12
+X86R13 :: 13
+
+// Condition codes in encoding order (the low nibble of Jcc/SETcc).
+X86Below :: 2
+X86AboveEqual :: 3
+X86Equal :: 4
+X86NotEqual :: 5
+X86BelowEqual :: 6
+X86Above :: 7
+X86Less :: 12
+X86GreaterEqual :: 13
+X86LessEqual :: 14
+X86Greater :: 15
+
+X86OperandKind :: enum s32 { Register; Base; Rip; Relocated }
+
+// A ModRM r/m operand: a register, [base + displacement], [rip + field] whose
+// field reaches code offset `displacement`, or [rip + field] whose field a
+// relocation supplies (encoded as zero).
+X86Operand :: struct {
+    kind: X86OperandKind
+    register: s32
+    displacement: s64
+}
+
+X86Writer :: struct {
+    output: []u8
+    at: s64
+    limit: s64
+    failed: bool
+}
+
+X86Direct :: (register: s32) -> X86Operand {
+    return .{kind = .Register, register = register}
+}
+
+X86At :: (base: s32, displacement: s64) -> X86Operand {
+    return .{kind = .Base, register = base, displacement = displacement}
+}
+
+X86RipTarget :: (target: s64) -> X86Operand {
+    return .{kind = .Rip, register = -1, displacement = target}
+}
+
+X86RipRelocated :: () -> X86Operand {
+    return .{kind = .Relocated, register = -1}
+}
+
+X86Fits8 :: (value: s64) -> bool { return value >= -128 && value <= 127 }
+
+X86Fits32 :: (value: s64) -> bool { return value >= -2147483648 && value <= 2147483647 }
+
+X86Register :: (register: s32) -> bool { return register >= 0 && register < 16 }
+
+X86Byte :: (writer: *X86Writer, value: u8) {
+    if writer.failed { return }
+    if writer.at >= writer.limit { writer.failed = true; return }
+    if writer.output.count != 0 {
+        if writer.at >= writer.output.count { writer.failed = true; return }
+        writer.output[writer.at] = value
+    }
+    writer.at += 1
+}
+
+X86Little :: (writer: *X86Writer, value: u64, count: s32) {
+    for index: 0..count - 1 { X86Byte(writer, cast(u8)((value >> cast(u64)(index * 8)) & 255)) }
+}
+
+X86Signed32 :: (writer: *X86Writer, value: s64) {
+    if !X86Fits32(value) { writer.failed = true; return }
+    X86Little(writer, cast(u64)value, 4)
+}
+
+// The 32-bit PC-relative displacement to TARGET from the end of a field that
+// starts at the current position and is followed by TRAILING bytes. While
+// measuring, targets may still be unknown; only the four-byte width matters.
+X86Relative32 :: (writer: *X86Writer, target: s64, trailing: s64) {
+    if writer.output.count == 0 { X86Little(writer, 0, 4); return }
+    X86Signed32(writer, target - (writer.at + 4 + trailing))
+}
+
+X86Opcode :: (writer: *X86Writer, opcode: u32, count: s32) {
+    index := count - 1
+    while index >= 0 {
+        X86Byte(writer, cast(u8)((opcode >> cast(u32)(index * 8)) & 255))
+        index -= 1
+    }
+}
+
+// Emits [PREFIX] [REX] OPCODE ModRM [SIB] [displacement]. REG is a register
+// or a /digit opcode extension. REG_BYTE and RM_BYTE mark byte-register
+// operands, which need an empty REX to name SPL, BPL, SIL and DIL instead of
+// AH, CH, DH and BH. TRAILING counts immediate bytes after a Rip
+// displacement, which is measured from the end of the instruction.
+X86Encode :: (writer: *X86Writer, prefix: u8, wide: bool, opcode: u32, count: s32,
+    reg: s32, rm: X86Operand, reg_byte: bool = false, rm_byte: bool = false, trailing: s64 = 0) {
+    memory := rm.kind == .Rip || rm.kind == .Relocated
+    if !X86Register(reg) || !memory && !X86Register(rm.register) { writer.failed = true; return }
+    if prefix != 0 { X86Byte(writer, prefix) }
+    rex: u8 = 0
+    if wide { rex = rex | 8 }
+    if reg >= 8 { rex = rex | 4 }
+    if !memory && rm.register >= 8 { rex = rex | 1 }
+    needs := rex != 0 || reg_byte && reg >= 4 && reg < 8 ||
+        rm_byte && rm.kind == .Register && rm.register >= 4 && rm.register < 8
+    if needs { X86Byte(writer, 64 | rex) }
+    X86Opcode(writer, opcode, count)
+    field := cast(u8)((reg & 7) << 3)
+    if rm.kind == .Register {
+        X86Byte(writer, 192 | field | cast(u8)(rm.register & 7))
+        return
+    }
+    if memory {
+        X86Byte(writer, field | 5)
+        if rm.kind == .Relocated { X86Little(writer, 0, 4); return }
+        X86Relative32(writer, rm.displacement, trailing)
+        return
+    }
+    low := cast(u8)(rm.register & 7)
+    mode: u8 = 2
+    if rm.displacement == 0 && low != 5 { mode = 0 }
+    else if X86Fits8(rm.displacement) { mode = 1 }
+    else if !X86Fits32(rm.displacement) { writer.failed = true; return }
+    X86Byte(writer, (mode << 6) | field | low)
+    if low == 4 { X86Byte(writer, 36) }
+    if mode == 1 { X86Little(writer, cast(u64)rm.displacement, 1) }
+    if mode == 2 { X86Little(writer, cast(u64)rm.displacement, 4) }
+}
+
+// Register-direct general operations: OPCODE r/m64, r64.
+X86Move :: (writer: *X86Writer, destination: s32, source: s32) {
+    X86Encode(writer, 0, true, 137, 1, source, X86Direct(destination))
+}
+
+X86Move32 :: (writer: *X86Writer, destination: s32, source: s32) {
+    X86Encode(writer, 0, false, 137, 1, source, X86Direct(destination))
+}
+
+X86Add :: 1
+X86Or :: 9
+X86And :: 33
+X86Subtract :: 41
+X86Xor :: 49
+X86Compare :: 57
+X86Test :: 133
+
+X86Arithmetic :: (writer: *X86Writer, opcode: u32, destination: s32, source: s32) {
+    X86Encode(writer, 0, true, opcode, 1, source, X86Direct(destination))
+}
+
+X86Multiply :: (writer: *X86Writer, destination: s32, source: s32) {
+    X86Encode(writer, 0, true, 0x0faf, 2, destination, X86Direct(source))
+}
+
+// F7 group: 2 not, 3 neg, 6 div, 7 idiv.
+X86Group3 :: (writer: *X86Writer, extension: s32, register: s32) {
+    X86Encode(writer, 0, true, 247, 1, extension, X86Direct(register))
+}
+
+// D3 group by CL: 4 shl, 5 shr, 7 sar.
+X86ShiftCl :: (writer: *X86Writer, extension: s32, register: s32) {
+    X86Encode(writer, 0, true, 211, 1, extension, X86Direct(register))
+}
+
+X86CompareByte :: (writer: *X86Writer, register: s32, value: s64) {
+    X86Encode(writer, 0, true, 131, 1, 7, X86Direct(register))
+    X86Little(writer, cast(u64)value, 1)
+}
+
+// Sign-extending and zero-extending loads into a 64-bit register.
+X86Load :: (writer: *X86Writer, destination: s32, source: X86Operand, size: s64, signed: bool) {
+    if size == 8 { X86Encode(writer, 0, true, 139, 1, destination, source); return }
+    if size == 4 {
+        if signed { X86Encode(writer, 0, true, 99, 1, destination, source) }
+        else { X86Encode(writer, 0, false, 139, 1, destination, source) }
+        return
+    }
+    if size == 2 {
+        X86Encode(writer, 0, signed, ifx signed then cast(u32)0x0fbf else cast(u32)0x0fb7, 2, destination, source)
+        return
+    }
+    if size == 1 {
+        X86Encode(writer, 0, signed, ifx signed then cast(u32)0x0fbe else cast(u32)0x0fb6, 2, destination, source,
+            rm_byte = true)
+        return
+    }
+    writer.failed = true
+}
+
+X86Store :: (writer: *X86Writer, destination: X86Operand, source: s32, size: s64) {
+    if size == 8 { X86Encode(writer, 0, true, 137, 1, source, destination); return }
+    if size == 4 { X86Encode(writer, 0, false, 137, 1, source, destination); return }
+    if size == 2 { X86Encode(writer, 102, false, 137, 1, source, destination); return }
+    if size == 1 { X86Encode(writer, 0, false, 136, 1, source, destination, reg_byte = true); return }
+    writer.failed = true
+}
+
+X86Lea :: (writer: *X86Writer, destination: s32, source: X86Operand) {
+    X86Encode(writer, 0, true, 141, 1, destination, source)
+}
+
+// The shortest move of a 64-bit constant into a register: xor for zero,
+// a zero-extending 32-bit move, a sign-extending 32-bit move, or movabs.
+X86MoveImmediate :: (writer: *X86Writer, register: s32, value: u64) {
+    if value == 0 { X86Encode(writer, 0, false, 49, 1, register, X86Direct(register)); return }
+    if value <= 0xffffffff {
+        if register >= 8 { X86Byte(writer, 65) }
+        X86Byte(writer, cast(u8)(184 + (register & 7)))
+        X86Little(writer, value, 4)
+        return
+    }
+    if value >= 0xffffffff80000000 {
+        X86Encode(writer, 0, true, 199, 1, 0, X86Direct(register))
+        X86Little(writer, value, 4)
+        return
+    }
+    X86Byte(writer, ifx register >= 8 then cast(u8)73 else cast(u8)72)
+    X86Byte(writer, cast(u8)(184 + (register & 7)))
+    X86Little(writer, value, 8)
+}
+
+X86SetCondition :: (writer: *X86Writer, condition: s32, register: s32) {
+    X86Encode(writer, 0, false, cast(u32)(0x0f90 + condition), 2, 0, X86Direct(register), rm_byte = true)
+}
+
+// Subtracts IMMEDIATE from the qword at RM: imm8 or imm32 forms.
+X86SubtractImmediate :: (writer: *X86Writer, rm: X86Operand, immediate: s64) {
+    if X86Fits8(immediate) {
+        X86Encode(writer, 0, true, 131, 1, 5, rm, trailing = 1)
+        X86Little(writer, cast(u64)immediate, 1)
+        return
+    }
+    X86Encode(writer, 0, true, 129, 1, 5, rm, trailing = 4)
+    X86Signed32(writer, immediate)
+}
+
+X86SubtractRegister :: (writer: *X86Writer, rm: X86Operand, register: s32) {
+    X86Encode(writer, 0, true, 41, 1, register, rm)
+}
+
+X86SubtractStack :: (writer: *X86Writer, size: s64) {
+    if X86Fits8(size) {
+        X86Encode(writer, 0, true, 131, 1, 5, X86Direct(X86Rsp))
+        X86Little(writer, cast(u64)size, 1)
+        return
+    }
+    X86Encode(writer, 0, true, 129, 1, 5, X86Direct(X86Rsp))
+    X86Signed32(writer, size)
+}
+
+X86Jump32 :: (writer: *X86Writer, target: s64) {
+    X86Byte(writer, 233)
+    X86Relative32(writer, target, 0)
+}
+
+X86JumpCondition32 :: (writer: *X86Writer, condition: s32, target: s64) {
+    X86Byte(writer, 15)
+    X86Byte(writer, cast(u8)(128 + condition))
+    X86Relative32(writer, target, 0)
+}
+
+// Short forward branches over fixed-length sequences.
+X86JumpCondition8 :: (writer: *X86Writer, condition: s32, skip: s64) {
+    if skip < 0 || skip > 127 { writer.failed = true; return }
+    X86Byte(writer, cast(u8)(112 + condition))
+    X86Byte(writer, cast(u8)skip)
+}
+
+X86Jump8 :: (writer: *X86Writer, skip: s64) {
+    if skip < 0 || skip > 127 { writer.failed = true; return }
+    X86Byte(writer, 235)
+    X86Byte(writer, cast(u8)skip)
+}
+
+X86Call32 :: (writer: *X86Writer, target: s64) {
+    X86Byte(writer, 232)
+    X86Relative32(writer, target, 0)
+}
+
+X86CallRegister :: (writer: *X86Writer, register: s32) {
+    X86Encode(writer, 0, false, 255, 1, 2, X86Direct(register))
+}
+
+X86Push :: (writer: *X86Writer, register: s32) {
+    if register >= 8 { X86Byte(writer, 65) }
+    X86Byte(writer, cast(u8)(80 + (register & 7)))
+}
+
+X86SignExtendRax :: (writer: *X86Writer) { X86Byte(writer, 72); X86Byte(writer, 153) }
+X86Leave :: (writer: *X86Writer) { X86Byte(writer, 201) }
+X86Return :: (writer: *X86Writer) { X86Byte(writer, 195) }
+X86Undefined :: (writer: *X86Writer) { X86Byte(writer, 15); X86Byte(writer, 11) }
+
+X86MoveImmediate32 :: (writer: *X86Writer, register: s32, value: u64) {
+    if register >= 8 { X86Byte(writer, 65) }
+    X86Byte(writer, cast(u8)(184 + (register & 7)))
+    X86Little(writer, value, 4)
+}

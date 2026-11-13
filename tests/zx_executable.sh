@@ -8,7 +8,7 @@ output="$repo/build/zx-executable-test"
 saved="$output/saved"
 mkdir -p "$output" "$saved"
 rm -f "$output/source.zx" "$output/saved.zx" "$output/pipe.zx" \
-    "$output/program.lirb" "$output/listing.txt" "$output/legacy.zx" \
+    "$output/again.zx" "$output/listing.txt" "$output/legacy.zx" \
     "$output/corrupt.zx" "$output/rejected.out" "$output/error.txt"
 
 source="$repo/tests/spec/zx_executable_program.zi"
@@ -27,12 +27,20 @@ set +e
 status=$?
 set -e
 test "$status" -eq 42
-"$zi2asm" --input zx --emit exec -o "$output/program.lirb" "$output/source.zx"
-set +e
-"$zi2asm" --input exec --run "$output/program.lirb"
-status=$?
-set -e
-test "$status" -eq 42
+"$zi2asm" --input zx --emit zx -o "$output/again.zx" "$output/source.zx"
+cmp "$output/source.zx" "$output/again.zx"
+# The internal instruction codec is not a second executable file format.
+printf 'preserved output\n' > "$output/rejected.out"
+cp "$output/rejected.out" "$output/expected.out"
+for removed in input emit; do
+    set +e
+    "$zi2asm" --input zx --emit zx --"$removed" exec -o "$output/rejected.out" \
+        "$output/source.zx" > "$output/error.txt" 2>&1
+    status=$?
+    set -e
+    test "$status" -eq 2
+    cmp "$output/expected.out" "$output/rejected.out"
+done
 "$zi2asm" --input zx --emit lir -o "$output/listing.txt" "$output/source.zx"
 grep -q 'function @0 module=m0 name="main"' "$output/listing.txt"
 if grep -q 'zx_executable_program.zi' "$output/listing.txt"; then

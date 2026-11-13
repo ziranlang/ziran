@@ -4,9 +4,8 @@ The repository tasks run the experimental direct backend's real supported
 inspection path without rebuilding the compiler or falling back to C:
 
 ```text
-source -> checked .zir -> lowered listing + .lirb
-       -> optimized listing + optimization counters
-       -> final ELF + native map -> text-relative disassembly
+source -> checked .zir -> LIR -> verification -> LIR optimization -> portable .zx
+       -> verified ZX read -> direct target lowering -> ELF + map -> disassembly
 ```
 
 Use **Terminal: Run Build Task** and select **Ziran: Inspect assembly (scalar
@@ -30,7 +29,8 @@ Every successful run publishes only a complete stable
 | Artifact | Contents |
 | --- | --- |
 | `checked/*.zir` | canonical checked compiler output |
-| `lowered.lir` / `lowered.lirb` | verified instruction listing and binary |
+| `lowered.lir` | checked, unoptimized source LIR inspection |
+| `lowered.zx` | linked, verified and optimized portable executable |
 | `optimized.lir` | the selected `--opt` instruction listing |
 | `optimization.json` | deterministic optimization transformation counters |
 | `final.elf` / `final.map.json` | optimized native image and its byte map |
@@ -44,8 +44,8 @@ hardcoded. `final.disasm` records the same ELF identity and adjustment, while th
 manifest hashes every advertised artifact.
 
 `objdump` (normally from GNU binutils) is an explicit inspection dependency. It
-does not assemble or link the program: `zi2asm` directly encodes the `.lirb` and
-ELF. Pass `--objdump PATH` when a compatible tool has another name. Missing
+does not assemble or link the program: `zi2asm` reads verified ZX and directly
+encodes ELF. Pass `--objdump PATH` when a compatible tool has another name. Missing
 tools, unsupported source, compiler errors, identity mismatches and disassembly
 errors stop at the failing stage. A failed run does not replace the last complete
 artifact set, and there is no fallback compiler.

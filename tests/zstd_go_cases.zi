@@ -4,6 +4,7 @@
 #import "std/c_string"
 #import "std/environment_linux"
 #import "std/file"
+#import "std/file_tree_linux"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
 
@@ -27,6 +28,15 @@ main :: (argc: s32, argv: **u8) -> s32 {
     test := NativeStart(argc, argv, "zstd-go-")
     if test.failed { return 1 }
     defer NativeCleanup(*test)
+    go_cache := CheckPath(test.work, "go-cache")
+    go_tmp := CheckPath(test.work, "go-tmp")
+    if !NativeAssert(*test, CreateDirectories(go_cache) && CreateDirectories(go_tmp),
+        "create private Go paths") { return 1 }
+    NativeSet(*test, "GOCACHE", go_cache)
+    NativeSet(*test, "GOTMPDIR", go_tmp)
+    NativeSet(*test, "GOTOOLCHAIN", "local")
+    NativeSet(*test, "GOPROXY", "off")
+    NativeSet(*test, "GOSUMDB", "off")
     if EnvironmentText("GOMAXPROCS") == "" { VecPush(test.environment, "GOMAXPROCS=1") }
     if EnvironmentText("GOFLAGS") == "" { VecPush(test.environment, "GOFLAGS=-p=1") }
     library_name: [64]u8

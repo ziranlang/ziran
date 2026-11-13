@@ -3,7 +3,7 @@
 Run benchmark builds and measurements on Alpha's physical host, as requested
 by the owner on 2026-11-11. The commands below run from the canonical Ziran
 repository on Alpha, using the managed direct-host transfer and build route
-documented in Harmony's `docs/ALPHA_BUILDS.md`. Do not use the personal VM.
+documented in Harmony's `docs/ALPHA_BUILDS.md`. Reject virtualized execution.
 If Alpha is unavailable, wait rather than running the
 benchmark on the current desktop. Record the host in every report and collect
 both sides of a comparison on the same host; retained desktop results keep

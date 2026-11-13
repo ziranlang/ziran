@@ -217,9 +217,11 @@ buffer reports that size and leaves the supplied buffer unchanged.
 
 An ELF without globals retains the original single RX load segment, 120-byte
 text file offset, virtual text address, section layout, and instruction bytes.
-An ELF with globals has a 176-byte header with two `PT_LOAD` entries: the first
-maps the headers and text RX, and the second maps packed global bytes RW on a
-distinct page. No load segment is RWX. `.data` is non-executable, and each
+An ELF with globals has separate `PT_LOAD` entries for RX headers/text, optional
+read-only literals and optional writable globals. Read-only bytes immediately
+follow text in the file; their distinct virtual page has the same low 12 bits
+as the file offset. Writable storage is page separated. Empty `.data` sections
+are omitted. No load segment is RWX. `.data` is non-executable, and each
 global has a qualified `module:name` `STT_OBJECT` symbol with its exact packed
 address and extent. Function symbols and native ranges continue to describe
 only real text bytes.

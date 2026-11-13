@@ -29,13 +29,15 @@ def provenance(out,binary):
     return {'embedded_prepare':json.loads((out/'embedded-prepare.json').read_text()),'zx_prepare':json.loads((out/'prepare.json').read_text()),'binary_sha256':sha(binary),'fixture_sha256':{n:sha(out/n) for n in ('fixture.zx','fixture.wasm','fixture.aot','component-old.zx','component-new.zx')}}
 def desktop(a):
     out=ROOT/'build/benchmarks/zx-compare';obj=ROOT/'build/benchmarks/zx-compare-embedded';raw=obj/'results.jsonl';binary=obj/'zxcompare'
-    before={'cpu':Path('/proc/cpuinfo').read_text()[:3500],'platform':platform.platform(),'load':os.getloadavg(),'virtualization':command(['systemd-detect-virt'])}
+    virtualization=command(['systemd-detect-virt'])
+    assert platform.node()=='alpha' and virtualization=='none','Alpha physical host required'
+    before={'cpu':Path('/proc/cpuinfo').read_text()[:3500],'platform':platform.platform(),'load':os.getloadavg(),'virtualization':virtualization}
     env=dict(os.environ,ZIRAN_NATIVE_TIMING='1',ZIRAN_NATIVE_CACHE=str(out/'embedded-cache'))
     for key in ('DISPLAY','WAYLAND_DISPLAY','XAUTHORITY','DBUS_SESSION_BUS_ADDRESS'):env.pop(key,None)
     env['YUE_DESKTOP_RECOVERY']='0'
     result=subprocess.run([str(binary),str(out),str(raw),'123456','4096','32','9'],env=env,text=True,capture_output=True,check=True)
     native=result.stderr;rows=[json.loads(s) for s in raw.read_text().splitlines()]
-    receipt=dict(target='Alpha desktop Personal KVM native process',before=before,after={'load':os.getloadavg()},provenance=provenance(out,binary),rows=rows,native_evidence=native[-12000:])
+    receipt=dict(target='Alpha physical host',before=before,after={'load':os.getloadavg()},provenance=provenance(out,binary),rows=rows,native_evidence=native[-12000:])
     return receipt
 def android(a):
     assert a.serial,'--serial must identify the authorized USB Moto'

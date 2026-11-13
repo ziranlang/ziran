@@ -31,6 +31,49 @@ Proposed modules: `cmd/compiler_target.zi`, `cmd/compiler_aarch64.zi`, `cmd/comp
 - [ ] Define exact failures for absent host facilities, unavailable executable memory, missing CPU requirements, unsupported native extensions, and unavailable platform toolchains.
 - [ ] Supply unwind/debug mappings and profiler registration hooks for every native target, not just Linux x86-64.
 
+## Target registry and preflight
+
+[`cmd/compiler_target.zi`](../cmd/compiler_target.zi) holds the registry: one
+row for every CPU/OS pair `TargetDescribe` accepts, each with exactly one
+gap-policy state, its implemented CPU features and OS services, and the
+milestone that closes it. `TargetPreflight` checks a target description and
+its `TargetRequirements` (CPU features, OS services) against that row; only an
+Implemented row passes. `ziran capabilities --json` prints the registry as
+`assembly_targets`, and `ziran capabilities --assembly-target=ROW[+FEATURE...]
+[--os-service=NAME]... [INPUT...]` runs the preflight before any input is read.
+
+| Row | ABI | State | Diagnostic | Milestone |
+| --- | --- | --- | --- | --- |
+| `x86_64-linux` | SysV | Gap | `assembly.gap.target-unimplemented` | M2–M3 |
+| `x86_64-android` | SysV | Gap | `assembly.gap.target-unimplemented` | M4 |
+| `x86_64-windows` | Win64 | Gap | `assembly.gap.target-unimplemented` | M5 |
+| `x86_64-macos` | Apple64 | Gap | `assembly.gap.target-unimplemented` | M5 |
+| `armv7-linux`, `armv7-android` | AAPCS32 | Gap | `assembly.gap.target-unimplemented` | M4 |
+| `aarch64-linux`, `aarch64-android` | AAPCS64 | Gap | `assembly.gap.target-unimplemented` | M4 |
+| `aarch64-windows` | Win64 | Gap | `assembly.gap.target-unimplemented` | M5 |
+| `aarch64-macos` | Apple64 | Gap | `assembly.gap.target-unimplemented` | M5 |
+| `wasm32-browser`, `wasm32-wasi` | Wasm | Gap | `assembly.gap.target-unimplemented` | M4 |
+
+No general registry row is Implemented yet. Linux x86-64 machine IR,
+allocation, encoding and opt-in ELF output exist, but the native ZX loader and
+runtime cutover are open, so that row stays a Gap until its M2–M3 gate passes; a partial stage
+such as `TargetMachineLoweringSupported` never implements a row. The
+`zi2asm` prototype is a separate opt-in tool, not this registry row. Its
+`--target ARCH-OS` selector currently accepts only `x86_64-linux`; every other
+described row fails before input/output with
+`assembly.gap.native-platform-service-unavailable` because it has no
+process-entry/`write_all`/`exit_group` veneer. Once a registry row
+is Implemented, a CPU feature it does not implement (including another
+family's, such as `neon` on x86-64) fails with `assembly.gap.cpu-feature`,
+and a missing OS service (`process-entry`, `executable-memory`, `threads`,
+`files`, `clock`, `dynamic-library`) fails with `assembly.gap.os-service`;
+the row check comes first. Typed host capabilities and read-only data keep
+their own `assembly.gap.*` codes. General registry preflight is reached through
+`ziran capabilities`.
+[Target diagnostics](../tests/target_diagnostics.sh) check every row, code,
+and source/saved-IR rejection; [machine IR cases](../tests/machine_ir_cases.zi)
+check registry coverage and every state.
+
 ## Execution matrix and tests
 
 For every required CPU/OS/ABI row, record:

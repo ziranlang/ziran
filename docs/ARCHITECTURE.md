@@ -45,9 +45,31 @@ for law-driven development, LLM tooling, parallel execution, and evolution.
 
 ```text
 .zi modules ──parse/check──> .zir modules
-.zir modules ──native backend──> C or native Go output
-.zir modules ──link/verify──> .zx ──portable runtime + host capabilities──> process
+.zir modules ──link/lower/verify/optimize──> portable .zx instructions
+.zx ──verify/read──> portable interpreter ──> process
+.zx ──verify/read/direct target lowering──> platform binary
+.zir modules ──C/Go generation──> C or Go ──downstream toolchain──> platform binary
 ```
+
+The direct-target branch is the native pipeline: Ziran lowers the verified ZX
+instructions directly to machine code, applies the target ABI and platform
+veneers, and writes the platform binary. It is an experimental, incomplete
+path, not a description of support on every target. Generated C and generated
+Go can also become binaries, but those are generated-code routes through their
+own compilers and linkers; they are not native-backend fallback paths.
+
+This is implemented in the experimental `zi2asm` route: source-native output
+also serializes and reads ZX first. Default semantic `ziran`/`zi2zx` bundles
+remain separate until cutover. `zir_zx_wasm` still lowers semantic `ZirProgram`
+through `zir_wasm_lower`, not revision-28 ZX; the shared instruction-to-Wasm
+route remains a hard gap. Native source maps currently lose source origins at
+the stripped ZX boundary, while source LIR inspection retains them.
+
+The first implemented direct console veneer is the opt-in Linux x86-64 static
+ELF path. It owns `_start`, calls Linux `write` syscall 1 through a retrying
+`write_all`, and terminates with `exit_group` syscall 231. It uses no libc,
+CRT, or dynamic linker. Other OS/CPU service rows and floating-point print
+formatting remain named gaps rather than alternate-engine requests.
 
 Inside the compiler, names in that model are interned: an expression's or
 statement's name and type, and a function's parameter list, are shared
@@ -66,11 +88,20 @@ named types, arrays, or generic applications: those still resolve in their
 owning scope. Rewriting a body selects a new snapshot, so copied or relocated
 record declarations cannot retain stale field names or ownership facts.
 
-Every backend consumes the same checked `.zir` model. Native output may bind
-declared platform libraries. `.zx` contains portable executable content and
-cannot depend on arbitrary target-specific C or Go source fragments.
-Native and portable builds of the same supported program must agree on
-observable language behavior.
+Every backend consumes the same checked `.zir` model. The ZX linker produces
+one verified portable instruction program for the interpreter and direct
+target lowering. `.zx` cannot depend on arbitrary target-specific C or Go
+source fragments. C and Go exporters remain separate consumers of checked IR.
+Every supported route for the same program must agree on observable language
+behavior.
+
+Host capabilities are portable typed requirements in the linked program.
+Platform bindings satisfy those requirements for one host. Direct target
+lowering separately owns CPU instructions, calling conventions, object and
+executable formats, and small ABI veneers for services such as process entry,
+standard-stream writes, and process exit. A platform binding never makes a
+missing instruction lowering or ABI veneer implemented, and a CPU backend does
+not silently turn an OS service into a portable capability.
 
 Semantic checking sets `ZirFunction.checked` only from language validity.
 Native symbol planning runs afterward, and body eligibility is a separate

@@ -12,7 +12,7 @@ can declare that.
 What the plan gets right:
 
 - One verified portable instruction program (LIR) feeds the interpreter, the
-  ZX container and the native encoder. Listings are views of encoder records,
+  ZX container; native always reads verified ZX before encoding. Listings are views of encoder records,
   not a write-and-reparse stage.
 - Every boundary is verified and bounded; unsupported constructs fail
   explicitly instead of silently falling back to C or TinyCC.
@@ -76,7 +76,7 @@ itself moves to Ziran.
   emulated run or legacy-engine result cannot close a milestone.
 - Interim measurements follow every rule in step 10, are labeled *interim*,
   and never replace the final full comparison.
-- Hostile-input hardening is mandatory at trust boundaries (`.lirb`/`.zx`
+- Hostile-input hardening is mandatory at trust boundaries (ZX container and instruction
   decoders, loaders, host results). Internal stages rely on the verifier
   instead of duplicating its checks.
 
@@ -94,7 +94,25 @@ itself moves to Ziran.
 
 ## Current position
 
-M0 integration is in progress. The revision-28 container, frame-local
+The experimental `zi2asm` pipeline now optimizes verified LIR before producing
+ZX, and native source compilation serializes and reads those same ZX bytes.
+The standalone instruction artifact/CLI is removed; source LIR remains an
+inspection view. Direct Linux x86-64 hello has short constants, fallthrough
+edges, frame-free literal writes and compact adjacent read-only file data.
+Retained tests require text below 200 bytes, ELF below 1.5 KB and valid retained
+function extents, with inlined platform service declarations omitted rather than trap
+aliases. Pointer token runs lower with bounds-checked base/index arithmetic.
+These fixes do not close M2/M3: machine-IR service lowering, native fuel,
+source debug origins and broader ABI coverage remain gaps. Wasm still lowers
+semantic ZIR, not revision-28 executable instructions.
+
+M0 integration is in progress. M4's first slice, the explicit
+[target registry and preflight](07-architecture-and-platform-coverage.md#target-registry-and-preflight),
+lists every CPU/OS row with its gap-policy state; no row is Implemented yet,
+so every general registry selection fails preflight with
+`assembly.gap.target-unimplemented`. The separate opt-in `zi2asm` prototype
+accepts only `x86_64-linux`; other target rows fail with the stable native
+platform-service gap before input or output. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
 boundary are implemented. On the final synchronized physical-Alpha cohort, the
 four required focused executor scripts and `make check-bootstrap` passed. The
@@ -115,4 +133,21 @@ dead-source aggregate `Insert` aliasing reduced the lowered scalar median from
 (81.14%). Focused tests cover optimized and still-live aggregate cases and
 non-coalescible loop inputs. In this receipt the new engine is 1.024× slower
 than the old VM on scalar and 1.079× slower on structured work. The remaining
-native speedup requires M2/M3 register allocation, encoding and integration.
+native speedup requires completion of M2/M3 integration and runtime work.
+
+Parts of M2 are now implemented for Linux x86-64 SysV: deterministic liveness
+and linear-scan register allocation with splitting/spilling, an independent
+allocated-program verifier, 16-byte-aligned frame layout, and direct encoding
+of verified allocated machine IR into an in-memory image with relocations. The
+opt-in `zi2asm --machine --emit elf` pipeline now writes and executes that image
+without external compilation tools. This does not close M2. Completing the
+promised call and instruction surface, removing the direct LIR encoder,
+and passing every M2 exit fixture remain required.
+
+The M0/M1 implementation also covers dependency-ordered once-only runtime
+initializers, local aggregate/procedure address-taking, checked portable slices
+and string comparison, native readonly data, the first no-libc Linux x86-64
+console veneer and validated typed host values
+with instance-owned returned bytes. Resizable collection ownership, reentrant
+callbacks and general native string/arbitrary-host instructions remain explicit gaps;
+none of the M2–M6 exit criteria is claimed by this subset.

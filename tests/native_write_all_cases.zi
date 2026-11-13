@@ -1,0 +1,122 @@
+// Linux x86-64 fault injection around an unchanged direct-native ELF. The
+// kernel performs real writes, capped to three bytes, while the tracer restores
+// the original requested count before the veneer resumes. One write also gets
+// an injected -EINTR result. This harness uses libc; the traced ELF must not.
+trace_libc :: #system_library "libc";
+TraceRaw :: (request: s64, pid: s32, address: u64, data: u64) -> s64 #foreign trace_libc "ptrace";
+TraceFork :: () -> s32 #foreign trace_libc "fork";
+TraceRaise :: (number: s32) -> s32 #foreign trace_libc "raise";
+TraceExec :: (path: *u8, arguments: **u8) -> s32 #foreign trace_libc "execv";
+TraceExit :: (code: s32) -> void #foreign trace_libc "_exit";
+TraceWait :: (pid: s32, status: *s32, options: s32) -> s32 #foreign trace_libc "waitpid";
+TraceKill :: (pid: s32, number: s32) -> s32 #foreign trace_libc "kill";
+TraceErrno :: () -> *s32 #foreign trace_libc "__errno_location";
+
+// Linux's user_regs_struct has 27 64-bit words in this order. Only the syscall
+// number, result, descriptor and count are inspected or changed.
+Registers :: struct { words: [27]u64 }
+RAX :: 10
+RDX :: 12
+RDI :: 14
+ORIG_RAX :: 15
+
+Wait :: (pid: s32, status: *s32) -> bool {
+    while true {
+        result := TraceWait(pid, status, 0)
+        if result == pid { return true }
+        if result >= 0 || TraceErrno()[0] != 4 { return false }
+    }
+}
+
+Abort :: (pid: s32, message: string) -> s32 {
+    status: s32
+    // Do not signal an already-reaped PID. A zero nonblocking wait result
+    // confirms this process still owns the child before killing it.
+    pending := TraceWait(pid, *status, 1)
+    if pending == 0 {
+        TraceKill(pid, 9)
+        Wait(pid, *status)
+    }
+    print("write_all injection failed: %\n", message)
+    return 1
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    if argc != 2 { print("pass the direct-native executable\n"); return 1 }
+    arguments: [2]*u8 = .[argv[1], null]
+    pid := TraceFork()
+    if pid < 0 { print("write_all injection could not fork\n"); return 1 }
+    if pid == 0 {
+        if TraceRaw(0, 0, 0, 0) < 0 { TraceExit(120); return 120 }
+        TraceRaise(19)
+        TraceExec(argv[1], *arguments[0])
+        TraceExit(121)
+        return 121
+    }
+    status: s32
+    if !Wait(pid, *status) { return Abort(pid, "initial wait") }
+    if (status & 255) != 127 || ((status >> 8) & 255) != 19 {
+        return Abort(pid, "child did not enter its private trace stop")
+    }
+    // TRACESYSGOOD distinguishes syscall stops (SIGTRAP|0x80) from exec's
+    // ordinary SIGTRAP. EXITKILL prevents an orphan if this harness is killed.
+    if TraceRaw(16896, pid, 0, 1048577) < 0 { return Abort(pid, "trace options") }
+    entering := true
+    injected_interrupt := false
+    injected_short := false
+    saw_exit_group := false
+    interrupt_pending := false
+    short_pending := false
+    requested: u64
+    for stop: 0..9999 {
+        if TraceRaw(24, pid, 0, 0) < 0 { return Abort(pid, "resume syscall") }
+        if !Wait(pid, *status) { return Abort(pid, "syscall wait") }
+        if (status & 127) == 0 {
+            code := (status >> 8) & 255
+            if code == 0 && injected_interrupt && injected_short && saw_exit_group { return 0 }
+            print("write_all injection: exit=% EINTR=% short=% exit_group=%\n", code, injected_interrupt, injected_short, saw_exit_group)
+            return 1
+        }
+        if (status & 255) != 127 { return Abort(pid, "child terminated by a signal") }
+        signal_number := (status >> 8) & 255
+        if signal_number == 5 { continue }
+        if signal_number != 133 { return Abort(pid, "unexpected signal stop") }
+        registers: Registers
+        if TraceRaw(12, pid, 0, cast(u64)*registers) < 0 { return Abort(pid, "read registers") }
+        changed := false
+        if entering {
+            if registers.words[ORIG_RAX] == 231 { saw_exit_group = true }
+            if registers.words[ORIG_RAX] == 1 && registers.words[RDI] == 1 {
+                if !injected_interrupt {
+                    // Invalid syscall: no bytes are written. Replace ENOSYS
+                    // with EINTR at the exit stop before user code resumes.
+                    registers.words[ORIG_RAX] = ~cast(u64)0
+                    interrupt_pending = true
+                    injected_interrupt = true
+                    changed = true
+                } else if registers.words[RDX] > 3 {
+                    requested = registers.words[RDX]
+                    registers.words[RDX] = 3
+                    short_pending = true
+                    injected_short = true
+                    changed = true
+                }
+            }
+        } else if interrupt_pending {
+            registers.words[RAX] = cast(u64)cast(s64)-4
+            registers.words[ORIG_RAX] = 1
+            interrupt_pending = false
+            changed = true
+        } else if short_pending {
+            registers.words[RDX] = requested
+            short_pending = false
+            changed = true
+        }
+        if changed && TraceRaw(13, pid, 0, cast(u64)*registers) < 0 {
+            return Abort(pid, "write registers")
+        }
+        entering = !entering
+    }
+    return Abort(pid, "syscall-stop budget exhausted")
+}

@@ -850,6 +850,66 @@ ElementPointers :: () -> bool {
     return true
 }
 
+DynamicElementExtent :: () -> bool {
+    types: [7]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Array, .element = 1, .count = 3},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Pointer, .element = 1},
+        .{.kind = .Bool, .bits = 1}]
+    constants: [3]LirConstant = .[.{.type = 2, .bits = 0}, .{.type = 2, .bits = 4},
+        .{.type = 2, .bits = 3}]
+    globals: [1]LirGlobal = .[
+        .{.module = 0, .name = "extent", .type = 3, .constant = -1, .writable = true}]
+    empty: [0]s32
+    root_index: [2]s32 = .[0, 1]
+    dynamic_slice: [4]s32 = .[2, 1, 3, 4]
+    returned: [1]s32 = .[5]
+    instructions: [7]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 0),
+        Instruction(.ElementAddress, 2, root_index[:]), Instruction(.Constant, 3, empty[:], 1),
+        Instruction(.Constant, 4, empty[:], 2), Instruction(.ElementAddress, 5, dynamic_slice[:]),
+        Instruction(.Return, -1, returned[:])]
+    values: [6]s32 = .[4, 2, 5, 2, 2, 5]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["dynamic-element-extent"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "forged-slice", .result = 5,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    return Execute(program).problem == .Pointer
+}
+
+BytesEqualExtent :: () -> bool {
+    types: [7]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Array, .element = 1, .count = 1},
+        .{.kind = .Pointer, .element = 3}, .{.kind = .Pointer, .element = 1},
+        .{.kind = .Bool, .bits = 1}]
+    byte: [1]u8 = .[42]
+    constants: [3]LirConstant = .[.{.type = 3, .bytes = byte[:]},
+        .{.type = 2, .bits = 0}, .{.type = 2, .bits = 2}]
+    globals: [1]LirGlobal = .[
+        .{.module = 0, .name = "bytes", .type = 3, .constant = 0, .writable = false}]
+    empty: [0]s32
+    indexed: [2]s32 = .[0, 1]
+    compared: [4]s32 = .[2, 3, 2, 3]
+    returned: [1]s32 = .[4]
+    instructions: [6]LirInstruction = .[
+        Instruction(.GlobalAddress, 0, empty[:], 0), Instruction(.Constant, 1, empty[:], 1),
+        Instruction(.ElementAddress, 2, indexed[:]), Instruction(.Constant, 3, empty[:], 2),
+        Instruction(.BytesEqual, 4, compared[:]), Instruction(.Return, -1, returned[:])]
+    values: [5]s32 = .[4, 2, 5, 2, 6]
+    blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
+    modules: [1]string = .["bytes-equal-extent"]
+    functions: [1]LirFunction = .[.{.module = 0, .name = "forged-count", .result = 6,
+        .values = values[:], .blocks = blocks[:], .origin = -1}]
+    program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
+        .constants = constants[:], .globals = globals[:], .functions = functions[:], .entry = 0}
+    return Execute(program).problem == .Pointer
+}
+
 AggregateApi :: () -> bool {
     fields: [2]s32 = .[4, 4]; type_parameter: [1]s32 = .[4]; types: [15]LirType
     Types(types[:], fields[:], type_parameter[:])
@@ -1005,6 +1065,141 @@ VerifierBoundaries :: () -> bool {
     return true
 }
 
+typed_text: [2]u8 = .[42, 43];
+typed_pair: [8]u8;
+
+TypedHost :: (context: *void, function: s32, arguments: []LirExecArgument,
+    result: *LirExecArgument) -> bool {
+    if function != 1 && function != 2 { return false }
+    if arguments.count == 0 {
+        <<result = .{.type = 4, .bytes = typed_text[:]}
+        return true
+    }
+    if arguments.count == 1 && arguments[0].type == 6 && arguments[0].bytes.count == 8 {
+        for index: 0..7 { typed_pair[index] = arguments[0].bytes[index] }
+        <<result = .{.type = 6, .bytes = typed_pair[:]}
+        return true
+    }
+    return false
+}
+
+MalformedTypedHost :: (context: *void, function: s32, arguments: []LirExecArgument,
+    result: *LirExecArgument) -> bool {
+    <<result = .{.type = 5, .bits = 42}
+    return true
+}
+
+UnusedScalarHost :: (context: *void, function: s32, arguments: []u64, result: *u64) -> bool {
+    return false
+}
+
+TypedHostBoundary :: () -> bool {
+    string_fields: [2]s32 = .[3, 2]
+    pair_fields: [2]s32 = .[5, 5]
+    types: [8]LirType = .[
+        .{.kind = .Void}, .{.kind = .Integer, .bits = 8},
+        .{.kind = .Integer, .bits = 64, .is_signed = true},
+        .{.kind = .Pointer, .element = 1}, .{.kind = .Record, .fields = string_fields[:]},
+        .{.kind = .Integer, .bits = 32, .is_signed = true},
+        .{.kind = .Record, .fields = pair_fields[:]}, .{.kind = .Pointer, .element = 4}]
+    modules: [1]string = .["typed-host"]
+    empty: [0]s32
+    constants: [3]LirConstant = .[
+        .{.type = 2, .bits = 0}, .{.type = 5, .bits = 20}, .{.type = 5, .bits = 22}]
+
+    string_data: [1]s32 = .[1]
+    string_count: [1]s32 = .[1]
+    checked: [3]s32 = .[2, 4, 3]
+    loaded: [1]s32 = .[5]
+    converted: [1]s32 = .[6]
+    string_return: [1]s32 = .[7]
+    global_pointer: [1]s32 = .[0]
+    string_values: [8]s32 = .[7, 4, 3, 2, 2, 3, 1, 5]
+    string_instructions: [9]LirInstruction
+    string_instructions[0] = Instruction(.GlobalAddress, 0, empty[:], 0)
+    string_instructions[1] = Instruction(.Load, 1, global_pointer[:]); string_instructions[1].effect = 1
+    string_instructions[2] = Instruction(.Extract, 2, string_data[:]); string_instructions[2].immediate = 0
+    string_instructions[3] = Instruction(.Extract, 3, string_count[:]); string_instructions[3].immediate = 1
+    string_instructions[4] = Instruction(.Constant, 4, empty[:], 0)
+    string_instructions[5] = Instruction(.ElementAddress, 5, checked[:])
+    string_instructions[6] = Instruction(.Load, 6, loaded[:]); string_instructions[6].effect = 2
+    string_instructions[7] = Instruction(.Convert, 7, converted[:])
+    string_instructions[8] = Instruction(.Return, -1, string_return[:])
+    string_blocks: [1]LirBlock = .[.{.instructions = string_instructions[:]}]
+    initialized: [2]s32 = .[1, 0]
+    initializer_values: [2]s32 = .[4, 7]
+    initializer_instructions: [4]LirInstruction
+    initializer_instructions[0] = Instruction(.HostCall, 0, empty[:], 2); initializer_instructions[0].effect = 1
+    initializer_instructions[1] = Instruction(.GlobalAddress, 1, empty[:], 0)
+    initializer_instructions[2] = Instruction(.Store, -1, initialized[:]); initializer_instructions[2].effect = 2
+    initializer_instructions[3] = Instruction(.Return, -1, empty[:])
+    initializer_blocks: [1]LirBlock = .[.{.instructions = initializer_instructions[:]}]
+    string_functions: [3]LirFunction = .[
+        .{.module = 0, .name = "initialize", .result = 0, .values = initializer_values[:],
+            .blocks = initializer_blocks[:], .origin = -1},
+        .{.module = 0, .name = "entry", .result = 5, .values = string_values[:],
+            .blocks = string_blocks[:], .origin = -1},
+        .{.module = 0, .name = "Text", .result = 4, .calling = .Host,
+            .external = true, .entry = -1, .origin = -1}]
+    string_globals: [1]LirGlobal = .[.{.module = 0, .name = "text", .type = 4,
+        .constant = -1, .writable = true}]
+    string_initializers: [1]s32 = .[0]
+    string_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .types = types[:], .constants = constants[:], .globals = string_globals[:],
+        .functions = string_functions[:], .initializers = string_initializers[:], .entry = 1}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(string_program, LirDefaultLimits(), *plan).problem != .None { return false }
+    instance: LirExecInstance
+    defer LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 31, *instance).problem != .None ||
+        LirExecBindHost(*instance, 2, UnusedScalarHost, null) != .Calling ||
+        LirExecBindHostTyped(*instance, 2, TypedHost, null) != .None { return false }
+    first := LirExecRun(*instance)
+    second := LirExecRun(*instance)
+    if first.problem != .None || second.problem != .None || first.value.bits != 42 ||
+        second.value.bits != 42 || instance.owned.count != 2 { return false }
+
+    LirExecInstanceClose(*instance)
+    if LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 32, *instance).problem != .None ||
+        LirExecBindHostTyped(*instance, 2, MalformedTypedHost, null) != .None ||
+        LirExecRun(*instance).problem != .Host { return false }
+    LirExecInstanceClose(*instance)
+    LirExecPlanFree(*plan)
+
+    pair_arguments: [1]s32 = .[2]
+    pair_left: [1]s32 = .[3]
+    pair_right: [1]s32 = .[3]
+    pair_add: [2]s32 = .[4, 5]
+    pair_return: [1]s32 = .[6]
+    pair_values: [7]s32 = .[5, 5, 6, 6, 5, 5, 5]
+    pair_instructions: [8]LirInstruction
+    pair_instructions[0] = Instruction(.Constant, 0, empty[:], 1)
+    pair_instructions[1] = Instruction(.Constant, 1, empty[:], 2)
+    pair_source: [2]s32 = .[0, 1]
+    pair_instructions[2] = Instruction(.Aggregate, 2, pair_source[:])
+    pair_instructions[3] = Instruction(.HostCall, 3, pair_arguments[:], 1); pair_instructions[3].effect = 1
+    pair_instructions[4] = Instruction(.Extract, 4, pair_left[:]); pair_instructions[4].immediate = 0
+    pair_instructions[5] = Instruction(.Extract, 5, pair_right[:]); pair_instructions[5].immediate = 1
+    pair_instructions[6] = Instruction(.Add, 6, pair_add[:])
+    pair_instructions[7] = Instruction(.Return, -1, pair_return[:])
+    pair_blocks: [1]LirBlock = .[.{.instructions = pair_instructions[:]}]
+    pair_parameters: [1]s32 = .[6]
+    pair_functions: [2]LirFunction = .[
+        .{.module = 0, .name = "entry", .result = 5, .values = pair_values[:],
+            .blocks = pair_blocks[:], .origin = -1},
+        .{.module = 0, .name = "Pair", .parameters = pair_parameters[:], .result = 6,
+            .calling = .Host, .external = true, .entry = -1, .origin = -1}]
+    pair_program := LirProgram.{.version = LirVersion, .modules = modules[:],
+        .types = types[:], .constants = constants[:], .functions = pair_functions[:], .entry = 0}
+    if LirExecPlanBuild(pair_program, LirDefaultLimits(), *plan).problem != .None ||
+        LirExecInstanceOpen(*plan, LirExecDefaultLimits(), 33, *instance).problem != .None ||
+        LirExecBindHost(*instance, 1, UnusedScalarHost, null) != .Calling ||
+        LirExecBindHostTyped(*instance, 1, TypedHost, null) != .None { return false }
+    pair := LirExecRun(*instance)
+    return pair.problem == .None && pair.value.bits == 42
+}
+
 #scope_export
 
 Answer :: () -> s32 {
@@ -1027,6 +1222,9 @@ Answer :: () -> s32 {
     if !AllocateRecursiveFreshness() { return 17 }
     if !AllocateScalarValues() { return 18 }
     if !AllocateReusedFrame() { return 19 }
+    if !DynamicElementExtent() { return 20 }
+    if !BytesEqualExtent() { return 21 }
+    if !TypedHostBoundary() { return 22 }
     return 42
 }
 

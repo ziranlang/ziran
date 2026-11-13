@@ -1,0 +1,231 @@
+using Elf :: #import "compiler_machine_elf"
+using Lir :: #import "compiler_lowered_ir"
+using Machine :: #import "compiler_machine_ir"
+using Pipeline :: #import "compiler_machine_pipeline"
+using Target :: #import "compiler_target"
+using X64 :: #import "compiler_x86_64"
+
+Check :: (condition: bool, message: string) -> bool {
+    if condition { return true }
+    print("machine ELF local test failed: %\n", message)
+    return false
+}
+
+Little :: (bytes: []u8, at: s64, count: s32) -> u64 {
+    value: u64 = 0
+    for index: 0..count - 1 {
+        value = value | (cast(u64)bytes[at + index] << cast(u64)(index * 8))
+    }
+    return value
+}
+
+Signed32 :: (bytes: []u8, at: s64) -> s64 {
+    value := Little(bytes, at, 4)
+    return ifx value >= 0x80000000 then cast(s64)value - 4294967296 else cast(s64)value
+}
+
+Equal :: (left: []u8, right: []u8) -> bool {
+    if left.count != right.count { return false }
+    for index: cast(s64)0..left.count - 1 { if left[index] != right[index] { return false } }
+    return true
+}
+
+Instruction :: (op: Lir.LirOp, result: s32 = -1) -> Lir.LirInstruction {
+    return .{op = op, result = result, symbol = -1, origin = -1}
+}
+
+BuildTarget :: (owner: *Pipeline.MachineNativeOwner, target: Target.TargetDescription,
+    readonly: bool = false,
+    limits: Machine.MachineLimits = Machine.MachineDefaultLimits()) -> Machine.MachineDiagnostic {
+    modules: [1]string = .["machine_elf"]
+    types: [4]Lir.LirType = .[.{kind = .Void}, .{kind = .Bool, bits = 1},
+        .{kind = .Integer, bits = 64, is_signed = true}, .{kind = .Pointer, element = 2}]
+    constants: [1]Lir.LirConstant = .[.{type = 2, bits = 42}]
+    globals: [1]Lir.LirGlobal = .[.{module = 0, name = "state", type = 2,
+        constant = -1, writable = !readonly}]
+    values: [3]s32 = .[3, 2, 2]
+    store_operands: [2]s32 = .[0, 1]
+    load_operands: [1]s32 = .[0]
+    return_operands: [1]s32 = .[2]
+    instructions: [6]Lir.LirInstruction
+    instructions[0] = Instruction(.Fuel); instructions[0].immediate = 1; instructions[0].effect = 1
+    instructions[1] = Instruction(.GlobalAddress, 0); instructions[1].symbol = 0
+    instructions[2] = Instruction(.Constant, 1); instructions[2].symbol = 0
+    instructions[3] = Instruction(.Store); instructions[3].operands = store_operands[:]; instructions[3].effect = 2
+    instructions[4] = Instruction(.Load, 2); instructions[4].operands = load_operands[:]; instructions[4].effect = 3
+    instructions[5] = Instruction(.Return); instructions[5].operands = return_operands[:]
+    blocks: [1]Lir.LirBlock = .[.{instructions = instructions[:]}]
+    functions: [1]Lir.LirFunction = .[.{module = 0, name = "answer", result = 2,
+        values = values[:], blocks = blocks[:], entry = 0, origin = -1}]
+    program := Lir.LirProgram.{version = Lir.LirVersion, modules = modules[:], types = types[:],
+        constants = constants[:], globals = globals[:], functions = functions[:], entry = 0}
+    return Pipeline.MachineNativeBuild(program, target, limits, owner)
+}
+
+Build :: (owner: *Pipeline.MachineNativeOwner, readonly: bool = false) -> Machine.MachineDiagnostic {
+    return BuildTarget(owner, Target.TargetLinuxX64(), readonly)
+}
+
+Headers :: (owner: *Pipeline.MachineNativeOwner) -> bool {
+    bytes := Pipeline.MachineNativeView(owner)
+    if !Check(bytes.count > 8192, "image has headers, text and data") ||
+        !Check(Little(bytes, 0, 4) == 0x464c457f, "ELF magic") ||
+        !Check(bytes[4] == 2 && bytes[5] == 1 && bytes[6] == 1, "ELF64 little-endian identity") ||
+        !Check(Little(bytes, 16, 2) == 2 && Little(bytes, 18, 2) == 62, "ET_EXEC x86-64") ||
+        !Check(Little(bytes, 24, 8) == 0x401000, "fixed process entry") ||
+        !Check(Little(bytes, 32, 8) == 64 && Little(bytes, 54, 2) == 56 &&
+            Little(bytes, 56, 2) == 2, "exact program header table") ||
+        !Check(Little(bytes, 64, 4) == 1 && Little(bytes, 68, 4) == 5 &&
+            Little(bytes, 64 + 48, 8) == 4096, "RX load segment") ||
+        !Check(Little(bytes, 120, 4) == 1 && Little(bytes, 124, 4) == 6 &&
+            Little(bytes, 120 + 48, 8) == 4096, "RW non-executable load segment") {
+        return false
+    }
+    empty: [0]u8
+    measured := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    if !Check(measured.diagnostic.problem == .None && measured.size == bytes.count,
+        "measure matches published write") ||
+        !Check(Little(bytes, 120 + 8, 8) == cast(u64)measured.data_offset &&
+            Little(bytes, 120 + 16, 8) == cast(u64)(0x400000 + measured.data_offset),
+            "data file and virtual offsets") ||
+        !Check(Little(bytes, measured.fuel_offset, 8) == Elf.MachineElfInitialFuel,
+            "deterministic initial fuel") ||
+        !Check(Little(bytes, measured.trap_status_offset, 4) == 0, "clear trap status") {
+        return false
+    }
+    storage: [16384]u8
+    written := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image,
+        storage[0:measured.size])
+    return Check(written.diagnostic.problem == .None && written.size == measured.size &&
+        Equal(bytes, storage[0:measured.size]), "exact repeated measure/write bytes")
+}
+
+Relocations :: (owner: *Pipeline.MachineNativeOwner) -> bool {
+    bytes := Pipeline.MachineNativeView(owner)
+    empty: [0]u8
+    layout := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, empty[:])
+    if !Check(layout.diagnostic.problem == .None && owner.encoded.image.relocations.count >= 3,
+        "global, fuel and trap relocations are retained") { return false }
+    saw_global := false; saw_fuel := false; saw_trap := false
+    for relocation: owner.encoded.image.relocations {
+        target: s64 = 0
+        if relocation.kind == .GlobalAddress { target = 0x400000 + layout.data_offset; saw_global = true }
+        else if relocation.kind == .FuelCounter { target = 0x400000 + layout.fuel_offset; saw_fuel = true }
+        else if relocation.kind == .TrapHandler {
+            target = 0x400000 + layout.text_offset + Elf.MachineElfStartupSize +
+                owner.encoded.image.code.count
+            saw_trap = true
+        } else { return Check(false, "unsupported relocation escaped") }
+        field_file := layout.text_offset + Elf.MachineElfStartupSize + relocation.offset
+        field_virtual := 0x400000 + field_file
+        if !Check(Signed32(bytes, field_file) == target + relocation.addend - field_virtual,
+            "checked PC-relative relocation value") { return false }
+    }
+    return Check(saw_global && saw_fuel && saw_trap, "all relocation classes resolved")
+}
+
+Rejections :: (owner: *Pipeline.MachineNativeOwner) -> bool {
+    sentinel: [32]u8
+    for index: 0..31 { sentinel[index] = 0xa5 }
+    first := owner.encoded.relocations[0]
+    owner.encoded.relocations[0].kind = .Invalid
+    rejected := Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    owner.encoded.relocations[0] = first
+    if !Check(rejected.diagnostic.problem == .Relocation, "invalid relocation kind rejected") { return false }
+    for byte: sentinel { if !Check(byte == 0xa5, "invalid relocation preserves output") { return false } }
+
+    global: s64 = -1
+    for index: cast(s64)0..owner.encoded.relocations.count - 1 {
+        if owner.encoded.relocations[index].kind == .GlobalAddress { global = index; break }
+    }
+    if !Check(global >= 0, "global relocation fixture") { return false }
+    saved := owner.encoded.relocations[global]
+    owner.encoded.relocations[global].symbol = 99
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    owner.encoded.relocations[global] = saved
+    if !Check(rejected.diagnostic.problem == .Relocation, "unresolved global rejected") { return false }
+    owner.encoded.relocations[global].addend = 2147483648
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    owner.encoded.relocations[global] = saved
+    if !Check(rejected.diagnostic.problem == .Relocation, "out-of-range relocation rejected") { return false }
+    owner.encoded.relocations[global].offset = owner.encoded.image.code.count
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    owner.encoded.relocations[global] = saved
+    if !Check(rejected.diagnostic.problem == .Relocation, "malformed relocation field rejected") { return false }
+    relocations := owner.encoded.image.relocations
+    owner.encoded.image.relocations = relocations[0:relocations.count - 1]
+    rejected = Elf.MachineElfEncode(owner.machine.program, owner.encoded.image, sentinel[:])
+    owner.encoded.image.relocations = relocations
+    return Check(rejected.diagnostic.problem == .Relocation, "missing relocation rejected")
+}
+
+Preservation :: (owner: *Pipeline.MachineNativeOwner) -> bool {
+    before := Pipeline.MachineNativeView(owner)
+    before_count := before.count
+    fingerprint: u64 = 1469598103934665603
+    for byte: before { fingerprint = (fingerprint ^ byte) * 1099511628211 }
+    unsupported := Target.TargetDescribe(.AArch64, .Linux).target
+    diagnostic := BuildTarget(owner, unsupported)
+    after := Pipeline.MachineNativeView(owner)
+    actual: u64 = 1469598103934665603
+    for byte: after { actual = (actual ^ byte) * 1099511628211 }
+    if !Check(diagnostic.problem == .UnsupportedTarget && before_count == after.count && fingerprint == actual,
+        "failed pipeline preserves prior output") { return false }
+    diagnostic = Build(owner, true)
+    after = Pipeline.MachineNativeView(owner)
+    actual = 1469598103934665603
+    for byte: after { actual = (actual ^ byte) * 1099511628211 }
+    return Check(diagnostic.problem == .Unsupported && fingerprint == actual,
+        "unsupported read-only data is hard and preserves output")
+}
+
+Fingerprint :: (bytes: []u8) -> u64 {
+    result: u64 = 1469598103934665603
+    for byte: bytes { result = (result ^ byte) * 1099511628211 }
+    return result
+}
+
+TransactionalView :: (owner: *Pipeline.MachineNativeOwner) -> bool {
+    before := Pipeline.MachineNativeView(owner)
+    if !Check(before.count > 8192, "transaction starts with a nonempty native view") { return false }
+    before_count := before.count
+    before_fingerprint := Fingerprint(before)
+    if !Check(Build(owner).problem == .None, "successful transactional replacement") { return false }
+    replaced := Pipeline.MachineNativeView(owner)
+    if !Check(replaced.count == before_count && Fingerprint(replaced) == before_fingerprint,
+        "successful replacement publishes the built ELF view") { return false }
+
+    limits := Machine.MachineDefaultLimits()
+    limits.bytes = replaced.count - 1
+    diagnostic := BuildTarget(owner, Target.TargetLinuxX64(), false, limits)
+    preserved := Pipeline.MachineNativeView(owner)
+    return Check(diagnostic.problem == .Limit && preserved.count == before_count &&
+        Fingerprint(preserved) == before_fingerprint,
+        "late ELF size failure preserves the prior owner bytes and view")
+}
+
+#program_export
+main :: () -> s32 {
+    owner: Pipeline.MachineNativeOwner
+    diagnostic := Build(*owner)
+    if !Check(diagnostic.problem == .None, "end-to-end pipeline") { return 1 }
+    second: Pipeline.MachineNativeOwner
+    if !Check(Build(*second).problem == .None &&
+        Equal(Pipeline.MachineNativeView(*owner), Pipeline.MachineNativeView(*second)),
+        "independent builds are byte deterministic") {
+        Pipeline.MachineNativeFree(*second); Pipeline.MachineNativeFree(*owner); return 2
+    }
+    if !Check(Build(*owner).problem == .None &&
+        Equal(Pipeline.MachineNativeView(*owner), Pipeline.MachineNativeView(*second)),
+        "successful rebuild atomically replaces an existing owner") {
+        Pipeline.MachineNativeFree(*second); Pipeline.MachineNativeFree(*owner); return 2
+    }
+    Pipeline.MachineNativeFree(*second)
+    if !Headers(*owner) { Pipeline.MachineNativeFree(*owner); return 3 }
+    if !Relocations(*owner) { Pipeline.MachineNativeFree(*owner); return 4 }
+    if !Rejections(*owner) { Pipeline.MachineNativeFree(*owner); return 5 }
+    if !Preservation(*owner) { Pipeline.MachineNativeFree(*owner); return 6 }
+    if !TransactionalView(*owner) { Pipeline.MachineNativeFree(*owner); return 7 }
+    Pipeline.MachineNativeFree(*owner)
+    return 0
+}

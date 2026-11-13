@@ -7,7 +7,7 @@ using Vectors :: #import "std/vec"
 // decoded byte and table until LirReadFree; the encoded input may be released as
 // soon as LirRead returns.
 
-LirCodecVersion :: 1
+LirCodecVersion :: 2
 LirCodecFeatureBase :: 1
 
 LirCodecProblem :: enum s32 {
@@ -41,6 +41,7 @@ LirReadOwner :: struct {
     constants: Vec(LirConstant)
     globals: Vec(LirGlobal)
     functions: Vec(LirFunction)
+    initializers: Vec(s32)
     function_parameters: Vec(s32)
     function_values: Vec(s32)
     blocks: Vec(LirBlock)
@@ -115,6 +116,7 @@ S32s :: (writer: *Writer, values: []s32) {
 WriteCore :: (writer: *Writer, program: LirProgram) {
     S32(writer, program.version)
     S32(writer, program.entry)
+    S32s(writer, program.initializers)
     Count(writer, program.modules.count)
     for module: program.modules { Text(writer, module) }
     Count(writer, program.types.count)
@@ -307,6 +309,7 @@ Shape :: struct {
     constants: s64
     globals: s64
     functions: s64
+    initializers: s64
     function_parameters: s64
     function_values: s64
     blocks: s64
@@ -506,6 +509,16 @@ DecodeCore :: (decoder: *Decoder) {
     version := DecodeS32(decoder)
     entry := DecodeS32(decoder)
     if decoder.mode == ModeViews { decoder.owner.version = version; decoder.owner.entry = entry }
+    initializer_count := DecodeCount(decoder)
+    if decoder.mode == ModeShape { decoder.shape.initializers = initializer_count }
+    if !TopCount(decoder, initializer_count, decoder.shape.initializers, 4, decoder.limits.functions) { return }
+    if !Spend(decoder, initializer_count) { return }
+    for index: 0..initializer_count - 1 {
+        initializer := TakeS32(*decoder.cursor)
+        if decoder.mode == ModeData && decoder.cursor.problem == .None {
+            decoder.owner.initializers[index] = initializer
+        }
+    }
     if decoder.cursor.problem != .None { return }
     module_count := DecodeCount(decoder)
     if decoder.mode == ModeShape { decoder.shape.modules = module_count }
@@ -731,6 +744,7 @@ Allocate :: (owner: *LirReadOwner, shape: Shape) -> bool {
         VecResizeBounded(owner.constants, shape.constants, shape.constants) &&
         VecResizeBounded(owner.globals, shape.globals, shape.globals) &&
         VecResizeBounded(owner.functions, shape.functions, shape.functions) &&
+        VecResizeBounded(owner.initializers, shape.initializers, shape.initializers) &&
         VecResizeBounded(owner.function_parameters, shape.function_parameters, shape.function_parameters) &&
         VecResizeBounded(owner.function_values, shape.function_values, shape.function_values) &&
         VecResizeBounded(owner.blocks, shape.blocks, shape.blocks) &&
@@ -798,7 +812,7 @@ LirReadFree :: (owner: *LirReadOwner) {
     owner.program = .{version = LirVersion, entry = LirNoId}
     VecFree(owner.modules); VecFree(owner.sources)
     VecFree(owner.types); VecFree(owner.constants); VecFree(owner.globals)
-    VecFree(owner.functions); VecFree(owner.blocks); VecFree(owner.instructions); VecFree(owner.edges)
+    VecFree(owner.functions); VecFree(owner.initializers); VecFree(owner.blocks); VecFree(owner.instructions); VecFree(owner.edges)
     VecFree(owner.origins)
     VecFree(owner.type_fields); VecFree(owner.type_parameters)
     VecFree(owner.function_parameters); VecFree(owner.function_values)
@@ -845,7 +859,8 @@ LirRead :: (owner: *LirReadOwner, input: string, limits: LirLimits) -> LirCodecR
     }
     owner.program = .{version = owner.version, modules = owner.modules[:], sources = owner.sources[:],
         types = owner.types[:], constants = owner.constants[:], globals = owner.globals[:],
-        functions = owner.functions[:], origins = owner.origins[:], entry = owner.entry}
+        functions = owner.functions[:], origins = owner.origins[:],
+        initializers = owner.initializers[:], entry = owner.entry}
     program := OwnedProgram(owner)
     diagnostic := LirVerify(program, limits)
     if diagnostic.problem != .None {

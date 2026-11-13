@@ -55,12 +55,17 @@ CheckElf :: (path: string) -> bool {
     return count == 4 && header[0] == 127 && header[1] == 69 && header[2] == 76 && header[3] == 70
 }
 
+CheckCacheEnvironmentSafe :: () -> bool {
+    external: [9]string = .["ZIRAN_STD", "ZIRAN_INCLUDE", "ZIRAN_PACKAGE_MAP", "LD_PRELOAD", "LD_AUDIT",
+        "LOCPATH", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"]
+    for name: external { if EnvironmentText(name) != "" { return false } }
+    return true
+}
+
 CheckInputFingerprint :: (repo: string, bin: string, logs: string, environment: []string) -> string {
     if bin != CheckPath(repo, "build/bin") || IsDirectory(CheckPath(PathParent(bin), "std")) ||
         IsDirectory(CheckPath(PathParent(bin), "include")) { return "" }
-    external: [9]string = .["ZIRAN_STD", "ZIRAN_INCLUDE", "ZIRAN_PACKAGE_MAP", "LD_PRELOAD", "LD_AUDIT",
-        "LOCPATH", "ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"]
-    for name: external { if EnvironmentText(name) != "" { return "" } }
+    if !CheckCacheEnvironmentSafe() { return "" }
     paths: Vec(string)
     command: [6]string = .["git", "ls-files", "-z", "--cached", "--others", "--exclude-standard"]
     output, code := CheckCapture(command[:], repo, environment)

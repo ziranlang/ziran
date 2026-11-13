@@ -1,6 +1,10 @@
 # Step 09 — Integrate native ZX execution, AOT builds, caching, and hosts
 
-Status: planned. Depends on [steps 04](04-portable-instruction-engine.md)–[08](08-assembler-objects-and-linker.md). Next: [inspection and final cutover](10-inspection-performance-and-cutover.md).
+Status: in progress at an experimental Linux x86-64 AOT slice; native ZX
+loading, complete runtime/host integration, and the remaining targets are still
+planned. The current startup/syscall work is not a completion claim. Depends on
+[steps 04](04-portable-instruction-engine.md)–[08](08-assembler-objects-and-linker.md).
+Next: [inspection and final cutover](10-inspection-performance-and-cutover.md).
 
 ## Objective
 
@@ -8,6 +12,34 @@ Run `.zx` through the explicitly selected shared native backend or explicitly
 selected new instruction interpreter. Integrate source builds, packages,
 libraries, hosts, cache, and embedding APIs without relying on C/TinyCC for
 new-native code generation and without switching engines after a gap is found.
+
+The experimental pipeline is source → checked `.zir` → linked LIR → verify →
+LIR optimization → portable ZX bytes → verified read, followed by either the portable interpreter or direct target
+lowering to a platform binary. Generated C and Go routes can also produce
+binaries through their own toolchains, but they are not native here and cannot
+substitute for the direct route.
+
+Host capabilities remain portable typed interfaces. Each direct target owns
+separate ABI veneers for entry, calls, operating-system services, and exit. The
+initial Linux x86-64 console contract uses a static executable with its own
+`_start`, no libc/CRT/dynamic linker, `write` syscall 1 through a `write_all`
+loop that handles partial progress and `EINTR`, and `exit_group` syscall 231
+rather than syscall 60. That opt-in AOT slice is implemented and executed;
+native ZX loading and the wider integration work below remain open.
+
+`zi2asm` source-native output serializes and reads the same ZX image as
+`--input zx --emit elf`; neither route lowers source-side LIR directly. The
+current stripped payload has no source origins, so source debug maps remain a
+gap. Default semantic bundles and `zir_zx_wasm`'s semantic-ZIR lowering have
+not cut over to this shared instruction route.
+
+For literal-only hello, direct instruction selection emits no stack frame or
+spill slots, uses short constants, and writes the literal from read-only data.
+The ELF file places `.rodata` immediately after `.text`, with congruent file
+offsets and virtual addresses on distinct RX/R pages, and omits an empty
+`.data` section. Function symbols retain positive bounded text extents;
+inlined platform service declarations are omitted from the ELF symbol table,
+so the static executable has no undefined symbols or misleading trap aliases.
 
 ## Existing integration points
 
@@ -26,6 +58,12 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
 - [ ] Key cache entries by executable content, linked libraries, target/ABI, actual selected CPU features, backend/runtime identities, optimization settings, and instrumentation semantics. Keep mutable instance state outside cached code.
 - [ ] Preserve concurrent compilation, concurrent instantiation, nested calls, independent globals, reentrant host capabilities, cancellation, failures, and lifecycle retirement. Cache cleanup must not unload code still referenced by a live instance.
 - [ ] Implement typed host trampolines using the shared ABI layer. Preserve aggregate/string/slice/function signatures, checked host returns, error propagation, and callback roots.
+- [x] Implement and verify the first target-owned console ABI veneer for the
+  opt-in Linux x86-64 AOT path. Its Ziran-owned formatter accepts literal
+  format strings, strings/text views, booleans, every fixed signed and unsigned
+  integer width, and `%%`; `write_all` retries partial progress and `EINTR`.
+  Floating-point formatting and every unavailable target service remain stable
+  named gaps. Other target rows remain unchecked.
 - [ ] Preserve execution budgets, stack checks, source-aware traps, parallel workers, persistent state, migration, snapshots, and module/library initialization across native and interpreted modes.
 - [ ] Make the engine-selection contract explicit. A native request fails
   clearly if unsupported and never starts the interpreter. A portable request

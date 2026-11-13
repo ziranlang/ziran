@@ -3,15 +3,11 @@
 #import "package_resolution_support"
 #import "check_support"
 #import "std/byte_text_linux"
-#import "std/c_string"
 #import "std/environment_linux"
 #import "std/file"
 #import "std/file_tree_linux"
 #import "std/text_tools"
 using Vectors :: #import "std/vec"
-
-libc :: #system_library "libc";
-ToolMemfdRaw :: (name: *u8, flags: u32) -> s32 #foreign libc "memfd_create";
 
 ToolProbe :: (argc: s32, argv: **u8) -> s32 {
     contents, valid := ReadEntireFile(EnvironmentText("ZIRAN_TOOL_OPTIONS"))
@@ -50,16 +46,27 @@ Tooling :: (test: *NativeTest) -> bool {
     output := PackageCommand(test, app, tool[:])
     expected := "mode=fast\nfast=false\ntargets=b a\ntargets.b.kind=x\ntargets.b.level=1\ntargets.a.kind=y\ntargets.a.level=3\nproject=Tooled entry=src/app.zi args=build --fast links=gio-2.0 gdk_pixbuf-2.0\ninstall= \npinned=\n"
     if !NativeAssert(test, output == expected, CheckConcat("tool option order, defaults or context changed: ", output)) { return false }
-    // An anonymous executable lies outside the compiler checkout and survives
-    // exec through its owned inherited fd. This tests real pinned forwarding.
-    name: [32]u8; CopyCString("ziran-bootstrap", name[:])
-    fd := ToolMemfdRaw(*name[0], cast(u32)0)
-    external: FileHandle = .{.fd = fd, .valid = fd >= 0}
-    if !NativeAssert(test, external.valid, "create anonymous bootstrap executable") { return false }
-    defer CloseFile(external)
-    binary := NativeRead(test, test.ziran)
-    if !NativeAssert(test, WriteTextAt(external, binary, 0) == binary.count, "copy bootstrap executable to owned fd") { return false }
-    bootstrap := CheckConcat("/proc/self/fd/", CheckNumber(fd))
+    // A real executable outside the compiler checkout reaches the pinned
+    // forwarding path without depending on executable memfd policy in the
+    // surrounding build namespace. Keep it in the established user cache and
+    // remove it even when a later assertion fails.
+    home := EnvironmentText("HOME")
+    if !NativeAssert(test, home.count > 1 && home[0] == #char "/",
+        "absolute home for external launcher") { return false }
+    external_name := CheckConcat(PathName(PathParent(test.work)),
+        CheckConcat("-", PathName(test.work)))
+    external_root := CheckPath(home,
+        CheckConcat(".cache/ziran/package-tooling-", external_name))
+    if !NativeAssert(test, !PathExists(external_root),
+        "external launcher path collision") ||
+        !NativeAssert(test, CreateDirectories(external_root),
+        "create external launcher directory") { return false }
+    defer { unused RemoveTree(external_root) }
+    bootstrap := CheckPath(external_root, "ziran")
+    if !NativeAssert(test, CopyFile(test.ziran, bootstrap),
+        "copy external bootstrap executable") { return false }
+    chmod := string.["chmod", "700", bootstrap]
+    unused NativeRun(test, chmod[:])
     handed_arguments := string.[bootstrap, "tool", "Tooling", "build"]
     handed := NativeRun(test, handed_arguments[:], app)
     if !ToolLine(test, handed.output, "pinned=forwarded") { return false }

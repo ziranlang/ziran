@@ -174,23 +174,23 @@ VirtualOperand :: (state: *LowerState, id: s32, role: MachineOperandRole,
     if id < 0 || id >= state.owner.virtuals.count { Fail(state, .Virtual); return MachineNoId }
     value := state.owner.virtuals[id]
     return AddOperand(state, .{kind = .Virtual, role = role, class = value.class, id = id,
-        type = value.type, fixed_register = fixed, tied_to = tied})
+        type = value.type, fixed_register = fixed, tied_to = tied, value = id})
 }
 
 ImmediateOperand :: (state: *LowerState, value: u64, class: MachineRegisterClass = .General) -> s32 {
     return AddOperand(state, .{kind = .Immediate, role = .Use, class = class,
         id = MachineNoId, type = MachineNoId, fixed_register = MachineNoId,
-        tied_to = MachineNoId, immediate = value})
+        tied_to = MachineNoId, immediate = value, value = MachineNoId})
 }
 
 SymbolOperand :: (state: *LowerState, kind: MachineOperandKind, symbol: s32) -> s32 {
     return AddOperand(state, .{kind = kind, role = .Use, class = .General, id = symbol,
-        type = MachineNoId, fixed_register = MachineNoId, tied_to = MachineNoId})
+        type = MachineNoId, fixed_register = MachineNoId, tied_to = MachineNoId, value = MachineNoId})
 }
 
 PhysicalOperand :: (state: *LowerState, physical: s32, role: MachineOperandRole) -> s32 {
     return AddOperand(state, .{kind = .Physical, role = role, class = .General, id = physical,
-        type = MachineNoId, fixed_register = physical, tied_to = MachineNoId})
+        type = MachineNoId, fixed_register = physical, tied_to = MachineNoId, value = MachineNoId})
 }
 
 BeginInstruction :: (state: *LowerState, opcode: MachineOpcode, origin: s32) -> MachineInstruction {
@@ -445,21 +445,23 @@ LowerBinary :: (state: *LowerState, function: *MachineFunction, source: LirInstr
     opcode := BinaryOpcode(source.op, class)
     if opcode == .Invalid { return Fail(state, .Unsupported) }
     instruction := BeginInstruction(state, opcode, source.origin)
+    // Fixed registers come from the target description; -1 is no constraint.
+    divide := opcode == .IntegerDivide || opcode == .IntegerRemainder
     result_fixed: s32 = MachineNoId
     left_fixed: s32 = MachineNoId
     right_fixed: s32 = MachineNoId
-    if opcode == .IntegerDivide || opcode == .IntegerRemainder {
-        result_fixed = cast(s32)X64Register.Rax
-        left_fixed = cast(s32)X64Register.Rax
+    clobber: s32 = MachineNoId
+    if divide {
+        result_fixed = MachineAbiFixedRegister(state.target, .DivideResult)
+        left_fixed = MachineAbiFixedRegister(state.target, .DivideDividend)
+        clobber = MachineAbiFixedRegister(state.target, .DivideClobber)
     } else if opcode == .ShiftLeft || opcode == .ShiftRight {
-        right_fixed = cast(s32)X64Register.Rcx
+        right_fixed = MachineAbiFixedRegister(state.target, .ShiftCount)
     }
     if VirtualOperand(state, result, .Define, result_fixed, cast(s32)1) == MachineNoId ||
         VirtualOperand(state, left, .Use, left_fixed, cast(s32)0) == MachineNoId ||
         VirtualOperand(state, right, .Use, right_fixed) == MachineNoId { return false }
-    if opcode == .IntegerDivide || opcode == .IntegerRemainder {
-        if PhysicalOperand(state, cast(s32)X64Register.Rdx, .UseDefine) == MachineNoId { return false }
-    }
+    if clobber >= 0 && PhysicalOperand(state, clobber, .UseDefine) == MachineNoId { return false }
     return FinishInstruction(state, instruction) != MachineNoId
 }
 
@@ -575,7 +577,7 @@ LowerCall :: (state: *LowerState, function: *MachineFunction, source: LirInstruc
             size = stack_bytes, alignment = 8, type = 0, origin = Origin(state, source.origin)})
         if stack == MachineNoId || AddOperand(state, .{kind = .StackObject, role = .Use,
             class = .Stack, id = stack, type = 0, fixed_register = MachineNoId,
-            tied_to = MachineNoId}) == MachineNoId { return false }
+            tied_to = MachineNoId, value = MachineNoId}) == MachineNoId { return false }
         function.stack_count = cast(s32)state.owner.stack_objects.count - function.stack_begin
     }
     instruction_id := cast(s32)state.owner.instructions.count
@@ -609,8 +611,27 @@ LowerControl :: (state: *LowerState, function: *MachineFunction, source: LirInst
     if source.op == .Fuel || source.op == .Trap {
         if ImmediateOperand(state, source.immediate) == MachineNoId { return false }
     }
+    counter: s32 = MachineNoId
+    if source.op == .Fuel {
+        // A fuel check subtracts from the instance counter and traps on
+        // exhaustion, so it names the counter through a relocation and
+        // defines (clobbers) the flags before liveness sees it.
+        counter = ImmediateOperand(state, 0)
+        if counter == MachineNoId { return false }
+        flags := AddVirtual(state, .{class = .Flags, type = 0, fixed_register = MachineNoId,
+            stack_object = MachineNoId, origin = Origin(state, source.origin)})
+        if flags == MachineNoId { return false }
+        instruction.flags_def = flags
+        function.virtual_count = cast(s32)state.owner.virtuals.count - function.virtual_begin
+    }
     if !AddEdges(state, function, source.edges) { return false }
-    return FinishInstruction(state, instruction) != MachineNoId
+    instruction_id := FinishInstruction(state, instruction)
+    if instruction_id == MachineNoId { return false }
+    if counter != MachineNoId {
+        return AddRelocation(state, .{instruction = instruction_id, operand = counter,
+            kind = .FuelCounter, symbol = 0})
+    }
+    return true
 }
 
 LowerInstruction :: (state: *LowerState, function: *MachineFunction,
@@ -689,7 +710,9 @@ Finalize :: (state: *LowerState) {
         blocks = owner.blocks[:], virtuals = owner.virtuals[:], instructions = owner.instructions[:],
         operands = owner.operands[:], edges = owner.edges[:], copies = owner.copies[:],
         stack_objects = owner.stack_objects[:], relocations = owner.relocations[:],
-        calls = owner.calls[:], entry = state.lir.entry}
+        calls = owner.calls[:], entry = state.lir.entry, stage = .Virtual,
+        frames = owner.frames[:], spills = owner.spills[:],
+        scratch_general = MachineNoId, scratch_float = MachineNoId}
 }
 
 Result :: (state: LowerState) -> MachineResult {
@@ -720,6 +743,8 @@ MachineFree :: (owner: *MachineOwner) {
     VecFree(owner.stack_objects)
     VecFree(owner.relocations)
     VecFree(owner.calls)
+    VecFree(owner.frames)
+    VecFree(owner.spills)
 }
 
 MachineProgramView :: (owner: *MachineOwner) -> MachineProgram {

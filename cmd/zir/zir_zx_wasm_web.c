@@ -7,7 +7,7 @@
  * per page session keyed by the module image, so reopening a bundle pays
  * instantiation but not compilation again. Hosts need no code changes:
  * rebuilding the wasm bundle runtime activates the tier, and bundles
- * outside its subset keep running on the portable VM.
+ * outside its subset fail with the selected engine's diagnostic.
  */
 #include "zir_zx_wasm_platform.h"
 #include "zir_zx_wasm.h"
@@ -220,8 +220,8 @@ ZxWasmInstallBundledPlatform(void)
 
 #else
 
-/* Native and non-Emscripten builds keep the provider seam empty; the
- * TinyCC tier or the portable VM runs bundles there. */
+/* Native and non-Emscripten builds keep the provider seam empty; their
+ * configured engine runs bundles there. */
 typedef int zx_wasm_web_unused;
 
 #endif

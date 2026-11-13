@@ -50,12 +50,20 @@ gates pass. The two paths never guess or fall back between formats.
 
 ```sh
 zi2asm --root src --entry app:main --emit zx -o app.zx src/app.zi
-zi2asm --input exec --emit zx -o app.zx app.lirb
+zi2asm --input zx --emit elf -o app app.zx
 zi2asm --input zx --run app.zx
 zi2asm --input zx --emit lir -o - app.zx
 ```
 
-Revision 28 stores deterministic schema-3 lowered instructions, not `.zir`.
+Revision 28 stores deterministic verified lowered instructions, not `.zir`.
+Source is checked and lowered to LIR, verified, then optimized before ZX is
+encoded. Native output from source serializes and reads this same verified ZX
+boundary; source and ZX entry routes therefore produce identical ELF bytes.
+There is no standalone `.lirb`, `--emit exec` or `--input exec` route. The
+instruction codec remains internal to ZX. Source `--emit lir` retains the raw
+inspection view; `--opt --emit lir` and `--opt --emit opt-report` inspect the
+pre-ZX optimization stage. ZX input is never reoptimized by `--opt`.
+
 `--emit zx` removes source names and instruction origins from the required
 program before encoding. `--input zx` validates section framing, SHA-256 content
 identities, the owned LIR decoding, the LIR verifier, entry identity and the
@@ -64,11 +72,19 @@ generation, or portable execution. The input bytes may be released after the
 read. A stripped file therefore runs through the bounded portable instruction
 engine with no source or semantic-IR parser.
 
+Native maps retain instruction IDs and final byte extents, but no source
+origins from this stripped payload; executable debug attachments remain a gap.
+The current `zir_zx_wasm` route still calls `zir_wasm_lower` on semantic
+`ZirProgram`. It does not lower revision-28 ZX and does not satisfy the shared
+instruction-to-Wasm cutover. Default semantic bundles, generated C/Go binaries,
+and that Wasm route are separate current implementations, never native fallback.
+
 The fixed 64-byte header uses little-endian fields: `ZX\0\0`, version 28,
 header size 64, directory-entry size 32, required and optional feature masks,
 section count, flags, total byte length, directory offset 64, identity algorithm
-1 (SHA-256), and a zero reserved word. Required feature bit 0 means the portable
-schema-3 LIR contract. Unknown required feature bits reject the file; unknown
+1 (SHA-256), and a zero reserved word. Required feature bit 0 selects the
+manifest's portable-LIR contract. The internal instruction header independently
+checks current LIR schema 4. Unknown required feature bits reject the file; unknown
 optional feature bits are recorded but do not affect execution.
 
 Each 32-byte directory record contains kind, flags, offset, length, alignment
@@ -131,8 +147,9 @@ loads explicit inputs and their extensionless imports, then links reachable
 modules. `zi2zx run [--vm] FILE` validates and executes a bundle file, or
 builds one in memory from `FILE.zi` with the bundle options, its folder as
 the default root and its `main` as the default entry, and executes
-zero-argument integer, bool, or void entry functions, as native code where
-the platform compiles it and on the portable VM elsewhere or with `--vm`.
+zero-argument integer, bool, or void entry functions through generated
+C/TinyCC where that route is supported and on the portable VM elsewhere or
+with `--vm`.
 Integer entries support `s8`, `s16`, `s32`, `s64`, `u8`, `u16`, `u32`, and `u64`;
 the command prints unsigned results over their full range. C hosts recover a
 `u64` entry result by casting the returned `long long` to `uint64_t`.
@@ -270,6 +287,19 @@ portable executable content, data, entry point, linked module identities,
 exports, and explicit host capability requirements. The exact instruction and
 section encoding will be specified before the format is called stable.
 
+The intended common pipeline is source → checked `.zir` → linked and verified
+portable ZX instructions. An explicitly selected portable route interprets
+those instructions. An explicitly supported direct target lowers the same
+verified instructions to machine code, applies the target ABI and platform
+veneers, and writes or loads a platform binary. The direct route is still
+experimental and incomplete; current generated-C bundle execution below is a
+separate route, not proof that direct native lowering is complete.
+
+Generated C and generated Go can also be compiled into platform binaries by
+their downstream toolchains. This document reserves “native” for direct
+lowering from verified ZX instructions to machine code. No generated-code
+route, interpreter, or legacy engine substitutes for a failed native request.
+
 The linker resolves imports and includes reachable code from ordinary
 libraries. That includes Kryon only when the program imports it. A non-UI
 command-line program is a first-class `.zx`; it launches without a graphical
@@ -283,6 +313,12 @@ versions, malformed bundles, and unavailable required capabilities fail with
 diagnostics. A portable bundle cannot contain an undeclared dependency on
 target-specific C or Go code. Hosts may implement the declared
 capability interfaces with native libraries.
+
+Host capabilities name portable typed services and are bound independently of
+CPU lowering. A direct target's platform veneer owns its entry convention,
+syscall or system-library boundary, error rules, and process exit. Missing host
+bindings and missing ABI veneers are different gaps and neither is repaired by
+selecting the other layer.
 
 ## Shared libraries and partial modules
 
@@ -320,7 +356,7 @@ reject a version 27 header before reading capability requirements or executing
 initializers. This reader accepts both and rejects a version 26 add-on that
 needs composition. The saved `.zir` version did not change: its declaration
 encoding and the behavior of source and native builds are unchanged.
-`tests/bundle_partial_modules.sh` exercises source and saved IR, native C and
+`tests/bundle_partial_modules.sh` exercises source and saved IR, generated C and
 both ZX engines, with capability, private access, duplicate provider,
 overlapping declaration, format rejection and instance isolation cases. With
 `ZIRAN_ZX26_ROOT` naming a built toolchain from before version 27, it also
@@ -376,10 +412,12 @@ slot storage plus VM-owned record, array, and string payload. It deliberately
 does not claim shared immutable code, bundle bytes, host allocations, compiler
 cache, or total process RSS.
 
-## Native execution
+<a id="native-execution"></a>
+## Current generated-C bundle execution
 
 On Linux and Android hosts with x86-64, 32-bit ARM or ARM64 processors,
-`libziran` runs bundles as native code. `BundleInstantiate` lowers the
+`libziran` currently runs suitable bundles through generated C.
+`BundleInstantiate` lowers the
 verified program to C with the backend `ziran build --target=c` uses,
 compiles it in memory with the bundled TinyCC (`third_party/tinycc`, LGPL-2.1;
 applications that ship it include its notice) and calls it. Host
@@ -395,13 +433,13 @@ code is cached opens without checking its program again; it is checked when
 the cached code is gone or `BundleProgram` asks for the checked program.
 
 A bundle that cannot be compiled fails with `zx.native`; there is no
-fallback. Runtime failures stop the run as in the VM: bounds, unreachable
+fallback within this generated-C route. Runtime failures stop the run as in the VM: bounds, unreachable
 code, a host breaking the value contract, the step limit and nested calls
-filling the stack. Native code counts the step limit in function calls and
+filling the stack. Generated code counts the step limit in function calls and
 loop iterations rather than statements; a loop over literal bounds that
 nothing else leaves or steps is charged all its iterations as it starts. It
 does not check pointer lifetimes at run time: it trusts bundle code as a
-native build of the program would.
+generated-C build of the program would.
 
 `#parallel for` regions run on worker threads each instance starts at its
 first region, one per processor up to 16; `ZIRAN_PAR_THREADS` in the host's
@@ -415,6 +453,22 @@ Windows and macOS hosts run the portable VM, and `zi2zx run --vm` and
 `libziran-vm.a` run it everywhere for tests of the VM itself.
 `ZIRAN_NATIVE_TIMING=1` reports where compilation time goes and
 `ZIRAN_NATIVE_KEEP=1` keeps the generated C.
+
+## Experimental direct-native route
+
+The direct-native assembly work starts from linked, verified portable ZX
+instructions and lowers them through machine IR to target machine code. It is
+not the generated-C route above. Linux x86-64 is the first target row, and the
+implemented allocator, allocated-program verifier, encoder, ELF writer, and
+first console veneer are pieces of that row. The opt-in static ELF owns
+`_start`, retries Linux `write` syscall 1 on partial progress and `EINTR`, and
+uses `exit_group` syscall 231; it has no libc, CRT, interpreter, or dynamic
+dependency. Its target-owned formatter covers literal byte strings/text views,
+bools, all fixed-width signed and unsigned integers, and `%%`. Floating-point
+formatting and other target service rows remain stable named gaps. Complete
+language/call coverage, native ZX loading, installation, and the general
+per-row cutover evidence are still required before the row or overall pipeline
+is complete.
 
 ### Linked code in the browser
 
@@ -452,8 +506,11 @@ function entry and one loop iteration at a time. The current tier
 supports scalars, owned strings, fixed arrays, records, and typed
 `s64 -> s64` host capabilities. Each instance keeps its own bindings and
 linear memory; a state table identifies its globals for owned export and
-import. Other constructs run on the portable VM, as do hosts without a
-provider. `tests/zx_wasm_engine_test.c` checks the seam and fallback, and
+import. Other constructs fail with `zx.wasm` while the provider is selected;
+the runtime does not start the portable VM. Hosts configured without a
+provider use their VM mode, and embedders can select the VM explicitly with
+`BundleInstantiatePortable`. `tests/zx_wasm_engine_test.c` checks the seam
+and hard provider rejection, and
 `tests/zx_web_lifecycle.sh` runs source through checked IR and `.zx` in a
 private headless Chromium without Node. It checks actual Wasm execution,
 nested state migration through the provider's memory interface, independent

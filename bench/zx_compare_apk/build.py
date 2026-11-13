@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run on Alpha Personal inside build-queue. Fetch pinned, unmodified release packages."""
+"""Run on physical Alpha inside build-queue. Fetch pinned, unmodified release packages."""
 import argparse, hashlib, json, os, re, subprocess, sys, tarfile, time, urllib.request, zipfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]

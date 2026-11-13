@@ -354,8 +354,18 @@ Compile-time conditional expressions use <code>#ifx condition then a; else b</co
 The semicolon between arms is optional. The frontend selects one arm before
 checking or serializing expressions; its condition evaluator currently accepts
 boolean and integer constants, constant aliases, arithmetic and logical
-operations, and compiler-host <code>OS</code> comparisons with <code>.WINDOWS</code>, <code>.MACOS</code>,
-or <code>.LINUX</code>. During translation, <code>#run</code>, <code>#ifx</code>, and <code>#assert</code> can call pure
+operations, and the typed target enums <code>TARGET</code>, <code>OS</code>, and <code>CPU</code>. Their members
+are respectively <code>.C</code>/<code>.GO</code>/<code>.WASM</code>/<code>.ZX</code>,
+<code>.LINUX</code>/<code>.WINDOWS</code>/<code>.MACOS</code>/<code>.ANDROID</code>/<code>.WEB</code>/<code>.NONE</code>, and
+<code>.X64</code>/<code>.ARM64</code>/<code>.WASM32</code>/<code>.NONE</code>. These values describe the selected output,
+not the compiler host, and work in <code>#if</code>, <code>#ifx</code>, <code>#assert</code>, and <code>#run</code>.
+Compiler-host facts are named <code>Compiler.HostOS</code> and <code>Compiler.HostCPU</code>;
+<code>Compiler.Target</code>, <code>Compiler.TargetOS</code>, <code>Compiler.TargetCPU</code>, and
+<code>Compiler.Options</code> expose the selected compilation to metaprograms. Inactive
+<code>#if</code> imports are never loaded. Untargeted checked <code>.zir</code> uses
+<code>.ZX</code>/<code>.NONE</code>/<code>.NONE</code>; compile-time branches are folded before serialization
+and are not reevaluated by a later consumer backend. During translation,
+<code>#run</code>, <code>#ifx</code>, and <code>#assert</code> can call pure
 same-module or imported procedures with signed integer, up to <code>u32</code>, or
 boolean parameters and results. These procedures can use local variables,
 assignments, branches, bounded <code>while</code> and numeric range loops, and nested
@@ -402,6 +412,11 @@ and resolve relative to the importing source file. Saved IR uses the imported
 module name. Named <code>Alias :: #import "module";</code> and
 <code>Alias :: #import, file "relative/path.zi";</code> expose public procedures,
 constants, and record types through <code>Alias.Name</code>.
+A public <code>using</code> import re-exports the original declaration rather than a
+structural copy. The facade-qualified spelling (for example <code>Button.Props</code>)
+therefore keeps the declaring module's canonical type identity, even when the
+consumer has another <code>Props</code> or another same-named import alias. Private and
+ambiguous re-exports remain unavailable.
 <code>Alias :: #import, dir "relative/directory";</code> loads <code>module.zi</code> within the
 directory. <code>#load "relative/file.zi";</code> adds that file's declarations to the
 current module and may nest. <code>#import, string "...";</code> and a raw <code>#string</code>

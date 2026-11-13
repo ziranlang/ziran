@@ -54,6 +54,53 @@ Examples of required errors include:
   facility;
 - a request to run a legacy or incompatible executable revision.
 
+## Host capabilities and ABI veneers
+
+Host capabilities and platform ABI veneers are separate contracts. A host
+capability is a portable, typed service named by linked ZX instructions and
+bound by an embedder or runtime provider. A platform veneer is direct-target
+code for entry, calling conventions, syscalls or system libraries, error
+handling, and process exit. CPU instruction selection is a third concern.
+
+An implemented host capability does not satisfy a missing direct-target veneer,
+and an implemented veneer does not bind a portable host capability. Generated C
+or Go bindings are also independent: they may produce working platform binaries
+without closing the direct-native target cell. A missing veneer, unsupported
+service, or unavailable binding is rejected at preflight or link time without
+starting another engine.
+
+The opt-in Linux x86-64 direct console veneer is implemented around an owned
+`_start`, Linux `write` syscall 1, `exit_group` syscall 231, and no libc, CRT,
+or dynamic linker. Its `write_all` retries `EINTR` and partial progress; other
+write failures take the image's fixed trap exit. This is execution evidence for
+the experimental AOT slice, not a completed target-row or native-ZX claim.
+
+The implemented direct print subset covers read-only literal format strings,
+strings and text views by exact byte length, booleans, every fixed signed and
+unsigned integer type, and `%%`. Floating-point formatting remains
+`assembly.gap.native-float-format` until its exact locale-independent formatter
+and tests exist. A missing target veneer or service reports
+`assembly.gap.native-platform-service-unavailable`. The machine-IR path uses
+the corresponding `assembly.gap.machine-*` codes. None permits a C/Go route or
+portable interpreter to start.
+
+## Target preflight codes
+
+Target preflight uses three stable codes, all hard errors:
+
+- `assembly.gap.target-unimplemented` — the selected CPU/OS row is Gap,
+  Excluded or Unknown. Only an Implemented row passes.
+- `assembly.gap.cpu-feature` — the row does not implement a required CPU
+  feature, including a feature of another CPU family.
+- `assembly.gap.os-service` — the row does not supply a required operating
+  system service.
+
+The message names the selected row, the `assembly` engine, the row state and
+the missing feature or service. The check needs no input, so it runs before
+any source or saved `.zir` is read and both report the same gap. `ziran
+capabilities --json` lists every row's state and code under
+`assembly_targets`; `ziran explain` describes each code.
+
 ## Explicit engine and target selection
 
 Portable execution, native execution, direct Wasm, C, and Go are separate

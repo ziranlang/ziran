@@ -214,7 +214,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     checked_input = checked_entry(checked, entry, source)
     require_file("checked IR", checked_input, "selected checked .zir")
 
-    lirb = STAGING / "lowered.lirb"
+    zx = STAGING / "lowered.zx"
     lower_command = [
         str(zi2asm),
         "--root",
@@ -222,24 +222,26 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
         "--entry",
         entry,
         "--emit",
-        "exec",
+        "zx",
         "-o",
-        str(lirb),
+        str(zx),
         str(checked_input),
     ]
-    run("lowered instruction binary", lower_command)
-    require_file("lowered instruction binary", lirb, "lowered .lirb")
+    run("portable ZX", lower_command)
+    require_file("portable ZX", zx, "portable .zx")
 
     lowered = STAGING / "lowered.lir"
     lowered_command = [
         str(zi2asm),
-        "--input",
-        "exec",
+        "--root",
+        str(checked),
+        "--entry",
+        entry,
         "--emit",
         "lir",
         "-o",
         str(lowered),
-        str(lirb),
+        str(checked_input),
     ]
     run("lowered instruction listing", lowered_command)
     require_file("lowered instruction listing", lowered, "lowered listing")
@@ -248,13 +250,13 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     optimized_command = [
         str(zi2asm),
         "--input",
-        "exec",
+        "zx",
         "--opt",
         "--emit",
         "lir",
         "-o",
         str(optimized),
-        str(lirb),
+        str(zx),
     ]
     run("optimized instruction listing", optimized_command)
     require_file("optimized instruction listing", optimized, "optimized listing")
@@ -262,14 +264,16 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     optimization = STAGING / "optimization.json"
     optimization_command = [
         str(zi2asm),
-        "--input",
-        "exec",
+        "--root",
+        str(checked),
+        "--entry",
+        entry,
         "--opt",
         "--emit",
         "opt-report",
         "-o",
         str(optimization),
-        str(lirb),
+        str(checked_input),
     ]
     run("optimization counters", optimization_command)
     load_json("optimization counters", optimization)
@@ -278,13 +282,13 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     map_command = [
         str(zi2asm),
         "--input",
-        "exec",
+        "zx",
         "--opt",
         "--emit",
         "map",
         "-o",
         str(final_map),
-        str(lirb),
+        str(zx),
     ]
     run("final native map", map_command)
 
@@ -292,13 +296,13 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
     elf_command = [
         str(zi2asm),
         "--input",
-        "exec",
+        "zx",
         "--opt",
         "--emit",
         "elf",
         "-o",
         str(final_elf),
-        str(lirb),
+        str(zx),
     ]
     run("final ELF", elf_command)
     require_file("final ELF", final_elf, "final ELF")
@@ -367,7 +371,7 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
 
     artifact_paths = [
         *sorted(checked.rglob("*.zir")),
-        lirb,
+        zx,
         lowered,
         optimized,
         optimization,

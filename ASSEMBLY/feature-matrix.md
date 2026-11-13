@@ -1,6 +1,14 @@
 # Current execution feature matrix
 
-Status: current-tree baseline for [step 01](01-contract-and-completion-matrix.md). `Working` means the implementation and retained source/saved-IR fixture exist; it is not a claim that this documentation task reran the fixture. `Restricted` means a checked limitation or fallback applies. `Unknown` means no fresh execution evidence for this cell is present. `Proposed` belongs to the ten-step ASSEMBLY plan, not today's implementation.
+Status: current-tree baseline for [step 01](01-contract-and-completion-matrix.md).
+`Working` means the implementation and retained source/saved-IR fixture exist;
+it is not a claim that this documentation task reran the fixture. `Gap` means
+the direct assembly target lacks required work and must reject it explicitly.
+`Excluded` is a deliberate target-contract exclusion. `Unknown` means no fresh
+execution evidence for this cell is present. Current fallback or downgrade
+behavior is recorded only as baseline evidence and is a Gap for the new target;
+it never counts as support under the [gap policy](gap-policy.md). `Proposed`
+belongs to the ten-step ASSEMBLY plan, not today's implementation.
 
 Primary evidence is [implementation status](../docs/IMPLEMENTATION_STATUS.md), [capability output](../docs/CAPABILITIES.md), [ZX behavior](../docs/ZX.md), the stable feature registry in [features](../docs/FEATURES.json), [capability reporting source](../cmd/package_capabilities.zi), and retained tests. Cross-compilation or presence of a script never counts as target execution evidence.
 
@@ -14,10 +22,10 @@ replace ZX or establish portability/performance completion.
 |---|---|---|---|---|---|---|---|---|
 | Generated C output | Working, source and saved IR | [implementation status](../docs/IMPLEMENTATION_STATUS.md), [C target](../tests/c99_target.sh) | emits C | n/a | n/a | lowers to same C backend | can compile selected C to wasm32 | Linux current host; Windows/macOS/Android toolchains have separate fixtures |
 | Generated Go output | Working, secondary tier | [capabilities](../docs/CAPABILITIES.md), [call order](../tests/call_order.sh) | n/a | emits Go | n/a | n/a | n/a | Verifiable only where a compatible Go runtime/toolchain executes it |
-| Portable VM | Working, explicit subset and verifier | [ZX contract](../docs/ZX.md), [VM verifier](../cmd/zir/zir_vm_verify.c) | n/a | n/a | runs | explicit `zx.native` failures do not fall back | fallback tier | Current retained checks run on Linux; VM is intended everywhere `libziran-vm` builds |
+| Portable VM | Working, explicit subset and verifier | [ZX contract](../docs/ZX.md), [VM verifier](../cmd/zir/zir_vm_verify.c) | n/a | n/a | runs when explicitly selected | explicit `zx.native` failures do not start it | separate target, never a fallback tier | Current retained checks run on Linux; VM is intended everywhere `libziran-vm` builds |
 | Native ZX via TinyCC | Working on supported Linux/Android CPU hosts | [native execution](../docs/ZX.md) | generated C | n/a | n/a | executes | n/a | x86-64, ARMv7, ARM64 only; Windows/macOS portable |
-| Browser linked native | Working via AOT objects | [linked browser code](../docs/ZX.md), [linked web test](../tests/zx_linked_web.sh) | AOT C | n/a | fallback | same code generator | wasm32/browser | Private headless Chromium fixture; parallel regions run in place |
-| Wasm execution tier | Working restricted subset with provider fallback | [Wasm tier](../docs/ZX.md), [engine seam](../tests/zx_wasm_engine_test.c) | emitter | n/a | fallback | budget model shared | wasm32 | Scalars, owned strings, fixed arrays, records, typed `s64 -> s64` hosts; other constructs fall back |
+| Browser linked native | Working via AOT objects | [linked browser code](../docs/ZX.md), [linked web test](../tests/zx_linked_web.sh) | AOT C | n/a | explicit separate engine only | same code generator | wasm32/browser | Private headless Chromium fixture; a missing direct-Wasm operation is a Gap |
+| Wasm execution tier | Working restricted subset; provider rejection is a hard `zx.wasm` error and never starts the VM | [Wasm tier](../docs/ZX.md), [engine seam](../tests/zx_wasm_engine_test.c) | emitter | n/a | explicit separate engine only | budget model shared | wasm32 | Scalars, owned strings, fixed arrays, records, typed `s64 -> s64` hosts; other constructs must fail direct-Wasm preflight |
 
 ## Portable language behavior
 
@@ -38,11 +46,11 @@ replace ZX or establish portability/performance completion.
 
 | Feature | C | Go | Portable ZX | Wasm | Evidence |
 |---|---|---|---|---|---|
-| Zeroed heap allocation/free | Working | Working | Working; rejected use after free/double free | Not in documented Wasm subset; fallback | [heap allocation](../tests/heap_new.sh), [Wasm tier](../docs/ZX.md) |
-| Owned `Vec` operations | Working | Working, physical OOM may terminate | Working, allocation failures recoverable where declared | Fallback for constructs outside Wasm subset | [owned values](../docs/OWNED_VALUES.md), [vector test](../tests/vec.sh) |
-| Direct/aggregate vector drops | Working on block, return, break, continue | Working | Working; VM uses logical invalidation | Fallback | [aggregate safety](../tests/aggregate_vec_safety.sh) |
-| Vector field/member moves | Working with listed source restrictions | Working | Working | Fallback | [aggregate safety](../tests/aggregate_vec_safety.sh), [move expression](../tests/vec_move_expression.sh) |
-| Text and `TextView` | Borrowed bytes observable | Snapshot | Snapshot | Owned strings in Wasm subset; other text forms fallback | [capabilities](../docs/CAPABILITIES.md), [text view mutation](../tests/text_view_mutation.sh) |
+| Zeroed heap allocation/free | Working | Working | Working; rejected use after free/double free | Gap outside documented Wasm subset; direct Wasm rejects | [heap allocation](../tests/heap_new.sh), [Wasm tier](../docs/ZX.md) |
+| Owned `Vec` operations | Working | Working, physical OOM may terminate | Working, allocation failures recoverable where declared | Gap outside Wasm subset; direct Wasm rejects | [owned values](../docs/OWNED_VALUES.md), [vector test](../tests/vec.sh) |
+| Direct/aggregate vector drops | Working on block, return, break, continue | Working | Working; VM uses logical invalidation | Gap; direct Wasm rejects until implemented | [aggregate safety](../tests/aggregate_vec_safety.sh) |
+| Vector field/member moves | Working with listed source restrictions | Working | Working | Gap; direct Wasm rejects until implemented | [aggregate safety](../tests/aggregate_vec_safety.sh), [move expression](../tests/vec_move_expression.sh) |
+| Text and `TextView` | Borrowed bytes observable | Snapshot | Snapshot | Owned strings in Wasm subset; other text forms are a Gap and reject | [capabilities](../docs/CAPABILITIES.md), [text view mutation](../tests/text_view_mutation.sh) |
 | Native pointers | Native lifetime/alias responsibility | Native Go pointer rules | Opaque host handles in bundle ABI | Linear-memory boundary/provider values | [ZX host ABI](../docs/ZX.md), [capabilities](../docs/CAPABILITIES.md) |
 | Instance global state | Native instance data | Go program state | Independent mutable slots per instance | Independent bindings/linear memory per instance | [component state](../docs/ZX.md), [component engine test](../tests/bundle_component_test.c) |
 
@@ -52,8 +60,8 @@ replace ZX or establish portability/performance completion.
 |---|---|---|
 | Argument and compound order | Working: left-to-right call arguments; destination read before compound right side on C, Go, ZX. | [call order](../tests/call_order.sh), [compound order](../tests/compound_order.sh) |
 | Bounded execution | Working by explicit host selection. VM counts statements; native/Wasm count calls and loop iterations; cumulative limited open includes initialization and every run. | [ZX limits](../docs/ZX.md), [step limit](../tests/bundle_step_limit.sh) |
-| CPU parallel regions | Working restricted: C threads on supported hosts; Go/ZX serial downgrade; reverse regions serial. Worker failures and fuel are deterministic. | [parallel test](../tests/parallel.sh), [native parallel](../tests/zx_native_parallel.sh) |
-| GPU regions | Working as CPU fallback only; no device backend. | [capabilities](../docs/CAPABILITIES.md), [assembly blocks](../tests/assembly_blocks.sh) |
+| CPU parallel regions | Current baseline: C threads on supported hosts; Go/ZX serial downgrade and reverse-region serialization are assembly-target Gaps. The direct target rejects them until their promised parallel implementation exists. | [parallel test](../tests/parallel.sh), [native parallel](../tests/zx_native_parallel.sh) |
+| GPU regions | Current baseline has CPU fallback only. The assembly target reports a Gap and rejects GPU selection until a device implementation exists. | [capabilities](../docs/CAPABILITIES.md), [assembly blocks](../tests/assembly_blocks.sh) |
 | Runtime traps | Working failure boundary: bounds, unreachable, host/fuel/stack and numeric contract failures stop the run. | [native execution](../docs/ZX.md), [VM run](../cmd/zir/zir_vm_run.c) |
 | Host capabilities | Working checked module/function ABI with provider preflight, bindings, mutable slice copyback and no overlap. | [host capabilities](../tests/host_capability.sh), [ZX host ABI](../docs/ZX.md) |
 | Component replacement | Working transactional ABI/state migration/rollback for portable components and supported Wasm memory interface. | [component contract](../docs/ZX.md), [web lifecycle](../tests/zx_web_lifecycle.sh) |
@@ -62,7 +70,7 @@ replace ZX or establish portability/performance completion.
 
 | Feature | Working behavior and restriction | Evidence |
 |---|---|---|
-| GNU assembly variants | C functions/local blocks on represented x86 and Linux/Android AArch64 forms; unsupported platform uses checked portable body. Go uses cgo bridge or restricted direct ABI0 path; ZX uses portable body; bundle files never execute their own variants. | [assembly](../tests/assembly.sh), [ZX assembly](../tests/zx_native_asm.sh), [Go assembly](../tests/go_assembly.sh) |
+| GNU assembly variants | Current C/Go behavior may use a checked portable body. For the direct assembly target, a missing matching target/feature implementation is a Gap and rejects at preflight; no portable body or cgo bridge satisfies the cell. | [assembly](../tests/assembly.sh), [ZX assembly](../tests/zx_native_asm.sh), [Go assembly](../tests/go_assembly.sh) |
 | C callbacks / `#c_call` | Native C ABI only; Go and ZX target preflight reject it before output. | [capabilities](../docs/CAPABILITIES.md), [compiler inventory](../tests/compiler_inventory_cases.zi) |
 | Go foreign types/maps | Go target extension only; opaque identity and scalar-union checks reject unsupported portable lowering. Renaming does not create a portable layout. | [compiler IR](../cmd/compiler_ir.zi), [capabilities](../docs/CAPABILITIES.md) |
 | OS libraries | Explicit foreign/library dependencies remain allowed; native platform service portability is defined per OS row, not by opcode presence. | [bundle libraries](../tests/bundle_libraries.sh), [architecture](../docs/ARCHITECTURE.md) |
@@ -79,7 +87,7 @@ replace ZX or establish portability/performance completion.
 | Windows generated C/Go | Compiler/runtime platform code and Windows fixtures exist. | Native ZX does not use TinyCC; ZX runs portable VM. Bundle loading uses seekable temporary streams. | No fresh Windows host execution in this documentation task. |
 | Windows portable ZX | Intended and implemented VM boundary. | No native tier; no Linux-only service assumptions. | Fresh Windows host evidence unknown. |
 | macOS generated C/Go and portable ZX | Darwin build definitions and package/file fixtures exist. | Native ZX uses portable VM; Darwin SHA/random system libraries and ABI differ. | No fresh macOS execution in this documentation task. |
-| Browser/WebAssembly linked tier | wasm32 AOT objects, per-instance memory/state, budget, lifecycle and independent linked instances tested in headless Chromium. | Subset listed above; unsupported constructs/provider rejection fall back to portable VM; SIMD bundles use portable VM. | Other browsers/versions and non-Chromium Wasm hosts are unknown. |
+| Browser/WebAssembly linked tier | wasm32 AOT objects, per-instance memory/state, budget, lifecycle and independent linked instances tested in headless Chromium. | Subset listed above; unsupported constructs/provider rejection are direct-Wasm Gaps. Portable VM and SIMD-VM runs are separate explicit modes. | Other browsers/versions and non-Chromium Wasm hosts are unknown. |
 | Wasm32 standalone tools | `zi2wasm` emitter and engine seam retained; optional Emscripten/wasmtime probes for SIMD and file-tree fixtures. | Requires installed Wasm CC/runtime; skipped when probes absent. | Current machine's optional tool availability is not execution evidence for target hosts. |
 | Go output on OS | Generated source follows Go runtime. | Serial parallel regions, snapshots, foreign runtime restrictions. | Exact OS/Go version combinations not covered by a fresh matrix run. |
 

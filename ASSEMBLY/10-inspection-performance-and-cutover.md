@@ -30,6 +30,9 @@ Proposed modules: `cmd/compiler_inspect_exec.zi`, `cmd/compiler_debug_map.zi`, a
 ## Correctness and integration closure
 
 - [ ] Close every required cell in the step-01 matrix with fresh real execution evidence. Keep target-specific exclusions distinct from missing implementation.
+- [ ] Verify the [gap policy](gap-policy.md): every remaining Gap has a stable
+  diagnostic and no side effects; capability and inspection output expose it;
+  no fallback, downgrade, skip, emulation or legacy engine is counted as support.
 - [ ] Run source/saved-IR/new-ZX, optimized/unoptimized, AOT/native-ZX/interpreter, optional variants, foreign ABI, callbacks, concurrency, assets, libraries, persistence, and malformed-input suites.
 - [ ] Run every retained local test with `make check` and `make check-bootstrap`. Do not substitute filtering, sharding or the retired `make check-full` workflow for the repository's physically pruned suite.
 - [ ] Run sanitizer/fuzz/resource-bound campaigns against new decoders, verifiers, object readers, loaders, and instruction execution. Store minimized cases as Ziran fixtures and fix relevant failures.
@@ -41,7 +44,10 @@ Run every build and compiling test through `build-queue --`; remove `DISPLAY` an
 ## Performance acceptance
 
 - [ ] Define workload-specific regression budgets before measuring. Cover arithmetic, branch-heavy loops, records/arrays, strings, calls, register pressure, SIMD/codec kernels, parallel regions, host crossings, cold compile/startup, warm-cache startup, memory use, and binary size.
-- [ ] Benchmark only on Alpha's physical host directly, never the personal VM or current desktop, preserving the actual host, CPU/OS features, toolchain identities, flags, workload inputs, selected engine, and output correctness. If Alpha is unavailable, leave performance verification pending.
+- [ ] Benchmark only on Alpha's physical host directly, rejecting
+  virtualization and preserving the actual host, CPU/OS features, toolchain
+  identities, flags, workload inputs, selected engine, and output correctness.
+  If Alpha is unavailable, leave performance verification pending.
 - [ ] Compare new-native AOT and native ZX with the prior supported C/TinyCC paths, portable instruction execution, and independent C/Go controls where meaningful. Compare matched semantics, safety checks, and feature levels.
 - [ ] Retain all raw samples and excluded indices. Apply the same symmetric 1.5×IQR rule with inclusive interpolated quartiles to every target/platform comparison.
 - [ ] Investigate regressions using source-linked final disassembly and measured profiles. Fix common lowering/allocation/runtime causes before adding workload-specific instruction cases.
@@ -59,6 +65,6 @@ Run every build and compiling test through `build-queue --`; remove `DISPLAY` an
 
 ## Final exit gate and completion receipt
 
-All ten steps are complete only when the portable instruction format, reference engine, complete required native target matrix, internal encoders/linkers, native ZX runtime, inspection/profiling surfaces, self-hosting, and installation have executed successfully under their required tests. Record exact remaining limitations instead of rounding partial coverage to 100%.
+All ten steps are complete only when the portable instruction format, reference engine, complete required native target matrix, internal encoders/linkers, native ZX runtime, inspection/profiling surfaces, self-hosting, and installation have executed successfully under their required tests. Any Gap, Unknown, fallback, downgrade, skip, emulated substitute, or legacy-engine substitute keeps the corresponding gate open. Record exact remaining limitations instead of rounding partial coverage to 100%.
 
 The final receipt names changed components, local test coverage, benchmark host/results, target execution coverage, installed behavior, and independently confirmed commit/push/release/deployment states. A successful build, commit, or agent handoff alone is not a completion receipt.

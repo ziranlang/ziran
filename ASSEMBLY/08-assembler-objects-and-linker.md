@@ -20,7 +20,7 @@ Proposed modules: `cmd/compiler_encode_x86.zi`, `cmd/compiler_encode_arm.zi`, `c
 - [ ] Define symbolic fixups independently of object format. Resolve local labels, literal pools, branch relaxation, long-branch veneers, alignment, and padding to a stable final layout.
 - [ ] Print assembly directly from the same allocated/finalized instruction records used by the encoder. Annotate function, source origin, bytes, CPU requirements, stack offsets, and generated instructions.
 - [ ] Provide a reader for the emitted textual listing that reconstructs its supported instruction/directive subset. This enables round-trip inspection without requiring text parsing during ordinary compilation. Do not silently imply support for every external assembler dialect.
-- [ ] Keep existing user `#asm` syntax support a separate compatibility task: parse and bind the supported templates and constraints, including labels/directives where allowed; preserve their fallback and diagnostic contract.
+- [ ] Keep existing user `#asm` syntax support a separate compatibility task: parse and bind the supported templates and constraints, including labels/directives where allowed. On the direct assembly target, require a matching declared target/feature implementation and issue a stable diagnostic when absent; do not execute the portable body or invoke another backend.
 - [ ] Write relocatable ELF, COFF, and Mach-O objects for required rows. Include text/data/readonly/BSS/TLS sections, symbols, visibility, alignment, relocations, unwind records, and debug references.
 - [ ] Implement archive reading and symbol extraction, COMDAT/coalescing rules where required, weak symbols, unresolved references, duplicate definitions, section garbage collection, and retained exports/callback roots.
 - [ ] Link supported executable/shared-object forms: ELF program headers and dynamic records, PE imports/exports and relocation tables, and Mach-O load commands/fixups as required by the maintained targets.
@@ -43,7 +43,7 @@ Exercise executable launch, dynamic imports, TLS, callbacks, shared libraries, d
 
 ## Exit gate
 
-Required standalone builds produce runnable binaries using the internal code generator, encoder, object writer, and linker. Listings match the encoded instruction stream; final disassembly accounts for linker-added code. No external-tool fallback is counted as completion of the direct path.
+Required standalone builds produce runnable binaries using the internal code generator, encoder, object writer, and linker. Listings match the encoded instruction stream; final disassembly accounts for linker-added code. No external-tool or alternate-engine fallback exists on the direct path; a missing internal facility is a visible Gap.
 
 ## Handoff
 

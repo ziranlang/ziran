@@ -6,9 +6,11 @@ physical host and atomically writes a Markdown report with absolute medians,
 per-case ratios, regressions, missing cells, raw samples, and audited outlier
 indices.
 
-This is reporting and collection infrastructure, not a benchmark result. The
-full ASSEMBLY implementation is incomplete and the physical-host Alpha campaign
-has not run. Therefore there is no measured ZX speedup to report yet.
+This is the reporting and collection infrastructure for the strict five-core
+before/after campaign, not that final benchmark result. The full ASSEMBLY
+implementation is incomplete and the strict campaign has not run. A separately
+labeled portable-engine comparison has run on physical Alpha; it does not
+measure the missing new-native cell or establish a native ZX speedup.
 
 ## Invocation
 
@@ -274,8 +276,8 @@ not a scalar microbenchmark or a selected best-case ratio. It remains pending
 until the implementation and its local correctness gates are complete.
 
 - Run every actual compilation and measurement directly on Alpha's physical
-  host. Record fresh host/virtualization evidence; do not fall back to this
-  desktop or the personal VM if Alpha is unavailable.
+  host. Record fresh host/virtualization evidence; if Alpha is unavailable,
+  leave the campaign pending instead of substituting another machine.
 - Validate the baseline executable's complete runtime closure, standard
   modules, headers and dependency/toolchain identities before calling it an
   old-version baseline. The saved baseline binaries alone are not evidence
@@ -310,11 +312,18 @@ until the implementation and its local correctness gates are complete.
 
 ## Current limitation and next integration step
 
-`bench/zx_compare.py` and `bench/zx_execution.zi` are older collectors and were
-not changed. `bench/assembly_collect.zi` now supplies the strict collector
-prerequisite for genuinely selectable modes, but cannot complete the five-core
-matrix: both native cells described above remain unavailable. After native-only
-baseline proof and a real new-native ZX integration exist, the same plan format
-can add those jobs. Until then, tests use synthetic validation/statistical
-fixtures only, no Alpha campaign has run, and this document makes no performance
-claim.
+`bench/assembly_collect.zi` supplies the strict collector prerequisite for
+genuinely selectable modes, but cannot complete the five-core matrix: both
+native cells described above remain unavailable. After native-only baseline
+proof and a real new-native ZX integration exist, the same plan format can add
+those jobs.
+
+The older `bench/zx_compare.py` harness has now produced a labeled interim
+portable-engine comparison on physical Alpha; see
+[`bench/zx_compare.md`](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13)
+and the retained raw receipt. It shows 59.81% scalar and 81.14% structured
+improvements over its 2026-11-12 lowered-engine baseline, while remaining
+1.024×/1.079× slower than the old VM. That shell receipt is not the strict
+five-core campaign, does not supply either missing native cell, and cannot close
+this delivery gate. Synthetic fixtures continue to validate this report
+processor independently of those measured interim results.

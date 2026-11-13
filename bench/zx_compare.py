@@ -4,6 +4,7 @@ import sys
 import argparse, hashlib, json, math, os, platform, random, re, shutil, statistics, subprocess, time
 from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
+ALPHA_MACHINE_ID = '56391af3c57a496aba7e9f1f24cce732'
 
 def oracle(seed, rounds, kind):
     def mix(x, i):
@@ -85,9 +86,23 @@ def excluded(values):
     return [i for i, v in enumerate(values) if v < low - spread or v > high + spread]
 
 def host_label():
-    virt = subprocess.run(['systemd-detect-virt'], text=True, capture_output=True).stdout.strip()
-    return ('Alpha physical host' if platform.node() == 'alpha' and virt == 'none' else
-            'Alpha Personal VM' if virt != 'none' else platform.node()), virt
+    machine_id = Path('/etc/machine-id').read_text().strip()
+    namespace_virt = subprocess.run(
+        ['systemd-detect-virt'], text=True, capture_output=True).stdout.strip()
+    host_virt = os.environ.get('HARMONY_ALPHA_HOST_VIRTUALIZATION')
+    if platform.node() != 'alpha':
+        raise RuntimeError('Alpha physical host required: hostname mismatch')
+    if machine_id != ALPHA_MACHINE_ID:
+        raise RuntimeError('Alpha physical host required: machine identity mismatch')
+    if os.environ.get('HARMONY_ALPHA_GIT_SCOPED') != '1':
+        raise RuntimeError('Alpha physical host required: managed scope attestation missing')
+    if os.environ.get('HARMONY_ALPHA_MACHINE_ID') != ALPHA_MACHINE_ID:
+        raise RuntimeError('Alpha physical host required: helper identity attestation missing')
+    if host_virt != 'none':
+        raise RuntimeError('Alpha physical host required: outer host is virtualized or unattested')
+    if namespace_virt not in ('none', 'container-other'):
+        raise RuntimeError('Unexpected benchmark execution namespace: '+namespace_virt)
+    return 'Alpha physical host', host_virt, namespace_virt, machine_id
 
 def measure(a):
     out=a.out.resolve(); meta=json.loads((out/'prepare.json').read_text())
@@ -99,8 +114,9 @@ def measure(a):
     def observe():
         if a.device: return re.sub(r'(?m)^Serial.*$', '', shell('dumpsys battery; cat /proc/cpuinfo'))
         return {'platform':platform.platform(),'cpu':Path('/proc/cpuinfo').read_text()[:3000],'load':os.getloadavg()}
-    label, virtualization = host_label()
-    receipt={'schema':1,'prepared':meta,'target':'USB Moto' if a.device else label,'virtualization':None if a.device else virtualization,
+    label, virtualization, namespace_virt, machine_id = host_label()
+    receipt={'schema':1,'prepared':meta,'target':'USB Moto' if a.device else label,'virtualization':virtualization,
+        'execution_namespace_virtualization':namespace_virt,'physical_machine_id':machine_id,
         'started_utc':time.strftime('%Y-%m-%dT%H:%M:%SZ',time.gmtime()),'before':observe(),
         'samples':[],'unavailable':[],'complete':False}
     if a.device:

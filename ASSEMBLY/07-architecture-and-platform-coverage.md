@@ -41,13 +41,20 @@ For every required CPU/OS/ABI row, record:
 | Same portable `.zx` bytes | Successful supported execution across applicable hosts |
 | Native AOT | Real executable launch, correct ABI interactions, expected results |
 | Native ZX or documented interpreter-only host | Correct loader/capability/state behavior |
-| CPU features enabled and masked | Correct dispatch and portable fallback |
+| CPU features enabled and masked | Correct declared-variant dispatch; stable preflight error when no implementation matches |
 | Debug/unwind/profile data | Correct function and source attribution |
 | Negative target cases | Clear diagnostics before invalid execution |
 
 Run semantic tests under emulation when useful and on real hardware where ABI, OS integration, or CPU feature behavior requires it. Test phones on the owner-authorized USB Moto; preserve Wireless Debugging. GUI tests use private displays and only their own processes.
 
-Benchmarks run on Alpha's physical host only, never the personal VM or current desktop. Emulated correctness results are not native performance measurements. If a required host is unavailable, retain its matrix cells as incomplete rather than reporting 100% coverage.
+Emulation, cross-compilation, a lower-feature implementation, or another engine
+does not close the selected target/feature cell. Missing target hardware leaves
+the cell Unknown; missing implementation leaves it Gap.
+
+Benchmarks run directly on Alpha's physical host only; the runner rejects
+virtualization. Emulated correctness results are not native performance
+measurements. If a required host is unavailable, retain its matrix cells as
+incomplete rather than reporting 100% coverage.
 
 ## Exit gate
 

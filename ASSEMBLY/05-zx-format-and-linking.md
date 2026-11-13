@@ -26,10 +26,13 @@ Proposed modules: `cmd/compiler_exec_serial.zi`, `cmd/compiler_exec_link.zi`, an
 - [ ] Recompute capability requirements from verified reachable instructions. Cross-check declared tables, library bindings, and host signatures rather than trusting producer-supplied manifests.
 - [ ] Keep law evidence honest. Either revalidate attached proof material against an adequate non-executable witness or report producer evidence as unverified metadata. A checksum, previous checker flag, or matching law table is not a proof of lowering correctness.
 - [ ] Verify the executable itself independently of any optional proof/source section. Certificates for removed bounds checks or other privileged assumptions must be checkable by the consumer; otherwise retain the checks.
-- [ ] Define native variant records with target CPU, OS/ABI where relevant, required feature masks, common signature, portable fallback, and selection precedence.
+- [ ] Define native variant records with target CPU, OS/ABI where relevant, required feature masks, common signature, and deterministic selection precedence. If no declared implementation matches the selected target/CPU contract, reject before execution; do not run portable code as a native fallback.
 - [ ] Keep generic executable code mandatory for portable bundles. Store native variants as verifiable target-operation/template metadata, not automatically trusted arbitrary machine-code blobs.
 - [ ] Validate variant operands, effects, register clobbers, and boundaries before code generation. Keep feature detection baseline-safe and check OS-enabled register state where required.
 - [ ] Define explicit target-only artifacts separately when a producer intentionally requires an architecture. The CLI must report that reduced portability and reject unsupported hosts before executing code.
+- [ ] Encode the stable Gap identifiers needed for target preflight and inspection.
+  Unknown required target features reject; they do not select another executable
+  section, format revision, or engine.
 - [ ] Reject old incompatible bundles with an actionable rebuild diagnostic. Keep legacy-format rejection tests; do not maintain two executable formats indefinitely.
 - [ ] Include every executable and variant section in cache/content identity while keeping optional debug-only changes from unnecessarily invalidating machine code where a correct split is possible.
 

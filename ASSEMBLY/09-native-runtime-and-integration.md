@@ -4,7 +4,10 @@ Status: planned. Depends on [steps 04](04-portable-instruction-engine.md)–[08]
 
 ## Objective
 
-Run `.zx` through the shared native backend where supported and through the new instruction interpreter elsewhere. Integrate source builds, packages, libraries, hosts, cache, and embedding APIs without relying on C/TinyCC for new-native code generation.
+Run `.zx` through the explicitly selected shared native backend or explicitly
+selected new instruction interpreter. Integrate source builds, packages,
+libraries, hosts, cache, and embedding APIs without relying on C/TinyCC for
+new-native code generation and without switching engines after a gap is found.
 
 ## Existing integration points
 
@@ -24,10 +27,13 @@ Proposed modules: `cmd/compiler_native_load.zi`, `cmd/compiler_native_cache.zi`,
 - [ ] Preserve concurrent compilation, concurrent instantiation, nested calls, independent globals, reentrant host capabilities, cancellation, failures, and lifecycle retirement. Cache cleanup must not unload code still referenced by a live instance.
 - [ ] Implement typed host trampolines using the shared ABI layer. Preserve aggregate/string/slice/function signatures, checked host returns, error propagation, and callback roots.
 - [ ] Preserve execution budgets, stack checks, source-aware traps, parallel workers, persistent state, migration, snapshots, and module/library initialization across native and interpreted modes.
-- [ ] Preserve the documented engine-selection contract. An explicit native request must fail clearly if unsupported; any automatic interpreter selection must be a documented policy visible in diagnostics and profiles.
+- [ ] Make the engine-selection contract explicit. A native request fails
+  clearly if unsupported and never starts the interpreter. A portable request
+  never executes native code. A command may have one documented default, but
+  preflight failure never changes that selection.
 - [ ] Add direct-native build/run targets to the package driver and target capability reports. Keep existing C/Go/wasm commands and legitimate target-specific bindings usable.
 - [ ] Integrate package dependency recipes, native artifact caching, sysroots, host providers, assets, executable entries, libraries, install paths, and incremental rebuild dependencies.
-- [ ] Replace the browser's generated-C bundle compilation path with direct wasm output from the same portable IR; retain interpreter execution where required by browser/runtime policy.
+- [ ] Replace the browser's generated-C bundle compilation path with direct wasm output from the same portable IR. Interpreter execution remains an explicit separate mode where browser/runtime policy permits it, never a direct-Wasm fallback.
 - [ ] Build runtime helpers through the new backend and verify self-hosting of the new compiler modules. Retain the established bootstrap mechanism; regeneration must be deterministic and locally checked.
 - [ ] Remove TinyCC and generated-C dependencies from the new native ZX path after their replacement tests pass. Remove build/library dependencies only when no other maintained consumer needs them.
 - [ ] Reconcile embedding API changes deliberately. Preserve semantic contracts, update callers through their owning projects, and reject retired entry points where repository policy requires a clean cutover.
@@ -43,7 +49,7 @@ Use the full native local stack. All builds go through `build-queue --`; tests r
 
 ## Exit gate
 
-The new-native standalone and ZX paths share code generation and encoding, all required hosts/packages work, cold/warm execution is correct, and current-tree installation is verified. No hidden AST/C/TinyCC fallback remains on a path advertised as the new native engine. Required downstream integration gaps remain incomplete until executed and verified.
+The new-native standalone and ZX paths share code generation and encoding, all required hosts/packages work, cold/warm execution is correct, and current-tree installation is verified. No AST/C/TinyCC/interpreter fallback remains on a path advertised as the new native engine. Every required downstream gap has a stable error and remains incomplete until implemented and executed.
 
 ## Handoff
 

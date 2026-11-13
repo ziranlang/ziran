@@ -2,6 +2,11 @@
 
 Status: in progress. The experimental [scalar prototype](README.md) does not close this step's completion gates. Delivery order, plan review and per-row cutover rules are in [milestones](milestones.md); capturing the Alpha physical-host baseline of the old engines is milestone M0, before any old path is replaced.
 
+The [assembly-target gap policy](gap-policy.md) is normative. A missing
+implementation is a named failing matrix cell with a stable diagnostic; no
+fallback, downgrade, skipped probe, emulated run, or legacy engine can satisfy
+that cell.
+
 ## Objective
 
 Upgrade `.zx` into a portable executable instruction format and add a direct native compilation path. Preserve `.zir` as the checked language interchange format. Make every transformation inspectable, including the final linked instructions. QBE is outside this plan.
@@ -60,6 +65,11 @@ Assembly listings are views of the instruction stream used for encoding, not a r
 - [ ] State that validated native code is not an operating-system sandbox. Keep malformed-input rejection, capability restrictions, and native process isolation claims distinct.
 - [ ] Define debug and release policies. Semantic checks remain correct in both; stripping inspection metadata is an explicit build choice.
 - [ ] Record that cross-compilation, successful encoding, a child-agent receipt, or a saved benchmark report does not establish target execution correctness.
+- [ ] Assign every non-Implemented matrix cell a stable Gap diagnostic or a
+  deliberate Excluded contract. Verify rejection before output replacement,
+  initialization, host calls or entry execution.
+- [ ] Make engine and target selection explicit. Portable, native, Wasm, C and
+  Go are separate contracts; none may rescue another after preflight fails.
 
 ## Proposed implementation ownership
 
@@ -67,7 +77,14 @@ Implement reusable compiler/runtime modules in Ziran under `cmd/`, following the
 
 ## Definition of 100% complete
 
-Every required matrix cell has fresh execution evidence; no required cell is silently skipped. Both source and saved `.zir` reach the same lowered semantics. `.zx` runs without reparsing semantic statement text or requiring embedded executable `.zir`. Native AOT and native ZX execution use the same code generator without generated C, TinyCC, an external assembler, or an external linker on the promised direct path. External OS libraries remain allowed dependencies.
+Every required matrix cell has fresh execution evidence; no required cell is
+silently skipped or satisfied by a fallback. Every remaining gap has its stable,
+side-effect-free error and stays visibly incomplete. Both source and saved
+`.zir` reach the same lowered semantics. `.zx` runs without reparsing semantic
+statement text or requiring embedded executable `.zir`. Native AOT and native
+ZX execution use the same code generator without generated C, TinyCC, an
+external assembler, or an external linker on the promised direct path. External
+OS libraries remain allowed dependencies.
 
 All ten exit gates must pass. A smaller scalar prototype is a milestone, never the finished upgrade. There is no promise of universally optimal machine code: performance acceptance uses declared workloads and measured regressions, not the phrase “absolute performance.” Missing hardware, signing facilities, or tools remain named incomplete gates.
 

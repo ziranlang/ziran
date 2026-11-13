@@ -9,6 +9,9 @@ ZX paths are unchanged. `zi2asm --emit zx` also writes an opt-in
 [revision-28 executable container](zx-executable-format.md), but the default
 `.zx` selection has **not** been replaced by the new instruction format.
 Delivery order and the plan review are in [milestones](milestones.md).
+The [gap policy](gap-policy.md) is normative: unsupported direct-target work
+fails with a stable diagnostic and remains visible in the completion matrix;
+portable, legacy and alternate backends are never fallback success paths.
 
 The prototype's actual path is:
 
@@ -227,20 +230,24 @@ encoding and inspection data, without claiming target execution.
 ## Still required
 
 No full-plan completion gate is closed by this prototype. Outstanding work
-includes complete language lowering (full global initialization, pointers, dynamic aggregates,
-strings, cleanup, heap allocation, collection loops, foreign/host services and concurrency), the
-complete portable runtime, host capabilities and library composition in the
-new ZX container, optimization, register allocation and machine-IR encoding, relocatable objects and a real linker,
-other architectures and OS ABIs, shared native-ZX execution, runtime integration,
-source/unwind debug information, profiler/JIT mapping and the final compatibility cutover.
+includes remaining global/runtime initialization, local aggregate and
+procedure-value address-taking, dynamic/heap aggregates, remaining string
+operations, cleanup, heap allocation, collection loops, foreign services and
+concurrency; complete portable-runtime lifecycle and library composition in the
+new ZX container; register allocation and machine-IR encoding; relocatable
+objects and a real linker; other architectures and OS ABIs; shared native-ZX
+execution and host ABI integration; source/unwind debug information,
+profiler/JIT mapping and the final compatibility cutover.
 
 Unsupported constructs fail explicitly; there is no silent fallback to C or
 TinyCC inside `zi2asm`. Mixed signedness comparisons currently require explicit
 casts. The bounded `.lirb` decoder validates the current instruction schema;
 it is not the future ZX container verifier, linker or capability boundary.
-No Alpha benchmark campaign, cross-platform execution validation or
-installed-tool verification is claimed. A committed prototype milestone does
-not close the full upgrade's feature or validation gates.
+The labeled physical-Alpha portable-engine follow-up is documented in
+[the benchmark report](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
+It is not the strict full benchmark campaign, cross-platform execution
+validation or installed-tool verification. An interim portable result does not
+close the full upgrade's feature or validation gates.
 
 ## Implementation and local tests
 
@@ -277,7 +284,7 @@ SH
 ```
 
 These are local tests, not GitHub CI results. Benchmarks must run directly on
-Alpha's physical host, never the personal VM or current desktop. The final
+Alpha's physical host, with virtualization rejected. The final
 report must include matched before/after ZX startup, throughput, memory and
 artifact sizes, raw samples, excluded samples and any regressions; no speedup
 is claimed until those measurements exist. The report processor keeps absolute

@@ -2,6 +2,10 @@
 
 Status: in progress; [typed scalar/aggregate schema and verifier](README.md), including checked global-derived pointers and procedure values. Complete memory, capability and language coverage remain pending. Depends on [step 01](01-contract-and-completion-matrix.md). Next: [complete language lowering](03-language-lowering.md).
 
+The schema carries the [gap policy](gap-policy.md) through target preflight:
+unsupported required operations and target extensions have stable identifiers
+and cannot be rewritten as calls into another engine or backend.
+
 ## Objective
 
 Create a structured, serializable representation of executable operations below `.zir`. It must support efficient interpretation and native lowering while retaining useful optimization and debugging facts. Do not make portable instructions expose physical registers, host addresses, or a particular calling convention.
@@ -22,7 +26,10 @@ Proposed new modules: `cmd/compiler_lowered_ir.zi`, `cmd/compiler_lowered_verify
 - [ ] Use SSA values and block parameters for register-like values. Represent mutable/address-taken storage through explicit memory operations. Specify block-parameter semantics so interpreter and native phi elimination agree.
 - [ ] Define integer widths and signed operations explicitly. Specify narrowing, sign/zero extension, overflow, shift counts, division edge cases, comparison, and conversion behavior from current Ziran semantics.
 - [ ] Define float32/float64 operations, bitcasts, NaN-sensitive comparisons, signed zero, conversions, and rounding assumptions. Do not introduce implicit fast-math permissions.
-- [ ] Represent pointers, functions, strings, slices, arrays, records, unions where native-supported, and vector values without assuming a fixed host pointer width. Distinguish code references, data references, and capability references.
+- [ ] Extend the existing checked global/frame pointers, procedure values and
+  immutable string byte/count representation to heap-derived pointers, slices,
+  unions, vectors and the remaining string operations without assuming a fixed
+  host pointer width. Keep code, data and capability references distinct.
 - [ ] Separate portable logical type identity from target physical layout. Keep field/element access and layout queries symbolic until target layout is known; explicitly mark native-layout-dependent declarations and required host ABI descriptors.
 - [ ] Define loads, stores, copies, zeroing, address calculations, calls, branches, returns, traps, and unreachable terminators. Specify alignment, access width, alias assumptions, and permitted overlap for each memory operation.
 - [ ] Preserve effect order with an explicit effect dependency or another equally checkable ordering contract. Calls, stores, cleanup, volatile/atomic operations, and fuel checkpoints must not move unsafely.
@@ -34,6 +41,9 @@ Proposed new modules: `cmd/compiler_lowered_ir.zi`, `cmd/compiler_lowered_verify
 - [ ] Implement memory/effect and layout validation. Reject invalid offsets, contradictory alignments, malformed constant data, impossible call conventions, and illegal native-only operations in portable code.
 - [ ] Bound decoder allocation and graph work by checked input sizes and explicit resource budgets. Use iterative algorithms where attacker-controlled depth could exhaust the compiler stack.
 - [ ] Provide recoverable structured diagnostics with function, block, instruction, and source context. Library errors must not abort the host process or leak partially built programs.
+- [ ] Represent required target features and Gap identifiers explicitly. The
+  verifier rejects an operation outside the selected target contract; it never
+  erases it, serializes it as a no-op, or substitutes a portable/native helper.
 
 ## Tests
 
@@ -48,7 +58,7 @@ Run builds and local tests through `build-queue --` with `DISPLAY` and `WAYLAND_
 
 ## Exit gate
 
-All defined instruction forms have documented semantics and verifier coverage. A malformed program cannot become executable merely because it has a “checked” flag. No new saved format relies on C struct padding or process pointers. The schema, verifier, and printer are usable independently of a specific CPU backend.
+All defined instruction forms have documented semantics and verifier coverage. A malformed program cannot become executable merely because it has a “checked” flag. Every unresolved required operation remains a visible Gap with a stable diagnostic. No new saved format relies on C struct padding or process pointers. The schema, verifier, and printer are usable independently of a specific CPU backend.
 
 ## Handoff
 

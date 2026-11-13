@@ -16,6 +16,8 @@ What the plan gets right:
   not a write-and-reparse stage.
 - Every boundary is verified and bounded; unsupported constructs fail
   explicitly instead of silently falling back to C or TinyCC.
+- The [gap policy](gap-policy.md) makes missing work observable: a gap has a
+  stable error and an open matrix cell, never a substituted engine.
 - Measurement rules (Alpha physical host, raw samples, symmetric 1.5×IQR) are
   strict enough to make the final comparison trustworthy.
 
@@ -27,10 +29,9 @@ What needed to change:
    measurable would reach the owner until all of that existed. The milestones
    below deliver labeled interim comparisons on the first platform row.
 2. **The baseline came last.** Step 10 says to preserve the old engines'
-   "before" measurement before replacing them, but scheduled it at the end. The
-   existing `bench/results/zx-compare-alpha-embedded.json` was measured inside
-   Alpha's personal KVM guest, which the 2026-11-11 benchmark rule excludes, so
-   no valid "before" exists today. Capturing it is now milestone M0.
+   "before" measurement before replacing them, but scheduled it at the end.
+   The plan now requires a direct physical-host baseline at milestone M0 and
+   rejects virtualized receipts.
 3. **Breadth without a target workload.** Lowering grew construct by construct,
    while the actual comparison workload, [`bench/zx_compare.zi`](../bench/zx_compare.zi),
    still cannot lower: it needs `#foreign host_api` calls and string values.
@@ -64,8 +65,15 @@ itself moves to Ziran.
 - A new language feature lands in LIR, the verifier, the codec and the portable
   engine first. Native support follows on the machine-IR path.
 - Each row of the platform matrix is cut over separately. A row switches its
-  default to the new format only after its own gate passes; other rows keep the
-  old engine until then. There is never a silent fallback between formats.
+  default to the new format only after its own gate passes. Before that switch,
+  the direct target is a named Gap and fails; an explicitly selected legacy
+  command remains a comparison tool, never a fallback.
+- Portable, native, Wasm, C and Go execution are separate targets. A request for
+  one never routes to another. Missing CPU features, host services, `#asm`
+  variants, parallel/GPU support, object formats or loaders are preflight errors.
+- Every Gap has the stable diagnostic and side-effect-free negative fixture
+  required by the [gap policy](gap-policy.md). A fallback, downgrade, skip,
+  emulated run or legacy-engine result cannot close a milestone.
 - Interim measurements follow every rule in step 10, are labeled *interim*,
   and never replace the final full comparison.
 - Hostile-input hardening is mandatory at trust boundaries (`.lirb`/`.zx`
@@ -77,9 +85,9 @@ itself moves to Ziran.
 | Milestone | Scope | Exit evidence |
 | --- | --- | --- |
 | **M0** Integrate and baseline | Land the in-flight slices behind one passing local `make check` and `make check-bootstrap`. On Alpha's physical host, measure the old portable VM and old TinyCC native ZX with the M1 workloads, hashing and preserving the exact old binaries. | Green local suites; baseline receipt with raw samples under `bench/results/`. |
-| **M1** Workload-complete portable path | Typed host capability calls (`s64 -> s64` first, then scalar/string/record signatures), in-bundle `--bind` providers, immutable strings (literal, copy, `.count`, checked index), runtime global initializers. The revision-28 container lists capabilities recomputed from reachable `HostCall` instructions. Add a C embedding API for the new engine (open, list capabilities, bind, run with fuel) that the existing comparison harness can drive. | Corpus-coverage report shows every benchmark workload lowering; source, saved IR and new ZX agree with the oracle; **interim comparison 1**: new portable engine vs old VM. |
+| **M1** Workload-complete portable path | Typed host capability calls (`s64 -> s64` first, then scalar/string/record signatures), in-bundle `--bind` providers, immutable strings (literal, copy, `.count`, checked index), runtime global initializers. The revision-28 container lists capabilities recomputed from reachable `HostCall` instructions. Add a C embedding API for the new engine (open, list capabilities, bind, run with fuel) that the existing comparison harness can drive. Unsupported operations are Gap diagnostics, not calls into the old VM. | Corpus-coverage report shows every benchmark workload lowering; source, saved IR and new ZX agree with the oracle; negative fixtures account for every remaining Gap; **interim comparison 1**: explicitly selected new portable engine vs explicitly selected old VM. |
 | **M2** Register-allocated x86-64 | Liveness, linear-scan allocation with splitting and spilling, a post-allocation verifier, and machine-IR-to-x86-64 encoding that reuses the existing byte encoders. Fuel at loop back-edges and calls. Constant-time token dispatch. | Every x86-64 fixture passes on the machine-IR path; the direct LIR encoder is removed. |
-| **M3** Native ZX on Linux x86-64 (first cutover row) | In-memory loading with W^X pages, relocation of the same encoder output, host trampolines, stack and fuel checks, and a content/CPU/backend-keyed cache. `ziran run app.zx` selects revision 28 on linux-x86_64, and revisions 26/27 get the rebuild diagnostic there. | Full local suite on the new default for that row; installed tool verified; **interim comparison 2**: new native ZX vs TinyCC native ZX, plus AOT and C controls. |
+| **M3** Native ZX on Linux x86-64 (first cutover row) | In-memory loading with W^X pages, relocation of the same encoder output, host trampolines, stack and fuel checks, and a content/CPU/backend-keyed cache. `ziran run app.zx` selects revision 28 on linux-x86_64; unsupported native features fail preflight without starting the portable engine, and revisions 26/27 get the rebuild diagnostic. | Full local suite on the new default for that row, including no-fallback negative fixtures; installed tool verified; **interim comparison 2**: explicitly selected new native ZX vs explicitly selected TinyCC native ZX, plus AOT and C controls. |
 | **M4** ARM rows and direct wasm | AArch64 and ARMv7 (USB Moto) machine targets, and direct wasm lowering from LIR. Each row is cut over separately. | Per-row execution evidence; Moto comparison on the device. |
 | **M5** Objects, linker and foreign libraries | Relocatable ELF/COFF/Mach-O, archive reading, external C ABI and foreign libraries, Windows/macOS ABIs and required signing. | Step 07/08 rows with real launches. |
 | **M6** Inspection closure and final cutover | Unwind/debug/profiler mapping, removal of the TinyCC/generated-C ZX path, and the owner's **full before/after ZX comparison**. | The step-10 completion receipt. |
@@ -88,9 +96,23 @@ itself moves to Ziran.
 
 M0 integration is in progress. The revision-28 container, frame-local
 `Allocate`, local scalar address-taking and the pre-allocation machine-IR
-boundary are implemented with focused local tests. The full local suite passes
-except for the site-page checks owned by the separate website-layout task. The
-Alpha baseline has not been captured yet. In M1, scalar host capability calls
-and string values now work on the portable path, and `bench/zx_compare.zi`
-lowers to a revision-28 container. Its remaining M1 gap is an embedding runner
-that binds the workload's `Input` capability for measurement.
+boundary are implemented. On the final synchronized physical-Alpha cohort, the
+four required focused executor scripts and `make check-bootstrap` passed. The
+full `make check CHECK_JOBS=2` result was 275/276: its only failure was the
+unrelated stale generated site-page check for `guide/usage.html`,
+`guide/packages.html` and `guide/language-direction.html`. The earlier 274-check
+result remains historical, not the current full-suite claim. M0's Alpha
+physical-host baseline and M1's interim comparisons exist; see the
+[baseline](../bench/zx_compare.md#interim-comparison-1-new-portable-engine-2026-11-12)
+and [final pointer-dispatch cohort](../bench/zx_compare.md#final-pointer-dispatch-cohort-2026-11-13).
+
+`bench/zx_compare.zi` runs through scalar host capabilities and strings on the
+new portable engine with oracle-correct results. Word-backed scalar slots,
+cached plan facts and frame bases, flattened immutable instructions,
+pointer-based instruction/edge dispatch, proven-safe direct edge copies and
+dead-source aggregate `Insert` aliasing reduced the lowered scalar median from
+5.820 to 2.339 ms (59.81%) and structured median from 46.52 to 8.773 ms
+(81.14%). Focused tests cover optimized and still-live aggregate cases and
+non-coalescible loop inputs. In this receipt the new engine is 1.024× slower
+than the old VM on scalar and 1.079× slower on structured work. The remaining
+native speedup requires M2/M3 register allocation, encoding and integration.

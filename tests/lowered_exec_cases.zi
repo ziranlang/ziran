@@ -144,6 +144,19 @@ Flow :: () -> bool {
         .values = values[:], .blocks = blocks[:], .origin = -1}]
     program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
         .constants = constants[:], .functions = functions[:], .entry = 0}
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        plan.value_words[10] != plan.value_words[3] ||
+        plan.value_words[3] == plan.value_words[0] ||
+        plan.value_words[3] == plan.value_words[4] ||
+        plan.block_edge_bases.count != 3 || plan.edge_direct.count != 3 ||
+        plan.block_instruction_bases.count != 3 || plan.instructions.count != 10 ||
+        plan.block_instruction_bases[0] != 0 ||
+        plan.block_instruction_bases[1] != 4 || plan.block_instruction_bases[2] != 9 ||
+        plan.edge_direct[plan.block_edge_bases[0]] == 0 ||
+        plan.edge_direct[plan.block_edge_bases[1]] != 0 ||
+        plan.edge_direct[plan.block_edge_bases[1] + 1] == 0 { return false }
     result := Execute(program)
     return result.problem == .None && result.value.bits == 2
 }
@@ -194,23 +207,27 @@ ArraysAndInsert :: () -> bool {
     members: [3]s32 = .[0, 1, 2]
     inserted: [2]s32 = .[3, 4]
     array: [1]s32 = .[5]
+    original: [1]s32 = .[3]
     add_first: [2]s32 = .[6, 7]
     add_last: [2]s32 = .[8, 9]
     returned: [1]s32 = .[10]
-    values: [11]s32 = .[4, 4, 4, 11, 4, 11, 4, 4, 4, 4, 4]
-    instructions: [12]LirInstruction
+    values: [12]s32 = .[4, 4, 4, 11, 4, 11, 4, 4, 4, 4, 4, 4]
+    instructions: [13]LirInstruction
     instructions[0] = Instruction(.Constant, 0, empty[:], 0)
     instructions[1] = Instruction(.Constant, 1, empty[:], 1)
     instructions[2] = Instruction(.Constant, 2, empty[:], 2)
     instructions[3] = Instruction(.Aggregate, 3, members[:])
     instructions[4] = Instruction(.Constant, 4, empty[:], 3)
-    instructions[5] = Instruction(.Insert, 5, inserted[:]); instructions[5].immediate = 1
-    instructions[6] = Instruction(.Extract, 6, array[:])
-    instructions[7] = Instruction(.Extract, 7, array[:]); instructions[7].immediate = 1
-    instructions[8] = Instruction(.Add, 8, add_first[:])
-    instructions[9] = Instruction(.Extract, 9, array[:]); instructions[9].immediate = 2
-    instructions[10] = Instruction(.Add, 10, add_last[:])
-    instructions[11] = Instruction(.Return, -1, returned[:])
+    // The unused Extract still executes and may trap, but the bytes it reads
+    // do not keep the old aggregate version live across the following Insert.
+    instructions[5] = Instruction(.Extract, 11, original[:])
+    instructions[6] = Instruction(.Insert, 5, inserted[:]); instructions[6].immediate = 1
+    instructions[7] = Instruction(.Extract, 6, array[:])
+    instructions[8] = Instruction(.Extract, 7, array[:]); instructions[8].immediate = 1
+    instructions[9] = Instruction(.Add, 8, add_first[:])
+    instructions[10] = Instruction(.Extract, 9, array[:]); instructions[10].immediate = 2
+    instructions[11] = Instruction(.Add, 10, add_last[:])
+    instructions[12] = Instruction(.Return, -1, returned[:])
     blocks: [1]LirBlock = .[.{.instructions = instructions[:]}]
     modules: [1]string = .["array"]
     functions: [1]LirFunction = .[.{.module = 0, .name = "array", .result = 4,
@@ -218,7 +235,22 @@ ArraysAndInsert :: () -> bool {
     program := LirProgram.{.version = LirVersion, .modules = modules[:], .types = types[:],
         .constants = constants[:], .functions = functions[:], .entry = 0}
     result := Execute(program)
-    return result.problem == .None && result.value.bits == 42
+    if result.problem != .None || result.value.bits != 42 { return false }
+
+    // Scalars use word slots. The dead aggregate consumed by Insert may reuse
+    // its byte slot, but a still-live aggregate must retain independent bytes.
+    plan: LirExecPlan
+    defer LirExecPlanFree(*plan)
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        plan.functions[0].word_count != 10 || plan.functions[0].frame_bytes != 12 ||
+        plan.value_words[0] != 0 || plan.value_words[3] != -1 ||
+        plan.value_offsets[3] != plan.value_offsets[5] { return false }
+    LirExecPlanFree(*plan)
+    instructions[7].operands = original[:]
+    if LirExecPlanBuild(program, LirDefaultLimits(), *plan).problem != .None ||
+        plan.functions[0].word_count != 10 || plan.functions[0].frame_bytes != 24 ||
+        plan.value_offsets[3] == plan.value_offsets[5] { return false }
+    return true
 }
 
 DynamicArrayValues :: () -> bool {

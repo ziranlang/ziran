@@ -2,6 +2,10 @@
 
 Status: in progress; [scalar, record, fixed-array, procedure-value and restricted global/pointer lowering](README.md). Complete language coverage remains pending. Depends on [step 02](02-lowered-ir-and-verifier.md). Next: [portable instruction execution](04-portable-instruction-engine.md).
 
+Missing lowering follows the [gap policy](gap-policy.md): it is a stable,
+source-located compiler error and an open matrix cell, never a request to
+evaluate the AST, generate C, invoke TinyCC, or select another engine.
+
 ## Objective
 
 Translate checked `.zir` into the new portable executable model without recovering program meaning from statement text. Cover the full matrix from step 01; use a small arithmetic subset only to establish the lowering framework.
@@ -22,15 +26,20 @@ Proposed modules: `cmd/compiler_lower.zi`, `cmd/compiler_lower_expr.zi`, `cmd/co
 - [ ] Lower expressions in the language's evaluation order. Named arguments evaluate in source order, then map to parameter positions; do not accidentally inherit machine ABI order.
 - [ ] Lower short-circuit logic, conditional expressions, branches, every supported loop form, and named break/continue into explicit blocks and edges.
 - [ ] Lower returns through a shared, checkable cleanup mechanism. Preserve `defer`, owned-vector/text destruction, moves, temporary lifetime, early exits, and unwind behavior wherever the target contract supports it.
-- [ ] Lower mutable locals, address-taken variables, pointers, nested field paths, slices, strings, arrays, records, result records, constants, and enum storage. Preserve zero initialization and aggregate copy behavior.
+- [ ] Extend the implemented mutable scalar locals, checked global/frame
+  pointers, nested record/fixed-array paths, immutable string literals/copies,
+  result records and aggregate copies to local aggregate/procedure-value
+  address-taking, heap-derived pointers, slices, dynamic aggregates, remaining
+  string operations and enum storage. Preserve zero initialization and copy
+  behavior.
 - [ ] Make alias-sensitive assignments and in-place aggregate results correct when a later argument mutates the destination or a global aliases an argument. Optimizations must not change old-value reads.
 - [ ] Emit explicit bounds/trap operations before optimization. Carry enough range and effect information for later verified check elimination; do not copy C-only proof shortcuts without their preconditions.
 - [ ] Lower direct/indirect calls, procedure values, callbacks, foreign C calls, varargs, startup functions, and function-address equality. Record ABI intent without assigning physical argument registers yet.
 - [ ] Represent language/runtime helpers through typed symbols with defined semantics. Implement helpers in Ziran where possible; inventory every remaining dependence on generated C macros, headers, or compiler intrinsics.
 - [ ] Lower portable SIMD to explicit lane types and operations. Preserve saturation, wrapping, masks, lane order, shuffles, and signedness; keep native vector width selection for target lowering.
 - [ ] Lower parallel regions into ordinary outlined procedures plus typed runtime operations. Preserve captures, reductions/results, deterministic failure behavior, and synchronization boundaries.
-- [ ] Treat GPU offload and OS services as explicit declared backend/runtime capabilities. Implement existing behavior where supported and report genuine missing facilities without introducing application-specific compiler rules.
-- [ ] Preserve `#asm` portable bodies and typed variant bindings separately. Native templates are optimization metadata with explicit operands, effects, clobbers, architecture, and CPU requirements; they cannot become portable opcode semantics.
+- [ ] Treat GPU offload and OS services as explicit declared backend/runtime capabilities. Implement existing behavior where supported and reject genuine missing facilities before execution without introducing application-specific compiler rules or CPU fallbacks.
+- [ ] Preserve `#asm` portable implementations and typed native variant bindings as separate target implementations. A portable build lowers the portable implementation; a direct native build requires a matching architecture/feature variant and rejects its absence. Native templates have explicit operands, effects, clobbers, architecture, and CPU requirements; they cannot become portable opcode semantics.
 - [ ] Reject reachable foreign Go objects, Go maps/interfaces, reflection-only tags, or runtime operations in targets that cannot implement them. Retain the Go backend and its existing valid programs.
 - [ ] Carry global initialization order, reachability roots, callback roots, exported ABI layouts, diagnostic spans, and law/proof provenance into the lowered program.
 - [ ] Feed the result through the step-02 verifier unconditionally and make lowering failures recoverable through the compiler API.
@@ -43,7 +52,7 @@ For each matrix feature, compile from `.zi` and saved `.zir`; compare verified l
 
 ## Exit gate
 
-Every supported source construct has an explicit lowering, a justified target-specific rejection, or a named incomplete matrix cell. No placeholder operation invokes an AST evaluator, generated C fragment, or source-text interpreter. All required cells must be implemented before step 10 can declare completion.
+Every supported source construct has an explicit lowering, a deliberate Excluded contract, or a named Gap with a stable diagnostic. No placeholder operation invokes an AST evaluator, generated C fragment, source-text interpreter, portable body, or alternate backend. All required cells must be implemented before step 10 can declare completion.
 
 ## Handoff
 

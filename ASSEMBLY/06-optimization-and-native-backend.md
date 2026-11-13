@@ -29,7 +29,7 @@ Proposed modules: `cmd/compiler_opt.zi`, `cmd/compiler_machine_ir.zi`, `cmd/comp
 - [ ] Generate prologues/epilogues, frame layout, unwind information, stack/resource checks, and target-correct returns. Keep source/inline locations through all inserted instructions.
 - [ ] Implement baseline scalar integer/float instruction selection first, then every required SIMD lane operation and supported CPU variant. Preserve a runnable baseline when optional features are unavailable.
 - [ ] Integrate typed native assembly operands and clobbers with allocation. Implement the supported GNU template/constraint surface or issue explicit unsupported-form diagnostics; never drop a selected assembly block silently.
-- [ ] Give portable fallback and native variants identical external semantics. Validate result/operand layouts; do not assume that an annotated template is proved equivalent merely because its body is checked.
+- [ ] Give separately selected portable and native implementations identical external semantics. Validate result/operand layouts; do not assume that an annotated template is proved equivalent merely because another body is checked. A missing native variant is a Gap error, not permission to execute the portable implementation.
 - [ ] Implement runtime calls and parallel-region helpers through the same typed ABI machinery, with stable entry points for the native engine.
 
 ## Tests
@@ -38,7 +38,10 @@ Add independent native-backend fixtures for register pressure, spills across cal
 
 Compare optimized/unoptimized new-native output with the portable instruction engine and existing C execution. Use external handwritten C/assembly ABI fixtures as independent callers/callees where practical. Inspect actual encoded instructions after step 08; text snapshots alone cannot validate encoding or execution.
 
-Run all builds through `build-queue --`. Performance measurements occur only on Alpha's physical host, never the personal VM or current desktop, with raw samples and the repository's symmetric 1.5×IQR rule. If Alpha is unavailable, leave measurements pending rather than substituting another host.
+Run all builds through `build-queue --`. Performance measurements occur only
+directly on Alpha's physical host, with raw samples and the repository's
+symmetric 1.5×IQR rule. Reject virtualization and leave measurements pending
+when Alpha is unavailable rather than substituting another host.
 
 ## Exit gate
 

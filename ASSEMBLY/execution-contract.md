@@ -2,13 +2,17 @@
 
 Status: current baseline plus decisions required by [step 01](01-contract-and-completion-matrix.md). This document is normative for the lowered portable IR planned in [step 02](02-lowered-ir-and-verifier.md); it does not claim that the replacement engine exists. The current implementation is the checked tree represented by [compiler IR](../cmd/compiler_ir.zi), the [portable VM](../cmd/zir/zir_vm_run.c), the [ZX native engine](../cmd/zir/zir_zx_native_lower.c), and their retained fixtures.
 
+The direct target follows the [gap policy](gap-policy.md): target selection is a
+contract, and an unsupported operation fails rather than selecting another
+engine or semantic implementation.
+
 ## Contract layers
 
 1. **Checked language graph:** `.zi` or saved `.zir` produces one checked typed graph. Statements, expressions, source spans, foreign/effect facts, ownership facts, laws, and proof certificates remain in this layer; executable instruction text is not reparsed from statement text.
 2. **Verified portable program:** lowering turns each reachable function into typed basic blocks with explicit control flow, effects, value definitions, portable layouts, call/cleanup regions, and capability imports. Verification rejects malformed structure, type mismatches, invalid dominance, impossible layouts, and missing effects before an image can be loaded.
 3. **Immutable encoded image:** the `.zx` executable container owns immutable code, type/layout metadata, constants, entry identity, capabilities, assets, laws, and optional inspection metadata. It contains no host pointers, C structure padding, process addresses, or executable `.zir` requirement.
 4. **Loaded instance:** one immutable image may create many instances. An instance owns mutable global slots, call stacks, owned allocations, host handles, serial execution ownership, fuel state, and failure state. Code and metadata are never mutated by execution.
-5. **Target program:** a target description selects CPU architecture, ISA features, OS ABI, calling convention, endianness, pointer rules, and atomic/thread services. It cannot change portable arithmetic, ownership, call order, traps, or capability identity.
+5. **Target program:** a target description selects CPU architecture, ISA features, OS ABI, calling convention, endianness, pointer rules, and atomic/thread services. It cannot change portable arithmetic, ownership, call order, traps, or capability identity. A missing selected facility is a preflight error; it never changes the engine or lowers to a serial/CPU substitute.
 6. **Machine program and encoded object:** optimization and native lowering consume only the verified portable program and target description. Register allocation, physical stack frames, ABI call sequences, relocation, and encoding belong to these layers.
 
 The backend APIs remain distinct: verify portable program, describe target, build machine program, encode image/object, load instance, run instance, inspect image or instance. No API accepts an unverified graph as executable code or exposes mutable process memory as program code.
@@ -62,8 +66,8 @@ Every callable and foreign capability carries an explicit effect class: pure, ob
 - A call owns its local cleanup region. Evaluation temporaries remain rooted until the last consumer and call complete; nested strings and records are collected only at safe statement/call boundaries in the current VM.
 - Portable VM calls nest until a known C stack floor or 128 calls where bounds are unknown; the CLI uses a large stack and reports exhaustion. Native and Wasm tiers use explicit stack/budget guards. Recursion exhaustion is a failed execution, not allocator or stack corruption.
 - Ordinary native and portable runs are unbounded. A host may select a positive cumulative budget before global initialization. The portable VM counts statements; native and Wasm count function entries and loop iterations, with literal-bound loops charged at region entry. Workers in one `#parallel for` region spend from the shared remaining budget, and the run charges all successful iterations when the region ends. Current behavior and tests are documented in [ZX execution](../docs/ZX.md) and [bundle step limits](../tests/bundle_step_limit.sh).
-- `#parallel for` currently runs forward C regions on worker threads; Go, ZX, and reverse regions run serially with a downgrade marker. Workers process ordered chunks, the caller waits, and the first worker failure a serial run could meet stops the region. Portable instances support concurrent execution only across distinct instances; each instance and host callback context has one executing owner.
-- `#parallel_gpu for` is checked but has no device backend: every target uses CPU fallback. A failed bounds/fuel check or refused shader discards device results and reruns on CPU. No lowering may claim GPU execution.
+- `#parallel for` currently runs forward C regions on worker threads; existing Go/ZX serial behavior is baseline evidence, not assembly-target support. The direct target rejects a parallel region until that target implements its declared parallel contract. Portable instances support concurrent execution only across distinct instances; each instance and host callback context has one executing owner.
+- `#parallel_gpu for` currently has no device backend. The direct target rejects the region with its Gap diagnostic; it never runs or reruns the region on the CPU. A future device implementation must preserve failure and budget semantics without substituting a different engine.
 
 ## Traps, capabilities, and isolation
 
@@ -98,7 +102,7 @@ Do not assign numeric opcodes in this step. Reserve stable categories, each with
 | Heap and ownership | allocate-zero, free, retain/release hooks, cleanup region enter/exit | Explicit region terminator handles return, break, continue, and trap edges. |
 | Control flow | conditional/unconditional branch, switch/complete enum, loop header, named break/continue, unreachable | One terminator per block; named control-flow IDs are resolved by verifier. |
 | Calls | direct, procedure value, bound provider, foreign capability, host marshalling, tail call only if semantics survive | Arguments are explicit ordered operands; defaults/names are lowered before encoding. |
-| Effects and fuel | checkpoint, budget set/consume, worker region enter/exit, CPU fallback | A checkpoint is observable and blocks moving an unbounded call/loop. |
+| Effects and fuel | checkpoint, budget set/consume, worker region enter/exit, explicit device/worker failure | A checkpoint is observable and blocks moving an unbounded call/loop; no CPU fallback opcode exists. |
 | SIMD | lane insert/extract, element-wise arithmetic/compare/select, reductions currently supported | Lane type/count is portable; ISA lowering is target-only. |
 | Text and collections | string length/index/equality, builder append/finish, vector operations currently supported | Preserve borrow versus snapshot and recoverable allocation failure. |
 | Capability and instance | capability require/call, state export/import, instance replace boundaries | Capability identity and ABI checks precede entry/upgrade. |

@@ -4,7 +4,11 @@ Status: in progress; the [isolated verified-LIR engine](portable-execution.md) e
 
 ## Objective
 
-Build a portable execution engine for the new lowered instructions. It is a semantic reference and a working backend for hosts without native code generation. It must not walk `.zir` expressions or reconstruct source statements during execution.
+Build a portable execution engine for the new lowered instructions. It is a
+semantic reference and an explicitly selected portable target. A host without
+native code generation may select it deliberately, but a failed native request
+must not select it automatically. It must not walk `.zir` expressions or
+reconstruct source statements during execution.
 
 ## Existing integration points
 
@@ -13,16 +17,34 @@ Build a portable execution engine for the new lowered instructions. It is a sema
 - [Current SIMD execution](../cmd/zir/zir_vm_simd.c).
 - [Portable execution contract](../docs/ZX.md).
 
-Implemented module: `cmd/compiler_exec.zi`. Proposed additional modules: `cmd/compiler_exec_memory.zi` and `cmd/compiler_exec_host.zi`. Keep required embedding exports at the existing C API boundary. Current source/saved-IR and serialized-instruction tests cover scalar/aggregate operations, direct/indirect calls, instance globals, explicit frames, budgets and structured traps; they do not establish completion of every item below.
+Implemented module: `cmd/compiler_exec.zi`. Its immutable storage plan now keeps
+scalars in word slots and aliases a dead aggregate source to its `Insert` result
+only when a complete use count proves the source has no other consumer.
+Proposed additional modules: `cmd/compiler_exec_memory.zi` and
+`cmd/compiler_exec_host.zi`. Keep required embedding exports at the existing C
+API boundary. Current source/saved-IR and serialized-instruction tests cover
+scalar/aggregate operations, direct/indirect calls, instance globals, explicit
+frames, budgets and structured traps; they do not establish completion of every
+item below.
 
 ## Implementation work
 
-- [ ] Decode verified instructions once into an execution plan with indexed value slots and block destinations. Keep immutable function plans shareable across instances.
-- [ ] Implement arithmetic, comparisons, conversions, branches, block-parameter transfers, memory operations, calls, and traps for every portable opcode.
-- [ ] Implement scalar and aggregate storage with explicit logical layout and host translation. Preserve pointer provenance and current legal pointer behavior; do not silently replace the language memory model with WebAssembly linear-memory rules.
-- [ ] Execute block-parameter transfers as parallel copies, including swap/cycle cases. Preserve exact source-visible behavior across loops and conditional joins.
-- [ ] Implement calls and recursion using owned execution frames and defined stack/resource limits. A failure returns a structured runtime result without corrupting the host or a different instance.
-- [ ] Preserve owned storage, global initialization, returned aggregates, strings with embedded NULs, empty/null slices, vector scope cleanup, and native callback boundaries where supported.
+- [x] Decode the current verified instruction subset once into a flattened,
+  immutable execution plan with indexed word/byte slots, cached frame bases and
+  pointer-based instruction/edge dispatch.
+- [ ] Extend arithmetic, memory, call and trap execution from the current
+  verifier-supported subset to every required portable opcode.
+- [x] Implement word-backed scalar slots and fixed aggregate storage for the
+  current logical layouts while preserving checked pointer provenance.
+- [ ] Add dynamic/heap aggregate storage, slices and the remaining memory forms;
+  do not replace the language memory model with WebAssembly linear-memory rules.
+- [x] Execute block-parameter transfers as parallel copies, using direct moves
+  only when proven safe and scratch storage for overlap, swaps and cycles.
+- [x] Execute direct/indirect calls and recursion with owned frames and bounded
+  work, fuel and frame limits for the current subset.
+- [ ] Complete owned-storage lifecycle, runtime global initialization, empty/null
+  slices, vector cleanup and callback boundaries. Returned fixed aggregates and
+  immutable string literal bytes/copies/count/data already execute on this path.
 - [ ] Adapt capability calls using validated typed signatures. Check host result shapes before writing them into execution storage; preserve nested host-to-bundle calls and reentrancy contracts.
 - [ ] Specify and implement fuel at stable semantic checkpoints. Optimizations must preserve when exhaustion becomes observable, especially relative to host side effects and traps. Any batched charging requires a proof that timing is equivalent.
 - [ ] Implement portable SIMD lane behavior and legal parallel runtime operations without assuming native vector instructions or a host thread count.
@@ -30,6 +52,9 @@ Implemented module: `cmd/compiler_exec.zi`. Proposed additional modules: `cmd/co
 - [ ] Preserve snapshot/state migration semantics and library composition. Stable persistent identities must survive harmless instruction ordering changes without equating unrelated layouts.
 - [ ] Make debug stepping instruction-based with source mappings and inspectable value slots. Avoid debug-only execution semantics that hide release-mode defects.
 - [ ] Retain any existing `.zir` evaluator needed for compile-time execution, laws, or tooling until those consumers are deliberately migrated. Removing ZX dependence does not authorize deleting unrelated evaluator services.
+- [ ] Reject every unsupported portable opcode/capability with its stable Gap
+  diagnostic before side effects. Do not invoke the old VM, native engine,
+  generated C, or a target-specific helper to make the run appear successful.
 
 ## Tests
 
@@ -41,7 +66,7 @@ Run on the current machine and the required supported hosts; use private display
 
 ## Exit gate
 
-All required portable matrix cells run from lowered instructions with no executable `.zir` tree present. The engine rejects unverified programs, preserves instance isolation and documented resource behavior, and can supply independent differential results for native backend development.
+All required portable matrix cells run from lowered instructions with no executable `.zir` tree present. The engine rejects unverified programs and Gap operations without switching engines, preserves instance isolation and documented resource behavior, and can supply independent differential results for native backend development.
 
 ## Handoff
 

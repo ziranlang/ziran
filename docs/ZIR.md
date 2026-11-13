@@ -4,7 +4,7 @@ This is the target contract. An experimental binary version 64 now exists for
 the tested C/Go and portable scalar/record/enum subsets. It is not yet the complete contract below; see
 [Implementation status](IMPLEMENTATION_STATUS.md).
 
-`.zir` is a versioned, checked, serializable module representation. It is the
+`.zir` is a versioned, checked, serializable module representation. ZIR is always written after type checking, so there is no unchecked ZIR and it is simply called ZIR. It is the
 shared input to native backends and the portable linker. It records module and
 symbol identities, imports/exports, resolved types, constants, function
 bodies, control flow, source locations, declared FFI, and host capability

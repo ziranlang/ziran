@@ -66,7 +66,7 @@ span. The contract has four parts.
 
 The compiler now implements named `type`, `effect`, `bounds`, `size`, `abi`,
 `custom`, `forall`, and scalar `theorem` laws, writes law tables and proof
-graphs to checked `.zir` and linked `.zx`, and reports results as JSON.
+graphs to `.zir` and linked `.zx`, and reports results as JSON.
 `custom` evaluates closed compile-time expressions, `forall`
 (`#law N forall x: 0..4, k: SomeEnum => condition;`) checks every combination
 of integer ranges, enum members, and bounded integer sequences
@@ -298,7 +298,7 @@ procedure values, even if a local binding has the same name. In record field
 types it names the enclosing struct, including a concrete application of a
 polymorphic struct. Saved `.zir` keeps procedure self references explicit.
 Source uses Jai primitive spellings `s8`, `s16`, `s32`, `s64`, `float32`, and
-`float64`; checked IR keeps those spellings. Jai `float`
+`float64`; ZIR keeps those spellings. Jai `float`
 is an alias for `float32`. The old `i8`/`i16`/`i32`/`i64`/`f32`/`f64`/`double`
 spellings are rejected in source.
 `char` is rejected as a type; it can name a local binding, record field,
@@ -371,7 +371,7 @@ not the compiler host, and work in `#if`, `#ifx`, `#assert`, and `#run`.
 Compiler-host facts are named `Compiler.HostOS` and `Compiler.HostCPU`;
 `Compiler.Target`, `Compiler.TargetOS`, `Compiler.TargetCPU`, and
 `Compiler.Options` expose the selected compilation to metaprograms. Inactive
-`#if` imports are never loaded. Untargeted checked `.zir` uses
+`#if` imports are never loaded. Untargeted `.zir` uses
 `.ZX`/`.NONE`/`.NONE`; compile-time branches are folded before serialization
 and are not reevaluated by a later consumer backend. During translation,
 `#run`, `#ifx`, and `#assert` can call pure

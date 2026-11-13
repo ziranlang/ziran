@@ -13,7 +13,7 @@ selected new instruction interpreter. Integrate source builds, packages,
 libraries, hosts, cache, and embedding APIs without relying on C/TinyCC for
 new-native code generation and without switching engines after a gap is found.
 
-The experimental pipeline is source → checked `.zir` → linked LIR → verify →
+The experimental pipeline is source → `.zir` → linked LIR → verify →
 LIR optimization → portable ZX bytes → verified read, followed by either the portable interpreter or direct target
 lowering to a platform binary. Generated C and Go routes can also produce
 binaries through their own toolchains, but they are not native here and cannot

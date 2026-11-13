@@ -62,7 +62,7 @@ span. The contract has four parts.</p>
 </ol>
 <p>The compiler now implements named <code>type</code>, <code>effect</code>, <code>bounds</code>, <code>size</code>, <code>abi</code>,
 <code>custom</code>, <code>forall</code>, and scalar <code>theorem</code> laws, writes law tables and proof
-graphs to checked <code>.zir</code> and linked <code>.zx</code>, and reports results as JSON.
+graphs to <code>.zir</code> and linked <code>.zx</code>, and reports results as JSON.
 <code>custom</code> evaluates closed compile-time expressions, <code>forall</code>
 (<code>#law N forall x: 0..4, k: SomeEnum =&gt; condition;</code>) checks every combination
 of integer ranges, enum members, and bounded integer sequences
@@ -289,7 +289,7 @@ procedure values, even if a local binding has the same name. In record field
 types it names the enclosing struct, including a concrete application of a
 polymorphic struct. Saved <code>.zir</code> keeps procedure self references explicit.
 Source uses Jai primitive spellings <code>s8</code>, <code>s16</code>, <code>s32</code>, <code>s64</code>, <code>float32</code>, and
-<code>float64</code>; checked IR keeps those spellings. Jai <code>float</code>
+<code>float64</code>; ZIR keeps those spellings. Jai <code>float</code>
 is an alias for <code>float32</code>. The old <code>i8</code>/<code>i16</code>/<code>i32</code>/<code>i64</code>/<code>f32</code>/<code>f64</code>/<code>double</code>
 spellings are rejected in source.
 <code>char</code> is rejected as a type; it can name a local binding, record field,
@@ -362,7 +362,7 @@ not the compiler host, and work in <code>#if</code>, <code>#ifx</code>, <code>#a
 Compiler-host facts are named <code>Compiler.HostOS</code> and <code>Compiler.HostCPU</code>;
 <code>Compiler.Target</code>, <code>Compiler.TargetOS</code>, <code>Compiler.TargetCPU</code>, and
 <code>Compiler.Options</code> expose the selected compilation to metaprograms. Inactive
-<code>#if</code> imports are never loaded. Untargeted checked <code>.zir</code> uses
+<code>#if</code> imports are never loaded. Untargeted <code>.zir</code> uses
 <code>.ZX</code>/<code>.NONE</code>/<code>.NONE</code>; compile-time branches are folded before serialization
 and are not reevaluated by a later consumer backend. During translation,
 <code>#run</code>, <code>#ifx</code>, and <code>#assert</code> can call pure

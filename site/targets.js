@@ -12,14 +12,14 @@
     return;
   }
   const byId = new Map(data.examples.map(example => [example.id, example]));
-  const labels = {source: 'Source', c: 'C', go: 'Go', zx: 'ZX', wasm: 'WebAssembly', zir: 'Checked IR'};
+  const labels = {source: 'Source', c: 'C', go: 'Go', zx: 'ZX', wasm: 'WebAssembly', zir: 'ZIR'};
   const descriptions = {
     source: 'The exact source used for every target in this row.',
     c: 'Readable generated C and its headers. Choose a file to inspect the complete output.',
     go: 'Readable generated Go, including imported modules. Choose a file to inspect it.',
     zx: 'The real .zx bundle, decoded by zi-inspect. Download the binary to run it with ziran.',
     wasm: 'The actual WebAssembly binary: header, sections, imports, exports and a byte preview. Download it or run it below.',
-    zir: 'The saved checked IR, decoded by zi-inspect: declarations, typed expressions and statement links. ZIR is an intermediate stage.',
+    zir: 'The saved ZIR, decoded by zi-inspect: declarations, typed expressions and statement links. ZIR is an intermediate stage.',
   };
   const tabs = [...document.querySelectorAll('[data-view]')];
   const files = document.getElementById('matrix-file');
@@ -107,7 +107,7 @@
         measured.batches.toLocaleString() + ' calls · per-call range ' +
         ms(Math.min(...measured.sample_statistics.included_samples_ms)) + '–' + ms(Math.max(...measured.sample_statistics.included_samples_ms)) +
         ' · ' + measured.sample_statistics.excluded_indices.length + ' outliers excluded (1.5×IQR)' :
-        'Checked IR is a shared compiler stage; it has no platform execution samples.';
+        'ZIR is a shared compiler stage; it has no platform execution samples.';
       document.getElementById('matrix-size').textContent = bytes(cell.bytes);
       document.getElementById('matrix-verified').textContent = view === 'zir' ? 'Checked' : example.stdout ? 'Output matches' : cell.result;
       document.getElementById('matrix-command').textContent = cell.command + (measurement(example, view)?.command ? '\n\n' + measurement(example, view).command : '');
@@ -156,7 +156,7 @@
     document.querySelectorAll('[data-runtime]').forEach(label => {
       label.textContent = snapshot.runtimes[label.dataset.runtime].split(' · ').slice(1).join(' · ');
     });
-    document.getElementById('matrix-metric-note').textContent = metric === 'size' ? 'Emitted file bytes, including C headers and imported modules; excludes linked executables and external runtimes. Size and emission are independent of the platform selector.' : metric === 'emission' ? 'Measured on the desktop build host: load, check, link and emit. Downstream C and Go builds are excluded. The selected platform changes execution measurements.' : snapshot.methodology + ' Checked IR is a shared stage with no execution timing.';
+    document.getElementById('matrix-metric-note').textContent = metric === 'size' ? 'Emitted file bytes, including C headers and imported modules; excludes linked executables and external runtimes. Size and emission are independent of the platform selector.' : metric === 'emission' ? 'Measured on the desktop build host: load, check, link and emit. Downstream C and Go builds are excluded. The selected platform changes execution measurements.' : snapshot.methodology + ' ZIR is a shared stage with no execution timing.';
     document.getElementById('matrix-provenance').textContent = snapshot.label + ' · ' + snapshot.host + ' · measured ' + snapshot.measured_at.slice(0, 10) + ' · ' + snapshot.samples + ' measured batches · compiler base ' + data.revision.slice(0, 10) + (data.compiler_dirty ? ' with local compiler edits (exact hashes in the snapshot).' : '.');
     const snapshotLink = document.createElement('a');
     snapshotLink.href = 'generated/targets/matrix.json';

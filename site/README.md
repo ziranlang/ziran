@@ -14,7 +14,7 @@ local machine. Cloudflare deployment credentials belong in the workflow's
 
 ## Target matrix
 
-`targets.html` compares five real programs across C, Go, portable ZX and WebAssembly, alongside the checked ZIR intermediate stage. The homepage links
+`targets.html` compares five real programs across C, Go, portable ZX and WebAssembly, alongside the ZIR intermediate stage. The homepage links
 to the matrix and exposes all four output commands. Selecting a cell opens the
 generated source or binary inspection, downloadable artifacts, compiler command,
 verified result, output size, median execution, sample count and timing range. Supported `.wasm` files can also run

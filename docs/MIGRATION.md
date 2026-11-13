@@ -22,7 +22,7 @@ Kryon's widget or runtime policy.
 
 The old Kryon `.kry` compiler and `.krb` runtime have been removed. All
 maintained Kryon UI modules are `.zi` sources using current Ziran syntax. The
-complete Kryon `make all` build passes checked `.zir`, C, and Go generation
+complete Kryon `make all` build passes `.zir`, C, and Go generation
 and native backend compilation with the current Ziran compiler. Platform host
 integration and application behavior gates remain incomplete. Inbe has moved
 its application sources to `.zi` and is migrating its native services, but its

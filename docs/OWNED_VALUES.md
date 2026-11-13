@@ -172,6 +172,6 @@ string builder owns UTF-8 bytes in a `Vec[u8]`; `BuilderAppend` can fail, and
 `BuilderFinish` consumes the builder without copying its bytes. Immutable
 `string` values remain unchanged.
 
-The parser, checker, checked `.zir`, C/Go emitters, portable verifier, VM,
+The parser, checker, `.zir`, C/Go emitters, portable verifier, VM,
 and host boundary implement the direct-vector operations above, with the
 ownership and automatic-drop limitations called out at the start of this page.

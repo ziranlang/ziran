@@ -74,7 +74,7 @@ language semantics:
    module identity plus declaration path is enough when paired with a document
    version and compiler validation.
 2. **API context bundles.** Add a machine-readable `ziran api`/`ziran context`
-   projection derived from checked `.zir`. For each requested symbol it should
+   projection derived from `.zir`. For each requested symbol it should
    include only the canonical signature, parameter/result types, ownership and
    effect class, law status, relevant records/enums, imports, a bounded source
    excerpt, and call-site examples. This addresses the common failure where a
@@ -146,7 +146,7 @@ It is a bounded checked-context response shaped like this conceptual record:
 ```
 
 The exact field names are implementation decisions. The critical contract is:
-derive it from checked `.zir`, include spans and exact imports, and make its
+derive it from `.zir`, include spans and exact imports, and make its
 byte count deterministic for a given compiler and source version.
 
 ### Gaps
@@ -305,7 +305,7 @@ Task genres:
 1. Add a small pure procedure plus law.
 2. Repair a type, ownership, effect, bounds, or law failure from JSON only.
 3. Modify a call site to use an existing API without inventing names.
-4. Refactor repeated code without changing checked `.zir` behavior.
+4. Refactor repeated code without changing `.zir` behavior.
 5. Introduce a platform capability and prove portable/native parity.
 6. Complete a declaration, body, or cross-file edit without whole-file output.
 

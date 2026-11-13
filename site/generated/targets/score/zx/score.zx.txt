@@ -4,19 +4,19 @@ bundle entry score:Answer
 module score from score.zi
   type Score @ score.zi:1:1 = "value: s32\nbonus: s32\n"
   function Total(score: Score) -> s32 @ score.zi:6:1
-    stmt 0 return expr=%4 text="return score.value + score.bonus;"
-    %0 ident type=Score name=score text="score"
-    %1 member type=s32 name=value op=. left=%0 text="score.value"
-    %2 ident type=Score name=score text="score"
-    %3 member type=s32 name=bonus op=. left=%2 text="score.bonus"
-    %4 binary type=s32 op=+ left=%1 right=%3 text="score.value + score.bonus"
+    stmt 0 return expr=%4  // return score.value + score.bonus;
+    %0 ident type=Score name=score
+    %1 member type=s32 name=value op=. left=%0
+    %2 ident type=Score name=score
+    %3 member type=s32 name=bonus op=. left=%2
+    %4 binary type=s32 op=+ left=%1 right=%3
   function Answer() -> s32 @ score.zi:10:1
-    stmt 0 decl name=score type=Score expr=%4 text="score: Score = Score.{value = 40, bonus = 2};"
-    stmt 1 return expr=%6 text="return Total(score);"
-    %0 int type=integer text="40"
-    %1 field_initializer type=s32 name=value op== right=%0 next=%3 text="value = 40"
-    %2 int type=integer text="2"
-    %3 field_initializer type=s32 name=bonus op== right=%2 text="bonus = 2"
-    %4 compound type=Score name=Score child=%1 text="Score.{value = 40, bonus = 2}"
-    %5 ident type=Score name=score text="score"
-    %6 call type=s32 name=Total child=%5 text="Total(score)"
+    stmt 0 decl name=score type=Score expr=%4  // score: Score = Score.{value = 40, bonus = 2};
+    stmt 1 return expr=%6  // return Total(score);
+    %0 int 40 -> integer
+    %1 field_initializer type=s32 name=value op== right=%0 next=%3
+    %2 int 2 -> integer
+    %3 field_initializer type=s32 name=bonus op== right=%2
+    %4 compound type=Score name=Score child=%1
+    %5 ident type=Score name=score
+    %6 call Total(%5) -> s32

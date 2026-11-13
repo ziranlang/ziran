@@ -59,7 +59,7 @@ Source files use `.zi`, checked modules use [`.zir`](docs/ZIR.md), and portable
 programs use [`.zx`](docs/ZX.md). Direct-native targets and the portable runner
 have different limits.
 
-The experimental direct pipeline is source → checked `.zir` → linked LIR →
+The experimental direct pipeline is source → `.zir` → linked LIR →
 verification → LIR optimization → portable `.zx`. Those verified ZX bytes run
 in the portable interpreter
 or, on an explicitly supported direct target, lower to machine code and a

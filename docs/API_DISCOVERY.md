@@ -48,7 +48,7 @@ exact public declaration name (including all matching overloads), or
 `--imports-only` returns the checked module import graph without declarations
 or function bodies; `resolved_module` is the actual resolved module when known.
 Compile-time file composition is not reconstructed as a separate graph when
-checked IR has no import edge for it. Package module imports have one slash,
+ZIR has no import edge for it. Package module imports have one slash,
 `#import "package/Module"`; relative source composition uses the explicit
 `#import, file "path.zi"` form. Private helpers need not become public to use
 that file form.
@@ -73,7 +73,7 @@ counts.
 Imports, declarations and laws count as symbols. A missing name returns zero
 matches; truncation never implies the omitted declarations do not exist.
 Modules sort by checked module identity; declaration order within each kind
-follows checked IR. Repeated equivalent invocations produce identical bytes.
+follows ZIR. Repeated equivalent invocations produce identical bytes.
 
 Each declaration's `id` hashes a versioned, NUL-delimited checked identity:
 module, declaration kind, name and relevant checked signature/type parameters.

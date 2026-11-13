@@ -129,7 +129,7 @@ Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen 
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx
 as teh portabel lower prat for all pltaforms or am i misisng something".
 
-One pipeline: `.zi -> checked ZIR -> lowered LIR -> verify -> LIR optimizations -> .zx`
+One pipeline: `.zi -> ZIR -> lowered LIR -> verify -> LIR optimizations -> .zx`
 (portable, linked, verified). Then either the portable interpreter on any platform, or
 native lowering (`.zx -> machine code -> ELF`). Points to keep:
 - `.zx` stays a first-class output (ship it and run it anywhere), not only an internal step.

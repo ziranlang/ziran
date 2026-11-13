@@ -1,62 +1,62 @@
 file build/site-targets/text_demo/zir/text.zir
 module text from text.zi
   function LowerASCII(value: u8) -> u8 export @ text.zi:4:1
-    stmt 0 if expr=%8 text="if value >= cast(u8)65 && value <= cast(u8)90 {"
-    stmt 1 return expr=%12 text="return value + cast(u8)32"
-    stmt 2 block_close text="}"
-    stmt 3 return expr=%13 text="return value"
-    %0 ident type=u8 name=value text="value"
-    %1 int type=integer text="65"
-    %2 cast type=u8 name=u8 right=%1 text="cast(u8)65"
-    %3 binary type=bool op=>= left=%0 right=%2 text="value >= cast(u8)65"
-    %4 ident type=u8 name=value text="value"
-    %5 int type=integer text="90"
-    %6 cast type=u8 name=u8 right=%5 text="cast(u8)90"
-    %7 binary type=bool op=<= left=%4 right=%6 text="value <= cast(u8)90"
-    %8 binary type=bool op=&& left=%3 right=%7 text="value >= cast(u8)65 && value <= cast(u8)90"
-    %9 ident type=u8 name=value text="value"
-    %10 int type=integer text="32"
-    %11 cast type=u8 name=u8 right=%10 text="cast(u8)32"
-    %12 binary type=u8 op=+ left=%9 right=%11 text="value + cast(u8)32"
-    %13 ident type=u8 name=value text="value"
+    stmt 0 if expr=%8  // if value >= cast(u8)65 && value <= cast(u8)90 {
+    stmt 1 return expr=%12  // return value + cast(u8)32
+    stmt 2 block_close  // }
+    stmt 3 return expr=%13  // return value
+    %0 ident type=u8 name=value
+    %1 int 65 -> integer
+    %2 cast type=u8 name=u8 right=%1
+    %3 binary type=bool op=>= left=%0 right=%2
+    %4 ident type=u8 name=value
+    %5 int 90 -> integer
+    %6 cast type=u8 name=u8 right=%5
+    %7 binary type=bool op=<= left=%4 right=%6
+    %8 binary type=bool op=&& left=%3 right=%7
+    %9 ident type=u8 name=value
+    %10 int 32 -> integer
+    %11 cast type=u8 name=u8 right=%10
+    %12 binary type=u8 op=+ left=%9 right=%11
+    %13 ident type=u8 name=value
   function StartsWithFoldASCII(value: string, prefix: string) -> bool export @ text.zi:12:1
-    stmt 0 if expr=%6 text="if (cast(s32)prefix.count) > (cast(s32)value.count) {"
-    stmt 1 return expr=%7 text="return false"
-    stmt 2 block_close text="}"
-    stmt 3 decl name=index type=s32 expr=%8 text="index: s32 = 0"
-    stmt 4 while expr=%13 text="while index < (cast(s32)prefix.count) {"
-    stmt 5 if expr=%22 text="if LowerASCII(value[index]) != LowerASCII(prefix[index]) {"
-    stmt 6 return expr=%23 text="return false"
-    stmt 7 block_close text="}"
-    stmt 8 assign expr=%26 lhs=%27 text="index = index + 1"
-    stmt 9 block_close text="}"
-    stmt 10 return expr=%28 text="return true"
-    %0 ident type=string name=prefix text="prefix"
-    %1 member type=s64 name=count op=. left=%0 text="prefix.count"
-    %2 cast type=s32 name=s32 right=%1 text="cast(s32)prefix.count"
-    %3 ident type=string name=value text="value"
-    %4 member type=s64 name=count op=. left=%3 text="value.count"
-    %5 cast type=s32 name=s32 right=%4 text="cast(s32)value.count"
-    %6 binary type=bool op=> left=%2 right=%5 text="(cast(s32)prefix.count) > (cast(s32)value.count)"
-    %7 ident type=bool name=false text="false"
-    %8 int type=integer text="0"
-    %9 ident type=s32 name=index text="index"
-    %10 ident type=string name=prefix text="prefix"
-    %11 member type=s64 name=count op=. left=%10 text="prefix.count"
-    %12 cast type=s32 name=s32 right=%11 text="cast(s32)prefix.count"
-    %13 binary type=bool op=< left=%9 right=%12 text="index < (cast(s32)prefix.count)"
-    %14 ident type=string name=value text="value"
-    %15 ident type=s32 name=index text="index"
-    %16 index type=u8 left=%14 right=%15 text="value[index]"
-    %17 call type=u8 name=LowerASCII child=%16 text="LowerASCII(value[index])"
-    %18 ident type=string name=prefix text="prefix"
-    %19 ident type=s32 name=index text="index"
-    %20 index type=u8 left=%18 right=%19 text="prefix[index]"
-    %21 call type=u8 name=LowerASCII child=%20 text="LowerASCII(prefix[index])"
-    %22 binary type=bool op=!= left=%17 right=%21 text="LowerASCII(value[index]) != LowerASCII(prefix[index])"
-    %23 ident type=bool name=false text="false"
-    %24 ident type=s32 name=index text="index"
-    %25 int type=integer text="1"
-    %26 binary type=s32 op=+ left=%24 right=%25 text="index + 1"
-    %27 ident type=s32 name=index text="index"
-    %28 ident type=bool name=true text="true"
+    stmt 0 if expr=%6  // if (cast(s32)prefix.count) > (cast(s32)value.count) {
+    stmt 1 return expr=%7  // return false
+    stmt 2 block_close  // }
+    stmt 3 decl name=index type=s32 expr=%8  // index: s32 = 0
+    stmt 4 while expr=%13  // while index < (cast(s32)prefix.count) {
+    stmt 5 if expr=%22  // if LowerASCII(value[index]) != LowerASCII(prefix[index]) {
+    stmt 6 return expr=%23  // return false
+    stmt 7 block_close  // }
+    stmt 8 assign expr=%26 lhs=%27  // index = index + 1
+    stmt 9 block_close  // }
+    stmt 10 return expr=%28  // return true
+    %0 ident type=string name=prefix
+    %1 member type=s64 name=count op=. left=%0
+    %2 cast type=s32 name=s32 right=%1
+    %3 ident type=string name=value
+    %4 member type=s64 name=count op=. left=%3
+    %5 cast type=s32 name=s32 right=%4
+    %6 binary type=bool op=> left=%2 right=%5
+    %7 ident type=bool name=false
+    %8 int 0 -> integer
+    %9 ident type=s32 name=index
+    %10 ident type=string name=prefix
+    %11 member type=s64 name=count op=. left=%10
+    %12 cast type=s32 name=s32 right=%11
+    %13 binary type=bool op=< left=%9 right=%12
+    %14 ident type=string name=value
+    %15 ident type=s32 name=index
+    %16 index type=u8 left=%14 right=%15
+    %17 call LowerASCII(%16) -> u8
+    %18 ident type=string name=prefix
+    %19 ident type=s32 name=index
+    %20 index type=u8 left=%18 right=%19
+    %21 call LowerASCII(%20) -> u8
+    %22 binary type=bool op=!= left=%17 right=%21
+    %23 ident type=bool name=false
+    %24 ident type=s32 name=index
+    %25 int 1 -> integer
+    %26 binary type=s32 op=+ left=%24 right=%25
+    %27 ident type=s32 name=index
+    %28 ident type=bool name=true

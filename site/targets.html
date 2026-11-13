@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="Explore Ziran's four outputs: C, Go, portable ZX and WebAssembly. Inspect checked ZIR, download real artifacts and compare measured target timings.">
+  <meta name="description" content="Explore Ziran's four outputs: C, Go, portable ZX and WebAssembly. Inspect ZIR, download real artifacts and compare measured target timings.">
   <title>Target matrix — Ziran</title>
   <link rel="canonical" href="https://ziran-lang.org/targets">
   <link rel="icon" href="assets/logo-capybara.png" type="image/png">
@@ -22,7 +22,7 @@
       <p class="eyebrow">The target matrix</p>
       <h1>One source. <em>Four outputs.</em><br>Every step visible.</h1>
       <p class="matrix-lead">Readable C. Go source. Portable ZX. WebAssembly. Follow a real program through the shared checker, inspect its intermediate representation, and compare what each target produces.</p>
-      <div class="matrix-pipeline" aria-label="Compilation pipeline"><span><strong>.zi</strong> Source</span><b aria-hidden="true">→</b><span><strong>.zir</strong> Checked IR</span><b aria-hidden="true">→</b><span><strong>.c · .go · .zx · .wasm</strong> Four outputs</span></div>
+      <div class="matrix-pipeline" aria-label="Compilation pipeline"><span><strong>.zi</strong> Source</span><b aria-hidden="true">→</b><span><strong>.zir</strong> ZIR</span><b aria-hidden="true">→</b><span><strong>.c · .go · .zx · .wasm</strong> Four outputs</span></div>
     </section>
     <section aria-labelledby="matrix-heading" class="matrix-section">
       <div class="matrix-section-top"><div><p class="eyebrow">Explore the outputs</p><h2 id="matrix-heading">Pick a program. Open any cell.</h2></div>
@@ -39,7 +39,7 @@
         </table>
       </div>
       <p class="matrix-scroll-hint">Scroll across to compare all four outputs →</p>
-      <p class="matrix-footnote" id="matrix-metric-note">Median warm execution per entry, excluding 1.5×IQR outliers. Checked IR is a shared stage and has no execution time. Emission timings come from the desktop build host.</p>
+      <p class="matrix-footnote" id="matrix-metric-note">Median warm execution per entry, excluding 1.5×IQR outliers. ZIR is a shared stage and has no execution time. Emission timings come from the desktop build host.</p>
     </section>
     <section class="matrix-inspector" id="inspect" aria-labelledby="inspect-heading">
       <div class="matrix-section-top"><div><p class="eyebrow">Inside the compiler</p><h2 id="inspect-heading">Records &amp; calls</h2></div><span class="matrix-result" id="matrix-result">Expected result: 42</span></div>
@@ -49,7 +49,7 @@
         <button type="button" role="tab" id="view-go" data-view="go" aria-controls="output-view" aria-selected="false" tabindex="-1">Go <small>.go</small></button>
         <button type="button" role="tab" id="view-zx" data-view="zx" aria-controls="output-view" aria-selected="false" tabindex="-1">ZX <small>.zx</small></button>
         <button type="button" role="tab" id="view-wasm" data-view="wasm" aria-controls="output-view" aria-selected="false" tabindex="-1">WebAssembly <small>.wasm</small></button>
-        <button type="button" role="tab" id="view-zir" data-view="zir" aria-controls="output-view" aria-selected="false" tabindex="-1">Checked IR <small>.zir</small></button>
+        <button type="button" role="tab" id="view-zir" data-view="zir" aria-controls="output-view" aria-selected="false" tabindex="-1">ZIR <small>.zir</small></button>
       </div>
       <div class="matrix-view-toolbar"><label id="matrix-file-label" hidden>File<select id="matrix-file"></select></label><a id="matrix-download" href="examples/score.zi" download>Download .zi ↓</a><button id="matrix-run-wasm" type="button" hidden>Run this .wasm in your browser ↗</button></div>
       <div id="output-view" role="tabpanel" aria-labelledby="view-source" tabindex="0"><p class="matrix-view-description" id="matrix-view-description">The exact source used for every target in this row.</p><pre class="matrix-code"><code id="matrix-code"><!-- generated:target_source -->Score :: struct {
@@ -78,7 +78,7 @@ Answer :: () -&gt; s32 {
       <!-- generated:library_matrix -->
 <div class="matrix-scroll" tabindex="0" role="region" aria-label="Desktop widget comparison"><table class="target-matrix library-matrix"><caption class="sr-only">Desktop widget scenarios compiled to C, Go and portable ZX</caption><thead><tr><th scope="col">Two-frame scenario</th><th scope="col">C<small>cc -O2</small></th><th scope="col">Go<small>native</small></th><th scope="col">ZX<small>portable VM</small></th></tr></thead><tbody><tr><th scope="row">Button</th><td><a class="library-cell" href="generated/library-targets/button/c.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">1.90 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/button/go.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">3.04 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/button/zx/widget_benchmarks.zx" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">606.53 µs</strong></a></td></tr><tr><th scope="row">Text</th><td><a class="library-cell" href="generated/library-targets/text/c.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">2.08 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/text/go.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">2.55 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/text/zx/widget_benchmarks.zx" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">639.79 µs</strong></a></td></tr><tr><th scope="row">Input</th><td><a class="library-cell" href="generated/library-targets/input/c.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">2.71 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/input/go.zip" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">4.51 µs</strong></a></td><td><a class="library-cell" href="generated/library-targets/input/zx/widget_benchmarks.zx" download><span class="matrix-state is-ok">Verified</span><strong class="matrix-value">864.04 µs</strong></a></td></tr></tbody></table></div>
 <!-- /generated:library_matrix -->
-      <p class="matrix-footnote">Median warm time on desktop, nine batches with 1.5×IQR outliers excluded. Open a cell to download its actual compiler output. <a href="generated/library-targets/matrix.json">Raw measurements and exclusions</a> · <a href="generated/library-targets/sources.zip">Source fixtures</a> · <a href="generated/library-targets/checked-ir.zip">Complete checked IR</a></p>
+      <p class="matrix-footnote">Median warm time on desktop, nine batches with 1.5×IQR outliers excluded. Open a cell to download its actual compiler output. <a href="generated/library-targets/matrix.json">Raw measurements and exclusions</a> · <a href="generated/library-targets/sources.zip">Source fixtures</a> · <a href="generated/library-targets/checked-ir.zip">Complete ZIR</a></p>
     </section>
     <section class="matrix-methodology" id="benchmarks" aria-labelledby="benchmarks-heading"><p class="eyebrow">Measured, with context</p><h2 id="benchmarks-heading">Know what the numbers mean.</h2>
       <p>All four targets reproduce the independently checked return value or printed output of each source. Compare target behavior and costs on these small programs; the figures describe this run and its host.</p>

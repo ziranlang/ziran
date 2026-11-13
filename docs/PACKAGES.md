@@ -241,7 +241,7 @@ manifests so fresh clones and CI can fetch without an SSH key.
 
 Package modules receive an internal identity derived from their repository
 and commit. Two versions of a transitive dependency can coexist in one build.
-The identity is carried through checked IR, saved `.zir`, portable bundles,
+The identity is carried through ZIR, saved `.zir`, portable bundles,
 and native output names.
 
 ## Commands

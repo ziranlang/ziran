@@ -35,7 +35,7 @@ scalar-union globals in procedure bodies, including public globals from open
 and named imports. It supports typed array literals, including empty arrays, typed and
 inferred record literals, named and default arguments, direct polymorphic
 calls, scopes, `#load`, several `#import` forms, bounded pure `#run`, and
-checked `.zir` graphs. The compiler rejects many inherited spellings,
+`.zir` graphs. The compiler rejects many inherited spellings,
 including `#enum`, `variant`, postfix `?`, `#global`, `#export`, `#private`,
 `#extern`, C pointer suffixes, C conditional expressions, and old Kryon file
 extensions. The rejection tests should stay.
@@ -84,7 +84,7 @@ opens exported globals from open imports unqualified. Named and open imported
 globals now retain their declaring record type when the consumer has a
 same-named type; `tests/imported_globals.sh` checks direct and `using` field
 access on all four targets, from source and saved IR. Open imports gain a
-private alias in checked IR so the type owner remains unambiguous. Verify the
+private alias in ZIR so the type owner remains unambiguous. Verify the
 exact record and union rules with Jai before claiming syntax parity. Keep
 visibility and ambiguity diagnostics consistent with local `using`.
 Qualified imported enum type annotations and `Module.Enum.Member` expressions
@@ -322,7 +322,7 @@ with a source span; recursion and instruction limits are deterministic. Use
 `tests/compile_run.sh`, `tests/compile_values.sh`, and
 `tests/compile_time.sh`.
 
-### 7. Complete checked IR and native backend equivalence
+### 7. Complete ZIR and native backend equivalence
 
 Function bodies use checked expression graphs, but declaration and import
 lowering still contain target-specific text handling. File-scope record and

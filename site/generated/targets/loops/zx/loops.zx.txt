@@ -3,96 +3,96 @@ bundle entry loops:main
   laws 0 waivers 0 assets 0
 module loops from loops.zi
   function main() -> void @ loops.zi:2:1
-    stmt 0 decl name=index type=s32 expr=%0 text="index: s32 = 1;"
-    stmt 1 while expr=%3 text="while index <= 3 {"
-    stmt 2 expr expr=%6 text="print(\"while %\\n\", index);"
-    stmt 3 assign expr=%7 lhs=%8 text="index += 1;"
-    stmt 4 block_close text="}"
-    stmt 5 block_open text="{"
-    stmt 6 decl name=step type=s64 expr=%9 text="step: s64 = 0"
-    stmt 7 while expr=%12 loop=1 text="while step <= 2 {"
-    stmt 8 expr expr=%15 text="print(\"range %\\n\", step);"
-    stmt 9 assign expr=%16 lhs=%17 text="step += 1"
-    stmt 10 block_close text="}"
-    stmt 11 block_close text="}"
-    stmt 12 decl name=fruits type=[3]string expr=%24 text="fruits := string.[\"apple\", \"banana\", \"cherry\"];"
-    stmt 13 block_open text="{"
-    stmt 14 decl name=position type=s64 expr=%25 text="position: s64 = 0"
-    stmt 15 while expr=%29 loop=2 text="while position < fruits.count {"
-    stmt 16 decl name=fruit type=string expr=%32 text="fruit := fruits[position]"
-    stmt 17 expr expr=%36 text="print(\"% is at %\\n\", fruit, position);"
-    stmt 18 assign expr=%37 lhs=%38 text="position += 1"
-    stmt 19 block_close text="}"
-    stmt 20 block_close text="}"
-    stmt 21 block_open text="{"
-    stmt 22 decl name=number type=s64 expr=%39 text="number: s64 = 0"
-    stmt 23 while expr=%42 loop=3 text="while number <= 9 {"
-    stmt 24 if expr=%47 text="if number % 2 == 0 {"
-    stmt 25 assign expr=%48 lhs=%49 text="number += 1"
-    stmt 26 continue text="continue;"
-    stmt 27 block_close text="}"
-    stmt 28 if expr=%52 text="if number > 7 {"
-    stmt 29 break text="break;"
-    stmt 30 block_close text="}"
-    stmt 31 expr expr=%55 text="print(\"odd %\\n\", number);"
-    stmt 32 assign expr=%56 lhs=%57 text="number += 1"
-    stmt 33 block_close text="}"
-    stmt 34 block_close text="}"
-    %0 int type=integer text="1"
-    %1 ident type=s32 name=index text="index"
-    %2 int type=integer text="3"
-    %3 binary type=bool op=<= left=%1 right=%2 text="index <= 3"
-    %4 string type=string next=%5 text="\"while %\\n\""
-    %5 ident type=s32 name=index text="index"
-    %6 call type=void name=print child=%4 text="print(\"while %\\n\", index)"
-    %7 int type=integer text="1"
-    %8 ident type=s32 name=index text="index"
-    %9 int type=integer text="0"
-    %10 ident type=s64 name=step text="step"
-    %11 int type=integer text="2"
-    %12 binary type=bool op=<= left=%10 right=%11 text="step <= 2"
-    %13 string type=string next=%14 text="\"range %\\n\""
-    %14 ident type=s64 name=step text="step"
-    %15 call type=void name=print child=%13 text="print(\"range %\\n\", step)"
-    %16 int type=integer text="1"
-    %17 ident type=s64 name=step text="step"
-    %18 string type=string text="\"apple\""
-    %19 field_initializer type=string right=%18 next=%21 text="\"apple\""
-    %20 string type=string text="\"banana\""
-    %21 field_initializer type=string right=%20 next=%23 text="\"banana\""
-    %22 string type=string text="\"cherry\""
-    %23 field_initializer type=string right=%22 text="\"cherry\""
-    %24 compound type=[3]string name=[3]string child=%19 text="string.[\"apple\", \"banana\", \"cherry\"]"
-    %25 int type=integer text="0"
-    %26 ident type=s64 name=position text="position"
-    %27 ident type=[3]string name=fruits text="fruits"
-    %28 member type=s64 name=count op=. left=%27 text="fruits.count"
-    %29 binary type=bool op=< left=%26 right=%28 text="position < fruits.count"
-    %30 ident type=[3]string name=fruits text="fruits"
-    %31 ident type=s64 name=position text="position"
-    %32 index type=string left=%30 right=%31 text="fruits[position]"
-    %33 string type=string next=%34 text="\"% is at %\\n\""
-    %34 ident type=string name=fruit next=%35 text="fruit"
-    %35 ident type=s64 name=position text="position"
-    %36 call type=void name=print child=%33 text="print(\"% is at %\\n\", fruit, position)"
-    %37 int type=integer text="1"
-    %38 ident type=s64 name=position text="position"
-    %39 int type=integer text="0"
-    %40 ident type=s64 name=number text="number"
-    %41 int type=integer text="9"
-    %42 binary type=bool op=<= left=%40 right=%41 text="number <= 9"
-    %43 ident type=s64 name=number text="number"
-    %44 int type=integer text="2"
-    %45 binary type=s64 op=% left=%43 right=%44 text="number % 2"
-    %46 int type=integer text="0"
-    %47 binary type=bool op=== left=%45 right=%46 text="number % 2 == 0"
-    %48 int type=integer text="1"
-    %49 ident type=s64 name=number text="number"
-    %50 ident type=s64 name=number text="number"
-    %51 int type=integer text="7"
-    %52 binary type=bool op=> left=%50 right=%51 text="number > 7"
-    %53 string type=string next=%54 text="\"odd %\\n\""
-    %54 ident type=s64 name=number text="number"
-    %55 call type=void name=print child=%53 text="print(\"odd %\\n\", number)"
-    %56 int type=integer text="1"
-    %57 ident type=s64 name=number text="number"
+    stmt 0 decl name=index type=s32 expr=%0  // index: s32 = 1;
+    stmt 1 while expr=%3  // while index <= 3 {
+    stmt 2 expr expr=%6  // print("while %\n", index);
+    stmt 3 assign expr=%7 lhs=%8  // index += 1;
+    stmt 4 block_close  // }
+    stmt 5 block_open  // {
+    stmt 6 decl name=step type=s64 expr=%9  // step: s64 = 0
+    stmt 7 while expr=%12 loop=1  // while step <= 2 {
+    stmt 8 expr expr=%15  // print("range %\n", step);
+    stmt 9 assign expr=%16 lhs=%17  // step += 1
+    stmt 10 block_close  // }
+    stmt 11 block_close  // }
+    stmt 12 decl name=fruits type=[3]string expr=%24  // fruits := string.["apple", "banana", "cherry"];
+    stmt 13 block_open  // {
+    stmt 14 decl name=position type=s64 expr=%25  // position: s64 = 0
+    stmt 15 while expr=%29 loop=2  // while position < fruits.count {
+    stmt 16 decl name=fruit type=string expr=%32  // fruit := fruits[position]
+    stmt 17 expr expr=%36  // print("% is at %\n", fruit, position);
+    stmt 18 assign expr=%37 lhs=%38  // position += 1
+    stmt 19 block_close  // }
+    stmt 20 block_close  // }
+    stmt 21 block_open  // {
+    stmt 22 decl name=number type=s64 expr=%39  // number: s64 = 0
+    stmt 23 while expr=%42 loop=3  // while number <= 9 {
+    stmt 24 if expr=%47  // if number % 2 == 0 {
+    stmt 25 assign expr=%48 lhs=%49  // number += 1
+    stmt 26 continue  // continue;
+    stmt 27 block_close  // }
+    stmt 28 if expr=%52  // if number > 7 {
+    stmt 29 break  // break;
+    stmt 30 block_close  // }
+    stmt 31 expr expr=%55  // print("odd %\n", number);
+    stmt 32 assign expr=%56 lhs=%57  // number += 1
+    stmt 33 block_close  // }
+    stmt 34 block_close  // }
+    %0 int 1 -> integer
+    %1 ident type=s32 name=index
+    %2 int 3 -> integer
+    %3 binary type=bool op=<= left=%1 right=%2
+    %4 string "while %\n" next=%5
+    %5 ident type=s32 name=index
+    %6 call print(%4, %5) -> void
+    %7 int 1 -> integer
+    %8 ident type=s32 name=index
+    %9 int 0 -> integer
+    %10 ident type=s64 name=step
+    %11 int 2 -> integer
+    %12 binary type=bool op=<= left=%10 right=%11
+    %13 string "range %\n" next=%14
+    %14 ident type=s64 name=step
+    %15 call print(%13, %14) -> void
+    %16 int 1 -> integer
+    %17 ident type=s64 name=step
+    %18 string "apple"
+    %19 field_initializer type=string right=%18 next=%21
+    %20 string "banana"
+    %21 field_initializer type=string right=%20 next=%23
+    %22 string "cherry"
+    %23 field_initializer type=string right=%22
+    %24 compound type=[3]string name=[3]string child=%19
+    %25 int 0 -> integer
+    %26 ident type=s64 name=position
+    %27 ident type=[3]string name=fruits
+    %28 member type=s64 name=count op=. left=%27
+    %29 binary type=bool op=< left=%26 right=%28
+    %30 ident type=[3]string name=fruits
+    %31 ident type=s64 name=position
+    %32 index type=string left=%30 right=%31
+    %33 string "% is at %\n" next=%34
+    %34 ident type=string name=fruit next=%35
+    %35 ident type=s64 name=position
+    %36 call print(%33, %34, %35) -> void
+    %37 int 1 -> integer
+    %38 ident type=s64 name=position
+    %39 int 0 -> integer
+    %40 ident type=s64 name=number
+    %41 int 9 -> integer
+    %42 binary type=bool op=<= left=%40 right=%41
+    %43 ident type=s64 name=number
+    %44 int 2 -> integer
+    %45 binary type=s64 op=% left=%43 right=%44
+    %46 int 0 -> integer
+    %47 binary type=bool op=== left=%45 right=%46
+    %48 int 1 -> integer
+    %49 ident type=s64 name=number
+    %50 ident type=s64 name=number
+    %51 int 7 -> integer
+    %52 binary type=bool op=> left=%50 right=%51
+    %53 string "odd %\n" next=%54
+    %54 ident type=s64 name=number
+    %55 call print(%53, %54) -> void
+    %56 int 1 -> integer
+    %57 ident type=s64 name=number

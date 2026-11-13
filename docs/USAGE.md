@@ -598,9 +598,9 @@ flags (default `$CC`, then `cc`), `--include DIR` names Ziran's headers
 (default: the pinned toolchain's with `--project`, otherwise the checkout
 beside the launcher), and `-o FILE` writes elsewhere.
 
-## Save and inspect checked modules
+## Save and inspect ZIR modules
 
-`ziran ir --entry module:function` saves that reachable checked graph as
+`ziran ir --entry module:function` saves that reachable graph as
 per-module `.zir` files before code generation.
 
 ### Compile-time target facts
@@ -777,7 +777,7 @@ The Go target emits a type alias, preserving the imported type's identity,
 methods, interface behavior and zero value. Ziran can store, pass, return and
 assign these values, including across imports. Fields and layout remain opaque:
 record literals and `size_of` are unavailable. These declarations require an
-explicit `go:` package and are preserved in checked IR. Other targets reject
+explicit `go:` package and are preserved in ZIR. Other targets reject
 foreign Go types; an entry build can discard them when they are unused.
 
 A slice can be explicitly converted to or from a foreign Go type whose
@@ -878,7 +878,7 @@ Split :: (address: string) -> HostPort #go_results #foreign net "SplitHostPort";
 
 The result record must be nonempty, without owned vectors, `using` fields or
 discard fields. Variadic declarations and combinations with `#go_field` are
-rejected. Both attributes require explicit Go package targets. Checked IR
+rejected. Both attributes require explicit Go package targets. ZIR
 stores their typed signatures and attributes; generation from saved IR does
 not infer them from diagnostic source text.
 
@@ -930,7 +930,7 @@ wrapper's own return.
 The binding requires an explicit Go package target, a void result and no
 owned vector arguments or variadic parameters. `#go_results`, `#go_field`
 and Go predeclared builtins other than typed `call` cannot be combined with this
-attribute. Calls must be standalone statements. Checked IR preserves the attribute, and
+attribute. Calls must be standalone statements. ZIR preserves the attribute, and
 other targets reject reachable Go bindings. Ordinary Ziran `defer` keeps
 its lexical scope cleanup semantics across targets.
 
@@ -947,7 +947,7 @@ CleanupAtReturn :: (callback: Cleanup, completed: *bool) #go_defer #foreign buil
 
 The callback and its arguments are captured when scheduled. Pass a pointer
 when cleanup needs to observe a value changed later in the calling function.
-Checked IR retains the typed callback and the schedule independently of the
+ZIR retains the typed callback and the schedule independently of the
 declaration's diagnostic source text.
 
 Typed `go:builtin` `bind` declarations capture one or more leading procedure
@@ -2088,7 +2088,7 @@ with `null`, and their contents are accessed through these operations:
 `MapInit` and `MapSet` require a mutable binding or field. Nil maps support
 reads, membership checks, deletion and clearing. Map mutation in `#parallel`
 regions is rejected because copies share storage. Other targets and portable
-ABIs reject maps; checked `.zir` preserves their Go behavior.
+ABIs reject maps; `.zir` preserves their Go behavior.
 
 Import `go_types` for the predeclared Go `Any` and `Error` interfaces. `Any`
 accepts values that do not own `Vec` storage, including nested maps for JSON.

@@ -4,7 +4,7 @@ Status: in progress; the [revision-28 executable container](zx-executable-format
 
 ## Objective
 
-Replace embedded executable checked `.zir` with the lowered portable instruction program. Keep `.zx` responsible for executable code, linkage, capabilities, libraries, assets, variants, and inspection metadata. A stripped bundle must run without embedded source or semantic IR.
+Replace embedded executable `.zir` with the lowered portable instruction program. Keep `.zx` responsible for executable code, linkage, capabilities, libraries, assets, variants, and inspection metadata. A stripped bundle must run without embedded source or semantic IR.
 
 ## Existing integration points
 

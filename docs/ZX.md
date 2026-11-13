@@ -172,7 +172,7 @@ names, and a
 length-prefixed version 64 `.zir` payload. Named law and waiver tables precede
 that payload; each law includes its method, declared domain, concrete case
 count, counterexample, and waiver state. The loader rechecks embedded theorem
-certificates and compares the outer tables against the checked IR. Verification
+certificates and compares the outer tables against the ZIR. Verification
 roots retain their imported laws, proof certificates, scalar types, constants,
 and called procedures even when the executable entry does not use them.
 See [Laws and scalar proofs](LAWS.md). The current linker follows direct
@@ -287,7 +287,7 @@ portable executable content, data, entry point, linked module identities,
 exports, and explicit host capability requirements. The exact instruction and
 section encoding will be specified before the format is called stable.
 
-The intended common pipeline is source → checked `.zir` → linked and verified
+The intended common pipeline is source → `.zir` → linked and verified
 portable ZX instructions. An explicitly selected portable route interprets
 those instructions. An explicitly supported direct target lowers the same
 verified instructions to machine code, applies the target ABI and platform
@@ -511,7 +511,7 @@ the runtime does not start the portable VM. Hosts configured without a
 provider use their VM mode, and embedders can select the VM explicitly with
 `BundleInstantiatePortable`. `tests/zx_wasm_engine_test.c` checks the seam
 and hard provider rejection, and
-`tests/zx_web_lifecycle.sh` runs source through checked IR and `.zx` in a
+`tests/zx_web_lifecycle.sh` runs source through ZIR and `.zx` in a
 private headless Chromium without Node. It checks actual Wasm execution,
 nested state migration through the provider's memory interface, independent
 linked instances, and portable component replacement and rollback in both
@@ -527,7 +527,7 @@ Names are sorted bytewise for deterministic output. Duplicate names,
 symlinks, absolute paths, backslashes, empty components, and `.` or `..`
 components are rejected.
 
-After the checked IR, both versions store a little-endian u32 file count. Each
+After the ZIR, both versions store a little-endian u32 file count. Each
 file has a u32 name length, name bytes, a u32 data length, and exact binary
 bytes. Empty files are supported. The loader checks lengths against remaining
 input before allocating and rejects noncanonical names/order and trailing data.

@@ -3,7 +3,7 @@
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#f7f3eb"><meta name="description" content="Compiler and standard library guide: the Ziran guide, rendered from docs/USAGE.md."><title>Compiler and standard library guide · Ziran guide</title><link rel="canonical" href="https://ziran-lang.org/guide/usage"><link rel="icon" href="../assets/logo-capybara.png" type="image/png"><link rel="stylesheet" href="../styles.css"><script defer src="../site.js"></script></head>
 <body><a class="skip-link" href="#main">Skip to content</a><header class="site-header"><div class="site-header-inner"><a class="brand" href="../index.html"><img class="brand-icon" src="../assets/logo-capybara.png" alt="" width="36" height="36"><span>Ziran</span></a><button class="menu-button" type="button" aria-expanded="false" aria-controls="primary-nav">Menu</button><nav class="header-nav" id="primary-nav" aria-label="Primary"><a href="../get-started.html">Get started</a><a href="../examples.html">Examples</a><a href="../targets.html">Targets</a><a href="../modules.html">Modules</a><a href="../docs.html" aria-current="page">Docs</a><a href="../status.html">Status</a><a href="https://github.com/ziranlang/ziran">GitHub ↗</a><button class="theme-toggle" type="button" aria-label="Switch color theme"></button></nav></div></header>
 <main id="main" class="article-layout"><div class="article-head"><p class="eyebrow"><a href="../docs.html#guide">Guide</a></p><h1>Compiler and standard library guide</h1><p>Rendered from <a href="https://github.com/ziranlang/ziran/blob/master/docs/USAGE.md">docs/USAGE.md</a>. See the <a href="../docs.html#guide">documentation index</a> for the other guides.</p></div>
-<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-c-and-go-binaries">Generate C and Go binaries</a><a href="#save-and-inspect-checked-modules">Save and inspect checked modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
+<div class="article-grid"><aside class="page-toc"><strong>On this page</strong><a href="#assembly-with-a-portable-body">Assembly with a portable body</a><a href="#build-and-test">Build and test</a><a href="#compiler-commands">Compiler commands</a><a href="#generate-c-and-go-binaries">Generate C and Go binaries</a><a href="#save-and-inspect-zir-modules">Save and inspect ZIR modules</a><a href="#imports">Imports</a><a href="#foreign-functions">Foreign functions</a><a href="#multiline-strings">Multiline strings</a><a href="#returned-views">Returned views</a><a href="#shadowing">Shadowing</a><a href="#integer-literals">Integer literals</a><a href="#standard-library">Standard library</a></aside><div class="article-body">
 <section class="prose"><p><a href="https://github.com/ziranlang/ziran/blob/master/README.md">Back to the README</a> · <a href="implementation-status.html">Implementation status</a></p>
 <h2 id="assembly-with-a-portable-body">Assembly with a portable body</h2>
 <p>An ordinary procedure can supply architecture-specific assembly and a required
@@ -531,8 +531,8 @@ flags it builds with. <code>--compiler "cc -O2"</code> sets the compiler and its
 flags (default <code>$CC</code>, then <code>cc</code>), <code>--include DIR</code> names Ziran's headers
 (default: the pinned toolchain's with <code>--project</code>, otherwise the checkout
 beside the launcher), and <code>-o FILE</code> writes elsewhere.</p>
-<h2 id="save-and-inspect-checked-modules">Save and inspect checked modules</h2>
-<p><code>ziran ir --entry module:function</code> saves that reachable checked graph as
+<h2 id="save-and-inspect-zir-modules">Save and inspect ZIR modules</h2>
+<p><code>ziran ir --entry module:function</code> saves that reachable graph as
 per-module <code>.zir</code> files before code generation.</p>
 <h3 id="compile-time-target-facts">Compile-time target facts</h3>
 <p>The typed compile-time values <code>TARGET</code>, <code>OS</code>, and <code>CPU</code> describe the selected
@@ -674,7 +674,7 @@ Envelope :: struct {
 methods, interface behavior and zero value. Ziran can store, pass, return and
 assign these values, including across imports. Fields and layout remain opaque:
 record literals and <code>size_of</code> are unavailable. These declarations require an
-explicit <code>go:</code> package and are preserved in checked IR. Other targets reject
+explicit <code>go:</code> package and are preserved in ZIR. Other targets reject
 foreign Go types; an entry build can discard them when they are unused.</p>
 <p>A slice can be explicitly converted to or from a foreign Go type whose
 underlying storage supports the conversion. The Go compiler checks that
@@ -749,7 +749,7 @@ Split :: (address: string) -&gt; HostPort #go_results #foreign net &quot;SplitHo
 </code></pre>
 <p>The result record must be nonempty, without owned vectors, <code>using</code> fields or
 discard fields. Variadic declarations and combinations with <code>#go_field</code> are
-rejected. Both attributes require explicit Go package targets. Checked IR
+rejected. Both attributes require explicit Go package targets. ZIR
 stores their typed signatures and attributes; generation from saved IR does
 not infer them from diagnostic source text.</p>
 <p>The standard modules <code>sync_go</code>, <code>time_go</code>, <code>random_go</code>, <code>text_go</code>, <code>net_go</code>
@@ -794,7 +794,7 @@ wrapper's own return.</p>
 <p>The binding requires an explicit Go package target, a void result and no
 owned vector arguments or variadic parameters. <code>#go_results</code>, <code>#go_field</code>
 and Go predeclared builtins other than typed <code>call</code> cannot be combined with this
-attribute. Calls must be standalone statements. Checked IR preserves the attribute, and
+attribute. Calls must be standalone statements. ZIR preserves the attribute, and
 other targets reject reachable Go bindings. Ordinary Ziran <code>defer</code> keeps
 its lexical scope cleanup semantics across targets.</p>
 <p>Typed <code>go:builtin</code> <code>call</code> declarations invoke their first procedure argument
@@ -807,7 +807,7 @@ CleanupAtReturn :: (callback: Cleanup, completed: *bool) #go_defer #foreign buil
 </code></pre>
 <p>The callback and its arguments are captured when scheduled. Pass a pointer
 when cleanup needs to observe a value changed later in the calling function.
-Checked IR retains the typed callback and the schedule independently of the
+ZIR retains the typed callback and the schedule independently of the
 declaration's diagnostic source text.</p>
 <p>Typed <code>go:builtin</code> <code>bind</code> declarations capture one or more leading procedure
 arguments and return a procedure for the remaining arguments. The first
@@ -1829,7 +1829,7 @@ with <code>null</code>, and their contents are accessed through these operations
 <p><code>MapInit</code> and <code>MapSet</code> require a mutable binding or field. Nil maps support
 reads, membership checks, deletion and clearing. Map mutation in <code>#parallel</code>
 regions is rejected because copies share storage. Other targets and portable
-ABIs reject maps; checked <code>.zir</code> preserves their Go behavior.</p>
+ABIs reject maps; <code>.zir</code> preserves their Go behavior.</p>
 <p>Import <code>go_types</code> for the predeclared Go <code>Any</code> and <code>Error</code> interfaces. <code>Any</code>
 accepts values that do not own <code>Vec</code> storage, including nested maps for JSON.</p>
 <h3 id="native-civil-clocks-and-calendars">Native civil clocks and calendars</h3>

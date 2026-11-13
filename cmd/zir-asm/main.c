@@ -28,7 +28,7 @@ assembly_usage(void)
           "       zi2asm --run [--opt] [--fuel N] [--work N] [--frames N] INPUT...\n"
           "map selection: [--function-id N [--block-id N]] [--address-begin N --address-end N]\n"
           "--machine requires --emit elf and selects the no-fallback machine-IR Linux x86-64 path\n"
-          "pipeline: source -> checked ZIR -> verified LIR -> optimization -> portable ZX -> interpreter OR direct machine code/ELF\n"
+          "pipeline: source -> ZIR -> verified LIR -> optimization -> portable ZX -> interpreter OR direct machine code/ELF\n"
           "native always reads verified ZX; C/Go generated binaries are separate routes, never native\n"
           "--opt selects optimized source LIR inspection; ZX production always optimizes; opt-report requires source and --opt\n"
           "experimental direct backend; native target: Linux x86-64 ELF; host capabilities are platform bindings\n"

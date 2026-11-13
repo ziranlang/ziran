@@ -88,10 +88,10 @@ named types, arrays, or generic applications: those still resolve in their
 owning scope. Rewriting a body selects a new snapshot, so copied or relocated
 record declarations cannot retain stale field names or ownership facts.
 
-Every backend consumes the same checked `.zir` model. The ZX linker produces
+Every backend consumes the same `.zir` model. The ZX linker produces
 one verified portable instruction program for the interpreter and direct
 target lowering. `.zx` cannot depend on arbitrary target-specific C or Go
-source fragments. C and Go exporters remain separate consumers of checked IR.
+source fragments. C and Go exporters remain separate consumers of ZIR.
 Every supported route for the same program must agree on observable language
 behavior.
 

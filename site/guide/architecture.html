@@ -93,10 +93,10 @@ field is a built-in value or pointer. This shortcut never assumes facts about
 named types, arrays, or generic applications: those still resolve in their
 owning scope. Rewriting a body selects a new snapshot, so copied or relocated
 record declarations cannot retain stale field names or ownership facts.</p>
-<p>Every backend consumes the same checked <code>.zir</code> model. The ZX linker produces
+<p>Every backend consumes the same <code>.zir</code> model. The ZX linker produces
 one verified portable instruction program for the interpreter and direct
 target lowering. <code>.zx</code> cannot depend on arbitrary target-specific C or Go
-source fragments. C and Go exporters remain separate consumers of checked IR.
+source fragments. C and Go exporters remain separate consumers of ZIR.
 Every supported route for the same program must agree on observable language
 behavior.</p>
 <p>Host capabilities are portable typed requirements in the linked program.

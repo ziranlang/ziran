@@ -56,7 +56,8 @@ SavedBinaryHeader :: (test: *NativeTest) -> bool {
 }
 
 // Each expression's text is a slice of its statement's saved text, so the
-// literal of examples/hello.zi is saved once and still reads back whole.
+// literal of examples/hello.zi is saved once, and the listing names it on
+// the statement and as the literal's value.
 SavedBinaryExpressionText :: (test: *NativeTest) -> bool {
     output := CheckPath(test.work, "example-ir"); path := CheckPath(output, "hello.zir")
     build := string.[test.ziran, "ir", "--root", CheckPath(test.repo, "examples"), "--entry", "hello:main", "-o", output, CheckPath(test.repo, "examples/hello.zi")]
@@ -66,11 +67,13 @@ SavedBinaryExpressionText :: (test: *NativeTest) -> bool {
     inspect := string.[test.ziran, "inspect", path]
     listing := NativeRun(test, inspect[:])
     if test.failed { return false }
-    expected := string.["stmt 0 expr expr=%1 text=\"print(\\\"Hello, World!\\\\n\\\");\"",
-        "%0 string type=string text=\"\\\"Hello, World!\\\\n\\\"\"",
-        "%1 call type=void name=print child=%0 text=\"print(\\\"Hello, World!\\\\n\\\")\""]
+    // The listing shows the statement's source once and each expression by
+    // its meaning: a literal's value, a call's callee and arguments.
+    expected := string.["stmt 0 expr expr=%1  // print(\"Hello, World!\\n\");",
+        "%0 string \"Hello, World!\\n\"\n", "%1 call print(%0) -> void\n"]
+    if !NativeAssert(test, BinaryOccurrences(listing.output, "Hello, World!") == 2, "the listing must show the hello literal on its statement and its value only") { return false }
     for line: expected {
-        if !NativeAssert(test, TextContains(listing.output, line), CheckConcat("saved expression text did not read back: ", line)) { return false }
+        if !NativeAssert(test, TextContains(listing.output, line), CheckConcat("inspect listing is missing: ", line)) { return false }
     }
     return true
 }

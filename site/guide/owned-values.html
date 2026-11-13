@@ -163,7 +163,7 @@ is empty. Indexing has the same checked bounds behavior as fixed arrays, and
 string builder owns UTF-8 bytes in a <code>Vec[u8]</code>; <code>BuilderAppend</code> can fail, and
 <code>BuilderFinish</code> consumes the builder without copying its bytes. Immutable
 <code>string</code> values remain unchanged.</p>
-<p>The parser, checker, checked <code>.zir</code>, C/Go emitters, portable verifier, VM,
+<p>The parser, checker, <code>.zir</code>, C/Go emitters, portable verifier, VM,
 and host boundary implement the direct-vector operations above, with the
 ownership and automatic-drop limitations called out at the start of this page.</p></section>
 </div></div></main>

@@ -9,7 +9,7 @@ examples.
 ## Priority 1: one safe meaning across targets
 
 1. **Automatic ownership cleanup.** Lower the remaining ownership decisions
-   into checked IR rather than separate backend paths, broaden allocation-count
+   into ZIR rather than separate backend paths, broaden allocation-count
    and AddressSanitizer coverage, and retain source/saved-IR tests across
    backends. Owned `Text` is freed with its owner, and a procedure returning
    `Text` still serves callers that use the result as a `string`, which keep

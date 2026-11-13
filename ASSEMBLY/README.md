@@ -16,7 +16,7 @@ portable, legacy and alternate backends are never fallback success paths.
 The experimental direct pipeline is:
 
 ```text
-.zi -> checked .zir -> lowered LIR -> verifier -> LIR optimizations -> .zx
+.zi -> .zir -> lowered LIR -> verifier -> LIR optimizations -> .zx
                          |                                          |
                     --emit lir                            verified ZX reader
                                                                     |
@@ -136,7 +136,7 @@ assembler, C compiler, or system linker to produce this executable.
   names and paths must be nonempty, NUL-free valid UTF-8; malformed wire metadata
   is rejected before reaching JSON output, while valid Unicode is preserved.
 - `--emit zx` always optimizes and writes the deterministic portable executable;
-  `--input zx` verifies and consumes it without source or checked `.zir`.
+  `--input zx` verifies and consumes it without source or `.zir`.
   Source ELF output serializes and reads that same ZX boundary first, so a ZX
   image gives byte-identical native output through either entry route. No
   standalone `.lirb`, `--emit exec` or `--input exec` route remains. The internal

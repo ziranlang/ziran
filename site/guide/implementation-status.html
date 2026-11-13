@@ -330,11 +330,11 @@ removed redundant scripts; those fixtures remain in Git history. Run
 </tr>
 <tr>
 <td><code>compiler_proof.zi</code></td>
-<td>Theorem propositions and <code>#proof</code> certificates over checked IR: pure scalar procedures unfold into kernel terms</td>
+<td>Theorem propositions and <code>#proof</code> certificates over ZIR: pure scalar procedures unfold into kernel terms</td>
 </tr>
 <tr>
 <td><code>compiler_law.zi</code></td>
-<td>Effect-class derivation and effect-law evaluation over checked IR, using shared compiler services</td>
+<td>Effect-class derivation and effect-law evaluation over ZIR, using shared compiler services</td>
 </tr>
 <tr>
 <td><code>compiler_bundle.zi</code></td>
@@ -874,7 +874,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   shadow promoted fields; conflicting promoted
   names are diagnosed. Struct fields declared <code>using field: Record</code> promote
   contained fields through nested records and concrete generic applications.
-  Reads and writes retain their nested storage layout in checked IR; source
+  Reads and writes retain their nested storage layout in ZIR; source
   and saved IR agree in C, Go, and <code>.zx</code>. Pointer-backed <code>using</code> fields
   work in native targets.
   Polymorphic procedures preserve parameter, local, and imperative <code>using</code>
@@ -890,7 +890,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   ambiguous imports and private global visibility. Named and open imported
   globals keep their declaring record type when a consumer defines a
   same-named type; direct and <code>using</code> field access agree across all four
-  targets. Checked IR retains open-import type ownership with a private alias.
+  targets. ZIR retains open-import type ownership with a private alias.
   <code>using,only(...)</code>/<code>except(...)</code>/<code>map(...)</code> modifiers filter and rename
   promoted record fields and opened enum members on local and data-scope
   using declarations, in source and saved IR across C, Go, and <code>.zx</code>;
@@ -988,7 +988,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   module; file-private declarations, imports, and system libraries are visible
   only to their own source file, including compile-time conditions and size
   queries. Separate loaded files may reuse private procedure, constant, global,
-  and type names; checked IR assigns distinct identities before native or
+  and type names; ZIR assigns distinct identities before native or
   portable output. Constant aliases, native global initializers, record
   construction, and local shadowing retain the correct file-local binding in
   source and saved IR.</p>
@@ -1095,7 +1095,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   sample, and a mixed source/IR
   C build runs.</li>
 <li>Jai <code>union</code> declarations, including generic unions, retain their shared
-  field storage and maximum-field layout in checked <code>.zir</code>. C compiles
+  field storage and maximum-field layout in <code>.zir</code>. C compiles
   source and saved IR unions with overlapping fields. Unions whose fields are
   all scalars or enums also build and run on Go, through an aligned byte
   backing with <code>unsafe</code> typed access, and in portable bundles, where the VM
@@ -1282,7 +1282,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   procedures, file-scope constants and globals, <code>#run</code>, <code>#assert</code>, and later <code>#if</code>
   conditions. File-private using declarations respect <code>#load</code> boundaries.
   Bare members without <code>using</code> are rejected in procedure bodies and file-scope
-  global initializers; checked IR lowers opened members to values before native
+  global initializers; ZIR lowers opened members to values before native
   or portable execution. File-scope record and union <code>using</code> fields also work
   in pure global initializers that read earlier initialized globals. The
   checker folds those startup values for C, Go, and <code>.zx</code>, respects
@@ -1322,7 +1322,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   aliases inside inactive branches or private loaded files stay hidden.
   Later records, enums, and generic records with <code>#if</code>-selected bodies also
   resolve for supported forward size queries and opened enum members, including
-  a type from a later <code>#load</code>. The selected branch alone reaches checked IR;
+  a type from a later <code>#load</code>. The selected branch alone reaches ZIR;
   private loaded types stay hidden. Acyclic forward dependencies between
   conditional records or enums resolve after their prerequisites are found;
   unresolved conditions fail without selecting a branch.
@@ -1459,7 +1459,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   record literal passed to a callee whose by-value record parameter only
   reads that field, through further calls that take the whole record.
   Foreign and template callees retain, except that a <code>#reads</code> foreign
-  procedure only reads its string and byte arguments; checked IR keeps the
+  procedure only reads its string and byte arguments; ZIR keeps the
   marker in the import's former reserved slot, so format 61 is unchanged. The move is skipped after an earlier
   call or address in the statement, after a global read when the moved call
   may write any global (through an assignment, a pointer, an address, a
@@ -1807,7 +1807,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   typed IR, then enforce target capability errors uniformly.</li>
 <li>Extend the <code>.zx</code> linker and verifier to all checked expressions and native
   features, including complete host capability coverage. The current bundle
-  embeds checked <code>.zir</code> and follows direct calls, but it remains a subset.</li>
+  embeds <code>.zir</code> and follows direct calls, but it remains a subset.</li>
 <li>Complete ownership edge cases: unknown heap and host-backed view aliases,
   indexed and pointer-backed field moves, and reclaimable storage detached by
   <code>BuilderFinish</code>.</li>

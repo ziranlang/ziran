@@ -33,6 +33,130 @@ quoted(const char *value)
     putchar('"');
 }
 
+/* Source text as written, for a trailing comment: only control bytes are
+ * escaped, so a statement reads as it does in its file. */
+static void
+raw(const char *value)
+{
+    for(const unsigned char *cursor = (const unsigned char *)value; *cursor; cursor++) {
+        unsigned char byte = *cursor;
+        if(byte == '\n') fputs("\\n", stdout);
+        else if(byte == '\r') fputs("\\r", stdout);
+        else if(byte == '\t') fputs("\\t", stdout);
+        else if(byte < 32 || byte == 127) printf("\\x%02x", byte);
+        else putchar(byte);
+    }
+}
+
+/* Each expression's statement: the first whose expression trees reach it,
+ * or -1. */
+static int *
+expression_owners(const ZirFunction *function)
+{
+    int count = function->expr_count;
+    if(count <= 0) return NULL;
+    int *owners = malloc((size_t)count * sizeof(*owners));
+    int *stack = malloc((size_t)count * sizeof(*stack));
+    if(owners == NULL || stack == NULL) {
+        free(owners);
+        free(stack);
+        return NULL;
+    }
+    for(int i = 0; i < count; i++) owners[i] = -1;
+    for(int s = 0; s < function->stmt_count; s++) {
+        int top = 0;
+        int roots[2] = {function->stmts[s].expr_root, function->stmts[s].lhs_root};
+        for(int r = 0; r < 2; r++)
+            if(roots[r] >= 0 && roots[r] < count && owners[roots[r]] < 0) {
+                owners[roots[r]] = s;
+                stack[top++] = roots[r];
+            }
+        while(top > 0) {
+            const ZirExpr *expression = &function->exprs[stack[--top]];
+            int links[5] = {expression->left, expression->right, expression->first_child,
+                            expression->next_sibling, expression->third};
+            for(int l = 0; l < 5; l++)
+                if(links[l] >= 0 && links[l] < count && owners[links[l]] < 0) {
+                    owners[links[l]] = s;
+                    stack[top++] = links[l];
+                }
+        }
+    }
+    free(stack);
+    return owners;
+}
+
+/* Whether an expression's text only repeats part of its statement's, which
+ * the listing already shows once. */
+static int
+text_in_statement(const ZirFunction *function, const int *owners, int index)
+{
+    const char *text = function->exprs[index].text;
+    if(text == NULL || !text[0]) return 1;
+    int owner = owners ? owners[index] : -1;
+    if(owner >= 0 && function->stmts[owner].text && strstr(function->stmts[owner].text, text)) return 1;
+    for(int s = 0; s < function->stmt_count; s++)
+        if(function->stmts[s].text && strstr(function->stmts[s].text, text)) return 1;
+    return 0;
+}
+
+static void
+show_expression(const ZirFunction *function, const int *owners, int e)
+{
+    const ZirExpr *expression = &function->exprs[e];
+    printf("    %%%d %s", e, ExprKindName(expression->kind));
+    int literal = expression->kind == ZIR_EXPR_INT || expression->kind == ZIR_EXPR_FLOAT ||
+                  expression->kind == ZIR_EXPR_STRING;
+    if(literal) {
+        /* A literal is its value. */
+        printf(" %s", expression->text);
+        if(expression->type[0] && strcmp(expression->type, "string") != 0)
+            printf(" -> %s", expression->type);
+        if(expression->next_sibling >= 0) printf(" next=%%%d", expression->next_sibling);
+        putchar('\n');
+        return;
+    }
+    if(expression->kind == ZIR_EXPR_CALL) {
+        /* A call is its callee and arguments. */
+        putchar(' ');
+        if(expression->name[0]) fputs(expression->name, stdout);
+        else if(expression->left >= 0) printf("%%%d", expression->left);
+        putchar('(');
+        int guard = 0;
+        for(int child = expression->first_child; child >= 0 && child < function->expr_count &&
+            guard < function->expr_count; child = function->exprs[child].next_sibling, guard++) {
+            if(guard) fputs(", ", stdout);
+            if(function->exprs[child].argument_name[0])
+                printf("%s=", function->exprs[child].argument_name);
+            printf("%%%d", child);
+        }
+        printf(") -> %s", expression->type[0] ? expression->type : "void");
+        if(expression->next_sibling >= 0) printf(" next=%%%d", expression->next_sibling);
+        if(!text_in_statement(function, owners, e)) {
+            fputs(" text=", stdout);
+            quoted(expression->text);
+        }
+        putchar('\n');
+        return;
+    }
+    if(expression->type[0]) printf(" type=%s", expression->type);
+    if(expression->name[0]) printf(" name=%s", expression->name);
+    if(expression->op[0]) printf(" op=%s", expression->op);
+    if(expression->left >= 0) printf(" left=%%%d", expression->left);
+    if(expression->right >= 0) printf(" right=%%%d", expression->right);
+    if(expression->first_child >= 0)
+        printf(" child=%%%d", expression->first_child);
+    if(expression->next_sibling >= 0)
+        printf(" next=%%%d", expression->next_sibling);
+    if(expression->third >= 0)
+        printf(" third=%%%d", expression->third);
+    if(!text_in_statement(function, owners, e)) {
+        fputs(" text=", stdout);
+        quoted(expression->text);
+    }
+    putchar('\n');
+}
+
 static void
 location(const ZirSourceSpan *span)
 {
@@ -103,30 +227,16 @@ show_module(const ZirModule *module)
             if(statement->target_id)
                 printf(" target=%d", statement->target_id);
             if(statement->is_else) fputs(" else", stdout);
-            fputs(" text=", stdout);
-            quoted(statement->text);
-            putchar('\n');
-        }
-        for(int e = 0; e < function->expr_count; e++) {
-            const ZirExpr *expression = &function->exprs[e];
-            printf("    %%%d %s", e, ExprKindName(expression->kind));
-            if(expression->type[0]) printf(" type=%s", expression->type);
-            if(expression->name[0]) printf(" name=%s", expression->name);
-            if(expression->op[0]) printf(" op=%s", expression->op);
-            if(expression->left >= 0) printf(" left=%%%d", expression->left);
-            if(expression->right >= 0) printf(" right=%%%d", expression->right);
-            if(expression->first_child >= 0)
-                printf(" child=%%%d", expression->first_child);
-            if(expression->next_sibling >= 0)
-                printf(" next=%%%d", expression->next_sibling);
-            if(expression->third >= 0)
-                printf(" third=%%%d", expression->third);
-            if(expression->text[0]) {
-                fputs(" text=", stdout);
-                quoted(expression->text);
+            if(statement->text && statement->text[0]) {
+                fputs("  // ", stdout);
+                raw(statement->text);
             }
             putchar('\n');
         }
+        int *owners = expression_owners(function);
+        for(int e = 0; e < function->expr_count; e++)
+            show_expression(function, owners, e);
+        free(owners);
     }
 }
 

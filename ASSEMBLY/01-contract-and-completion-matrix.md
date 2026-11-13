@@ -14,7 +14,7 @@ Upgrade `.zx` into a portable executable instruction format and add a direct nat
 The intended architecture is:
 
 ```text
-.zi -> checked .zir -> lowered portable IR -> .zx container
+.zi -> .zir -> lowered portable IR -> .zx container
                               |                  |
                               +--------+---------+
                                        |

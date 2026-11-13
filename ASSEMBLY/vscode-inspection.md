@@ -4,7 +4,7 @@ The repository tasks run the experimental direct backend's real supported
 inspection path without rebuilding the compiler or falling back to C:
 
 ```text
-source -> checked .zir -> LIR -> verification -> LIR optimization -> portable .zx
+source -> .zir -> LIR -> verification -> LIR optimization -> portable .zx
        -> verified ZX read -> direct target lowering -> ELF + map -> disassembly
 ```
 
@@ -60,7 +60,7 @@ env -u DISPLAY -u WAYLAND_DISPLAY -u XAUTHORITY \
     build-queue -- make assembly
 ```
 
-This view exposes only the currently implemented checked IR, verified lowered
+This view exposes only the currently implemented ZIR, verified lowered
 instructions, basic optimization counters, native range map, ELF and
 disassembly. It does not claim machine IR, register-allocation state,
 source/unwind debug metadata, profiler/JIT mapping, or support for examples

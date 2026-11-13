@@ -11,7 +11,7 @@
     }
   </script>
   <meta name="theme-color" content="#f7f3eb">
-  <meta name="description" content="One Ziran source, four outputs: C, Go, portable ZX and WebAssembly. Explore the target matrix, inspect checked IR and compare measured timings.">
+  <meta name="description" content="One Ziran source, four outputs: C, Go, portable ZX and WebAssembly. Explore the target matrix, inspect ZIR and compare measured timings.">
   <title>Ziran — Build useful software</title>
   <link rel="canonical" href="https://ziran-lang.org/">
   <link rel="icon" href="assets/logo-capybara.png" type="image/png">
@@ -20,7 +20,7 @@
   <meta property="og:type" content="website">
   <meta property="og:url" content="https://ziran-lang.org/">
   <meta property="og:title" content="Ziran — Build useful software">
-  <meta property="og:description" content="One source. Four outputs. Explore C, Go, portable ZX, WebAssembly and checked IR in the target matrix.">
+  <meta property="og:description" content="One source. Four outputs. Explore C, Go, portable ZX, WebAssembly and ZIR in the target matrix.">
   <meta name="twitter:card" content="summary">
   <script defer src="site.js"></script>
   <script defer src="playground.js"></script>
@@ -37,7 +37,7 @@
       <div class="hero-copy">
         <div class="hero-kicker"><p class="eyebrow">Open source programming language</p><a class="release-badge" href="status.html"><span aria-hidden="true"></span>Experimental</a></div>
         <h1>The Ziran programming language</h1>
-        <p class="hero-lead">One readable language, four outputs: C, Go, portable <code>.zx</code> bundles, and WebAssembly. Inspect the checked IR and follow your source all the way through.</p>
+        <p class="hero-lead">One readable language, four outputs: C, Go, portable <code>.zx</code> bundles, and WebAssembly. Inspect the ZIR and follow your source all the way through.</p>
         <div class="actions"><a class="btn btn-primary" href="get-started.html">Get started <span aria-hidden="true">→</span></a><a class="btn" href="targets.html">Explore the target matrix <span aria-hidden="true">↗</span></a></div>
         <ul class="hero-points"><li>Readable source</li><li>Build-time laws</li><li><a href="modules.html">Standard library</a></li></ul>
         <p class="hero-note">Latest release: <a href="https://github.com/ziranlang/ziran/releases/tag/v0.4.2">v0.4.2</a>. Build from source today. <a href="status.html">See current support</a>.</p>
@@ -116,7 +116,7 @@
       <div class="use-grid">
         <article class="use-card"><div class="use-visual record-visual" aria-hidden="true"><div><small>Score</small><code>value <b class="record-value">40</b></code><code>bonus <b class="record-bonus">2</b></code></div><span>→</span><output class="record-total">42</output></div><span>01 / Language</span><strong>Records and procedures</strong><p>Change the fields and see their total.</p><div class="diagram-controls record-controls" hidden><label>Value<input class="record-value-input" type="number" value="40" min="-999" max="999" step="1"></label><label>Bonus<input class="record-bonus-input" type="number" value="2" min="-999" max="999" step="1"></label><output class="record-summary" aria-live="polite">40 + 2 = 42</output></div><button class="diagram-edit" type="button" data-example="score" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#score">See example <span aria-hidden="true">↗</span></a></article>
         <article class="use-card"><div class="use-visual text-visual" aria-hidden="true"><code class="text-preview"><b>Zi</b>ran</code><span class="text-match"><i>✓</i> Prefix matched</span></div><span>02 / Library</span><strong>Text processing</strong><p>Try a prefix with ASCII case folding.</p><div class="diagram-controls text-controls" hidden><label>Text<input class="text-value-input" type="text" value="Ziran" maxlength="40" spellcheck="false"></label><label>Prefix<input class="text-prefix-input" type="text" value="zi" maxlength="40" spellcheck="false"></label><output class="text-summary" aria-live="polite">Prefix matched</output></div><button class="diagram-edit" type="button" data-example="text" hidden>Open in editor <span aria-hidden="true">↗</span></button><a href="examples.html#text-demo">See example <span aria-hidden="true">↗</span></a></article>
-        <article class="use-card"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code data-target="c" class="is-selected">C</code><code data-target="go">Go</code><code data-target="zx">ZX</code><code data-target="wasm">Wasm</code></div></div><span>03 / Toolchain</span><strong>Four outputs, one source</strong><p>Choose a target or inspect the checked IR.</p><div class="diagram-controls target-controls" hidden><label>Output<select class="target-select"><option value="c">C</option><option value="go">Go</option><option value="zx">ZX bundle</option><option value="wasm">WebAssembly</option><option value="zir">Checked IR</option></select></label><output class="target-summary" aria-live="polite">Generate C output</output><pre class="target-command"><code>ziran build --target=c --root . -o out/c source.zi</code></pre></div><a href="targets.html">Open the target matrix <span aria-hidden="true">↗</span></a></article>
+        <article class="use-card"><div class="use-visual native-visual" aria-hidden="true"><code>source.zi</code><span>↓</span><div><code data-target="c" class="is-selected">C</code><code data-target="go">Go</code><code data-target="zx">ZX</code><code data-target="wasm">Wasm</code></div></div><span>03 / Toolchain</span><strong>Four outputs, one source</strong><p>Choose a target or inspect the ZIR.</p><div class="diagram-controls target-controls" hidden><label>Output<select class="target-select"><option value="c">C</option><option value="go">Go</option><option value="zx">ZX bundle</option><option value="wasm">WebAssembly</option><option value="zir">ZIR</option></select></label><output class="target-summary" aria-live="polite">Generate C output</output><pre class="target-command"><code>ziran build --target=c --root . -o out/c source.zi</code></pre></div><a href="targets.html">Open the target matrix <span aria-hidden="true">↗</span></a></article>
       </div>
     </section>
 

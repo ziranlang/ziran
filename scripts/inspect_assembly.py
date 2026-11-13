@@ -120,7 +120,7 @@ def repository_path(value: str, label: str) -> Path:
 def checked_entry(checked: Path, entry: str, source: Path) -> Path:
     files = sorted(checked.rglob("*.zir"))
     if not files:
-        raise InspectionError("checked IR", "zi2zir emitted no checked .zir files")
+        raise InspectionError("ZIR", "zi2zir emitted no .zir files")
 
     module = entry.split(":", 1)[0]
     module_paths = {module, module.replace(".", "/")}
@@ -137,7 +137,7 @@ def checked_entry(checked: Path, entry: str, source: Path) -> Path:
         return files[0]
     emitted = ", ".join(display_path(path) for path in files)
     raise InspectionError(
-        "checked IR",
+        "ZIR",
         f"cannot select checked module for {module!r}; emitted: {emitted}",
     )
 
@@ -210,9 +210,9 @@ def inspect(source: Path, entry: str, root: Path, objdump_name: str) -> None:
         str(checked),
         str(source),
     ]
-    run("checked IR", checked_command)
+    run("ZIR", checked_command)
     checked_input = checked_entry(checked, entry, source)
-    require_file("checked IR", checked_input, "selected checked .zir")
+    require_file("ZIR", checked_input, "selected .zir")
 
     zx = STAGING / "lowered.zx"
     lower_command = [

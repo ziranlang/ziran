@@ -271,8 +271,8 @@ removed redundant scripts; those fixtures remain in Git history. Run
   | `compiler_parse.zi` | Expression and initializer grammar building shared IR directly, spans, nesting limits and typed initializer fields |
   | `compiler_statement.zi` | Loop and control headers, `then`/`else`, `#if` headers, name references |
   | `compiler_proof_kernel.zi` | Scalar proof terms, polynomials modulo 2^w, order facts, case splits and the proof budget |
-  | `compiler_proof.zi` | Theorem propositions and `#proof` certificates over checked IR: pure scalar procedures unfold into kernel terms |
-  | `compiler_law.zi` | Effect-class derivation and effect-law evaluation over checked IR, using shared compiler services |
+  | `compiler_proof.zi` | Theorem propositions and `#proof` certificates over ZIR: pure scalar procedures unfold into kernel terms |
+  | `compiler_law.zi` | Effect-class derivation and effect-law evaluation over ZIR, using shared compiler services |
   | `compiler_bundle.zi` | The `.zx` container: header, entry names, capability, law and waiver tables, the asset section and every limit, written and read by one walk |
   | `compiler_ir.zi` | The IR records C shares: modules, functions, statements, expressions, types, laws and proofs, their kinds and buffer sizes. `zir.h` includes the generated header, spelled for C with `#c` |
   | `compiler_services.zi` | The C services Ziran IR modules call: kept text, source paths, diagnostics, symbol lookups and import storage |
@@ -739,7 +739,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   shadow promoted fields; conflicting promoted
   names are diagnosed. Struct fields declared `using field: Record` promote
   contained fields through nested records and concrete generic applications.
-  Reads and writes retain their nested storage layout in checked IR; source
+  Reads and writes retain their nested storage layout in ZIR; source
   and saved IR agree in C, Go, and `.zx`. Pointer-backed `using` fields
   work in native targets.
   Polymorphic procedures preserve parameter, local, and imperative `using`
@@ -755,7 +755,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   ambiguous imports and private global visibility. Named and open imported
   globals keep their declaring record type when a consumer defines a
   same-named type; direct and `using` field access agree across all four
-  targets. Checked IR retains open-import type ownership with a private alias.
+  targets. ZIR retains open-import type ownership with a private alias.
   `using,only(...)`/`except(...)`/`map(...)` modifiers filter and rename
   promoted record fields and opened enum members on local and data-scope
   using declarations, in source and saved IR across C, Go, and `.zx`;
@@ -852,7 +852,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   module; file-private declarations, imports, and system libraries are visible
   only to their own source file, including compile-time conditions and size
   queries. Separate loaded files may reuse private procedure, constant, global,
-  and type names; checked IR assigns distinct identities before native or
+  and type names; ZIR assigns distinct identities before native or
   portable output. Constant aliases, native global initializers, record
   construction, and local shadowing retain the correct file-local binding in
   source and saved IR.
@@ -957,7 +957,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   sample, and a mixed source/IR
   C build runs.
 - Jai `union` declarations, including generic unions, retain their shared
-  field storage and maximum-field layout in checked `.zir`. C compiles
+  field storage and maximum-field layout in `.zir`. C compiles
   source and saved IR unions with overlapping fields. Unions whose fields are
   all scalars or enums also build and run on Go, through an aligned byte
   backing with `unsafe` typed access, and in portable bundles, where the VM
@@ -1144,7 +1144,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   procedures, file-scope constants and globals, `#run`, `#assert`, and later `#if`
   conditions. File-private using declarations respect `#load` boundaries.
   Bare members without `using` are rejected in procedure bodies and file-scope
-  global initializers; checked IR lowers opened members to values before native
+  global initializers; ZIR lowers opened members to values before native
   or portable execution. File-scope record and union `using` fields also work
   in pure global initializers that read earlier initialized globals. The
   checker folds those startup values for C, Go, and `.zx`, respects
@@ -1184,7 +1184,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   aliases inside inactive branches or private loaded files stay hidden.
   Later records, enums, and generic records with `#if`-selected bodies also
   resolve for supported forward size queries and opened enum members, including
-  a type from a later `#load`. The selected branch alone reaches checked IR;
+  a type from a later `#load`. The selected branch alone reaches ZIR;
   private loaded types stay hidden. Acyclic forward dependencies between
   conditional records or enums resolve after their prerequisites are found;
   unresolved conditions fail without selecting a branch.
@@ -1321,7 +1321,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   record literal passed to a callee whose by-value record parameter only
   reads that field, through further calls that take the whole record.
   Foreign and template callees retain, except that a `#reads` foreign
-  procedure only reads its string and byte arguments; checked IR keeps the
+  procedure only reads its string and byte arguments; ZIR keeps the
   marker in the import's former reserved slot, so format 61 is unchanged. The move is skipped after an earlier
   call or address in the statement, after a global read when the moved call
   may write any global (through an assignment, a pointer, an address, a
@@ -1666,7 +1666,7 @@ removed redundant scripts; those fixtures remain in Git history. Run
   typed IR, then enforce target capability errors uniformly.
 - Extend the `.zx` linker and verifier to all checked expressions and native
   features, including complete host capability coverage. The current bundle
-  embeds checked `.zir` and follows direct calls, but it remains a subset.
+  embeds `.zir` and follows direct calls, but it remains a subset.
 - Complete ownership edge cases: unknown heap and host-backed view aliases,
   indexed and pointer-backed field moves, and reclaimable storage detached by
   `BuilderFinish`.

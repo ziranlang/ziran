@@ -17,7 +17,7 @@ Proposed modules: `cmd/compiler_inspect_exec.zi`, `cmd/compiler_debug_map.zi`, a
 
 ## Inspectability deliverables
 
-- [ ] Provide deterministic dumps for checked IR, initial portable IR, optimized portable IR, selected machine IR, allocated machine IR, assembly, object metadata, link map, and final executable disassembly.
+- [ ] Provide deterministic dumps for ZIR, initial portable IR, optimized portable IR, selected machine IR, allocated machine IR, assembly, object metadata, link map, and final executable disassembly.
 - [ ] Map source spans and inline/generic origin chains to instructions, addresses, symbols, and stack locations. Preserve many-to-many mappings when optimization combines or duplicates operations.
 - [ ] Explain eliminated checks, folded expressions, inlining decisions, missed vectorization, dispatch selection, spills/reloads, frame sizes, call sites, and linker-generated stubs/padding.
 - [ ] Produce human-readable output and structured JSON for each stage. Large programs support bounded function/block/address selection; tools must not require dumping an entire binary to inspect one function.

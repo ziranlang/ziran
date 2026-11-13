@@ -3247,8 +3247,8 @@
               "sha256": "fce1ba5fd34b71c40adcb5d9ac31c18c325bdda4309af6e88f3f3bd0f9df0b3a",
               "inspection": {
                 "path": "generated/targets/score/zx/score.zx.txt",
-                "bytes": 1223,
-                "sha256": "2be40b238c544a64326bea3e5a32a057c5a84a35358bcbd464013de42d9c9b90"
+                "bytes": 982,
+                "sha256": "be71b6e333dabe782c29169f8f159d3977572e13ea315e356e4f3cf7f9881b75"
               }
             }
           ],
@@ -3278,8 +3278,8 @@
           "emission_ms": 2328.444698,
           "inspection": {
             "path": "generated/targets/score/zx/score.zx.txt",
-            "bytes": 1223,
-            "sha256": "2be40b238c544a64326bea3e5a32a057c5a84a35358bcbd464013de42d9c9b90"
+            "bytes": 982,
+            "sha256": "be71b6e333dabe782c29169f8f159d3977572e13ea315e356e4f3cf7f9881b75"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/score/zx/score.zx",
           "run_samples_ms": [
@@ -3390,8 +3390,8 @@
               "sha256": "53a5d5bfdfede4acf56eaa5b13246c10c8738f3b35bbf6255b8dc41a5bd50714",
               "inspection": {
                 "path": "generated/targets/score/zir/score.zir.txt",
-                "bytes": 1171,
-                "sha256": "51fc97b90492ce4974fe4705fb6ed390e350839dd88604cf515be6fbfe3670f7"
+                "bytes": 930,
+                "sha256": "a05b43a78227884f3c85e0080f9fef21f1977fc990a57a457adca16e06965b5c"
               }
             }
           ],
@@ -3421,8 +3421,8 @@
           "emission_ms": 1.558114,
           "inspection": {
             "path": "generated/targets/score/zir/score.zir.txt",
-            "bytes": 1171,
-            "sha256": "51fc97b90492ce4974fe4705fb6ed390e350839dd88604cf515be6fbfe3670f7"
+            "bytes": 930,
+            "sha256": "a05b43a78227884f3c85e0080f9fef21f1977fc990a57a457adca16e06965b5c"
           }
         }
       }
@@ -3631,8 +3631,8 @@
               "sha256": "1bc1d6a69fbf936872d2462c16c7174f5a01fa90ca2e826a7ba2c319f9ef9b2b",
               "inspection": {
                 "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
-                "bytes": 4258,
-                "sha256": "4d32e172c60f715e523783204e996d3d15eed07a97bc4b8352f71ee48a63d69a"
+                "bytes": 3183,
+                "sha256": "8dd3ebe7cfac544ad634f19cac3dce4c5f508e2f7d90a03094832b07660d7da3"
               }
             }
           ],
@@ -3662,8 +3662,8 @@
           "emission_ms": 1.875574,
           "inspection": {
             "path": "generated/targets/text_demo/zx/text_demo.zx.txt",
-            "bytes": 4258,
-            "sha256": "4d32e172c60f715e523783204e996d3d15eed07a97bc4b8352f71ee48a63d69a"
+            "bytes": 3183,
+            "sha256": "8dd3ebe7cfac544ad634f19cac3dce4c5f508e2f7d90a03094832b07660d7da3"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/text_demo/zx/text_demo.zx",
           "run_samples_ms": [
@@ -3773,8 +3773,8 @@
               "sha256": "a5fc082536043c362027052c722d59bdfe20dd17735e61ce11b2bc26c6d864dd",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
-                "bytes": 684,
-                "sha256": "342081308fc6cfee7bb775d06f9e67a35fa45cb012979ffbe18f0e1da394078d"
+                "bytes": 554,
+                "sha256": "9f35e6d523a47e0b928cb43ccc4137974ce6cdecc7c98bddd9bce10694515b0a"
               }
             },
             {
@@ -3783,8 +3783,8 @@
               "sha256": "d8b26799dd7cab174337c4d1f9444a6f895e72fc02e13ea7ff56d53fb6b074f7",
               "inspection": {
                 "path": "generated/targets/text_demo/zir/text.zir.txt",
-                "bytes": 3565,
-                "sha256": "af5aff3c1617cf537735c94ef48768be8494aa6c0f2413903e6aa8d7083874d8"
+                "bytes": 2620,
+                "sha256": "67c360349205f16636966790cc6a74af1ea7972fee884ce89249feb0cf8716c4"
               }
             }
           ],
@@ -3814,8 +3814,8 @@
           "emission_ms": 153.672139,
           "inspection": {
             "path": "generated/targets/text_demo/zir/text_demo.zir.txt",
-            "bytes": 684,
-            "sha256": "342081308fc6cfee7bb775d06f9e67a35fa45cb012979ffbe18f0e1da394078d"
+            "bytes": 554,
+            "sha256": "9f35e6d523a47e0b928cb43ccc4137974ce6cdecc7c98bddd9bce10694515b0a"
           }
         }
       }
@@ -4003,8 +4003,8 @@
               "sha256": "04d06d21f83a3430bfc0ab0d11e84a5e4b0269e4a12da1c77c47a27c1a698915",
               "inspection": {
                 "path": "generated/targets/arrays/zx/arrays.zx.txt",
-                "bytes": 5620,
-                "sha256": "3154aad5e1b853e0814c327fecbcfd19e42795a7eb09567e0a0fac49783f09ab"
+                "bytes": 4198,
+                "sha256": "c33e394eb8b04ab21d913acf0ed0b6e4e0c761295fb04abc09ad7bd98e8e4109"
               }
             }
           ],
@@ -4035,8 +4035,8 @@
           "emission_ms": 628.1364365000001,
           "inspection": {
             "path": "generated/targets/arrays/zx/arrays.zx.txt",
-            "bytes": 5620,
-            "sha256": "3154aad5e1b853e0814c327fecbcfd19e42795a7eb09567e0a0fac49783f09ab"
+            "bytes": 4198,
+            "sha256": "c33e394eb8b04ab21d913acf0ed0b6e4e0c761295fb04abc09ad7bd98e8e4109"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/arrays/zx/arrays.zx",
           "run_samples_ms": [
@@ -4146,8 +4146,8 @@
               "sha256": "39637a64db3012f82e7d768e8a0d21a2df29e06eb21a5f718e6769f52657d054",
               "inspection": {
                 "path": "generated/targets/arrays/zir/arrays.zir.txt",
-                "bytes": 5569,
-                "sha256": "03867668f3b4905d85da1cac935e8e29bc8d2eaa09fdfd944c4088ffd45ee29d"
+                "bytes": 4147,
+                "sha256": "6116f5563f65bcd80504aacce4ab72464289ee9f1a3bb2491f83519cf2ad9174"
               }
             }
           ],
@@ -4177,8 +4177,8 @@
           "emission_ms": 61.76703,
           "inspection": {
             "path": "generated/targets/arrays/zir/arrays.zir.txt",
-            "bytes": 5569,
-            "sha256": "03867668f3b4905d85da1cac935e8e29bc8d2eaa09fdfd944c4088ffd45ee29d"
+            "bytes": 4147,
+            "sha256": "6116f5563f65bcd80504aacce4ab72464289ee9f1a3bb2491f83519cf2ad9174"
           }
         }
       }
@@ -4361,8 +4361,8 @@
               "sha256": "4a8b84ee370f97e41e1366ac3c1189a62740514375bf6051ae27e6a227c800a5",
               "inspection": {
                 "path": "generated/targets/enums/zx/enums.zx.txt",
-                "bytes": 3094,
-                "sha256": "8a60d398eb54cc330954d0e99085afb919a06ab71d7db198e4ff6f374f4dd451"
+                "bytes": 2192,
+                "sha256": "b7db805d4f2fd937eac1311f6e174fccbfdad2a4062e733a1ae1b012016e63f8"
               }
             }
           ],
@@ -4392,8 +4392,8 @@
           "emission_ms": 2.327985,
           "inspection": {
             "path": "generated/targets/enums/zx/enums.zx.txt",
-            "bytes": 3094,
-            "sha256": "8a60d398eb54cc330954d0e99085afb919a06ab71d7db198e4ff6f374f4dd451"
+            "bytes": 2192,
+            "sha256": "b7db805d4f2fd937eac1311f6e174fccbfdad2a4062e733a1ae1b012016e63f8"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/enums/zx/enums.zx",
           "run_samples_ms": [
@@ -4502,8 +4502,8 @@
               "sha256": "c9890b2566227256ad452372c55f23222c9eaefa483ad3f7512658b96a9356e0",
               "inspection": {
                 "path": "generated/targets/enums/zir/enums.zir.txt",
-                "bytes": 3044,
-                "sha256": "bc398c3b2fb9009aa7d6c5b8acaaadd56102a631b16af3d28732a4fff34fcf29"
+                "bytes": 2142,
+                "sha256": "dac80c0ba5ce7aeac9859c5a8df471a8c32cdbfee43132ae9921b78c0ca97175"
               }
             }
           ],
@@ -4533,8 +4533,8 @@
           "emission_ms": 1.740704,
           "inspection": {
             "path": "generated/targets/enums/zir/enums.zir.txt",
-            "bytes": 3044,
-            "sha256": "bc398c3b2fb9009aa7d6c5b8acaaadd56102a631b16af3d28732a4fff34fcf29"
+            "bytes": 2142,
+            "sha256": "dac80c0ba5ce7aeac9859c5a8df471a8c32cdbfee43132ae9921b78c0ca97175"
           }
         }
       }
@@ -4723,8 +4723,8 @@
               "sha256": "1bff38f78f4b260e402ad2be8f6d1857635e711fac3aa5e01660fad1ac4cb2dd",
               "inspection": {
                 "path": "generated/targets/loops/zx/loops.zx.txt",
-                "bytes": 5059,
-                "sha256": "82032dc862b0c7af20677465d283e1bffe26d519c70a81590db81e19cfe4d678"
+                "bytes": 3917,
+                "sha256": "4106fa8f7326b97e5902a707515afefaa5a303e1c704ef07388e651db4d0ef7a"
               }
             }
           ],
@@ -4754,8 +4754,8 @@
           "emission_ms": 1.255093,
           "inspection": {
             "path": "generated/targets/loops/zx/loops.zx.txt",
-            "bytes": 5059,
-            "sha256": "82032dc862b0c7af20677465d283e1bffe26d519c70a81590db81e19cfe4d678"
+            "bytes": 3917,
+            "sha256": "4106fa8f7326b97e5902a707515afefaa5a303e1c704ef07388e651db4d0ef7a"
           },
           "run_command": "build/bin/zi2zx run --vm build/site-targets/loops/zx/loops.zx",
           "run_samples_ms": [
@@ -4866,8 +4866,8 @@
               "sha256": "c9f6b1ca4a74a6231d9e56c945990905024225d76168ba25c8f949340e632c3b",
               "inspection": {
                 "path": "generated/targets/loops/zir/loops.zir.txt",
-                "bytes": 5009,
-                "sha256": "a49af09ede0df9203d3cf339e8362a05517912ba658022ac487f8e645912fc2d"
+                "bytes": 3867,
+                "sha256": "b46584a2f68cc035f34496a1ab73bfd265c4045e67146c7d78a193823ac03af2"
               }
             }
           ],
@@ -4897,8 +4897,8 @@
           "emission_ms": 1.243502,
           "inspection": {
             "path": "generated/targets/loops/zir/loops.zir.txt",
-            "bytes": 5009,
-            "sha256": "a49af09ede0df9203d3cf339e8362a05517912ba658022ac487f8e645912fc2d"
+            "bytes": 3867,
+            "sha256": "b46584a2f68cc035f34496a1ab73bfd265c4045e67146c7d78a193823ac03af2"
           }
         }
       }

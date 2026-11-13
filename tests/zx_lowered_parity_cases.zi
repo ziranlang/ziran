@@ -1,0 +1,113 @@
+// Revision-28 executable ZX parity. Each program runs through the semantic
+// bundle route (zi2zx bundle, then the portable VM) and through the one
+// pipeline (zi2asm --emit zx, then the verified-instruction interpreter).
+// Standard output must be identical, and the semantic result line must be
+// the interpreter's exit status. Programs expected to trap must trap on both.
+// Native ELF output must run with the same status or stop at a named
+// assembly.gap diagnostic.
+#import "native_test"
+#import "check_support"
+#import "std/file"
+#import "std/text_tools"
+#import "std/file_tree_linux"
+using Vectors :: #import "std/vec"
+
+ParityCase :: struct { root: string; entry: string; file: string; traps: bool }
+
+ParityAdd :: (cases: *Vec(ParityCase), root: string, entry: string, file: string, traps: bool = false) {
+    VecPush(<<cases, ParityCase.{root, entry, file, traps})
+}
+
+
+ParityRun :: (test: *NativeTest, tools: string, item: ParityCase, label: string) {
+    if test.failed { return }
+    semantic := CheckPath(test.work, CheckConcat(label, ".semantic.zx"))
+    lowered := CheckPath(test.work, CheckConcat(label, ".lowered.zx"))
+    elf := CheckPath(test.work, CheckConcat(label, ".elf"))
+    zi2zx := CheckPath(tools, "zi2zx")
+    zi2asm := CheckPath(tools, "zi2asm")
+    std := CheckPath(test.repo, "std")
+    bundle := string.[zi2zx, "bundle", "--root", item.root, "--module-path", std,
+        "--entry", item.entry, "-o", semantic, item.file]
+    unused NativeRun(test, bundle[:])
+    lower := string.[zi2asm, "--root", item.root, "-I", std, "--entry", item.entry,
+        "--emit", "zx", "-o", lowered, item.file]
+    unused NativeRun(test, lower[:])
+    if test.failed { return }
+    vm := string.[zi2zx, "run", "--vm", semantic]
+    interpreter := string.[zi2asm, "--run", "--work", "4000000000", "--fuel", "4000000000",
+        "--frames", "100000", "--input", "zx", lowered]
+    reference := NativeInvoke(test, vm[:])
+    actual := NativeInvoke(test, interpreter[:])
+    if item.traps {
+        unused NativeAssert(test, reference.code != 0 && actual.code == 125,
+            CheckConcat(item.entry, ": an expected trap did not trap on both routes"))
+        return
+    }
+    if !NativeAssert(test, reference.code == 0, CheckConcat(item.entry, ": semantic route failed")) { return }
+    expected := reference.output
+    status: s64
+    if actual.output != expected {
+        // The semantic runner prints a returned value on its own last line;
+        // the interpreter returns it as the process status.
+        end := cast(s64)expected.count - 1
+        start := end
+        while start > 0 && expected[start - 1] != cast(u8)10 { start -= 1 }
+        value, valid := TextInteger(expected[start:end])
+        if !valid || expected[0:start] != actual.output {
+            unused NativeAssert(test, false, CheckConcat(item.entry, CheckConcat(": interpreter output differs: ",
+                actual.output[0:ifx actual.output.count > 400 then 400 else actual.output.count])))
+            return
+        }
+        status = (value % 256 + 256) % 256
+    }
+    if !NativeAssert(test, cast(s64)actual.code == status,
+        CheckConcat(item.entry, CheckConcat(": interpreter status ", CheckNumber(actual.code)))) { return }
+    native := string.[zi2asm, "--input", "zx", "-o", elf, lowered]
+    encoded := NativeInvoke(test, native[:])
+    if encoded.code != 0 {
+        unused NativeAssert(test, TextContains(encoded.error, "assembly.gap."),
+            CheckConcat(item.entry, CheckConcat(": native output failed without a named gap: ", encoded.error)))
+        return
+    }
+    executable := string.[elf]
+    ran := NativeInvoke(test, executable[:])
+    unused NativeAssert(test, ran.output == actual.output && ran.code == actual.code,
+        CheckConcat(item.entry, ": native ELF differs from the interpreter"))
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "zx-lowered-parity-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    tools := TextDetach(TextCopy(PathParent(test.ziran)))
+    cases: Vec(ParityCase)
+    examples := string.["arrays", "conditions", "defer", "enums", "fizzbuzz", "functions", "greet",
+        "hello", "loops", "primes", "structs", "text_basics", "values", "variables"]
+    for name: examples {
+        ParityAdd(*cases, CheckPath(test.repo, "examples"), CheckConcat(name, ":main"),
+            CheckPath(test.repo, CheckConcat("examples/", CheckConcat(name, ".zi"))))
+    }
+    spec := string.["assembly_slices:Answer", "assembly_string_index:Answer", "compact_branches:main",
+        "constant_time_test:SelfTest", "date_parse_test:Check", "grapheme_conformance:NativeMain",
+        "language_contract:Answer", "path_test:main", "queue_test:SelfTest", "std_binary:SelfTest",
+        "std_c_string:main", "std_grapheme:SelfTest", "std_math:main", "std_math_sqrt:SelfTest",
+        "std_number_text:SelfTest", "std_string:main", "std_text:SelfTest", "utf8_copy_valid:SelfTest",
+        "vm_concurrent_instances_test:Next", "wide_compare_test:main", "zip_test:SelfTest"]
+    spec_root := CheckPath(test.repo, "tests/spec")
+    ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
+    for entry: spec {
+        at: s64
+        while entry[at] != cast(u8)58 { at += 1 }
+        ParityAdd(*cases, spec_root, entry, CheckPath(spec_root, CheckConcat(entry[0:at], ".zi")))
+    }
+    ParityAdd(*cases, spec_root, "std_string_bad:main", CheckPath(spec_root, "std_string_bad.zi"), true)
+    for index: cast(s64)0..cases.count - 1 {
+        ParityRun(*test, tools, cases[index], CheckConcat("case-", CheckNumber(index)))
+    }
+    if test.failed { return 1 }
+    print("revision-28 ZX parity: % programs match the semantic route on the interpreter; native runs or names its gap\n",
+        cases.count)
+    return 0
+}

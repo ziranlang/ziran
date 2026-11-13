@@ -28,10 +28,16 @@ LirExecHostCall :: #type (context: *void, function: s32, arguments: []u64, resul
 LirExecArgument :: struct { type: s32; bits: u64; bytes: []u8 }
 LirExecTypedHostCall :: #type (context: *void, function: s32,
     arguments: []LirExecArgument, result: *LirExecArgument) -> bool;
+// The platform byte-output service `(descriptor: u64, data: *u8, count: u64)`,
+// such as ziran.platform.write_all. The engine resolves the checked data
+// pointer and its extent itself; the embedder sees only the borrowed bytes,
+// which stay valid for the duration of the call.
+LirExecPlatformWrite :: #type (context: *void, descriptor: u64, bytes: []u8) -> bool;
 LirExecHostBinding :: struct {
     function: s32
     call: LirExecHostCall
     typed: LirExecTypedHostCall
+    write: LirExecPlatformWrite
     context: *void
 }
 
@@ -1879,6 +1885,48 @@ ExecHostBinding :: (instance: *LirExecInstance, function: s32) -> s64 {
     return -1
 }
 
+ExecPlatformWriteSignature :: (program: LirProgram, function: s32) -> bool {
+    fn := program.functions[function]
+    if fn.parameters.count != 3 || program.types[fn.result].kind != .Void { return false }
+    descriptor := program.types[fn.parameters[0]]
+    pointer := program.types[fn.parameters[1]]
+    count := program.types[fn.parameters[2]]
+    if descriptor.kind != .Integer || descriptor.bits != 64 || descriptor.is_signed ||
+        pointer.kind != .Pointer || count.kind != .Integer || count.bits != 64 || count.is_signed { return false }
+    element := program.types[pointer.element]
+    return element.kind == .Integer && element.bits == 8 && !element.is_signed
+}
+
+ExecPlatformWriteCall :: (instance: *LirExecInstance, frame_index: s64,
+    instruction: *LirInstruction, host: LirExecHostBinding) -> bool {
+    descriptor := ExecSlotBits(instance, instruction.operands[0])
+    token := ExecSlotBits(instance, instruction.operands[1])
+    count := ExecSlotBits(instance, instruction.operands[2])
+    if instance.failure.problem != .None { return false }
+    if count > cast(u64)9223372036854775807 { return ExecFail(instance, .Pointer) }
+    size := cast(s64)count
+    empty: [0]u8
+    bytes: []u8 = empty[:]
+    if size != 0 {
+        found := ExecFindAddress(instance, token)
+        if found < 0 || instance.addresses[found].extent < size || !ExecAddressValid(instance, found) {
+            return ExecFail(instance, .Pointer)
+        }
+        entry := instance.addresses[found]
+        pointee := instance.plan.program.types[entry.type]
+        if pointee.kind != .Integer || pointee.bits != 8 || pointee.is_signed { return ExecFail(instance, .Pointer) }
+        at := ExecAddressOffset(instance, found)
+        if instance.failure.problem != .None { return false }
+        if !ExecSpend(instance, ExecCopyCost(size)) { return false }
+        if entry.owned { bytes = instance.owned[at:at + size] }
+        else if entry.frame < 0 { bytes = instance.globals[at:at + size] }
+        else { bytes = instance.storage[at:at + size] }
+    }
+    if !host.write(host.context, descriptor, bytes) { return ExecFail(instance, .Host) }
+    instance.frames[frame_index].instruction += 1
+    return true
+}
+
 ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *LirInstruction) -> bool {
     program := instance.plan.program
     binding := ExecHostBinding(instance, instruction.symbol)
@@ -1886,6 +1934,7 @@ ExecHostCall :: (instance: *LirExecInstance, frame_index: s64, instruction: *Lir
     count := instruction.operands.count
     if !ExecSpend(instance, count) { return false }
     host := instance.hosts[binding]
+    if host.write != null { return ExecPlatformWriteCall(instance, frame_index, instruction, host) }
     if host.typed != null {
         if !ExecTypedHostArguments(instance, frame_index, instruction) { return false }
         result := LirExecArgument.{.type = LirNoId}
@@ -2201,6 +2250,23 @@ LirExecBindHostTyped :: (instance: *LirExecInstance, function: s32,
         !program.functions[function].external || program.functions[function].calling != .Host ||
         ExecHostBinding(instance, function) >= 0 || !ExecHostSignature(program, function, true) { return .Calling }
     if !VecPush(instance.hosts, LirExecHostBinding.{function = function, typed = call, context = context}) {
+        return .Allocation
+    }
+    return .None
+}
+
+// Bind a bodiless `(u64, *u8, u64) -> void` host function as checked
+// platform byte output. Each call borrows exactly `count` bytes from the
+// checked data pointer; a null pointer is valid only with count zero.
+LirExecBindPlatformWrite :: (instance: *LirExecInstance, function: s32,
+    call: LirExecPlatformWrite, context: *void) -> LirExecProblem {
+    if instance == null || !instance.ready || instance.plan == null { return .NotReady }
+    if instance.running { return .Busy }
+    program := instance.plan.program
+    if call == null || function < 0 || function >= program.functions.count ||
+        !program.functions[function].external || program.functions[function].calling != .Host ||
+        ExecHostBinding(instance, function) >= 0 || !ExecPlatformWriteSignature(program, function) { return .Calling }
+    if !VecPush(instance.hosts, LirExecHostBinding.{function = function, write = call, context = context}) {
         return .Allocation
     }
     return .None

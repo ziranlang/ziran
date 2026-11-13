@@ -125,6 +125,54 @@ programs into compile errors, so the second format stays until step 03 lowers th
 Wasm route also needs an instruction-to-Wasm lowering, which does not exist yet. The VS Code
 Native stage migration is a subsequent change in `ziran-vscode`, not item 4.
 
+### Lowering coverage toward one ZX format (in progress)
+
+Owner, 2026-11-13: "isi t being delt with to make ti work?" and then "do notu sue subtasks
+leran what they are donig and then fulyl take over". The main session does this work directly.
+
+Inventory, 2026-11-13 evening (`zi2asm --emit zx` against the semantic bundle route, script kept
+in `backup/takeover-2026-11-13/lowering/inventory.sh`):
+
+| Set | Programs the semantic route runs | Lower to revision 28 |
+|-----|----------------------------------|----------------------|
+| `examples/*.zi` | 16 | 14 |
+| `tests/spec` entries | 69 | 32 (was 20) |
+| Kryon examples and taskmgr (`portable` profile) | 100 | 0 |
+
+First rejection of the 37 spec programs that do not lower yet:
+
+| Count | Rejection | Feature needed |
+|-------|-----------|----------------|
+| 17 | this type has no portable lowered representation yet | `Vec` and other heap collections, nested collections |
+| 4 | only zero defaults and integer/bool constant global initializers are lowered yet | computed and aggregate global initializers |
+| 4 | expression is outside the initial direct scalar backend | remaining expression forms |
+| 3 | invalid checked integer literal | wide and typed literal forms |
+| 3 | call is not a direct concrete Ziran procedure | indirect calls through values and fields |
+| 2 | direct lowering requires a concrete checked function without non-host foreign services | foreign services and native variants |
+| 4 | lowered IR rejected by the verifier | lowering bugs in aggregate entry signatures |
+
+Every Kryon example stops first at `tree_input.zi:457:15` with the collection-type rejection, so
+heap collections come first.
+
+Landed in the first milestone: slice element stores (`view[i] = x`, `view[i].field = x`), global
+procedure slots with typed null, value-based comparison of mixed-signedness integers, checked
+views of records, fixed arrays and procedure values, slice view types interned by element type,
+and the checked platform byte-output binding for the interpreter (`zi2asm --run` prints).
+`tests/zx_lowered_parity.sh` pins 37 programs: identical output on the semantic route and the
+revision-28 interpreter, and native ELF either matches or stops at a named `assembly.gap`.
+
+Order from here: heap collections; global initializers; indirect calls; the remaining literal and
+expression forms; then the `ziran bundle`/`zi2zx` cutover and removal of revisions 26/27.
+
+### Wasm from revision-28 ZX (parked, not in the tree)
+
+A ZX-to-wasm32 lowering (2,349 lines, hello.wasm 287 bytes) exists in
+`backup/takeover-2026-11-13/wasm/`. It replaced the ZIR-based lowerer in one step, which broke
+`zx_wasm`, `wasm_enums`, `zx_web_lifecycle`, `zx_linked_web` and the Windows runtime build:
+their programs use global initializers and literals that LIR lowering rejects, and the change
+pulled the LIR compiler into `libziran`. It comes back after lowering coverage reaches those
+programs, first as `zi2wasm --input zx` beside the current lowerer, then as its replacement.
+
 Owner, 2026-11-13: "i'm ondireng if zx and native basicalyl use the same piplen if we just
 unife it under native and show zx as a step in teh pielpn while ofcuesr being able to do zx
 as teh portabel lower prat for all pltaforms or am i misisng something".

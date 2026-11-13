@@ -475,9 +475,9 @@ Opcode :: (state: *State, program: LirProgram, function: LirFunction, instructio
         target := program.types[program.types[first_type].element]
         if operand_count >= 3 {
             count_type := function.values[instruction.operands[2]]
-            if target.kind == .Array || target.kind == .Record ||
-                target.kind == .Void || target.kind == .Function ||
-                target.kind == .Capability || target.kind == .Vector ||
+            // Checked views (data + count) may hold any sized value type:
+            // scalars, records, fixed arrays and procedure values.
+            if target.kind == .Void || target.kind == .Capability || target.kind == .Vector ||
                 program.types[count_type].kind != .Integer ||
                 program.types[first_type].element != program.types[result].element { return Fail(state, .Operand) }
             if operand_count == 4 &&

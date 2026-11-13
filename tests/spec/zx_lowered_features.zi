@@ -1,0 +1,43 @@
+// Lowering features pinned by tests/zx_lowered_parity.sh: global procedure
+// slots, typed null, slice element stores (scalar and record elements),
+// views of records, and mixed-signedness comparisons with literals.
+Callback :: #type (value: s32) -> s32;
+slot: Callback;
+ready: bool;
+wide: u64;
+
+Twice :: (value: s32) -> s32 { return value * 2 }
+Install :: (callback: Callback) { slot = callback; ready = true }
+Fill :: (output: []u8, value: u8) {
+    for i: 0..cast(s32)output.count - 1 { output[i] = value + cast(u8)i }
+}
+Pair :: struct { a: s32; b: s32 }
+Bump :: (pairs: []Pair) {
+    pairs[1].b = 7
+    pairs[0].a += 3
+}
+Total :: (values: []s32) -> s64 {
+    sum: s64
+    for value: values { sum += value }
+    return sum
+}
+
+main :: () -> s32 {
+    if slot != null || null != slot { return 1 }
+    Install(Twice)
+    if !ready || slot(21) != 42 { return 2 }
+    bytes: [4]u8
+    Fill(bytes[:], 10)
+    if bytes[0] != 10 || bytes[3] != 13 || bytes[1] == 300 { return 3 }
+    pairs: [2]Pair
+    Bump(pairs[:])
+    if pairs[0].a != 3 || pairs[1].b != 7 { return 4 }
+    small: u8 = 200
+    if small < 0 || small != 200 || small == -56 { return 5 }
+    wide = cast(u64)-1
+    if wide != -1 || wide < 1 { return 6 }
+    numbers: [3]s32 = .[4, -9, 40]
+    if Total(numbers[:]) != 35 || Total(numbers[1:]) != 31 { return 7 }
+    print("features: % % % %\n", bytes[2], pairs[0].a, small, wide)
+    return 42
+}

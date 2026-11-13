@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Revision-28 lowering covers more of the language: assignment through slice elements (`view[i] = x`, `view[i].field = x`), global procedure slots with typed null, mixed-signedness integer comparisons by value, and checked views of records, fixed arrays and procedure values. `zi2asm --run` binds platform byte output, so interpreted programs print. Of the 69 `tests/spec` entries the semantic bundle route runs, 32 now lower (was 20); `tests/zx_lowered_parity.sh` holds 37 programs to identical output on both routes. Native output names two more refusals instead of a bare encoder error: `assembly.gap.native-limit` and `assembly.gap.native-unsupported`, beside `assembly.gap.native-aggregate-view`.
+
 - A saved ZIR file from another toolchain is no longer a bare "unsupported ZIR version". The reader names the file's version, its own path and the version it reads, and the `ziran` driver that started it (`ZIRAN_DRIVER`), and says to rebuild or reinstall the Ziran toolchain so every tool agrees.
 
 - `ziran inspect` shows each statement's source once, as a trailing `//` comment, and each expression by what it means: a literal's value (`%0 string "Hello, World!\n"`) and a call's callee and arguments (`%1 call print(%0) -> void`). Expression text is printed only when no statement holds it.

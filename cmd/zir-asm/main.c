@@ -12,6 +12,7 @@
 #include "zir_bundle.h"
 #include "zir_serial.h"
 #include "zir_sha256.h"
+#include "zir_text.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -175,6 +176,22 @@ assembly_machine_source_gap(const ZirProgram *program)
     return 0;
 }
 
+/* A checked view element address (data, index, count[, high]) whose element
+ * is a record, fixed array or procedure value. Portable execution supports
+ * it; the native encoders address only scalar view elements. */
+static int
+assembly_aggregate_view(const LirProgram *program, const LirFunction *function, LirInstruction instruction)
+{
+    if(instruction.op != LirOp_ElementAddress || instruction.operands.length < 3) return 0;
+    int value = ((int *)instruction.operands.data)[0];
+    if(value < 0 || value >= function->values.length) return 0;
+    const LirType *types = program->types.data;
+    LirType pointer = types[((int *)function->values.data)[value]];
+    if(pointer.kind != LirTypeKind_Pointer || pointer.element < 0 || pointer.element >= program->types.length) return 0;
+    LirTypeKind kind = types[pointer.element].kind;
+    return kind == LirTypeKind_Record || kind == LirTypeKind_Array || kind == LirTypeKind_Function;
+}
+
 /* Every known unsupported machine-AOT surface has a stable, named hard gap.
  * This runs before the pipeline, so no other backend or execution engine can
  * be selected after one of these diagnostics. */
@@ -230,6 +247,11 @@ assembly_machine_gap(const LirProgram *program)
                         "machine ELF does not implement string comparison; no alternate engine was selected");
                     return 1;
                 }
+                if(assembly_aggregate_view(program, &functions[function], current)) {
+                    Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
+                        "assembly.gap.native-aggregate-view: machine ELF does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
+                    return 1;
+                }
                 if(current.op == LirOp_ElementAddress && current.operands.length == 4) {
                     Diagnostic((ZirSourceSpan){0}, "assembly.gap.machine-slice",
                         "machine ELF does not implement borrowed slices; no alternate engine was selected");
@@ -259,6 +281,69 @@ assembly_machine_gap(const LirProgram *program)
     return 0;
 }
 
+/* Portable console services for the reference runner. Output uses the same
+ * spelling as the checked language's print on every other route. */
+static bool
+assembly_run_write(void *closure, void *context, uint64_t descriptor, Slice bytes)
+{
+    (void)closure;
+    (void)context;
+    FILE *stream = descriptor == 2 ? stderr : descriptor == 1 ? stdout : NULL;
+    if(stream == NULL) return false;
+    return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stream) == (size_t)bytes.length;
+}
+
+static bool
+assembly_run_print(void *closure, void *context, int32_t function, Slice arguments, uint64_t *result)
+{
+    (void)closure;
+    const LirProgram *program = context;
+    const LirFunction *functions = program->functions.data;
+    const uint64_t *values = arguments.data;
+    *result = 0;
+    if(function < 0 || function >= program->functions.length || arguments.length != 1) return false;
+    char text[64];
+    int service = assembly_platform_service(functions[function].name);
+    if(service == ASSEMBLY_SERVICE_PRINT_SIGNED)
+        snprintf(text, sizeof(text), "%lld", (long long)values[0]);
+    else if(service == ASSEMBLY_SERVICE_PRINT_UNSIGNED)
+        snprintf(text, sizeof(text), "%llu", (unsigned long long)values[0]);
+    else if(service == ASSEMBLY_SERVICE_PRINT_BOOL)
+        snprintf(text, sizeof(text), "%s", values[0] ? "true" : "false");
+    else if(service == ASSEMBLY_SERVICE_PRINT_FLOAT32) {
+        uint32_t bits = (uint32_t)values[0];
+        float value;
+        memcpy(&value, &bits, sizeof(value));
+        FormatPrintFloat(value, 1, text, sizeof(text));
+    } else if(service == ASSEMBLY_SERVICE_PRINT_FLOAT64) {
+        double value;
+        memcpy(&value, &values[0], sizeof(value));
+        FormatPrintFloat(value, 0, text, sizeof(text));
+    } else return false;
+    return fputs(text, stdout) >= 0;
+}
+
+/* Bind every declared platform console service; other host capabilities stay
+ * unbound, so calling one fails as a named host problem. */
+static LirExecProblem
+assembly_run_bind(LirExecInstance *instance, const LirProgram *program)
+{
+    const LirFunction *functions = program->functions.data;
+    for(int64_t index = 0; index < program->functions.length; index++) {
+        if(!functions[index].external) continue;
+        int service = assembly_platform_service(functions[index].name);
+        LirExecProblem bound = LirExecProblem_None;
+        if(service == ASSEMBLY_SERVICE_PRINT_BYTES)
+            bound = compiler_exec_LirExecBindPlatformWrite(instance, (int32_t)index,
+                (LirExecPlatformWrite){NULL, assembly_run_write}, NULL);
+        else if(service != ASSEMBLY_SERVICE_NONE)
+            bound = compiler_exec_LirExecBindHost(instance, (int32_t)index,
+                (LirExecHostCall){NULL, assembly_run_print}, (void *)program);
+        if(bound != LirExecProblem_None) return bound;
+    }
+    return LirExecProblem_None;
+}
+
 static int
 assembly_run(const LirProgram *program, LirExecLimits limits)
 {
@@ -278,7 +363,12 @@ assembly_run(const LirProgram *program, LirExecLimits limits)
     LirExecResult result = compiler_exec_LirExecPlanBuild(*program, compiler_lowered_ir_LirDefaultLimits(), &plan);
     if(result.problem == LirExecProblem_None)
         result = compiler_exec_LirExecInstanceOpen(&plan, limits, 1, &instance);
+    if(result.problem == LirExecProblem_None) {
+        LirExecProblem bound = assembly_run_bind(&instance, &plan.program);
+        if(bound != LirExecProblem_None) result.problem = bound;
+    }
     if(result.problem == LirExecProblem_None) result = compiler_exec_LirExecRun(&instance);
+    fflush(stdout);
     int status = result_type.kind == LirTypeKind_Void ? 0 : (int)(result.value.bits & 255);
     if(result.problem != LirExecProblem_None) {
         String problem = compiler_exec_LirExecProblemName(result.problem);
@@ -672,6 +762,7 @@ main(int argc, char **argv)
             "lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d",
             diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
             diagnostic.value, diagnostic.origin);
+        if(getenv("ZI2ASM_DEBUG_LIR")) AssemblyPrintLir(view, stderr); /* TEMPDEBUG */
         goto done;
     }
     int listing = !strcmp(emit, "lir");
@@ -780,7 +871,12 @@ main(int argc, char **argv)
                 for(int64_t instruction = 0; instruction < blocks[block].instructions.length; instruction++) {
                     if(instructions[instruction].op == LirOp_BytesEqual) {
                         Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-string-compare",
-                            "selected target linux-x86_64-elf does not implement string comparison; no alternate engine was selected");
+                            "assembly.gap.native-string-compare: selected target linux-x86_64-elf does not implement string comparison; no alternate engine was selected");
+                        goto done;
+                    }
+                    if(assembly_aggregate_view(view, &functions[function], instructions[instruction])) {
+                        Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-aggregate-view",
+                            "assembly.gap.native-aggregate-view: selected target linux-x86_64-elf does not implement checked views of records, arrays or procedure values; no alternate engine was selected");
                         goto done;
                     }
                 }
@@ -788,7 +884,17 @@ main(int argc, char **argv)
         }
         LirNativeResult measured = compiler_lowered_x64_LirX64Elf(*view, (Slice){0});
         if(measured.problem != LirProblem_None || measured.size <= 0 || measured.size > 268435456) {
-            Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native encoder rejected the program: problem=%d", measured.problem);
+            /* The encoder's two expected refusals are gaps of this target,
+             * not encoder faults: its bounded tables, and forms it has no
+             * code for yet. */
+            if(measured.problem == LirProblem_Limit)
+                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-limit",
+                    "assembly.gap.native-limit: selected target linux-x86_64-elf encoder bounds on addresses, frame size or compile work do not admit this program; no alternate engine was selected");
+            else if(measured.problem == LirProblem_Unsupported)
+                Diagnostic((ZirSourceSpan){0}, "assembly.gap.native-unsupported",
+                    "assembly.gap.native-unsupported: selected target linux-x86_64-elf has no code for an instruction or entry signature in this program; no alternate engine was selected");
+            else
+                Diagnostic((ZirSourceSpan){0}, "assembly.encode", "native encoder rejected the program: problem=%d", measured.problem);
             goto done;
         }
         size = measured.size;

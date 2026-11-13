@@ -171,10 +171,62 @@ ZxNativeHost(int capability, VmHostValue *args, int count, VmHostValue *result)
         native_fail("host capability %s:%s failed", module, function);
 }
 
+static int
+native_host_flat_type_matches(const char *qualified, const char *plain)
+{
+    while(*qualified != '\0' && *plain != '\0') {
+        if(*qualified == '.') {
+            qualified++;
+            continue;
+        }
+        if(*qualified++ != *plain++)
+            return 0;
+    }
+    while(*qualified == '.')
+        qualified++;
+    return *qualified == '\0' && *plain == '\0';
+}
+
+static int
+native_host_type_matches(const char *expected, const char *actual, int depth)
+{
+    if(depth >= 64 || expected == NULL || actual == NULL)
+        return 0;
+    if(strcmp(expected, actual) == 0)
+        return 1;
+    if(expected[0] == '[' && actual[0] == '[') {
+        const char *expected_close = strchr(expected, ']');
+        const char *actual_close = strchr(actual, ']');
+        if(expected_close == NULL || actual_close == NULL)
+            return 0;
+        size_t expected_prefix = (size_t)(expected_close - expected) + 1;
+        size_t actual_prefix = (size_t)(actual_close - actual) + 1;
+        return expected_prefix == actual_prefix &&
+               memcmp(expected, actual, expected_prefix) == 0 &&
+               native_host_type_matches(expected_close + 1, actual_close + 1,
+                                        depth + 1);
+    }
+    if(expected[0] == '*' && actual[0] == '*')
+        return native_host_type_matches(expected + 1, actual + 1, depth + 1);
+    const char *expected_dot = strrchr(expected, '.');
+    const char *actual_dot = strrchr(actual, '.');
+    const char *expected_leaf = expected_dot != NULL ? expected_dot + 1 : expected;
+    const char *actual_leaf = actual_dot != NULL ? actual_dot + 1 : actual;
+    if(expected_dot != NULL && actual_dot != NULL)
+        return 0;
+    if(strcmp(expected_leaf, actual_leaf) == 0)
+        return 1;
+    if(expected_dot != NULL)
+        return native_host_flat_type_matches(expected, actual);
+    if(actual_dot != NULL)
+        return native_host_flat_type_matches(actual, expected);
+    return 0;
+}
+
 void
 ZxNativeExpect(const VmHostValue *value, int kind, const char *type)
 {
-    if(value->type == NULL || strcmp(value->type, type) != 0)
+    if(value->type == NULL || !native_host_type_matches(type, value->type, 0))
         native_fail("host returned %s where %s was declared",
                     value->type != NULL ? value->type : "an untyped value", type);
     if((int)value->kind != kind)

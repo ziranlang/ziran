@@ -526,6 +526,58 @@ execute_simple_statement(Frame *frame, const ZirStmt *statement, int depth)
     return execute_sequence(frame, index, index + 1, depth, &unused) == FLOW_NEXT;
 }
 
+static int
+host_flat_type_matches(const char *qualified, const char *plain)
+{
+    while(*qualified != '\0' && *plain != '\0') {
+        if(*qualified == '.') {
+            qualified++;
+            continue;
+        }
+        if(*qualified++ != *plain++)
+            return 0;
+    }
+    while(*qualified == '.')
+        qualified++;
+    return *qualified == '\0' && *plain == '\0';
+}
+
+static int
+host_type_matches(const char *expected, const char *actual, int depth)
+{
+    if(depth >= VM_MAX_DEPTH || expected == NULL || actual == NULL)
+        return 0;
+    if(strcmp(expected, actual) == 0)
+        return 1;
+    if(expected[0] == '[' && actual[0] == '[') {
+        const char *expected_close = strchr(expected, ']');
+        const char *actual_close = strchr(actual, ']');
+        if(expected_close == NULL || actual_close == NULL)
+            return 0;
+        size_t expected_prefix = (size_t)(expected_close - expected) + 1;
+        size_t actual_prefix = (size_t)(actual_close - actual) + 1;
+        return expected_prefix == actual_prefix &&
+               memcmp(expected, actual, expected_prefix) == 0 &&
+               host_type_matches(expected_close + 1, actual_close + 1,
+                                 depth + 1);
+    }
+    if(expected[0] == '*' && actual[0] == '*')
+        return host_type_matches(expected + 1, actual + 1, depth + 1);
+    const char *expected_dot = strrchr(expected, '.');
+    const char *actual_dot = strrchr(actual, '.');
+    const char *expected_leaf = expected_dot != NULL ? expected_dot + 1 : expected;
+    const char *actual_leaf = actual_dot != NULL ? actual_dot + 1 : actual;
+    if(expected_dot != NULL && actual_dot != NULL)
+        return 0;
+    if(strcmp(expected_leaf, actual_leaf) == 0)
+        return 1;
+    if(expected_dot != NULL)
+        return host_flat_type_matches(expected, actual);
+    if(actual_dot != NULL)
+        return host_flat_type_matches(actual, expected);
+    return 0;
+}
+
 static void
 release_host_argument(VmHostValue *value, int depth)
 {
@@ -576,10 +628,13 @@ host_argument(const ZirModule *module, const char *type, Value value,
         return 1;
     }
     if(ArrayElementType(type, element, sizeof(element), &capacity)) {
+        const char *declared_element = strchr(type, ']');
         if(capacity < 0 || value.kind != VALUE_ARRAY || value.array == NULL ||
+           declared_element == NULL ||
            value.array->length != capacity ||
            !array_element_matches(module, element, value.array))
             return 0;
+        declared_element++;
         out->kind = VM_HOST_ARRAY;
         out->length = (size_t)capacity;
         if(capacity == 0)
@@ -588,20 +643,23 @@ host_argument(const ZirModule *module, const char *type, Value value,
         if(out->elements == NULL)
             return 0;
         for(int i = 0; i < capacity; i++)
-            if(!host_argument(module, value.array->element_type,
+            if(!host_argument(module, declared_element,
                               array_get(value.array, (size_t)i),
                               &out->elements[i], depth + 1))
                 return 0;
         return 1;
     }
     if(SliceElementType(type, element, sizeof(element))) {
+        const char *declared_element = strchr(type, ']');
         if(value.kind != VALUE_SLICE ||
+           declared_element == NULL ||
            (value.length > 0 && value.array == NULL) ||
            (value.array != NULL &&
             (!array_element_matches(module, element, value.array) ||
              value.offset > (size_t)value.array->length ||
              value.length > (size_t)value.array->length - value.offset)))
             return 0;
+        declared_element++;
         out->kind = VM_HOST_SLICE;
         out->length = value.length;
         out->elements = calloc(value.length ? value.length : 1,
@@ -609,7 +667,7 @@ host_argument(const ZirModule *module, const char *type, Value value,
         if(out->elements == NULL)
             return 0;
         for(size_t i = 0; i < value.length; i++)
-            if(!host_argument(module, value.array->element_type,
+            if(!host_argument(module, declared_element,
                               array_get(value.array, value.offset + i),
                               &out->elements[i], depth + 1))
                 return 0;
@@ -644,8 +702,10 @@ host_argument(const ZirModule *module, const char *type, Value value,
         }
         return 1;
     }
-    if(record != NULL && record->is_enum && value.kind != VALUE_ENUM)
-        return 0;
+    if(record != NULL && record->is_enum) {
+        if(value.kind != VALUE_ENUM)
+            return 0;
+    }
     /* The host ABI has separate fields. Copy only the active VM payload;
      * inactive union words may contain a different kind's bits or address. */
     if(value.kind == VALUE_INT || value.kind == VALUE_ENUM) {
@@ -726,7 +786,7 @@ host_return(Vm *vm, const ZirModule *module, const char *type,
 {
     Value result = int_value(0);
     if(depth >= VM_MAX_DEPTH || input->type == NULL ||
-       strcmp(input->type, type) != 0) {
+       !host_type_matches(type, input->type, 0)) {
         vm->failed = 1;
         return result;
     }

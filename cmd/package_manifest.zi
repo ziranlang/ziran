@@ -87,6 +87,21 @@ PkgIdentifier :: (value: string) -> bool {
     return true
 }
 
+// Public export names may group modules into an identifier-only namespace,
+// such as "host/desktop". Slashes are namespace separators, never paths.
+PkgExportName :: (value: string) -> bool {
+    start: s64 = 0
+    index: s64 = 0
+    while index <= value.count {
+        if index == value.count || value[index] == cast(u8)47 {
+            if !PkgIdentifier(value[start:index]) { return false }
+            start = index + 1
+        }
+        index += 1
+    }
+    return true
+}
+
 PkgPackageName :: (value: string) -> bool {
     if value.count == 0 { return false }
     index: s64 = 0
@@ -263,7 +278,7 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
                 output.templates[output.template_count].value = value
                 output.template_count += 1
             } else if name == "exports" {
-                if output.export_count >= 4096 || !PkgIdentifier(key) || value.count == 0 { return false }
+                if output.export_count >= 4096 || !PkgExportName(key) || value.count == 0 { return false }
                 output.exports[output.export_count].name = key
                 output.exports[output.export_count].value = value
                 output.export_count += 1
@@ -300,7 +315,7 @@ PkgParseManifest :: (path: string, output: *PkgManifest) -> bool {
                         while alias >= 0 {
                             from := Toml.TomlKey(*document, alias)
                             to := Toml.TomlString(*document, alias)
-                            if dep.alias_count >= 24 || !PkgIdentifier(from) || !PkgIdentifier(to) { return false }
+                            if dep.alias_count >= 24 || !PkgExportName(from) || !PkgIdentifier(to) { return false }
                             dep.aliases[dep.alias_count].name = from
                             dep.aliases[dep.alias_count].value = to
                             dep.alias_count += 1

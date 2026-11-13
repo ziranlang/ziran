@@ -77,6 +77,7 @@ main(int argc, char **argv)
         return 1;
     }
     previous_context = CompilerContextSelect(command_context);
+    CompilerConfigureTarget(ZIR_TARGET_WASM, ZIR_OS_WEB, ZIR_CPU_WASM32);
     if(!ProgramsLoadWithDefines(&set, root, module_paths, module_path_count,
                                 defines, define_count,
                                 (const char *const *)(argv + first_file),

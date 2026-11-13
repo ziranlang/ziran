@@ -89,8 +89,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     facade := CheckPath(test.work, "facade-alias")
     if !NativeWrite(*test, CheckPath(facade, "button_props.zi"), "Props :: struct { width: s64 }\n") { return 1 }
     if !NativeWrite(*test, CheckPath(facade, "own_props.zi"), "Props :: struct { label: string }\n") { return 1 }
-    if !NativeWrite(*test, CheckPath(facade, "button.zi"), "using PropsModule :: #import \"button_props\";\nDraw :: (props: PropsModule.Props) -> s64 { return props.width }\nMake :: (width: s64) -> PropsModule.Props { props: PropsModule.Props; props.width = width; return props }\n") { return 1 }
-    if !NativeWrite(*test, CheckPath(facade, "app.zi"), "using PropsModule :: #import \"own_props\";\nButton :: #import \"button\";\n#program_export\nAnswer :: () -> s64 {\nown: PropsModule.Props\nown.label = \"ok\"\nif own.label.count != 2 { return 0 }\nprops: Button.Props = Button.Make(42)\nreturn Button.Draw(props)\n}\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(facade, "button.zi"), "using PropsModule :: #import \"button_props\";\nDraw :: (session: s64, props: PropsModule.Props) -> s64 { return session + props.width }\n") { return 1 }
+    if !NativeWrite(*test, CheckPath(facade, "app.zi"), "using PropsModule :: #import \"own_props\";\nButton :: #import \"button\";\n#program_export\nAnswer :: () -> s64 {\nown: PropsModule.Props\nown.label = \"ok\"\nif own.label.count != 2 { return 0 }\nreturn Button.Draw(1, Button.Props.{.width = 41})\n}\n") { return 1 }
     facade_bundle := string.[test.ziran, "bundle", "--root", facade, "--entry", "app:Answer", "-o", CheckPath(facade, "app.zx"), CheckPath(facade, "app.zi")]
     unused NativeRun(*test, facade_bundle[:])
     facade_run := string.[test.ziran, "run", CheckPath(facade, "app.zx")]

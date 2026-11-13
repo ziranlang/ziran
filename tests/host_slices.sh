@@ -206,6 +206,50 @@ GO
 done
 cmp "$work/record-source.zx" "$work/record-saved.zx"
 
+# A foreign declaration and its caller may name the same record through
+# different module aliases. The portable host ABI carries the declaration's
+# canonical record name, including inside slices and fixed arrays.
+mkdir -p "$work/named"
+cat > "$work/named/types.zi" <<'ZI'
+Point :: struct { x: s32; y: s32; }
+ZI
+cat > "$work/named/bridge.zi" <<'ZI'
+Types :: #import "types";
+host_api :: #system_library "host_api";
+SliceHost :: (points: []Types.Point) -> s32 #foreign host_api;
+ArrayHost :: (points: [2]Types.Point) -> s32 #foreign host_api;
+#scope_export
+SliceValue :: (points: []Types.Point) -> s32 { return SliceHost(points) }
+ArrayValue :: (points: [2]Types.Point) -> s32 { return ArrayHost(points) }
+ZI
+cat > "$work/named/named_slices.zi" <<'ZI'
+Records :: #import "types";
+Bridge :: #import "bridge";
+#program_export
+Answer :: () -> s32 {
+    points: [2]Records.Point = Records.Point.[
+        Records.Point.{.x = 40}, Records.Point.{.y = 2}]
+    if Bridge.SliceValue(points[:]) != 42 ||
+    Bridge.ArrayValue(points) != 42 { return 0 }
+    return 42
+}
+ZI
+"$ziran" ir --root "$work/named" -o "$work/named-ir" \
+    "$work/named/named_slices.zi"
+for input in source saved; do
+    if test "$input" = source; then
+        named=$work/named/named_slices.zi
+        named_root=$work/named
+    else
+        named=$work/named-ir/named_slices.zir
+        named_root=$work/named-ir
+    fi
+    "$ziran" bundle --root "$named_root" --entry named_slices:Answer \
+        -o "$work/named-$input.zx" "$named"
+    "$host_test" "$work/named-$input.zx" named_records
+done
+cmp "$work/named-source.zx" "$work/named-saved.zx"
+
 cat > "$work/bad_return.zi" <<'ZI'
 host_api :: #system_library "host_api";
 Borrow :: () -> [][]u8 #foreign host_api;

@@ -22,7 +22,9 @@ usage(void)
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2go [--no-main] [--prune-stale] [--exe] [--minify] [--pkg NAME] [--entry module:function] "
             "[--bind module:function=module:function] [--bind-host module] "
-            "[--diagnostics=text|json] [--module-path DIR] --root DIR -o DIR file.zi|file.zir ...\n");
+            "[--diagnostics=text|json] [--module-path DIR] "
+            "[--target-os linux|windows|macos|android|web|none] "
+            "[--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
 int
@@ -54,12 +56,16 @@ main(int argc, char **argv)
     int file_count;
     int i;
     int first_file = 0;
+    const char *target_os_name = NULL;
+    const char *target_cpu_name = NULL;
 
     SetDiagnosticFormatFromArguments(argc, argv);
     CommandLowerPriority();
     const CommandOption options[] = {
         COMMAND_TEXT("--root", root),
         COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
+        COMMAND_TEXT("--target-os", target_os_name),
+        COMMAND_TEXT("--target-cpu", target_cpu_name),
         COMMAND_TEXT("-o", out_dir),
         COMMAND_TEXT("--pkg", pkg),
         COMMAND_TEXT("--entry", entry),
@@ -84,6 +90,19 @@ main(int argc, char **argv)
         return 1;
     }
     EmitUseMinifiedOutput(minify);
+
+    ZirTargetOS target_os = CompilerHostOS();
+    ZirTargetCPU target_cpu = CompilerHostCPU();
+    if((target_os_name != NULL &&
+        !CompilerParseTargetOS(target_os_name, &target_os)) ||
+       (target_cpu_name != NULL &&
+        !CompilerParseTargetCPU(target_cpu_name, &target_cpu))) {
+        usage();
+        return 1;
+    }
+    if(target_os == ZIR_OS_WEB && target_cpu_name == NULL)
+        target_cpu = ZIR_CPU_WASM32;
+    CompilerConfigureTarget(ZIR_TARGET_GO, target_os, target_cpu);
 
     command_context = CompilerContextOpen();
     if(command_context == NULL) { DiagnosticOutOfMemory(); goto done; }

@@ -1,0 +1,69 @@
+#import "native_test"
+#import "package_fixture_support"
+#import "check_support"
+#import "std/byte_text_linux"
+#import "std/file_tree_linux"
+#import "std/text_tools"
+using Vectors :: #import "std/vec"
+
+NestedCompile :: (test: *NativeTest, app: string, output: string,
+    source: string, project: bool) -> bool {
+    arguments: Vec(string)
+    initial := string.["build", "--target=c", "--exe", "--entry", "app:main", "-o", output]
+    for argument: initial { VecPush(arguments, argument) }
+    if project {
+        VecPush(arguments, "--project")
+        VecPush(arguments, "--offline")
+    } else {
+        VecPush(arguments, "--root")
+        VecPush(arguments, TextDetach(TextCopy(PathParent(source))))
+    }
+    VecPush(arguments, source)
+    unused PackageCommand(test, app, arguments[:])
+    execute := string.[CheckPath(output, "app")]
+    unused NativeRun(test, execute[:], app)
+    return !test.failed
+}
+
+#program_export
+main :: (argc: s32, argv: **u8) -> s32 {
+    test := NativeStart(argc, argv, "package-nested-exports-")
+    if test.failed { return 1 }
+    defer NativeCleanup(*test)
+    if !FixtureIsolation(*test, test.work) { return 1 }
+    library := CheckPath(test.work, "kryon")
+    app := CheckPath(test.work, "app")
+    if !FixtureInit(*test, library) { return 1 }
+    manifest := "[package]\nname = \"kryon\"\nmodule_roots = [\"src\"]\n[exports]\n\"host/desktop\" = \"src/desktop.zi\"\n\"host/web\" = \"src/web.zi\"\n\"host/android\" = \"src/android.zi\"\n\"host/terminal\" = \"src/terminal.zi\"\n"
+    names := string.["desktop", "web", "android", "terminal"]
+    values := s64.[1, 2, 3, 4]
+    if !NativeWrite(*test, CheckPath(library, "ziran.toml"), manifest) { return 1 }
+    for index: cast(s64)0..names.count - 1 {
+        source := CheckConcat("Value :: () -> s32 { return ", CheckConcat(CheckNumber(values[index]), " }\n"))
+        if !NativeWrite(*test, CheckPath(library, CheckConcat("src/", CheckConcat(names[index], ".zi"))), source) { return 1 }
+    }
+    app_manifest := string.["[package]\nname = \"NestedConsumer\"\nentry = \"src/app.zi\"\nmodule_roots = [\"src\"]\n[toolchain]\ngit = \"https://github.com/ziranlang/ziran.git\"\n[dependencies.kryon]\ngit = ", FixtureQuote(FixtureUri(library)), "\n"]
+    source := "#import \"kryon/host/desktop\";\nWeb :: #import \"kryon/host/web\";\nAndroid :: #import \"kryon/host/android\";\nTerminal :: #import \"kryon/host/terminal\";\n#program_export\nmain :: () -> s32 {\n    return Value() + Web.Value() + Android.Value() + Terminal.Value() - 10\n}\n"
+    if !NativeWrite(*test, CheckPath(app, "ziran.toml"), TextJoin(app_manifest[:], "")) ||
+       !NativeWrite(*test, CheckPath(app, "src/app.zi"), source) { return 1 }
+    aliases := string.["ziran", "kryon"]
+    paths := string.[test.repo, library]
+    if !FixtureOverrides(*test, app, aliases[:], paths[:]) { return 1 }
+    lock := string.["lock", "--offline"]
+    unused PackageCommand(*test, app, lock[:])
+    list := string.["pkg", "list", "--offline"]
+    listed := PackageCommand(*test, app, list[:])
+    for name: names {
+        spelling := CheckConcat("#import \"kryon/host/", CheckConcat(name, "\""))
+        if !NativeAssert(*test, TextContains(listed, spelling), CheckConcat("missing nested export ", spelling)) { return 1 }
+    }
+    check := string.["check", "--project", "--offline", "src/app.zi"]
+    unused PackageCommand(*test, app, check[:])
+    if !NestedCompile(*test, app, CheckPath(app, "build/source"), CheckPath(app, "src/app.zi"), true) { return 1 }
+    ir := CheckPath(app, "build/ir")
+    save := string.["ir", "--project", "--offline", "--entry", "app:main", "-o", ir, "src/app.zi"]
+    unused PackageCommand(*test, app, save[:])
+    if !NestedCompile(*test, app, CheckPath(app, "build/saved"), CheckPath(ir, "app.zir"), false) { return 1 }
+    print("Nested package export namespaces resolved in project source and saved IR\n")
+    return 0
+}

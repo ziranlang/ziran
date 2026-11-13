@@ -226,7 +226,7 @@ _Static_assert(sizeof(ClockValue) == sizeof(struct timespec), "timer ClockValue 
 _Static_assert(offsetof(ClockValue, nanoseconds) == offsetof(struct timespec, tv_nsec), "timer ClockValue nanoseconds");
 C
     for module in date timer; do
-        "$ziran" build --target=c --define PLATFORM_WEB --no-main --root "$work" \
+        "$ziran" build --target=c --target-os web --target-cpu wasm32 --no-main --root "$work" \
             --module-path "$repo/std" -o "$work/web-layout-$module" "$work/web_layout_$module.zi"
         "$emcc" -std=c11 -I"$repo/include" -I"$work/web-layout-$module" -c "$work/web_layout_$module.c" \
             -o "$work/web-layout-$module.o"
@@ -258,7 +258,7 @@ int main(void)
 }
 C
     out=$work/web-c
-    "$ziran" build --target=c --define PLATFORM_WEB --no-main --root "$work" \
+    "$ziran" build --target=c --target-os web --target-cpu wasm32 --no-main --root "$work" \
         --module-path "$repo/std" -o "$out" "$work/web_time.zi"
     compiler=$emcc; extension=c; standard=c11
     cp "$work/web_entry.c" "$out/web_entry.$extension"

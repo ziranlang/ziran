@@ -19,6 +19,118 @@ static void free_scratch_SameFileBytesBuffers(void *pointer);
 #include <string.h>
 #include <sys/stat.h>
 
+typedef struct CompilerTargetState {
+    int configured;
+    ZirTargetFacts facts;
+    char options[128];
+} CompilerTargetState;
+
+static _Thread_local CompilerTargetState compiler_target;
+
+ZirTargetOS
+CompilerHostOS(void)
+{
+#if defined(__EMSCRIPTEN__) || defined(__wasi__)
+    return ZIR_OS_WEB;
+#elif defined(__ANDROID__)
+    return ZIR_OS_ANDROID;
+#elif defined(_WIN32)
+    return ZIR_OS_WINDOWS;
+#elif defined(__APPLE__)
+    return ZIR_OS_MACOS;
+#elif defined(__linux__)
+    return ZIR_OS_LINUX;
+#else
+    return ZIR_OS_NONE;
+#endif
+}
+
+ZirTargetCPU
+CompilerHostCPU(void)
+{
+#if defined(__wasm32__)
+    return ZIR_CPU_WASM32;
+#elif defined(__x86_64__) || defined(_M_X64)
+    return ZIR_CPU_X64;
+#elif defined(__aarch64__) || defined(_M_ARM64)
+    return ZIR_CPU_ARM64;
+#else
+    return ZIR_CPU_NONE;
+#endif
+}
+
+const char *
+CompilerTargetOSName(ZirTargetOS os)
+{
+    static const char *const names[] = {
+        "NONE", "LINUX", "WINDOWS", "MACOS", "ANDROID", "WEB"
+    };
+    return os >= ZIR_OS_NONE && os <= ZIR_OS_WEB ? names[os] : "NONE";
+}
+
+const char *
+CompilerTargetCPUName(ZirTargetCPU cpu)
+{
+    static const char *const names[] = {"NONE", "X64", "ARM64", "WASM32"};
+    return cpu >= ZIR_CPU_NONE && cpu <= ZIR_CPU_WASM32 ? names[cpu] : "NONE";
+}
+
+const char *
+CompilerTargetBackendName(ZirTargetBackend target)
+{
+    static const char *const names[] = {"C", "GO", "WASM", "ZX"};
+    return target >= ZIR_TARGET_C && target <= ZIR_TARGET_ZX ?
+           names[target] : "ZX";
+}
+
+int
+CompilerParseTargetOS(const char *name, ZirTargetOS *os)
+{
+    static const char *const names[] = {
+        "none", "linux", "windows", "macos", "android", "web"
+    };
+    for(int i = ZIR_OS_NONE; name != NULL && i <= ZIR_OS_WEB; i++)
+        if(!strcmp(name, names[i])) {
+            if(os != NULL) *os = (ZirTargetOS)i;
+            return 1;
+        }
+    return 0;
+}
+
+int
+CompilerParseTargetCPU(const char *name, ZirTargetCPU *cpu)
+{
+    static const char *const names[] = {"none", "x64", "arm64", "wasm32"};
+    for(int i = ZIR_CPU_NONE; name != NULL && i <= ZIR_CPU_WASM32; i++)
+        if(!strcmp(name, names[i])) {
+            if(cpu != NULL) *cpu = (ZirTargetCPU)i;
+            return 1;
+        }
+    return 0;
+}
+
+void
+CompilerConfigureTarget(ZirTargetBackend target, ZirTargetOS os,
+                        ZirTargetCPU cpu)
+{
+    compiler_target.configured = 1;
+    compiler_target.facts.target = target;
+    compiler_target.facts.os = os;
+    compiler_target.facts.cpu = cpu;
+    snprintf(compiler_target.options, sizeof(compiler_target.options),
+             "target=%s os=%s cpu=%s", CompilerTargetBackendName(target),
+             CompilerTargetOSName(os), CompilerTargetCPUName(cpu));
+    compiler_target.facts.options = compiler_target.options;
+}
+
+ZirTargetFacts
+CompilerTargetFacts(void)
+{
+    if(!compiler_target.configured)
+        CompilerConfigureTarget(ZIR_TARGET_ZX, ZIR_OS_NONE, ZIR_CPU_NONE);
+    return compiler_target.facts;
+}
+
 int
 TargetNameKnown(const char *target)
 {
@@ -644,7 +756,18 @@ BuiltinType(const char *name)
         .body = "fully_pathed_filename: string;\nline_number: s64;\n",
         .is_public = 1
     };
-    return strcmp(name, location.name) == 0 ? &location : NULL;
+    static const ZirType target_types[] = {
+        {.name = "OS", .body = "NONE,\nLINUX,\nWINDOWS,\nMACOS,\nANDROID,\nWEB\n",
+         .is_public = 1, .is_enum = 1, .enum_backing = "s32"},
+        {.name = "CPU", .body = "NONE,\nX64,\nARM64,\nWASM32\n",
+         .is_public = 1, .is_enum = 1, .enum_backing = "s32"},
+        {.name = "TARGET", .body = "C,\nGO,\nWASM,\nZX\n",
+         .is_public = 1, .is_enum = 1, .enum_backing = "s32"}
+    };
+    if(strcmp(name, location.name) == 0) return &location;
+    for(size_t i = 0; i < sizeof(target_types) / sizeof(*target_types); i++)
+        if(!strcmp(name, target_types[i].name)) return &target_types[i];
+    return NULL;
 }
 
 typedef struct ModuleVisits {

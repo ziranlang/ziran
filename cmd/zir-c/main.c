@@ -35,7 +35,9 @@ usage(void)
     Diagnostic((ZirSourceSpan){0}, "command.arguments",
             "usage: zi2c [--no-main] [--prune-stale] "
             "[--entry module:function [--exe [--release]] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE]] "
-            "[--diagnostics=text|json] [--module-path DIR] [--define NAME] --root DIR -o DIR file.zi|file.zir ...\n");
+            "[--diagnostics=text|json] [--module-path DIR] [--define NAME] "
+            "[--target-os linux|windows|macos|android|web|none] "
+            "[--target-cpu x64|arm64|wasm32|none] --root DIR -o DIR file.zi|file.zir ...\n");
 }
 
 static int
@@ -274,6 +276,8 @@ main(int argc, char **argv)
     int symbol_count = 0;
     int i;
     int first_file = 0;
+    const char *target_os_name = NULL;
+    const char *target_cpu_name = NULL;
 
     SetDiagnosticFormatFromArguments(argc, argv);
     CommandLowerPriority();
@@ -281,6 +285,8 @@ main(int argc, char **argv)
         COMMAND_TEXT("--root", root),
         COMMAND_LIST("--module-path", module_paths, module_path_count, argc, NULL),
         COMMAND_LIST("--define", defines, define_count, 64, valid_define),
+        COMMAND_TEXT("--target-os", target_os_name),
+        COMMAND_TEXT("--target-cpu", target_cpu_name),
         COMMAND_TEXT("-o", out_dir),
         COMMAND_TEXT("--entry", entry),
         COMMAND_LIST("--bind", bindings, binding_count, 64, NULL),
@@ -311,15 +317,24 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
-    /* Native pthread adapters are available by default, including Windows
-     * builds with winpthreads. Web retains portable adapters. */
-    int posix_threads = 1;
-    int threads_defined = 0;
-    for(int d = 0; d < define_count; d++) {
-        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(strcmp(defines[d], "PLATFORM_WEB") == 0)
-            posix_threads = 0;
+    ZirTargetOS target_os = CompilerHostOS();
+    ZirTargetCPU target_cpu = CompilerHostCPU();
+    if((target_os_name != NULL &&
+        !CompilerParseTargetOS(target_os_name, &target_os)) ||
+       (target_cpu_name != NULL &&
+        !CompilerParseTargetCPU(target_cpu_name, &target_cpu))) {
+        usage();
+        return 1;
     }
+    if(target_os == ZIR_OS_WEB && target_cpu_name == NULL)
+        target_cpu = ZIR_CPU_WASM32;
+    CompilerConfigureTarget(ZIR_TARGET_C, target_os, target_cpu);
+    /* POSIX_THREADS is a true adapter capability. The selected web target
+     * lacks it; PLATFORM_WEB is no longer interpreted as a target proxy. */
+    int posix_threads = target_os != ZIR_OS_WEB;
+    int threads_defined = 0;
+    for(int d = 0; d < define_count; d++)
+        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
     if(posix_threads && !threads_defined) {
         if(define_count == 64) {
             Diagnostic((ZirSourceSpan){0}, "command.arguments",

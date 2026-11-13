@@ -6,7 +6,7 @@ UnknownNext :: () #foreign libc "directory_test_unknown_next";
 DirtyErrno :: () #foreign libc "directory_test_dirty_errno";
 
 // Emscripten's in-memory filesystem does not support FIFO nodes.
-#if #defined(PLATFORM_WEB) {
+#if OS == .WEB {
     ExpectedEntryCount :: 5;
 } else {
     ExpectedEntryCount :: 6;

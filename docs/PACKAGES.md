@@ -140,15 +140,20 @@ module name, so every import says where it comes from:
 
 ```zi
 #import "plot/Plot"
-using Widgets :: #import "kryon/Widgets";
+Text :: #import "kryon/text";
+Desktop :: #import "kryon/host/desktop";
 #import "std/text";
 ```
 
 `std/NAME` is the pinned standard library. Modules in your own package use
 their short names. A package can also import its own public exports as
-`PACKAGE/EXPORT`, where `PACKAGE` is its `[package] name` and `EXPORT` is a
-key in its `[exports]` table. For example, a package named `plot` exporting
-`Plot = "src/module.zi"` can import `plot/Plot` internally. This works both
+`PACKAGE/EXPORT`, where `PACKAGE` is its `[package]` name and `EXPORT` is an
+identifier or slash-separated identifier namespace used as a quoted key in
+its `[exports]` table. For example, a package named `plot` exporting
+`Plot = "src/module.zi"` can import `plot/Plot` internally. A quoted export
+`"host/desktop" = "src/desktop.zi"` is imported as
+`plot/host/desktop`. Slashes organize the public namespace; they do not expose
+the package's directory tree. This works both
 when building that package directly and when it is a dependency, even if a
 consumer gives it a different dependency alias. Private modules still use
 short names inside their package; self qualification exposes only public
@@ -228,6 +233,7 @@ ref = "master"
 
 [exports]
 Plot = "src/module.zi"
+"host/desktop" = "src/host/desktop.zi"
 ```
 
 Push the repository anywhere Git can reach. Prefer HTTPS URLs in published

@@ -131,7 +131,7 @@
     // and copy each reentrant reading.
     #scope_file
     libc :: #system_library "libc";
-    #if #defined(PLATFORM_WEB) {
+    #if OS == .WEB {
         TimeRaw :: (result: *s64) -> s64 #foreign libc "time";
         LocalTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "localtime_r";
         UtcTimeRaw :: (seconds: *s64, fields: *TimeFields) -> *TimeFields #foreign libc "gmtime_r";
@@ -148,7 +148,7 @@
     GetEnvironmentRaw :: (name: *u8) -> *u8 #foreign libc "getenv";
     TimeZoneSetRaw :: () #foreign libc "tzset";
     AccessRaw :: (path: *u8, mode: s32) -> s32 #foreign libc "access";
-    #if #defined(PLATFORM_WEB) {
+    #if OS == .WEB {
         #import "web"
     }
 
@@ -200,11 +200,11 @@
     #program_export
     LocalAt :: (seconds: s64) -> LocalDateTime {
         fields: TimeFields
-        #if #defined(PLATFORM_WEB) {
+        #if OS == .WEB {
             wide := seconds
             return Reading(LocalTimeRaw(*wide, *fields))
         }
-        #if #defined(PLATFORM_WEB) == false {
+        #if OS != .WEB {
             value := cast(isize)seconds
             // A 32-bit time_t cannot name every second.
             if cast(s64)value != seconds {
@@ -217,11 +217,11 @@
     #program_export
     UtcAt :: (seconds: s64) -> LocalDateTime {
         fields: TimeFields
-        #if #defined(PLATFORM_WEB) {
+        #if OS == .WEB {
             wide := seconds
             return Reading(UtcTimeRaw(*wide, *fields))
         }
-        #if #defined(PLATFORM_WEB) == false {
+        #if OS != .WEB {
             value := cast(isize)seconds
             // A 32-bit time_t cannot name every second.
             if cast(s64)value != seconds {
@@ -267,7 +267,7 @@
         return true
     }
 
-    #if #defined(PLATFORM_WEB) {
+    #if OS == .WEB {
         // "GMT", "GMT+05:30" or "GMT-03:00" from Intl's longOffset name.
         ParseOffsetName :: (text: string) -> ZoneOffset {
             result: ZoneOffset
@@ -333,16 +333,16 @@
         if !ZoneNameValid(zone) {
             return ZoneOffset.{}
         }
-        #if #defined(PLATFORM_WEB) {
+        #if OS == .WEB {
             return WebZoneOffsetAt(zone, seconds)
         }
-        #if #defined(PLATFORM_WEB) == false {
+        #if OS != .WEB {
             name: [80]u8
             if !CopyName(zone, name[:]) {
                 return ZoneOffset.{}
             }
             // glibc falls back to UTC for a missing zone; refuse it instead.
-            #if #defined(ANDROID_BUILD) == false && #defined(ANDROID) == false {
+            #if OS != .ANDROID {
                 database: [32]u8
                 path: [128]u8
                 unused CopyName("/usr/share/zoneinfo", database[:])

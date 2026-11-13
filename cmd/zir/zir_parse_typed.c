@@ -219,26 +219,69 @@ compile_name_defined(const ZirModule *module, const char *path, const char *name
     return 0;
 }
 
-/* OS names the host platform, which .WINDOWS, .MACOS and .LINUX compare to. */
+/* Language OS/CPU/TARGET are selected-output facts. Host facts live only
+ * under Compiler, so cross-compilation never selects a host branch. */
 static int
-compile_platform_value(const char *name, CompileValue *result)
+compile_target_value(const char *name, CompileValue *result)
 {
-    static const char *const platforms[] = {".WINDOWS", ".MACOS", ".LINUX"};
+    static const char *const os_members[] = {
+        ".NONE", ".LINUX", ".WINDOWS", ".MACOS", ".ANDROID", ".WEB"
+    };
+    static const char *const cpu_members[] = {
+        ".NONE", ".X64", ".ARM64", ".WASM32"
+    };
+    static const char *const target_members[] = {".C", ".GO", ".WASM", ".ZX"};
+    ZirTargetFacts facts = CompilerTargetFacts();
     int64_t value = 0;
+    const char *type = NULL;
     if(!strcmp(name, "OS")) {
-#if defined(_WIN32)
-        value = 1;
-#elif defined(__APPLE__)
-        value = 2;
-#elif defined(__linux__)
-        value = 3;
-#endif
-    } else
-        for(int i = 0; i < 3; i++)
-            if(!strcmp(name, platforms[i])) value = i + 1;
-    if(value == 0) return 0;
+        value = facts.os;
+        type = "OS";
+    } else if(!strcmp(name, "CPU")) {
+        value = facts.cpu;
+        type = "CPU";
+    } else if(!strcmp(name, "TARGET")) {
+        value = facts.target;
+        type = "TARGET";
+    } else {
+        for(int i = ZIR_OS_NONE; i <= ZIR_OS_WEB && type == NULL; i++)
+            if(!strcmp(name, os_members[i])) { value = i; type = "OS"; }
+        for(int i = ZIR_CPU_NONE; i <= ZIR_CPU_WASM32 && type == NULL; i++)
+            if(!strcmp(name, cpu_members[i])) { value = i; type = "CPU"; }
+        for(int i = ZIR_TARGET_C; i <= ZIR_TARGET_ZX && type == NULL; i++)
+            if(!strcmp(name, target_members[i])) { value = i; type = "TARGET"; }
+    }
+    if(type == NULL) return 0;
     result->kind = COMPILE_INTEGER;
     result->integer = value;
+    copy_text(result->type, sizeof(result->type), type);
+    return compile_value_literal(result);
+}
+
+static int
+compile_compiler_value(const char *member, CompileValue *result)
+{
+    ZirTargetFacts facts = CompilerTargetFacts();
+    const char *type = NULL;
+    int64_t value = 0;
+    if(!strcmp(member, "HostOS")) { value = CompilerHostOS(); type = "OS"; }
+    else if(!strcmp(member, "HostCPU")) { value = CompilerHostCPU(); type = "CPU"; }
+    else if(!strcmp(member, "Target")) { value = facts.target; type = "TARGET"; }
+    else if(!strcmp(member, "TargetOS")) { value = facts.os; type = "OS"; }
+    else if(!strcmp(member, "TargetCPU")) { value = facts.cpu; type = "CPU"; }
+    else if(!strcmp(member, "Options")) {
+        char literal[160];
+        int written = snprintf(literal, sizeof(literal), "\"%s\"",
+                               facts.options ? facts.options : "");
+        if(written < 0 || (size_t)written >= sizeof(literal)) return 0;
+        result->kind = COMPILE_STRING;
+        copy_text(result->type, sizeof(result->type), "string");
+        compile_set_literal(result, literal);
+        return 1;
+    } else return 0;
+    result->kind = COMPILE_INTEGER;
+    result->integer = value;
+    copy_text(result->type, sizeof(result->type), type);
     return compile_value_literal(result);
 }
 
@@ -592,7 +635,7 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
         }
         return evaluate_imported_typed_define(module, path,
                     expression->name, depth + 1, fuel, result) ||
-               compile_platform_value(expression->name, result);
+               compile_target_value(expression->name, result);
     case ZIR_EXPR_SIZE_OF: {
         size_t size, alignment;
         if(!TypeLayout(module, expression->name, &size, &alignment) ||
@@ -762,6 +805,9 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     case ZIR_EXPR_MEMBER:
         if(expression->left >= 0 &&
            probe->exprs[expression->left].kind == ZIR_EXPR_IDENT) {
+            if(!strcmp(probe->exprs[expression->left].name, "Compiler") &&
+               compile_compiler_value(expression->name, result))
+                return 1;
             char qualified[ZIR_NAME_MAX];
             if(snprintf(qualified, sizeof(qualified), "%s.%s",
                         probe->exprs[expression->left].name,

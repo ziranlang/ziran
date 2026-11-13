@@ -53,6 +53,7 @@ include_library_assets(ZxAssets *assets, const Bundle *library)
 static int
 bundle_to(int argc, char **argv, FILE *into, int *local)
 {
+    CompilerConfigureTarget(ZIR_TARGET_ZX, ZIR_OS_NONE, ZIR_CPU_NONE);
     const char *root = NULL;
     const char *output = NULL;
     const char *entry = NULL;

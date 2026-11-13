@@ -42,7 +42,7 @@ libc :: #system_library "libc";
         return 0
     }
 } else {
-    #if #defined(ANDROID_BUILD) {
+    #if OS == .ANDROID {
         MapRaw :: (address: *void, length: usize, protection: s32, flags: s32,
             fd: s32, offset: s64) -> *u8 #foreign libc "mmap64";
     } else {

@@ -577,13 +577,16 @@ module_target_part(const char *part, size_t length)
 static int
 module_target(const char *target)
 {
-    /* PACKAGE/Module names a dependency's export; the parser has already
-     * checked that both parts are identifiers. */
-    const char *slash = strchr(target, '/');
-    if(slash != NULL)
-        return module_target_part(target, (size_t)(slash - target)) &&
-               module_target_part(slash + 1, strlen(slash + 1));
-    return module_target_part(target, strlen(target));
+    /* PACKAGE/export/path names a dependency's export; every namespace
+     * segment is an identifier. */
+    const char *part = target;
+    for(;;) {
+        const char *slash = strchr(part, '/');
+        size_t length = slash == NULL ? strlen(part) : (size_t)(slash - part);
+        if(!module_target_part(part, length)) return 0;
+        if(slash == NULL) return 1;
+        part = slash + 1;
+    }
 }
 
 static int

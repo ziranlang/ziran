@@ -407,7 +407,7 @@ DirectoryMetadata :: struct {
         }
     } else {
         OpenDirectoryRaw :: (path: *u8) -> *void #foreign libc "opendir";
-        #if #defined(PLATFORM_WEB) {
+        #if OS == .WEB {
             // Emscripten's musl uses the ordinary 64-bit directory ABI.
             ReadDirectoryRaw :: (directory: *void) -> *DirectoryMetadata #foreign libc "readdir";
         } else {
@@ -415,7 +415,7 @@ DirectoryMetadata :: struct {
         }
         CloseDirectoryRaw :: (directory: *void) -> s32 #foreign libc "closedir";
     }
-    #if #defined(ANDROID_BUILD) {
+    #if OS == .ANDROID {
         DirectoryErrno :: () -> *s32 #foreign libc "__errno";
     } else #if #defined(__APPLE__) {
         DirectoryErrno :: () -> *s32 #foreign libc "__error";
@@ -423,14 +423,14 @@ DirectoryMetadata :: struct {
         DirectoryErrno :: () -> *s32 #foreign libc "__errno_location";
     }
 
-    #if #defined(ANDROID_BUILD) {
+    #if OS == .ANDROID {
         // Android's 32-bit off_t is narrower than the public file offset. The
         // explicit large-file entry points are available from API 21 onward.
         SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek64";
         ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread64";
         WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite64";
     }
-    #if !#defined(ANDROID_BUILD) {
+    #if OS != .ANDROID {
         SeekRaw :: (fd: s32, offset: s64, origin: s32) -> s64 #foreign libc "lseek";
         ReadAtRaw :: (fd: s32, output: *u8, count: usize, offset: s64) -> isize #foreign libc "pread";
         WriteAtRaw :: (fd: s32, input: *u8, count: usize, offset: s64) -> isize #foreign libc "pwrite";
@@ -440,7 +440,7 @@ DirectoryMetadata :: struct {
     LinkRaw :: (source: *u8, destination: *u8) -> s32 #foreign libc "link";
     RenameAtRaw :: (old_directory: s32, source: *u8,
         new_directory: s32, destination: *u8) -> s32 #foreign libc "renameat";
-    #if #defined(ANDROID_BUILD) {
+    #if OS == .ANDROID {
         // Bionic exports renameat2 only from API 30. Call the kernel operation
         // directly on older API levels, retaining atomic no-replace semantics.
         RenameSystemCall :: (number: isize, old_directory: isize, source: *u8,
@@ -461,7 +461,7 @@ DirectoryMetadata :: struct {
     #if #defined(__APPLE__) {
         RenameAt2Raw :: (old_directory: s32, source: *u8,
             new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameatx_np";
-    } else #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+    } else #if OS != .ANDROID && OS != .WEB {
         RenameAt2Raw :: (old_directory: s32, source: *u8,
             new_directory: s32, destination: *u8, flags: u32) -> s32 #foreign libc "renameat2";
     }
@@ -613,12 +613,12 @@ RenameNoReplace :: (source: string, destination: string) -> bool {
     new_name: [4096]u8
     if !CopyCString(source, old_name[:]) ||
     !CopyCString(destination, new_name[:]) { return false }
-    #if #defined(ANDROID_BUILD) {
+    #if OS == .ANDROID {
         // ENOSYS on an old kernel is a safe failure: neither path is changed.
         return RenameSystemCall(cast(isize)RenameAt2Number, cast(isize)-100,
             *old_name[0], cast(isize)-100, *new_name[0], cast(usize)1) == cast(isize)0
     }
-    #if #defined(PLATFORM_WEB) {
+    #if OS == .WEB {
         // Emscripten's libc has no renameat2. A page runs one thread, so
         // checking the destination first keeps the no-replace guarantee.
         if PathExists(destination) { return false }
@@ -626,7 +626,7 @@ RenameNoReplace :: (source: string, destination: string) -> bool {
     }
     #if #defined(__APPLE__) {
         return RenameAt2Raw(-2, *old_name[0], -2, *new_name[0], 4) == 0
-    } else #if #defined(ANDROID_BUILD) == false && #defined(PLATFORM_WEB) == false {
+    } else #if OS != .ANDROID && OS != .WEB {
         return RenameAt2Raw(-100, *old_name[0], -100, *new_name[0], 1) == 0
     }
 }

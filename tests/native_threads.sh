@@ -24,15 +24,16 @@ test "$("$work/native-c/capability")" = 'POSIX threads'
 "$ziran" ir --target=c --root "$work" -o "$work/native-ir-c" "$work/capability.zi"
 build_program "$work/native-ir-c" "$work/native-saved-c" "$work/native-ir-c/capability.zir"
 test "$("$work/native-saved-c/capability")" = 'POSIX threads'
-for platform in _WIN32 PLATFORM_WEB; do
-    expected=portable
-    if test "$platform" = _WIN32; then expected='POSIX threads'; fi
-    build_program "$work" "$work/c-$platform" "$work/capability.zi" --define "$platform"
-    test "$("$work/c-$platform/capability")" = "$expected"
-    "$ziran" ir --target=c --define "$platform" --root "$work" -o "$work/ir-c-$platform" "$work/capability.zi"
-    build_program "$work/ir-c-$platform" "$work/saved-c-$platform" "$work/ir-c-$platform/capability.zir"
-    test "$("$work/saved-c-$platform/capability")" = "$expected"
-done
+build_program "$work" "$work/c-_WIN32" "$work/capability.zi" --define _WIN32
+test "$("$work/c-_WIN32/capability")" = 'POSIX threads'
+"$ziran" ir --target=c --define _WIN32 --root "$work" -o "$work/ir-c-_WIN32" "$work/capability.zi"
+build_program "$work/ir-c-_WIN32" "$work/saved-c-_WIN32" "$work/ir-c-_WIN32/capability.zir"
+test "$("$work/saved-c-_WIN32/capability")" = 'POSIX threads'
+build_program "$work" "$work/c-web" "$work/capability.zi" --target-os web --target-cpu wasm32
+test "$("$work/c-web/capability")" = portable
+"$ziran" ir --target=c --target-os web --target-cpu wasm32 --root "$work" -o "$work/ir-c-web" "$work/capability.zi"
+build_program "$work/ir-c-web" "$work/saved-c-web" "$work/ir-c-web/capability.zir"
+test "$("$work/saved-c-web/capability")" = portable
 "$ziran" ir --root "$work" -o "$work/ir" "$work/capability.zi"
 "$ziran" build --target=c --root "$work/ir" --entry capability:main --exe -o "$work/saved" "$work/ir/capability.zir"
 test "$("$work/saved/capability")" = 'portable'

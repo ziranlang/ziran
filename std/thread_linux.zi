@@ -17,7 +17,7 @@ PosixThreadCreate :: (thread: *usize, attributes: *void,
 PosixThreadJoin :: (thread: usize, result: **void) -> s32 #foreign libc "pthread_join";
 // Completion polling must also wait for the notification and native thread
 // cleanup to finish, without blocking the polling thread on either of them.
-#if #defined(ANDROID_BUILD) || #defined(ANDROID) {
+#if OS == .ANDROID {
     PosixThreadId :: (thread: usize) -> s32 #foreign libc "pthread_gettid_np";
     PosixThreadTryJoin :: (thread: usize, result: **void) -> s32 {
         // Bionic retains a joinable thread's record until its sole owner

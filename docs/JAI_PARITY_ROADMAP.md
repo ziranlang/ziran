@@ -283,6 +283,10 @@ initializers can use them. Public aggregates resolve through named, open,
 and using imports with their declaring record type preserved. The checker
 now preserves imported aggregate type ownership even when the consumer
 declares same-named records; native output assigns distinct names to them.
+Public `using` facades also preserve that canonical identity and expose the
+original type through the facade qualifier: a `Button.Props.{...}` literal
+typechecks against a `Button.Draw` parameter declared through Button's own
+import alias even when the caller owns another `Props`.
 `tests/compile_values.sh` and
 `tests/imported_aggregate_constants.sh` check source and saved IR across
 all four targets, including imported record fields and array elements in
@@ -300,8 +304,13 @@ explicit overrides. `tests/caller_location.sh` checks those through source
 and saved IR on the portable VM and C and Go targets. Integer
 conditions now send procedure calls through the typed evaluator, and the old
 integer-only procedure interpreter has been removed. The integer expression
-parser remains for `#if` predicates and compiler-host probes such as
-`defined`; `tests/compile_run.sh` covers overflow, defaults, imports,
+parser remains for `#if` predicates and capability probes such as `defined`.
+`TARGET`, `OS`, and `CPU` are typed selected-output facts in `#if`, `#ifx`,
+`#assert`, and `#run`; compiler-host facts are explicitly named
+`Compiler.HostOS` and `Compiler.HostCPU`. C, Go, Wasm, ZX, every target OS and
+CPU enum member, cross-target host differences, unloaded inactive imports,
+and the portable `.zir` selection (`.ZX`/`.NONE`/`.NONE`) are covered by
+`tests/compile_targets.sh`. `tests/compile_run.sh` covers overflow, defaults, imports,
 recursion, and one work budget shared by nested calls. Continue consolidating
 expression rules, then extend file-scope initialization and add
 supported metaprogramming features with explicit effect and
@@ -408,7 +417,7 @@ of old spellings in `cmd/zir/zir_parse.c` are diagnostics that enforce their
 rejection; the corresponding tests should remain. Compile-time procedure
 calls now use the typed evaluator; the older integer-only procedure
 interpreter has been removed. An integer expression parser still handles
-predicates and compiler-host probes such as `defined`. Continue consolidating
+predicates and capability probes such as `defined`. Continue consolidating
 expression rules with behavior tests. Future audits should distinguish
 rejection code from executable legacy behavior and remove the latter in the
 same commit that replaces it.

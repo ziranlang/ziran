@@ -566,6 +566,38 @@ beside the launcher), and `-o FILE` writes elsewhere.
 
 `ziran ir --entry module:function` saves that reachable checked graph as
 per-module `.zir` files before native code generation.
+
+### Compile-time target facts
+
+The typed compile-time values `TARGET`, `OS`, and `CPU` describe the selected
+output, never the machine running the compiler. `TARGET` is an enum with `.C`,
+`.GO`, `.WASM`, and `.ZX`; `OS` has `.LINUX`, `.WINDOWS`, `.MACOS`, `.ANDROID`,
+`.WEB`, and `.NONE`; and `CPU` has `.X64`, `.ARM64`, `.WASM32`, and `.NONE`.
+They work in `#if`, `#ifx`, `#assert`, and `#run`, including compound tests:
+
+```ziran
+#if TARGET == .C && OS == .LINUX {
+    File :: #import "std/file_linux"
+}
+```
+
+Imports in an inactive `#if` arm are not loaded. Native C and Go compilers use
+the host OS and CPU by default and accept `--target-os` and `--target-cpu` for
+cross-target output. WebAssembly selects `.WASM`/`.WEB`/`.WASM32`; portable ZX
+selects `.ZX`/`.NONE`/`.NONE`.
+
+Metaprograms that actually need compiler-machine information use
+`Compiler.HostOS` and `Compiler.HostCPU`. `Compiler.Target`,
+`Compiler.TargetOS`, `Compiler.TargetCPU`, and the string `Compiler.Options`
+report the selected compilation. Host facts must not select target imports.
+
+An untargeted `ziran ir`/`zi2zir` invocation is deliberately portable: it
+checks with `TARGET == .ZX`, `OS == .NONE`, and `CPU == .NONE`, folds all
+compile-time directives, and saves those results in `.zir`. Loading that file
+later does not reevaluate compile-time branches for the consuming backend.
+Select an explicit target while creating IR when a native-platform result is
+intended.
+
 For a portable library, `ziran bundle --entry module:function --retain
 other:entry` also keeps the named function and its dependencies. Repeat
 `--retain` for additional entry points consumed by thin `--library` bundles;
@@ -605,9 +637,11 @@ transitively from `.zi` or saved `.zir`. For example:
 build/bin/zi2zir --check-only --root app --module-path ../kryon/src/ui app/main.zi
 ```
 
-A package-qualified import such as `#import "kryon/Widgets"` resolves
-through the package's dependencies in a `--project` build. Outside a
-project, name the package's module directory instead:
+A package-qualified import such as `#import "kryon/text"` resolves
+through the package's dependencies in a `--project` build. Quoted export keys
+may contain identifier-only namespaces: `[exports] "host/desktop" =
+"src/host/desktop.zi"` is imported as `#import "kryon/host/desktop"`.
+Outside a project, name the package's module directory instead:
 `--module-path kryon=../kryon/src/ui` serves `kryon/NAME` imports from that
 directory (and only those; repeat it for more directories). A package
 builds the same way in both modes when each export has its module's name.
@@ -1886,15 +1920,16 @@ use a subset of the pool instead of becoming serial when more lanes are
 configured. Keep the pool at one address, submit from one owner, and call `ParallelClose` before
 releasing it. Callbacks must write only their own range and keep shared inputs
 immutable. Four lanes run by default; `ZIRAN_PAR_THREADS` selects 1–64 lanes.
-Native C source builds define `POSIX_THREADS` automatically, including
+Native C source builds define the genuine `POSIX_THREADS` capability
+automatically when pthread-compatible threads are available, including
 Windows. On `_WIN32`, the pool uses `std/thread_windows.zi`, native SRW locks
 and condition variables from kernel32; it needs no winpthreads or `-pthread`.
 `tests/native_workers_windows.sh` compiles and links source and saved IR
 with MinGW against the native worker pool. MinGW tests accept `MCFGTHREADS` as the installation
 prefix of an mcfgthread runtime when its `lib` directory is outside the compiler's
-search path. `PLATFORM_WEB` opts out;
-untargeted IR stays portable. Explicit C IR freezes the same capability
-selection as source builds. Libraries
+search path. Web selection uses `OS == .WEB`; `PLATFORM_WEB` is not a target
+selector. Untargeted IR stays portable. Explicit C IR freezes the same
+capability selection as source builds. Libraries
 can use that capability to parallelize their native adapters by default while
 keeping portable output independent of pthreads. This does not parallelize
 arbitrary program state or make shared mutable data safe.

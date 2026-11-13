@@ -123,6 +123,9 @@ Declarations :: () -> bool {
     imported := ImportDeclaration("#import \"std/text\";", 128, 1024)
     if !imported.present || imported.error != .None || imported.named || imported.name != "text" ||
     imported.target != "std/text" || imported.mode != .Module { return false }
+    imported = ImportDeclaration("#import \"kryon/host/desktop\";", 128, 1024)
+    if imported.error != .None || imported.named || imported.name != "desktop" ||
+    imported.target != "kryon/host/desktop" { return false }
     imported = ImportDeclaration("using Library :: #import \"std/text\";", 128, 1024)
     if imported.error != .None || !imported.named || !imported.using_import || imported.name != "Library" { return false }
     imported = ImportDeclaration("Lib :: #import, file \"../lib/helper.zi\";", 128, 1024)
@@ -145,7 +148,8 @@ Declarations :: () -> bool {
     ImportDeclaration("#import, file \"bad-name.zi\";", 128, 1024).error != .ImportFileName ||
     ImportDeclaration("1Alias :: #import \"lib\";", 128, 1024).error != .ImportAlias ||
     ImportDeclaration("#import \"bad-name\";", 128, 1024).error != .ImportTarget ||
-    ImportDeclaration("#import \"std/text/more\";", 128, 1024).error != .ImportPackage ||
+    ImportDeclaration("#import \"kryon//desktop\";", 128, 1024).error != .ImportTarget ||
+    ImportDeclaration("#import \"kryon/host/\";", 128, 1024).error != .ImportTarget ||
     ImportDeclaration("#import \"\";", 128, 1024).error != .ImportTarget ||
     ImportDeclaration("#import \"lib\";", 128, 3).error != .ImportQuote { return false }
     library := SystemLibrary("lib :: #system_library \"go:net/http\";", 128, 1024)

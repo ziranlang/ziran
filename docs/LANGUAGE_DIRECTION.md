@@ -363,8 +363,18 @@ Compile-time conditional expressions use `#ifx condition then a; else b`.
 The semicolon between arms is optional. The frontend selects one arm before
 checking or serializing expressions; its condition evaluator currently accepts
 boolean and integer constants, constant aliases, arithmetic and logical
-operations, and compiler-host `OS` comparisons with `.WINDOWS`, `.MACOS`,
-or `.LINUX`. During translation, `#run`, `#ifx`, and `#assert` can call pure
+operations, and the typed target enums `TARGET`, `OS`, and `CPU`. Their members
+are respectively `.C`/`.GO`/`.WASM`/`.ZX`,
+`.LINUX`/`.WINDOWS`/`.MACOS`/`.ANDROID`/`.WEB`/`.NONE`, and
+`.X64`/`.ARM64`/`.WASM32`/`.NONE`. These values describe the selected output,
+not the compiler host, and work in `#if`, `#ifx`, `#assert`, and `#run`.
+Compiler-host facts are named `Compiler.HostOS` and `Compiler.HostCPU`;
+`Compiler.Target`, `Compiler.TargetOS`, `Compiler.TargetCPU`, and
+`Compiler.Options` expose the selected compilation to metaprograms. Inactive
+`#if` imports are never loaded. Untargeted checked `.zir` uses
+`.ZX`/`.NONE`/`.NONE`; compile-time branches are folded before serialization
+and are not reevaluated by a later consumer backend. During translation,
+`#run`, `#ifx`, and `#assert` can call pure
 same-module or imported procedures with signed integer, up to `u32`, or
 boolean parameters and results. These procedures can use local variables,
 assignments, branches, bounded `while` and numeric range loops, and nested
@@ -411,6 +421,11 @@ and resolve relative to the importing source file. Saved IR uses the imported
 module name. Named `Alias :: #import "module";` and
 `Alias :: #import, file "relative/path.zi";` expose public procedures,
 constants, and record types through `Alias.Name`.
+A public `using` import re-exports the original declaration rather than a
+structural copy. The facade-qualified spelling (for example `Button.Props`)
+therefore keeps the declaring module's canonical type identity, even when the
+consumer has another `Props` or another same-named import alias. Private and
+ambiguous re-exports remain unavailable.
 `Alias :: #import, dir "relative/directory";` loads `module.zi` within the
 directory. `#load "relative/file.zi";` adds that file's declarations to the
 current module and may nest. `#import, string "...";` and a raw `#string`

@@ -157,8 +157,8 @@ ErrorText :: (error: DeclarationError) -> string {
     if error == .ImportFileName { return "#import, file path needs an identifier filename" }
     if error == .ImportAlias { return "import alias must start with a letter or underscore" }
     if error == .ImportAliasLimit { return "import name exceeds the 127-byte limit; give it an explicit alias" }
-    if error == .ImportTarget { return "Jai #import requires a module identifier or PACKAGE/Module; use #import, file for paths" }
-    if error == .ImportPackage { return "a package import has one '/', as in #import \"PACKAGE/Module\"" }
+    if error == .ImportTarget { return "Jai #import requires a module identifier or PACKAGE/export/path with identifier segments; use #import, file for paths" }
+    if error == .ImportPackage { return "a package import uses identifier path segments, as in #import \"PACKAGE/export/path\"" }
     if error == .ImportUsing { return "using #import requires a named module alias" }
     if error == .LibraryQuote { return "#system_library requires a quoted library name" }
     if error == .LibraryEnd { return "#system_library declaration must end with ';'" }
@@ -474,27 +474,22 @@ ImportDeclaration :: (source: string, name_limit: s64, path_limit: s64) -> Modul
         result.name = SymbolBeforeColons(body, name_limit)
         result.named = result.name.count > 0
         if !result.named {
-            slash := Find(result.target, "/")
-            if slash < 0 { result.name = result.target }
-            else { result.name = result.target[slash + 1:] }
+            result.name = Basename(result.target)
             if result.name.count >= name_limit { result.error = .ImportAliasLimit; return result }
         }
     }
     if result.named && !Source.IdentifierText(result.name[0:1], false) { result.error = .ImportAlias; return result }
-    slash := Find(result.target, "/")
-    if slash < 0 {
-        if !Source.IdentifierText(result.target, false) { result.error = .ImportTarget; return result }
-    } else {
-        package := result.target[0:slash]
-        module := result.target[slash + 1:]
-        next := Find(module, "/")
-        first := module
-        if next >= 0 { first = module[0:next] }
-        if !Source.IdentifierText(package, false) || !Source.IdentifierText(first, false) {
+    start: s64 = 0
+    while start <= result.target.count {
+        slash := Find(result.target[start:], "/")
+        finish := result.target.count
+        if slash >= 0 { finish = start + slash }
+        if !Source.IdentifierText(result.target[start:finish], false) {
             result.error = .ImportTarget
             return result
         }
-        if next >= 0 { result.error = .ImportPackage; return result }
+        if slash < 0 { break }
+        start = finish + 1
     }
     if result.using_import && !result.named { result.error = .ImportUsing }
     return result

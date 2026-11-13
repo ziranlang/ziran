@@ -238,7 +238,7 @@ emcc=${EMCC:-$HOME/emsdk/upstream/emscripten/emcc}
 run=${WASM_RUN:-}
 wasi=${WASI_RUN:-}
 if test -n "$run$wasi" && command -v "$emcc" >/dev/null 2>&1; then
-    "$ziran" build --target=c --define PLATFORM_WEB --entry lanczos_isa:main --root "$work" \
+    "$ziran" build --target=c --target-os web --target-cpu wasm32 --entry lanczos_isa:main --root "$work" \
         --module-path "$root/std" -o "$work/web-c" "$work/lanczos_isa.zi"
     mkdir -p "$work/web"
     wasm_build() {

@@ -12,7 +12,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
     if dep.alias != "kryon" || dep.ref != "feature#text" || dep.alias_count != 1 || dep.aliases[0].value != "Renamed" { return 5 }
     other := *manifest.dependencies[1]
     if other.alias != "helper" || !other.source || other.ref != "master" { return 6 }
-    if manifest.export_count != 1 || manifest.exports[0].value != "src/Entry.zi" { return 7 }
+    if manifest.export_count != 2 || manifest.exports[0].value != "src/Entry.zi" ||
+       manifest.exports[1].name != "host/desktop" || manifest.exports[1].value != "src/Desktop.zi" { return 7 }
     if PkgParseManifest(TextFromCString(argv[2]), PkgNewManifest()) { return 8 }
     if !PkgSystemLibraryName("gio-2.0") || !PkgSystemLibraryName("gdk_pixbuf-2.0") ||
        !PkgSystemLibraryName("stdc++") { return 9 }
@@ -20,5 +21,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
        PkgSystemLibraryName("../lib") || PkgSystemLibraryName("x y") ||
        PkgSystemLibraryName("x;touch") || PkgSystemLibraryName("$(shell id)") { return 10 }
     if manifest.link_count != 2 || manifest.links[1] != "gdk_pixbuf-2.0" { return 11 }
+    if !PkgExportName("host/desktop") || !PkgExportName("host/web/renderer") ||
+       PkgExportName("host//desktop") || PkgExportName("host/desktop/") { return 12 }
     return 0
 }

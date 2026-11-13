@@ -17,7 +17,7 @@
 static void
 usage(void)
 {
-    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|go|zx] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
+    Diagnostic((ZirSourceSpan){0}, "command.arguments", "usage: zi2zir [--check-only] [--target=c|go|zx] [--target-os linux|windows|macos|android|web|none] [--target-cpu x64|arm64|wasm32|none] [--diagnostics=text|json] [--lint] [--entry module:function] [--module-path DIR] [--define NAME] [--bind MODULE:CAPABILITY=MODULE:EXPORT] [--bind-host MODULE] --root DIR -o DIR file.zi|file.zir ...");
 }
 
 static int
@@ -72,6 +72,8 @@ main(int argc, char **argv)
     const char *out_dir = NULL;
     const char *entry = NULL;
     const char *target = NULL;
+    const char *target_os_name = NULL;
+    const char *target_cpu_name = NULL;
     char entry_module[ZIR_NAME_MAX], entry_function[ZIR_NAME_MAX];
     int check_only = 0;
     int lint = 0;
@@ -106,6 +108,10 @@ main(int argc, char **argv)
                            "unknown output target: %s", target);
                 return 1;
             }
+        } else if(strcmp(argv[i], "--target-os") == 0 && i + 1 < argc) {
+            target_os_name = argv[++i];
+        } else if(strcmp(argv[i], "--target-cpu") == 0 && i + 1 < argc) {
+            target_cpu_name = argv[++i];
         } else if(strcmp(argv[i], "--root") == 0 && i + 1 < argc) {
             root = argv[++i];
         } else if(strcmp(argv[i], "--module-path") == 0 && i + 1 < argc) {
@@ -143,15 +149,29 @@ main(int argc, char **argv)
         usage();
         return 1;
     }
-    /* Explicit native IR freezes the same adapters as a source build.
-     * Untargeted IR remains portable; the web selector opts out. */
-    int posix_threads = target != NULL && !strcmp(target, "c");
-    int threads_defined = 0;
-    for(int d = 0; d < define_count; d++) {
-        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
-        if(!strcmp(defines[d], "PLATFORM_WEB"))
-            posix_threads = 0;
+    ZirTargetBackend target_backend = target == NULL || !strcmp(target, "zx") ?
+        ZIR_TARGET_ZX : !strcmp(target, "go") ? ZIR_TARGET_GO : ZIR_TARGET_C;
+    ZirTargetOS target_os = target_backend == ZIR_TARGET_ZX ?
+        ZIR_OS_NONE : CompilerHostOS();
+    ZirTargetCPU target_cpu = target_backend == ZIR_TARGET_ZX ?
+        ZIR_CPU_NONE : CompilerHostCPU();
+    if((target_os_name != NULL &&
+        !CompilerParseTargetOS(target_os_name, &target_os)) ||
+       (target_cpu_name != NULL &&
+        !CompilerParseTargetCPU(target_cpu_name, &target_cpu))) {
+        usage();
+        return 1;
     }
+    if(target_os == ZIR_OS_WEB && target_cpu_name == NULL)
+        target_cpu = ZIR_CPU_WASM32;
+    CompilerConfigureTarget(target_backend, target_os, target_cpu);
+    /* Explicit native IR freezes the same capability adapters as a source
+     * build. Untargeted IR remains portable. */
+    int posix_threads = target_backend == ZIR_TARGET_C &&
+                        target_os != ZIR_OS_WEB;
+    int threads_defined = 0;
+    for(int d = 0; d < define_count; d++)
+        threads_defined |= strcmp(defines[d], "POSIX_THREADS") == 0;
     if(posix_threads && !threads_defined) {
         if(define_count == 64) {
             Diagnostic(Span("<command>", 1, 1), "command.arguments",

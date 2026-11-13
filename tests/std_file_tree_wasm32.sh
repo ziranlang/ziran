@@ -47,7 +47,7 @@ Module.postRun = [function () {
         ', link reads ' + FS.readlink('/work/copy/link') + '\n');
 }];
 JS
-"$ziran" build --target=c --define PLATFORM_WEB --root "$work" \
+"$ziran" build --target=c --target-os web --target-cpu wasm32 --root "$work" \
     --entry tree_web:main -o "$work/c" "$work/tree_web.zi"
 # ReplaceFile writes through a 64 KiB stack buffer, the whole default stack.
 "$emcc" -I"$repo/include" "$work/c"/*.c --pre-js "$work/fixture.js" \

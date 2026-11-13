@@ -25,6 +25,37 @@ StatementHasAssembly(const ZirStmt *statement)
 
 enum { ZIR_INLINE_NONE, ZIR_INLINE_ALWAYS, ZIR_INLINE_COLD };
 
+/* The translation target is independent of the machine running the
+ * compiler. These values are also the backing values of the language's
+ * compile-time OS, CPU and TARGET enums. */
+typedef enum ZirTargetOS {
+    ZIR_OS_NONE, ZIR_OS_LINUX, ZIR_OS_WINDOWS, ZIR_OS_MACOS,
+    ZIR_OS_ANDROID, ZIR_OS_WEB
+} ZirTargetOS;
+typedef enum ZirTargetCPU {
+    ZIR_CPU_NONE, ZIR_CPU_X64, ZIR_CPU_ARM64, ZIR_CPU_WASM32
+} ZirTargetCPU;
+typedef enum ZirTargetBackend {
+    ZIR_TARGET_C, ZIR_TARGET_GO, ZIR_TARGET_WASM, ZIR_TARGET_ZX
+} ZirTargetBackend;
+typedef struct ZirTargetFacts {
+    ZirTargetBackend target;
+    ZirTargetOS os;
+    ZirTargetCPU cpu;
+    const char *options;
+} ZirTargetFacts;
+
+ZirTargetOS CompilerHostOS(void);
+ZirTargetCPU CompilerHostCPU(void);
+void CompilerConfigureTarget(ZirTargetBackend target, ZirTargetOS os,
+                             ZirTargetCPU cpu);
+ZirTargetFacts CompilerTargetFacts(void);
+int CompilerParseTargetOS(const char *name, ZirTargetOS *os);
+int CompilerParseTargetCPU(const char *name, ZirTargetCPU *cpu);
+const char *CompilerTargetOSName(ZirTargetOS os);
+const char *CompilerTargetCPUName(ZirTargetCPU cpu);
+const char *CompilerTargetBackendName(ZirTargetBackend target);
+
 /* A function's parameters and defaulted parameters as written. They are
  * kept text (KeepParameters); a zeroed function has none, so read them
  * through these. */

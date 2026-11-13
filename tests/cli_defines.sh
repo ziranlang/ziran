@@ -13,8 +13,8 @@ Answer :: () -> s32 {
 }
 EOF
 cat > "$work/platform.zi" <<'EOF'
-ANDROID :: #defined(ANDROID_BUILD)
-WEB :: #defined(PLATFORM_WEB)
+ANDROID :: #defined(FEATURE_ANDROID)
+WEB :: #defined(CUSTOM_WEB)
 #if ANDROID {
 PlatformValue :: () -> s32 { return 17 }
 } else {
@@ -29,8 +29,8 @@ EOF
 for platform in desktop android web; do
     case "$platform" in
         desktop) expected=29; set -- ;;
-        android) expected=17; set -- --define ANDROID_BUILD ;;
-        web) expected=31; set -- --define PLATFORM_WEB ;;
+        android) expected=17; set -- --define FEATURE_ANDROID ;;
+        web) expected=31; set -- --define CUSTOM_WEB ;;
     esac
     "$tool_dir/zi2zir" --check-only --root "$work" "$@" \
         "$work/main.zi"

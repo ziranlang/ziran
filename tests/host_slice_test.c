@@ -130,6 +130,34 @@ record_slice(void *context, const char *module, const char *function,
     return 1;
 }
 
+static int
+named_records(void *context, const char *module, const char *function,
+              const VmHostValue *args, int arg_count, VmHostValue *result)
+{
+    int *calls = context;
+    assert(strcmp(module, "bridge") == 0);
+    assert(strcmp(function, "SliceHost") == 0 ||
+           strcmp(function, "ArrayHost") == 0);
+    assert(arg_count == 1 && args[0].length == 2 &&
+           args[0].elements != NULL);
+    assert(args[0].kind == (strcmp(function, "SliceHost") == 0 ?
+                            VM_HOST_SLICE : VM_HOST_ARRAY));
+    assert(strcmp(args[0].type, strcmp(function, "SliceHost") == 0 ?
+                                      "[]Types.Point" : "[2]Types.Point") == 0);
+    for(size_t i = 0; i < args[0].length; i++) {
+        assert(args[0].elements[i].kind == VM_HOST_RECORD);
+        assert(strcmp(args[0].elements[i].type, "Types.Point") == 0);
+    }
+    VmHostField *first = (VmHostField *)args[0].elements[0].fields;
+    VmHostField *second = (VmHostField *)args[0].elements[1].fields;
+    assert(first[0].value.integer == 40 && second[1].value.integer == 2);
+    (*calls)++;
+    result->kind = VM_HOST_INTEGER;
+    result->type = "s32";
+    result->integer = 42;
+    return 1;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -141,9 +169,21 @@ main(int argc, char **argv)
                           strcmp(argv[2], "return_empty") == 0 ||
                           strcmp(argv[2], "return_huge") == 0 ||
                           strcmp(argv[2], "records") == 0 ||
-                          strcmp(argv[2], "records_bad") == 0)));
+                          strcmp(argv[2], "records_bad") == 0 ||
+                          strcmp(argv[2], "named_records") == 0)));
     Bundle *bundle = BundleOpen(argv[1]);
     assert(bundle != NULL);
+    if(argc == 3 && strcmp(argv[2], "named_records") == 0) {
+        assert(BundleCapabilityCount(bundle) == 2);
+        HostBinding bindings[2] = {
+            {"bridge", "SliceHost", named_records, &calls},
+            {"bridge", "ArrayHost", named_records, &calls}
+        };
+        assert(BundleRun(bundle, bindings, 2, &result, &has_result));
+        assert(has_result && result == 42 && calls == 2);
+        BundleClose(bundle);
+        return 0;
+    }
     if(argc == 3 && strncmp(argv[2], "records", 7) == 0) {
         int bad_return = strcmp(argv[2], "records_bad") == 0;
         assert(BundleCapabilityCount(bundle) == 2);

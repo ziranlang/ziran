@@ -14,10 +14,12 @@ flock -n 9 || { echo 'Android thread cross-links are already running' >&2; exit 
 unset DISPLAY WAYLAND_DISPLAY XAUTHORITY DBUS_SESSION_BUS_ADDRESS LD_PRELOAD
 export YUE_DESKTOP_RECOVERY=0
 bin="$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin"
-for definition in ANDROID ANDROID_BUILD; do
-    ir="$work/$definition/ir"
-    "$ziran" ir --define "$definition" --root tests/spec --module-path std \
-        -o "$ir" tests/spec/thread_linux_test.zi
+for target in arm64:aarch64-linux-android24 none:armv7a-linux-androideabi24; do
+    cpu=${target%%:*}
+    triple=${target#*:}
+    ir="$work/$cpu/ir"
+    "$ziran" ir --target=c --target-os android --target-cpu "$cpu" \
+        --root tests/spec --module-path std -o "$ir" tests/spec/thread_linux_test.zi
     for form in source saved; do
         entry=tests/spec/thread_linux_test.zi
         root=tests/spec
@@ -27,15 +29,13 @@ for definition in ANDROID ANDROID_BUILD; do
             root="$ir"
             modules="$ir"
         fi
-        output="$work/$definition/$form-c"
-        "$ziran" build --define "$definition" --target=c --no-main \
+        output="$work/$cpu/$form-c"
+        "$ziran" build --target=c --target-os android --target-cpu "$cpu" --no-main \
             --root "$root" --module-path "$modules" -o "$output" "$entry"
-        for triple in aarch64-linux-android24 armv7a-linux-androideabi24; do
-            "$bin/clang" --target="$triple" -std=c11 -fPIC -shared -Iinclude -I"$output" \
-                tests/thread_completion_test.c "$output"/*.c -pthread \
-                -Wl,--wrap=pthread_join -Wl,--wrap=pthread_mutex_lock -Wl,--no-undefined \
-                -o "$output/$triple.so"
-            echo "PASS: $definition $form c $triple thread cross-link"
-        done
+        "$bin/clang" --target="$triple" -std=c11 -fPIC -shared -Iinclude -I"$output" \
+            tests/thread_completion_test.c "$output"/*.c -pthread \
+            -Wl,--wrap=pthread_join -Wl,--wrap=pthread_mutex_lock -Wl,--no-undefined \
+            -o "$output/$triple.so"
+        echo "PASS: OS=.ANDROID CPU=.$cpu $form c $triple thread cross-link"
     done
 done

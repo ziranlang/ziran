@@ -45,6 +45,7 @@ git = "https://codeberg.org/waozi/helper.git"
 source = true
 [exports]
 'Entry' = "src/\u0045ntry.zi"
+"host/desktop" = "src/Desktop.zi"
 TOML
 cat > "$work/invalid.toml" <<'TOML'
 [package]

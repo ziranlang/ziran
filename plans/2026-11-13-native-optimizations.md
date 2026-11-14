@@ -241,24 +241,32 @@ procedures, the largest 1,149. The file is 2,187,468 bytes; the semantic bundle 
 example is 990,229.
 `tests/spec/zx_lowered_shared.zi` and `TypedHostShapes` in `tests/lowered_exec_cases.zi` cover these.
 
+Sixth batch, 2026-11-14: `New(T)` is `resize(null, 0, 1)` and `free(pointer)` is `resize(pointer,
+1, 0)` behind a null check (checked ZIR names them `zi_new` and `zi_free`); `size_of(T)` is a
+constant with the C layout size; a folded constant keeps its sign (`ToneDark :: -3`); a bare
+`null`, which checked ZIR leaves untyped, takes the pointer type it is passed, assigned or
+returned as. `tests/zx_lowered_parity.sh` pins 51 programs.
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 77 | 54 |
+| `tests/spec` entries | 77 | 60 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 23 spec programs left:
+No program is rejected by the verifier any more. First rejection of the 17 spec programs left:
 
-| Count | Rejection | Programs |
-|-------|-----------|----------|
-| 11 | this type has no portable lowered representation yet | `json_*` (`json_bytes.zi:10`), `std_float_text`, `unicode_normalization_test`, `image_resize_fallible`, `vm_scalar_plans_test` |
-| 5 | call is not a direct concrete Ziran procedure | `vm_deep_marking_test`, `vm_inline_records_test`, `vm_nested_collection_test`, `vm_packed_arrays_test`, `vm_return_storage_test` |
-| 3 | invalid checked integer literal | `vm_local_reads_test`, `vm_storage_reads_test`, `vm_u64_enums_test` |
+| Count | Needs | Programs |
+|-------|-------|----------|
+| 6 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test` |
+| 3 | unions | `vm_inline_records_test`, `vm_scalar_plans_test`, `vm_storage_reads_test` |
+| 2 | the call at `json_document.zi:103` | `json_document_lifetime_test`, `std_float_text` |
+| 1 | `VecResize` | `image_resize_fallible` |
+| 1 | `VecGet`/`VecPop` (Option) | `vm_packed_arrays_test` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
-| 1 | lowered program allocation budget exhausted | `unicode_conformance` |
-| 1 | expression is outside the initial direct scalar backend | `vm_leaf_eval_test` |
+| 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
+| 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
 
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
 
@@ -277,8 +285,18 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
 6. Array literals with many elements still lower to one constant per element
    (`unicode_conformance` exhausts the lowering budget); they belong in read-only data.
 
-Not yet lowered: `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD and map types,
-initializers that call procedures, wide literals, indirect calls through fields.
+7. `ziran check` reports Kryon's direction pad laws as unknown ("condition is outside the
+   compile-time evaluator"): the law evaluator does not read a field of a record a call returns
+   (`S(arm, last, now, next).direction == arm`). Reported by the Kryon task, 2026-11-14.
+
+Owner, 2026-11-14: "make sure you also remove any legacy code so we are not to omany liens of
+coed". Each change deletes what it replaces. The cutover deletes the semantic bundle writer and
+VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`: about 12,800 lines) and the ZIR-based Wasm lowering
+(`cmd/zir-wasm/zir_wasm_lower.c`: 3,400 lines); item 4 of the table at the top then leaves one
+native encoder instead of two.
+
+Not yet lowered: `VecResize`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD, union and map types,
+initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX
 

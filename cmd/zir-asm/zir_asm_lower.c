@@ -2044,6 +2044,50 @@ assembly_builder_finish(AssemblyProgram *program, AssemblyFunction *function, co
     return assembly_emit(program, function, LirOp_Aggregate, string, fields, 2, -1, span);
 }
 
+/* New(T): one zeroed T on the heap, or null when it cannot be had. */
+static int
+assembly_new(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int type)
+{
+    ZirSourceSpan span = expression->span;
+    if(assembly_type_at(program, type)->kind != LirTypeKind_Pointer)
+        return assembly_fail(program, span, "New requires a pointer result");
+    int operands[] = {assembly_emit(program, function, LirOp_Null, type, NULL, 0, -1, span),
+        assembly_constant(program, function, 8, 0, span), assembly_constant(program, function, 8, 1, span)};
+    return assembly_emit(program, function, LirOp_Resize, type, operands, 3, -1, span);
+}
+
+/* free(pointer): gives back what New made; freeing null does nothing. */
+static int
+assembly_free(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    if(expression->first_child < 0 || expression->first_child >= function->source->expr_count)
+        return assembly_fail(program, span, "free requires a pointer");
+    int pointer = assembly_expression(program, function, expression->first_child, depth + 1);
+    if(program->failed) return -1;
+    int type = ((int *)function->values.data)[pointer];
+    if(assembly_type_at(program, type)->kind != LirTypeKind_Pointer)
+        return assembly_fail(program, span, "free requires a pointer");
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    if(program->failed || (live && before == NULL)) return -1;
+    int release = assembly_block(program, function, before, live);
+    int done = assembly_block(program, function, before, live);
+    if(program->failed) return -1;
+    int null_operands[] = {pointer, assembly_emit(program, function, LirOp_Null, type, NULL, 0, -1, span)};
+    int absent = assembly_emit(program, function, LirOp_Equal, 1, null_operands, 2, -1, span);
+    assembly_branch(program, function, absent, done, release, live, span);
+
+    assembly_enter(function, release, before, live);
+    int operands[] = {pointer, assembly_constant(program, function, 8, 1, span),
+        assembly_constant(program, function, 8, 0, span)};
+    assembly_emit(program, function, LirOp_Resize, type, operands, 3, -1, span);
+    assembly_jump(program, function, done, live, span);
+
+    assembly_enter(function, done, before, live);
+    return -1;
+}
+
 /* VecReserve(values, capacity): room for at least that many elements, with
  * the count unchanged. The portable VM gives exactly the requested capacity
  * when it grows; a negative request or a refused allocation gives false and
@@ -2327,6 +2371,51 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
     return value;
 }
 
+/* size_of(T) is the C layout size, as the C target gives it: each scalar is
+ * aligned to its own size and a record to its widest member. */
+static int64_t
+assembly_layout_size(AssemblyProgram *program, int identity, int64_t *alignment, int depth)
+{
+    LirType type = *assembly_type_at(program, identity);
+    int64_t size = 0, align = 1;
+    if(depth > 256) return -1;
+    if(type.kind == LirTypeKind_Bool) size = 1;
+    else if(type.kind == LirTypeKind_Integer || type.kind == LirTypeKind_Float) size = align = type.bits / 8;
+    else if(type.kind == LirTypeKind_Pointer || type.kind == LirTypeKind_Function) size = align = 8;
+    else if(type.kind == LirTypeKind_Array) {
+        int64_t element = assembly_layout_size(program, type.element, &align, depth + 1);
+        if(element < 0 || (type.count && element > INT64_MAX / type.count)) return -1;
+        size = element * type.count;
+    } else if(type.kind == LirTypeKind_Record) {
+        for(int index = 0; index < type.fields.length; index++) {
+            int64_t field_align = 1;
+            int64_t field = assembly_layout_size(program, ((int *)type.fields.data)[index], &field_align, depth + 1);
+            if(field < 0 || size > INT64_MAX - field - field_align) return -1;
+            size = (size + field_align - 1) / field_align * field_align + field;
+            if(field_align > align) align = field_align;
+        }
+        size = (size + align - 1) / align * align;
+    } else return -1;
+    *alignment = align;
+    return size;
+}
+
+/* A bare `null` has no type of its own in checked ZIR: it is the null of the
+ * pointer or procedure type it is passed, assigned or returned as. */
+static int
+assembly_expression_for(AssemblyProgram *program, AssemblyFunction *function, int root, int wanted, int depth)
+{
+    if(!program->failed && root >= 0 && root < function->source->expr_count && wanted > 0) {
+        const ZirExpr *expression = &function->source->exprs[root];
+        LirTypeKind kind = assembly_type_at(program, wanted)->kind;
+        if(expression->kind == ZIR_EXPR_IDENT && !expression->is_global_value &&
+           !strcmp(expression->name, "null") && !strcmp(expression->type, "null") &&
+           (kind == LirTypeKind_Pointer || kind == LirTypeKind_Function))
+            return assembly_emit(program, function, LirOp_Null, wanted, NULL, 0, -1, expression->span);
+    }
+    return assembly_expression(program, function, root, depth);
+}
+
 static int
 assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, int root, int depth)
 {
@@ -2349,6 +2438,14 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
         return assembly_emit(program, function, LirOp_FunctionAddress, type, NULL, 0, symbol, expression->span);
     }
     if(expression->kind == ZIR_EXPR_STRING) return assembly_string(program, function, expression);
+    if(expression->kind == ZIR_EXPR_SIZE_OF) {
+        int measured = assembly_type(program, function, expression->name, expression->span);
+        if(program->failed) return -1;
+        int64_t alignment = 1;
+        int64_t size = assembly_layout_size(program, measured, &alignment, 0);
+        if(size < 0) return assembly_fail(program, expression->span, "size_of this type has no portable lowered size");
+        return assembly_constant(program, function, type, (uint64_t)size, expression->span);
+    }
     /* A parsed global initializer leaves its numeric literals untyped; each
      * takes the type of the member or global it initializes. */
     if(function->literal_at == root + 1 &&
@@ -2359,18 +2456,23 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             type = function->literal_type;
     }
     if(expression->kind == ZIR_EXPR_INT) {
+        /* A folded constant such as a negative enum member carries its sign
+         * in the text: the magnitude is read, then negated in two's complement. */
         unsigned long long bits = 0;
-        if(!ZirIntegerLiteral(expression->text, &bits))
+        const char *digits = expression->text;
+        int negative = digits[0] == '-';
+        if(negative || digits[0] == '+') digits++;
+        if(!ZirIntegerLiteral(digits, &bits))
             return assembly_fail(program, expression->span, "invalid checked integer literal");
         if(assembly_type_at(program, type)->kind == LirTypeKind_Float) {
-            double converted = (double)bits;
+            double converted = negative ? -(double)bits : (double)bits;
             if(assembly_type_at(program, type)->bits == 32) {
                 float narrowed = (float)converted;
                 uint32_t representation;
                 memcpy(&representation, &narrowed, sizeof(representation));
                 bits = representation;
             } else memcpy(&bits, &converted, sizeof(bits));
-        }
+        } else if(negative) bits = 0 - bits;
         return assembly_constant(program, function, type, bits, expression->span);
     }
     if(expression->kind == ZIR_EXPR_FLOAT) {
@@ -2575,6 +2677,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             const ZirFunction *callee = NULL;
             if(ResolveFunctionAt(function->module, expression->name, SpanPath(expression->span), &owner, &callee) == 1)
                 symbol = assembly_function(program, owner, callee);
+            else if(!strcmp(expression->name, "zi_new")) return assembly_new(program, function, expression, type);
+            else if(!strcmp(expression->name, "zi_free")) return assembly_free(program, function, expression, depth + 1);
             else symbol = assembly_host_function(program, function->module, expression->name, expression->span);
             if(program->failed) return -1;
             if(symbol < 0) return assembly_fail(program, expression->span, "call is not a direct concrete Ziran procedure");
@@ -2595,9 +2699,9 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             int position = argument->argument_index >= 0 ? argument->argument_index : ordinal;
             if(position < 0 || position >= count || values[position] >= 0)
                 return assembly_fail(program, argument->span, "invalid checked call argument mapping");
-            int value = assembly_expression(program, function, child, depth + 1);
-            values[position] = assembly_convert(program, function, value,
-                ((int *)parameters.data)[position], argument->span);
+            int wanted = ((int *)parameters.data)[position];
+            int value = assembly_expression_for(program, function, child, wanted, depth + 1);
+            values[position] = assembly_convert(program, function, value, wanted, argument->span);
             ordinal++;
             child = argument->next_sibling;
         }
@@ -2803,7 +2907,7 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                     assembly_emit(program, function, LirOp_Load, identity,
                         address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
                     destination->value;
-            int value = assembly_expression(program, function, statement->expr_root, 0);
+            int value = assembly_expression_for(program, function, statement->expr_root, identity, 0);
             if(strcmp(statement->assignment_op, "=")) {
                 char operator_text[4];
                 memcpy(operator_text, statement->assignment_op, sizeof(operator_text));
@@ -2831,7 +2935,8 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
         } else if(statement->kind == ZIR_STMT_RETURN) {
             int value = -1;
             if(function->result.result)
-                value = assembly_convert(program, function, assembly_expression(program, function, statement->expr_root, 0),
+                value = assembly_convert(program, function,
+                    assembly_expression_for(program, function, statement->expr_root, function->result.result, 0),
                     function->result.result, statement->span);
             assembly_drop_bindings(program, function, 0, statement->span);
             assembly_emit(program, function, LirOp_Return, 0, &value, function->result.result ? 1 : 0, -1, statement->span);

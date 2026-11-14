@@ -121,7 +121,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "language_contract:Answer", "path_test:main", "queue_test:SelfTest", "std_binary:SelfTest",
         "std_c_string:main", "std_grapheme:SelfTest", "std_math:main", "std_math_sqrt:SelfTest",
         "std_number_text:SelfTest", "std_string:main", "std_text:SelfTest", "utf8_copy_valid:SelfTest",
-        "vm_concurrent_instances_test:Next", "wide_compare_test:main", "zip_test:SelfTest"]
+        "vm_concurrent_instances_test:Next", "wide_compare_test:main", "zip_test:SelfTest",
+        "sort_test:SelfTest", "vm_local_reads_test:main", "vm_u64_enums_test:main",
+        "vm_deep_marking_test:Answer", "vm_return_storage_test:Answer", "vm_leaf_eval_test:main"]
     spec_root := CheckPath(test.repo, "tests/spec")
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))

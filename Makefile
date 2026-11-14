@@ -143,15 +143,18 @@ FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c 
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
 PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
-LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c cmd/zir/zir_host_exec.c
+LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
 # The portable instruction engine (cmd/compiler_runtime.zi), behind the
-# embedding API in cmd/zir/zir_host_exec.c. Each generated module is its own
-# archive member, so a program that compiles the same standard modules itself
-# never links them twice. Its headers are found with -iquote only: the set
-# has its own math.h. The bootstrap compiler opens no bundle and has none.
+# embedding API in cmd/zir/zir_host_exec.c. The engine's modules compile with
+# hidden symbols and merge with that API into one object whose only globals
+# are the API and what it needs from outside, so the engine's own copies of
+# the standard modules stay private: a program that compiles the same
+# standard modules itself (math, vec, ...) still links them only once. Its
+# headers are found with -iquote only: the set has its own math.h. The
+# bootstrap compiler opens no bundle and has none.
 ENGINE_C := $(BUILD_DIR)/compiler-runtime
 ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
     compiler_exec_serial compiler_exec_link compiler_exec
@@ -163,7 +166,10 @@ ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
 $(call obj,cmd/zir/zir_host_exec.c): CFLAGS += -iquote $(ENGINE_C)
 $(call obj,cmd/zir/zir_host_exec.c): $(ENGINE_C)/.generated
 endif
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
+HOST_EXEC_OBJECT := $(BUILD_DIR)/obj/host_exec.o
+$(HOST_EXEC_OBJECT): $(call obj,cmd/zir/zir_host_exec.c) $(ENGINE_OBJECTS)
+	$(CC) -r -nostdlib -o $@ $^ && $(OBJCOPY) --localize-hidden $@
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(HOST_EXEC_OBJECT) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c cmd/zir-wasm/zir_wasm_lower.c)
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
@@ -576,7 +582,8 @@ $(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/co
 
 $(BUILD_DIR)/obj/engine/%.o: $(ENGINE_C)/.generated $(BUILD_DIR)/.compiler-flags
 	@mkdir -p $(dir $@)
-	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -iquote $(ENGINE_C) -c -o $@ $(ENGINE_C)/$*.c
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -fvisibility=hidden -iquote $(ENGINE_C) -c -o $@ $(ENGINE_C)/$*.c
+
 
 $(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \

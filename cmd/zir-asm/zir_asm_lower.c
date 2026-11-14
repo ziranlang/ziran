@@ -1002,6 +1002,20 @@ assembly_record(AssemblyProgram *program, int identity)
     return NULL;
 }
 
+/* The module that declares a lowered record type. */
+static const ZirModule *
+assembly_record_owner(AssemblyProgram *program, int identity)
+{
+    AssemblyType *names = program->type_names.data;
+    for(int index = 0; index < program->type_names.count; index++) {
+        if(names[index].identity != identity || names[index].record == NULL) continue;
+        const ZirModule *owner = names[index].module;
+        if(FindType(names[index].module, names[index].name, &owner) == names[index].record) return owner;
+        return names[index].module;
+    }
+    return NULL;
+}
+
 static int
 assembly_field(AssemblyProgram *program, int identity, const char *name, ZirSourceSpan span)
 {
@@ -1215,7 +1229,32 @@ assembly_member(AssemblyProgram *program, AssemblyFunction *function, const ZirE
     } else if(type.kind == LirTypeKind_Array && !strcmp(expression->name, "count")) {
         int result_type = assembly_type(program, function, expression->type, expression->span);
         return assembly_constant(program, function, result_type, (uint64_t)type.count, expression->span);
-    } else member = assembly_field(program, identity, expression->name, expression->span);
+    } else {
+        /* A field promoted by `using` is read hop by hop along its path. */
+        const ZirType *record = assembly_record(program, identity);
+        const ZirModule *record_owner = assembly_record_owner(program, identity);
+        char path[ZIR_NAME_MAX], promoted[ZIR_NAME_MAX];
+        ZirTypeField direct;
+        if(record != NULL && record_owner != NULL && TypeFindField(record, expression->name, &direct) != 1 &&
+           ResolveRecordField(record_owner, record, expression->name, path, sizeof(path),
+                              promoted, sizeof(promoted)) == 1 && strchr(path, '.') != NULL) {
+            int current = value, current_type = identity;
+            for(char *hop = path; hop != NULL && !program->failed;) {
+                char *dot = strchr(hop, '.');
+                if(dot) *dot = 0;
+                int field = assembly_field(program, current_type, hop, expression->span);
+                int field_type = field >= 0 ? assembly_member_type(program, current_type, field) : -1;
+                if(program->failed || field_type < 0)
+                    return assembly_fail(program, expression->span, "invalid lowered aggregate member");
+                current = assembly_indexed(program, function, LirOp_Extract, field_type, &current, 1,
+                    (uint64_t)field, expression->span);
+                current_type = field_type;
+                hop = dot ? dot + 1 : NULL;
+            }
+            return current;
+        }
+        member = assembly_field(program, identity, expression->name, expression->span);
+    }
     if(program->failed) return -1;
     int result_type = assembly_member_type(program, identity, member);
     if(result_type < 0) return assembly_fail(program, expression->span, "invalid lowered aggregate member");
@@ -2315,6 +2354,91 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
     return answer;
 }
 
+/* clz, ctz, popcount and bswap of an integer, with the instructions every
+ * engine has: the argument's bits zero-extended to u64, a SWAR popcount,
+ * ctz(x) as popcount((x & -x) - 1) in the argument's width, clz as the width
+ * less the popcount of x with every bit below its highest set, bswap as byte
+ * moves. Zero gives the width for clz and ctz. */
+static int assembly_unsigned_of(int bits);
+
+static int
+assembly_bit_op(AssemblyProgram *program, AssemblyFunction *function, LirOp op, int left, int right, ZirSourceSpan span)
+{
+    int operands[] = {left, right};
+    return assembly_emit(program, function, op, 9, operands, 2, -1, span);
+}
+
+static int
+assembly_popcount64(AssemblyProgram *program, AssemblyFunction *function, int value, ZirSourceSpan span)
+{
+#define WORD(bits) assembly_constant(program, function, 9, UINT64_C(bits), span)
+    int halves = assembly_bit_op(program, function, LirOp_BitAnd,
+        assembly_bit_op(program, function, LirOp_ShiftRight, value, WORD(1), span), WORD(0x5555555555555555), span);
+    int pairs = assembly_bit_op(program, function, LirOp_Subtract, value, halves, span);
+    int quads = assembly_bit_op(program, function, LirOp_Add,
+        assembly_bit_op(program, function, LirOp_BitAnd, pairs, WORD(0x3333333333333333), span),
+        assembly_bit_op(program, function, LirOp_BitAnd,
+            assembly_bit_op(program, function, LirOp_ShiftRight, pairs, WORD(2), span), WORD(0x3333333333333333), span),
+        span);
+    int bytes = assembly_bit_op(program, function, LirOp_BitAnd,
+        assembly_bit_op(program, function, LirOp_Add, quads,
+            assembly_bit_op(program, function, LirOp_ShiftRight, quads, WORD(4), span), span),
+        WORD(0x0f0f0f0f0f0f0f0f), span);
+    return assembly_bit_op(program, function, LirOp_ShiftRight,
+        assembly_bit_op(program, function, LirOp_Multiply, bytes, WORD(0x0101010101010101), span), WORD(56), span);
+#undef WORD
+}
+
+static int
+assembly_bit(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int type, int bit,
+             int depth)
+{
+    ZirSourceSpan span = expression->span;
+    if(expression->first_child < 0 || expression->first_child >= function->source->expr_count)
+        return assembly_fail(program, span, "a bit builtin takes one integer");
+    int value = assembly_expression(program, function, expression->first_child, depth + 1);
+    if(program->failed) return -1;
+    const LirType *argument = assembly_type_at(program, ((int *)function->values.data)[value]);
+    if(argument->kind != LirTypeKind_Integer) return assembly_fail(program, span, "a bit builtin takes one integer");
+    int width = argument->bits;
+    int same_width = assembly_unsigned_of(width);
+    int bits = assembly_convert(program, function, assembly_convert(program, function, value, same_width, span), 9, span);
+    int result;
+    if(bit == ZIR_BIT_POPCOUNT) result = assembly_popcount64(program, function, bits, span);
+    else if(bit == ZIR_BIT_CTZ) {
+        int lowest = assembly_bit_op(program, function, LirOp_BitAnd, bits,
+            assembly_bit_op(program, function, LirOp_Subtract, assembly_constant(program, function, 9, 0, span), bits, span),
+            span);
+        int below = assembly_bit_op(program, function, LirOp_Subtract, lowest, assembly_constant(program, function, 9, 1, span), span);
+        if(width < 64)
+            below = assembly_bit_op(program, function, LirOp_BitAnd, below,
+                assembly_constant(program, function, 9, (UINT64_C(1) << width) - 1, span), span);
+        result = assembly_popcount64(program, function, below, span);
+    } else if(bit == ZIR_BIT_CLZ) {
+        int smeared = bits;
+        for(int shift = 1; shift < width; shift *= 2)
+            smeared = assembly_bit_op(program, function, LirOp_BitOr, smeared,
+                assembly_bit_op(program, function, LirOp_ShiftRight, smeared,
+                    assembly_constant(program, function, 9, (uint64_t)shift, span), span), span);
+        result = assembly_bit_op(program, function, LirOp_Subtract,
+            assembly_constant(program, function, 9, (uint64_t)width, span),
+            assembly_popcount64(program, function, smeared, span), span);
+    } else {
+        result = assembly_constant(program, function, 9, 0, span);
+        for(int byte = 0; byte < width / 8; byte++) {
+            int moved = assembly_bit_op(program, function, LirOp_BitAnd,
+                assembly_bit_op(program, function, LirOp_ShiftRight, bits,
+                    assembly_constant(program, function, 9, (uint64_t)(8 * byte), span), span),
+                assembly_constant(program, function, 9, 0xff, span), span);
+            moved = assembly_bit_op(program, function, LirOp_ShiftLeft, moved,
+                assembly_constant(program, function, 9, (uint64_t)(8 * (width / 8 - 1 - byte)), span), span);
+            result = assembly_bit_op(program, function, LirOp_BitOr, result, moved, span);
+        }
+        result = assembly_convert(program, function, result, same_width, span);
+    }
+    return assembly_convert(program, function, result, type, span);
+}
+
 /* VecClone(destination, source): the destination becomes a copy of the
  * source's elements with exactly that many as its capacity, and what it held
  * is dropped. When the copy cannot be allocated the answer is false and the
@@ -2929,6 +3053,10 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
     }
     if(expression->kind == ZIR_EXPR_STRING) return assembly_string(program, function, expression);
     if(expression->kind == ZIR_EXPR_SIZE_OF) {
+        /* isize and usize are pointer-sized: 8 bytes on every target the
+         * portable format runs on, as the C target gives them there. */
+        if(!strcmp(expression->name, "isize") || !strcmp(expression->name, "usize"))
+            return assembly_constant(program, function, type, 8, expression->span);
         int measured = assembly_type(program, function, expression->name, expression->span);
         if(program->failed) return -1;
         int64_t alignment = 1;
@@ -3022,6 +3150,22 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             if(local->storage_type < 0) return local->value;
             return assembly_emit(program, function, LirOp_Load, local->type, &local->value, 1, -1,
                 expression->span);
+        }
+        /* A named constant, which a parsed global initializer leaves by name:
+         * its compile-time value, typed by the member or global it sets. */
+        const ZirDefine *definition = NULL;
+        const ZirModule *definition_owner = NULL;
+        int64_t constant_value = 0;
+        if(ResolveDefine(function->module, expression->name, &definition, &definition_owner, NULL) == 1 &&
+           definition != NULL &&
+           EvaluateCompileExpression(definition_owner, definition->value, expression->span, 0, &constant_value)) {
+            int typed = type;
+            LirTypeKind own = assembly_type_at(program, type)->kind;
+            if(own != LirTypeKind_Integer && own != LirTypeKind_Bool && function->literal_at == root + 1)
+                typed = function->literal_type;
+            if(assembly_type_at(program, typed)->kind == LirTypeKind_Integer ||
+               assembly_type_at(program, typed)->kind == LirTypeKind_Bool)
+                return assembly_constant(program, function, typed, (uint64_t)constant_value, expression->span);
         }
         return assembly_fail(program, expression->span, "only local scalar bindings are lowered in identifier expressions");
     }
@@ -3184,6 +3328,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
             const ZirFunction *callee = NULL;
             if(ResolveFunctionAt(function->module, expression->name, SpanPath(expression->span), &owner, &callee) == 1)
                 symbol = assembly_function(program, owner, callee);
+            else if(BitBuiltin(expression->name) != ZIR_BIT_NONE)
+                return assembly_bit(program, function, expression, type, BitBuiltin(expression->name), depth + 1);
             else if(!strcmp(expression->name, "zi_new")) return assembly_new(program, function, expression, type);
             else if(!strcmp(expression->name, "zi_free")) return assembly_free(program, function, expression, depth + 1);
             else symbol = assembly_host_function(program, function->module, expression->name, expression->span);
@@ -3521,9 +3667,11 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
         const ZirStmt *statement = &function->source->stmts[index];
         if(!assembly_spend(program, statement->span)) return;
         /* An `#asm` block is lowered from its ordinary body, like a
-         * procedure with `#asm` variants. */
-        if(statement->is_parallel || statement->is_gpu) {
-            assembly_fail(program, statement->span, "parallel and GPU statements are not lowered yet");
+         * procedure with `#asm` variants. A `#parallel` loop runs its
+         * iterations in order: the checker proved them independent, so any
+         * order gives the same result. */
+        if(statement->is_gpu) {
+            assembly_fail(program, statement->span, "GPU statements are not lowered yet");
             break;
         }
         if(statement->kind == ZIR_STMT_DECL) {
@@ -3552,13 +3700,7 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                 assembly_union_member(program, function, function->source->exprs[written->left].type,
                     written->name, statement->span) : -1;
             if(program->failed) break;
-            if(union_member >= 0) {
-                if(strcmp(statement->assignment_op, "=")) {
-                    assembly_fail(program, statement->span, "compound assignment to a union member is not lowered yet");
-                    break;
-                }
-                place = written->left;
-            }
+            if(union_member >= 0) place = written->left;
             int identity = assembly_type(program, function, function->source->exprs[place].type, statement->span);
 
             int address = -1;
@@ -3579,11 +3721,21 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                     assembly_emit(program, function, LirOp_Load, identity,
                         address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
                     destination->value;
-                value = assembly_union_write(program, function, old,
-                    assembly_convert(program, function, value, union_member, statement->span),
-                    identity, union_member, statement->span);
+                value = assembly_convert(program, function, value, union_member, statement->span);
+                /* `cell.member op= x` reads the member, combines, and writes it back. */
+                if(strcmp(statement->assignment_op, "=")) {
+                    char operator_text[4];
+                    memcpy(operator_text, statement->assignment_op, sizeof(operator_text));
+                    size_t length = strlen(operator_text);
+                    if(length) operator_text[length - 1] = 0;
+                    LirOp op = assembly_binary(operator_text);
+                    if(op == LirOp_Invalid) { assembly_fail(program, statement->span, "unsupported compound assignment"); break; }
+                    int operands[2] = {assembly_union_read(program, function, old, union_member, statement->span), value};
+                    value = assembly_emit(program, function, op, union_member, operands, 2, -1, statement->span);
+                }
+                value = assembly_union_write(program, function, old, value, identity, union_member, statement->span);
             }
-            if(strcmp(statement->assignment_op, "=")) {
+            if(union_member < 0 && strcmp(statement->assignment_op, "=")) {
                 char operator_text[4];
                 memcpy(operator_text, statement->assignment_op, sizeof(operator_text));
                 size_t length = strlen(operator_text);

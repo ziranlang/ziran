@@ -374,9 +374,25 @@ and commits:
   state export/import, components, capability signatures, assets, remaining host-value details.
 - `claude-ziran-zx-wasm-host-abi`: `cmd/zir-wasm/zx_wasm_lower.c`, `cmd/zir/zir_zx_wasm*.c`:
   typed host ABI, linear-memory heap, browser bridge, bundle Wasm tier on revision 28.
-Then the coordinator flips the default (bundle writes revision 28, `ZIRAN_BUNDLE_EXEC` goes),
-deletes the semantic writer, VM, ZIR Wasm lowering and the VM-internal tests, and decides
-bundle libraries (runtime `--library` linking) versus build-time linking.
+Result (committed 76141143): with `ZIRAN_BUNDLE_EXEC=1` 247 of 280 local tests pass; the
+default suite passes. Owner, 2026-11-14: "do everything deleto old shit", "migart 100% to the
+new verison"; bundle libraries go (build-time linking replaces them).
+
+Switch-over, in progress (same three specialists):
+- Embedding specialist: bundles always revision 28; delete the semantic reader and writer, the
+  VM, TinyCC-compiled and linked native bundles (`native-c`), libraries, the VM profile, `--vm`,
+  `BundleInstantiatePortable`, `libziran-vm.a`, the VM-internal tests; engine problems mapped to
+  the diagnostics users read; docs for one format.
+- Wasm specialist: delete the ZIR Wasm lowering and `zi2wasm`; Web tests on revision 28; state
+  on revision-28 Wasm instances.
+- Lowering specialist: zero-sized returns, a global in `wasm_enums`, `packages`,
+  `json_string_scan`, the assembly test timeouts, `#asm` bundles, records in frame slots on the
+  native encoder.
+- Coordinator: removed `cmd/compiler_serial.zi`, its service helpers and `cmd/law-isolate/`
+  (42da58fe, 1,368 lines). After the flip, Kryon switches: its web `libziran.a` builds
+  without `BOOTSTRAP=1`, browser players call `InstantiateBundle`.
+- Open question to measure on Alpha: bundles in a player ran as TinyCC-compiled native code on
+  desktop; on revision 28 they run on the instruction engine.
 
 Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut over:
 

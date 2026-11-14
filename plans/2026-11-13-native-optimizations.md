@@ -292,9 +292,11 @@ Kryon lowers but does not run on revision 28 yet. Before `ziran bundle` can cut 
 6. Array literals with many elements still lower to one constant per element
    (`unicode_conformance` exhausts the lowering budget); they belong in read-only data.
 
-7. `ziran check` reports Kryon's direction pad laws as unknown ("condition is outside the
-   compile-time evaluator"): the law evaluator does not read a field of a record a call returns
-   (`S(arm, last, now, next).direction == arm`). Reported by the Kryon task, 2026-11-14.
+7. Done, 2026-11-14: `ziran check` reported Kryon's direction pad laws as unknown. The law
+   evaluator compared a returned record's type by spelling, so a procedure declared
+   `-> DirectionPad.DirectionPadHold` that forwards the imported module's record was refused.
+   It now compares the declared types (`compile_return_value` in `cmd/zir/zir_parse_typed.c`),
+   and an untyped `.{...}` return takes the return type. All 31 Kryon law files pass.
 
 Owner, 2026-11-14: "make sure you also remove any legacy code so we are not to omany liens of
 coed". Each change deletes what it replaces. The cutover deletes the semantic bundle writer and

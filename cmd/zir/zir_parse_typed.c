@@ -971,6 +971,19 @@ evaluate_typed_node_with_buffers(const ZirFunction *probe, int index,
     }
 }
 
+/* A returned record need not be spelled as the return type spells it: the
+ * procedure may name the type through an import, `Pad.Hold` for a `Hold`
+ * made in `pad`. */
+static int
+compile_return_value(const ZirModule *module, const char *type, CompileValue *value)
+{
+    if(compile_type_value(type, value)) return 1;
+    if(value->kind != COMPILE_COMPOUND || !value->type[0]) return 0;
+    const ZirType *declared = FindType(module, type, NULL);
+    const ZirModule *made_in = value->type_owner != NULL ? value->type_owner : module;
+    return declared != NULL && FindType(made_in, value->type, NULL) == declared;
+}
+
 COMPILER_SCRATCH_RETURN(, int, evaluate_typed_node,
     (const ZirFunction *probe, int index,
                     const ZirModule *module, const char *path,
@@ -1886,6 +1899,14 @@ typed_body_statements_with_buffers(TypedBody *body, int start, int stop,
         }
         if(statement->kind == ZIR_STMT_RETURN) {
             const char *value = skip_ws(source + 6);
+            /* An untyped `.{...}` is a literal of the return type. */
+            if(value[0] == '.' && value[1] == '{' && body->fn->return_type[0]) {
+                free(text);
+                size_t length = strlen(body->fn->return_type) + strlen(value) + 1;
+                if((text = malloc(length)) == NULL) goto failed;
+                snprintf(text, length, "%s%s", body->fn->return_type, value);
+                value = text;
+            }
             if(*value != '\0' && *value != ';' &&
                !typed_body_expression(body, value, result)) goto failed;
             *flow = 1;
@@ -2363,7 +2384,7 @@ evaluate_typed_function_with_buffers(const ZirModule *module, const char *name,
     }
     ok = typed_body_statements(&body, 0, fn->stmt_count, &flow, result) &&
          (fn->return_type[0] && strcmp(fn->return_type, "void") ?
-          flow == 1 && compile_type_value(fn->return_type, result) :
+          flow == 1 && compile_return_value(owner, fn->return_type, result) :
           result->kind == COMPILE_INVALID);
     if(ok && calls != NULL)
         keep_call(calls, hash, fn, bound_texts, expected, depth,

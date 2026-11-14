@@ -4,6 +4,8 @@
 
 - Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
 
+- `ziran check` evaluates a law that reads a field of a record returned through another spelling of its type. A procedure declared `-> Pad.Hold` that forwards a `Hold` made in the imported module, or that returns an untyped `.{...}` literal, was "outside the compile-time evaluator"; the returned record is now matched by its declared type and the literal takes the return type.
+
 - Revision-28 lowering adds `VecResize`: it reserves exactly the requested capacity like `VecReserve`, drops the elements it removes and zeroes the ones it adds. The portable interpreter finds a derived address through a hash index instead of scanning its whole address table, which made a pixel loop spend billions of work units; `image_resize_fallible` now runs on revision 28 with the semantic route's result.
 
 - Revision-28 lowering adds `New(T)` and `free` on the heap instruction, `size_of` with the C layout size, negative folded constants such as a negative enum member, and a bare `null` passed, assigned or returned as a pointer. 60 of the 77 spec programs the semantic route runs now lower.

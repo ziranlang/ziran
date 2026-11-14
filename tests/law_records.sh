@@ -81,6 +81,36 @@ if "$ziran" check --root "$work" "$work/false.zi" > "$work/false.json" 2> "$work
     echo 'a false record law was accepted' >&2; exit 1
 fi
 grep -q '"status":"disproved"' "$work/false.json"
+# A procedure may return a record under another spelling of its type: through
+# an import, or as an untyped literal that takes the return type.
+cat > "$work/pad.zi" <<'ZI'
+Hold :: struct {
+    direction: s32
+    last: s32
+}
+
+Step :: (arm: s32, last: s32) -> Hold {
+    hold := Hold.{.direction = -1, .last = arm}
+    if arm != last { hold.direction = arm }
+    return hold
+}
+ZI
+cat > "$work/returned.zi" <<'ZI'
+Pad :: #import "pad";
+
+Forward :: (arm: s32, last: s32) -> Pad.Hold {
+    return Pad.Step(arm, last)
+}
+
+Literal :: (arm: s32) -> Pad.Hold {
+    return .{.direction = arm, .last = arm}
+}
+
+#law ForwardedField forall arm: 0..3, last: -1..3 => arm == last || Forward(arm, last).direction == arm;
+#law UntypedLiteral forall arm: 0..3 => Literal(arm).direction == arm && Literal(arm).last == arm;
+ZI
+"$ziran" check --root "$work" "$work/returned.zi" > "$work/returned.json"
+test "$(grep -c '"status":"proved"' "$work/returned.json")" = 2
 "$ziran" ir --root "$work" -o "$work/ir" "$work/records.zi"
 "$ziran" check --root "$work/ir" "$work/ir/records.zir" > "$work/saved.json"
 cmp "$work/laws.json" "$work/saved.json"

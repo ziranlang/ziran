@@ -252,14 +252,17 @@ it removes and stores zero over the ones it adds (`tests/spec/zx_lowered_resize.
 `image_resize_fallible` then lowered but spent its whole 4,000,000,000 work budget: every derived
 address was found by scanning the interpreter's address table. The table now has a hash index
 (`ExecInternAddress` in `cmd/compiler_exec.zi`) and the program runs in well under a second.
-`tests/zx_lowered_parity.sh` pins 53 programs.
+
+Eighth batch, 2026-11-14: `VecGet` and `VecPop` build their `Option` (`has_value`, `value`);
+a negative `VecGet` index fails the run as it does on the portable VM
+(`tests/spec/zx_lowered_take.zi`). `tests/zx_lowered_parity.sh` pins 54 programs.
 
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 78 | 62 |
+| `tests/spec` entries | 79 | 63 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
 No program is rejected by the verifier any more. First rejection of the 16 spec programs left:
@@ -268,7 +271,7 @@ No program is rejected by the verifier any more. First rejection of the 16 spec 
 |-------|-------|----------|
 | 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
 | 3 | unions | `vm_inline_records_test`, `vm_scalar_plans_test`, `vm_storage_reads_test` |
-| 1 | `VecGet`/`VecPop` (Option) | `vm_packed_arrays_test` |
+| 1 | `VecClone` | `vm_packed_arrays_test` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
 | 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
 | 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
@@ -304,7 +307,7 @@ VM (`cmd/zir/zir_bundle*.c`, `zir_vm*.c`: about 12,800 lines) and the ZIR-based 
 (`cmd/zir-wasm/zir_wasm_lower.c`: 3,400 lines); item 4 of the table at the top then leaves one
 native encoder instead of two.
 
-Not yet lowered: `VecResizeBounded`, `VecPop`/`VecGet` (Option), `VecClone`, SIMD, union and map types,
+Not yet lowered: `VecResizeBounded`, `VecClone`, `VecGet` of elements that own storage, SIMD, union and map types,
 initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX

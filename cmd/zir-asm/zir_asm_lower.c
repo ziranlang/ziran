@@ -2235,6 +2235,85 @@ assembly_vec_reserve_call(AssemblyProgram *program, AssemblyFunction *function, 
     return answer;
 }
 
+/* VecGet(values, index) and VecPop(values): an Option that holds the element
+ * when there is one. VecGet copies it and leaves the vector alone, with
+ * nothing for an index at or past the count; VecPop moves the last element
+ * out and shortens the vector by one. */
+static int
+assembly_vec_take(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression,
+                  int option, int get, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    int first = expression->first_child;
+    int second = first >= 0 && first < function->source->expr_count ?
+        function->source->exprs[first].next_sibling : -1;
+    if(first < 0 || first >= function->source->expr_count ||
+       (get && (second < 0 || second >= function->source->expr_count)))
+        return assembly_fail(program, span, "VecGet and VecPop require a vector place");
+    int identity = assembly_type(program, function, function->source->exprs[first].type, span);
+    int element = assembly_vec_element(program, identity);
+    if(program->failed) return -1;
+    LirType shape = *assembly_type_at(program, option);
+    if(element < 0 || shape.kind != LirTypeKind_Record || shape.fields.length != 2 ||
+       ((int *)shape.fields.data)[0] != 1 || ((int *)shape.fields.data)[1] != element)
+        return assembly_fail(program, span, "VecGet and VecPop require an owned vector and its Option");
+    if(get && assembly_owned(program, element, 0))
+        return assembly_fail(program, span, "VecGet of an element that owns storage is not lowered yet");
+    int pointer = assembly_pointer_type(program, element, span);
+    int at = get ? assembly_convert(program, function,
+        assembly_expression(program, function, second, depth + 1), 8, span) : -1;
+    AssemblyVecPlace place;
+    int current = assembly_vec_read(program, function, first, identity, &place, span);
+    if(program->failed) return -1;
+    int data = assembly_indexed(program, function, LirOp_Extract, pointer, &current, 1, 0, span);
+    int count = assembly_indexed(program, function, LirOp_Extract, 8, &current, 1, 1, span);
+    int zero = assembly_constant(program, function, 8, 0, span);
+    int carried = assembly_carry(program, function, identity, current);
+    int live = function->bindings.count;
+    AssemblyBinding *before = assembly_snapshot(program, function, live);
+    AssemblyBinding *answered = assembly_template(program, before, live, option);
+    if(program->failed || before == NULL || answered == NULL) return -1;
+    int present = assembly_block(program, function, before, live);
+    int absent = assembly_block(program, function, before, live);
+    int done = assembly_block(program, function, answered, live + 1);
+    if(program->failed) return -1;
+    /* A negative index compares below the count and then fails the element
+     * address, as it fails on the portable VM. */
+    int some_operands[] = {get ? at : zero, count};
+    int some = assembly_emit(program, function, LirOp_Less, 1, some_operands, 2, -1, span);
+    assembly_branch(program, function, some, present, absent, live, span);
+
+    assembly_enter(function, present, before, live);
+    if(!get) {
+        int last_operands[] = {count, assembly_constant(program, function, 8, 1, span)};
+        at = assembly_emit(program, function, LirOp_Subtract, 8, last_operands, 2, -1, span);
+    }
+    int slot_operands[] = {data, at, count};
+    int slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, slot_operands, 3, -1, span);
+    int item = assembly_emit(program, function, LirOp_Load, element, &slot, 1, -1, span);
+    if(!get) {
+        int shorter_operands[] = {assembly_carried(function, carried), at};
+        ((AssemblyBinding *)function->bindings.data)[carried].value =
+            assembly_indexed(program, function, LirOp_Insert, identity, shorter_operands, 2, 1, span);
+    }
+    int fields[] = {assembly_constant(program, function, 1, 1, span), item};
+    assembly_carry(program, function, option,
+        assembly_emit(program, function, LirOp_Aggregate, option, fields, 2, -1, span));
+    assembly_jump(program, function, done, live + 1, span);
+
+    assembly_enter(function, absent, before, live);
+    assembly_carry(program, function, option, assembly_zero(program, function, option, span, 0));
+    assembly_jump(program, function, done, live + 1, span);
+
+    if(program->failed) return -1;
+    assembly_enter(function, done, answered, live + 1);
+    int final = assembly_carried(function, carried);
+    int answer = assembly_carried(function, live);
+    function->bindings.count = carried;
+    if(!get) assembly_vec_write(program, function, &place, final, span);
+    return answer;
+}
+
 /* VecSwap(left, right): the two places exchange their vectors; no element
  * moves and nothing is allocated. */
 static int
@@ -2722,6 +2801,9 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
                 !strcmp(expression->name, "VecResize"), depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
+        if(!indirect && (!strcmp(expression->name, "VecGet") || !strcmp(expression->name, "VecPop")))
+            return assembly_vec_take(program, function, expression, type,
+                !strcmp(expression->name, "VecGet"), depth + 1);
         if(!indirect && !strcmp(expression->name, "BuilderAppend"))
             return assembly_builder_append(program, function, expression, depth + 1);
         if(!indirect && !strcmp(expression->name, "BuilderFinish"))

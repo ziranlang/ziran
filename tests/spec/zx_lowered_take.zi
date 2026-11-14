@@ -1,0 +1,42 @@
+// VecGet and VecPop on revision-28 ZX, pinned by tests/zx_lowered_parity.sh:
+// both give an Option. VecGet copies an element and answers nothing for an
+// index at or past the count; VecPop moves the last element out, shortens the
+// vector, keeps its capacity and answers nothing once it is empty.
+#import "vec"
+#import "option"
+
+Row :: struct {
+    cells: Vec(s64)
+    tag: s32
+}
+
+Last :: (values: *Vec(s64)) -> s64 {
+    taken := VecPop(values.*)
+    if !taken.has_value { return -1 }
+    return taken.value
+}
+
+main :: () -> s32 {
+    values: Vec(s64)
+    for index: 0..4 { VecPush(values, cast(s64)index * 10) }
+    inside := VecGet(values, 3)
+    outside := VecGet(values, 5)
+    popped := VecPop(values)
+    print("take % % % % % % %\n", inside.has_value, inside.value, outside.has_value, outside.value,
+        popped.has_value, popped.value, values.count)
+    total: s64
+    while values.count > 0 { total += Last(*values) }
+    empty := VecPop(values)
+    print("drain % % % % %\n", total, Last(*values), empty.has_value, values.count, values.capacity)
+
+    rows: Vec(Row)
+    for index: 0..2 {
+        row: Row
+        VecPush(row.cells, cast(s64)index + 7)
+        row.tag = cast(s32)index
+        VecPush(rows, row)
+    }
+    taken := VecPop(rows)
+    print("rows % % % %\n", taken.has_value, taken.value.tag, taken.value.cells[0], rows.count)
+    return cast(s32)(total + rows.count)
+}

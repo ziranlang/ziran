@@ -1,5 +1,6 @@
 #include "zir_memory.h"
 #include "ziran_host.h"
+#include "zir_host_exec.h"
 #include "zir_bundle.h"
 #include "compiler_bundle.h"
 #include "zir_diagnostic.h"
@@ -43,6 +44,8 @@ struct Bundle {
      * move the imports that instances' names would otherwise borrow. */
     char *capability_text;
     size_t capability_count;
+    /* A revision-28 executable; the fields above are then unused. */
+    ExecBundle *exec;
     Capability capabilities[];
 };
 
@@ -89,6 +92,7 @@ BundleEntry(const Bundle *bundle)
 const char *
 BundleEntryModuleName(const Bundle *bundle)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleEntryModule(bundle->exec);
     return bundle != NULL && bundle->entry_owner != NULL ?
         bundle->entry_owner->name : NULL;
 }
@@ -96,6 +100,7 @@ BundleEntryModuleName(const Bundle *bundle)
 const char *
 BundleEntryFunctionName(const Bundle *bundle)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleEntryFunction(bundle->exec);
     return bundle != NULL && bundle->entry != NULL ?
         bundle->entry->name : NULL;
 }
@@ -304,7 +309,7 @@ BundleIdentity(const Bundle *bundle, unsigned char identity[32])
 int
 BundleWriteLinked(const Bundle *bundle, const char *directory, unsigned char identity[32])
 {
-    if(bundle == NULL || !check_unchecked((Bundle *)bundle))
+    if(bundle == NULL || bundle->exec != NULL || !check_unchecked((Bundle *)bundle))
         return 0;
     bundle_identity(bundle, identity);
     char error[2048];
@@ -327,6 +332,21 @@ open_bundle(const unsigned char *bytes, size_t size, const char *name,
     if(bundle == NULL)
         return NULL;
     bundle->references = 1;
+    /* A revision-28 executable runs on the instruction engine. Its identity
+     * is the digest of all its bytes. */
+    if(ExecBundleBytes(bytes, size)) {
+        if(count != 0) {
+            Diagnostic(Span(name, 1, 1), "zx.input", "a revision-28 executable takes no bundle libraries");
+            goto failed;
+        }
+        bundle->exec = ExecBundleOpen(bytes, size, name);
+        if(bundle->exec == NULL) goto failed;
+        Sha256 hash;
+        Sha256Begin(&hash);
+        Sha256Add(&hash, bytes, size);
+        Sha256End(&hash, bundle->digest);
+        return bundle;
+    }
     if(count > 64 || (count != 0 && libraries == NULL) ||
        (count != 0 && (bundle->libraries = calloc(count, sizeof(*bundle->libraries))) == NULL))
         goto failed;
@@ -442,6 +462,7 @@ BundleClose(Bundle *bundle)
     if(bundle != NULL) {
         if(--bundle->references != 0)
             return;
+        ExecBundleClose(bundle->exec);
         ProgramFree(bundle->program);
         ZxLawTableFree(&bundle->laws);
         bundle->assets.count = bundle->own_asset_count;
@@ -490,12 +511,14 @@ BundleAssetSize(const Bundle *bundle, size_t index)
 size_t
 BundleCapabilityCount(const Bundle *bundle)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleCapabilityCount(bundle->exec);
     return bundle != NULL ? bundle->capability_count : 0;
 }
 
 const char *
 BundleCapabilityModule(const Bundle *bundle, size_t index)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleCapabilityModule(bundle->exec, index);
     return bundle != NULL && index < bundle->capability_count ?
         bundle->capabilities[index].module.data : NULL;
 }
@@ -503,6 +526,7 @@ BundleCapabilityModule(const Bundle *bundle, size_t index)
 const char *
 BundleCapabilityFunction(const Bundle *bundle, size_t index)
 {
+    if(bundle != NULL && bundle->exec != NULL) return ExecBundleCapabilityFunction(bundle->exec, index);
     return bundle != NULL && index < bundle->capability_count ?
         bundle->capabilities[index].function.data : NULL;
 }
@@ -578,7 +602,8 @@ same_capability_abi(const Bundle *bundle, size_t index,
 int
 BundleAbiCompatible(const Bundle *left, const Bundle *right)
 {
-    if(left == NULL || right == NULL ||
+    /* Revision-28 executables carry no declared capability signatures yet. */
+    if(left == NULL || right == NULL || left->exec != NULL || right->exec != NULL ||
        !same_optional_text(BundleEntryModuleName(left), BundleEntryModuleName(right)) ||
        !same_optional_text(BundleEntryFunctionName(left), BundleEntryFunctionName(right)) ||
        !same_optional_text(left->entry->args_text, right->entry->args_text) ||
@@ -601,6 +626,7 @@ typedef struct BindingSet {
 struct BundleInstance {
     BindingSet set;
     HostBinding *owned_bindings;
+    ExecInstance *exec;
 #ifdef ZIRAN_COMPILED_ZX
     ZxNative *native;
 #endif
@@ -649,6 +675,12 @@ dispatch(void *context, const char *module, const char *function,
     } else binding = find_binding(set, module, function);
     return binding != NULL && binding->call(binding->context, module,
                                             function, args, arg_count, result);
+}
+
+static const HostBinding *
+exec_find_binding(void *context, const char *module, const char *function)
+{
+    return find_binding(context, module, function);
 }
 
 static int
@@ -721,6 +753,16 @@ instantiate_bundle(const Bundle *bundle, const HostBinding *bindings,
     if(!validate_bindings(bundle, &instance->set)) {
         BundleInstanceClose(instance);
         return NULL;
+    }
+    /* A revision-28 executable has one engine; a step limit is its fuel. */
+    if(bundle->exec != NULL) {
+        (void)portable_only;
+        instance->exec = ExecInstanceOpen(bundle->exec, exec_find_binding, &instance->set, max_steps);
+        if(instance->exec == NULL) {
+            BundleInstanceClose(instance);
+            return NULL;
+        }
+        return instance;
     }
     if(max_steps > 0) {
 #ifdef ZIRAN_COMPILED_ZX
@@ -854,6 +896,8 @@ BundleInstanceRun(BundleInstance *instance, long long *result,
 {
     if(instance == NULL)
         return 0;
+    if(instance->exec != NULL)
+        return ExecInstanceRun(instance->exec, result, has_result);
 #ifdef ZIRAN_COMPILED_ZX
     if(instance->native != NULL)
         return ZxNativeRun(instance->native, result, has_result);
@@ -868,6 +912,10 @@ BundleInstanceLimitSteps(BundleInstance *instance, int max_steps)
 {
     if(instance == NULL)
         return;
+    if(instance->exec != NULL) {
+        ExecInstanceLimitSteps(instance->exec, max_steps);
+        return;
+    }
 #ifdef ZIRAN_COMPILED_ZX
     if(instance->native != NULL) {
         ZxNativeLimitSteps(instance->native, max_steps);
@@ -886,6 +934,10 @@ BundleInstanceMatchFieldsByName(BundleInstance *instance, int enabled)
 {
     if(instance == NULL)
         return;
+    if(instance->exec != NULL) {
+        ExecInstanceMatchFieldsByName(instance->exec, enabled);
+        return;
+    }
 #ifdef ZIRAN_COMPILED_ZX
     if(instance->native != NULL) {
         ZxNativeMatchFieldsByName(instance->native, enabled);
@@ -904,6 +956,7 @@ BundleInstanceClose(BundleInstance *instance)
 {
     if(instance == NULL)
         return;
+    ExecInstanceClose(instance->exec);
 #ifdef ZIRAN_COMPILED_ZX
     ZxNativeClose(instance->native);
 #endif
@@ -1500,6 +1553,10 @@ BundleInstanceExportState(BundleInstance *instance, BundleState **state)
     if(state == NULL)
         return 0;
     *state = NULL;
+    if(instance != NULL && instance->exec != NULL) {
+        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 instance has no exported state yet");
+        return 0;
+    }
     if(instance != NULL && instance->wasm != NULL) {
         const ZirProgram *program = ZxWasmProgram(instance->wasm);
         size_t count = ZxWasmStateCount(instance->wasm);
@@ -1615,6 +1672,10 @@ fail:
 int
 BundleInstanceImportState(BundleInstance *instance, const BundleState *state)
 {
+    if(instance != NULL && instance->exec != NULL) {
+        Diagnostic(Span("<host>", 1, 1), "zx.state", "a revision-28 instance has no imported state yet");
+        return 0;
+    }
     if(instance != NULL && instance->wasm != NULL && state != NULL) {
         const ZirProgram *program = ZxWasmProgram(instance->wasm);
         size_t count = ZxWasmStateCount(instance->wasm);
@@ -1833,7 +1894,8 @@ component_release(BundleComponent *component)
 static size_t
 component_live_value_bytes(const BundleComponent *component)
 {
-    if(component == NULL || component->closed || component->instance == NULL)
+    if(component == NULL || component->closed || component->instance == NULL ||
+       component->instance->vm == NULL)
         return 0;
     Vm *vm = &component->instance->vm->vm;
     if(vm->global_count < 0 ||

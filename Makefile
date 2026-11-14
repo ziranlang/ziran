@@ -143,11 +143,27 @@ FRONTEND := cmd/zir/zir_overlay.c cmd/zir/zir_semantic.c cmd/zir/zir_document.c 
     cmd/zir/zir_diagnostic.c cmd/zir/zir_profile.c cmd/zir/zir_files.c cmd/zir/zir_services.c
 PORTABLE := cmd/zir/zir_bundle.c cmd/zir/zir_bundle_assets.c
 HEADERS := $(wildcard cmd/zir/*.h) $(wildcard include/*.h)
-LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c
+LIB_SOURCES := $(FRONTEND) $(PORTABLE) cmd/zir/zir_host.c cmd/zir/zir_host_exec.c
 
 # Every C file compiles once to $(BUILD_DIR)/obj/<path>.o; binaries link objects.
 obj = $(patsubst %.c,$(BUILD_DIR)/obj/%.o,$(1))
-LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
+# The portable instruction engine (cmd/compiler_runtime.zi), behind the
+# embedding API in cmd/zir/zir_host_exec.c. Each generated module is its own
+# archive member, so a program that compiles the same standard modules itself
+# never links them twice. Its headers are found with -iquote only: the set
+# has its own math.h. The bootstrap compiler opens no bundle and has none.
+ENGINE_C := $(BUILD_DIR)/compiler-runtime
+ENGINE_MODULES := binary math utf8 vec compiler_lowered_ir compiler_lowered_verify \
+    compiler_exec_serial compiler_exec_link compiler_exec
+ifeq ($(BOOTSTRAP),1)
+ENGINE_OBJECTS :=
+$(call obj,cmd/zir/zir_host_exec.c): CFLAGS += -DZIRAN_NO_ENGINE
+else
+ENGINE_OBJECTS := $(patsubst %,$(BUILD_DIR)/obj/engine/%.o,$(ENGINE_MODULES))
+$(call obj,cmd/zir/zir_host_exec.c): CFLAGS += -iquote $(ENGINE_C)
+$(call obj,cmd/zir/zir_host_exec.c): $(ENGINE_C)/.generated
+endif
+LIB_OBJECTS := $(call obj,$(LIB_SOURCES)) $(ENGINE_OBJECTS) $(BUNDLE_MODULE_OBJECT) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
     $(BUILD_DIR)/obj/parse.o $(BUILD_DIR)/obj/emit.o $(BUILD_DIR)/obj/vm.o \
     $(call obj,cmd/zir/zir_zx_wasm.c cmd/zir/zir_zx_wasm_web.c cmd/zir-wasm/zir_wasm_lower.c)
 FRONTEND_OBJECTS := $(call obj,$(FRONTEND)) $(SCANNER_OBJECT) $(TEXT_OBJECT) $(SOURCE_OBJECT) $(DECLARATION_OBJECT) $(ENUM_OBJECT) $(TYPE_OBJECT) $(EXPRESSION_OBJECT) $(STATEMENT_OBJECT) $(PROOF_KERNEL_OBJECT) $(PROOF_OBJECT) $(IR_OBJECT) $(LAW_OBJECT) $(SERVICES_OBJECT) $(LINK_OBJECT) $(BUILD_DIR)/obj/check.o \
@@ -459,7 +475,7 @@ $(BIN_DIR)/zi2go: $(call obj,cmd/zir-go/main.c cmd/zir-go/zir_go_lower.c cmd/zir
 	$(CC) $(CFLAGS) -o $@ $^ -lm
 
 # zi2zx runs revision-28 executable ZX on the portable instruction engine.
-$(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c cmd/zir-asm/zx_exec_run.c) $(BUILD_DIR)/obj/assembly-core.o \
+$(BIN_DIR)/zi2zx: $(call obj,cmd/zir-zx/main.c cmd/zir-asm/zx_exec_run.c cmd/zir-asm/zir_asm_lower.c) $(BUILD_DIR)/obj/assembly-core.o \
     $(BUILD_DIR)/libziran.a | $(BIN_DIR)
 	$(CC) $(CFLAGS) -o $@ $^ $(RUNTIME_LIBS)
 	chmod 755 $@
@@ -550,6 +566,17 @@ $(PROOF_C)/.generated: cmd/compiler_proof.zi cmd/compiler_ir.zi cmd/compiler_ser
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
 	    -o $(PROOF_C) cmd/compiler_proof.zi
 	touch $@
+
+$(ENGINE_C)/.generated: cmd/compiler_runtime.zi cmd/compiler_exec_link.zi cmd/compiler_exec.zi \
+    cmd/compiler_exec_serial.zi cmd/compiler_lowered_verify.zi cmd/compiler_lowered_ir.zi \
+    cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
+	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \
+	    -o $(ENGINE_C) cmd/compiler_runtime.zi
+	touch $@
+
+$(BUILD_DIR)/obj/engine/%.o: $(ENGINE_C)/.generated $(BUILD_DIR)/.compiler-flags
+	@mkdir -p $(dir $@)
+	$(NICE) $(CC) $(CFLAGS) $(FRAMEFLAGS) -iquote $(ENGINE_C) -c -o $@ $(ENGINE_C)/$*.c
 
 $(BUNDLE_C)/.generated: cmd/compiler_bundle.zi $(BOOTSTRAP_BIN)
 	env -u DISPLAY -u WAYLAND_DISPLAY $(BOOTSTRAP_BIN) --no-main --root cmd \

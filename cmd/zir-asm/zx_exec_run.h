@@ -8,22 +8,9 @@
 
 #include "compiler_exec.h"
 #include "compiler_lowered_ir.h"
+#include "zir_exec_console.h"
 
 #include <stddef.h>
-
-enum {
-    ZX_SERVICE_NONE,
-    ZX_SERVICE_PRINT_BYTES,
-    ZX_SERVICE_PRINT_SIGNED,
-    ZX_SERVICE_PRINT_UNSIGNED,
-    ZX_SERVICE_PRINT_BOOL,
-    ZX_SERVICE_PRINT_FLOAT32,
-    ZX_SERVICE_PRINT_FLOAT64
-};
-
-/* The platform console service a host function of the program stands for:
- * one of the ZX_SERVICE_ names in the ziran.platform module, else none. */
-int ZxPlatformService(const LirProgram *program, int64_t function);
 
 /* Limits for a command-line run, which like a native build continues until
  * the entry returns: no work or fuel budget, deep recursion. */
@@ -40,5 +27,11 @@ int ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_r
  * Returns 0 for any other file, which the caller gives to the bundle reader. */
 int ZxExecRunBytes(const unsigned char *bytes, size_t size, LirExecLimits limits,
                    int print_result, int *status);
+
+/* Lowers the linked program's entry, optimizes it and writes revision-28
+ * executable ZX with its host interface section: what zi2asm --emit zx
+ * writes. Returns malloc'd bytes, or NULL after a diagnostic. */
+struct ZirProgram;
+unsigned char *ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, size_t *size);
 
 #endif

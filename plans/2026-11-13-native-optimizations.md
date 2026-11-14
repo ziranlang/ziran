@@ -333,11 +333,28 @@ only switch once each of these reads revision 28, so the cutover goes in stages,
    a. Done: any pointer crosses as an opaque handle; platform services require `ziran.platform`.
    b. Done: the optional host interface section names each capability's types and record fields
       (`AssemblyHostInterface`; format in `ASSEMBLY/zx-executable-format.md`).
-   c. The runtime library links the instruction engine: a bootstrap module for
-      `compiler_exec`, `compiler_exec_link`, `compiler_exec_serial`, `compiler_lowered_verify`
-      and `compiler_lowered_ir`, regenerated with `make update-bootstrap`.
-   d. `cmd/zir/zir_host.c` opens revision 28 as one more instance kind and translates host
-      values with the interface section.
+   c. Done: `libziran` links the instruction engine (`cmd/compiler_runtime.zi`), generated
+      by the bootstrap compiler like the other modules, one archive member per module so an app
+      that compiles the same standard modules links none twice; its headers are found with
+      `-iquote` because the set has its own `math.h`. Bootstrap builds open no bundle and
+      compile a stub (`ZIRAN_NO_ENGINE`), so no generated copy is checked in.
+   d. Done: `cmd/zir/zir_host.c` opens revision 28 as one more instance kind through
+      `cmd/zir/zir_host_exec.c`, which translates host values with the interface section by
+      the semantic VM's rules. `tests/portable_host_records.sh` runs the unchanged
+      `record_host_test.c` against the revision-28 file. Not yet: mutable slice copy-back,
+      state export/import, components, libraries, assets, `BundleCapabilityAbiAt`.
+
+   With `ZIRAN_BUNDLE_EXEC=1` (temporary, removed at the switch), `zi2zx bundle` and
+   `ziran run FILE.zi` write and run revision 28 through `ZxExecBuild`. The suite then passes
+   218 of 280. The other 62, grouped:
+   - VM internals: about 10 `tests/vm_*_test.c` drive the semantic VM through its program
+     (`program != NULL`); they go with the VM.
+   - Not lowered yet: parallel statements (6), more `Simd` operations (3), compound assignment
+     to a union member, three verifier rejections, one optimizer work limit, one value limit.
+   - The compiler's own Ziran test programs bundled as programs (`compiler_opt`, `lowered_exec`,
+     `lowered_serial`, `compiler_lowered_verify`).
+   - Embedding: step limits during global initialization, an unsigned field read, slice
+     copy-back, header byte comparisons, components, libraries, assets, state.
 3. `zi2zx bundle` and `ziran run FILE.zi` write and run revision 28. Each semantic-only feature
    then gets its revision-28 form or goes: assets, laws, state export, components, libraries,
    linked native code, the browser player.

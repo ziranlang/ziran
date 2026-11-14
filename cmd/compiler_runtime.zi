@@ -1,0 +1,5 @@
+// The portable instruction engine every embedder links through libziran:
+// the executable ZX container and reader, the lowered-IR verifier and the
+// interpreter. This module only names that set for the C generator.
+#import "compiler_exec_link"
+#import "compiler_exec"

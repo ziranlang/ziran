@@ -205,7 +205,8 @@ Ziran function supplied among its input modules with <code>--bind</code>. The li
 that the provider is reachable and its parameter and return types match; a
 bound call executes inside the same VM instance and is absent from the external
 capability list. An embedding C host links <code>build/libziran.a</code>, includes
-<code>ziran_host.h</code>, opens a bundle with <code>BundleOpen</code>, and inspects its required
+<code>ziran_host.h</code>, opens a bundle, semantic or revision-28 executable ZX, with
+<code>BundleOpen</code>, and inspects its required
 module/function names with <code>BundleCapabilityCount</code>, <code>BundleCapabilityModule</code>,
 and <code>BundleCapabilityFunction</code>. It passes <code>HostBinding</code> entries to <code>BundleRun</code>.
 The runner checks that every required binding is present before executing the

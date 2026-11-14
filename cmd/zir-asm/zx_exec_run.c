@@ -1,36 +1,13 @@
 #include "zx_exec_run.h"
+#include "zir_asm_lower.h"
 #include "compiler_exec_link.h"
+#include "compiler_opt.h"
+#include "compiler_lowered_verify.h"
 #include "zir_diagnostic.h"
-#include "zir_text.h"
 
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-static int
-zx_text_equal(String text, const char *expected)
-{
-    size_t length = strlen(expected);
-    return text.length == length && !memcmp(text.data, expected, length);
-}
-
-int
-ZxPlatformService(const LirProgram *program, int64_t function)
-{
-    if(function < 0 || function >= program->functions.length) return ZX_SERVICE_NONE;
-    const LirFunction *declared = &((const LirFunction *)program->functions.data)[function];
-    if(declared->module < 0 || declared->module >= program->modules.length ||
-       !zx_text_equal(((const String *)program->modules.data)[declared->module], "ziran.platform"))
-        return ZX_SERVICE_NONE;
-    String name = declared->name;
-    if(zx_text_equal(name, "ziran.platform.write_all")) return ZX_SERVICE_PRINT_BYTES;
-    if(zx_text_equal(name, "ziran.print.signed")) return ZX_SERVICE_PRINT_SIGNED;
-    if(zx_text_equal(name, "ziran.print.unsigned")) return ZX_SERVICE_PRINT_UNSIGNED;
-    if(zx_text_equal(name, "ziran.print.bool")) return ZX_SERVICE_PRINT_BOOL;
-    if(zx_text_equal(name, "ziran.print.float32")) return ZX_SERVICE_PRINT_FLOAT32;
-    if(zx_text_equal(name, "ziran.print.float64")) return ZX_SERVICE_PRINT_FLOAT64;
-    return ZX_SERVICE_NONE;
-}
 
 LirExecLimits
 ZxExecCommandLimits(void)
@@ -40,70 +17,6 @@ ZxExecCommandLimits(void)
     limits.fuel = INT64_MAX;
     limits.frames = 1000000;
     return limits;
-}
-
-/* Output uses the same spelling as the checked language's print on every
- * other route. */
-static bool
-zx_run_write(void *closure, void *context, uint64_t descriptor, Slice bytes)
-{
-    (void)closure;
-    (void)context;
-    FILE *stream = descriptor == 2 ? stderr : descriptor == 1 ? stdout : NULL;
-    if(stream == NULL) return false;
-    return bytes.length == 0 || fwrite(bytes.data, 1, (size_t)bytes.length, stream) == (size_t)bytes.length;
-}
-
-static bool
-zx_run_print(void *closure, void *context, int32_t function, Slice arguments, uint64_t *result)
-{
-    (void)closure;
-    const LirProgram *program = context;
-    const LirFunction *functions = program->functions.data;
-    const uint64_t *values = arguments.data;
-    *result = 0;
-    if(function < 0 || function >= program->functions.length || arguments.length != 1) return false;
-    char text[64];
-    (void)functions;
-    int service = ZxPlatformService(program, function);
-    if(service == ZX_SERVICE_PRINT_SIGNED)
-        snprintf(text, sizeof(text), "%lld", (long long)values[0]);
-    else if(service == ZX_SERVICE_PRINT_UNSIGNED)
-        snprintf(text, sizeof(text), "%llu", (unsigned long long)values[0]);
-    else if(service == ZX_SERVICE_PRINT_BOOL)
-        snprintf(text, sizeof(text), "%s", values[0] ? "true" : "false");
-    else if(service == ZX_SERVICE_PRINT_FLOAT32) {
-        uint32_t bits = (uint32_t)values[0];
-        float value;
-        memcpy(&value, &bits, sizeof(value));
-        FormatPrintFloat(value, 1, text, sizeof(text));
-    } else if(service == ZX_SERVICE_PRINT_FLOAT64) {
-        double value;
-        memcpy(&value, &values[0], sizeof(value));
-        FormatPrintFloat(value, 0, text, sizeof(text));
-    } else return false;
-    return fputs(text, stdout) >= 0;
-}
-
-/* Bind every declared platform console service; other host capabilities stay
- * unbound, so calling one fails as a named host problem. */
-static LirExecProblem
-zx_run_bind(LirExecInstance *instance, const LirProgram *program)
-{
-    const LirFunction *functions = program->functions.data;
-    for(int64_t index = 0; index < program->functions.length; index++) {
-        if(!functions[index].external) continue;
-        int service = ZxPlatformService(program, index);
-        LirExecProblem bound = LirExecProblem_None;
-        if(service == ZX_SERVICE_PRINT_BYTES)
-            bound = compiler_exec_LirExecBindPlatformWrite(instance, (int32_t)index,
-                (LirExecPlatformWrite){NULL, zx_run_write}, NULL);
-        else if(service != ZX_SERVICE_NONE)
-            bound = compiler_exec_LirExecBindHost(instance, (int32_t)index,
-                (LirExecHostCall){NULL, zx_run_print}, (void *)program);
-        if(bound != LirExecProblem_None) return bound;
-    }
-    return LirExecProblem_None;
 }
 
 int
@@ -127,7 +40,7 @@ ZxExecRunProgram(const LirProgram *program, LirExecLimits limits, int heap_repor
     if(result.problem == LirExecProblem_None)
         result = compiler_exec_LirExecInstanceOpen(&plan, limits, 1, &instance);
     if(result.problem == LirExecProblem_None) {
-        LirExecProblem bound = zx_run_bind(&instance, &plan.program);
+        LirExecProblem bound = ZxBindConsole(&instance, &plan.program);
         if(bound != LirExecProblem_None) result.problem = bound;
     }
     if(result.problem == LirExecProblem_None) result = compiler_exec_LirExecRun(&instance);
@@ -188,4 +101,63 @@ ZxExecRunBytes(const unsigned char *bytes, size_t size, LirExecLimits limits, in
     *status = ZxExecRunProgram(&program, limits, 0, print_result);
     compiler_exec_link_ZxExecReadFree(&owner);
     return 1;
+}
+
+unsigned char *
+ZxExecBuild(struct ZirProgram *program, const char *module, const char *function, size_t *size)
+{
+    unsigned char *bytes = NULL;
+    *size = 0;
+    LirOptOwner optimized = {0};
+    AssemblyProgram *lowered = AssemblyLower(program, module, function);
+    if(lowered == NULL) return NULL;
+    const LirProgram *view = AssemblyView(lowered);
+    LirDiagnostic diagnostic = compiler_lowered_verify_LirVerify(*view, compiler_lowered_ir_LirDefaultLimits());
+    if(diagnostic.problem != LirProblem_None) {
+        Diagnostic((ZirSourceSpan){0}, "assembly.verify",
+            "lowered IR rejected: problem=%d function=%d block=%d instruction=%d value=%d origin=%d",
+            diagnostic.problem, diagnostic.function, diagnostic.block, diagnostic.instruction,
+            diagnostic.value, diagnostic.origin);
+        goto done;
+    }
+    LirOptResult optimization = compiler_opt_LirOptBuild(&optimized, *view,
+        compiler_lowered_ir_LirDefaultLimits(), compiler_opt_LirOptDefaultOptions());
+    if(optimization.problem != LirOptProblem_None) {
+        LirDiagnostic rejected = optimization.diagnostic;
+        Diagnostic((ZirSourceSpan){0}, "assembly.optimize",
+            "optimization rejected: problem=%d verifier=%d function=%d block=%d instruction=%d value=%d origin=%d",
+            optimization.problem, rejected.problem, rejected.function, rejected.block,
+            rejected.instruction, rejected.value, rejected.origin);
+        goto done;
+    }
+    LirProgram optimized_program = compiler_opt_LirOptProgram(&optimized);
+    size_t interface_length = 0;
+    const char *interface = AssemblyHostInterface(lowered, &interface_length);
+    String interface_text = {interface ? interface : "", interface_length};
+    ZxExecResult measured = compiler_exec_link_ZxExecWrite(optimized_program, (Slice){0}, (Slice){0}, interface_text);
+    if(measured.problem != ZxExecProblem_None || measured.size <= 0 || measured.size > 268435456) {
+        String problem = compiler_exec_link_ZxExecProblemName(measured.problem);
+        Diagnostic((ZirSourceSpan){0}, "assembly.container",
+            "cannot measure executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
+            (int)problem.length, problem.data, measured.container, measured.codec, measured.diagnostic.problem);
+        goto done;
+    }
+    bytes = malloc((size_t)measured.size);
+    if(bytes == NULL) goto done;
+    ZxExecResult encoded = compiler_exec_link_ZxExecWrite(optimized_program, (Slice){0},
+        (Slice){bytes, measured.size}, interface_text);
+    if(encoded.problem != ZxExecProblem_None || encoded.size != measured.size) {
+        String problem = compiler_exec_link_ZxExecProblemName(encoded.problem);
+        Diagnostic((ZirSourceSpan){0}, "assembly.container",
+            "cannot encode executable ZX output: problem=%.*s container=%d codec=%d verifier=%d",
+            (int)problem.length, problem.data, encoded.container, encoded.codec, encoded.diagnostic.problem);
+        free(bytes);
+        bytes = NULL;
+        goto done;
+    }
+    *size = (size_t)measured.size;
+done:
+    compiler_opt_LirOptFree(&optimized);
+    AssemblyFree(lowered);
+    return bytes;
 }

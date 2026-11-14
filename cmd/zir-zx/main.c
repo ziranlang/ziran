@@ -199,6 +199,22 @@ bundle_to(int argc, char **argv, FILE *into, int *local)
     for(int host = 0; host < host_module_count; host++)
         if(!BindHostModule(&merged, host_modules[host]))
             goto done;
+    /* Experiment: ZIRAN_BUNDLE_EXEC=1 writes revision-28 executable ZX. */
+    if(getenv("ZIRAN_BUNDLE_EXEC") != NULL && library_count == 0 && host_module_count == 0) {
+        size_t size = 0;
+        unsigned char *bytes = ZxExecBuild(&merged, entry_module, entry_function, &size);
+        if(bytes == NULL) goto done;
+        FILE *target = into != NULL ? into : fopen(output, "wb");
+        int written = target != NULL && fwrite(bytes, 1, size, target) == size;
+        if(target != NULL && into == NULL && fclose(target) != 0) written = 0;
+        free(bytes);
+        if(!written) {
+            Diagnostic(Span(output ? output : "<memory>", 1, 1), "zx.output", "cannot write bundle");
+            goto done;
+        }
+        result = 0;
+        goto done;
+    }
     linked = BundleLink(&merged, entry_module, entry_function);
     if(linked == NULL || !CheckTargetCapabilities(linked, "zx") ||
        !VmVerify(linked, entry_module, entry_function))
@@ -304,13 +320,16 @@ is_source(const char *path)
 }
 
 /* Source runs as a bundle built here in memory. It is the only kind whose
- * #asm variants may run natively; a bundle file never is. */
+ * #asm variants may run natively; a bundle file never is. A revision-28
+ * bundle runs on the instruction engine at once, and *status is its exit
+ * status; otherwise the bundle is returned. */
 static Bundle *
-open_source(int argc, char **argv)
+open_source(int argc, char **argv, int *ran, int *status)
 {
     FILE *memory = tmpfile();
     int local = 0;
     Bundle *bundle = NULL;
+    *ran = 0;
     if(memory == NULL) {
         Diagnostic(Span("<command>", 1, 1), "zx.output", "cannot create a temporary bundle");
         return NULL;
@@ -319,8 +338,10 @@ open_source(int argc, char **argv)
         long size = ftell(memory);
         unsigned char *data = size > 0 ? malloc((size_t)size) : NULL;
         rewind(memory);
-        if(data != NULL && fread(data, 1, (size_t)size, memory) == (size_t)size)
-            bundle = BundleOpenBytes(data, (size_t)size);
+        if(data != NULL && fread(data, 1, (size_t)size, memory) == (size_t)size) {
+            if(ZxExecRunBytes(data, (size_t)size, ZxExecCommandLimits(), 1, status) != 0) *ran = 1;
+            else bundle = BundleOpenBytes(data, (size_t)size);
+        }
         free(data);
     }
     fclose(memory);
@@ -379,7 +400,10 @@ run_command(int argc, char **argv)
         }
     }
     RunJob job = {0};
-    job.bundle = source ? open_source(argc, argv) : BundleOpen(argv[0]);
+    int ran = 0, status = 1;
+    job.bundle = source ? open_source(argc, argv, &ran, &status) : BundleOpen(argv[0]);
+    if(ran)
+        return status;
     if(job.bundle == NULL)
         return 1;
     /* Discover the platform provider before running application code. */

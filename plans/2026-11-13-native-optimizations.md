@@ -263,20 +263,23 @@ sources: the C files have no unused functions; seven Ziran procedures nothing ca
 (`ExecCopyGlobalToStorage`, `ExecCopyStorageToGlobal`, `ExecCopyAddressToStorage`,
 `ExecCopyStorageToAddress`, `TakeS64`, `ValueClass`, `X86Move32`).
 
+Tenth batch, 2026-11-14: unions of integers and floats lower to one unsigned integer as wide as
+the widest member; `overlay.member` reads the low bytes reinterpreted and `overlay.member = x`
+replaces them, keeping the bytes above. `tests/zx_lowered_parity.sh` pins 57 programs.
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 79 | 64 |
+| `tests/spec` entries | 79 | 67 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 15 spec programs left:
+No program is rejected by the verifier any more. First rejection of the 12 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|
 | 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
-| 3 | unions | `vm_inline_records_test`, `vm_scalar_plans_test`, `vm_storage_reads_test` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
 | 1 | a long statement list (`unicode_normalization_cases.zi`): statement nesting budget | `unicode_normalization_test` |
 | 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
@@ -316,7 +319,7 @@ revision 28 does not lower yet. `cmd/compiler_serial.zi` (1,147 lines) is built,
 tested by nothing; it mirrors the C ZIR codec and reads like the next module of the self-hosted
 compiler, so it is left for the owner to decide.
 
-Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, SIMD, union and map types,
+Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, SIMD and map types, unions with record members,
 initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX

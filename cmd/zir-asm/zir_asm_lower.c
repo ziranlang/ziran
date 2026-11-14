@@ -318,6 +318,27 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
     if(record)
         for(int index = 0; index < program->type_names.count; index++)
             if(names[index].record == record) return names[index].identity;
+    if(record && record->is_union) {
+        /* A union of integers and floats is one unsigned integer as wide as
+         * its widest member. A member is read and written by reinterpreting
+         * its low bytes, which is what overlapping storage means on a
+         * little-endian target. */
+        size_t cursor = 0;
+        ZirTypeField field;
+        int status, width = 0;
+        while((status = TypeNextField(record, &cursor, &field)) == 1) {
+            int member = assembly_type_in(program, owner, field.type, span, depth + 1);
+            if(program->failed) return -1;
+            LirType shape = *assembly_type_at(program, member);
+            if(shape.kind != LirTypeKind_Integer && shape.kind != LirTypeKind_Float)
+                return assembly_fail(program, span, "this union has a member that is not an integer or a float");
+            if(shape.bits > width) width = shape.bits;
+        }
+        if(status < 0 || !width) return assembly_fail(program, span, "invalid checked union members");
+        int identity = width == 8 ? 3 : width == 16 ? 5 : width == 32 ? 7 : 9;
+        AssemblyType binding = {module, assembly_text(program, name), NULL, identity};
+        return assembly_push(program, &program->type_names, &binding) ? identity : -1;
+    }
     if(name[0] == '*') {
         int element = assembly_type_in(program, module, name + 1, span, depth + 1);
         int identity = assembly_pointer_type(program, element, span);
@@ -2639,6 +2660,58 @@ assembly_layout_size(AssemblyProgram *program, int identity, int64_t *alignment,
     return size;
 }
 
+/* The lowered type of member `name` when `type` is a union, else -1. */
+static int
+assembly_union_member(AssemblyProgram *program, AssemblyFunction *function, const char *type,
+                      const char *name, ZirSourceSpan span)
+{
+    const ZirModule *owner = function->module;
+    const ZirType *record = type && *type ? FindType(function->module, type, &owner) : NULL;
+    if(record == NULL || !record->is_union) return -1;
+    size_t cursor = 0;
+    ZirTypeField field;
+    while(TypeNextField(record, &cursor, &field) == 1)
+        if(!strcmp(field.name, name)) return assembly_type_in(program, owner, field.type, span, 0);
+    return assembly_fail(program, span, "union has no such member");
+}
+
+static int
+assembly_unsigned_of(int bits)
+{
+    return bits == 8 ? 3 : bits == 16 ? 5 : bits == 32 ? 7 : 9;
+}
+
+/* Read member type `member` out of the union value `whole`: its low bytes,
+ * reinterpreted. */
+static int
+assembly_union_read(AssemblyProgram *program, AssemblyFunction *function, int whole, int member, ZirSourceSpan span)
+{
+    LirType part = *assembly_type_at(program, member);
+    int bits = assembly_convert(program, function, whole, assembly_unsigned_of(part.bits), span);
+    if(part.kind == LirTypeKind_Float)
+        return assembly_emit(program, function, LirOp_Bitcast, member, &bits, 1, -1, span);
+    return assembly_convert(program, function, bits, member, span);
+}
+
+/* The union value `old` with `value`, of member type `member`, written over
+ * its low bytes; the bytes above the member stay. */
+static int
+assembly_union_write(AssemblyProgram *program, AssemblyFunction *function, int old, int value,
+                     int whole, int member, ZirSourceSpan span)
+{
+    LirType part = *assembly_type_at(program, member);
+    int narrow = assembly_unsigned_of(part.bits);
+    int bits = part.kind == LirTypeKind_Float ?
+        assembly_emit(program, function, LirOp_Bitcast, narrow, &value, 1, -1, span) :
+        assembly_convert(program, function, value, narrow, span);
+    int widened = assembly_convert(program, function, bits, whole, span);
+    if(part.bits == assembly_type_at(program, whole)->bits) return widened;
+    int kept_operands[] = {old, assembly_constant(program, function, whole,
+        ~((UINT64_C(1) << part.bits) - 1), span)};
+    int merged_operands[] = {assembly_emit(program, function, LirOp_BitAnd, whole, kept_operands, 2, -1, span), widened};
+    return assembly_emit(program, function, LirOp_BitOr, whole, merged_operands, 2, -1, span);
+}
+
 /* A bare `null` has no type of its own in checked ZIR: it is the null of the
  * pointer or procedure type it is passed, assigned or returned as. */
 static int
@@ -2740,6 +2813,15 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
         int address = assembly_address(program, function, root, depth + 1);
         if(program->failed) return -1;
         return assembly_emit(program, function, LirOp_Load, type, &address, 1, -1, expression->span);
+    }
+    if(expression->kind == ZIR_EXPR_MEMBER && expression->left >= 0 &&
+       expression->left < function->source->expr_count) {
+        int member = assembly_union_member(program, function,
+            function->source->exprs[expression->left].type, expression->name, expression->span);
+        if(program->failed) return -1;
+        if(member >= 0)
+            return assembly_union_read(program, function,
+                assembly_expression(program, function, expression->left, depth + 1), member, expression->span);
     }
     if(expression->kind == ZIR_EXPR_MEMBER || expression->kind == ZIR_EXPR_INDEX)
         return assembly_member(program, function, expression, depth + 1);
@@ -3139,20 +3221,46 @@ assembly_sequence(AssemblyProgram *program, AssemblyFunction *function, int begi
                 break;
             }
             int previous = -1;
-            int identity = assembly_type(program, function, function->source->exprs[statement->lhs_root].type, statement->span);
+            /* `whole.member = value` on a union assigns the whole union with
+             * the member's bytes replaced. */
+            int place = statement->lhs_root;
+            const ZirExpr *written = &function->source->exprs[place];
+            int union_member = written->kind == ZIR_EXPR_MEMBER && written->left >= 0 &&
+                written->left < function->source->expr_count ?
+                assembly_union_member(program, function, function->source->exprs[written->left].type,
+                    written->name, statement->span) : -1;
+            if(program->failed) break;
+            if(union_member >= 0) {
+                if(strcmp(statement->assignment_op, "=")) {
+                    assembly_fail(program, statement->span, "compound assignment to a union member is not lowered yet");
+                    break;
+                }
+                place = written->left;
+            }
+            int identity = assembly_type(program, function, function->source->exprs[place].type, statement->span);
 
             int address = -1;
             AssemblyLocalPlace *destination = NULL;
-            if(assembly_addressable(program, function, statement->lhs_root, 0))
-                address = assembly_address(program, function, statement->lhs_root, 0);
-            else destination = assembly_capture_local(program, function, statement->lhs_root, 0);
+            if(assembly_addressable(program, function, place, 0))
+                address = assembly_address(program, function, place, 0);
+            else destination = assembly_capture_local(program, function, place, 0);
             if(program->failed) break;
             if(strcmp(statement->assignment_op, "="))
                 previous = address >= 0 || destination->storage ?
                     assembly_emit(program, function, LirOp_Load, identity,
                         address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
                     destination->value;
-            int value = assembly_expression_for(program, function, statement->expr_root, identity, 0);
+            int value = assembly_expression_for(program, function, statement->expr_root,
+                union_member >= 0 ? union_member : identity, 0);
+            if(union_member >= 0 && !program->failed) {
+                int old = address >= 0 || destination->storage ?
+                    assembly_emit(program, function, LirOp_Load, identity,
+                        address >= 0 ? &address : &destination->value, 1, -1, statement->span) :
+                    destination->value;
+                value = assembly_union_write(program, function, old,
+                    assembly_convert(program, function, value, union_member, statement->span),
+                    identity, union_member, statement->span);
+            }
             if(strcmp(statement->assignment_op, "=")) {
                 char operator_text[4];
                 memcpy(operator_text, statement->assignment_op, sizeof(operator_text));

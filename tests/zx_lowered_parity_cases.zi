@@ -124,7 +124,8 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "vm_concurrent_instances_test:Next", "wide_compare_test:main", "zip_test:SelfTest",
         "sort_test:SelfTest", "vm_local_reads_test:main", "vm_u64_enums_test:main",
         "vm_deep_marking_test:Answer", "vm_return_storage_test:Answer", "vm_leaf_eval_test:main",
-        "image_resize_fallible:NativeMain"]
+        "image_resize_fallible:NativeMain", "vm_inline_records_test:Answer",
+        "vm_scalar_plans_test:Answer", "vm_storage_reads_test:main"]
     spec_root := CheckPath(test.repo, "tests/spec")
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))

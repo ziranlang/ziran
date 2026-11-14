@@ -4,7 +4,9 @@
 #include "zir_emit.h"
 #include "zir_parse.h"
 #include "zir_scalar.h"
+#include "zir_simd.h"
 #include "zir_text.h"
+#include "ziran_simd.h"
 
 #include <limits.h>
 #include <stdlib.h>
@@ -374,6 +376,28 @@ assembly_type_in(AssemblyProgram *program, const ZirModule *module,
         if(!assembly_push(program, &program->types, &view) ||
            !assembly_push(program, &program->type_names, &binding)) return -1;
         return identity;
+    }
+    ZirVector vector;
+    if(VectorType(name, &vector)) {
+        /* A vector is a fixed array of its lanes; each operation on it is
+         * lowered lane by lane, so the portable engine needs no vector type. */
+        if(vector.is_native)
+            return assembly_fail(program, span, "a native-width vector has no portable lowered representation");
+        int lane = assembly_type_in(program, module, vector.lane, span, depth + 1);
+        if(program->failed) return -1;
+        int identity = -1;
+        for(int index = 0; index < program->types.count && identity < 0; index++) {
+            LirType known = *assembly_type_at(program, index);
+            if(known.kind == LirTypeKind_Array && known.element == lane && known.count == vector.lanes)
+                identity = index;
+        }
+        if(identity < 0) {
+            LirType lanes = {.kind = LirTypeKind_Array, .element = lane, .count = vector.lanes};
+            identity = program->types.count;
+            if(!assembly_push(program, &program->types, &lanes)) return -1;
+        }
+        AssemblyType binding = {module, assembly_text(program, name), NULL, identity};
+        return assembly_push(program, &program->type_names, &binding) ? identity : -1;
     }
     LirType type = {0};
     if(!strcmp(name, "float32") || !strcmp(name, "float64") || !strcmp(name, "real")) {
@@ -2631,6 +2655,132 @@ assembly_expression(AssemblyProgram *program, AssemblyFunction *function, int ro
     return value;
 }
 
+/* A vector operation (`Simd.Add(a, b)`, checked as zi_simd_add) on vectors
+ * lowered as arrays of lanes. Each lane is taken out, operated on with the
+ * scalar instruction, and the lanes are gathered again. A comparison gives a
+ * lane of all ones or zero, and a load reads through the checked view, so a
+ * load past the end fails as an index past the end does. */
+static int
+assembly_simd(AssemblyProgram *program, AssemblyFunction *function, const ZirExpr *expression, int type, int depth)
+{
+    ZirSourceSpan span = expression->span;
+    const SimdOp *op = SimdOpChecked(expression->name);
+    if(op == NULL) return assembly_fail(program, span, "unknown vector operation");
+    int roots[33], count = 0;
+    int child = expression->first_child;
+    /* Checked ZIR names the result type in the call's own type; a type
+     * operand that is still listed is skipped. */
+    ZirVector named;
+    if(op->type_argument && child >= 0 && child < function->source->expr_count &&
+       function->source->exprs[child].kind == ZIR_EXPR_IDENT &&
+       VectorType(function->source->exprs[child].name, &named))
+        child = function->source->exprs[child].next_sibling;
+    for(; child >= 0 && child < function->source->expr_count && count < 33;
+        child = function->source->exprs[child].next_sibling) roots[count++] = child;
+    LirType result = *assembly_type_at(program, type);
+    int lanes = result.kind == LirTypeKind_Array ? (int)result.count : 0;
+    int lane_type = lanes ? result.element : 0;
+    int values[32];
+    if(lanes > 32) return assembly_fail(program, span, "vector has more lanes than the portable lowering handles");
+    int id = op->id;
+    if(id == ZI_OP_ZERO && lanes) return assembly_zero(program, function, type, span, 0);
+    if((id == ZI_OP_SPLAT && count == 1 && lanes) || (id == ZI_OP_MAKE && count == lanes && lanes)) {
+        for(int lane = 0; lane < lanes && !program->failed; lane++)
+            values[lane] = lane && id == ZI_OP_SPLAT ? values[0] : assembly_convert(program, function,
+                assembly_expression(program, function, roots[id == ZI_OP_SPLAT ? 0 : lane], depth + 1), lane_type, span);
+        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+    }
+    if((id == ZI_OP_LOAD || id == ZI_OP_LOAD_LOW) && count == 2 && lanes) {
+        int view = assembly_expression(program, function, roots[0], depth + 1);
+        int at = assembly_convert(program, function,
+            assembly_expression(program, function, roots[1], depth + 1), 8, span);
+        if(program->failed) return -1;
+        if(assembly_view_element(program, ((int *)function->values.data)[view]) != lane_type)
+            return assembly_fail(program, span, "a vector load needs a slice or string of the lane type");
+        int pointer = assembly_pointer_type(program, lane_type, span);
+        int data = assembly_indexed(program, function, LirOp_Extract, pointer, &view, 1, 0, span);
+        int length = assembly_indexed(program, function, LirOp_Extract, 8, &view, 1, 1, span);
+        int bits = assembly_type_at(program, lane_type)->bits;
+        int reach = id == ZI_OP_LOAD_LOW && bits ? 64 / bits : lanes;
+        for(int lane = 0; lane < lanes && !program->failed; lane++) {
+            if(lane >= reach) { values[lane] = assembly_zero(program, function, lane_type, span, 0); continue; }
+            int index = at;
+            if(lane) {
+                int next_operands[] = {at, assembly_constant(program, function, 8, (uint64_t)lane, span)};
+                index = assembly_emit(program, function, LirOp_Add, 8, next_operands, 2, -1, span);
+            }
+            int slot_operands[] = {data, index, length};
+            int slot = assembly_emit(program, function, LirOp_ElementAddress, pointer, slot_operands, 3, -1, span);
+            values[lane] = assembly_emit(program, function, LirOp_Load, lane_type, &slot, 1, -1, span);
+        }
+        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+    }
+    if(count < 1) return assembly_fail(program, span, "this vector operation is not lowered yet");
+    int first = assembly_expression(program, function, roots[0], depth + 1);
+    if(program->failed) return -1;
+    int first_type = ((int *)function->values.data)[first];
+    LirType source = *assembly_type_at(program, first_type);
+    if(source.kind != LirTypeKind_Array || source.count > 32)
+        return assembly_fail(program, span, "this vector operation is not lowered yet");
+    int width = (int)source.count;
+    int part = source.element;
+    LirTypeKind part_kind = assembly_type_at(program, part)->kind;
+    if((id == ZI_OP_LANE || id == ZI_OP_WITH_LANE) && count >= 2) {
+        const ZirExpr *selected = &function->source->exprs[roots[1]];
+        unsigned long long lane = 0;
+        if(selected->kind != ZIR_EXPR_INT || !ZirIntegerLiteral(selected->text, &lane) || lane >= (unsigned)width)
+            return assembly_fail(program, span, "a vector lane is chosen by an integer literal inside the vector");
+        if(id == ZI_OP_LANE)
+            return assembly_convert(program, function,
+                assembly_indexed(program, function, LirOp_Extract, part, &first, 1, (int)lane, span), type, span);
+        if(count != 3) return assembly_fail(program, span, "WithLane takes a vector, a lane and a value");
+        int operands[] = {first, assembly_convert(program, function,
+            assembly_expression(program, function, roots[2], depth + 1), part, span)};
+        return assembly_indexed(program, function, LirOp_Insert, first_type, operands, 2, (int)lane, span);
+    }
+    if(part_kind != LirTypeKind_Integer)
+        return assembly_fail(program, span, "this vector operation is not lowered for float lanes yet");
+    if(id == ZI_OP_ALL_ZERO && count == 1) {
+        int any = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, 0, span);
+        for(int lane = 1; lane < width; lane++) {
+            int operands[] = {any, assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span)};
+            any = assembly_emit(program, function, LirOp_BitOr, part, operands, 2, -1, span);
+        }
+        int operands[] = {any, assembly_constant(program, function, part, 0, span)};
+        return assembly_emit(program, function, LirOp_Equal, 1, operands, 2, -1, span);
+    }
+    if(id == ZI_OP_NOT && count == 1 && lanes == width) {
+        for(int lane = 0; lane < width; lane++) {
+            int value = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span);
+            values[lane] = assembly_emit(program, function, LirOp_BitNot, part, &value, 1, -1, span);
+        }
+        return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+    }
+    LirOp scalar = id == ZI_OP_ADD ? LirOp_Add : id == ZI_OP_SUB ? LirOp_Subtract : id == ZI_OP_MUL ? LirOp_Multiply :
+        id == ZI_OP_AND ? LirOp_BitAnd : id == ZI_OP_OR ? LirOp_BitOr : id == ZI_OP_XOR ? LirOp_BitXor :
+        id == ZI_OP_EQ ? LirOp_Equal : id == ZI_OP_LT || id == ZI_OP_GT ? LirOp_Less : LirOp_Invalid;
+    if(scalar == LirOp_Invalid || count != 2 || lanes != width)
+        return assembly_fail(program, span, "this vector operation is not lowered yet");
+    int second = assembly_expression(program, function, roots[1], depth + 1);
+    if(program->failed) return -1;
+    if(((int *)function->values.data)[second] != first_type)
+        return assembly_fail(program, span, "a vector operation needs two vectors of one type");
+    int compare = id == ZI_OP_EQ || id == ZI_OP_LT || id == ZI_OP_GT;
+    for(int lane = 0; lane < width; lane++) {
+        int left = assembly_indexed(program, function, LirOp_Extract, part, &first, 1, lane, span);
+        int right = assembly_indexed(program, function, LirOp_Extract, part, &second, 1, lane, span);
+        int operands[] = {id == ZI_OP_GT ? right : left, id == ZI_OP_GT ? left : right};
+        int value = assembly_emit(program, function, scalar, compare ? 1 : part, operands, 2, -1, span);
+        if(compare) {
+            /* True is every bit of the lane: zero minus one. */
+            int one = assembly_convert(program, function, value, lane_type, span);
+            value = assembly_emit(program, function, LirOp_Negate, lane_type, &one, 1, -1, span);
+        }
+        values[lane] = value;
+    }
+    return assembly_emit(program, function, LirOp_Aggregate, type, values, lanes, -1, span);
+}
+
 /* size_of(T) is the C layout size, as the C target gives it: each scalar is
  * aligned to its own size and a record to its widest member. */
 static int64_t
@@ -2976,6 +3126,8 @@ assembly_expression_value(AssemblyProgram *program, AssemblyFunction *function, 
                 !strcmp(expression->name, "VecResize"), depth + 1);
         if(!indirect && !strcmp(expression->name, "VecSwap"))
             return assembly_vec_swap(program, function, expression);
+        if(!indirect && !strncmp(expression->name, "zi_simd_", 8))
+            return assembly_simd(program, function, expression, type, depth + 1);
         if(!indirect && !strcmp(expression->name, "VecClone"))
             return assembly_vec_clone(program, function, expression, depth + 1);
         if(!indirect && (!strcmp(expression->name, "VecGet") || !strcmp(expression->name, "VecPop")))

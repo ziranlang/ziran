@@ -840,8 +840,10 @@ ExecAddressLookup :: (instance: *LirExecInstance, address: LirExecAddress) -> s6
 ExecAddressReindex :: (instance: *LirExecInstance) -> bool {
     live: s64
     for address: instance.addresses { if address.token != 0 { live += 1 } }
+    // The table never shrinks: a rebuild in place only drops removed entries.
     capacity: s64 = 64
     while capacity < (live + 1) * 4 { capacity *= 2 }
+    if capacity < instance.address_slots.count { capacity = instance.address_slots.count }
     if !VecResizeBounded(instance.address_slots, capacity, capacity) { return false }
     for index: cast(s64)0..capacity - 1 { instance.address_slots[index] = 0 }
     mask := capacity - 1

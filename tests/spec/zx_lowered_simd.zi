@@ -1,0 +1,26 @@
+// Vector operations on revision-28 ZX, pinned by tests/zx_lowered_parity.sh.
+// A vector is lowered as an array of its lanes and each operation lane by
+// lane: arithmetic wraps in the lane, a comparison gives a lane of all ones
+// or zero and follows the lane's signedness.
+Simd :: #import "simd"
+
+main :: () -> s32 {
+    bytes: [16]u8 = .[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    a := Simd.Load(u8x16, bytes[:], 0)
+    b := Simd.Splat(u8x16, 250)
+    sum := Simd.Add(a, b)
+    difference := Simd.Sub(a, b)
+    product := Simd.Mul(a, Simd.Splat(u8x16, 3))
+    masked := Simd.And(a, Simd.Splat(u8x16, 6))
+    mixed := Simd.Xor(a, b)
+    greater := Simd.Greater(a, Simd.Splat(u8x16, 7))
+    changed := Simd.WithLane(Simd.Zero(u8x16), 5, 99)
+    words: [8]s16 = .[-4, -3, -2, 0, 1, 2, 3, 4]
+    below := Simd.Less(Simd.Splat(s16x8, -3), Simd.Load(s16x8, words[:], 0))
+    low := Simd.LoadLow(u8x16, bytes[:], 8)
+    print("simd % % % % % % % % % % % % %\n", Simd.Lane(sum, 0), Simd.Lane(sum, 15), Simd.Lane(difference, 1),
+        Simd.Lane(product, 15), Simd.Lane(masked, 7), Simd.Lane(mixed, 5), Simd.Lane(greater, 7),
+        Simd.Lane(greater, 8), Simd.Lane(changed, 5), Simd.Lane(below, 0), Simd.Lane(below, 2),
+        Simd.Lane(low, 7), Simd.Lane(low, 8))
+    return cast(s32)Simd.Lane(product, 9)
+}

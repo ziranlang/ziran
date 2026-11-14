@@ -288,19 +288,27 @@ to the end on revision 28 with the semantic route's result, in 27 s against 25 s
 VM. It needs more than the 4,000,000,000 work units `tests/zx_lowered_parity.sh` allows, and a
 minute per run, so it is not pinned. `tests/zx_lowered_parity.sh` pins 59 programs.
 
+Fourteenth batch, 2026-11-14: vectors. A vector type (`u8x16`) is an array of its lanes and each
+`zi_simd_*` call is lowered lane by lane (`assembly_simd`): `Splat`, `Zero`, `Make`, `Load`,
+`LoadLow`, `Lane`, `WithLane`, `Add`, `Sub`, `Mul`, `And`, `Or`, `Xor`, `Not`, `Equal`, `Less`,
+`Greater`, `AllZero`, for integer lanes. All eight JSON programs lower and give the semantic
+route's result. `json_array_reuse_test` ends with 230 live heap blocks: its strings come from
+`BuilderFinish`, which nothing frees without a collector, so it is not pinned. The address index
+failed when a rebuild made its table smaller (`VecResizeBounded` refuses a bound below the
+current capacity); it now only grows. `tests/zx_lowered_parity.sh` pins 66 programs.
+
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 81 | 70 |
+| `tests/spec` entries | 82 | 79 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. First rejection of the 11 spec programs left:
+No program is rejected by the verifier any more. The 3 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|
-| 8 | SIMD vector types (`u8x16`, `Simd.Splat`, `Simd.Load`) | `json_array_reuse_test` (2 entries), `json_scan_test` (2), `json_string_value_test`, `json_string_scan_test`, `json_document_lifetime_test`, `std_float_text` |
 | 2 | non-host foreign services or native variants | `generic_assembly_test`, `native_assembly_test` |
 | 1 | long array literals in read-only data: lowering allocation budget | `unicode_conformance` |
 
@@ -339,7 +347,7 @@ revision 28 does not lower yet. `cmd/compiler_serial.zi` (1,147 lines) is built,
 tested by nothing; it mirrors the C ZIR codec and reads like the next module of the self-hosted
 compiler, so it is left for the owner to decide.
 
-Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, SIMD and map types, unions with record members,
+Not yet lowered: `VecResizeBounded`, `VecClone` and `VecGet` of elements that own storage, the other `Simd` operations and float lanes, map types, unions with record members,
 initializers that call procedures, indirect calls through fields.
 
 ### Wasm from revision-28 ZX

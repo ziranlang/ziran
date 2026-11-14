@@ -4,6 +4,8 @@
 
 - Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
 
+- Revision-28 lowering adds vectors: a vector type is an array of its lanes and each `Simd` operation is lowered lane by lane, so the portable engine needs no vector type. `Splat`, `Zero`, `Make`, `Load`, `LoadLow`, `Lane`, `WithLane`, `Add`, `Sub`, `Mul`, `And`, `Or`, `Xor`, `Not`, `Equal`, `Less`, `Greater` and `AllZero` lower for integer lanes; a load past the end of its slice fails like an index past the end. Every program that reads JSON now lowers. The interpreter's address index no longer fails when it is rebuilt smaller.
+
 - Revision-28 lowering turns an integer case list of eight or more values into a binary search over the values, so `if x == { case ... }` with n cases costs about log2(n) compares instead of n.
 
 - The portable interpreter gives address-table entries back: a frame's when it returns and a heap block's when it is freed or resized. A reused slot carries a new version in its pointer bits, so a pointer kept from before still fails. A program used to stop at its 1,048,575th address, which a call that takes one local's address reaches after about a million calls. Pointer bits now hold the low 16 bits of the instance identity, a 28-bit slot version and the slot.

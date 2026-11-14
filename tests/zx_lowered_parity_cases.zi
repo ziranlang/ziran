@@ -125,7 +125,9 @@ main :: (argc: s32, argv: **u8) -> s32 {
         "sort_test:SelfTest", "vm_local_reads_test:main", "vm_u64_enums_test:main",
         "vm_deep_marking_test:Answer", "vm_return_storage_test:Answer", "vm_leaf_eval_test:main",
         "image_resize_fallible:NativeMain", "vm_inline_records_test:Answer",
-        "vm_scalar_plans_test:Answer", "vm_storage_reads_test:main"]
+        "vm_scalar_plans_test:Answer", "vm_storage_reads_test:main", "json_scan_test:SelfTest",
+        "json_scan_test:NativeMain", "json_string_value_test:SelfTest", "json_string_scan_test:SelfTest",
+        "json_document_lifetime_test:Answer", "std_float_text:SelfTest"]
     spec_root := CheckPath(test.repo, "tests/spec")
     ParityAdd(*cases, spec_root, "zx_lowered_features:main", CheckPath(spec_root, "zx_lowered_features.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_vec:main", CheckPath(spec_root, "zx_lowered_vec.zi"))
@@ -140,6 +142,7 @@ main :: (argc: s32, argv: **u8) -> s32 {
     ParityAdd(*cases, spec_root, "zx_lowered_take:main", CheckPath(spec_root, "zx_lowered_take.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_addresses:main", CheckPath(spec_root, "zx_lowered_addresses.zi"))
     ParityAdd(*cases, spec_root, "zx_lowered_cases:main", CheckPath(spec_root, "zx_lowered_cases.zi"))
+    ParityAdd(*cases, spec_root, "zx_lowered_simd:main", CheckPath(spec_root, "zx_lowered_simd.zi"))
     for entry: spec {
         at: s64
         while entry[at] != cast(u8)58 { at += 1 }

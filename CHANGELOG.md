@@ -4,6 +4,8 @@
 
 - Document module initializers in the usage guide and lock their behavior with a test: a module-level variable whose initializer calls a procedure runs once before the entry on the C, Go and portable targets, importing a module is what includes it, and a module can register a procedure with another module that never imports it. A program without the import carries neither the module nor what only it reaches.
 
+- Revision-28 lowering turns an integer case list of eight or more values into a binary search over the values, so `if x == { case ... }` with n cases costs about log2(n) compares instead of n.
+
 - The portable interpreter gives address-table entries back: a frame's when it returns and a heap block's when it is freed or resized. A reused slot carries a new version in its pointer bits, so a pointer kept from before still fails. A program used to stop at its 1,048,575th address, which a call that takes one local's address reaches after about a million calls. Pointer bits now hold the low 16 bits of the instance identity, a 28-bit slot version and the slot.
 
 - Revision-28 lowering walks an `if` with its `else if` links as one chain that meets in a single join block, so a case list of any length lowers (a 1,500-case list used to exhaust the nesting budget). The portable interpreter gives freed heap storage back by following a link from each block to the one below it instead of scanning every block ever allocated, and a block keeps its record when it grows in place.

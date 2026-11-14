@@ -3140,6 +3140,95 @@ assembly_store_captured(AssemblyProgram *program, AssemblyFunction *function,
     assembly_store_captured(program, function, place->parent, updated, span);
 }
 
+/* One arm of an integer case list: the value it matches, where its body
+ * begins and closes, and the block the body is lowered into. */
+typedef struct AssemblyCase {
+    uint64_t value;
+    int open;
+    int close;
+    int block;
+} AssemblyCase;
+
+static int assembly_case_signed;
+
+static int
+assembly_case_order(const void *left, const void *right)
+{
+    uint64_t a = ((const AssemblyCase *)left)->value, b = ((const AssemblyCase *)right)->value;
+    if(assembly_case_signed) return (int64_t)a < (int64_t)b ? -1 : (int64_t)a > (int64_t)b;
+    return a < b ? -1 : a > b;
+}
+
+/* Branch from the current block to the arm among cases[low..high) whose
+ * value `subject` equals, or to `otherwise`: a binary search, so a list of
+ * n cases costs about log2(n) compares instead of n. */
+static void
+assembly_dispatch(AssemblyProgram *program, AssemblyFunction *function, int subject, int type,
+                  const AssemblyCase *cases, int low, int high, int otherwise,
+                  const AssemblyBinding *before, int count, ZirSourceSpan span)
+{
+    if(program->failed) return;
+    int middle = low + (high - low) / 2;
+    int operands[] = {subject, assembly_constant(program, function, type, cases[middle].value, span)};
+    if(high - low == 1) {
+        int same = assembly_emit(program, function, LirOp_Equal, 1, operands, 2, -1, span);
+        assembly_branch(program, function, same, cases[low].block, otherwise, count, span);
+        return;
+    }
+    int lower = assembly_block(program, function, before, count);
+    int upper = assembly_block(program, function, before, count);
+    int below = assembly_emit(program, function, LirOp_Less, 1, operands, 2, -1, span);
+    assembly_branch(program, function, below, lower, upper, count, span);
+    assembly_enter(function, lower, before, count);
+    assembly_dispatch(program, function, subject, type, cases, low, middle, otherwise, before, count, span);
+    assembly_enter(function, upper, before, count);
+    assembly_dispatch(program, function, subject, type, cases, middle, high, otherwise, before, count, span);
+}
+
+/* The arms of an `if` chain when it is a case list over one local: every
+ * link compares the same identifier with a distinct integer literal. Returns
+ * the number of arms, with `*otherwise` the `else` statement or -1 and
+ * `*next` the statement after the chain; 0 when the chain is anything else. */
+static int
+assembly_case_list(AssemblyProgram *program, AssemblyFunction *function, int index, int end,
+                   AssemblyVector *arms, int *otherwise, int *next)
+{
+    const ZirFunction *source = function->source;
+    const char *subject = NULL;
+    *otherwise = -1;
+    for(int at = index;;) {
+        const ZirStmt *statement = &source->stmts[at];
+        int close = assembly_close(program, source, at, end);
+        if(at != index && statement->expr_root < 0) { *otherwise = at; *next = close + 1; break; }
+        if(statement->expr_root < 0 || statement->expr_root >= source->expr_count) return 0;
+        const ZirExpr *condition = &source->exprs[statement->expr_root];
+        if(condition->kind != ZIR_EXPR_BINARY || strcmp(condition->op, "==") ||
+           condition->left < 0 || condition->right < 0) return 0;
+        const ZirExpr *left = &source->exprs[condition->left], *right = &source->exprs[condition->right];
+        /* The value is an integer literal, bare or negated. */
+        int negative = 0;
+        if(right->kind == ZIR_EXPR_UNARY && !strcmp(right->op, "-") &&
+           right->right >= 0 && right->right < source->expr_count) {
+            right = &source->exprs[right->right];
+            negative = 1;
+        }
+        if(left->kind != ZIR_EXPR_IDENT || left->is_global_value || right->kind != ZIR_EXPR_INT ||
+           (subject && strcmp(subject, left->name))) return 0;
+        subject = left->name;
+        unsigned long long bits = 0;
+        const char *digits = right->text;
+        if(digits[0] == '-') negative = !negative;
+        if(digits[0] == '-' || digits[0] == '+') digits++;
+        if(!ZirIntegerLiteral(digits, &bits)) return 0;
+        AssemblyCase arm = {negative ? 0 - bits : bits, at, close, -1};
+        if(!assembly_push(program, arms, &arm)) return 0;
+        *next = close + 1;
+        at = close + 1;
+        if(at >= end || !source->stmts[at].is_else) break;
+    }
+    return arms->count;
+}
+
 static int
 assembly_if(AssemblyProgram *program, AssemblyFunction *function, int index, int end, int depth)
 {
@@ -3156,7 +3245,52 @@ assembly_if(AssemblyProgram *program, AssemblyFunction *function, int index, int
     AssemblyBinding *before = assembly_snapshot(program, function, count);
     AssemblyVector arms = {.width = sizeof(Arm)};
     int next = index;
-    for(;;) {
+    /* A case list of eight or more integer values is a binary search. */
+    AssemblyVector listed = {.width = sizeof(AssemblyCase)};
+    int otherwise_at = -1, after = index;
+    int subject = -1, subject_type = 0;
+    if(assembly_case_list(program, function, index, end, &listed, &otherwise_at, &after) >= 8) {
+        const ZirExpr *first = &function->source->exprs[function->source->stmts[index].expr_root];
+        subject = assembly_expression(program, function, first->left, 0);
+        if(program->failed) return end;
+        subject_type = ((int *)function->values.data)[subject];
+        LirType shape = *assembly_type_at(program, subject_type);
+        AssemblyCase *cases = listed.data;
+        if(shape.kind == LirTypeKind_Integer) {
+            /* Each value as the subject's type holds it, then in order. */
+            for(int arm = 0; arm < listed.count; arm++) {
+                if(shape.bits < 64) cases[arm].value &= (UINT64_C(1) << shape.bits) - 1;
+                if(shape.is_signed && shape.bits < 64 && (cases[arm].value >> (shape.bits - 1)))
+                    cases[arm].value |= ~((UINT64_C(1) << shape.bits) - 1);
+            }
+            assembly_case_signed = shape.is_signed;
+            qsort(cases, (size_t)listed.count, sizeof(*cases), assembly_case_order);
+            for(int arm = 1; arm < listed.count; arm++)
+                if(cases[arm].value == cases[arm - 1].value) subject = -1;
+        } else subject = -1;
+    }
+    if(subject >= 0 && listed.count >= 8) {
+        AssemblyCase *cases = listed.data;
+        for(int arm = 0; arm < listed.count; arm++) cases[arm].block = assembly_block(program, function, before, count);
+        int otherwise = assembly_block(program, function, before, count);
+        if(program->failed) return end;
+        assembly_dispatch(program, function, subject, subject_type, cases, 0, listed.count, otherwise,
+            before, count, span);
+        for(int arm = 0; arm < listed.count && !program->failed; arm++) {
+            assembly_enter(function, cases[arm].block, before, count);
+            assembly_sequence(program, function, cases[arm].open + 1, cases[arm].close, depth + 1);
+            Arm reached = {function->current, assembly_snapshot(program, function, count)};
+            if(!assembly_push(program, &arms, &reached)) return end;
+        }
+        if(program->failed) return end;
+        assembly_enter(function, otherwise, before, count);
+        if(otherwise_at >= 0)
+            assembly_sequence(program, function, otherwise_at + 1,
+                assembly_close(program, function->source, otherwise_at, end), depth + 1);
+        Arm rest = {function->current, assembly_snapshot(program, function, count)};
+        if(program->failed || !assembly_push(program, &arms, &rest)) return end;
+        next = after;
+    } else for(;;) {
         const ZirStmt *statement = &function->source->stmts[next];
         int close = assembly_close(program, function->source, next, end);
         int conditional = next == index || statement->expr_root >= 0;

@@ -1,0 +1,42 @@
+// Integer case lists on revision-28 ZX, pinned by tests/zx_lowered_parity.sh.
+// A list of eight or more values lowers to a binary search over the values;
+// a value that matches no case runs none of the arms.
+Name :: (value: s32) -> s32 {
+    if value == {
+        case -7; return 1
+        case -1; return 2
+        case 0; return 3
+        case 3; return 4
+        case 4; return 5
+        case 9; return 6
+        case 20; return 7
+        case 100; return 8
+        case 1000; return 9
+    }
+    return 0
+}
+
+Weight :: (code: u8) -> s32 {
+    result: s32 = -1
+    if code == {
+        case 1; result = 10
+        case 2; result = 20
+        case 4; result = 40
+        case 8; result = 80
+        case 16; result = 160
+        case 32; result = 320
+        case 64; result = 640
+        case 128; result = 1280
+        case 255; result = 2550
+    }
+    return result
+}
+
+main :: () -> s32 {
+    total: s32
+    for value: -10..1001 { total += Name(cast(s32)value) }
+    weights: s32
+    for code: 0..255 { weights += Weight(cast(u8)code) }
+    print("cases % %\n", total, weights)
+    return total
+}

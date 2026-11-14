@@ -280,20 +280,23 @@ heap block is chained to it; the chain is released when the frame returns or the
 or resized, and the slots are reused. A pointer is the instance identity's low 16 bits, a 28-bit
 slot version and the slot, so a pointer kept from an earlier use of the slot never matches.
 `tests/spec/zx_lowered_addresses.zi` makes 1.2 million calls that each take a local's address.
-`unicode_normalization_test` now gets past the address limit and stops at its work budget
-instead: its 1,500-case `if index == { ... }` lowers to a chain of compares, so one lookup walks
-hundreds of blocks. Integer case lists should lower to a binary search.
+
+Thirteenth batch, 2026-11-14: an integer case list of eight or more values (the `case_value`
+local the checker makes, compared with literals) lowers to a binary search
+(`assembly_dispatch`, `tests/spec/zx_lowered_cases.zi`). `unicode_normalization_test` then runs
+to the end on revision 28 with the semantic route's result, in 27 s against 25 s on the portable
+VM. It needs more than the 4,000,000,000 work units `tests/zx_lowered_parity.sh` allows, and a
+minute per run, so it is not pinned. `tests/zx_lowered_parity.sh` pins 59 programs.
 
 Inventory, 2026-11-14:
 
 | Set | Programs the semantic route runs | Lower to revision 28 |
 |-----|----------------------------------|----------------------|
 | `examples/*.zi` | 14 | 14 |
-| `tests/spec` entries | 79 | 68 |
+| `tests/spec` entries | 81 | 70 |
 | Kryon examples (`portable` profile, saved IR of the 89 built ones) | 89 | 89 |
 
-No program is rejected by the verifier any more. `unicode_normalization_test` lowers but does not
-finish on the interpreter (item 3). First rejection of the 11 spec programs left:
+No program is rejected by the verifier any more. First rejection of the 11 spec programs left:
 
 | Count | Needs | Programs |
 |-------|-------|----------|

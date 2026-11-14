@@ -66,8 +66,8 @@ slashes organize the public package namespace and do not expose private files.
   `cmd/zir/zir_parse_typed.c`, `cmd/zir/zir_parse_condition.c`,
   `cmd/zir/zir_parse_internal.h`, `cmd/zir/zir_check_value.c`,
   `cmd/zir/zir_check_expr.c`, `cmd/zir/zir.c`, `cmd/zir/zir.h`.
-- Backend selection and propagation: `cmd/zir-c/main.c`, `cmd/zir-go/main.c`,
-  `cmd/zir-ir/main.c`, `cmd/zir-wasm/main.c`, `cmd/zir-zx/main.c`, and
+- Backend selection and propagation: `cmd/zi2c/main.c`, `cmd/zi2go/main.c`,
+  `cmd/zi2zir/main.c`, `cmd/zx2wasm/main.c`, `cmd/zi2zx/main.c`, and
   `Makefile` only where needed.
 - Portable declarations and target-proxy cleanup: affected files under `std/`.
 - Nested export validation and loading: `cmd/compiler_declaration.zi`,

@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "name": "Kryon web player: bundle Wasm tier against the instruction engine",
+  "host": "alpha \u00b7 Intel(R) Core(TM) i7-8700 CPU @ 3.20GHz",
+  "virtualization": "none",
+  "measured_at": "2026-11-14",
+  "loadavg_before": [
+    "4.24",
+    "4.68",
+    "4.49"
+  ],
+  "loadavg_after": [
+    "with",
+    "code",
+    "0]"
+  ],
+  "ziran_revision": "efe3fabf (player built from the working tree with the suspendable tier)",
+  "bundle": "Kryon tests/zx/hosted.zi built by zx-hosted-test (hosted.zx)",
+  "methodology": "Kryon build/zx-canvas player (Asyncify) in a private headless Chromium (snap) driven over the DevTools protocol. After the page loads, the on-screen joystick is held so the app steps on every repeat; main-thread TaskDuration (Performance.getMetrics) is read over a 10 s window. Engine runs set globalThis.ZIRAN_WASM_TIER = \"0\" before the page loads. Three alternating runs per mode through build-queue; medians of raw samples, none excluded by the symmetric 1.5\u00d7IQR rule. The first tier run of the series included cold page and module compilation.",
+  "wasm": {
+    "task_ms_per_s_samples": [
+      206.968,
+      83.814,
+      84.895
+    ],
+    "median_task_ms_per_s": 84.895,
+    "steps": [
+      98,
+      100,
+      100
+    ],
+    "script_ms_per_s_samples": [
+      1.4076,
+      0.7331,
+      0.7297
+    ]
+  },
+  "engine": {
+    "task_ms_per_s_samples": [
+      104.513,
+      110.187,
+      99.982
+    ],
+    "median_task_ms_per_s": 104.513,
+    "steps": [
+      100,
+      100,
+      100
+    ],
+    "script_ms_per_s_samples": [
+      0.6895,
+      0.7022,
+      0.6917
+    ]
+  }
+}

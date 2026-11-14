@@ -489,7 +489,13 @@ Owner: "improve it to make it fasetr bencahark and improev teh coer isuse alawys
   from or stored to later in its own block takes a scratch table entry instead of an interned
   one (also fixes Jungle's `address-limit` on a few MB of saved pictures). Float-text run
   63.9 -> 45.0 s locally. A derivation cache keyed by parent and member gave nothing and was
-  removed. Alpha before/after: `bench/zx_engine.zi`, results under `bench/results/`.
+  removed. Measured on Omega at the owner's request ("why dhint you jsut bulid here"); the
+  Alpha run was lost when Alpha's checkout was synced past the "before" commit. Before, single
+  local runs of the committed build: float-text 63.9 s; after 45.0 s. `bench/zx_engine.zi`
+  (engine against the C target, interleaved, raw samples, 1.5xIQR), current build, in
+  `bench/results/zx-engine-omega-2026-11-14-after.json` and `-float-after.json`: json_scan
+  665 ms vs C 1.2 ms (569x), image_resize 278 ms vs 0.9 ms (319x), float-text 43.7 s vs
+  111 ms (393x). The engine is still two to three orders of magnitude slower than C.
 - Next by the profile: dispatch (one call chain per instruction through `ExecStep` and
   `ExecValueInstruction`) and the per-instruction work and validity bookkeeping.
 - Not started: Resize on the native x86-64 encoder, so programs with `Vec` build as ELF.
@@ -546,8 +552,12 @@ the budget in a local; blocks are laid out in a weak topological order so loops 
 records read from an array are read, and changed, in place; small copies are unrolled. The
 instruction engine is 20 to 7,000 times slower than the Wasm module on these kernels.
 
-The tier stays out of Asyncify and JSPI runtimes (Kryon's player), whose hosts suspend the stack;
-the engine runs bundles there. Recursive host types cross the tier, bounded at 64 levels.
+In Asyncify runtimes (Kryon's player), whose hosts suspend the stack, modules are lowered
+suspendable: they unwind with the stack and resume at the host call. In Kryon's player with
+the hosted test app (joystick held, 10 s, Alpha, 3 runs a mode) the main thread is busy a median
+84.9 ms a second on the tier against 104.5 on the engine
+(`bench/results/kryon-player-tier-alpha-physical-2026-11-14.json`). JSPI runtimes still use the
+engine. Recursive host types cross the tier, bounded at 64 levels.
 
 Done, 2026-11-14: the published site target matrix (`site/generated/targets`) is regenerated
 with this compiler on all three platforms: desktop and web on Alpha, and mobile on the moto e6
@@ -587,12 +597,15 @@ be implementd", "and wasm tier should work", "how wolud we improev it", "so do a
 | 2 | Resize on the native x86-64 encoder; one native encoder instead of two | lowering specialist | queued |
 | 3 | Native ZX loading in players (x86-64): verified ZX → machine code in memory, W^X, host trampolines into the embedding bridge, engine fallback per bundle | native-player task | queued (subtask slot) |
 | 4 | Phones: AArch64 and ARMv7 encoders on the merged machine pipeline, the same loading on Android, tests on the moto e6 | native-player task | after 3 |
-| 5 | Wasm tier inside Asyncify/JSPI runtimes, so Kryon's web player runs bundles as WebAssembly | Wasm specialist | after the Toolchains CI fix and the mobile site matrix |
+| 5 | Wasm tier inside Asyncify/JSPI runtimes, so Kryon's web player runs bundles as WebAssembly | Wasm specialist | done for Asyncify, 2026-11-14; JSPI still uses the engine |
 | 6 | Per-module cached lowering: lower each ZIR module once, cache it like an object file, link into ZX | lowering specialist | after 2 |
 | 7 | Self-hosting (owner: "and wyh arenty ou writing al of ziran in ziran so we can bootstarp it"): the compiler is 32,092 lines of Ziran (`cmd/*.zi`) and about 88,800 lines of C (`cmd/zir` 68,387, `cmd/zir-asm` 6,481, `cmd/zir-c` 4,832, `cmd/zir-wasm` 4,586, `cmd/zir-go` 4,266, `cmd/zir-zx` 279). Port the C to Ziran module by module, each landing with `make check` and `make check-bootstrap` green, deleting the C it replaces: ZIR → ZX lowering (`zir_asm_lower.c`) and ZX → Wasm first (they feed the one format), then the C and Go generators, then the checker and emitter in `cmd/zir`, then the drivers. `bootstrap/` then holds only generated C from the previous compiler plus a small runtime | dedicated self-hosting task | starts when a subtask slot frees |
 | 8 | Smaller saved ZIR (expression text as a slice of its statement), source positions kept through ZX into engine and native errors | lowering specialist | after 6 |
 | 9 | Docs describe one format everywhere (Ziran and Kryon) | docs task | queued (subtask slot) |
 | 10 | Tool names by format (owner: "zir-asm should probabyl be renabel to just something like zi2zx ... we wolud nede a clean naming to do the excats foramt we want"): `zi2zx` = source/ZIR → verified ZX (absorbs `zi2asm --emit zx/lir/opt-report`) and `zi2zx run`; `zx2wasm` = ZX → WebAssembly; `zx2native` = ZX → machine code (`--target x86_64/aarch64/armv7`, ELF on Linux and Android); `zi2asm` removed; folders match tools (`cmd/zi2zx/`, `cmd/zx2wasm/`, `cmd/zx2native/`, `cmd/zi2c/`, `cmd/zi2go/`, `cmd/zi2zir/`). One commit across Makefiles, tests, site scripts, CI workflows, the VS Code extension and docs, with `make check` green | coordinator, at a quiet point | after the current engine fixes and the Toolchains CI fix land |
+
+| 12 | Engine at Go/Wasm speed (owner: "why is zx engine so slow i must make it et lesat as good asn go or wasm"): players and `ziran run` execute native code from ZX (items 3–4) and the Wasm tier in browsers, so the engine is only the fallback; the engine itself gets a direct-threaded plan-time translation, no per-access bookkeeping where the verifier proves safety, and superinstructions; target at least 3x on bench/zx_engine and the site matrix vs 2026-11-14 | lowering specialist | after the rename lands; native loading per plans/2026-11-14-native-zx-players.md |
+| 11 | One benchmark table across every route (owner: "i also want a tabel comprasing Zi2c zi2go etc.. how much has zi2zx improved and zi2 binary"): C, Go, Wasm from ZX, ZX engine, and native binaries from ZX (`zx2native` / `ziran build`), same workloads on Alpha's physical host and the moto e6, with the Nov 13 receipts (old VM, old TinyCC native, old zi2wasm) as the before column | Co-Z benchmark task | after the tool rename lands |
 
 C and Go stay generated from ZIR: from the lowered form they would lose names and structure.
 

@@ -48,6 +48,23 @@ zx2native --target x86_64|aarch64|armv7 [--platform linux|android]
   zx2native --target x86_64 --platform linux --emit elf -o app app.zx
   ```
 
+Owner follow-up, 2026-11-14: the high-level command exposes that composition
+without blurring the format-specific tools. `ziran build FILE.zi` defaults to a
+native host binary (verified `zi2zx` output followed by `zx2native` for the host
+target), while `ziran build --target=c|go|wasm|zx` selects that exact output
+route. `ziran run` continues to run ZX on the portable engine; it does not
+silently select native output. For a direct source file, native output defaults
+to the source stem when `-o` is absent. Project-only `ziran build` keeps its
+existing package build contract so package tools and native-library metadata do
+not silently change backend.
+
+Compatibility boundary: this rename does not change native code generation.
+`zx2native` defaults to the existing `compiler_lowered_x64` encoder, and keeps
+the machine-IR pipeline behind the explicit `--machine` switch with no fallback
+between the two. Removing the direct encoder and the switch is deferred to
+Session 2 of [the native ZX/player plan](2026-11-14-native-zx-players.md), after
+the machine pipeline has reached behavioral parity.
+
 ### Exact command changes
 
 | Old | New |

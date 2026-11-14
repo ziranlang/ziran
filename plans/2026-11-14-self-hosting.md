@@ -8,6 +8,14 @@ Ziran destination and defines session-sized steps. The eventual `bootstrap/`
 state is generated C from the previous compiler plus the small OS/runtime C that
 generated programs require; there is no second hand-written compiler.
 
+Tool-name cutover note, 2026-11-14: the current-state measurements and cited
+old paths below remain dated evidence. For implementation, translate
+`cmd/zir-asm` to `cmd/zi2zx` for `zir_asm_lower`/`zx_exec_run`, and to
+`cmd/zx2native` for the saved-ZX native driver; translate `cmd/zir-wasm` to
+`cmd/zx2wasm`, `cmd/zir-c` to `cmd/zi2c`, `cmd/zir-go` to `cmd/zi2go`, and
+`cmd/zir-zx` to the consolidated `cmd/zi2zx`. The deletion steps delete those
+new live C paths, not already-removed compatibility directories.
+
 ## Why staged bootstrap is mandatory
 
 The current compiler is already partly self-hosted: `zi2c` compiles

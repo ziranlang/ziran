@@ -605,6 +605,54 @@ and warm separately. “Native faster” requires correct output, identical
 workload/ZX hash, physical Alpha evidence, and comparison to both the current
 engine and the immutable M0 receipts.
 
+## Engine speed
+
+Owner, 2026-11-14: "why is zx engine so slow i must make it et lesat as good asn go or wasm".
+Players will run compiled code through the sessions above; the instruction engine itself must
+also get much faster, because it stays the fallback, the reference for parity, and the runner
+for the suite. Target: at least 3x on `bench/zx_engine.zi` (json_scan, image_resize) and on the
+site matrix's loops, arrays and enums, measured on Alpha's physical host with raw samples, with
+each case's distance to the Go target reported.
+
+Where the time goes today (gprof of the float-text check's bundle run after the
+2026-11-14 batch; 45 s, C 0.11 s): the step loop and value instructions about 36%
+(`ExecStep` -> `ExecValueInstruction`, an if-chain on the opcode, a work charge and frame and
+plan lookups for every instruction), memory instructions about 25%, address interning about 20%
+(less since transient addresses), block edges about 6%. Every operand read also checks a
+validity byte and its LIR type, and every result write masks by its type. Current numbers on
+Omega: json_scan 665 ms vs C 1.2 ms, image_resize 278 ms vs 0.9 ms, float-text 43.7 s vs
+0.11 s (`bench/results/zx-engine-omega-2026-11-14-*after.json`).
+
+Steps, each landed with `lowered_exec`, `zx_lowered_parity`, the assembly checks and a
+benchmark run before the next:
+
+1. Translate each verified function once, at plan time, into a compact instruction array:
+   a dense handler code specialized by operation and width (`add.s32`, `load.u8`,
+   `element.address.view`, `branch.less.s64`, ...), destination and operand frame-word indices
+   resolved ahead, constants as immediates, and block parameters as precomputed word moves.
+   One function runs a frame's code in one loop over a dense `switch` (the C target turns it
+   into a jump table); calls push a frame and continue the same loop instead of returning
+   through `ExecStep`. The LIR plan stays the source of truth for diagnostics: a handler that
+   fails reports the instruction it came from.
+2. Work accounting per block: the plan records each block's work, charged on entry. When a
+   block's work is more than what remains, that block runs instruction by instruction, so a
+   work-limit failure stops at the same instruction as today. Fuel stays exact (explicit `fuel`
+   instructions).
+3. Drop per-read validity and type checks for verified code: the verifier already proves that
+   definitions dominate uses and that operand types match. Keep the checks where values come
+   from outside the plan (host results, arguments, state imports).
+4. Addresses: keep tokens only for pointers that are stored, compared, passed or returned.
+   A derivation used only by loads and stores nearby keeps an inline (store, offset, extent)
+   in the frame instead of a table entry, checked when it is made, as transient entries are
+   checked now.
+5. Superinstructions for the pairs the profile shows hottest: view element address + load or
+   store, compare + branch, extract of a view's data and count, and constant operands.
+6. Measure on Alpha: `bench/zx_engine.zi` cases plus the site matrix, engine against C and Go,
+   before and after each step, raw samples and 1.5xIQR, results in `bench/results/`.
+
+Files: `cmd/compiler_exec.zi` only (the plan builder and the run loop); host-image and
+heap-reclamation code is left as it is.
+
 ## Final deletion ledger
 
 After all gates, the tree no longer contains:
